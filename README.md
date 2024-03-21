@@ -9,6 +9,36 @@ gnucash plaintext is an app that can
 
 ## Motivation
 
+I have been using GnuCash to track my finance for several decades. At first, I was looking for a software that I could
+use to track my spending. Now, GnuCash is a place where I keep track of my expenses, income and investment. There are 
+commercial software and SaasS, people even mention notion as an online ledger, but I stick to GnuCash. I believe in one
+thing that I need to own my financial data and I would use an open source tool like GnuCash.
+
+At first I used Microsoft Money but then Microsoft discontinued this product. I then found GnuCash. I was not quite sure
+how to use GnuCash in the very beginning. I had to learn accounting basic such as Assets, Liabilities, Income, Expense
+and Equity. I had to admit that if it were not for GnuCash, I wouldn't have learnt bookkeeping and accounting and I would
+not have reviewed my financial status regularly like a CFO of myself.
+
+As my ledger grows, I start to worry, what if GnuCash become obsolete? The first commit of GnuCash was made in 1997 and
+today GnuCash is still under active development. It seems unlikely that my worry will come true, but I want to always
+prepare for such event.
+
+Then I find [ledger-cli](https://ledger-cli.org/doc/ledger3.html) and [beancount](https://github.com/beancount/beancount).
+I immediately feel that plaintext accounting is what I am looking for. It is in human readable text format and the content
+will be readable by others even without any software.
+
+However, when I dive deeper into ledger-cli and beancount, I know I cannot migrate my ledger to either of them. There are
+features of GnuCash that I use and are not supported any of the two. Also, I have lots of reports in GnuCash that will
+take me lots of time to migrate. What's more, my account names are highly flexible, e.g., they include spaces, CJK and, 
+punctuations. 
+
+I do agree with the author of beancount that GnuCash's UIs are inconvenient. Suddenly, I ask myself, why can't I build
+a plaintext language that is similar to beancount and compatible with GnuCash. I can edit my ledger in GnuCash UIs and
+then export to a text file. I can also edit my text file and then a cli will parse the text file and create transactions
+and/or accounts in GnuCash? I can also export a beancount compatible text file to use against [beancount](https://github.com/beancount/beancount) and [fava](https://github.com/beancount/fava).
+
+I explore GnuCash python bindings and beancount documentations. Now I am pretty sure that my idea is both viable and valuable. 
+
 ## Concepts
 
 
@@ -21,6 +51,20 @@ gnucash plaintext is an app that can
 ## GnuCash plaintext
 
 GnuCash plaintext is inspired by beancount, and it aims to be compatible with beancount as much as possible.
+
+Right now, GnuCash plaintext supports GnuCash `Account`, `Commodity`, `Transaction`, and `Split`.
+
+| GnuCash concept supported by GnuCash plaintext    | beancount corresponding concept                   |
+|---------------------------------------------------|---------------------------------------------------|
+| Account                                           | Account                                           |
+| Commodity / Currency                              | Commodities / Currencies                          |
+| Transaction                                       | Transaction                                       |
+| Split                                             | Posting (of Transaction)                          |
+| Document Link (of a transaction)                  | N/A                                               |
+| N/A                                               | Documents (attached to the journal of an account) |
+| Properties of Account/Commodity/Transaction/Split | Metadata                                          |
+
+
 
 ### Accounts
 
