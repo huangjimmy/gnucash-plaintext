@@ -78,17 +78,17 @@ jobs:
           wget https://github.com/macports/macports-base/releases/download/v2.9.1/MacPorts-2.9.1.tar.gz
           tar -xzvf MacPorts-2.9.1.tar.gz
           cd $HOME/opt/mports/MacPorts-2.9.1
-          ./configure --prefix=$HOME/opt/local --with-install-user=`id -un` --with-install-group=`id -gn`
+          ./configure --prefix=$HOME/macports --with-install-user=`id -un` --with-install-group=`id -gn`
           make
           make install
           make distclean
-          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
-          export MACPORTS_HOME=$HOME/opt/local
+          export PATH=$HOME/macports/bin:$HOME/macports/sbin:$PATH
+          export MACPORTS_HOME=$HOME/macports
           port selfupdate
       - name: Install GnuCash
         run: |
-          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
-          export MACPORTS_HOME=$HOME/opt/local
+          export PATH=$HOME/macports/bin:$HOME/macports/sbin:$PATH
+          export MACPORTS_HOME=$HOME/macports
           port -d sync
           port install gnucash
           PYTHON_SELECT=$(port info depof:gnucash | grep Runtime | grep python)
@@ -103,17 +103,17 @@ jobs:
           fi
       - name: Test Plaintext to GnuCash
         run: |
-          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
-          export MACPORTS_HOME=$HOME/opt/local
+          export PATH=$HOME/macports/bin:$HOME/macports/sbin:$PATH
+          export MACPORTS_HOME=$HOME/macports
           python3 -m unittest --verbose plaintext_to_gnucash_test.py
       - name: Test GnuCash to plaintext
         run: |
-          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
-          export MACPORTS_HOME=$HOME/opt/local
+          export PATH=$HOME/macports/bin:$HOME/macports/sbin:$PATH
+          export MACPORTS_HOME=$HOME/macports
           python3 -m unittest --verbose gnucash_to_plaintext_test.py
       - name: Test Plaintext Parser
         run: |
-          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
-          export MACPORTS_HOME=$HOME/opt/local
+          export PATH=$HOME/macports/bin:$HOME/macports/sbin:$PATH
+          export MACPORTS_HOME=$HOME/macports
           python3 -m unittest --verbose parser/plaintext_parser_test.py
           
