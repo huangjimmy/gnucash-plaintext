@@ -1,0 +1,12 @@
+
+2013-01-30 commodity template.template
+	mnemonic: "template"
+	fullname: "template"
+	namespace: "template"
+	fraction: 1
+
+2013-01-30 commodity template.Reward-Points
+	mnemonic: "Reward-Points"
+	fullname: "Reward-Points"
+	namespace: "template"
+	fraction: 100

@@ -1,0 +1,15 @@
+2010-06-30 commodity CNY
+	mnemonic: "CNY"
+	fullname: "Yuan Renminbi"
+	namespace: "CURRENCY"
+	fraction: 100
+
+2010-06-30 open Expenses
+	guid: "f92ba20b43e82b24c6a76b5b2ad70980"
+	type: "Expense"
+	placeholder: #True
+	code: ""
+	description: "Expenses"
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"

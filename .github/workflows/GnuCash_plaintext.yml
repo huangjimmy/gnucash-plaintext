@@ -1,0 +1,61 @@
+name: Build and verify GnuCash plaintext
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  GnuCash-55_Fedora-39:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:39
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install GnuCash
+        run: sudo yum install -y gnucash
+      - name: Test Plaintext to GnuCash
+        run:  python3 -m unittest --verbose plaintext_to_gnucash_test.py
+      - name: Test GnuCash to plaintext
+        run: python3 -m unittest --verbose gnucash_to_plaintext_test.py
+      - name: Test Plaintext Parser
+        run: python3 -m unittest --verbose parser/plaintext_parser_test.py
+
+  GnuCash-48_Debian-12:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:12
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install GnuCash
+        run: apt-get update && apt-get install -y gnucash
+      - name: Test Plaintext to GnuCash
+        run:  python3 -m unittest --verbose plaintext_to_gnucash_test.py
+      - name: Test GnuCash to plaintext
+        run: python3 -m unittest --verbose gnucash_to_plaintext_test.py
+      - name: Test Plaintext Parser
+        run: python3 -m unittest --verbose parser/plaintext_parser_test.py
+
+  GnuCash-34_Debian-10:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:10
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install GnuCash
+        run: apt-get update && apt-get install -y gnucash python3-pip
+      - name: typing-extensions
+        run: python3 -m pip install typing-extensions
+      - name: Test Plaintext to GnuCash
+        run: python3 -m unittest --verbose plaintext_to_gnucash_test.py
+      - name: Test GnuCash to plaintext
+        run: python3 -m unittest --verbose gnucash_to_plaintext_test.py
+      - name: Test Plaintext Parser
+        run: python3 -m unittest --verbose parser/plaintext_parser_test.py
