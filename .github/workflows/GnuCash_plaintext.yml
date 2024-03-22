@@ -5,6 +5,13 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      build_gnucash_mac:
+        description: 'Whether to trigger the build/test on macos. The default value is false because it takes hours to build GnuCash under macos by macports.'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   GnuCash-55_Fedora-39:
@@ -62,6 +69,7 @@ jobs:
 
   GnuCash_macos-latest:
     runs-on: macos-latest
+    if: ${{ inputs.build_gnucash_mac }}
     steps:
       - name: Install macports
         run: |
