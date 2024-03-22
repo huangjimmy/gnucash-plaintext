@@ -1,11 +1,10 @@
 import re
 from utils import (beancount_compatible_account_name, beancount_compatible_commodity_symbol, decode_value_from_string)
-from typing import Tuple, Optional, Iterable, Dict, NotRequired
 import sys
 if sys.version_info >= (3, 8):
-    from typing import TypedDict
+    from typing import Tuple, Optional, Iterable, Dict, TypedDict, NotRequired
 else:
-    from typing_extensions import TypedDict
+    from typing_extensions import Tuple, Optional, Iterable, Dict, TypedDict, NotRequired
 
 from enum import Enum
 
