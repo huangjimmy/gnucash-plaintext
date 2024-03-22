@@ -74,12 +74,11 @@ jobs:
           make
           make install
           make distclean
-          echo 'export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH' >> ~/.zshrc
-          echo 'export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH' >> ~/.bashrc
           export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           port selfupdate
       - name: Install GnuCash
         run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           port -d sync
           port install gnucash
           PYTHON_SELECT=$(port info depof:gnucash | grep Runtime | grep python)
@@ -94,11 +93,14 @@ jobs:
           fi
       - name: Test Plaintext to GnuCash
         run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           python3 -m unittest --verbose plaintext_to_gnucash_test.py
       - name: Test GnuCash to plaintext
         run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           python3 -m unittest --verbose gnucash_to_plaintext_test.py
       - name: Test Plaintext Parser
         run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           python3 -m unittest --verbose parser/plaintext_parser_test.py
           
