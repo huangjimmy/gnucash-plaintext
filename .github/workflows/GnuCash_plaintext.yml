@@ -75,16 +75,19 @@ jobs:
           make
           make install
           make distclean
+      - name: portindex macports repo and
+        run: |
           cd $HOME/opt/mports
           git clone --single-branch https://github.com/macports/macports-ports.git
           cd macports-ports
           git checkout 4bd091558ce8461dc0e3a712f5729cf85e47dd61
-      - name: Install GnuCash 5.0
-        run: |
           export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           cd $HOME/opt/mports/macports-ports/
           echo "file://$HOME/opt/mports/macports-ports [default]" >  $HOME/opt/local/etc/macports/sources.conf
           portindex
+      - name: Install GnuCash 5.0
+        run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           cd $HOME/opt/mports/macports-ports/gnome/gnucash/
           yes | port install
           port select --set python3 python310
