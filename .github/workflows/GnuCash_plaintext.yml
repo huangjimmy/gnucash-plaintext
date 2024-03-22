@@ -61,7 +61,7 @@ jobs:
         run: python3 -m unittest --verbose parser/plaintext_parser_test.py
 
   GnuCash_macos-latest:
-    runs-on: macos-latest
+    runs-on: macos-latest-xlarge
     steps:
       - name: Install macports
         run: |
@@ -75,10 +75,12 @@ jobs:
           make install
           make distclean
           export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
+          export MACPORTS_HOME=$HOME/opt/local
           port selfupdate
       - name: Install GnuCash
         run: |
           export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
+          export MACPORTS_HOME=$HOME/opt/local
           port -d sync
           port install gnucash
           PYTHON_SELECT=$(port info depof:gnucash | grep Runtime | grep python)
@@ -94,13 +96,16 @@ jobs:
       - name: Test Plaintext to GnuCash
         run: |
           export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
+          export MACPORTS_HOME=$HOME/opt/local
           python3 -m unittest --verbose plaintext_to_gnucash_test.py
       - name: Test GnuCash to plaintext
         run: |
           export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
+          export MACPORTS_HOME=$HOME/opt/local
           python3 -m unittest --verbose gnucash_to_plaintext_test.py
       - name: Test Plaintext Parser
         run: |
           export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
+          export MACPORTS_HOME=$HOME/opt/local
           python3 -m unittest --verbose parser/plaintext_parser_test.py
           
