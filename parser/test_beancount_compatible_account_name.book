@@ -1,0 +1,81 @@
+2020-03-20 open Expenses-CAN
+	type: "Expense"
+	is_placeholder: "True"
+	code: ""
+	description: ""
+	color: "None"
+	notes: "None"
+	tax_related: "False"
+	commodity_namespace: "CURRENCY"
+	commodity_symbol: "CAD"
+
+2020-03-20 open Expenses-CAN:식료품/장보기
+	type: "Expense"
+	is_placeholder: "True"
+	code: ""
+	description: ""
+	color: "None"
+	notes: "None"
+	tax_related: "False"
+	commodity_namespace: "CURRENCY"
+	commodity_symbol: "CAD"
+
+2020-07-13 open Assets
+	type: "Asset"
+	is_placeholder: "True"
+	code: ""
+	description: "Assets"
+	color: "None"
+	notes: "None"
+	tax_related: "False"
+	commodity_namespace: "CURRENCY"
+	commodity_symbol: "CNY"
+
+2020-08-24 open Assets:Current Assets
+	type: "Asset"
+	is_placeholder: "True"
+	code: ""
+	description: "Current Assets"
+	color: "None"
+	notes: "None"
+	tax_related: "False"
+	commodity_namespace: "CURRENCY"
+	commodity_symbol: "CNY"
+
+2020-10-01 open Assets:Current Assets:Cash in Wallet
+	type: "Cash"
+	is_placeholder: "False"
+	code: ""
+	description: ""
+	color: "None"
+	notes: "None"
+	tax_related: "False"
+	commodity_namespace: "CURRENCY"
+	commodity_symbol: "CNY"
+
+2020-10-01 open Assets:Current Assets:Cash in Wallet:CAD
+	type: "Cash"
+	is_placeholder: "False"
+	code: ""
+	description: ""
+	color: "None"
+	notes: "None"
+	tax_related: "False"
+	commodity_namespace: "CURRENCY"
+	commodity_symbol: "CAD"
+
+2020-10-01 open Assets:Current Assets:Cash in Wallet:usd wallet
+	type: "Cash"
+	is_placeholder: "False"
+	code: ""
+	description: ""
+	color: "None"
+	notes: "None"
+	tax_related: "False"
+	commodity_namespace: "CURRENCY"
+	commodity_symbol: "USD"
+
+2020-10-03 * "Buy Napa"
+	Expenses-CAN:식료품/장보기 123.45 CAD
+	Expenses-CAN:식료품/장보기 1.23 CAD
+	Assets:Current Assets:Cash in Wallet:CAD -124.68 CAD
