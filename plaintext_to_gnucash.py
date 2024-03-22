@@ -187,8 +187,7 @@ class PlaintextToGnuCash:
 
         try:
             # To support GnuCash 3.4, we need to use is_new=True here.
-            (major, minor, _, _, _) = sys.version_info
-            if major == 3 and minor > 7:
+            if sys.version_info >= (3, 8):
                 from gnucash import SessionOpenMode
                 session = Session(f'xml://{fullpath}', SessionOpenMode.SESSION_NEW_STORE)
             else:
