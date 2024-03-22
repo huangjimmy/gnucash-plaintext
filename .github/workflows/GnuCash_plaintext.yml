@@ -61,7 +61,7 @@ jobs:
         run: python3 -m unittest --verbose parser/plaintext_parser_test.py
 
   GnuCash_macos-latest:
-    runs-on: macos-latest-large
+    runs-on: macos-latest
     steps:
       - name: Install macports
         run: |
