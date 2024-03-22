@@ -2,12 +2,12 @@ import os.path
 from typing import Optional, Dict
 import datetime
 import os
+import sys
 from gnucash import Account, Book, Transaction, Split, Session, GnuCashBackendException, GncCommodity
-from gnucash.gnucash_core_c import SESSION_NEW_STORE, SESSION_NEW_OVERWRITE
 from utils import find_account, string_to_gnc_numeric
 from parser.plaintext_parser import PlaintextLedger, PlaintextLedgerParser, DirectiveType
 
-from gnucash.gnucash_core_c import  ACCT_TYPE_ASSET, ACCT_TYPE_BANK, ACCT_TYPE_CASH, ACCT_TYPE_CHECKING, \
+from gnucash.gnucash_core_c import  ACCT_TYPE_ASSET, ACCT_TYPE_BANK, ACCT_TYPE_CASH, \
     ACCT_TYPE_CREDIT, ACCT_TYPE_EQUITY, ACCT_TYPE_EXPENSE, ACCT_TYPE_INCOME, \
     ACCT_TYPE_LIABILITY, ACCT_TYPE_MUTUAL, ACCT_TYPE_PAYABLE, \
     ACCT_TYPE_RECEIVABLE, ACCT_TYPE_STOCK
@@ -176,7 +176,7 @@ class PlaintextToGnuCash:
 
         pass
 
-    def export_to_gnucash(self, xml_file: str, overwrite: bool = False) -> (bool, Optional[GnuCashBackendException]):
+    def export_to_gnucash(self, xml_file: str) -> (bool, Optional[GnuCashBackendException]):
         """
         export GnuCash plaintext to GnuCash format
         :param xml_file: the path of the GnuCash file to save
@@ -184,12 +184,15 @@ class PlaintextToGnuCash:
         :return: True if file created successfully, False otherwise
         """
         fullpath = os.path.abspath(xml_file)
-        mode = SESSION_NEW_STORE
-        if os.path.exists(xml_file) and overwrite:
-            mode = SESSION_NEW_OVERWRITE
 
         try:
-            session = Session(f'xml://{fullpath}', mode)
+            # To support GnuCash 3.4, we need to use is_new=True here.
+            (major, minor, _, _, _) = sys.version_info
+            if major == 3 and minor > 7:
+                from gnucash import SessionOpenMode
+                session = Session(f'xml://{fullpath}', SessionOpenMode.SESSION_NEW_STORE)
+            else:
+                session = Session(f'xml://{fullpath}', is_new=True)
             book = session.get_book()
             root_account = book.get_root_account()
             root_account.SetDescription("Created by GnuCash plaintext")
