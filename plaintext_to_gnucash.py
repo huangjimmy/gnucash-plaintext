@@ -196,16 +196,12 @@ class PlaintextToGnuCash:
 
             for child in self.parser.root_directive.children:
                 ledger: PlaintextLedger = child
-                match ledger.type:
-                    case DirectiveType.CREATE_COMMODITY:
-                        create_commodity(ledger, book)
-                        pass
-                    case DirectiveType.OPEN_ACCOUNT:
-                        create_account(ledger, book)
-                        pass
-                    case DirectiveType.TRANSACTION:
-                        create_transaction(ledger, book)
-                        pass
+                operations = {
+                    DirectiveType.CREATE_COMMODITY: create_commodity,
+                    DirectiveType.OPEN_ACCOUNT: create_account,
+                    DirectiveType.TRANSACTION: create_transaction
+                }
+                operations[ledger.type](ledger, book)
                 pass
 
             session.save()
