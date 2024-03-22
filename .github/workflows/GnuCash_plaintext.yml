@@ -65,12 +65,22 @@ jobs:
     steps:
       - name: Install macports
         run: |
-          wget https://github.com/macports/macports-base/releases/download/v2.9.1/MacPorts-2.9.1-12-Monterey.pkg
-          sudo installer -pkg ./MacPorts-2.9.1-12-Monterey.pkg -target /
+          mkdir -p $HOME/opt/mports
+          cd $HOME/opt/mports
+          wget https://github.com/macports/macports-base/releases/download/v2.9.1/MacPorts-2.9.1.tar.gz
+          tar -xzvf MacPorts-2.9.1.tar.gz
+          cd $HOME/opt/mports/MacPorts-2.9.1
+          ./configure --prefix=$HOME/opt/local --with-install-user=`id -un` --with-install-group=`id -gn`
+          make
+          make install
+          make distclean
+          port selfupdate
       - name: Install GnuCash
         run: |
-          sudo port install gnucash
-          PYTHON_SELECT=$(sudo port info depof:gnucash | grep Runtime | grep python)
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
+          port -d sync
+          port install gnucash
+          PYTHON_SELECT=$(port info depof:gnucash | grep Runtime | grep python)
           if echo "$PYTHON_SELECT" | grep -q "select-310"; then
             port select --set python3 python310
           fi
@@ -82,11 +92,14 @@ jobs:
           fi
       - name: Test Plaintext to GnuCash
         run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           python3 -m unittest --verbose plaintext_to_gnucash_test.py
       - name: Test GnuCash to plaintext
         run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           python3 -m unittest --verbose gnucash_to_plaintext_test.py
       - name: Test Plaintext Parser
         run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           python3 -m unittest --verbose parser/plaintext_parser_test.py
           
