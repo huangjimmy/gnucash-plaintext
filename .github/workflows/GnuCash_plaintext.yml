@@ -65,24 +65,25 @@ jobs:
     steps:
       - name: Install macports
         run: |
-          mkdir -p /opt/mports
-          cd cd /opt/mports
+          mkdir -p $HOME/opt/mports
+          cd $HOME/opt/mports
           git clone https://github.com/macports/macports-base.git
           cd macports-base
           git checkout v2.9.1 
-          cd /opt/mports/macports-base
+          cd $HOME/opt/mports/macports-base
+          ./configure --prefix=$HOME/opt/local
           make
-          sudo make install
+          make install
           make distclean
-          cd /opt/mports
+          cd $HOME/opt/mports
           git clone --single-branch https://github.com/macports/macports-ports.git
           cd macports-ports
           git checkout 4bd091558ce8461dc0e3a712f5729cf85e47dd61
       - name: Install GnuCash 5.0
         run: |
-          cd /opt/mports/macports-ports/gnome/gnucash/
-          sudo port install
-          sudo port select --set python3 python310
+          cd $HOME/opt/mports/macports-ports/gnome/gnucash/
+          port install
+          port select --set python3 python310
       - name: Test Plaintext to GnuCash
         run: python3 -m unittest --verbose plaintext_to_gnucash_test.py
       - name: Test GnuCash to plaintext
