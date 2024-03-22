@@ -59,3 +59,34 @@ jobs:
         run: python3 -m unittest --verbose gnucash_to_plaintext_test.py
       - name: Test Plaintext Parser
         run: python3 -m unittest --verbose parser/plaintext_parser_test.py
+
+  GnuCash50_MacOS12:
+    runs-on: macos-12
+    steps:
+      - name: Install macports
+        run: |
+          mkdir -p /opt/mports
+          cd cd /opt/mports
+          git clone https://github.com/macports/macports-base.git
+          cd macports-base
+          git checkout v2.9.1 
+          cd /opt/mports/macports-base
+          make
+          sudo make install
+          make distclean
+          cd /opt/mports
+          git clone --single-branch https://github.com/macports/macports-ports.git
+          cd macports-ports
+          git checkout 4bd091558ce8461dc0e3a712f5729cf85e47dd61
+      - name: Install GnuCash 5.0
+        run: |
+          cd /opt/mports/macports-ports/gnome/gnucash/
+          sudo port install
+          sudo port select --set python3 python310
+      - name: Test Plaintext to GnuCash
+        run: python3 -m unittest --verbose plaintext_to_gnucash_test.py
+      - name: Test GnuCash to plaintext
+        run: python3 -m unittest --verbose gnucash_to_plaintext_test.py
+      - name: Test Plaintext Parser
+        run: python3 -m unittest --verbose parser/plaintext_parser_test.py
+          
