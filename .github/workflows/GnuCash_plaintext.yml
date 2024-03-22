@@ -50,9 +50,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install GnuCash
-        run: apt-get update && apt-get install -y gnucash
+        run: apt-get update && apt-get install -y gnucash python3-pip
       - name: typing-extensions
-        run: pip3 install typing-extensions
+        run: python3 -m pip install typing-extensions
       - name: Test Plaintext to GnuCash
         run: python3 -m unittest --verbose plaintext_to_gnucash_test.py
       - name: Test GnuCash to plaintext
