@@ -52,7 +52,7 @@ jobs:
       - name: Install GnuCash
         run: apt-get update && apt-get install -y gnucash
       - name: typing-extensions
-        run: python3 -m pip install typing-extensions
+        run: pip3 install typing-extensions
       - name: Test Plaintext to GnuCash
         run: python3 -m unittest --verbose plaintext_to_gnucash_test.py
       - name: Test GnuCash to plaintext
