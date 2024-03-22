@@ -82,9 +82,11 @@ jobs:
       - name: Install GnuCash 5.0
         run: |
           export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
-          cd $HOME/opt/mports/macports-ports/gnome/gnucash/
+          cd $HOME/opt/mports/macports-ports/
           echo "file://$HOME/opt/mports/macports-ports [default]" >  $HOME/opt/local/etc/macports/sources.conf
-          port install
+          portindex
+          cd $HOME/opt/mports/macports-ports/gnome/gnucash/
+          yes | port install
           port select --set python3 python310
       - name: Test Plaintext to GnuCash
         run: |
