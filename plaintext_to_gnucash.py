@@ -125,7 +125,7 @@ def create_transaction(ledger: PlaintextLedger, book: Book):
 
     transaction.SetDateEnteredSecs(datetime.datetime.now())
     date = datetime.datetime.strptime(date_str, '%Y-%m-%d')
-    transaction.SetDate(year=date.year, mon=date.month, day=date.day)
+    transaction.SetDatePostedSecsNormalized(date)
 
     for child in ledger.children:
         split_ledger: PlaintextLedger = child
