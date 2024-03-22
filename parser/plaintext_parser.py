@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from utils import (beancount_compatible_account_name, beancount_compatible_commodity_symbol, decode_value_from_string)
 import sys
@@ -113,7 +115,8 @@ class PlaintextLedger:
         return None
 
     def __str__(self):
-        return f'PlaintextObject(type={self.type}, level={self.level}, line={self.line}, props={self.props}, metadata={self.metadata}, children_count={len(self.children)})'
+        return (f'PlaintextObject(type={self.type}, level={self.level}, line={self.line}, props={self.props}, '
+                f'metadata={self.metadata}, children_count={len(self.children)})')
 
 
 class PlaintextIndentation:
@@ -211,7 +214,7 @@ class PlaintextLedgerParser:
                 break
 
             (account_open_date, directive, account_name) = parse_open_account(line)
-            (commodity_open_date, directive,commodity_symbol) = parse_commodity_directive(line)
+            (commodity_open_date, directive, commodity_symbol) = parse_commodity_directive(line)
             (tx_date, tx_num, tx_desc) = parse_transaction_head(line)
             (split_account_name, split_amount, split_symbol) = parse_split(line)
             (key, value) = parse_metadata(line)

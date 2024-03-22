@@ -7,7 +7,7 @@ from gnucash import Account, Book, Transaction, Split, Session, GnuCashBackendEx
 from utils import find_account, string_to_gnc_numeric
 from parser.plaintext_parser import PlaintextLedger, PlaintextLedgerParser, DirectiveType
 
-from gnucash.gnucash_core_c import  ACCT_TYPE_ASSET, ACCT_TYPE_BANK, ACCT_TYPE_CASH, \
+from gnucash.gnucash_core_c import ACCT_TYPE_ASSET, ACCT_TYPE_BANK, ACCT_TYPE_CASH, \
     ACCT_TYPE_CREDIT, ACCT_TYPE_EQUITY, ACCT_TYPE_EXPENSE, ACCT_TYPE_INCOME, \
     ACCT_TYPE_LIABILITY, ACCT_TYPE_MUTUAL, ACCT_TYPE_PAYABLE, \
     ACCT_TYPE_RECEIVABLE, ACCT_TYPE_STOCK
@@ -28,7 +28,7 @@ ACCT_TYPE_MAP = {
 }
 
 
-def create_account(ledger: PlaintextLedger, book: Book) -> bool:
+def create_account(ledger: PlaintextLedger, book: Book):
     root_account = book.get_root_account()
     account = Account(book)
     account_fullname = ledger.props['account']
@@ -47,7 +47,8 @@ def create_account(ledger: PlaintextLedger, book: Book) -> bool:
     mnemonic = ledger.metadata['commodity.mnemonic']
     commodity = commodity_table.lookup(namespace, mnemonic)
     if commodity is None:
-        raise Exception(f'Cannot find commodity ({namespace, mnemonic}) when trying to create account {account_fullname}')
+        raise Exception(f'Cannot find commodity ({namespace, mnemonic}) '
+                        f'when trying to create account {account_fullname}')
         pass
     else:
         account.SetCommodity(commodity)
@@ -102,7 +103,8 @@ def create_transaction(ledger: PlaintextLedger, book: Book):
         mnemonic = commodity.get_mnemonic()
 
     if commodity is None:
-        raise Exception(f'cannot find commodity ({namespace}, {mnemonic}) when trying to create transaction {ledger.line}')
+        raise Exception(f'cannot find commodity ({namespace}, {mnemonic}) '
+                        f'when trying to create transaction {ledger.line}')
     transaction.SetCurrency(commodity)
 
     date_str = ledger.props['date']
@@ -131,7 +133,8 @@ def create_transaction(ledger: PlaintextLedger, book: Book):
         split_account = find_account(root_account, split_account_str)
         split_account_currency = split_account.GetCommodity()
         if split_account is None:
-            raise Exception(f'Account {split_account_str} not found when trying to create transaction split {ledger.line}')
+            raise Exception(f'Account {split_account_str} not found '
+                            f'when trying to create transaction split {ledger.line}')
 
         split_amount_str = split_ledger.props['amount']
         amount = string_to_gnc_numeric(split_amount_str, split_account_currency)
@@ -180,7 +183,6 @@ class PlaintextToGnuCash:
         """
         export GnuCash plaintext to GnuCash format
         :param xml_file: the path of the GnuCash file to save
-        :param overwrite: if GnuCash file exists, shall we overwrite that? Default is False
         :return: True if file created successfully, False otherwise
         """
         fullpath = os.path.abspath(xml_file)
