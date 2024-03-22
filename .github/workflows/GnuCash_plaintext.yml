@@ -71,9 +71,9 @@ jobs:
           cd macports-base
           git checkout v2.9.1 
           cd $HOME/opt/mports/macports-base
-          ./configure --prefix=$HOME/opt/local
+          ./configure --prefix=$HOME/opt/local --with-install-user=${USER} --with-install-group=staff
           make
-          sudo make install
+          make install
           make distclean
           cd $HOME/opt/mports
           git clone --single-branch https://github.com/macports/macports-ports.git
@@ -83,12 +83,19 @@ jobs:
         run: |
           export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
           cd $HOME/opt/mports/macports-ports/gnome/gnucash/
-          sudo port install
-          sudo port select --set python3 python310
+          echo "file://$HOME/opt/mports/macports-ports [default]" >  $HOME/opt/local/etc/macports/sources.conf
+          port install
+          port select --set python3 python310
       - name: Test Plaintext to GnuCash
-        run: python3 -m unittest --verbose plaintext_to_gnucash_test.py
+        run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
+          python3 -m unittest --verbose plaintext_to_gnucash_test.py
       - name: Test GnuCash to plaintext
-        run: python3 -m unittest --verbose gnucash_to_plaintext_test.py
+        run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
+          python3 -m unittest --verbose gnucash_to_plaintext_test.py
       - name: Test Plaintext Parser
-        run: python3 -m unittest --verbose parser/plaintext_parser_test.py
+        run: |
+          export PATH=$HOME/opt/local/bin:$HOME/opt/local/sbin:$PATH
+          python3 -m unittest --verbose parser/plaintext_parser_test.py
           
