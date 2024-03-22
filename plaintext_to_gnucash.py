@@ -118,7 +118,11 @@ def create_transaction(ledger: PlaintextLedger, book: Book):
 
     if 'doc_link' in ledger.metadata:
         dock_link = ledger.metadata['doc_link']
-        transaction.SetDocLink(dock_link)
+        if sys.version_info >= (3, 8):
+            transaction.SetDocLink(dock_link)
+        else:
+            # SetAssociation was renamed to SetDocLink in Sep 2020
+            transaction.SetAssociation(dock_link)
     if 'notes' in ledger.metadata:
         notes = ledger.metadata['notes']
         transaction.SetNotes(notes)

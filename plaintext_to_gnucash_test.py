@@ -34,16 +34,18 @@ class PlaintextToGnuCashTest(unittest.TestCase):
         # now try to convert GnuCash file back to plaintext and verify input text file and output text are consistent
         # all those lines starting with 'guid' shall not equal and the rest lines shall equal
         try:
-            with Session(xml_output_file) as session:
-                book = session.get_book()
-                output = io.StringIO()
-                gnucash = GnuCashToPlainText(book, output)
-                gnucash.gnucash_to_plaintext()
-                plaintext = output.getvalue()
-                with open(text_input_file, 'r') as f:
-                    file_cotent = f.read()
-                    self.assertNotEqual(file_cotent, plaintext)
-                pass
+            session = Session(xml_output_file)
+            book = session.get_book()
+            output = io.StringIO()
+            gnucash = GnuCashToPlainText(book, output)
+            gnucash.gnucash_to_plaintext()
+            plaintext = output.getvalue()
+            with open(text_input_file, 'r') as f:
+                file_cotent = f.read()
+                self.assertNotEqual(file_cotent, plaintext)
+
+            session.save()
+            session.end()
             self.assertTrue('\\\\' not in plaintext)
 
             with open(text_output_file, 'w') as f:

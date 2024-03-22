@@ -1,3 +1,5 @@
+import sys
+
 from gnucash import Account, Book, Transaction, Query, GncCommodity
 from gnucash.gnucash_core_c import xaccAccountGetTypeStr
 from utils import (get_account_full_name, to_string_with_decimal_point_placed,
@@ -121,7 +123,11 @@ class GnuCashToPlainText:
         tx_currency = transaction.GetCurrency()
         tx_currency_namespace = tx_currency.get_namespace()
         tx_currency_symbol = tx_currency.get_mnemonic()
-        tx_doc_link = transaction.GetDocLink()
+        if sys.version_info >= (3, 8):
+            tx_doc_link = transaction.GetDocLink()
+        else:
+            # GetAssociation was renamed to GetDocLink in Sep 2020
+            tx_doc_link = transaction.GetAssociation()
 
         print(f'{date_str} *', end='', file=output)
         if tx_num and tx_num.strip() != "":
