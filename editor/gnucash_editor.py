@@ -1,8 +1,9 @@
 import logging
 
-from gnucash import Account, Book, Transaction, Split, Session, Query, GnuCashBackendException, GncCommodity
-from gnucash import QOF_COMPARE_GTE, QOF_COMPARE_LTE, QOF_DATE_MATCH_NORMAL
+from gnucash import Account, Transaction, Session, Query
+from gnucash import QOF_COMPARE_GTE, QOF_COMPARE_LTE
 from gnucash.gnucash_core import QueryDatePredicate, QOF_QUERY_AND, GUID, GUIDString
+from gnucash.gnucash_core_c import QOF_DATE_MATCH_DAY
 from typing import Optional
 from datetime import datetime, timedelta
 import sys
@@ -94,8 +95,8 @@ class GnuCashEditor:
         query = Query()
 
         query.search_for('Trans')
-        date_pred_gte = QueryDatePredicate(QOF_COMPARE_GTE, QOF_DATE_MATCH_NORMAL, yesterday)
-        date_pred_lte = QueryDatePredicate(QOF_COMPARE_LTE, QOF_DATE_MATCH_NORMAL, tomorrow)
+        date_pred_gte = QueryDatePredicate(QOF_COMPARE_GTE, QOF_DATE_MATCH_DAY, yesterday)
+        date_pred_lte = QueryDatePredicate(QOF_COMPARE_LTE, QOF_DATE_MATCH_DAY, tomorrow)
         query.add_term(['date-posted'], date_pred_gte, QOF_QUERY_AND)
         query.add_term(['date-posted'], date_pred_lte, QOF_QUERY_AND)
         query.set_book(book)
