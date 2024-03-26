@@ -1,0 +1,375 @@
+2024-02-22 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-02-22 open Assets
+	guid: "9559a9e33a91422f802aff057ee6045e"
+	type: "Asset"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-02-22 open Assets:Cash In Wallets
+	guid: "8e40c10d6cf241389c278a722e84cfcc"
+	type: "Asset"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-02-22 open Assets:Cash In Wallets:CAD
+	guid: "9bc5f7bea8844b0ebeda9a5c2090877a"
+	type: "Asset"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-02-22 open Equity
+	guid: "7f4316f590224e35b925913e47262d43"
+	type: "Equity"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-02-22 open Equity:Opening Balances
+	guid: "f01832a6462b45bea96e64ac07c5c713"
+	type: "Equity"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-02-22 open Equity:Opening Balances:CAD
+	guid: "661e14643e1a42008222fdf4a4ef17e2"
+	type: "Equity"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-02-23 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-02-23 open Assets:Cash In Wallets:USD
+	guid: "bd7ef32392cc41388c19eb02246a4800"
+	type: "Asset"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-02-23 open Equity:Opening Balances:USD
+	guid: "5e42e98b10894ebe8521e0546a18b768"
+	type: "Equity"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-02-27 open Expenses US
+	guid: "c57892b99d804447ae44026877c2c050"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-02-27 open Expenses US:Groceries
+	guid: "4154ae5d533a468cba4beaddf4248c35"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-03-01 open Expenses
+	guid: "c723f654d7214796af41ead14ad36e40"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-03-01 open Expenses:Groceries
+	guid: "872ff4d3e2104889a58b3415882fc965"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-03-05 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-03-05 open Assets:Cash In Wallets:HKD
+	guid: "c0716156f4d248879b907939ded72a75"
+	type: "Asset"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-03-06 open 費用 香港
+	guid: "822ac3e1fdeb42f3b9cdcf37d143a3c2"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-03-06 open 費用 香港:食品雜貨
+	guid: "d91f1ec0f1e849d385fc56bc021b5633"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-03-12 commodity KRW
+	mnemonic: "KRW"
+	fullname: "Won"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-03-12 open Assets:Cash In Wallets:KRW
+	guid: "942fcdde6b66483784d8fb8275049bcb"
+	type: "Asset"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "KRW"
+2024-03-12 commodity JPY
+	mnemonic: "JPY"
+	fullname: "Yen"
+	namespace: "CURRENCY"
+	fraction: 1
+2024-03-12 open Assets:Cash In Wallets:JPY
+	guid: "344d580800834252a5dfd4659085a248"
+	type: "Asset"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+2024-03-13 open 経費 日本
+	guid: "035062400b7a4bc3a76e2a904cd616ab"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+2024-03-13 open 経費 日本:食料品 しょくりょうひん
+	guid: "f7467ad8d23448f49ab43e65a57e96e1"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+2024-03-19 open 경비 한국
+	guid: "84f956c33f884da082d70891b532d087"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "KRW"
+2024-03-19 open 경비 한국:식료품
+	guid: "e4026f8dbad142c1902320410c082ff0"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "KRW"
+2024-03-20 open Expenses:Public Transportation
+	guid: "f62674cf1c8347af971f42716dc4eb4c"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-03-21 commodity Membership Rewards.イオン
+	mnemonic: "イオン"
+	fullname: "イオン会員"
+	namespace: "Membership Rewards"
+	fraction: 1
+2024-03-21 open Assets:Membership Rewards
+	guid: "f0b5d0d6306049d2a5de00c234cdfa74"
+	type: "Asset"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-03-21 open Assets:Membership Rewards:イオン会員
+	guid: "cc749112e9ab4e82b7affba799e3c547"
+	type: "Stock"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "Membership Rewards"
+	commodity.mnemonic: "イオン"
+2024-03-21 open Income
+	guid: "fd37e5aa48834ac3a43e134f8295f77a"
+	type: "Income"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-03-21 open Income:Membership Rewards
+	guid: "11df4577d0984ed28ffb489b8039d05b"
+	type: "Income"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-03-21 open Income:Membership Rewards:日本
+	guid: "9735916b150f4603920a57f12cef285e"
+	type: "Income"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+2024-02-22 *
+	guid: "1b58de5c4fb34c628773b4b1812d1360"
+	Assets:Cash In Wallets:CAD 10000.00 CAD
+	Equity:Opening Balances:CAD -10000.00 CAD
+2024-02-23 *
+	guid: "845ce690184b40ddb960be363c7fd956"
+	currency.mnemonic: "USD"
+	Assets:Cash In Wallets:USD 10000.00 USD
+	Equity:Opening Balances:USD -5000.00 USD
+	Assets:Cash In Wallets:CAD -6650.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "500000/665000"
+		value: "-5000.00"
+2024-02-27 * "TRADER JOE S #162 BELLEVUE WA US"
+	guid: "317c8ae6e0084c33951d052b9f1b9f23"
+	Expenses US:Groceries 31.86 USD
+	Assets:Cash In Wallets:USD -31.86 USD
+2024-03-01 * "SHOPPERS DRUG MART #22 VANCOUVER BC BANANAS 3LB 1.99 2XBURNBRAE EGGS 2.79x2 WONDER BREAD 1.99"
+	guid: "753932189bfc4eeaaed6a987a3389ef1"
+	Expenses:Groceries 9.56 CAD
+	Assets:Cash In Wallets:CAD -9.56 CAD
+2024-03-05 *
+	guid: "0d5d47eb1d684949924d7ee5eb19ca9f"
+	currency.mnemonic: "HKD"
+	Assets:Cash In Wallets:HKD 10000.00 HKD
+	Assets:Cash In Wallets:CAD -1725.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1000000/172500"
+		value: "-10000.00"
+2024-03-06 * "大生活超市 DS Groceries 美國精選肥牛火鍋片 2 x 200g HK$50  膠袋HK$1 荷花牌-幼鹽 HK$2 西班牙公雞牌香蒜醬 HK$16"
+	guid: "70acbc74478049418f5d62f4d43947a3"
+	費用 香港:食品雜貨 69.00 HKD
+	Assets:Cash In Wallets:HKD -69.00 HKD
+2024-03-07 * "PARKnSHOP百佳超市 膠袋 HK$1 金御膳雞蛋卷 HK$52 紅蘋果 HK$27.8 香蕉 3.5磅 6.2/磅  HK$21.7 CASTLE 亮麗三層軟韌帶 HK$24"
+	guid: "cd1571a5b8814d7bb1f4fe291ae07a48"
+	費用 香港:食品雜貨 126.50 HKD
+	Assets:Cash In Wallets:HKD -126.50 HKD
+2024-03-12 *
+	guid: "75010aaedccb49caafccbc389a79f2b2"
+	currency.mnemonic: "CAD"
+	Assets:Cash In Wallets:KRW 197000.00 KRW
+		account.commodity.mnemonic: "KRW"
+		share_price: "20000/19700000"
+		value: "200.00"
+	Assets:Cash In Wallets:CAD -200.00 CAD
+2024-03-12 * "Forex" "I need to get some cash for my Japan trip"
+	guid: "8892e6cfe76c4b0291de5fca396cb467"
+	currency.mnemonic: "JPY"
+	notes: "This transaction took place at Vancouver, BC"
+	Assets:Cash In Wallets:JPY 30000 JPY
+		action: "Buy"
+		memo:"私は３０，０００円を買います。"
+	Assets:Cash In Wallets:CAD -267.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "3000000/26700"
+		value: "-30000"
+		action: "Sell"
+		memo:"I spend 267 CAD and get 30,000 JPY"
+2024-03-13 * "1 Lawson Convinience Store" "RO-SONN JPN 麻婆豆腐 497円 焼き鳥 599円 牛乳 230円 ケーキ 192円 袋 3円"
+	guid: "5af7ce4435654600bb619a963fb3afec"
+	notes: "ローソン Japan ローソンは、24時間365日で営業するコンビニエンスストアです。"
+	経費 日本:食料品 しょくりょうひん 1521 JPY
+		action: "Buy"
+		memo:"I bought some groceries during my \"Japan Trip\""
+	Assets:Cash In Wallets:JPY -1521 JPY
+		action: "Decrease"
+		memo:"This transaction decreased my JPY Cash balance"
+2024-03-14 * "1 Lawson Convinience Store" "牛乳 230円 袋 3円"
+	guid: "b8ff83c8fa584bbb9492cc87b388ede8"
+	notes: "ローソン Japan ローソンは、24時間365日で営業するコンビニエンスストアです。"
+	経費 日本:食料品 しょくりょうひん 233 JPY
+		action: "Buy"
+		memo:"I bought some milk during my \"Japan Trip\""
+	Assets:Cash In Wallets:JPY -233 JPY
+		action: "Decrease"
+		memo:"This transaction decreased my JPY Cash balance"
+2024-03-15 * "1 Lawson Convinience Store" "麻婆豆腐 497円 袋 3円"
+	guid: "53722507d9ad443e8d842c49ed0fb187"
+	notes: "ローソン Japan ローソンは、24時間365日で営業するコンビニエンスストアです。"
+	経費 日本:食料品 しょくりょうひん 500 JPY
+		action: "Buy"
+		memo:"I bought some food again during my \"Japan Trip\""
+	Assets:Cash In Wallets:JPY -500 JPY
+		action: "Decrease"
+		memo:"This transaction decreased my JPY Cash balance"
+2024-03-19 * "백설 소면(900g) 7,145 옛날국수 소면(900g) 4,089"
+	guid: "23ebba6e17464be68914047b3e4af645"
+	경비 한국:식료품 11234.00 KRW
+	Assets:Cash In Wallets:KRW -11234.00 KRW
+2024-03-20 * "COMPASS ACCOUNT BURNABY BC"
+	guid: "b6f286da1ff64535a56c3ba7d24d7118"
+	Expenses:Public Transportation 3.15 CAD
+	Assets:Cash In Wallets:CAD -3.15 CAD
+2024-03-21 * "歓迎オファー AEON イオン会員"
+	guid: "265d350fffa54e9cb8e3ae9eccedd537"
+	currency.mnemonic: "JPY"
+	Assets:Membership Rewards:イオン会員 50000 "Membership Rewards.イオン"
+		account.commodity.mnemonic: "イオン"
+		account.commodity.namespace: "Membership Rewards"
+		share_price: "0.01"
+		value: "500"
+	Income:Membership Rewards:日本 -500 JPY

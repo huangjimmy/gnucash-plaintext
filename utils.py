@@ -1,9 +1,9 @@
 from fractions import Fraction
-from gnucash import Account, GncNumeric, GncCommodity
+from gnucash import Account, GncNumeric, GncCommodity, Transaction
 import copy
 import re
 import string
-from typing import Optional
+from typing import Optional, Union
 from decimal import Decimal
 
 
@@ -52,7 +52,7 @@ def find_account(account: Account, name):
     acc = account
     for n in names:
         acc = find_child(acc, n)
-        if acc == None:
+        if acc is None:
             break
 
     return acc
@@ -91,6 +91,19 @@ def string_to_gnc_numeric(s: str, currency: GncCommodity) -> GncNumeric:
     return amount
 
 
+def gnc_numeric_to_fraction_or_decimal(number: GncNumeric) -> Union[Fraction, Decimal]:
+    number = copy.copy(number)
+    numerator = int(number.num())
+    denominator = int(number.denom())
+    denom_str = str(denominator)
+    if denom_str[0] == '1' and all(c == '0' for c in denom_str[1:]):
+        num_decimal = Decimal(numerator)
+        denom_decimal = Decimal(denom_str)
+        result = num_decimal / denom_decimal
+        return result.quantize(Decimal(denom_str.replace('1', '1.')))
+    return Fraction(numerator, denominator, _normalize=False)
+
+
 def to_string_with_decimal_point_placed(number: GncNumeric):
     """Convert a GncNumeric to a string with decimal point placed if permissible.
     Otherwise returns its fractional representation.
@@ -100,15 +113,15 @@ def to_string_with_decimal_point_placed(number: GncNumeric):
     if not number.to_decimal(None):
         return str(number)
 
-    nominator = str(number.num())
+    numerator = str(number.num())
     point_place = str(number.denom()).count('0')  # How many zeros in the denominator?
     if point_place == 0:
-        return nominator
+        return numerator
 
-    if len(nominator) <= point_place:  # prepending zeros if the nominator is too short
-        nominator = '0' * (point_place - len(nominator)) + nominator
+    if len(numerator) <= point_place:  # prepending zeros if the numerator is too short
+        numerator = '0' * (point_place - len(numerator)) + numerator
 
-    number_str = '.'.join([nominator[:-point_place], nominator[-point_place:]])
+    number_str = '.'.join([numerator[:-point_place], numerator[-point_place:]])
     if number_str.startswith('.-'):
         number_str = number_str.replace('.-', '-0.0')
     elif number_str[0] == '.':
@@ -152,7 +165,7 @@ def encode_value_as_string(value):
     if isinstance(value, bool):
         return f'#{value}'
     if isinstance(value, (int, float, )):
-        return '{value}'
+        return f'{value}'
     if isinstance(value, Fraction):
         return f'#{value.numerator}/{value.denominator}'
     if isinstance(value, str):
@@ -308,3 +321,15 @@ def beancount_compatible_metadata_key(key: str) -> Optional[str]:
     if key.startswith('_'):
         key = f'gnucash{key}'
     return key
+
+
+def get_transaction_sig(transaction: Transaction) -> (str, [str]):
+    tx_date_str = transaction.GetDate().strftime("%Y-%m-%d")
+    tx_splits = transaction.GetSplitList()
+    split_sigs = []
+    for s in tx_splits:
+        split_account = s.GetAccount()
+        split_sigs.append(get_account_full_name(split_account))
+    tx_sig = (tx_date_str, split_sigs)
+    return tx_sig
+

@@ -24,12 +24,8 @@ jobs:
         uses: actions/checkout@v2
       - name: Install GnuCash
         run: sudo yum install -y gnucash
-      - name: Test Plaintext to GnuCash
-        run:  python3 -m unittest --verbose plaintext_to_gnucash_test.py
-      - name: Test GnuCash to plaintext
-        run: python3 -m unittest --verbose gnucash_to_plaintext_test.py
-      - name: Test Plaintext Parser
-        run: python3 -m unittest --verbose parser/plaintext_parser_test.py
+      - name: Run unit tests
+        run:  python3 -m unittest discover -s . -p '*_test.py' -v
 
   GnuCash-48_Debian-12:
     runs-on: ubuntu-latest
@@ -41,12 +37,8 @@ jobs:
         uses: actions/checkout@v2
       - name: Install GnuCash
         run: apt-get update && apt-get install -y gnucash
-      - name: Test Plaintext to GnuCash
-        run:  python3 -m unittest --verbose plaintext_to_gnucash_test.py
-      - name: Test GnuCash to plaintext
-        run: python3 -m unittest --verbose gnucash_to_plaintext_test.py
-      - name: Test Plaintext Parser
-        run: python3 -m unittest --verbose parser/plaintext_parser_test.py
+      - name: Run unit tests
+        run: python3 -m unittest discover -s . -p '*_test.py' -v
 
   GnuCash-34_Debian-10:
     runs-on: ubuntu-latest
@@ -60,12 +52,8 @@ jobs:
         run: apt-get update && apt-get install -y gnucash python3-pip
       - name: typing-extensions
         run: python3 -m pip install typing-extensions
-      - name: Test Plaintext to GnuCash
-        run: python3 -m unittest --verbose plaintext_to_gnucash_test.py
-      - name: Test GnuCash to plaintext
-        run: python3 -m unittest --verbose gnucash_to_plaintext_test.py
-      - name: Test Plaintext Parser
-        run: python3 -m unittest --verbose parser/plaintext_parser_test.py
+      - name: Run unit tests
+        run: python3 -m unittest discover -s . -p '*_test.py' -v
 
   GnuCash_macos-latest:
     runs-on: macos-latest
@@ -101,19 +89,9 @@ jobs:
           if echo "$PYTHON_SELECT" | grep -q "select-312"; then
             port select --set python3 python312
           fi
-      - name: Test Plaintext to GnuCash
+      - name: Run unit tests
         run: |
           export PATH=$HOME/macports/bin:$HOME/macports/sbin:$PATH
           export MACPORTS_HOME=$HOME/macports
-          python3 -m unittest --verbose plaintext_to_gnucash_test.py
-      - name: Test GnuCash to plaintext
-        run: |
-          export PATH=$HOME/macports/bin:$HOME/macports/sbin:$PATH
-          export MACPORTS_HOME=$HOME/macports
-          python3 -m unittest --verbose gnucash_to_plaintext_test.py
-      - name: Test Plaintext Parser
-        run: |
-          export PATH=$HOME/macports/bin:$HOME/macports/sbin:$PATH
-          export MACPORTS_HOME=$HOME/macports
-          python3 -m unittest --verbose parser/plaintext_parser_test.py
+          python3 -m unittest discover -s . -p '*_test.py' -v
           

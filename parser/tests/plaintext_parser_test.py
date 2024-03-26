@@ -105,6 +105,16 @@ class TestPlaintextParser(unittest.TestCase):
         self.assertEqual('fraction', key)
         self.assertEqual(100, value)
 
+        test_case = 'value: "500"'
+        (key, value) = parse_metadata(test_case)
+        self.assertEqual('value', key)
+        self.assertEqual("500", value)
+
+        test_case = 'value: "12345.67890"'
+        (key, value) = parse_metadata(test_case)
+        self.assertEqual('value', key)
+        self.assertEqual("12345.67890", value)
+
         test_case = 'commodity_namespace: "CURRENCY"'
         (key, value) = parse_metadata(test_case)
         self.assertEqual('commodity_namespace', key)

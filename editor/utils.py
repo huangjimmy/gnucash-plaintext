@@ -1,16 +1,14 @@
-import os.path
-from typing import Optional, Dict
-import datetime
-import os
+from parser.plaintext_parser import PlaintextLedger
+from gnucash import Book, Account, Transaction, Split, GncCommodity
+from utils import string_to_gnc_numeric, find_account
+from datetime import datetime
 import sys
-from gnucash import Account, Book, Transaction, Split, Session, GnuCashBackendException, GncCommodity
-from utils import find_account, string_to_gnc_numeric
-from parser.plaintext_parser import PlaintextLedger, PlaintextLedgerParser, DirectiveType
 
 from gnucash.gnucash_core_c import ACCT_TYPE_ASSET, ACCT_TYPE_BANK, ACCT_TYPE_CASH, \
     ACCT_TYPE_CREDIT, ACCT_TYPE_EQUITY, ACCT_TYPE_EXPENSE, ACCT_TYPE_INCOME, \
     ACCT_TYPE_LIABILITY, ACCT_TYPE_MUTUAL, ACCT_TYPE_PAYABLE, \
     ACCT_TYPE_RECEIVABLE, ACCT_TYPE_STOCK
+
 
 ACCT_TYPE_MAP = {
     "Asset": ACCT_TYPE_ASSET,
@@ -67,6 +65,10 @@ def create_account(ledger: PlaintextLedger, book: Book):
     account.SetCode(code)
     account.SetDescription(description)
     account.SetTaxRelated(tax_related)
+
+    if 'commodity_scu' in ledger.metadata:
+        commodity_scu = ledger.metadata['commodity_scu']
+        account.SetCommoditySCU(commodity_scu)
     pass
 
 
@@ -127,8 +129,8 @@ def create_transaction(ledger: PlaintextLedger, book: Book):
         notes = ledger.metadata['notes']
         transaction.SetNotes(notes)
 
-    transaction.SetDateEnteredSecs(datetime.datetime.now())
-    date = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+    transaction.SetDateEnteredSecs(datetime.now())
+    date = datetime.strptime(date_str, '%Y-%m-%d')
     transaction.SetDatePostedSecsNormalized(date)
 
     for child in ledger.children:
@@ -172,49 +174,3 @@ def create_transaction(ledger: PlaintextLedger, book: Book):
 
     transaction.CommitEdit()
     return True
-    pass
-
-
-class PlaintextToGnuCash:
-    def __init__(self, plaintext_file: str):
-        self.parser = PlaintextLedgerParser()
-        self.parser.parse_file(plaintext_file)
-        self.accounts: Dict[str, Account] = {}
-
-        pass
-
-    def export_to_gnucash(self, xml_file: str) -> (bool, Optional[GnuCashBackendException]):
-        """
-        export GnuCash plaintext to GnuCash format
-        :param xml_file: the path of the GnuCash file to save
-        :return: True if file created successfully, False otherwise
-        """
-        fullpath = os.path.abspath(xml_file)
-
-        try:
-            # To support GnuCash 3.4, we need to use is_new=True here.
-            if sys.version_info >= (3, 8):
-                from gnucash import SessionOpenMode
-                session = Session(f'xml://{fullpath}', SessionOpenMode.SESSION_NEW_STORE)
-            else:
-                session = Session(f'xml://{fullpath}', is_new=True)
-            book = session.get_book()
-            root_account = book.get_root_account()
-            root_account.SetDescription("Created by GnuCash plaintext")
-
-            for child in self.parser.root_directive.children:
-                ledger: PlaintextLedger = child
-                operations = {
-                    DirectiveType.CREATE_COMMODITY: create_commodity,
-                    DirectiveType.OPEN_ACCOUNT: create_account,
-                    DirectiveType.TRANSACTION: create_transaction
-                }
-                operations[ledger.type](ledger, book)
-                pass
-
-            session.save()
-            session.end()
-            return not book.session_not_saved(), None
-        except GnuCashBackendException as backend_exception:
-            raise backend_exception
-        pass

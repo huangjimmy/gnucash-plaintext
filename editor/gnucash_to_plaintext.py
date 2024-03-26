@@ -1,7 +1,6 @@
 import sys
-
 from gnucash import Account, Book, Transaction, Query, GncCommodity
-from gnucash.gnucash_core_c import xaccAccountGetTypeStr
+from gnucash.gnucash_core_c import xaccAccountGetTypeStr, gncEntryGetGUID
 from utils import (get_account_full_name, to_string_with_decimal_point_placed,
                    get_parent_accounts_and_self, encode_value_as_string, number_in_string_format_is_1,
                    get_commodity_ticker)
@@ -82,6 +81,8 @@ class GnuCashToPlainText:
             return
         mnemonic = commodity.get_mnemonic()
         namespace = commodity.get_namespace()
+        fraction = commodity.get_fraction()
+        commodity_scu = account.GetCommoditySCU()
 
         date_str = transaction.GetDate().strftime("%Y-%m-%d")
         account_full_name = get_account_full_name(account)
@@ -110,6 +111,8 @@ class GnuCashToPlainText:
 
         print(f'\tcommodity.namespace: {encode_value_as_string(namespace)}', file=output)
         print(f'\tcommodity.mnemonic: {encode_value_as_string(mnemonic)}', file=output)
+        if commodity_scu != fraction:
+            print(f'\tcommodity_scu: {encode_value_as_string(commodity_scu)}', file=output)
         pass
 
     def print_gnucash_transaction(self, transaction: Transaction):
@@ -155,6 +158,7 @@ class GnuCashToPlainText:
             split_currency_symbol = split_currency.get_mnemonic()
 
             split_account_full_name = get_account_full_name(split_account)
+            guid = s.GetGUID()
             action = s.GetAction()
             memo = s.GetMemo()
             formatted_amount = to_string_with_decimal_point_placed(s.GetAmount())
@@ -167,6 +171,7 @@ class GnuCashToPlainText:
                 currency_ticker = encode_value_as_string(currency_ticker)
             print(f' {formatted_amount} {currency_ticker}', file=output)
 
+            # print(f'\t\tguid: {encode_value_as_string(guid)}')
             split_currency_not_match_tx = (split_currency_symbol != tx_currency_symbol
                                            or split_currency_namespace != tx_currency_namespace)
             if split_currency_not_match_tx:
