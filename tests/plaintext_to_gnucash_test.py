@@ -2,16 +2,16 @@ import os.path
 import unittest
 import io
 from gnucash import GnuCashBackendException, Session
-from plaintext_to_gnucash import PlaintextToGnuCash
-from gnucash_to_plaintext import GnuCashToPlainText
+from editor.plaintext_to_gnucash import PlaintextToGnuCash
+from editor.gnucash_to_plaintext import GnuCashToPlainText
 
 
 class PlaintextToGnuCashTest(unittest.TestCase):
 
     def test_plaintext_to_gnucash(self):
-        text_input_file = './plaintext_to_gnucash.test.input.txt'
-        text_output_file = './plaintext_to_gnucash.test.output.txt'
-        xml_output_file = './plaintext_to_gnucash.test.output.gnucash'
+        text_input_file = 'plaintext_to_gnucash.test.input.txt'
+        text_output_file = 'plaintext_to_gnucash.test.output.txt'
+        xml_output_file = 'plaintext_to_gnucash.test.output.gnucash'
         lck_file = f'{xml_output_file}.LCK'
 
         if not os.path.exists(lck_file):

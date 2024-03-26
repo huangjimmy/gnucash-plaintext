@@ -207,7 +207,7 @@ Formula `value` = `share_price` * Split_Amount, e.g., 3.68 = 368/2170 * 21.70
 		account.commodity.mnemonic: "HKD"
 		share_price: "368/2170"
 		value: "3.68"
-	Liabilities:Credit Card:HSBC-Premier-8860 -3.68 CAD
+	Liabilities:Credit Card:HSBC-Premier -3.68 CAD
 		guid: "094beddc459148d78a514c48b0c3a91b"
 		account.commodity.mnemonic: "CAD"
 		share_price: "1"
@@ -218,12 +218,44 @@ Formula `value` = `share_price` * Split_Amount, e.g., 3.68 = 368/2170 * 21.70
 
 ### Export GnuCash data to GnuCash plaintext
 
+TODO
+
 ### Convert GnuCash plaintext to beancount
+
+TODO
 
 ### Create GnuCash XML file from GnuCash plaintext 
 
-### Create a new account in GnuCash from GnuCash plaintext
+Read text content from `path_to_plaintext_file.txt` and create a new GnuCash XML file.
+If `path_to_gnucash_file.gnucash` exists, this program will raise an exception and fail
+to create GnuCash XML file
 
-### Create a new transaction in GnuCash from plaintext
+```commandline
+plaintext_to_gnucash.py -i path_to_plaintext_file.txt -o path_to_gnucash_file.gnucash
+```
 
-### Modify accounts/transactions in GnuCash from plaintext
+or
+
+```commandline
+plaintext_to_gnucash.py --input path_to_plaintext_file.txt --output path_to_gnucash_file.gnucash
+```
+
+### Update an existing GnuCash XML according to plaintext
+
+* Load and parse `path_to_plaintext_file.txt`, create accounts/transactions/splits that do not exist in `path_to_gnucash_file.gnucash`
+* Update existing accounts/transactions/splits so that they are in sync with `path_to_plaintext_file.txt`
+
+An account from plaintext exists in GnuCash if
+* account guids equal
+* account full names equal
+* if no guids and full names not equal, will be considered a new account
+
+A transaction from plaintext exists in GnuCash if
+* transaction guids equal
+* if no guid, two transactions are considered a match if signature (date, [split account 1, ..., split account N]) 
+matches
+
+
+#### Command line
+
+TODO
