@@ -218,15 +218,7 @@ Formula `value` = `share_price` * Split_Amount, e.g., 3.68 = 368/2170 * 21.70
 
 ### Export GnuCash data to GnuCash plaintext
 
-```commandline
-plaintext_from_gnucash.py -i path_to_gnucash_file.gnucash -o path_to_plaintext_file.txt
-```
-
-or
-
-```commandline
-plaintext_from_gnucash.py --input path_to_gnucash_file.gnucash --output path_to_plaintext_file.txt
-```
+TODO
 
 ### Convert GnuCash plaintext to beancount
 
@@ -260,26 +252,10 @@ An account from plaintext exists in GnuCash if
 
 A transaction from plaintext exists in GnuCash if
 * transaction guids equal
-* if no guid, will be considered a new transaction if no transactions exist on that day
-
-A transaction split exists in GnuCash if
-* the transaction of this split is an existing transaction
-* split guids equal, or if no guid
-* match by account associated with this split
-* if two or more splits under the same transaction are associated with one account,
-  * they will be matched in the order they appear in plaintext and GnuCash
-  * if there are more splits in plaintext, new splits will be created
-  * if there are more splits in GnuCash, non-matched splits will get deleted
+* if no guid, two transactions are considered a match if signature (date, [split account 1, ..., split account N]) 
+matches
 
 
 #### Command line
 
-```commandline
-plaintext_edit_gnucash.py -i path_to_plaintext_file.txt -o path_to_gnucash_file.gnucash
-```
-
-or
-
-```commandline
-plaintext_edit_gnucash.py --input path_to_plaintext_file.txt --output path_to_gnucash_file.gnucash
-```
+TODO
