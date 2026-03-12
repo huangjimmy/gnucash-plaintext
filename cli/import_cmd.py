@@ -27,7 +27,13 @@ from use_cases.import_transactions import ImportTransactionsUseCase
     is_flag=True,
     help='Preview import without making changes'
 )
-def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run):
+@click.option(
+    '--new',
+    'create_new',
+    is_flag=True,
+    help='Create a new GnuCash file (file must not already exist)'
+)
+def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run, create_new):
     """
     Import plaintext transactions to GnuCash file.
 
@@ -50,6 +56,8 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
         gnucash-plaintext import mybook.gnucash transactions.txt --dry-run
 
         gnucash-plaintext import -i mybook.gnucash -f transactions.txt --strategy keep-incoming
+
+        gnucash-plaintext import --new mybook.gnucash chart-of-accounts.txt
     """
     # Support both positional and flag-based arguments
     gnucash_file = gnucash_path or gnucash_file
@@ -60,11 +68,25 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
     if not input_file:
         raise click.UsageError("Missing plaintext file. Use positional argument or -f/--file flag.")
 
-    # Validate file existence
-    if not os.path.exists(gnucash_file):
-        raise click.UsageError(f"GnuCash file does not exist: {gnucash_file}")
+    if create_new and dry_run:
+        raise click.UsageError("--new and --dry-run are mutually exclusive: --new always creates a file.")
+
+    # Validate all paths before touching the filesystem
+    if create_new:
+        if os.path.exists(gnucash_file):
+            raise click.UsageError(
+                f"File already exists: {gnucash_file}. "
+                "Remove it first or omit --new to import into existing file."
+            )
+    else:
+        if not os.path.exists(gnucash_file):
+            raise click.UsageError(
+                f"GnuCash file does not exist: {gnucash_file}. "
+                "Use --new to create it."
+            )
     if not os.path.exists(input_file):
         raise click.UsageError(f"Plaintext file does not exist: {input_file}")
+
     # Map CLI strategy to ResolutionStrategy enum
     strategy_map = {
         'skip': ResolutionStrategy.SKIP,
@@ -74,6 +96,9 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
     resolution_strategy = strategy_map[strategy]
 
     try:
+        if create_new:
+            GnuCashRepository.create_new_file(gnucash_file)
+
         # Open repository
         mode = SessionMode.READ_ONLY if dry_run else SessionMode.NORMAL
         repo = GnuCashRepository(gnucash_file)
@@ -133,5 +158,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             repo.close()
 
     except Exception as e:
+        if create_new and os.path.exists(gnucash_file):
+            os.remove(gnucash_file)
         click.echo(f"✗ Error: {str(e)}", err=True)
         raise click.Abort() from e

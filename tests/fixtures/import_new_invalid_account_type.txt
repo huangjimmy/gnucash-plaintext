@@ -1,0 +1,15 @@
+2024-02-15 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-02-15 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-02-15 open Assets:Bank
+	type: "INVALID_ACCOUNT_TYPE"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"

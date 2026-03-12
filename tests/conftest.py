@@ -337,6 +337,31 @@ def temp_gnucash_for_close_books():
 
 
 @pytest.fixture
+def import_new_plaintext_with_transaction():
+    """Path to plaintext fixture with accounts + one transaction, for --new CLI tests."""
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(test_dir, 'fixtures', 'import_new_with_transaction.txt')
+
+
+@pytest.fixture
+def import_new_plaintext_accounts_only():
+    """Path to plaintext fixture with accounts only (no transactions), for --new CLI tests."""
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(test_dir, 'fixtures', 'import_new_accounts_only.txt')
+
+
+@pytest.fixture
+def import_new_plaintext_invalid_account_type():
+    """Path to plaintext fixture with an unrecognised account type.
+
+    Used to test --new cleanup: the importer raises a KeyError in ACCT_TYPE_MAP
+    when it encounters 'INVALID_ACCOUNT_TYPE', exercising the failure cleanup path.
+    """
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(test_dir, 'fixtures', 'import_new_invalid_account_type.txt')
+
+
+@pytest.fixture
 def temp_gnucash_comprehensive():
     """
     Create a comprehensive GnuCash file from plaintext test data.
