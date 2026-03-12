@@ -1,0 +1,69 @@
+services:
+  gnucash-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        BASE_IMAGE: gnucash-dev:latest
+    image: gnucash-dev-vscode:latest
+    container_name: gnucash-plaintext-dev
+    volumes:
+      - .:/workspace
+      - vscode-data:/root/.local/share/code-server  # Persist VS Code settings
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker-in-Docker support (Linux/macOS/WSL2 only)
+    working_dir: /workspace
+    ports:
+      - "8765:8080"  # VS Code Server (host:container)
+    environment:
+      - PASSWORD=123456
+      # Pass real host path for Docker-in-Docker
+      # When scripts run inside this container and launch new containers,
+      # they need to mount the actual host path, not /workspace
+      - HOST_PROJECT_PATH=${PWD}
+    command: >
+      bash -c "
+        echo 'Installing Python package...' &&
+        python3 -m pip install -e . --break-system-packages -q &&
+        echo '' &&
+        CERT_DIR=/root/.local/share/code-server &&
+        mkdir -p $$CERT_DIR &&
+        if [ ! -f $$CERT_DIR/cert.crt ] || [ ! -f $$CERT_DIR/cert.key ]; then
+          echo 'Generating self-signed SSL certificate (this may take 10-20 seconds)...' &&
+          yes '' 2>/dev/null | openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $$CERT_DIR/cert.key -out $$CERT_DIR/cert.crt -subj '/C=US/ST=State/L=City/O=GnuCash-Plaintext/CN=localhost' >/dev/null 2>&1 &&
+          sync &&
+          sleep 1 &&
+          echo 'Certificate generated and saved to volume (persists across restarts)' ||
+          echo 'Certificate generation failed, falling back to HTTP';
+        else
+          echo 'Using existing certificate from volume (generated on first run)';
+        fi &&
+        echo '' &&
+        echo '========================================' &&
+        echo 'GnuCash Plaintext Dev Environment Ready!' &&
+        echo '========================================' &&
+        echo '' &&
+        echo 'VS Code Server: https://localhost:8765' &&
+        echo 'Password: 123456' &&
+        echo '' &&
+        echo 'Note: Self-signed certificate will show browser warning' &&
+        echo 'Click \"Advanced\" -> \"Proceed to localhost\" to continue' &&
+        echo '' &&
+        echo 'Inside container, you can:' &&
+        echo '  - Edit code in browser at https://localhost:8765' &&
+        echo '  - Run tests: pytest tests/' &&
+        echo '  - Use CLI: gnucash-plaintext --help' &&
+        echo '' &&
+        echo 'Press Ctrl+C to stop' &&
+        echo '========================================' &&
+        if [ -f $$CERT_DIR/cert.crt ] && [ -f $$CERT_DIR/cert.key ]; then
+          code-server --bind-addr 0.0.0.0:8080 --auth password --cert $$CERT_DIR/cert.crt --cert-key $$CERT_DIR/cert.key /workspace;
+        else
+          echo 'WARNING: Running without HTTPS (certificate generation failed)' &&
+          code-server --bind-addr 0.0.0.0:8080 --auth password /workspace;
+        fi
+      "
+    stdin_open: true
+    tty: true
+
+volumes:
+  vscode-data:  # Named volume for VS Code Server settings/extensions

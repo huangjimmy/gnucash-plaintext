@@ -1,0 +1,43 @@
+# Development environment with VS Code Server
+# Extends the base gnucash-dev image with code-server pre-installed
+
+ARG BASE_IMAGE=gnucash-dev:latest
+FROM ${BASE_IMAGE}
+
+# Install curl, wget, openssl, Docker CLI, and code-server
+RUN apt-get update && \
+    apt-get install -y curl wget ca-certificates gnupg openssl && \
+    # Install Docker CLI
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
+    chmod a+r /etc/apt/keyrings/docker.asc && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli docker-compose-plugin && \
+    # Install code-server
+    curl -fsSL https://code-server.dev/install.sh | sh && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Add user to docker group for socket access
+# The GID will match the host's docker group when socket is mounted
+RUN groupadd -g 999 docker || true && \
+    usermod -aG docker root || true
+
+# Install VS Code extensions for better development experience
+RUN code-server --install-extension ms-python.python && \
+    code-server --install-extension ms-python.vscode-pylance && \
+    code-server --install-extension charliermarsh.ruff && \
+    code-server --install-extension ms-azuretools.vscode-docker && \
+    code-server --install-extension yzhang.markdown-all-in-one && \
+    code-server --install-extension eamodio.gitlens && \
+    code-server --install-extension tamasfe.even-better-toml && \
+    code-server --install-extension redhat.vscode-yaml
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command (will be overridden by docker-compose)
+CMD ["bash"]

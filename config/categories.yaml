@@ -1,0 +1,168 @@
+# Category Mapping Rules for QFX Import
+# Based on merchant name pattern matching
+#
+# Format:
+#   category_name:
+#     patterns:
+#       - "PATTERN1"
+#       - "PATTERN2"
+#     case_sensitive: false  # optional, default false
+#
+# Patterns are matched against merchant name/payee field
+# First match wins, patterns are checked in order
+
+# Groceries and Food
+Groceries:
+  patterns:
+    - "MYBASKET"
+    - "LIFE "
+    - "SUPERMARKET"
+    - "GROCERY"
+    - "WHOLE FOODS"
+    - "TRADER JOE"
+    - "SAFEWAY"
+    - "COSTCO"
+
+# Public Transportation
+Public Transportation:
+  patterns:
+    - "COMPASS "
+    - "UBERTRIP"
+    - "LYFT"
+    - "UBER"
+    - "TRANSIT"
+    - "METRO"
+    - "BUS"
+
+# Travel - Flight
+"Travel:Flight":
+  patterns:
+    - "UNITED AIR "
+    - "AIRCANADA"
+    - "DELTA AIR"
+    - "AMERICAN AIRLINES"
+    - "SOUTHWEST"
+    - "JETBLUE"
+
+# Travel - Accommodation
+"Travel:Accommodation":
+  patterns:
+    - "HOTEL"
+    - "HILTON"
+    - "MARRIOTT"
+    - "AIRBNB"
+    - "BOOKING.COM"
+
+# Travel - Car Rental
+"Travel:Car Rental":
+  patterns:
+    - "HERTZ"
+    - "ENTERPRISE"
+    - "AVIS"
+    - "BUDGET"
+
+# Dining and Restaurants
+Dining:
+  patterns:
+    - "RESTAURANT"
+    - "CAFE"
+    - "COFFEE"
+    - "STARBUCKS"
+    - "MCDONALD"
+    - "SUBWAY"
+    - "PIZZA"
+    - "BAR & GRILL"
+
+# Transportation - Gas
+"Transportation:Gas":
+  patterns:
+    - "SHELL"
+    - "CHEVRON"
+    - "EXXON"
+    - "MOBIL"
+    - "BP"
+    - "TEXACO"
+    - "GAS STATION"
+    - "FUEL"
+
+# Transportation - Parking
+"Transportation:Parking":
+  patterns:
+    - "PARKING"
+    - "IMPARK"
+    - "EasyPark"
+
+# Utilities - Phone
+"Utilities:Phone":
+  patterns:
+    - "VERIZON"
+    - "AT&T"
+    - "T-MOBILE"
+    - "SPRINT"
+    - "PHONE"
+    - "WIRELESS"
+
+# Utilities - Internet
+"Utilities:Internet":
+  patterns:
+    - "COMCAST"
+    - "XFINITY"
+    - "COX"
+    - "SPECTRUM"
+    - "INTERNET"
+    - "BROADBAND"
+
+# Utilities - Electric
+"Utilities:Electric":
+  patterns:
+    - "ELECTRIC"
+    - "POWER"
+    - "UTILITY"
+    - "PG&E"
+    - "HYDRO"
+
+# Shopping - Online
+"Shopping:Online":
+  patterns:
+    - "AMAZON"
+    - "EBAY"
+    - "PAYPAL"
+
+# Shopping - General
+Shopping:
+  patterns:
+    - "WALMART"
+    - "TARGET"
+    - "BESTBUY"
+    - "HOME DEPOT"
+    - "IKEA"
+
+# Healthcare
+Healthcare:
+  patterns:
+    - "PHARMACY"
+    - "CVS"
+    - "WALGREENS"
+    - "HOSPITAL"
+    - "MEDICAL"
+    - "DOCTOR"
+    - "CLINIC"
+
+# Entertainment
+Entertainment:
+  patterns:
+    - "NETFLIX"
+    - "SPOTIFY"
+    - "HULU"
+    - "DISNEY"
+    - "CINEMA"
+    - "THEATER"
+    - "MOVIE"
+
+# Default Fallback Categories
+# These are used when no pattern matches
+
+fallback:
+  income_positive: "Income:Uncategorized"
+  expense_negative: "Expenses:Uncategorized"
+  mark_todo: true  # Add TODO marker for uncertain categories

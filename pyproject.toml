@@ -1,0 +1,116 @@
+[project]
+name = "gnucash-plaintext"
+version = "0.2.0"
+description = "GnuCash Plaintext - Convert between GnuCash and human-readable plaintext format"
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "click>=8.0",
+    "ofxparse>=0.21",      # QFX/OFX file parsing
+    "beautifulsoup4>=4.9",  # Future QFX parsing alternative
+    "lxml>=4.6",            # XML parsing
+    "pyyaml>=5.4",          # Configuration file support
+    "typing_extensions>=4.0; python_version<'3.11'",  # NotRequired, TypedDict backport
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=3.0",
+    "ruff>=0.1.0",  # Linter + formatter (replaces flake8, black, isort)
+]
+
+[project.scripts]
+gnucash-plaintext = "cli.main:cli"
+
+[tool.setuptools]
+packages = [
+    "cli",
+    "services",
+    "repositories",
+    "infrastructure",
+    "infrastructure.gnucash",
+    "infrastructure.plaintext",
+    "infrastructure.qfx",
+    "use_cases",
+]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml"]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["cli", "services", "infrastructure", "use_cases"]
+omit = ["tests/*", "*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"  # Minimum supported version (Ubuntu 20.04)
+
+# Exclude files/directories
+exclude = [
+    ".git",
+    "__pycache__",
+    ".pytest_cache",
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+# Enable these rule sets
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import sorting)
+    "N",   # pep8-naming
+    "UP",  # pyupgrade (modernize Python code)
+    "B",   # flake8-bugbear (find likely bugs)
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",  # Line too long (let formatter handle it)
+    "B008",  # Do not perform function calls in argument defaults
+    "UP006", # Use dict instead of Dict (requires Python 3.9+, keep 3.8 compatible)
+    "UP045", # Don't modernize type hints (keep Python 3.8 compatible)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow unused imports and redefinitions in tests
+"tests/*" = ["F401", "F811"]
+# Allow star imports in __init__.py
+"__init__.py" = ["F401", "F403"]
+
+[tool.ruff.format]
+# Format strings with double quotes (Python default)
+quote-style = "double"
+# Indent with 4 spaces
+indent-style = "space"
+# Use Unix line endings
+line-ending = "lf"

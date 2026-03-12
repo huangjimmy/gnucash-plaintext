@@ -1,0 +1,122 @@
+2024-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Assets:Bank
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Assets:Bank:Checking
+	type: "Bank"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Assets:Bank:USD
+	type: "Bank"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Income:Salary
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Income:Salary:Base
+	type: "Income"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Income:Salary:Bonus
+	type: "Income"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Income:Interest
+	type: "Income"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Income:Freelance
+	type: "Income"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Expenses:Travel
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Expenses:Travel:Train
+	type: "Expense"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Expenses:Travel:Flight
+	type: "Expense"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Expenses:Groceries
+	type: "Expense"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Expenses:SaaS
+	type: "Expense"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-01-31 * "January base salary"
+	Income:Salary:Base -3000.00 CAD
+	Assets:Bank:Checking 3000.00 CAD
+2024-02-28 * "February base salary"
+	Income:Salary:Base -3000.00 CAD
+	Assets:Bank:Checking 3000.00 CAD
+2024-03-15 * "Annual performance bonus"
+	Income:Salary:Bonus -1000.00 CAD
+	Assets:Bank:Checking 1000.00 CAD
+2024-04-30 * "Bank interest"
+	Income:Interest -200.00 CAD
+	Assets:Bank:Checking 200.00 CAD
+2024-05-10 * "Train commute Q1"
+	Expenses:Travel:Train 150.00 CAD
+	Assets:Bank:Checking -150.00 CAD
+2024-06-20 * "Conference flight"
+	Expenses:Travel:Flight 800.00 CAD
+	Assets:Bank:Checking -800.00 CAD
+2024-07-05 * "Monthly groceries"
+	Expenses:Groceries 400.00 CAD
+	Assets:Bank:Checking -400.00 CAD
+2024-08-01 * "Freelance project"
+	Income:Freelance -500.00 USD
+	Assets:Bank:USD 500.00 USD
+2024-09-15 * "Cloud tools subscription"
+	Expenses:SaaS 100.00 USD
+	Assets:Bank:USD -100.00 USD
