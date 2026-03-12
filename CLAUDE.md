@@ -59,6 +59,7 @@ Merge criteria:
 - debian:12 (GnuCash 4.13)
 - debian:11 (GnuCash 4.4)
 - ubuntu:20.04 (GnuCash 3.8) - minimum
+- ubuntu:22.04 (GnuCash 4.8)
 
 ### ❌ Do NOT Support
 - debian:10 (EOL, broken dependencies)
