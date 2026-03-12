@@ -6,6 +6,7 @@ gnucash plaintext is an app that can
 * load a .gnucash file and then export a [GnuCash](https://www.gnucash.org/) plaintext ledger file
 * load [GnuCash](https://www.gnucash.org/) plaintext ledger file and export a [beancount](https://github.com/beancount/beancount) compatible .beancount file
 * read from a [GnuCash](https://www.gnucash.org/) plaintext transaction file and create transaction in .gnucash file
+* bidirectional conversion between GnuCash and [GnuCash-Beancount](docs/gnucash-beancount-format.md) format with zero data loss
 
 ## Motivation
 
@@ -47,6 +48,7 @@ I explore GnuCash python bindings and beancount documentations. Now I am pretty 
 | .gnucash file                                       | An XML file with extension .gnucash that GnuCash stores accounts and transactions information                  |
 | GnuCash plaintext ledger file                       | Introduced by gnucash plaintext, It is a beancount-like bookkeeping language in a text file.                   |
 | [beancount](https://github.com/beancount/beancount) | A double-entry bookkeeping computer language that lets you define financial transaction records in a text file |
+| [GnuCash-Beancount](docs/gnucash-beancount-format.md) | A special beancount format with GnuCash metadata that enables bidirectional conversion with zero data loss |
 
 ## GnuCash plaintext
 
@@ -214,48 +216,280 @@ Formula `value` = `share_price` * Split_Amount, e.g., 3.68 = 368/2170 * 21.70
 		value: "-3.68"
 ```
 
-## Features
+## Usage
 
-### Export GnuCash data to GnuCash plaintext
+The gnucash-plaintext CLI provides commands to work with GnuCash files:
 
-TODO
+### Export GnuCash to plaintext format
 
-### Convert GnuCash plaintext to beancount
+Export all transactions, accounts, and commodities to a plaintext file:
 
-TODO
-
-### Create GnuCash XML file from GnuCash plaintext 
-
-Read text content from `path_to_plaintext_file.txt` and create a new GnuCash XML file.
-If `path_to_gnucash_file.gnucash` exists, this program will raise an exception and fail
-to create GnuCash XML file
-
-```commandline
-plaintext_to_gnucash.py -i path_to_plaintext_file.txt -o path_to_gnucash_file.gnucash
+```bash
+gnucash-plaintext export mybook.gnucash transactions.txt
 ```
 
-or
+Export with filters:
 
-```commandline
-plaintext_to_gnucash.py --input path_to_plaintext_file.txt --output path_to_gnucash_file.gnucash
+```bash
+# Export date range
+gnucash-plaintext export mybook.gnucash transactions.txt \
+  --date-from 2024-01-01 --date-to 2024-12-31
+
+# Export specific account
+gnucash-plaintext export mybook.gnucash transactions.txt \
+  --account "Assets:Bank"
 ```
 
-### Update an existing GnuCash XML according to plaintext
+### Export GnuCash to GnuCash-Beancount format
 
-* Load and parse `path_to_plaintext_file.txt`, create accounts/transactions/splits that do not exist in `path_to_gnucash_file.gnucash`
-* Update existing accounts/transactions/splits so that they are in sync with `path_to_plaintext_file.txt`
+Export to [GnuCash-Beancount](docs/gnucash-beancount-format.md) format:
 
-An account from plaintext exists in GnuCash if
-* account guids equal
-* account full names equal
-* if no guids and full names not equal, will be considered a new account
+```bash
+gnucash-plaintext export-beancount mybook.gnucash output.beancount
+```
 
-A transaction from plaintext exists in GnuCash if
-* transaction guids equal
-* if no guid, two transactions are considered a match if signature (date, [split account 1, ..., split account N]) 
-matches
+With filters:
 
+```bash
+# Export date range
+gnucash-plaintext export-beancount mybook.gnucash output.beancount \
+  --date-from 2024-01-01 --date-to 2024-12-31
 
-#### Command line
+# Export specific account
+gnucash-plaintext export-beancount mybook.gnucash output.beancount \
+  --account "Assets:Bank"
+```
 
-TODO
+**Note:** The exported file is in [GnuCash-Beancount format](docs/gnucash-beancount-format.md), a special beancount format with GnuCash metadata that enables bidirectional conversion with zero data loss.
+
+### Import from GnuCash-Beancount format
+
+Import from [GnuCash-Beancount](docs/gnucash-beancount-format.md) format:
+
+```bash
+gnucash-plaintext import-beancount output.gnucash input.beancount
+```
+
+Validate without importing (dry run):
+
+```bash
+gnucash-plaintext import-beancount output.gnucash input.beancount --dry-run
+```
+
+**Note:** Only GnuCash-Beancount files (with required metadata) can be imported. Standard beancount files will be rejected. See the [format documentation](docs/gnucash-beancount-format.md) for details.
+
+### Import plaintext transactions to GnuCash
+
+Import transactions from a plaintext file:
+
+```bash
+gnucash-plaintext import mybook.gnucash transactions.txt
+```
+
+Preview without making changes (dry run):
+
+```bash
+gnucash-plaintext import mybook.gnucash transactions.txt --dry-run
+```
+
+Handle conflicts with resolution strategies:
+
+```bash
+# Skip conflicting transactions (default)
+gnucash-plaintext import mybook.gnucash transactions.txt --strategy skip
+
+# Keep existing transactions on conflict
+gnucash-plaintext import mybook.gnucash transactions.txt --strategy keep-existing
+
+# Replace with incoming transactions on conflict
+gnucash-plaintext import mybook.gnucash transactions.txt --strategy keep-incoming
+```
+
+**How conflicts are detected:**
+
+An account from plaintext exists in GnuCash if:
+- Account GUIDs are equal, or
+- Account full names are equal
+- If no GUID and names don't match, it's considered a new account
+
+A transaction from plaintext exists in GnuCash if:
+- Transaction GUIDs are equal, or
+- Transaction signature matches: (date, [split account 1, ..., split account N])
+- If no GUID and signature doesn't match, it's considered a new transaction
+
+### Validate GnuCash ledger
+
+Check ledger integrity:
+
+```bash
+# Full validation report
+gnucash-plaintext validate mybook.gnucash
+
+# Quick check (errors only)
+gnucash-plaintext validate mybook.gnucash --quick
+
+# Show statistics
+gnucash-plaintext validate mybook.gnucash --stats
+
+# Save report to file
+gnucash-plaintext validate mybook.gnucash --report validation.txt
+```
+
+## Development
+
+This project uses Docker for development to ensure a consistent environment across all platforms. GnuCash Python bindings are system-dependent and cannot be installed via pip, so Docker provides a reliable way to develop and test the application.
+
+**Using Podman?** See [PODMAN.md](PODMAN.md) for Podman-specific instructions and compatibility notes.
+
+### Getting Started
+
+After cloning the repository, start the dev environment:
+
+```bash
+# Linux/macOS
+./scripts/dev-start.sh
+
+# Windows (PowerShell)
+.\scripts\dev-start.ps1
+
+# Windows (CMD)
+scripts\dev-start.bat
+```
+
+**What you get:**
+- VS Code Server at https://localhost:8765 (password: `123456`)
+  - **Note**: Uses self-signed SSL certificate - browser will show security warning
+  - Click "Advanced" → "Proceed to localhost (unsafe)" to continue (safe for local dev)
+- GnuCash Python bindings pre-installed and ready to use
+- Python package installed with all dependencies
+- Docker-in-Docker support (Linux/macOS/WSL2) - run test scripts from anywhere
+- Live code sync - changes reflect immediately
+- Git hooks automatically installed (linting + tests before commit)
+
+**Inside VS Code Server terminal**, you can:
+```bash
+# Run tests directly (faster)
+pytest tests/
+pytest tests/unit/ -v
+
+# Or use the same scripts as on host (Docker-in-Docker on Linux/macOS/WSL2)
+./scripts/test.sh
+./scripts/test.sh debian12  # Test on different GnuCash version
+
+# Use the CLI
+gnucash-plaintext --help
+gnucash-plaintext export myfile.gnucash output.txt
+```
+
+To stop the environment:
+```bash
+# Linux/macOS
+./scripts/dev-stop.sh
+
+# Windows (PowerShell)
+.\scripts\dev-stop.ps1
+
+# Windows (CMD)
+scripts\dev-stop.bat
+```
+
+### Git Hooks
+
+Git hooks are installed automatically when you run `./scripts/dev-start.sh`.
+
+The pre-commit hook runs before every commit and checks:
+- Code linting with `ruff check .`
+- All tests with `./scripts/test.sh`
+
+Commits are blocked if checks fail. To manually install hooks (if needed):
+
+```bash
+./scripts/install-hooks.sh
+```
+
+### Platform Support
+
+- **Linux/macOS/WSL2**: Full Docker-in-Docker support - same commands work on host and inside container
+- **Windows (PowerShell/CMD)**: VS Code Server works, but use `pytest` directly inside container (Docker-in-Docker not supported on native Windows)
+
+### Running Tests
+
+```bash
+# From host machine (Linux/macOS/WSL2)
+./scripts/test.sh           # Run all tests with default image
+./scripts/test.sh debian12  # Run with Debian 12 (GnuCash 4.13)
+./scripts/test.sh latest tests/unit/  # Run specific test directory
+
+# From Windows (PowerShell)
+.\scripts\test.ps1
+.\scripts\test.ps1 debian12
+
+# Inside VS Code Server (all platforms)
+pytest tests/               # Direct execution (faster)
+./scripts/test.sh          # Via Docker wrapper (Linux/macOS/WSL2 only)
+```
+
+### Code Quality & Linting
+
+This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting.
+
+```bash
+# Inside VS Code Server or dev container
+# Check code for issues
+ruff check .
+
+# Auto-fix issues
+ruff check --fix .
+
+# Format code
+ruff format .
+
+# Check and format together
+ruff check --fix . && ruff format .
+```
+
+**VS Code Integration**: Ruff extension is pre-installed in the dev environment. Code will be automatically formatted on save and imports will be organized.
+
+### Supported GnuCash Versions
+
+The project is tested against multiple GnuCash versions using different Docker base images:
+
+| Distribution | GnuCash Version | Tag |
+|--------------|----------------|-----|
+| Debian 13 | 5.10 | `latest` |
+| Debian 12 | 4.13 | `debian12` |
+| Debian 11 | 4.4 | `debian11` |
+| Ubuntu 20.04 | 3.8 | `ubuntu20` |
+
+### Interactive Development Shell
+
+```bash
+# Start interactive bash shell in container
+./scripts/shell.sh          # Use latest image
+./scripts/shell.sh debian12 # Use Debian 12 image
+
+# Inside container
+cd /workspace
+python3 -c "import gnucash; print('GnuCash available!')"
+gnucash-plaintext --help
+```
+
+### Running Arbitrary Commands
+
+```bash
+# Run any command in Docker container
+./scripts/run.sh python3 --version
+./scripts/run.sh debian12 python3 script.py
+./scripts/run.sh gnucash-plaintext --help
+```
+
+### More Information
+
+For comprehensive documentation on Docker development, helper scripts, troubleshooting, and advanced usage, see [`scripts/README.md`](scripts/README.md).
+
+Key topics covered:
+- Docker Compose architecture (base image, dev image, volumes, DinD)
+- Cross-platform script usage (Linux/macOS/Windows)
+- Troubleshooting Docker socket permissions
+- Fixing path mounting issues in Docker-in-Docker
+- VS Code Server configuration and settings persistence
