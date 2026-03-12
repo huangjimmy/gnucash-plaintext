@@ -264,8 +264,11 @@ class ImportTransactionsUseCase:
                     importer.create_account(child, book)
                     result.accounts_created += 1
                 except Exception as e:
-                    logging.warning(f"Failed to create account {child.props.get('account')}: {e}")
-                    # Continue - account might already exist
+                    account_name = child.props.get('account', '?')
+                    error_msg = f"Failed to create account {account_name}: {e}"
+                    logging.warning(error_msg)
+                    result.errors.append({'error': error_msg})
+                    result.error_count += 1
 
         # Step 3: Import transactions with duplicate detection
         existing_transactions = self.repository.get_all_transactions()

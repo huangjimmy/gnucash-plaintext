@@ -29,10 +29,13 @@ echo "Temp workspace: $TEMP_BASE"
 echo ""
 
 # Cleanup function
+# Docker containers run as root, so some files in TEMP_BASE may be root-owned.
+# Use a privileged container to remove them, falling back to plain rm.
 cleanup() {
     echo ""
     echo "Cleaning up temp directories..."
-    rm -rf "$TEMP_BASE"
+    docker run --rm -v "$TEMP_BASE:/cleanup" alpine sh -c "rm -rf /cleanup/*" 2>/dev/null || true
+    rm -rf "$TEMP_BASE" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -47,6 +50,7 @@ for version in "${VERSIONS[@]}"; do
              --exclude='__pycache__' \
              --exclude='*.pyc' \
              --exclude='.pytest_cache' \
+             --exclude='.ruff_cache' \
              --exclude='htmlcov' \
              --exclude='.coverage' \
              --exclude='*.egg-info' \

@@ -2,13 +2,16 @@
 #
 # Pre-commit hook: Run linter, tests, and independent AI review
 #
-# Flow: Linting/tests run but don't block → AI reviews actual code → Block if quality checks failed
+# Flow:
+#   1. Run lint (always)
+#   2. Run tests via test-all-versions-parallel.sh (always, even if lint failed)
+#   3. If lint OR tests failed → block immediately (no AI review = no wasted tokens)
+#   4. If both passed → run AI review → block on concerns
 #
 
 echo "Running pre-commit checks..."
 echo ""
 
-# Track quality check results
 LINT_FAILED=0
 TEST_FAILED=0
 LINT_OUTPUT=""
@@ -20,20 +23,18 @@ if ! command -v docker > /dev/null 2>&1; then
     echo "   Install Docker to enable pre-commit checks"
     echo ""
 else
-    # Run linter on staged Python files only (don't exit on failure, just record it)
+    # 1. Lint staged Python files
     echo "1. Running linting..."
 
-    # Get list of staged Python files
     STAGED_PY_FILES=$(git diff --staged --name-only --diff-filter=ACM | grep '\.py$' | tr '\n' ' ' || true)
 
     if [ -z "$STAGED_PY_FILES" ]; then
         echo "⚠️  No Python files staged - skipping linting"
         echo ""
     else
-        # Use scripts/lint.sh to avoid duplicating Docker/ruff logic
         if ! LINT_OUTPUT=$(./scripts/lint.sh $STAGED_PY_FILES 2>&1); then
             LINT_FAILED=1
-            echo "⚠️  Linting found issues in staged files (will block commit after review)"
+            echo "❌ Linting failed"
             echo ""
         else
             echo "✓ Linting passed"
@@ -41,23 +42,39 @@ else
         fi
     fi
 
-    # Run tests in Docker (don't exit on failure, just record it)
-    # TODO: Re-enable ubuntu20 testing after verifying Docker image builds correctly
-    echo "2. Running tests..."
-    if ! TEST_OUTPUT=$(./scripts/test.sh 2>&1); then
+    # 2. Run tests against all supported versions (always run, even if lint failed)
+    echo "2. Running tests (all versions)..."
+    if ! TEST_OUTPUT=$(./scripts/test-all-versions-parallel.sh 2>&1); then
         TEST_FAILED=1
-        echo "⚠️  Tests failed (will block commit after review)"
+        echo "❌ Tests failed"
         echo ""
     else
         echo "✓ Tests passed"
         echo ""
     fi
+
+    # 3. Block immediately if lint or tests failed — skip AI review to save tokens
+    if [ $LINT_FAILED -eq 1 ] || [ $TEST_FAILED -eq 1 ]; then
+        if [ $LINT_FAILED -eq 1 ]; then
+            echo "Linting errors:"
+            echo "$LINT_OUTPUT"
+            echo ""
+            echo "Fix with: ./scripts/fix-lint.sh --unsafe"
+            echo ""
+        fi
+        if [ $TEST_FAILED -eq 1 ]; then
+            echo "Test failures (last 50 lines):"
+            echo "$TEST_OUTPUT" | tail -50
+            echo ""
+        fi
+        echo "❌ Commit blocked: fix lint/test failures before committing."
+        exit 1
+    fi
 fi
 
-# Run independent AI review
+# 4. AI review — only reached when lint + tests both pass
 echo "3. Running independent AI review..."
 
-# Get staged changes
 STAGED_DIFF=$(git diff --staged --no-color)
 
 if [ -z "$STAGED_DIFF" ]; then
@@ -70,14 +87,6 @@ fi
 # Allow skipping AI review for quick commits
 if [ "$SKIP_AI_REVIEW" = "1" ]; then
     echo "⚠️  AI review skipped (SKIP_AI_REVIEW=1)"
-    echo ""
-    # Still enforce quality checks
-    if [ $LINT_FAILED -eq 1 ] || [ $TEST_FAILED -eq 1 ]; then
-        echo "❌ Commit blocked: Quality checks failed"
-        [ $LINT_FAILED -eq 1 ] && echo "   - Fix linting with: ./scripts/fix-lint.sh --unsafe"
-        [ $TEST_FAILED -eq 1 ] && echo "   - Fix tests with: ./scripts/test.sh"
-        exit 1
-    fi
     echo "✓ All pre-commit checks passed!"
     exit 0
 fi
@@ -85,8 +94,6 @@ fi
 # Check if claude command is available
 if ! command -v claude > /dev/null 2>&1; then
     echo "⚠️  Claude Code not installed - skipping AI review"
-    echo "   Install Claude Code to enable AI-powered commit reviews"
-    echo ""
     echo "✓ All pre-commit checks passed!"
     exit 0
 fi
@@ -101,31 +108,19 @@ build_review_input() {
   echo "1. Understand what this commit is trying to do"
   echo "2. Verify the changes are correct and complete"
   echo "3. Check for: logic errors, missing edge cases, security issues, missing tests"
-  echo "4. Consider linting/test results shown below"
-  echo "5. Output your decision:"
+  echo "4. Output your decision:"
   echo "   - If issues found: Start your response with \"CONCERNS:\" and list specific issues"
   echo "   - If approved: Start your response with \"APPROVED:\" and briefly explain why"
   echo ""
   echo "Be concise but specific. Focus on real issues that would cause problems."
   echo ""
-  if [ $LINT_FAILED -eq 1 ]; then
-    echo "=== LINTING ERRORS ==="
-    echo "$LINT_OUTPUT"
-    echo ""
-  fi
-  if [ $TEST_FAILED -eq 1 ]; then
-    echo "=== TEST FAILURES ==="
-    echo "$TEST_OUTPUT"
-    echo ""
-  fi
   echo "=== STAGED CHANGES ==="
   git diff --staged
 }
 
 # Helper function: Run command with timeout and CLAUDECODE unset.
-# Saves and restores the git index around the claude invocation so that
-# any git operations performed by the AI reviewer session (e.g. staging
-# marketplace/plugin files) cannot contaminate the staged changes.
+# Saves and restores the git index so that any git operations performed
+# by the AI reviewer session cannot contaminate the staged changes.
 run_with_timeout() {
   unset CLAUDECODE
   local index_file
@@ -139,53 +134,20 @@ run_with_timeout() {
   return $exit_code
 }
 
-# Spawn independent Claude session for review
 echo "   (Tip: Set SKIP_AI_REVIEW=1 to skip for quick commits)"
 echo "   Spawning independent AI reviewer (90s timeout)..."
 
 REVIEW_OUTPUT=$(build_review_input | run_with_timeout claude 2>&1)
 REVIEW_EXIT_CODE=$?
 
-# Check if timeout occurred
 if [ $REVIEW_EXIT_CODE -eq 124 ]; then
-    echo "⚠️  AI review timed out after 90 seconds"
-    echo "   The commit will proceed, but manual review recommended"
-    echo ""
-    # Still enforce quality checks even on timeout
-    if [ $LINT_FAILED -eq 1 ] || [ $TEST_FAILED -eq 1 ]; then
-        echo "❌ Commit blocked: Quality checks failed"
-        [ $LINT_FAILED -eq 1 ] && echo "   - Fix linting with: ./scripts/fix-lint.sh --unsafe"
-        [ $TEST_FAILED -eq 1 ] && echo "   - Fix tests with: ./scripts/test.sh"
-        exit 1
-    fi
+    echo "⚠️  AI review timed out after 90 seconds - proceeding without review"
     echo "✓ All pre-commit checks passed!"
     exit 0
 fi
 
-# Check if review approved or has concerns
 if echo "$REVIEW_OUTPUT" | grep -q "^APPROVED:"; then
     echo "✓ AI review approved"
-    echo ""
-
-    # Now check if linting or tests failed (after AI review)
-    if [ $LINT_FAILED -eq 1 ]; then
-        echo "❌ Commit blocked: Linting errors must be fixed"
-        echo ""
-        echo "$LINT_OUTPUT"
-        echo ""
-        echo "Fix with: ./scripts/fix-lint.sh --unsafe"
-        exit 1
-    fi
-
-    if [ $TEST_FAILED -eq 1 ]; then
-        echo "❌ Commit blocked: Tests must pass"
-        echo ""
-        echo "$TEST_OUTPUT" | tail -50
-        echo ""
-        echo "Run: ./scripts/test.sh to see full output"
-        exit 1
-    fi
-
     echo "✓ All pre-commit checks passed!"
     exit 0
 elif echo "$REVIEW_OUTPUT" | grep -q "^CONCERNS:"; then
@@ -196,20 +158,10 @@ elif echo "$REVIEW_OUTPUT" | grep -q "^CONCERNS:"; then
     echo "Please address the concerns or use 'git commit --no-verify' to skip checks."
     exit 1
 else
-    # If output doesn't match expected format, show it and continue
-    echo "⚠️  AI review completed but output format unexpected"
-    echo "   Review output:"
+    # Unexpected output format — show it but don't block
+    echo "⚠️  AI review output format unexpected - proceeding anyway"
     echo "$REVIEW_OUTPUT"
     echo ""
-
-    # Still enforce quality checks even if review format unexpected
-    if [ $LINT_FAILED -eq 1 ] || [ $TEST_FAILED -eq 1 ]; then
-        echo "❌ Commit blocked: Quality checks failed"
-        [ $LINT_FAILED -eq 1 ] && echo "   - Fix linting with: ./scripts/fix-lint.sh --unsafe"
-        [ $TEST_FAILED -eq 1 ] && echo "   - Fix tests with: ./scripts/test.sh"
-        exit 1
-    fi
-
-    echo "✓ All pre-commit checks passed (proceeding anyway)"
+    echo "✓ All pre-commit checks passed!"
     exit 0
 fi

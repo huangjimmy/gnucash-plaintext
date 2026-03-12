@@ -7,7 +7,6 @@ These tests verify the CLI command works end-to-end.
 import os
 import tempfile
 
-import pytest
 from click.testing import CliRunner
 
 from cli.import_cmd import import_transactions
@@ -210,3 +209,95 @@ class TestImportCLI:
 
         assert result.exit_code != 0
         assert "Missing plaintext file" in result.output
+
+    def test_import_new_creates_file(self, import_new_plaintext_with_transaction):
+        """--new with nonexistent path creates the file and imports accounts + transaction"""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            new_gnucash = os.path.join(tmpdir, "newbook.gnucash")
+            assert not os.path.exists(new_gnucash)
+
+            result = runner.invoke(import_transactions, [
+                '--new', new_gnucash, import_new_plaintext_with_transaction
+            ])
+
+            assert result.exit_code == 0, result.output
+            assert os.path.exists(new_gnucash)
+            assert "Transactions: 1" in result.output
+            assert "Changes saved" in result.output
+
+    def test_import_new_accounts_only(self, import_new_plaintext_accounts_only):
+        """--new with accounts-only plaintext creates the file and imports all accounts"""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            new_gnucash = os.path.join(tmpdir, "newbook.gnucash")
+
+            result = runner.invoke(import_transactions, [
+                '--new', new_gnucash, import_new_plaintext_accounts_only
+            ])
+
+            assert result.exit_code == 0, result.output
+            assert os.path.exists(new_gnucash)
+            assert "Transactions: 0" in result.output
+            assert "Accounts:" in result.output
+            assert "Changes saved" in result.output
+
+    def test_import_new_fails_if_exists(self, temp_gnucash_file, import_new_plaintext_accounts_only):
+        """--new with an already-existing file raises UsageError"""
+        runner = CliRunner()
+
+        result = runner.invoke(import_transactions, [
+            '--new', temp_gnucash_file, import_new_plaintext_accounts_only
+        ])
+
+        assert result.exit_code != 0
+        assert "already exists" in result.output
+
+    def test_import_without_new_still_requires_existing_file(self, import_new_plaintext_accounts_only):
+        """Without --new, a missing GnuCash file still raises UsageError with --new hint"""
+        runner = CliRunner()
+
+        result = runner.invoke(import_transactions, [
+            '/nonexistent/path/mybook.gnucash', import_new_plaintext_accounts_only
+        ])
+
+        assert result.exit_code != 0
+        assert "does not exist" in result.output
+        assert "Use --new" in result.output
+
+    def test_import_new_and_dry_run_are_mutually_exclusive(self, import_new_plaintext_accounts_only):
+        """--new and --dry-run together raise UsageError"""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            new_gnucash = os.path.join(tmpdir, "newbook.gnucash")
+
+            result = runner.invoke(import_transactions, [
+                '--new', '--dry-run', new_gnucash, import_new_plaintext_accounts_only
+            ])
+
+            assert result.exit_code != 0
+            assert "mutually exclusive" in result.output
+            assert not os.path.exists(new_gnucash)
+
+    def test_import_new_reports_account_creation_error(self, import_new_plaintext_invalid_account_type):
+        """--new with an unrecognised account type reports the error in the summary.
+
+        Account creation errors are non-fatal: the file is kept and the error
+        is shown in the import summary rather than silently swallowed.
+        """
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            new_gnucash = os.path.join(tmpdir, "newbook.gnucash")
+
+            result = runner.invoke(import_transactions, [
+                '--new', new_gnucash, import_new_plaintext_invalid_account_type
+            ])
+
+            assert result.exit_code == 0
+            assert os.path.exists(new_gnucash)
+            assert "Errors:" in result.output
+            assert "Failed to create account" in result.output
