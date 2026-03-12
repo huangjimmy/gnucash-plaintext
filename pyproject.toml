@@ -3,6 +3,7 @@ name = "gnucash-plaintext"
 version = "0.2.0"
 description = "GnuCash Plaintext - Convert between GnuCash and human-readable plaintext format"
 readme = "README.md"
+license = {file = "LICENSE"}
 requires-python = ">=3.7"
 dependencies = [
     "click>=8.0",
