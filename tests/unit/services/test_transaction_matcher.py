@@ -45,10 +45,10 @@ class TestTransactionMatcherSignature:
             tx = Transaction(instance=result[0])
             signature = matcher.get_signature(tx)
 
-            # Signature should be (date_str, tuple_of_accounts)
+            # Signature should be (date_str, tuple_of_accounts, doc_link)
             assert isinstance(signature, tuple)
-            assert len(signature) == 2
-            date_str, accounts = signature
+            assert len(signature) == 3
+            date_str, accounts, doc_link = signature
 
             # Date should be YYYY-MM-DD format
             assert isinstance(date_str, str)
@@ -76,7 +76,7 @@ class TestTransactionMatcherSignature:
             ["Assets:Bank:Checking", "Expenses:Groceries"]
         )
 
-        assert sig == ("2024-01-15", ("Assets:Bank:Checking", "Expenses:Groceries"))
+        assert sig == ("2024-01-15", ("Assets:Bank:Checking", "Expenses:Groceries"), None)
 
     def test_signature_account_order_doesnt_matter(self):
         """Test that account order doesn't affect signature"""
@@ -300,6 +300,90 @@ class TestTransactionMatcherDuplicates:
             assert len(new) == 0
             assert len(duplicates) == 0
             assert len(conflicts) == 1
+
+        finally:
+            session.end()
+
+
+class TestTransactionMatcherDocLink:
+    """Test that doc_link is part of the duplicate detection signature.
+
+    doc_link is explicitly authored (not auto-generated), so two transactions
+    on the same day with the same accounts but different doc_links are genuinely
+    different transactions (e.g. two grocery trips with separate receipts).
+    Strict equality is therefore correct — no wildcard semantics.
+    """
+
+    def test_has_duplicate_signature_no_doc_link_matches_no_doc_link(
+        self, temp_gnucash_with_transactions
+    ):
+        """Transactions without doc_link match each other (None == None)."""
+        from gnucash import Session
+
+        from services.transaction_matcher import TransactionMatcher
+
+        try:
+            from gnucash import SessionOpenMode
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              SessionOpenMode.SESSION_READ_ONLY)
+        except ImportError:
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              ignore_lock=True)
+
+        try:
+            book = session.book
+            from gnucash import Query, Transaction
+            query = Query()
+            query.search_for('Trans')
+            query.set_book(book)
+            transactions = [Transaction(instance=tx) for tx in query.run()]
+
+            matcher = TransactionMatcher()
+
+            # Existing transactions have no doc_link (None); incoming also has None → match
+            assert matcher.has_duplicate_signature(
+                transactions,
+                "2024-01-15",
+                ["Assets:Bank:Checking", "Expenses:Groceries"],
+                doc_link=None,
+            ) is True
+
+        finally:
+            session.end()
+
+    def test_has_duplicate_signature_different_doc_link_is_not_duplicate(
+        self, temp_gnucash_with_transactions
+    ):
+        """Incoming transaction with a different doc_link is NOT a duplicate."""
+        from gnucash import Session
+
+        from services.transaction_matcher import TransactionMatcher
+
+        try:
+            from gnucash import SessionOpenMode
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              SessionOpenMode.SESSION_READ_ONLY)
+        except ImportError:
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              ignore_lock=True)
+
+        try:
+            book = session.book
+            from gnucash import Query, Transaction
+            query = Query()
+            query.search_for('Trans')
+            query.set_book(book)
+            transactions = [Transaction(instance=tx) for tx in query.run()]
+
+            matcher = TransactionMatcher()
+
+            # Existing has no doc_link; incoming has a doc_link → different signature → not duplicate
+            assert matcher.has_duplicate_signature(
+                transactions,
+                "2024-01-15",
+                ["Assets:Bank:Checking", "Expenses:Groceries"],
+                doc_link="receipts/2024-01-15_grocery_trip2.txt",
+            ) is False
 
         finally:
             session.end()

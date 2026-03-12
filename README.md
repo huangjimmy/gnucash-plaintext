@@ -15,7 +15,7 @@ use to track my spending. Now, GnuCash is a place where I keep track of my expen
 commercial software and SaasS, people even mention notion as an online ledger, but I stick to GnuCash. I believe in one
 thing that I need to own my financial data and I would use an open source tool like GnuCash.
 
-At first I used Microsoft Money but then Microsoft discontinued this product. I then found GnuCash. I was not quite sure
+At first, I used Microsoft Money but then Microsoft discontinued this product. I then found GnuCash. I was not quite sure
 how to use GnuCash in the very beginning. I had to learn accounting basic such as Assets, Liabilities, Income, Expense
 and Equity. I had to admit that if it were not for GnuCash, I wouldn't have learnt bookkeeping and accounting and I would
 not have reviewed my financial status regularly like a CFO of myself.
@@ -25,7 +25,7 @@ today GnuCash is still under active development. It seems unlikely that my worry
 prepare for such event.
 
 Then I find [ledger-cli](https://ledger-cli.org/doc/ledger3.html) and [beancount](https://github.com/beancount/beancount).
-I immediately feel that plaintext accounting is what I am looking for. It is in human readable text format and the content
+I immediately feel that plaintext accounting is what I am looking for. It is in human-readable text format and the content
 will be readable by others even without any software.
 
 However, when I dive deeper into ledger-cli and beancount, I know I cannot migrate my ledger to either of them. There are
@@ -82,13 +82,13 @@ You shall specify Account type in `type` attribute.
 Also, GnuCash allow spaces, tabs and special chars in account names, so anything after the `open` directive will be considered
 account name. You will not be able to use `USD` at the end of account name to define constraint currency of accounts
 like you do in beancount `2014-05-01 open Liabilities:CreditCard:CapitalOne     USD`. This is still valid
-in GnuCash plaintext but it will be interpreted as you open account `Liabilities:CreditCard:CapitalOne     USD` on 
+in GnuCash plaintext, but it will be interpreted as you open account `Liabilities:CreditCard:CapitalOne     USD` on
 2014-05-01.
 
 Supported values of `type` are  6 asset accounts (Cash, Bank, Stock, Mutual Fund, Accounts Receivable, and Other Assets),
 3 liability accounts (Credit Card, Accounts Payable, and Liability), 1 equity account (Equity), 1 income account (Income), and 1 expense account (Expenses).
 
-Also, you cannot declare top level accounts such as `Expenses` in beancount but you 
+Also, you cannot declare top level accounts such as `Expenses` in beancount, but you
 need to `open` `Expenses` account first before you can open `Expenses:Groceries & Household` in GnuCash plaintext.
 
 ```
