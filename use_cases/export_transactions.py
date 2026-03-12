@@ -5,6 +5,8 @@ Exports complete GnuCash data including commodities, accounts, and transactions
 with all metadata required for round-trip import.
 """
 
+import datetime
+import os
 from typing import Optional
 
 from gnucash.gnucash_core_c import xaccAccountGetTypeStr
@@ -46,7 +48,8 @@ class ExportTransactionsUseCase:
         self,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        account_filter: Optional[str] = None
+        account_filter: Optional[str] = None,
+        all_accounts: bool = False
     ) -> ExportResult:
         """
         Export transactions with ALL commodities and accounts.
@@ -60,11 +63,12 @@ class ExportTransactionsUseCase:
             start_date: Optional start date for filtering TRANSACTIONS only
             end_date: Optional end date for filtering TRANSACTIONS only
             account_filter: Optional account path for filtering TRANSACTIONS only
+            all_accounts: If True, export ALL accounts regardless of transactions
 
         Returns:
             ExportResult with:
-            - ALL commodities (not filtered)
-            - ALL accounts (not filtered)
+            - ALL commodities (not filtered, or all from accounts if all_accounts=True)
+            - ALL accounts (not filtered, or all from repository if all_accounts=True)
             - Filtered transactions (by date/account if specified)
         """
         # Get ALL transactions first (we'll filter them later)
@@ -96,13 +100,29 @@ class ExportTransactionsUseCase:
                         break
             transactions = filtered
 
-        # Collect ALL commodities and ALL accounts (not just from filtered transactions)
-        # This is critical - without all declarations, import will fail
         result = ExportResult()
-        for transaction in all_transactions:
-            self._collect_transaction_data(transaction, result)
 
-        # But only include the filtered transactions in the result
+        if all_accounts:
+            # Collect ALL accounts and their commodities directly from repository
+            for account in self.repository.get_all_accounts():
+                commodity = account.GetCommodity()
+                if commodity is None:
+                    continue
+                ticker = get_commodity_ticker(commodity)
+                if ticker not in result.commodity_seen:
+                    result.commodity_seen.add(ticker)
+                    result.commodities.append((commodity, None))
+                account_guid = account.GetGUID().to_string()
+                if account_guid not in result.account_seen:
+                    result.account_seen.add(account_guid)
+                    result.accounts.append((account, None))
+        else:
+            # Collect ALL commodities and ALL accounts (not just from filtered transactions)
+            # This is critical - without all declarations, import will fail
+            for transaction in all_transactions:
+                self._collect_transaction_data(transaction, result)
+
+        # Only include the filtered transactions in the result
         result.transactions = transactions
 
         return result
@@ -166,6 +186,11 @@ class ExportTransactionsUseCase:
         # Join lines and add trailing newline to match legacy format
         return '\n'.join(lines) + '\n' if lines else ''
 
+    def _file_date_str(self) -> str:
+        """Return GnuCash file modification date as YYYY-MM-DD string."""
+        mtime = os.path.getmtime(self.repository.file_path)
+        return datetime.date.fromtimestamp(mtime).strftime("%Y-%m-%d")
+
     def _format_commodity(self, commodity, transaction, lines: list):
         """Format commodity declaration"""
         mnemonic = commodity.get_mnemonic()
@@ -173,7 +198,10 @@ class ExportTransactionsUseCase:
         fraction = commodity.get_fraction()
         fullname = commodity.get_fullname()
 
-        date_str = transaction.GetDate().strftime("%Y-%m-%d")
+        if transaction is not None:
+            date_str = transaction.GetDate().strftime("%Y-%m-%d")
+        else:
+            date_str = self._file_date_str()
         ticker = get_commodity_ticker(commodity)
 
         lines.append(f'{date_str} commodity {ticker}')
@@ -193,7 +221,10 @@ class ExportTransactionsUseCase:
         fraction = commodity.get_fraction()
         commodity_scu = account.GetCommoditySCU()
 
-        date_str = transaction.GetDate().strftime("%Y-%m-%d")
+        if transaction is not None:
+            date_str = transaction.GetDate().strftime("%Y-%m-%d")
+        else:
+            date_str = self._file_date_str()
         account_full_name = get_account_full_name(account)
         account_guid = account.GetGUID()
         account_type = account.GetType()
@@ -325,7 +356,8 @@ class ExportTransactionsUseCase:
         output_path: str,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        account_filter: Optional[str] = None
+        account_filter: Optional[str] = None,
+        all_accounts: bool = False
     ) -> int:
         """
         Export transactions to file.
@@ -335,11 +367,12 @@ class ExportTransactionsUseCase:
             start_date: Optional start date
             end_date: Optional end date
             account_filter: Optional account filter
+            all_accounts: If True, export all accounts even without transactions
 
         Returns:
             Number of transactions exported
         """
-        result = self.execute(start_date, end_date, account_filter)
+        result = self.execute(start_date, end_date, account_filter, all_accounts)
         plaintext = self.format_as_plaintext(result)
 
         with open(output_path, 'w') as f:

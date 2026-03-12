@@ -187,3 +187,89 @@ class TestExportCLI:
 
         assert result.exit_code != 0
         assert "Missing output file" in result.output
+
+    def test_export_all_accounts_no_transactions(self, temp_gnucash_file):
+        """With --all-accounts, accounts-only file produces all account declarations"""
+        runner = CliRunner()
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            output_path = f.name
+
+        try:
+            result = runner.invoke(export_transactions, [
+                '--all-accounts',
+                temp_gnucash_file,
+                output_path
+            ])
+
+            assert result.exit_code == 0
+            assert "Exported 0 transaction(s)" in result.output
+
+            with open(output_path) as f:
+                content = f.read()
+
+            assert "open Assets" in content
+            assert "open Assets:Bank" in content
+            assert "open Assets:Bank:Checking" in content
+            assert "open Expenses" in content
+            assert "open Expenses:Groceries" in content
+            assert "open Expenses:Dining" in content
+            assert "commodity" in content
+
+        finally:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+    def test_export_all_accounts_with_transactions(self, temp_gnucash_with_transactions):
+        """With --all-accounts, all accounts and all transactions are exported"""
+        runner = CliRunner()
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            output_path = f.name
+
+        try:
+            result = runner.invoke(export_transactions, [
+                '--all-accounts',
+                temp_gnucash_with_transactions,
+                output_path
+            ])
+
+            assert result.exit_code == 0
+            assert "Exported 3 transaction(s)" in result.output
+
+            with open(output_path) as f:
+                content = f.read()
+
+            assert "open Assets:Bank:Checking" in content
+            assert "open Expenses:Groceries" in content
+            assert "open Expenses:Dining" in content
+            assert "Grocery shopping" in content
+
+        finally:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+    def test_export_default_still_transaction_driven(self, temp_gnucash_file):
+        """Without --all-accounts, accounts-only file produces empty output"""
+        runner = CliRunner()
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            output_path = f.name
+
+        try:
+            result = runner.invoke(export_transactions, [
+                temp_gnucash_file,
+                output_path
+            ])
+
+            assert result.exit_code == 0
+            assert "Exported 0 transaction(s)" in result.output
+
+            with open(output_path) as f:
+                content = f.read()
+
+            assert content == ""
+
+        finally:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
