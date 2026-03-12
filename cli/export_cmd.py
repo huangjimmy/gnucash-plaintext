@@ -18,7 +18,8 @@ from use_cases.export_transactions import ExportTransactionsUseCase
 @click.option('--start-date', '-s', help='Start date (YYYY-MM-DD)')
 @click.option('--end-date', '-e', help='End date (YYYY-MM-DD)')
 @click.option('--account', '-a', help='Filter by account path')
-def export_transactions(gnucash_file, output_file, input_file, output_path, start_date, end_date, account):
+@click.option('--all-accounts', 'all_accounts', is_flag=True, help='Export all accounts even if they have no transactions')
+def export_transactions(gnucash_file, output_file, input_file, output_path, start_date, end_date, account, all_accounts):
     """
     Export transactions from GnuCash file to plaintext format.
 
@@ -69,7 +70,8 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
                 output_file,
                 start_date=start_date,
                 end_date=end_date,
-                account_filter=account
+                account_filter=account,
+                all_accounts=all_accounts
             )
 
             click.echo(f"✓ Exported {count} transaction(s) to {output_file}")
