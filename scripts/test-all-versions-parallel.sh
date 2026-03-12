@@ -17,7 +17,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Supported versions
-VERSIONS=("latest" "debian12" "debian11" "ubuntu20")
+VERSIONS=("latest" "debian12" "debian11" "ubuntu20" "ubuntu22")
 
 echo "Testing against all supported versions IN PARALLEL..."
 echo "This is ~4x faster than sequential testing"
@@ -75,6 +75,7 @@ for version in "${VERSIONS[@]}"; do
                 debian12) echo "debian:12" ;;
                 debian11) echo "debian:11" ;;
                 ubuntu20) echo "ubuntu:20.04" ;;
+                ubuntu22) echo "ubuntu:22.04" ;;
             esac)
             docker build --build-arg BASE_IMAGE=$BASE_IMAGE -t gnucash-dev:$version .
         fi

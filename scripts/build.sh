@@ -29,9 +29,13 @@ case "$BASE_IMAGE" in
         TAG="ubuntu20"
         GNUCASH_VERSION="3.8"
         ;;
+    ubuntu:22.04)
+        TAG="ubuntu22"
+        GNUCASH_VERSION="4.8"
+        ;;
     *)
         echo "Unknown distribution: $BASE_IMAGE"
-        echo "Supported: debian:13, debian:12, debian:11, ubuntu:20.04"
+        echo "Supported: debian:13, debian:12, debian:11, ubuntu:20.04, ubuntu:22.04"
         exit 1
         ;;
 esac
