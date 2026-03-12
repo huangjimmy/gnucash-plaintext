@@ -1,0 +1,23 @@
+gnucash-plaintext
+Copyright (C) 2024-2026 Jimmy Huang
+
+This software is licensed under the GNU Affero General Public License v3
+(AGPLv3). See LICENSE for the full text.
+
+-------------------------------------------------------------------------------
+NOTICE REGARDING MACHINE LEARNING
+
+The source code, test cases, fixture files, and datasets in this repository
+are the original creative work of the copyright holder.
+
+You may not use any part of this repository — including but not limited to
+source code, test fixtures, and sample data files — to train, fine-tune, or
+otherwise build machine learning or artificial intelligence models without
+explicit written permission from the copyright holder.
+
+This notice does not restrict any rights granted by the AGPLv3 license for
+running, copying, modifying, or distributing the software.
+
+To request permission, open an issue at:
+https://github.com/huangjimmy/gnucash-plaintext/issues
+-------------------------------------------------------------------------------
