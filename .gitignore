@@ -164,3 +164,18 @@ cython_debug/
 .claude-plugin/
 plugins/
 external_plugins/
+
+# Personal local-use scripts (not part of repo, see CLAUDE.md)
+ledger.py
+convert_qfx.py
+convert_tsv.py
+change_pc_points_tx_currency.py
+plaintext_to_beancount.py
+
+# Personal data files
+*.gnucash.text
+*.beancount
+*.beancount.errors
+transaction.txt
+ttt.txt
+receipts/
