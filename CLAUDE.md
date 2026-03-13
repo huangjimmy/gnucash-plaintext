@@ -1,6 +1,6 @@
-# Claude Code Rules for gnucash-plaintext Project
+# AI Agent Rules for gnucash-plaintext Project
 
-Project-specific rules and conventions for Claude Code assistance.
+Project-specific rules and conventions for Claude Code and Gemini CLI assistance.
 
 ## Git Commit Rules
 
@@ -10,13 +10,17 @@ Project-specific rules and conventions for Claude Code assistance.
    - Prevents accidentally committing temporary files, secrets, or reference materials
 
 2. **No Co-Authored-By**
-   - Do NOT include `Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>` in commits
+   - Do NOT include `Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>` or any Gemini equivalents in commits
    - Keep commit messages clean and professional
 
 3. **No committing external reference files**
    - `convert_qfx.py`, `ledger.py` are external references (not part of repo)
    - `reference_file*.txt` are external test data (not part of repo)
    - Always check with user before committing untracked files
+
+4. **No one-line commit messages for non-trivial changes**
+   - Trivial changes (e.g. typos, single-line formatting) can be one line
+   - Architectural, feature, or bugfix commits must NOT be a single line
 
 ### ✅ Always Do These:
 1. **Stage files explicitly**
@@ -25,10 +29,12 @@ Project-specific rules and conventions for Claude Code assistance.
    # NOT: git add -A
    ```
 
-2. **Clean commit messages**
-   - Clear subject line (50 chars max)
-   - Detailed body explaining what and why
-   - No AI attribution
+2. **Highly Detailed Commit Messages**
+   - Clear subject line (50 chars max, imperative mood)
+   - Blank line after subject
+   - **Detailed body** explaining *what* was changed and *why* (the context/rationale)
+   - Use bullet points for multiple specific changes
+   - This provides critical context for future developers (and future AI sessions)
 
 3. **Verify before commit**
    ```bash
