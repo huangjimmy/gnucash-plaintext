@@ -91,77 +91,19 @@ if [ "$SKIP_AI_REVIEW" = "1" ]; then
     exit 0
 fi
 
-# Check if claude command is available
-if ! command -v claude > /dev/null 2>&1; then
-    echo "⚠️  Claude Code not installed - skipping AI review"
-    echo "✓ All pre-commit checks passed!"
-    exit 0
-fi
-
-# Helper function: Build review input prompt
-build_review_input() {
-  echo "You are an independent code reviewer conducting a pre-commit review."
-  echo ""
-  echo "**IMPORTANT**: You have NOT seen the implementation process. You are reviewing this commit with fresh eyes from an outsider's perspective."
-  echo ""
-  echo "Your task:"
-  echo "1. Understand what this commit is trying to do"
-  echo "2. Verify the changes are correct and complete"
-  echo "3. Check for: logic errors, missing edge cases, security issues, missing tests"
-  echo "4. Output your decision:"
-  echo "   - If issues found: Start your response with \"CONCERNS:\" and list specific issues"
-  echo "   - If approved: Start your response with \"APPROVED:\" and briefly explain why"
-  echo ""
-  echo "Be concise but specific. Focus on real issues that would cause problems."
-  echo ""
-  echo "=== STAGED CHANGES ==="
-  git diff --staged
-}
-
-# Helper function: Run command with timeout and CLAUDECODE unset.
-# Saves and restores the git index so that any git operations performed
-# by the AI reviewer session cannot contaminate the staged changes.
-run_with_timeout() {
-  unset CLAUDECODE
-  local index_file
-  index_file=$(git rev-parse --git-path index)
-  local index_backup="${index_file}.pre-review-backup"
-  cp "$index_file" "$index_backup"
-  timeout 90s "$@"
-  local exit_code=$?
-  cp "$index_backup" "$index_file"
-  rm -f "$index_backup"
-  return $exit_code
-}
-
-echo "   (Tip: Set SKIP_AI_REVIEW=1 to skip for quick commits)"
-echo "   Spawning independent AI reviewer (90s timeout)..."
-
-REVIEW_OUTPUT=$(build_review_input | run_with_timeout claude 2>&1)
-REVIEW_EXIT_CODE=$?
-
-if [ $REVIEW_EXIT_CODE -eq 124 ]; then
-    echo "⚠️  AI review timed out after 90 seconds - proceeding without review"
-    echo "✓ All pre-commit checks passed!"
-    exit 0
-fi
-
-if echo "$REVIEW_OUTPUT" | grep -q "^APPROVED:"; then
-    echo "✓ AI review approved"
-    echo "✓ All pre-commit checks passed!"
-    exit 0
-elif echo "$REVIEW_OUTPUT" | grep -q "^CONCERNS:"; then
-    echo "❌ AI review found concerns:"
-    echo ""
-    echo "$REVIEW_OUTPUT"
-    echo ""
-    echo "Please address the concerns or use 'git commit --no-verify' to skip checks."
-    exit 1
+# Find the project root reliably based on the hook's execution path
+if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    PROJECT_ROOT=$(git rev-parse --show-toplevel)
 else
-    # Unexpected output format — show it but don't block
-    echo "⚠️  AI review output format unexpected - proceeding anyway"
-    echo "$REVIEW_OUTPUT"
-    echo ""
-    echo "✓ All pre-commit checks passed!"
-    exit 0
+    # Fallback if not run by git
+    PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
+
+# Call the unified AI review script
+if ! "$PROJECT_ROOT/scripts/review-commit.sh"; then
+    echo "❌ Commit blocked: AI review found concerns. Address them or use 'git commit --no-verify' to skip checks."
+    exit 1
+fi
+
+echo "✓ All pre-commit checks passed!"
+exit 0
