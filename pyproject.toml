@@ -15,6 +15,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+invoice = [
+    "weasyprint",           # HTML→PDF rendering (install via system package: apt install weasyprint)
+    "lxml>=4.6",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=3.0",

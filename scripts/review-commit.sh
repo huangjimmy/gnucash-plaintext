@@ -101,12 +101,21 @@ run_ai() {
   unset GEMINI_CLI_NO_RELAUNCH
   
   local index_file
-  index_file=$(git rev-parse --git-path index)
-  local index_backup="${index_file}.pre-review-backup"
-  cp "$index_file" "$index_backup"
+  index_file=$(git rev-parse --git-path index 2>/dev/null || true)
+  # Resolve to absolute path so it works in worktrees and subshells
+  if [ -n "$index_file" ] && [ -f "$index_file" ]; then
+    index_file=$(realpath "$index_file")
+  else
+    index_file=""
+  fi
+  local index_backup=""
+  if [ -n "$index_file" ]; then
+    index_backup="${index_file}.pre-review-backup"
+    cp "$index_file" "$index_backup"
+  fi
 
   # Ensure cleanup happens even if subshell is aborted
-  trap 'cp "$index_backup" "$index_file"; rm -f "$index_backup"' EXIT INT TERM
+  trap '[[ -n "$index_backup" ]] && cp "$index_backup" "$index_file" && rm -f "$index_backup"' EXIT INT TERM
   
   local exit_code
   if [ "$AI_CMD" = "gemini" ]; then

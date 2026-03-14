@@ -141,7 +141,7 @@ def to_string_in_fraction_format(number: GncNumeric) -> str:
     return f'{numerator}/{denominator}'
 
 
-def string_to_gnc_numeric(s: str, currency: GncCommodity) -> GncNumeric:
+def string_to_gnc_numeric(s, currency: GncCommodity) -> GncNumeric:
     """
     Convert string to GncNumeric using currency fraction.
 
@@ -152,6 +152,7 @@ def string_to_gnc_numeric(s: str, currency: GncCommodity) -> GncNumeric:
     Returns:
         GncNumeric object
     """
+    s = str(s)
     if '/' in s:
         amount = GncNumeric(s)
     else:
@@ -288,39 +289,33 @@ def decode_value_from_string(s: str):
     Returns:
         Decoded value (int, float, bool, str, or None)
     """
-    import re
 
     if s is None or s == '#None':
         return None
-    if s.isnumeric():
-        return int(s)
-    try:
-        return float(s)
-    except ValueError:
-        pass
-    if s == 'True':
+    if s == 'True' or s == '#True':
         return True
-    if s == 'False':
-        return False
-    if s == 'true':
-        return True
-    if s == 'false':
+    if s == 'False' or s == '#False':
         return False
     if s.startswith('#'):
-        if s == '#True':
-            return True
-        if s == '#False':
-            return False
-        fraction_pattern = r'#(\d+)\s*$'
-        match = re.search(fraction_pattern, s)
-        if match:
-            return int(s[1:].strip())
-        else:
-            # if it is a float, just return the string itself
-            return s
+        s_no_hash = s[1:].strip()
+        if s_no_hash.isnumeric():
+            return int(s_no_hash)
+        try:
+            return float(s_no_hash)
+        except ValueError:
+            pass
     elif s.startswith('"'):
         content = s[1:-1]
         return unescape_string(content)
+    else:
+        # Bare integer (e.g. fraction: 100) or bare float (e.g. fraction: 1)
+        # All unquoted non-keyword values in the plaintext format are numbers.
+        if s.lstrip('-').isnumeric():
+            return int(s)
+        try:
+            return float(s)
+        except ValueError:
+            pass
     return s
 
 

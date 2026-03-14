@@ -156,7 +156,52 @@ git branch --show-current  # Should be: architecture-migration
 ./scripts/test.sh
 ```
 
+## ctypes / GnuCash Bindings — Hard-Won Platform Findings
+
+Discovered 2026-03-14 while fixing `test_business_objects_roundtrip` segfaults on Ubuntu 22/24.
+
+### 1. Always set `argtypes` for every ctypes function that takes a pointer
+
+Without `argtypes`, Python ctypes converts integer arguments to C `int` (32-bit). On x86_64, a 64-bit pointer like `0x7f1234567890` is silently truncated to `0x34567890` — a garbage address — causing a segfault inside the C function. This affects ALL platforms, so it is never optional.
+
+```python
+# WRONG — pointer silently truncated to 32-bit on x86_64
+lib.gncTaxTableGetTables.restype = ctypes.c_void_p
+
+# CORRECT
+lib.gncTaxTableGetTables.restype  = ctypes.c_void_p
+lib.gncTaxTableGetTables.argtypes = [ctypes.c_void_p]
+```
+
+### 2. Debian vs Ubuntu: RTLD_LOCAL causes library-instance mismatch
+
+On **Debian**, the GnuCash Python extension loads `libgnc-engine.so` with `RTLD_GLOBAL`, so `ctypes.CDLL(None)` sees its symbols — calling functions from the *same* instance that created `QofBook*`. On **Ubuntu**, the extension uses `RTLD_LOCAL` (Python's default for extension modules), so `CDLL(None)` may resolve symbols from a *different* globally-visible copy, or not find them at all.
+
+**Fix**: always promote the known `.so` path to `RTLD_GLOBAL` *before* calling `CDLL(None)`:
+
+```python
+ctypes.CDLL('/usr/lib/x86_64-linux-gnu/gnucash/libgnc-engine.so', mode=ctypes.RTLD_GLOBAL)
+lib = ctypes.CDLL(None)   # now guaranteed to use the same instance
+```
+
+`dlopen` reuses the already-loaded mapping (same inode) and promotes it to global — no second copy is created.
+
+### 3. Tax tables CANNOT be fetched via QOF Query
+
+`q.search_for('gncTaxTable')` returns nothing. Tax tables are stored in a per-book hash table via `qof_book_get_data(book, "gncTaxTable")`, not in the QOF entity collection that queries iterate. The only correct API is `gncTaxTableGetTables(QofBook*)` via ctypes.
+
+Do **not** try to replace this with `Query` — a previous session confirmed it returns zero results.
+
+### 4. `weasyprint` apt package on Ubuntu does not expose `import weasyprint`
+
+On Debian, `apt install weasyprint` installs `python3-weasyprint` and `import weasyprint` works. On Ubuntu 22/24, the same apt package only installs the CLI wrapper — `import weasyprint` raises `ModuleNotFoundError`.
+
+**Fix**: install via pip (works on all distros):
+```dockerfile
+RUN python3 -m pip install weasyprint --break-system-packages ...
+```
+
 ---
 
-**Last Updated**: 2026-02-15
-**Current Phase**: Phase 0 (Day 1 Complete, Day 2-3 Pending)
+**Last Updated**: 2026-03-14
+**Current Phase**: Phase 8 (Business Objects)

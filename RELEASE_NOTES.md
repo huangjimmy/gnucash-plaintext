@@ -1,5 +1,58 @@
 # Release Notes
 
+## v0.3.0 - Business Objects (2026-03-14)
+
+### What's new
+
+#### Import and export customers, vendors, tax tables, invoices, and bills
+
+You can now round-trip GnuCash business objects through plaintext files:
+
+```bash
+gnucash-plaintext import --new mybook.gnucash ledger.txt --include-business-objects
+gnucash-plaintext export mybook.gnucash ledger.txt --include-business-objects
+```
+
+Supported objects: `customer`, `vendor`, `taxtable`, `invoice` (with entries
+and payments), `bill` (with entries).
+
+Business objects use no date prefix in the plaintext format — they are master
+data, not ledger events. GnuCash does not store a creation timestamp for
+customers, vendors, or tax tables, so no meaningful date prefix exists.
+Dates that belong to a record (e.g. `date_opened`) are declared as fields
+inside the block.
+
+#### Print invoices to PDF
+
+Any posted invoice can be rendered to a PDF directly from the CLI:
+
+```bash
+gnucash-plaintext print-invoice mybook.gnucash --invoice-id INV-2026-001 -o invoice.pdf
+```
+
+The output is produced from `services/invoice.xslt`, which you can customise
+to match your company's branding.
+
+### Platform support expanded
+
+Ubuntu 22.04 (GnuCash 4.8) and Ubuntu 24.04 (GnuCash 4.9) are now fully
+supported and tested in CI.
+
+Two bugs that caused segfaults on Ubuntu (but not Debian) were fixed:
+- Missing `argtypes` caused ctypes to silently truncate 64-bit pointers to 32-bit
+- Ubuntu loads GnuCash extensions with `RTLD_LOCAL`, so `CDLL(None)` could
+  resolve symbols from the wrong library instance
+
+On Ubuntu 22/24, `apt install weasyprint` only provides a CLI wrapper —
+`import weasyprint` would fail. Fixed by installing weasyprint via pip.
+
+### Bug fix
+
+`create_account` was not idempotent: calling it twice for the same account
+silently created duplicate children in GnuCash. Fixed with an existence check.
+
+---
+
 ## v0.2.0 - Architecture Migration (2026-03-01)
 
 **Major release** with complete architecture refactoring and new features.

@@ -5,6 +5,7 @@
 #   ./scripts/build.sh              # Build default (debian:13)
 #   ./scripts/build.sh debian:12    # Build specific distribution
 #   ./scripts/build.sh ubuntu:20.04 # Build Ubuntu 20.04
+#   ./scripts/build.sh ubuntu:24.04 # Build Ubuntu 24.04
 
 set -e
 
@@ -33,9 +34,13 @@ case "$BASE_IMAGE" in
         TAG="ubuntu22"
         GNUCASH_VERSION="4.8"
         ;;
+    ubuntu:24.04)
+        TAG="ubuntu24"
+        GNUCASH_VERSION="4.9"
+        ;;
     *)
         echo "Unknown distribution: $BASE_IMAGE"
-        echo "Supported: debian:13, debian:12, debian:11, ubuntu:20.04, ubuntu:22.04"
+        echo "Supported: debian:13, debian:12, debian:11, ubuntu:20.04, ubuntu:22.04, ubuntu:24.04"
         exit 1
         ;;
 esac

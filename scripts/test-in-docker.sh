@@ -12,7 +12,7 @@ set -e
 TEST_PATH="${1:-tests/}"
 
 echo "Installing package..."
-python3 -m pip install -e . --break-system-packages -q
+python3 -m pip install -e . weasyprint --break-system-packages -q
 
 echo ""
 echo "Running tests: $TEST_PATH"

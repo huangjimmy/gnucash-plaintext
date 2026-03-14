@@ -186,6 +186,22 @@ class ExportTransactionsUseCase:
         # Join lines and add trailing newline to match legacy format
         return '\n'.join(lines) + '\n' if lines else ''
 
+    def format_accounts_section(self, result: ExportResult) -> str:
+        """Format only commodities and accounts (no transactions)."""
+        lines = []
+        for commodity, transaction in result.commodities:
+            self._format_commodity(commodity, transaction, lines)
+        for account, transaction in result.accounts:
+            self._format_account(account, transaction, lines)
+        return '\n'.join(lines) + '\n' if lines else ''
+
+    def format_transactions_section(self, result: ExportResult) -> str:
+        """Format only transactions (no commodities or accounts)."""
+        lines = []
+        for transaction in result.transactions:
+            self._format_transaction(transaction, lines)
+        return '\n'.join(lines) + '\n' if lines else ''
+
     def _file_date_str(self) -> str:
         """Return GnuCash file modification date as YYYY-MM-DD string."""
         mtime = os.path.getmtime(self.repository.file_path)

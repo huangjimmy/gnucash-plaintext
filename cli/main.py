@@ -12,6 +12,7 @@ from cli.export_beancount_cmd import export_beancount
 from cli.export_cmd import export_transactions
 from cli.import_beancount_cmd import import_beancount
 from cli.import_cmd import import_transactions
+from cli.invoice_print_cmd import print_invoice
 from cli.validate_cmd import validate_ledger
 
 
@@ -37,6 +38,16 @@ def cli():
     pass
 
 
+@cli.command()
+@click.argument('script', type=click.Path(exists=True))
+@click.argument('args', nargs=-1)
+def run(script, args):
+    """Runs a Python script."""
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, script] + list(args), check=True)
+
+
 # Register commands
 cli.add_command(export_transactions, name='export')
 cli.add_command(import_transactions, name='import')
@@ -44,6 +55,7 @@ cli.add_command(validate_ledger, name='validate')
 cli.add_command(export_beancount, name='export-beancount')
 cli.add_command(import_beancount, name='import-beancount')
 cli.add_command(close_books, name='close-books')
+cli.add_command(print_invoice, name='print-invoice')
 
 
 if __name__ == '__main__':
