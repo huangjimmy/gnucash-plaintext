@@ -55,6 +55,9 @@ jobs:
               pytest tests/ -v --tb=short"
         # Note: --break-system-packages is safe in Docker containers (isolated environment)
 
+      - name: Run deployment test
+        run: ./scripts/test-deployment.sh ${{ matrix.tag }}
+
       - name: Run linting
         if: matrix.tag == 'latest'
         run: |
