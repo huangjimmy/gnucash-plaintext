@@ -1,0 +1,55 @@
+2026-01-01 open Liabilities
+  type: Liability
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:GST
+  type: Liability
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+
+customer "1"
+  name: "Test Customer"
+  currency: CAD
+
+taxtable "GST"
+  entry:
+    account: "Liabilities:GST"
+    rate: 5.0%
+    type: PERCENT
+
+invoice "INV-2026-001"
+  customer_id: "1"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "Test Entry"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+  posted:
+    date: 2026-01-01
+    due: 2026-01-31
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-001"
+    accumulate: true

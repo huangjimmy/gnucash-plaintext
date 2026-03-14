@@ -14,7 +14,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Supported versions (OS versions map to different Python versions)
-VERSIONS=("latest" "debian12" "debian11" "ubuntu20" "ubuntu22")
+VERSIONS=("latest" "debian12" "debian11" "ubuntu24" "ubuntu22" "ubuntu20")
 
 echo "Testing against all supported versions..."
 echo ""

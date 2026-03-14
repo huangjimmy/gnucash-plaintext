@@ -292,6 +292,87 @@ Preview without making changes (dry run):
 gnucash-plaintext import mybook.gnucash transactions.txt --dry-run
 ```
 
+### Import and export business objects
+
+Customers, vendors, tax tables, invoices, and bills can be round-tripped
+through plaintext alongside your accounts and transactions.
+
+```bash
+# Import a file that contains business objects as well as transactions
+gnucash-plaintext import --new mybook.gnucash ledger.txt --include-business-objects
+
+# Export everything — accounts, business objects, then transactions
+gnucash-plaintext export mybook.gnucash ledger.txt --include-business-objects
+```
+
+Business objects use no date prefix — they are master data, not ledger
+events. Dates that belong to a record (e.g. `date_opened` on an invoice) are
+declared as fields inside the block:
+
+```
+customer "CUST-001"
+  name: "Acme Corp"
+  currency: CAD
+
+vendor "VEND-001"
+  name: "Office Supplies Co."
+  currency: CAD
+
+taxtable "GST"
+  entry:
+    account: "Liabilities:Tax:GST Collected"
+    rate: 5.0%
+    type: PERCENT
+
+invoice "INV-2026-001"
+  customer_id: "CUST-001"
+  currency: CAD
+  date_opened: 2026-01-15
+  entry:
+    date: 2026-01-15
+    description: "Consulting services"
+    account: "Income:Consulting"
+    quantity: 10
+    price: 150
+    taxable: true
+    tax_table: "GST"
+  posted:
+    date: 2026-01-15
+    due: 2026-02-14
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-001"
+    accumulate: true
+
+bill "BILL-2026-001"
+  vendor_id: "VEND-001"
+  currency: CAD
+  date_opened: 2026-01-20
+  entry:
+    date: 2026-01-20
+    description: "Office supplies"
+    account: "Expenses:Office"
+    quantity: 1
+    price: 200
+    taxable: false
+  posted:
+    date: 2026-01-20
+    due: 2026-02-19
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Bill BILL-2026-001"
+    accumulate: true
+```
+
+### Print an invoice to PDF
+
+Generate a PDF for any posted invoice:
+
+```bash
+gnucash-plaintext print-invoice mybook.gnucash --invoice-id INV-2026-001 -o invoice.pdf
+```
+
+The PDF is rendered using the XSLT template at `services/invoice.xslt`, which
+you can customise to match your company's branding.
+
 Handle conflicts with resolution strategies:
 
 ```bash
@@ -459,6 +540,8 @@ The project is tested against multiple GnuCash versions using different Docker b
 | Debian 13 | 5.10 | `latest` |
 | Debian 12 | 4.13 | `debian12` |
 | Debian 11 | 4.4 | `debian11` |
+| Ubuntu 24.04 | 4.9 | `ubuntu24` |
+| Ubuntu 22.04 | 4.8 | `ubuntu22` |
 | Ubuntu 20.04 | 3.8 | `ubuntu20` |
 
 ### Interactive Development Shell

@@ -7,8 +7,11 @@ Converts PlaintextDirective objects from the parser into GnuCash objects
 
 import logging
 from datetime import datetime
+from typing import List
 
-from gnucash import Account, Book, GncCommodity, Split, Transaction
+import gnucash.gnucash_core_c as gc
+from gnucash import Account, Book, GncCommodity, GncNumeric, Split, Transaction
+from gnucash.gnucash_business import Customer, Entry, Invoice, TaxTable, TaxTableEntry, Vendor
 from gnucash.gnucash_core_c import (
     ACCT_TYPE_ASSET,
     ACCT_TYPE_BANK,
@@ -22,10 +25,26 @@ from gnucash.gnucash_core_c import (
     ACCT_TYPE_PAYABLE,
     ACCT_TYPE_RECEIVABLE,
     ACCT_TYPE_STOCK,
+    gncTaxTableEntrySetAccount,
 )
 
 from infrastructure.gnucash.utils import find_account, string_to_gnc_numeric
 from services.plaintext_parser import DirectiveType, PlaintextDirective
+
+
+def string_to_gnc_numeric_quantity(s):
+    from decimal import Decimal
+
+    from gnucash import GncNumeric
+    s = str(s)
+    if '/' in s:
+        return GncNumeric(s)
+    else:
+        # Assuming a precision of 1,000,000 for quantities and prices
+        num = int(Decimal(s) * 1000000)
+        den = 1000000
+        return GncNumeric(num, den)
+
 
 ACCT_TYPE_MAP = {
     "Asset": ACCT_TYPE_ASSET,
@@ -43,8 +62,25 @@ ACCT_TYPE_MAP = {
 }
 
 
+def create_tax_table_entry(book, account, amount_percent):
+    from gnucash.gnucash_core_c import (
+        GNC_AMT_TYPE_PERCENT,
+        gncTaxTableEntryCreate,
+        gncTaxTableEntrySetAmount,
+        gncTaxTableEntrySetType,
+    )
+    raw = gncTaxTableEntryCreate()
+    gncTaxTableEntrySetType(raw, GNC_AMT_TYPE_PERCENT)
+    amount = GncNumeric(round(amount_percent * 100000), 100000)
+    gncTaxTableEntrySetAmount(raw, amount.instance)
+    gncTaxTableEntrySetAccount(raw, account.instance)
+    return TaxTableEntry(instance=raw)
+
+
 class GnuCashImporter:
     """Service for importing plaintext directives to GnuCash"""
+
+
 
     @staticmethod
     def create_commodity(directive: PlaintextDirective, book: Book):
@@ -61,7 +97,7 @@ class GnuCashImporter:
         mnemonic = directive.metadata['mnemonic']
         fullname = directive.metadata['fullname']
         namespace = directive.metadata['namespace']
-        fraction = directive.metadata['fraction']
+        fraction = int(directive.metadata['fraction'])
 
         commodity_table = book.get_table()
         commodity = commodity_table.lookup(namespace, mnemonic)
@@ -112,6 +148,13 @@ class GnuCashImporter:
             parent = parent.lookup_by_name(name)
             if parent is None:
                 raise Exception(f'Cannot find parent account {name} of {account_fullname}')
+
+        # Idempotency check: skip if an account with this name already exists
+        # under the same parent.  create_account may be called twice for the
+        # same file (once from import_cmd pre-pass, once from ImportTransactionsUseCase).
+        if parent.lookup_by_name(account_name) is not None:
+            logging.debug(f"Account {account_fullname} already exists, skipping")
+            return
 
         parent.append_child(account)
         account.SetName(account_name)
@@ -232,3 +275,197 @@ class GnuCashImporter:
         transaction.CommitEdit()
         logging.debug(f"Created transaction on {date_str}")
         return True
+
+    @staticmethod
+    def import_customer(directive: PlaintextDirective, book: Book):
+        if directive.type != DirectiveType.CUSTOMER:
+            raise ValueError(f"Expected CUSTOMER but got {directive.type}")
+
+        customer = Customer(book, directive.props['id'], book.get_table().lookup("CURRENCY", directive.metadata['currency']))
+        customer.BeginEdit()
+        customer.SetName(directive.metadata['name'])
+
+        addr = customer.GetAddr()
+        addr.SetAddr1(directive.metadata.get('addr1', ''))
+        addr.SetAddr2(directive.metadata.get('addr2', ''))
+        addr.SetAddr3(directive.metadata.get('addr3', ''))
+        addr.SetAddr4(directive.metadata.get('addr4', ''))
+        addr.SetEmail(directive.metadata.get('email', ''))
+
+        customer.CommitEdit()
+        logging.debug(f"Created customer {directive.props['id']}")
+
+    @staticmethod
+    def import_vendor(directive: PlaintextDirective, book: Book):
+        if directive.type != DirectiveType.VENDOR:
+            raise ValueError(f"Expected VENDOR but got {directive.type}")
+
+        vendor = Vendor(book, directive.props['id'], book.get_table().lookup("CURRENCY", directive.metadata['currency']))
+        vendor.BeginEdit()
+        vendor.SetName(directive.metadata['name'])
+        vendor.CommitEdit()
+        logging.debug(f"Created vendor {directive.props['id']}")
+
+    @staticmethod
+    def import_taxtable(directive: PlaintextDirective, book: Book):
+        if directive.type != DirectiveType.TAXTABLE:
+            raise ValueError(f"Expected TAXTABLE but got {directive.type}")
+
+        first_entry_directive = None
+        for d in directive.children:
+            if d.type == DirectiveType.TAXTABLE_ENTRY:
+                first_entry_directive = d
+                break
+
+        if not first_entry_directive:
+            # A taxtable must have at least one entry
+            return
+
+        account = find_account(book.get_root_account(), first_entry_directive.metadata['account'])
+        rate_str = first_entry_directive.metadata['rate']
+        rate = float(rate_str.replace("%", ""))
+        first_entry = create_tax_table_entry(book, account, rate)
+
+        taxtable = TaxTable(book, directive.props['name'], first_entry)
+
+        for entry_directive in directive.children[1:]:
+            if entry_directive.type == DirectiveType.TAXTABLE_ENTRY:
+                account = find_account(book.get_root_account(), entry_directive.metadata['account'])
+                rate_str = entry_directive.metadata['rate']
+                rate = float(rate_str.replace("%", ""))
+                entry = create_tax_table_entry(book, account, rate)
+                taxtable.AddEntry(entry)
+
+        logging.debug(f"Created taxtable {directive.props['name']}")
+
+    @staticmethod
+    def import_invoice(directive: PlaintextDirective, book: Book):
+        if directive.type != DirectiveType.INVOICE:
+            raise ValueError(f"Expected INVOICE but got {directive.type}")
+
+        invoice = Invoice(book, directive.props['id'], book.get_table().lookup("CURRENCY", directive.metadata['currency']), book.CustomerLookupByID(directive.metadata['customer_id']))
+        invoice.BeginEdit()
+        invoice.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
+
+        if 'billing_id' in directive.metadata:
+            invoice.SetBillingID(directive.metadata['billing_id'])
+        if 'notes' in directive.metadata:
+            invoice.SetNotes(directive.metadata['notes'])
+
+        for entry_directive in directive.children:
+            if entry_directive.type == DirectiveType.INVOICE_ENTRY:
+                entry = Entry(book)
+                entry.BeginEdit()
+                entry.SetDate(datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d"))
+                entry.SetDescription(entry_directive.metadata['description'])
+                entry.SetAction(entry_directive.metadata['action'])
+                entry.SetInvAccount(find_account(book.get_root_account(), entry_directive.metadata['account']))
+                entry.SetQuantity(string_to_gnc_numeric_quantity(entry_directive.metadata['quantity']))
+                entry.SetInvPrice(string_to_gnc_numeric_quantity(entry_directive.metadata['price']))
+                entry.SetInvTaxable(entry_directive.metadata['taxable'] == 'true')
+                entry.SetInvTaxIncluded(entry_directive.metadata['tax_included'] == 'true')
+                if 'tax_table' in entry_directive.metadata:
+                    tt_ptr = gc.gncTaxTableLookupByName(book.instance, entry_directive.metadata['tax_table'])
+                    if tt_ptr:
+                        entry.SetInvTaxTable(TaxTable(instance=tt_ptr))
+                invoice.AddEntry(entry)
+                entry.CommitEdit()
+            elif entry_directive.type == DirectiveType.POSTED:
+                ar_account = find_account(book.get_root_account(), entry_directive.metadata['ar_account'])
+                post_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
+                due_date = datetime.strptime(entry_directive.metadata['due'], "%Y-%m-%d")
+                memo = entry_directive.metadata['memo']
+                accumulate = entry_directive.metadata['accumulate'] == 'true'
+                invoice.PostToAccount(ar_account, post_date, due_date, memo, accumulate, False)
+                # Override the transaction description GnuCash set automatically,
+                # so the roundtrip preserves the memo field exactly.
+                posting_txn = invoice.GetPostedTxn()
+                if posting_txn:
+                    posting_txn.BeginEdit()
+                    posting_txn.SetDescription(memo)
+                    posting_txn.SetNotes("business_generated: true")
+                    posting_txn.CommitEdit()
+            elif entry_directive.type == DirectiveType.PAYMENT:
+                bank_account = find_account(book.get_root_account(), entry_directive.metadata['bank_account'])
+                pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
+                amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
+                memo = entry_directive.metadata['memo']
+                num = entry_directive.metadata.get('num', None)
+                new_txn = Transaction(instance=gc.xaccMallocTransaction(book.instance))
+                invoice.ApplyPayment(new_txn, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
+
+        invoice.CommitEdit()
+        logging.debug(f"Created invoice {directive.props['id']}")
+
+    @staticmethod
+    def import_bill(directive: PlaintextDirective, book: Book):
+        if directive.type != DirectiveType.BILL:
+            raise ValueError(f"Expected BILL but got {directive.type}")
+
+        # Bills are Invoice objects whose owner is a Vendor (no separate Bill class)
+        bill = Invoice(book, directive.props['id'], book.get_table().lookup("CURRENCY", directive.metadata['currency']), book.VendorLookupByID(directive.metadata['vendor_id']))
+        bill.BeginEdit()
+        bill.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
+
+        for entry_directive in directive.children:
+            if entry_directive.type == DirectiveType.BILL_ENTRY:
+                entry = Entry(book)
+                entry.BeginEdit()
+                entry.SetDate(datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d"))
+                entry.SetDescription(entry_directive.metadata['description'])
+                entry.SetInvAccount(find_account(book.get_root_account(), entry_directive.metadata['account']))
+                entry.SetQuantity(string_to_gnc_numeric_quantity(entry_directive.metadata['quantity']))
+                entry.SetInvPrice(string_to_gnc_numeric_quantity(entry_directive.metadata['price']))
+                entry.SetInvTaxable(entry_directive.metadata['taxable'] == 'true')
+                if 'tax_table' in entry_directive.metadata:
+                    tt_ptr = gc.gncTaxTableLookupByName(book.instance, entry_directive.metadata['tax_table'])
+                    if tt_ptr:
+                        entry.SetInvTaxTable(TaxTable(instance=tt_ptr))
+                bill.AddEntry(entry)
+                entry.CommitEdit()
+            elif entry_directive.type == DirectiveType.POSTED:
+                ap_account = find_account(book.get_root_account(), entry_directive.metadata['ap_account'])
+                post_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
+                due_date = datetime.strptime(entry_directive.metadata['due'], "%Y-%m-%d")
+                memo = entry_directive.metadata['memo']
+                accumulate = entry_directive.metadata['accumulate'] == 'true'
+                bill.PostToAccount(ap_account, post_date, due_date, memo, accumulate, False)
+                # Override the transaction description GnuCash set automatically,
+                # so the roundtrip preserves the memo field exactly.
+                posting_txn = bill.GetPostedTxn()
+                if posting_txn:
+                    posting_txn.BeginEdit()
+                    posting_txn.SetDescription(memo)
+                    posting_txn.SetNotes("business_generated: true")
+                    posting_txn.CommitEdit()
+            elif entry_directive.type == DirectiveType.PAYMENT:
+                bank_account = find_account(book.get_root_account(), entry_directive.metadata['bank_account'])
+                pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
+                amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
+                memo = entry_directive.metadata['memo']
+                num = entry_directive.metadata.get('num', None)
+                new_txn = Transaction(instance=gc.xaccMallocTransaction(book.instance))
+                bill.ApplyPayment(new_txn, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
+
+        bill.CommitEdit()
+        logging.debug(f"Created bill {directive.props['id']}")
+
+    def import_business_objects(self, directives: List[PlaintextDirective], book: Book):
+        # Import customers and vendors first
+        for directive in directives:
+            if directive.type == DirectiveType.CUSTOMER:
+                self.import_customer(directive, book)
+            elif directive.type == DirectiveType.VENDOR:
+                self.import_vendor(directive, book)
+
+        # Then tax tables
+        for directive in directives:
+            if directive.type == DirectiveType.TAXTABLE:
+                self.import_taxtable(directive, book)
+
+        # Finally, invoices and bills
+        for directive in directives:
+            if directive.type == DirectiveType.INVOICE:
+                self.import_invoice(directive, book)
+            elif directive.type == DirectiveType.BILL:
+                self.import_bill(directive, book)

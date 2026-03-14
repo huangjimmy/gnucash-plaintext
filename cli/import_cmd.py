@@ -8,6 +8,8 @@ import click
 
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.conflict_resolver import ResolutionStrategy
+from services.gnucash_importer import GnuCashImporter
+from services.plaintext_parser import DirectiveType, PlaintextParser
 from use_cases.import_transactions import ImportTransactionsUseCase
 
 
@@ -33,7 +35,8 @@ from use_cases.import_transactions import ImportTransactionsUseCase
     is_flag=True,
     help='Create a new GnuCash file (file must not already exist)'
 )
-def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run, create_new):
+@click.option('--include-business-objects', is_flag=True, help='Include business objects (customers, invoices, etc.)')
+def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run, create_new, include_business_objects):
     """
     Import plaintext transactions to GnuCash file.
 
@@ -105,6 +108,19 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
         repo.open(mode=mode)
 
         try:
+            if include_business_objects:
+                click.echo("Importing business objects...")
+                parser = PlaintextParser()
+                parser.parse_file(input_file)
+                importer = GnuCashImporter()
+
+                # Create accounts first
+                for directive in parser.root_directive.children:
+                    if directive.type == DirectiveType.OPEN_ACCOUNT:
+                        importer.create_account(directive, repo.book)
+
+                importer.import_business_objects(parser.root_directive.children, repo.book)
+
             # Create use case
             use_case = ImportTransactionsUseCase(repo)
 

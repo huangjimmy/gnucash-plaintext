@@ -7,6 +7,7 @@ import os
 import click
 
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 from use_cases.export_transactions import ExportTransactionsUseCase
 
 
@@ -19,7 +20,8 @@ from use_cases.export_transactions import ExportTransactionsUseCase
 @click.option('--end-date', '-e', help='End date (YYYY-MM-DD)')
 @click.option('--account', '-a', help='Filter by account path')
 @click.option('--all-accounts', 'all_accounts', is_flag=True, help='Export all accounts even if they have no transactions')
-def export_transactions(gnucash_file, output_file, input_file, output_path, start_date, end_date, account, all_accounts):
+@click.option('--include-business-objects', is_flag=True, help='Include business objects (customers, invoices, etc.)')
+def export_transactions(gnucash_file, output_file, input_file, output_path, start_date, end_date, account, all_accounts, include_business_objects):
     """
     Export transactions from GnuCash file to plaintext format.
 
@@ -61,18 +63,37 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
         repo.open(mode=SessionMode.READ_ONLY)
 
         try:
+            business_objects_output = ""
+            if include_business_objects:
+                click.echo("Exporting business objects...")
+                business_use_case = ExportBusinessObjectsUseCase(repo.book)
+                business_objects_output = business_use_case.execute()
+
             # Create use case
             use_case = ExportTransactionsUseCase(repo)
 
             # Export
             click.echo(f"Exporting transactions from {gnucash_file}...")
-            count = use_case.export_to_file(
-                output_file,
+            result = use_case.execute(
                 start_date=start_date,
                 end_date=end_date,
                 account_filter=account,
                 all_accounts=all_accounts
             )
+            count = len(result.transactions)
+
+            with open(output_file, "w") as f:
+                if business_objects_output:
+                    # Write in import-ready order: accounts, then business objects, then transactions
+                    accounts_output = use_case.format_accounts_section(result)
+                    txn_output = use_case.format_transactions_section(result)
+                    f.write(accounts_output)
+                    f.write("\n")
+                    f.write(business_objects_output)
+                    f.write("\n\n")
+                    f.write(txn_output)
+                else:
+                    f.write(use_case.format_as_plaintext(result))
 
             click.echo(f"✓ Exported {count} transaction(s) to {output_file}")
 

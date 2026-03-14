@@ -35,6 +35,12 @@ if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
         ubuntu20)
             ./scripts/build.sh ubuntu:20.04
             ;;
+        ubuntu22)
+            ./scripts/build.sh ubuntu:22.04
+            ;;
+        ubuntu24)
+            ./scripts/build.sh ubuntu:24.04
+            ;;
         *)
             echo "Unknown tag: $TAG"
             exit 1

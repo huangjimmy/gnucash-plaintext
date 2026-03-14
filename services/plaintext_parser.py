@@ -14,10 +14,109 @@ all features from the legacy parser.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from infrastructure.gnucash.utils import decode_value_from_string
+
+
+@dataclass
+class CustomerDirective:
+    id: str
+    name: str
+    currency: str
+    addr1: Optional[str] = None
+    addr2: Optional[str] = None
+    addr3: Optional[str] = None
+    addr4: Optional[str] = None
+    email: Optional[str] = None
+
+
+@dataclass
+class VendorDirective:
+    id: str
+    name: str
+    currency: str
+
+
+@dataclass
+class TaxTableEntry:
+    account: str
+    rate: str
+    type: str
+
+
+@dataclass
+class TaxTableDirective:
+    name: str
+    entries: List[TaxTableEntry] = field(default_factory=list)
+
+
+@dataclass
+class InvoiceEntry:
+    date: str
+    description: str
+    action: str
+    account: str
+    quantity: str
+    price: str
+    taxable: bool
+    tax_included: bool
+    tax_table: Optional[str] = None
+
+
+@dataclass
+class PostedDirective:
+    date: str
+    due: str
+    account: str
+    memo: str
+    accumulate: bool
+
+
+@dataclass
+class PaymentDirective:
+    date: str
+    amount: str
+    bank_account: str
+    memo: str
+    num: Optional[str] = None
+
+
+@dataclass
+class InvoiceDirective:
+    id: str
+    customer_id: str
+    currency: str
+    date_opened: str
+    billing_id: Optional[str] = None
+    notes: Optional[str] = None
+    entries: List[InvoiceEntry] = field(default_factory=list)
+    posted: Optional[PostedDirective] = None
+    payments: List[PaymentDirective] = field(default_factory=list)
+
+
+@dataclass
+class BillEntry:
+    date: str
+    description: str
+    account: str
+    quantity: str
+    price: str
+    taxable: bool
+    tax_table: Optional[str] = None
+
+
+@dataclass
+class BillDirective:
+    id: str
+    vendor_id: str
+    currency: str
+    date_opened: str
+    entries: List[BillEntry] = field(default_factory=list)
+    posted: Optional[PostedDirective] = None
+    payments: List[PaymentDirective] = field(default_factory=list)
 
 
 class DirectiveType(Enum):
@@ -28,6 +127,17 @@ class DirectiveType(Enum):
     TRANSACTION = 3
     SPLIT = 4
     METADATA_KEY_VALUE = 5
+    CUSTOMER = 6
+    VENDOR = 7
+    TAXTABLE = 8
+    INVOICE = 9
+    BILL = 10
+    TAXTABLE_ENTRY = 11
+    INVOICE_ENTRY = 12
+    BILL_ENTRY = 13
+    POSTED = 14
+    PAYMENT = 15
+
 
 
 class PlaintextDirective:
@@ -161,6 +271,12 @@ class PlaintextParser:
             (tx_date, tx_num, tx_desc) = parse_transaction_head(line)
             (split_account_name, split_amount, split_symbol) = parse_split(line)
             (key, value) = parse_metadata(line)
+            customer_id = parse_customer(line.strip())
+            taxtable_name = parse_taxtable(line.strip())
+            invoice_id = parse_invoice(line.strip())
+            vendor_id = parse_vendor(line.strip())
+            bill_id = parse_bill(line.strip())
+            block_type = parse_block(line.strip())
 
             if account_date is not None:
                 obj = PlaintextDirective(DirectiveType.OPEN_ACCOUNT, line_level, line, parent_directive)
@@ -190,6 +306,45 @@ class PlaintextParser:
                 obj.props['account'] = split_account_name
                 parent_directive.children.append(obj)
                 self.current_directive = obj
+            elif customer_id is not None:
+                obj = PlaintextDirective(DirectiveType.CUSTOMER, line_level, line, parent_directive)
+                obj.props['id'] = customer_id
+                parent_directive.children.append(obj)
+                self.current_directive = obj
+            elif taxtable_name is not None:
+                obj = PlaintextDirective(DirectiveType.TAXTABLE, line_level, line, parent_directive)
+                obj.props['name'] = taxtable_name
+                parent_directive.children.append(obj)
+                self.current_directive = obj
+            elif invoice_id is not None:
+                obj = PlaintextDirective(DirectiveType.INVOICE, line_level, line, parent_directive)
+                obj.props['id'] = invoice_id
+                parent_directive.children.append(obj)
+                self.current_directive = obj
+            elif vendor_id is not None:
+                obj = PlaintextDirective(DirectiveType.VENDOR, line_level, line, parent_directive)
+                obj.props['id'] = vendor_id
+                parent_directive.children.append(obj)
+                self.current_directive = obj
+            elif bill_id is not None:
+                obj = PlaintextDirective(DirectiveType.BILL, line_level, line, parent_directive)
+                obj.props['id'] = bill_id
+                parent_directive.children.append(obj)
+                self.current_directive = obj
+            elif block_type is not None:
+                if block_type == "entry":
+                    if parent_directive.type == DirectiveType.TAXTABLE:
+                        obj = PlaintextDirective(DirectiveType.TAXTABLE_ENTRY, line_level, line, parent_directive)
+                    elif parent_directive.type == DirectiveType.INVOICE:
+                        obj = PlaintextDirective(DirectiveType.INVOICE_ENTRY, line_level, line, parent_directive)
+                    else:
+                        obj = PlaintextDirective(DirectiveType.BILL_ENTRY, line_level, line, parent_directive)
+                elif block_type == "posted":
+                    obj = PlaintextDirective(DirectiveType.POSTED, line_level, line, parent_directive)
+                else:
+                    obj = PlaintextDirective(DirectiveType.PAYMENT, line_level, line, parent_directive)
+                parent_directive.children.append(obj)
+                self.current_directive = obj
             elif key is not None:
                 parent_directive.metadata[key] = value
                 if key == 'namespace' and parent_directive.type == DirectiveType.CREATE_COMMODITY:
@@ -215,6 +370,57 @@ metadata_pattern = r'^\s*([a-z_][a-zA-Z0-9_\-.]*)\s*:\s*(.*?)\s*$'
 commodity_pattern = r'^\s*(\d{4}-\d{2}-\d{2})\s+(commodity)\s+([^"\']*)\s*$'
 open_account_pattern = r'^\s*(\d{4}-\d{2}-\d{2})\s+(open)\s+([^"]*)\s*([^"\']*)\s*$'
 open_account_pattern2 = r'^\s*(\d{4}-\d{2}-\d{2})\s+(open)\s+("(?:\\.|[^"])*?"|\{.*?\})\s*([^"\']*)\s*$'
+customer_pattern = r'^customer\s+"(.*?)"\s*$'
+taxtable_pattern = r'^taxtable\s+"(.*?)"\s*$'
+invoice_pattern = r'^invoice\s+"(.*?)"\s*$'
+vendor_pattern = r'^vendor\s+"(.*?)"\s*$'
+bill_pattern = r'^bill\s+"(.*?)"\s*$'
+block_pattern = r'^\s*(entry|posted|payment):\s*$'
+
+
+def parse_customer(line: str) -> Optional[str]:
+    match = re.match(customer_pattern, line)
+    if match:
+        return match.group(1)
+    return None
+
+
+def parse_taxtable(line: str) -> Optional[str]:
+    match = re.match(taxtable_pattern, line)
+    if match:
+        return match.group(1)
+    return None
+
+
+def parse_invoice(line: str) -> Optional[str]:
+    match = re.match(invoice_pattern, line)
+    if match:
+        return match.group(1)
+    return None
+
+
+def parse_vendor(line: str) -> Optional[str]:
+    match = re.match(vendor_pattern, line)
+    if match:
+        return match.group(1)
+    return None
+
+
+def parse_bill(line: str) -> Optional[str]:
+    match = re.match(bill_pattern, line)
+    if match:
+        return match.group(1)
+    return None
+
+
+def parse_block(line: str) -> Optional[str]:
+    match = re.match(block_pattern, line)
+    if match:
+        return match.group(1)
+    return None
+
+
+
 
 
 def parse_split(split_line: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
