@@ -7,13 +7,12 @@ GnuCash Python SWIG bindings have const-type mismatches for these calls
 (confirmed on GnuCash 4.4 – 5.10 across Debian 11/12/13, Ubuntu 20/22).
 See infrastructure/gnucash/engine.py for the platform notes.
 """
-import ctypes
 
 import gnucash.gnucash_business as gb
 import gnucash.gnucash_core_c as gc
 from gnucash import Book, Query, Split
 
-from infrastructure.gnucash.engine import load_gnc_engine
+from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
 from infrastructure.gnucash.utils import get_account_full_name
 
 
@@ -39,14 +38,19 @@ class ExportBusinessObjectsUseCase:
         """
         Build colon-separated account full name via ctypes (avoids SWIG const-type bug).
         Walks the parent chain until the root (parent with no parent).
+
+        MUST use ctypes because:
+        1. acct_ptr comes from gncTaxTableEntryGetAccount (ctypes function)
+        2. SWIG Account() constructor doesn't accept raw pointers safely
+        3. SWIG's account name getters have const-type bugs on Ubuntu
         """
         lib = self._lib
         parts = []
         ptr = acct_ptr
         while ptr:
-            name_b = lib.xaccAccountGetName(ptr)
-            if name_b:
-                parts.append(name_b.decode('utf-8'))
+            name = safe_ctypes_string(lib, lib.xaccAccountGetName, ptr)
+            if name:
+                parts.append(name)
             parent = lib.gnc_account_get_parent(ptr)
             if not parent:
                 break
@@ -132,42 +136,34 @@ class ExportBusinessObjectsUseCase:
         # gncTaxTableGetTables returns a GList* of GncTaxTable* pointers
         glist_ptr = lib.gncTaxTableGetTables(int(self.book.instance))
 
-        tables = []
-        while glist_ptr:
-            buf    = (ctypes.c_void_p * 3).from_address(glist_ptr)
-            tt_ptr = buf[0]
-            glist_ptr = buf[1]
-            if not tt_ptr:
-                continue
-
-            name_b  = lib.gncTaxTableGetName(tt_ptr)
-            tt_name = name_b.decode('utf-8') if name_b else ''
-
+        def process_tax_table(lib, tt_ptr):
+            """Process single tax table pointer to plaintext lines."""
+            tt_name = safe_ctypes_string(lib, lib.gncTaxTableGetName, tt_ptr)
             lines = [f'taxtable "{tt_name}"']
 
-            # Walk the entries GList (GnuCash prepends → reverse for canonical order)
+            # Process entries using iterate_glist
             entries_ptr = lib.gncTaxTableGetEntries(tt_ptr)
-            entry_parts = []
-            while entries_ptr:
-                ebuf        = (ctypes.c_void_p * 3).from_address(entries_ptr)
-                tte_ptr     = ebuf[0]
-                entries_ptr = ebuf[1]
-                if not tte_ptr:
-                    continue
-                acct_ptr  = lib.gncTaxTableEntryGetAccount(tte_ptr)
-                amt_c     = lib.gncTaxTableEntryGetAmount(tte_ptr)
-                rate      = amt_c.num / amt_c.denom if amt_c.denom else 0.0
-                acct_name = self._account_full_name(acct_ptr) if acct_ptr else '?'
-                entry_parts.append((acct_name, rate))
 
-            entry_parts.reverse()   # GnuCash prepends → put GST before PST/QST
+            def process_tax_table_entry(lib, tte_ptr):
+                """Process single tax table entry pointer."""
+                acct_ptr = lib.gncTaxTableEntryGetAccount(tte_ptr)
+                amt_c = lib.gncTaxTableEntryGetAmount(tte_ptr)
+                rate = amt_c.num / amt_c.denom if amt_c.denom else 0.0
+                acct_name = self._account_full_name(acct_ptr) if acct_ptr else '?'
+                return (acct_name, rate)
+
+            entry_parts = iterate_glist(lib, entries_ptr, process_tax_table_entry)
+            entry_parts.reverse()  # GnuCash prepends → put GST before PST/QST
+
             for acct_name, rate in entry_parts:
                 lines.append('  entry:')
                 lines.append(f'    account: "{acct_name}"')
                 lines.append(f'    rate: {_fmt_rate(rate)}')
                 lines.append('    type: PERCENT')
 
-            tables.append('\n'.join(lines))
+            return '\n'.join(lines)
+
+        tables = iterate_glist(lib, glist_ptr, process_tax_table)
         return '\n\n'.join(tables)
 
     # ── Invoices ─────────────────────────────────────────────────────────────
@@ -239,8 +235,8 @@ class ExportBusinessObjectsUseCase:
     def _format_inv_entry(self, lib, raw_entry) -> list:
         ptr = int(raw_entry.instance)
 
-        desc   = (lib.gncEntryGetDescription(ptr) or b'').decode('utf-8')
-        action = (lib.gncEntryGetAction(ptr)      or b'').decode('utf-8')
+        desc   = safe_ctypes_string(lib, lib.gncEntryGetDescription, ptr)
+        action = safe_ctypes_string(lib, lib.gncEntryGetAction, ptr)
         qty_c  = lib.gncEntryGetQuantity(ptr)
         pri_c  = lib.gncEntryGetInvPrice(ptr)
         qty    = qty_c.num / qty_c.denom if qty_c.denom else 0.0
@@ -269,8 +265,7 @@ class ExportBusinessObjectsUseCase:
         # Tax table — ctypes required (SWIG const-type bug)
         tt_ptr = lib.gncEntryGetInvTaxTable(ptr)
         if tt_ptr:
-            name_b  = lib.gncTaxTableGetName(tt_ptr)
-            tt_name = name_b.decode('utf-8') if name_b else ''
+            tt_name = safe_ctypes_string(lib, lib.gncTaxTableGetName, tt_ptr)
             if tt_name:
                 lines.append(f'    tax_table: "{tt_name}"')
 
