@@ -31,6 +31,7 @@ value.  This is mandatory; omitting it will crash on Ubuntu (and silently
 give wrong results on any 64-bit platform if the pointer happens to be >4 GB).
 """
 import ctypes
+import logging
 
 _ENGINE_LIB_PATHS = [
     '/usr/lib/x86_64-linux-gnu/gnucash/libgnc-engine.so',            # Debian 11/12/13, Ubuntu 22/24
@@ -41,6 +42,101 @@ _ENGINE_LIB_PATHS = [
 class GncNumericC(ctypes.Structure):
     """Mirrors the C GncNumeric struct: {int64 num, int64 denom}."""
     _fields_ = [('num', ctypes.c_int64), ('denom', ctypes.c_int64)]
+
+
+class GList(ctypes.Structure):
+    """GLib GList structure for safe traversal of lists returned by GnuCash C functions.
+
+    GList layout: [data, next, prev] pointers.
+    GnuCash often returns GList* from functions like gncTaxTableGetTables().
+    """
+    _fields_ = [
+        ('data', ctypes.c_void_p),
+        ('next', ctypes.c_void_p),
+        ('prev', ctypes.c_void_p)
+    ]
+
+    @classmethod
+    def from_address(cls, address):
+        """Safe cast from integer address to GList* pointer."""
+        return ctypes.cast(address, ctypes.POINTER(cls)).contents
+
+
+def iterate_glist(lib, glist_ptr, process_func):
+    """Safely iterate through GList returned by GnuCash C functions.
+
+    Args:
+        lib: ctypes.CDLL loaded with load_gnc_engine()
+        glist_ptr: Integer pointer to GList (from ctypes function)
+        process_func: Function that processes each element (lib, data_ptr) -> result
+
+    Returns:
+        List of results from process_func
+
+    Note:
+        GnuCash prepends to lists, so results are in reverse insertion order.
+        Reverse the output if you need chronological/insertion order.
+    """
+    results = []
+    while glist_ptr:
+        try:
+            glist = GList.from_address(glist_ptr)
+            if glist.data:
+                results.append(process_func(lib, glist.data))
+        except Exception as e:
+            logging.warning(f"Failed to process GList element at {glist_ptr:#x}: {e}")
+        glist_ptr = glist.next
+    return results
+
+
+def safe_ctypes_string(lib, func, ptr, default=""):
+    """Call ctypes string-returning function with null check and UTF-8 decoding.
+
+    Args:
+        lib: ctypes.CDLL loaded with load_gnc_engine()
+        func: ctypes function that returns c_char_p
+        ptr: Pointer argument to pass to func
+        default: Default value if function returns None or empty
+
+    Returns:
+        Decoded UTF-8 string or default
+    """
+    result = func(ptr)
+    return result.decode('utf-8') if result else default
+
+
+def verify_ctypes_functions(lib, required_functions=None):
+    """Verify critical ctypes functions exist before use.
+
+    Args:
+        lib: ctypes.CDLL loaded with load_gnc_engine()
+        required_functions: List of function names to check (defaults to common ones)
+
+    Raises:
+        RuntimeError if any required functions are missing
+    """
+    if required_functions is None:
+        required_functions = [
+            'gncTaxTableGetTables',
+            'gncTaxTableGetName',
+            'gncTaxTableGetEntries',
+            'gncTaxTableEntryGetAccount',
+            'gncTaxTableEntryGetAmount',
+            'xaccAccountGetName',
+            'gnc_account_get_parent',
+            'gncEntryGetDescription',
+            'gncEntryGetAction',
+            'gncEntryGetQuantity',
+            'gncEntryGetInvPrice',
+        ]
+
+    missing = [f for f in required_functions if not hasattr(lib, f)]
+    if missing:
+        raise RuntimeError(
+            f"GnuCash C library missing required functions: {missing}\n"
+            f"This usually means libgnc-engine.so couldn't be loaded properly.\n"
+            f"Check that GnuCash is installed and library paths are correct."
+        )
 
 
 def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
@@ -100,6 +196,7 @@ def load_gnc_engine() -> ctypes.CDLL:
             ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
             lib = ctypes.CDLL(None)
             _setup_lib_restypes(lib)
+            verify_ctypes_functions(lib)
             return lib
         except (OSError, AttributeError):
             pass
@@ -109,6 +206,7 @@ def load_gnc_engine() -> ctypes.CDLL:
     try:
         lib = ctypes.CDLL(None)
         _setup_lib_restypes(lib)
+        verify_ctypes_functions(lib)
         return lib
     except AttributeError:
         pass

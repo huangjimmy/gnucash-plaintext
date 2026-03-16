@@ -2,13 +2,12 @@
 """
 Service for rendering GnuCash invoices to PDF.
 """
-import ctypes
 import xml.etree.ElementTree as ET
 
 import gnucash.gnucash_core_c as gc
 from gnucash import Split
 
-from infrastructure.gnucash.engine import load_gnc_engine
+from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
 
 
 def read_book_company_info(file_path):
@@ -71,27 +70,24 @@ def _read_tax_label(lib, ptr):
     if not tt_ptr:
         return 'Taxable', 'single'
 
-    tt_name_b = lib.gncTaxTableGetName(tt_ptr)
-    tt_name = tt_name_b.decode('utf-8') if tt_name_b else 'Taxable'
+    tt_name = safe_ctypes_string(lib, lib.gncTaxTableGetName, tt_ptr, default='Taxable')
 
+    # Process tax table entries using iterate_glist
     glist_ptr = lib.gncTaxTableGetEntries(tt_ptr)
-    rate_parts = []
-    while glist_ptr:
-        buf = (ctypes.c_void_p * 3).from_address(glist_ptr)
-        tte_ptr = buf[0]
-        glist_ptr = buf[1]
-        if not tte_ptr:
-            continue
+
+    def process_tax_table_entry(lib, tte_ptr):
+        """Process single tax table entry pointer."""
         acct_ptr = lib.gncTaxTableEntryGetAccount(tte_ptr)
         amt_c = lib.gncTaxTableEntryGetAmount(tte_ptr)
         rate = amt_c.num / amt_c.denom if amt_c.denom else 0.0
-        name_b = lib.xaccAccountGetName(acct_ptr) if acct_ptr else None
-        name = name_b.decode('utf-8') if name_b else '?'
+        name = safe_ctypes_string(lib, lib.xaccAccountGetName, acct_ptr, default='?')
         rate_str = f"{rate:g}%"
-        label = name if rate_str in name else f"{name} {rate_str}"
-        rate_parts.append(label)
+        # If rate already appears in account name (e.g., "GST 5%"), use just the name
+        return name if rate_str in name else f"{name} {rate_str}"
 
-    rate_parts.reverse()
+    rate_parts = iterate_glist(lib, glist_ptr, process_tax_table_entry)
+    rate_parts.reverse()  # GnuCash prepends entries
+
     if not rate_parts:
         return tt_name, 'single'
 
@@ -159,8 +155,8 @@ def invoice_to_xml(inv, book, company_info=None):
     entries_el = ET.SubElement(root, 'entries')
     for raw_entry in inv.GetEntries():
         ptr = int(raw_entry.instance)
-        desc = (lib.gncEntryGetDescription(ptr) or b'').decode('utf-8')
-        action = (lib.gncEntryGetAction(ptr) or b'').decode('utf-8')
+        desc = safe_ctypes_string(lib, lib.gncEntryGetDescription, ptr)
+        action = safe_ctypes_string(lib, lib.gncEntryGetAction, ptr)
         qty_c = lib.gncEntryGetQuantity(ptr)
         price_c = lib.gncEntryGetInvPrice(ptr)
         qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0

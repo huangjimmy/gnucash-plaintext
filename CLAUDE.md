@@ -201,7 +201,61 @@ On Debian, `apt install weasyprint` installs `python3-weasyprint` and `import we
 RUN python3 -m pip install weasyprint --break-system-packages ...
 ```
 
+### 5. GnuCash Python Bindings: Practical Guidelines
+
+#### No Decision Matrix, Only Testing
+There is **no predictable decision matrix** for when to use SWIG vs ctypes. Platform-specific bugs and missing functions are discovered through testing, not predicted.
+
+**Workflow**:
+1. **Try SWIG first** - it's cleaner when it works
+2. **Fall back to ctypes** when SWIG fails on some platform
+3. **Document the failure** in code comments so others know why ctypes was chosen
+
+#### Reading vs Writing Asymmetry
+GnuCash Python bindings have different reliability for reading vs writing:
+
+**Writing (Import) - SWIG Usually Works**:
+- `Customer()`, `Vendor()`, `Invoice()` constructors work
+- `SetName()`, `SetAddress()`, `SetCurrency()` work reliably
+- **Exception**: Tax table entries need `gnucash_core_c` helpers
+
+**Reading (Export) - Often Needs ctypes**:
+- `gncTaxTableGetTables()`: Missing from SWIG (always ctypes)
+- `gncEntryGetDescription()`, `gncEntryGetAction()`: SWIG has const-type bugs
+- `xaccAccountGetName()`: Works in ctypes, SWIG version buggy on Ubuntu
+
+#### Pointer Lifetime Rules
+1. **Once ctypes, stay ctypes**: If you get a pointer from ctypes, use ctypes to read from it:
+   ```python
+   # ✅ CORRECT
+   acct_ptr = lib.gncTaxTableEntryGetAccount(tte_ptr)  # ctypes
+   name = safe_ctypes_string(lib, lib.xaccAccountGetName, acct_ptr)
+
+   # ❌ WRONG - SWIG may not wrap raw pointers safely
+   account = Account(instance=acct_ptr)  # Dangerous!
+   ```
+
+2. **SWIG ↔ ctypes bridge via `.instance`**:
+   ```python
+   # Safe: SWIG object → ctypes pointer
+   entry_ptr = int(entry.instance)  # Get raw pointer from SWIG
+   desc = lib.gncEntryGetDescription(entry_ptr)  # Use ctypes
+   ```
+
+#### Always Test All Platforms
+Test on all supported distributions:
+- Debian 11 (GnuCash 4.4), 12 (4.13), 13 (5.10)
+- Ubuntu 20.04 (GnuCash 3.8), 22.04 (4.8), 24.04 (4.9)
+
+**Common pattern**: Works on Debian, segfaults on Ubuntu → RTLD_LOCAL issue.
+
+#### Use `engine.py` Utilities
+- `load_gnc_engine()`: Handles RTLD_GLOBAL promotion and argtypes
+- `iterate_glist()`: Safe GList traversal (replaces raw pointer arithmetic)
+- `safe_ctypes_string()`: Null-safe string decoding
+- `verify_ctypes_functions()`: Runtime validation of required functions
+
 ---
 
-**Last Updated**: 2026-03-14
+**Last Updated**: 2026-03-15
 **Current Phase**: Phase 8 (Business Objects)
