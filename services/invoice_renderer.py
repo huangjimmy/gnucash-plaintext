@@ -70,7 +70,7 @@ def _read_tax_label(lib, ptr):
     if not tt_ptr:
         return 'Taxable', 'single'
 
-    tt_name = safe_ctypes_string(lib, lib.gncTaxTableGetName, tt_ptr, default='Taxable')
+    tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr, default='Taxable')
 
     # Process tax table entries using iterate_glist
     glist_ptr = lib.gncTaxTableGetEntries(tt_ptr)
@@ -80,7 +80,7 @@ def _read_tax_label(lib, ptr):
         acct_ptr = lib.gncTaxTableEntryGetAccount(tte_ptr)
         amt_c = lib.gncTaxTableEntryGetAmount(tte_ptr)
         rate = amt_c.num / amt_c.denom if amt_c.denom else 0.0
-        name = safe_ctypes_string(lib, lib.xaccAccountGetName, acct_ptr, default='?')
+        name = safe_ctypes_string(lib.xaccAccountGetName, acct_ptr, default='?')
         rate_str = f"{rate:g}%"
         # If rate already appears in account name (e.g., "GST 5%"), use just the name
         return name if rate_str in name else f"{name} {rate_str}"
@@ -155,8 +155,8 @@ def invoice_to_xml(inv, book, company_info=None):
     entries_el = ET.SubElement(root, 'entries')
     for raw_entry in inv.GetEntries():
         ptr = int(raw_entry.instance)
-        desc = safe_ctypes_string(lib, lib.gncEntryGetDescription, ptr)
-        action = safe_ctypes_string(lib, lib.gncEntryGetAction, ptr)
+        desc = safe_ctypes_string(lib.gncEntryGetDescription, ptr)
+        action = safe_ctypes_string(lib.gncEntryGetAction, ptr)
         qty_c = lib.gncEntryGetQuantity(ptr)
         price_c = lib.gncEntryGetInvPrice(ptr)
         qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0

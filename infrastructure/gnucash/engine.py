@@ -81,19 +81,22 @@ def iterate_glist(lib, glist_ptr, process_func):
     while glist_ptr:
         try:
             glist = GList.from_address(glist_ptr)
-            if glist.data:
-                results.append(process_func(lib, glist.data))
         except Exception as e:
-            logging.warning(f"Failed to process GList element at {glist_ptr:#x}: {e}")
-        glist_ptr = glist.next
+            logging.warning(f"Failed to read GList node at {glist_ptr:#x}: {e}")
+            break  # Cannot know where the next node is; stop safely
+        glist_ptr = glist.next  # Advance before processing so a bad element doesn't stall iteration
+        if glist.data:
+            try:
+                results.append(process_func(lib, glist.data))
+            except Exception as e:
+                logging.warning(f"Failed to process GList element at {glist.data:#x}: {e}")
     return results
 
 
-def safe_ctypes_string(lib, func, ptr, default=""):
+def safe_ctypes_string(func, ptr, default=""):
     """Call ctypes string-returning function with null check and UTF-8 decoding.
 
     Args:
-        lib: ctypes.CDLL loaded with load_gnc_engine()
         func: ctypes function that returns c_char_p
         ptr: Pointer argument to pass to func
         default: Default value if function returns None or empty
@@ -198,7 +201,7 @@ def load_gnc_engine() -> ctypes.CDLL:
             _setup_lib_restypes(lib)
             verify_ctypes_functions(lib)
             return lib
-        except (OSError, AttributeError):
+        except (OSError, AttributeError, RuntimeError):
             pass
 
     # Final fallback: symbols already globally visible (e.g. RTLD_GLOBAL load
@@ -208,7 +211,7 @@ def load_gnc_engine() -> ctypes.CDLL:
         _setup_lib_restypes(lib)
         verify_ctypes_functions(lib)
         return lib
-    except AttributeError:
+    except (OSError, AttributeError, RuntimeError):
         pass
 
     raise RuntimeError(
