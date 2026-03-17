@@ -36,6 +36,9 @@ import logging
 _ENGINE_LIB_PATHS = [
     '/usr/lib/x86_64-linux-gnu/gnucash/libgnc-engine.so',            # Debian 11/12/13, Ubuntu 22/24
     '/usr/lib/x86_64-linux-gnu/gnucash/gnucash/libgncmod-engine.so', # Ubuntu 20 (GnuCash 3.8)
+    '/usr/lib64/gnucash/libgnc-engine.so',                           # Fedora 41+
+    '/usr/lib64/libgnc-engine.so',                                   # openSUSE Tumbleweed
+    '/usr/lib/libgnc-engine.so',                                     # Arch Linux
 ]
 
 

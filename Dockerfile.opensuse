@@ -1,0 +1,38 @@
+# openSUSE Tumbleweed — GnuCash 5.13, Python 3.13
+# Supported distributions (verified 2026-03-17):
+# ┌──────────────────────┬─────────────────┬────────────────────────┐
+# │ Distribution         │ GnuCash Version │ Status                 │
+# ├──────────────────────┼─────────────────┼────────────────────────┤
+# │ opensuse/tumbleweed  │ 5.13            │ ✅ Verified            │
+# └──────────────────────┴─────────────────┴────────────────────────┘
+#
+# Notes:
+# - Python bindings are a SEPARATE package (python3-gnucash); the main gnucash
+#   package does NOT include them — both packages must be installed
+# - RTLD behavior: not yet characterized; load_gnc_engine() RTLD_GLOBAL
+#   promotion applied defensively (safe on all distros)
+# - .so path: /usr/lib64/libgnc-engine.so  (no gnucash/ subdirectory)
+# - dejavu-fonts required: minimal openSUSE container has NO system fonts;
+#   weasyprint's pango/HarfBuzz stack segfaults with zero fonts installed
+#
+# Usage:
+#   docker build -f Dockerfile.opensuse -t gnucash-dev:opensuse .
+
+FROM opensuse/tumbleweed
+
+RUN zypper install -y \
+        gnucash \
+        python3-gnucash \
+        git \
+        python3-pip \
+        python3-lxml \
+        dejavu-fonts && \
+    zypper clean --all
+
+WORKDIR /workspace
+
+RUN python3 -m pip install pytest pytest-cov weasyprint --break-system-packages 2>/dev/null || \
+    (python3 -m pip install --upgrade pip && \
+     python3 -m pip install pytest pytest-cov weasyprint --break-system-packages)
+
+CMD ["bash"]

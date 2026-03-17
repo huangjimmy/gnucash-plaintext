@@ -1,0 +1,34 @@
+# Arch Linux — GnuCash 5.14+ (rolling/always latest), Python 3.14+
+# Supported distributions (verified 2026-03-17):
+# ┌──────────────────┬─────────────────┬────────────────────────────────┐
+# │ Distribution     │ GnuCash Version │ Status                         │
+# ├──────────────────┼─────────────────┼────────────────────────────────┤
+# │ archlinux:latest │ 5.14+ (rolling) │ ✅ Verified (canary for latest) │
+# └──────────────────┴─────────────────┴────────────────────────────────┘
+#
+# Notes:
+# - gnucash package includes Python bindings built at compile time, but python
+#   is NOT declared as a package dependency — must install python explicitly
+# - RTLD behavior: not yet characterized; load_gnc_engine() RTLD_GLOBAL
+#   promotion applied defensively (safe on all distros)
+# - .so path: /usr/lib/libgnc-engine.so  (no gnucash/ subdirectory, no lib64/)
+#
+# Usage:
+#   docker build -f Dockerfile.arch -t gnucash-dev:arch .
+
+FROM archlinux:latest
+
+RUN pacman -Syu --noconfirm \
+        gnucash \
+        python \
+        python-pip \
+        python-lxml \
+        git && \
+    pacman -Scc --noconfirm
+
+WORKDIR /workspace
+
+RUN python3 -m pip install pytest pytest-cov weasyprint --break-system-packages 2>/dev/null || \
+    python3 -m pip install pytest pytest-cov weasyprint
+
+CMD ["bash"]
