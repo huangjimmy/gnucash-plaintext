@@ -1,0 +1,34 @@
+# Fedora — GnuCash 5.13, Python 3.13
+# Supported distributions (verified 2026-03-17):
+# ┌──────────────────┬─────────────────┬────────────────────────┐
+# │ Distribution     │ GnuCash Version │ Status                 │
+# ├──────────────────┼─────────────────┼────────────────────────┤
+# │ fedora:41        │ 5.13            │ ✅ Verified            │
+# └──────────────────┴─────────────────┴────────────────────────┘
+#
+# Notes:
+# - Python bindings included in main gnucash package (no separate package needed)
+# - RTLD behavior: RTLD_GLOBAL (same as Debian — after import gnucash, CDLL(None)
+#   already has symbols; existing load_gnc_engine() RTLD_GLOBAL promotion still
+#   applied for safety, causes no harm)
+# - .so path: /usr/lib64/gnucash/libgnc-engine.so
+#
+# Usage:
+#   docker build -f Dockerfile.fedora -t gnucash-dev:fedora41 .
+
+FROM fedora:41
+
+RUN dnf install -y \
+        gnucash \
+        git \
+        python3-pip \
+        python3-lxml && \
+    dnf clean all
+
+WORKDIR /workspace
+
+RUN python3 -m pip install pytest pytest-cov weasyprint --break-system-packages 2>/dev/null || \
+    (python3 -m pip install --upgrade pip && \
+     python3 -m pip install pytest pytest-cov weasyprint --break-system-packages)
+
+CMD ["bash"]

@@ -17,7 +17,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Supported versions
-VERSIONS=("latest" "debian12" "debian11" "ubuntu24" "ubuntu22" "ubuntu20")
+VERSIONS=("latest" "debian12" "debian11" "ubuntu24" "ubuntu22" "ubuntu20" "fedora41" "arch" "opensuse")
 
 echo "Testing against all supported versions IN PARALLEL..."
 echo "This is ~4x faster than sequential testing"
@@ -60,26 +60,27 @@ for version in "${VERSIONS[@]}"; do
 done
 echo ""
 
+# Map version tag to build.sh argument
+build_input_for() {
+    case "$1" in
+        latest)   echo "debian:13" ;;
+        debian12) echo "debian:12" ;;
+        debian11) echo "debian:11" ;;
+        ubuntu20) echo "ubuntu:20.04" ;;
+        ubuntu22) echo "ubuntu:22.04" ;;
+        ubuntu24) echo "ubuntu:24.04" ;;
+        fedora41) echo "fedora:41" ;;
+        arch)     echo "arch" ;;
+        opensuse) echo "opensuse" ;;
+    esac
+}
+
 # Build images if needed (sequential - Docker build has internal locking)
 echo "Building Docker images..."
 for version in "${VERSIONS[@]}"; do
-    if [ "$version" = "latest" ]; then
-        if ! docker image inspect gnucash-dev:latest > /dev/null 2>&1; then
-            echo "  Building gnucash-dev:latest..."
-            docker build -t gnucash-dev:latest .
-        fi
-    else
-        if ! docker image inspect gnucash-dev:$version > /dev/null 2>&1; then
-            echo "  Building gnucash-dev:$version..."
-            BASE_IMAGE=$(case "$version" in
-                debian12) echo "debian:12" ;;
-                debian11) echo "debian:11" ;;
-                ubuntu20) echo "ubuntu:20.04" ;;
-                ubuntu22) echo "ubuntu:22.04" ;;
-                ubuntu24) echo "ubuntu:24.04" ;;
-            esac)
-            docker build --build-arg BASE_IMAGE=$BASE_IMAGE -t gnucash-dev:$version .
-        fi
+    if ! docker image inspect gnucash-dev:$version > /dev/null 2>&1; then
+        echo "  Building gnucash-dev:$version..."
+        ./scripts/build.sh "$(build_input_for "$version")"
     fi
 done
 echo ""

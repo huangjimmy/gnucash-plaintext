@@ -41,6 +41,15 @@ if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
         ubuntu24)
             ./scripts/build.sh ubuntu:24.04
             ;;
+        fedora41)
+            ./scripts/build.sh fedora:41
+            ;;
+        arch)
+            ./scripts/build.sh arch
+            ;;
+        opensuse)
+            ./scripts/build.sh opensuse
+            ;;
         *)
             echo "Unknown tag: $TAG"
             exit 1
