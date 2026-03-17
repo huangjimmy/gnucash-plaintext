@@ -38,7 +38,7 @@ lib = load_gnc_engine()  # Handles RTLD_GLOBAL promotion for Ubuntu
 tt_ptr = lib.gncTaxTableGetTables(int(book.instance))
 
 # For invoice entries (SWIG has const-type bugs)
-desc = (lib.gncEntryGetDescription(entry_ptr) or b'').decode('utf-8')
+desc = safe_ctypes_string(lib.gncEntryGetDescription, entry_ptr)
 ```
 
 ### Step 4: Platform Testing Checklist
@@ -96,8 +96,7 @@ If you get a pointer from ctypes, use ctypes to read from it:
 ```python
 # ✅ CORRECT
 acct_ptr = lib.gncTaxTableEntryGetAccount(tte_ptr)  # ctypes
-name_b = lib.xaccAccountGetName(acct_ptr)           # ctypes
-name = name_b.decode('utf-8') if name_b else ''
+name = safe_ctypes_string(lib.xaccAccountGetName, acct_ptr)
 
 # ❌ WRONG - SWIG may not wrap raw pointers safely
 acct_ptr = lib.gncTaxTableEntryGetAccount(tte_ptr)
@@ -139,7 +138,7 @@ results = iterate_glist(lib, glist_ptr, lambda lib, ptr: process_item(lib, ptr))
 from infrastructure.gnucash.engine import safe_ctypes_string
 
 # Instead of manual null checks:
-name = safe_ctypes_string(lib, lib.xaccAccountGetName, acct_ptr, default="?")
+name = safe_ctypes_string(lib.xaccAccountGetName, acct_ptr, default="?")
 ```
 
 ## Adding New ctypes Functions

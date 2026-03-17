@@ -48,7 +48,7 @@ class ExportBusinessObjectsUseCase:
         parts = []
         ptr = acct_ptr
         while ptr:
-            name = safe_ctypes_string(lib, lib.xaccAccountGetName, ptr)
+            name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
             if name:
                 parts.append(name)
             parent = lib.gnc_account_get_parent(ptr)
@@ -138,7 +138,7 @@ class ExportBusinessObjectsUseCase:
 
         def process_tax_table(lib, tt_ptr):
             """Process single tax table pointer to plaintext lines."""
-            tt_name = safe_ctypes_string(lib, lib.gncTaxTableGetName, tt_ptr)
+            tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
             lines = [f'taxtable "{tt_name}"']
 
             # Process entries using iterate_glist
@@ -235,8 +235,8 @@ class ExportBusinessObjectsUseCase:
     def _format_inv_entry(self, lib, raw_entry) -> list:
         ptr = int(raw_entry.instance)
 
-        desc   = safe_ctypes_string(lib, lib.gncEntryGetDescription, ptr)
-        action = safe_ctypes_string(lib, lib.gncEntryGetAction, ptr)
+        desc   = safe_ctypes_string(lib.gncEntryGetDescription, ptr)
+        action = safe_ctypes_string(lib.gncEntryGetAction, ptr)
         qty_c  = lib.gncEntryGetQuantity(ptr)
         pri_c  = lib.gncEntryGetInvPrice(ptr)
         qty    = qty_c.num / qty_c.denom if qty_c.denom else 0.0
@@ -265,7 +265,7 @@ class ExportBusinessObjectsUseCase:
         # Tax table — ctypes required (SWIG const-type bug)
         tt_ptr = lib.gncEntryGetInvTaxTable(ptr)
         if tt_ptr:
-            tt_name = safe_ctypes_string(lib, lib.gncTaxTableGetName, tt_ptr)
+            tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
             if tt_name:
                 lines.append(f'    tax_table: "{tt_name}"')
 
