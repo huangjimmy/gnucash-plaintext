@@ -11,6 +11,7 @@ dependencies = [
     "beautifulsoup4>=4.9",  # Future QFX parsing alternative
     "lxml>=4.6",            # XML parsing
     "pyyaml>=5.4",          # Configuration file support
+    "jinja2>=3.0",          # HTML template rendering for income statement
     "typing_extensions>=4.0; python_version<'3.11'",  # NotRequired, TypedDict backport
 ]
 
@@ -41,7 +42,7 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-"*" = ["*.yaml", "*.yml", "*.xslt"]
+"*" = ["*.yaml", "*.yml", "*.xslt", "*.html"]
 
 [build-system]
 requires = ["setuptools>=45", "wheel"]

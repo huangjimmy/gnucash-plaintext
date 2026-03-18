@@ -12,6 +12,7 @@ from cli.export_beancount_cmd import export_beancount
 from cli.export_cmd import export_transactions
 from cli.import_beancount_cmd import import_beancount
 from cli.import_cmd import import_transactions
+from cli.income_statement_cmd import income_statement
 from cli.invoice_print_cmd import print_invoice
 from cli.validate_cmd import validate_ledger
 
@@ -55,6 +56,7 @@ cli.add_command(validate_ledger, name='validate')
 cli.add_command(export_beancount, name='export-beancount')
 cli.add_command(import_beancount, name='import-beancount')
 cli.add_command(close_books, name='close-books')
+cli.add_command(income_statement, name='income-statement')
 cli.add_command(print_invoice, name='print-invoice')
 
 
