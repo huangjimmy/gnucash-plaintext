@@ -17,6 +17,7 @@ class ResolutionStrategy(Enum):
     KEEP_INCOMING = "keep_incoming"
     SKIP = "skip"
     MANUAL = "manual"
+    UPDATE = "update"  # Update existing transaction in-place by GUID (preserves GUID)
 
 
 class ConflictInfo:

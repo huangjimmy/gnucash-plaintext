@@ -413,7 +413,28 @@ gnucash-plaintext import mybook.gnucash transactions.txt --strategy keep-existin
 
 # Replace with incoming transactions on conflict
 gnucash-plaintext import mybook.gnucash transactions.txt --strategy keep-incoming
+
+# Update existing transactions in-place by GUID (preserves GUID)
+gnucash-plaintext import mybook.gnucash transactions.txt --strategy update
 ```
+
+**`--strategy update`: stable edit-and-reimport workflow**
+
+When a transaction in the plaintext file carries a `guid:` metadata field that matches
+an existing transaction in the book, `--strategy update` modifies that transaction
+in-place — description, date, amounts, splits, notes, doc_link — without destroying
+or recreating it. Because the GnuCash object itself is never replaced, its GUID is
+preserved. This makes the workflow stable across multiple runs:
+
+```
+export → edit plaintext → re-import --strategy update → export again …
+```
+
+Each re-import finds the same GUID and updates the same transaction. No phantom
+duplicates are created regardless of how many times you repeat the cycle.
+
+Transactions in the plaintext file that have no `guid:` field, or whose GUID is not
+found in the book, follow normal duplicate/conflict detection as usual.
 
 **How conflicts are detected:**
 

@@ -20,9 +20,10 @@ from use_cases.import_transactions import ImportTransactionsUseCase
 @click.option('-f', '--file', 'plaintext_file', type=click.Path(), help='Plaintext transactions file')
 @click.option(
     '--strategy',
-    type=click.Choice(['skip', 'keep-existing', 'keep-incoming'], case_sensitive=False),
+    type=click.Choice(['skip', 'keep-existing', 'keep-incoming', 'update'], case_sensitive=False),
     default='skip',
-    help='Conflict resolution strategy (default: skip)'
+    help='Conflict resolution strategy (default: skip). '
+         'update: modify existing transactions in-place when a GUID match is found, preserving their GUID.'
 )
 @click.option(
     '--dry-run',
@@ -94,7 +95,8 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
     strategy_map = {
         'skip': ResolutionStrategy.SKIP,
         'keep-existing': ResolutionStrategy.KEEP_EXISTING,
-        'keep-incoming': ResolutionStrategy.KEEP_INCOMING
+        'keep-incoming': ResolutionStrategy.KEEP_INCOMING,
+        'update': ResolutionStrategy.UPDATE,
     }
     resolution_strategy = strategy_map[strategy]
 
@@ -136,6 +138,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             click.echo("Import Summary:")
             click.echo("=" * 50)
             click.echo(f"  Transactions: {result.imported_count}")
+            click.echo(f"  Updated:      {result.updated_count}")
             click.echo(f"  Accounts:     {result.accounts_created}")
             click.echo(f"  Skipped:      {result.skipped_count} (duplicates)")
             click.echo(f"  Conflicts:    {len(result.conflicts)}")
@@ -157,7 +160,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                         click.echo(f"  - {str(error)}")
 
             # Save if not dry run and something was imported
-            has_changes = result.imported_count > 0 or result.accounts_created > 0
+            has_changes = result.imported_count > 0 or result.updated_count > 0 or result.accounts_created > 0
             if not dry_run and has_changes:
                 click.echo("")
                 click.echo("Saving changes...")
