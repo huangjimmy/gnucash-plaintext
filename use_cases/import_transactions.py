@@ -25,6 +25,7 @@ class ImportResult:
 
     def __init__(self):
         self.imported_count = 0
+        self.updated_count = 0
         self.accounts_created = 0
         self.skipped_count = 0
         self.error_count = 0
@@ -36,6 +37,7 @@ class ImportResult:
         """Get summary string"""
         lines = []
         lines.append(f"Imported: {self.imported_count}")
+        lines.append(f"Updated: {self.updated_count}")
         lines.append(f"Accounts created: {self.accounts_created}")
         lines.append(f"Skipped: {self.skipped_count} (duplicates)")
         lines.append(f"Conflicts: {len(self.conflicts)}")
@@ -276,17 +278,21 @@ class ImportTransactionsUseCase:
         for child in parser.root_directive.children:
             if child.type == DirectiveType.TRANSACTION:
                 try:
-                    # Check for duplicate by GUID if present
+                    # Check for match by GUID if present
                     if 'guid' in child.metadata:
                         guid = child.metadata['guid']
-                        # Check if transaction with this GUID already exists
-                        is_duplicate = any(
-                            tx.GetGUID().to_string() == guid
-                            for tx in existing_transactions
+                        existing_tx = next(
+                            (tx for tx in existing_transactions
+                             if tx.GetGUID().to_string() == guid),
+                            None
                         )
-                        if is_duplicate:
-                            logging.info(f"Skipping duplicate transaction with GUID {guid}")
-                            result.skipped_count += 1
+                        if existing_tx is not None:
+                            if resolution_strategy == ResolutionStrategy.UPDATE:
+                                importer.update_transaction(existing_tx, child, book)
+                                result.updated_count += 1
+                            else:
+                                logging.info(f"Skipping duplicate transaction with GUID {guid}")
+                                result.skipped_count += 1
                             continue
 
                     # Check for duplicate by date/accounts signature

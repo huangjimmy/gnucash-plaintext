@@ -28,7 +28,7 @@ from gnucash.gnucash_core_c import (
     gncTaxTableEntrySetAccount,
 )
 
-from infrastructure.gnucash.utils import find_account, string_to_gnc_numeric
+from infrastructure.gnucash.utils import find_account, get_account_full_name, string_to_gnc_numeric
 from services.plaintext_parser import DirectiveType, PlaintextDirective
 
 
@@ -275,6 +275,134 @@ class GnuCashImporter:
         transaction.CommitEdit()
         logging.debug(f"Created transaction on {date_str}")
         return True
+
+    @staticmethod
+    def update_transaction(existing_tx, directive: PlaintextDirective, book: Book) -> None:
+        """
+        Update an existing GnuCash transaction in-place from a plaintext directive.
+
+        The transaction's GUID is preserved — the transaction object is modified,
+        not replaced. This makes the export→edit-plaintext→re-import cycle stable
+        across multiple runs: the same GUID is always present, so subsequent imports
+        with UPDATE strategy will keep updating the same transaction instead of
+        creating duplicates.
+
+        All scalar fields (description, date, num, doc_link, notes, currency) and
+        splits are updated to match the directive. Split matching is by account
+        full-name. Splits for accounts absent from the directive are removed; splits
+        for new accounts are created.
+
+        Note: When two splits in the directive share the same account (rare but valid),
+        the last directive entry for that account wins — consistent with create_transaction.
+
+        Args:
+            existing_tx: GnuCash Transaction object to update
+            directive:   PlaintextDirective of type TRANSACTION containing new values
+            book:        GnuCash Book (required to create new Split objects)
+
+        Raises:
+            ValueError: If a split account named in the directive cannot be found
+        """
+        if directive.type != DirectiveType.TRANSACTION:
+            raise ValueError(f"Expected TRANSACTION but got {directive.type}")
+
+        root_account = book.get_root_account()
+        commodity_table = book.get_table()
+
+        existing_tx.BeginEdit()
+        try:
+            # Update transaction-level scalar fields
+            date_str = directive.props['date']
+            date = datetime.strptime(date_str, '%Y-%m-%d')
+            existing_tx.SetDatePostedSecsNormalized(date)
+
+            tx_num = directive.props.get('tx_num')
+            tx_desc = directive.props.get('tx_desc')
+            if tx_num is not None:
+                existing_tx.SetNum(tx_num)
+            if tx_desc is not None:
+                existing_tx.SetDescription(tx_desc)
+
+            if 'doc_link' in directive.metadata:
+                try:
+                    existing_tx.SetDocLink(directive.metadata['doc_link'])
+                except AttributeError:
+                    existing_tx.SetAssociation(directive.metadata['doc_link'])
+
+            if 'notes' in directive.metadata:
+                existing_tx.SetNotes(directive.metadata['notes'])
+
+            # Update currency if specified
+            namespace = directive.metadata.get('currency.namespace', 'CURRENCY')
+            if 'currency.mnemonic' in directive.metadata:
+                mnemonic = directive.metadata['currency.mnemonic']
+                commodity = commodity_table.lookup(namespace, mnemonic)
+                if commodity is not None:
+                    existing_tx.SetCurrency(commodity)
+
+            tx_currency = existing_tx.GetCurrency()
+
+            # Build account-name → split maps for existing and desired splits
+            existing_splits_by_account = {}
+            for split in existing_tx.GetSplitList():
+                acct_name = get_account_full_name(split.GetAccount())
+                existing_splits_by_account[acct_name] = split
+
+            desired_by_account = {}
+            for child in directive.children:
+                desired_by_account[child.props['account']] = child
+
+            # Validate all desired accounts exist before making any changes
+            for acct_name in desired_by_account:
+                if find_account(root_account, acct_name) is None:
+                    raise ValueError(f"Account not found: {acct_name}")
+
+            # Remove splits for accounts no longer in the directive
+            for acct_name, split in list(existing_splits_by_account.items()):
+                if acct_name not in desired_by_account:
+                    split.Destroy()
+
+            # Update existing splits or create new ones
+            for acct_name, split_directive in desired_by_account.items():
+                split_account = find_account(root_account, acct_name)
+                split_account_currency = split_account.GetCommodity()
+                amount = string_to_gnc_numeric(split_directive.props['amount'], split_account_currency)
+
+                if 'value' in split_directive.metadata:
+                    value = string_to_gnc_numeric(split_directive.metadata['value'], tx_currency)
+                else:
+                    value = amount
+
+                if acct_name in existing_splits_by_account:
+                    split = existing_splits_by_account[acct_name]
+                else:
+                    split = Split(book)
+                    split.SetParent(existing_tx)
+                    split.SetAccount(split_account)
+
+                split.SetAmount(amount)
+                split.SetValue(value)
+
+                if 'share_price' in split_directive.metadata:
+                    share_price = string_to_gnc_numeric(split_directive.metadata['share_price'], tx_currency)
+                    split.SetSharePrice(share_price)
+
+                if 'action' in split_directive.metadata:
+                    action = split_directive.metadata['action']
+                    if action is not None:
+                        split.SetAction(action)
+
+                if 'memo' in split_directive.metadata:
+                    memo = split_directive.metadata['memo']
+                    if memo is not None:
+                        split.SetMemo(memo)
+
+            existing_tx.CommitEdit()
+            logging.debug(f"Updated transaction on {date_str}")
+
+        except Exception:
+            existing_tx.RollbackEdit()
+            raise
 
     @staticmethod
     def import_customer(directive: PlaintextDirective, book: Book):
