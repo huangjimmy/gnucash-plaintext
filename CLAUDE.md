@@ -42,6 +42,35 @@ Project-specific rules and conventions for Claude Code and Gemini CLI assistance
    git diff --cached --name-only
    ```
 
+## Feature Branch Workflow
+
+This is an open-source project. **Never commit directly to `main`.**
+
+### ✅ Always Do These for New Work:
+1. **Create a new worktree + feature branch** for every feature, bugfix, or example addition:
+   ```bash
+   # Run from the repo root or any existing worktree
+   git worktree add worktree/<branch-name> -b <branch-name>
+   # Example:
+   git worktree add worktree/feature/fava-viewer-example -b feature/fava-viewer-example
+   ```
+
+2. **Do all work inside `worktree/<branch-name>`** — `worktree/main` is always the main branch and must never be worked on directly
+
+3. **Open a PR** from the feature branch to `main` when the work is ready
+
+4. **Clean up** the worktree after the PR is merged:
+   ```bash
+   git worktree remove worktree/<branch-name>
+   git branch -d <branch-name>
+   ```
+
+### ❌ NEVER Do These:
+- Commit directly to `main`
+- Do feature work inside `worktree/main` — it is reserved for the main branch only
+
+---
+
 ## Branch Strategy
 
 ### Working Branch: `architecture-migration`

@@ -262,6 +262,35 @@ gnucash-plaintext export-beancount mybook.gnucash output.beancount \
 
 **Note:** The exported file is in [GnuCash-Beancount format](docs/gnucash-beancount-format.md), a special beancount format with GnuCash metadata that enables bidirectional conversion with zero data loss.
 
+### View GnuCash data in Fava web UI
+
+[Fava](https://github.com/beancount/fava) is a modern web interface for beancount files. The `examples/fava-viewer.sh` script exports your GnuCash file and launches Fava in one step:
+
+```bash
+./examples/fava-viewer.sh ~/finances/mybook.gnucash
+```
+
+Then open http://localhost:5000 in your browser (or whichever port you specified with `--port`).
+
+Options:
+
+```bash
+# Use a different port
+./examples/fava-viewer.sh ~/finances/mybook.gnucash --port 5001
+
+# Filter by date range
+./examples/fava-viewer.sh ~/finances/mybook.gnucash \
+  --date-from 2024-01-01 --date-to 2024-12-31
+
+# Filter by account
+./examples/fava-viewer.sh ~/finances/mybook.gnucash --account "Assets"
+
+# Use a specific Docker image tag
+./examples/fava-viewer.sh ~/finances/mybook.gnucash --tag debian12
+```
+
+The script uses Docker — no local GnuCash or Fava installation required. The exported `.beancount` file is written alongside your `.gnucash` file.
+
 ### Import from GnuCash-Beancount format
 
 Import from [GnuCash-Beancount](docs/gnucash-beancount-format.md) format:
