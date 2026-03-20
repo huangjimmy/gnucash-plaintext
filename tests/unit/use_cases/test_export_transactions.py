@@ -184,3 +184,79 @@ class TestExportTransactions:
 
             # Should be sorted
             assert dates == sorted(dates)
+
+
+class TestExportByGuid:
+    """Test execute_by_guid — single-transaction export"""
+
+    def test_export_known_guid_returns_one_transaction(self, temp_gnucash_with_transactions):
+        """execute_by_guid returns exactly one transaction matching the given GUID"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            all_result = use_case.execute()
+            target_guid = all_result.transactions[0].GetGUID().to_string()
+
+            result = use_case.execute_by_guid(target_guid)
+
+            assert len(result.transactions) == 1
+            assert result.transactions[0].GetGUID().to_string() == target_guid
+
+    def test_export_by_guid_includes_commodities_and_accounts(self, temp_gnucash_with_transactions):
+        """execute_by_guid result includes commodity and account declarations"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            all_result = use_case.execute()
+            guid = all_result.transactions[0].GetGUID().to_string()
+
+            result = use_case.execute_by_guid(guid)
+
+            assert len(result.commodities) > 0
+            assert len(result.accounts) > 0
+
+    def test_export_by_guid_plaintext_is_self_contained(self, temp_gnucash_with_transactions):
+        """format_as_plaintext on a single-transaction result is self-contained"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            all_result = use_case.execute()
+            guid = all_result.transactions[0].GetGUID().to_string()
+
+            result = use_case.execute_by_guid(guid)
+            plaintext = use_case.format_as_plaintext(result)
+
+            assert "commodity" in plaintext
+            assert "open " in plaintext
+            assert f'guid: "{guid}"' in plaintext
+
+    def test_export_by_guid_invalid_guid_raises_value_error(self, temp_gnucash_with_transactions):
+        """execute_by_guid raises ValueError for a malformed GUID string"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            with pytest.raises(ValueError, match="Invalid GUID format"):
+                use_case.execute_by_guid("not-a-valid-guid")
+
+    def test_export_by_guid_nonexistent_guid_raises_value_error(self, temp_gnucash_with_transactions):
+        """execute_by_guid raises ValueError when no transaction has the given GUID"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            with pytest.raises(ValueError, match="No transaction found"):
+                use_case.execute_by_guid("deadbeefdeadbeefdeadbeefdeadbeef")

@@ -9,7 +9,13 @@ import datetime
 import os
 from typing import Optional
 
-from gnucash.gnucash_core_c import xaccAccountGetTypeStr
+from gnucash import Transaction
+from gnucash.gnucash_core_c import (
+    GncGUID,
+    string_to_guid,
+    xaccAccountGetTypeStr,
+    xaccTransLookup,
+)
 
 from infrastructure.gnucash.utils import (
     encode_value_as_string,
@@ -366,6 +372,38 @@ class ExportTransactionsUseCase:
 
         if memo and memo != "":
             lines.append(f'\t\tmemo:{encode_value_as_string(memo)}')
+
+    def execute_by_guid(self, guid: str) -> ExportResult:
+        """
+        Export a single transaction identified by its GUID.
+
+        Uses xaccTransLookup for O(1) direct lookup — no scan of all
+        transactions. The result includes the commodity and account
+        declarations for that transaction so the output is self-contained.
+
+        Args:
+            guid: 32-character hex GUID string of the transaction to export
+
+        Returns:
+            ExportResult containing the single transaction plus its
+            commodities and accounts
+
+        Raises:
+            ValueError: if the GUID string is malformed or no transaction
+                        with that GUID exists
+        """
+        gnc_guid = GncGUID()
+        if not string_to_guid(guid, gnc_guid):
+            raise ValueError(f"Invalid GUID format: {guid}")
+
+        raw = xaccTransLookup(gnc_guid, self.repository.book.instance)
+        if raw is None:
+            raise ValueError(f"No transaction found with GUID: {guid}")
+
+        target = Transaction(instance=raw)
+        result = ExportResult()
+        self._collect_transaction_data(target, result)
+        return result
 
     def export_to_file(
         self,
