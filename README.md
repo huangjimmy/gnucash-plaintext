@@ -464,6 +464,54 @@ A transaction from plaintext exists in GnuCash if:
 - Transaction signature matches: (date, [split account 1, ..., split account N])
 - If no GUID and signature doesn't match, it's considered a new transaction
 
+### Generate an income statement
+
+Generate an income statement for a fiscal period, with optional multi-currency FX conversion to CAD (for CRA T2 filing).
+
+A date range is required — use one of:
+
+```bash
+# Fiscal year end (start is auto-computed as end − 1 year + 1 day)
+gnucash-plaintext income-statement mybook.gnucash --fiscal-year-end 2024-12-31
+
+# Explicit date range
+gnucash-plaintext income-statement mybook.gnucash --start 2023-04-01 --end 2024-03-31
+```
+
+Output formats — text (default), HTML, or PDF:
+
+```bash
+# Text to stdout (default)
+gnucash-plaintext income-statement mybook.gnucash --fiscal-year-end 2024-12-31
+
+# HTML report
+gnucash-plaintext income-statement mybook.gnucash \
+    --fiscal-year-end 2024-03-31 \
+    --output-format html --output report.html
+
+# PDF report (requires WeasyPrint)
+gnucash-plaintext income-statement mybook.gnucash \
+    --fiscal-year-end 2024-03-31 \
+    --output-format pdf --output report.pdf
+```
+
+Multi-currency FX conversion to CAD (required for CRA T2 totals):
+
+```bash
+gnucash-plaintext income-statement mybook.gnucash \
+    --fiscal-year-end 2024-03-31 \
+    --fx-rates rates.yaml \
+    --output-format pdf --output report.pdf
+```
+
+The `rates.yaml` file maps currency codes to their CAD rates:
+
+```yaml
+USD: 1.36
+HKD: 0.17
+CNY: 0.19
+```
+
 ### Validate GnuCash ledger
 
 Check ledger integrity:
