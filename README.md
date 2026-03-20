@@ -240,6 +240,22 @@ gnucash-plaintext export mybook.gnucash transactions.txt \
   --account "Assets:Bank"
 ```
 
+### Export a single transaction by GUID
+
+Export one specific transaction to plaintext (useful for AI-assisted editing or review):
+
+```bash
+gnucash-plaintext export-transaction mybook.gnucash --guid 317c8ae6e0084c33951d052b9f1b9f23
+```
+
+The output is self-contained — it includes the commodity and account declarations needed to re-import or process the transaction independently. Output goes to stdout by default; use `-o` to write to a file:
+
+```bash
+gnucash-plaintext export-transaction mybook.gnucash --guid 317c8ae6e0084c33951d052b9f1b9f23 -o tx.txt
+```
+
+`--guid` is required. Omitting it prints an error with usage guidance.
+
 ### Export GnuCash to GnuCash-Beancount format
 
 Export to [GnuCash-Beancount](docs/gnucash-beancount-format.md) format:
