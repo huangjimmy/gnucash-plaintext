@@ -512,6 +512,48 @@ HKD: 0.17
 CNY: 0.19
 ```
 
+### Export account balances
+
+Output account balances as of a given date in balance directive format:
+
+```bash
+# All accounts as of today
+gnucash-plaintext account-balance mybook.gnucash
+
+# Specific account subtree as of a date
+gnucash-plaintext account-balance mybook.gnucash "Assets:Bank" --as-of 2024-12-31
+
+# All accounts at fiscal year end
+gnucash-plaintext account-balance mybook.gnucash --as-of 2024-12-31
+
+# Save to file
+gnucash-plaintext account-balance mybook.gnucash --as-of 2024-12-31 -o balances.txt
+```
+
+Output format (balance directive):
+
+```
+2024-12-31 balance
+	Assets:Bank:Checking  3420.00 CAD
+	Assets:Bank:HKD  8700.00 HKD
+	Liabilities:CreditCard  200.00 CAD
+	Income:Salary  -3000.00 CAD
+	Expenses:Food:Groceries  50.00 CAD
+	Expenses:Food:Dining  30.00 CAD
+```
+
+Each leaf account is reported in its own currency. Parent accounts (with sub-accounts) are not included — only the terminal leaf accounts appear.
+
+With `--fx-rates`: consolidate all accounts to CAD and update the GnuCash pricedb for any currencies whose rate has changed:
+
+```bash
+gnucash-plaintext account-balance mybook.gnucash \
+    --as-of 2024-12-31 \
+    --fx-rates rates.yaml
+```
+
+When `--fx-rates` is provided, the pricedb is updated with today's rates (only if the rate differs from what is already in GnuCash), and all balances are output in CAD.
+
 ### Validate GnuCash ledger
 
 Check ledger integrity:

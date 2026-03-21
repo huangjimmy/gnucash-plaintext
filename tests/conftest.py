@@ -420,3 +420,60 @@ def temp_gnucash_comprehensive():
         lock_path = path + '.LCK'
         if os.path.exists(lock_path):
             os.unlink(lock_path)
+
+
+@pytest.fixture
+def temp_gnucash_account_balance():
+    """
+    GnuCash file for account-balance tests, loaded from plaintext fixture.
+
+    Covers all 5 account types (Asset, Liability, Equity, Income, Expense)
+    in two currencies (CAD and HKD), with sub-accounts under Expenses:Food
+    and Income:HKDIncome.
+
+    Account structure:
+      Assets:Bank:Checking          CAD   (500 opening + 3000 salary - 50 groceries - 30 dining = 3420)
+      Assets:Bank:HKD               HKD   (8000 opening + 400 freelance + 600 dividends - 300 transport = 8700)
+      Liabilities:CreditCard        CAD   (200 opening)
+      Liabilities:HKDLoan           HKD   (500 opening)
+      Equity:Opening                CAD   (balancing)
+      Income:Salary                 CAD   (-3000)
+      Income:HKDIncome:Freelance    HKD   (-400)
+      Income:HKDIncome:Dividends    HKD   (-600)
+      Expenses:Food:Groceries       CAD   (50)
+      Expenses:Food:Dining          CAD   (30)
+      Expenses:HKDExpenses:Transport HKD  (300)
+
+    See tests/fixtures/account_balance_test_data.txt for the plaintext source.
+    """
+    from repositories.gnucash_repository import GnuCashRepository
+    from services.conflict_resolver import ResolutionStrategy
+    from use_cases.import_transactions import ImportTransactionsUseCase
+
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    plaintext_path = os.path.join(test_dir, 'fixtures', 'account_balance_test_data.txt')
+
+    fd, path = tempfile.mkstemp(suffix='.gnucash')
+    os.close(fd)
+    os.unlink(path)
+
+    try:
+        GnuCashRepository.create_new_file(path)
+
+        repo = GnuCashRepository(path)
+        repo.open()
+        try:
+            use_case = ImportTransactionsUseCase(repo)
+            use_case.import_from_file(plaintext_path, ResolutionStrategy.SKIP)
+            repo.save()
+        finally:
+            repo.close()
+
+        yield path
+
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+        lock_path = path + '.LCK'
+        if os.path.exists(lock_path):
+            os.unlink(lock_path)

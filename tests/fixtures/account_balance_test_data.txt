@@ -1,0 +1,241 @@
+2024-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-01-01 open Assets
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0001"
+	type: "Asset"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Assets:Bank
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0002"
+	type: "Asset"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Assets:Bank:Checking
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0003"
+	type: "Bank"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Assets:Bank:HKD
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0004"
+	type: "Bank"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-01-01 open Liabilities
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0010"
+	type: "Liability"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Liabilities:CreditCard
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0011"
+	type: "Credit Card"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Liabilities:HKDLoan
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0012"
+	type: "Liability"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-01-01 open Equity
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0020"
+	type: "Equity"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Equity:Opening
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0021"
+	type: "Equity"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Income
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0030"
+	type: "Income"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Income:Salary
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0031"
+	type: "Income"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Income:HKDIncome
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0032"
+	type: "Income"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-01-01 open Income:HKDIncome:Freelance
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0033"
+	type: "Income"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-01-01 open Income:HKDIncome:Dividends
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0034"
+	type: "Income"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-01-01 open Expenses
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0040"
+	type: "Expense"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Expenses:Food
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0041"
+	type: "Expense"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Expenses:Food:Groceries
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0042"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Expenses:Food:Dining
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0043"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Expenses:HKDExpenses
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0044"
+	type: "Expense"
+	placeholder: #True
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-01-01 open Expenses:HKDExpenses:Transport
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0045"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2024-01-01 *
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0001"
+	Assets:Bank:Checking 500.00 CAD
+	Equity:Opening -500.00 CAD
+2024-01-01 *
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0002"
+	currency.mnemonic: "HKD"
+	Assets:Bank:HKD 8000.00 HKD
+	Equity:Opening -8000.00 HKD
+		account.commodity.mnemonic: "CAD"
+		share_price: "17/100"
+		value: "-1360.00"
+2024-01-01 *
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0003"
+	Liabilities:CreditCard 200.00 CAD
+	Equity:Opening -200.00 CAD
+2024-01-01 *
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0004"
+	currency.mnemonic: "HKD"
+	Liabilities:HKDLoan 500.00 HKD
+	Equity:Opening -500.00 HKD
+		account.commodity.mnemonic: "CAD"
+		share_price: "17/100"
+		value: "-85.00"
+2024-06-15 * "Monthly salary"
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0005"
+	Assets:Bank:Checking 3000.00 CAD
+	Income:Salary -3000.00 CAD
+2024-06-15 * "Freelance payment"
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0006"
+	currency.mnemonic: "HKD"
+	Assets:Bank:HKD 400.00 HKD
+	Income:HKDIncome:Freelance -400.00 HKD
+2024-06-15 * "Dividend payment"
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0007"
+	currency.mnemonic: "HKD"
+	Assets:Bank:HKD 600.00 HKD
+	Income:HKDIncome:Dividends -600.00 HKD
+2024-06-15 * "Grocery shopping"
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0008"
+	Expenses:Food:Groceries 50.00 CAD
+	Assets:Bank:Checking -50.00 CAD
+2024-06-15 * "Dinner out"
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0009"
+	Expenses:Food:Dining 30.00 CAD
+	Assets:Bank:Checking -30.00 CAD
+2024-06-15 * "MTR transport"
+	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0010"
+	currency.mnemonic: "HKD"
+	Expenses:HKDExpenses:Transport 300.00 HKD
+	Assets:Bank:HKD -300.00 HKD
