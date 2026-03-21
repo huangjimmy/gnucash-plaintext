@@ -6,9 +6,20 @@ Output format (balance directive):
     YYYY-MM-DD balance
         Account:Path  Amount Currency
 
-Without --fx-rates: read-only, each leaf account in its own currency.
-With --fx-rates: also updates GnuCash pricedb for any changed rates (today's date),
-then outputs each leaf account converted to CAD.
+No ACCOUNT_PREFIX:
+    All accounts in the book (parent + leaf), each with its recursive cumulative
+    balance.  Mixed-currency accounts require FX rates (from --fx-rates or the
+    GnuCash pricedb); an error is raised when no rate is available.
+
+With ACCOUNT_PREFIX (default):
+    Only the matched account, with its recursive cumulative balance.
+
+With ACCOUNT_PREFIX + --with-children:
+    The matched account and all sub-accounts, each with their recursive balance.
+
+With --fx-rates:
+    Updates GnuCash pricedb for changed rates (today's date), then outputs all
+    shown accounts consolidated to CAD.
 """
 
 from datetime import date, datetime
@@ -32,7 +43,6 @@ def _parse_date(ctx, param, value: Optional[str]) -> Optional[date]:
 
 def _format_amount(amount) -> str:
     """Format a Fraction as a decimal string with 2 decimal places."""
-    # Convert to float for display; use round to avoid floating-point noise
     return f"{float(amount):.2f}"
 
 
@@ -53,8 +63,16 @@ def _format_amount(amount) -> str:
     "fx_rates_file",
     default=None,
     type=click.Path(exists=True),
-    help="YAML file with currency→CAD rates. When provided, consolidates all accounts to CAD "
+    help="YAML file with currency->CAD rates. Consolidates all accounts to CAD "
          "and writes updated rates to the GnuCash pricedb.",
+)
+@click.option(
+    "--with-children",
+    "with_children",
+    is_flag=True,
+    default=False,
+    help="When ACCOUNT_PREFIX is given, also show all sub-accounts with their "
+         "individual recursive balances.",
 )
 @click.option(
     "--output",
@@ -69,13 +87,17 @@ def account_balance(
     account_prefix,
     as_of_str,
     fx_rates_file,
+    with_children,
     output_file,
 ):
     """
     Output account balances as of a given date in balance directive format.
 
-    ACCOUNT_PREFIX filters output to accounts whose full path starts with
-    the given prefix (e.g. "Assets:Bank"). Omit to include all accounts.
+    Each account balance is the recursive cumulative sum of the account and
+    all its sub-accounts.
+
+    Without ACCOUNT_PREFIX: outputs every account in the book.
+    With ACCOUNT_PREFIX: outputs only that account (use --with-children for breakdown).
 
     \b
     Format:
@@ -84,11 +106,14 @@ def account_balance(
 
     \b
     Examples:
-      All accounts as of today:
+      Whole book (all accounts, recursive totals):
         gnucash-plaintext account-balance ledger.gnucash
 
-      Specific subtree:
+      Single account total:
         gnucash-plaintext account-balance ledger.gnucash "Assets:Bank"
+
+      Account with sub-account breakdown:
+        gnucash-plaintext account-balance ledger.gnucash "Assets:Bank" --with-children
 
       As of a specific date:
         gnucash-plaintext account-balance ledger.gnucash --as-of 2024-12-31
@@ -129,6 +154,7 @@ def account_balance(
                 as_of=as_of,
                 account_prefix=account_prefix,
                 fx_rates=fx_rates,
+                include_children=with_children,
             )
         except MissingFxRateError as e:
             raise click.ClickException(str(e)) from e
@@ -158,8 +184,12 @@ def account_balance(
         lines.append(f"\t{bal.account_path}  {amount_str} {bal.currency}")
         if bal.share_price is not None and bal.original_amount is not None:
             # Show exchange rate and original amount, matching the transaction plaintext format
-            lines.append(f"\t\tshare_price: \"{bal.share_price.numerator}/{bal.share_price.denominator}\"")
-            lines.append(f"\t\toriginal: \"{_format_amount(bal.original_amount)} {bal.original_currency}\"")
+            lines.append(
+                f"\t\tshare_price: \"{bal.share_price.numerator}/{bal.share_price.denominator}\""
+            )
+            lines.append(
+                f"\t\toriginal: \"{_format_amount(bal.original_amount)} {bal.original_currency}\""
+            )
 
     output = "\n".join(lines) + "\n"
 

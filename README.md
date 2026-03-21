@@ -514,37 +514,47 @@ CNY: 0.19
 
 ### Export account balances
 
-Output account balances as of a given date in balance directive format:
+Output account balances as of a given date in balance directive format.
+Each account balance is the **recursive cumulative sum** of the account and all its sub-accounts.
 
 ```bash
-# All accounts as of today
-gnucash-plaintext account-balance mybook.gnucash
+# Whole book: every account with its recursive total (requires FX rates for multi-currency books)
+gnucash-plaintext account-balance mybook.gnucash --as-of 2024-12-31 --fx-rates rates.yaml
 
-# Specific account subtree as of a date
+# Single account total only
 gnucash-plaintext account-balance mybook.gnucash "Assets:Bank" --as-of 2024-12-31
 
-# All accounts at fiscal year end
-gnucash-plaintext account-balance mybook.gnucash --as-of 2024-12-31
+# Single account + sub-account breakdown
+gnucash-plaintext account-balance mybook.gnucash "Assets:Bank" --as-of 2024-12-31 --with-children
+
+# Single-currency account (no FX needed)
+gnucash-plaintext account-balance mybook.gnucash "Expenses:Food" --as-of 2024-12-31
 
 # Save to file
-gnucash-plaintext account-balance mybook.gnucash --as-of 2024-12-31 -o balances.txt
+gnucash-plaintext account-balance mybook.gnucash "Assets:Bank" --as-of 2024-12-31 -o balances.txt
 ```
+
+**Without ACCOUNT_PREFIX**: outputs every account in the book. Multi-currency books require
+`--fx-rates` (or rates already in the GnuCash pricedb); otherwise an error is raised.
+
+**With ACCOUNT_PREFIX** (default): outputs only the matched account's recursive total.
+
+**With ACCOUNT_PREFIX + `--with-children`**: outputs the matched account and each
+sub-account, each showing its own recursive total.
 
 Output format (balance directive):
 
 ```
 2024-12-31 balance
+	Assets:Bank  4899.00 CAD
 	Assets:Bank:Checking  3420.00 CAD
-	Assets:Bank:HKD  8700.00 HKD
-	Liabilities:CreditCard  200.00 CAD
-	Income:Salary  -3000.00 CAD
-	Expenses:Food:Groceries  50.00 CAD
-	Expenses:Food:Dining  30.00 CAD
+	Assets:Bank:HKD  1479.00 CAD
+		share_price: "17/100"
+		original: "8700.00 HKD"
 ```
 
-Each leaf account is reported in its own currency. Parent accounts (with sub-accounts) are not included — only the terminal leaf accounts appear.
-
-With `--fx-rates`: consolidate all accounts to CAD and update the GnuCash pricedb for any currencies whose rate has changed:
+With `--fx-rates`: consolidate all accounts to CAD and update the GnuCash pricedb for any
+currencies whose rate has changed (only when the rate differs from the current pricedb entry):
 
 ```bash
 gnucash-plaintext account-balance mybook.gnucash \
@@ -552,7 +562,8 @@ gnucash-plaintext account-balance mybook.gnucash \
     --fx-rates rates.yaml
 ```
 
-When `--fx-rates` is provided, the pricedb is updated with today's rates (only if the rate differs from what is already in GnuCash), and all balances are output in CAD.
+Non-CAD leaf accounts include `share_price` (exchange rate used) and `original` (amount in
+the native currency) metadata lines, matching the transaction plaintext format.
 
 ### Validate GnuCash ledger
 
