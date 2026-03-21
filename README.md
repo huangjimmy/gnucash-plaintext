@@ -512,6 +512,59 @@ HKD: 0.17
 CNY: 0.19
 ```
 
+### Export account balances
+
+Output account balances as of a given date in balance directive format.
+Each account balance is the **recursive cumulative sum** of the account and all its sub-accounts.
+
+```bash
+# Whole book: every account with its recursive total (requires FX rates for multi-currency books)
+gnucash-plaintext account-balance mybook.gnucash --as-of 2024-12-31 --fx-rates rates.yaml
+
+# Single account total only
+gnucash-plaintext account-balance mybook.gnucash "Assets:Bank" --as-of 2024-12-31
+
+# Single account + sub-account breakdown
+gnucash-plaintext account-balance mybook.gnucash "Assets:Bank" --as-of 2024-12-31 --with-children
+
+# Single-currency account (no FX needed)
+gnucash-plaintext account-balance mybook.gnucash "Expenses:Food" --as-of 2024-12-31
+
+# Save to file
+gnucash-plaintext account-balance mybook.gnucash "Assets:Bank" --as-of 2024-12-31 -o balances.txt
+```
+
+**Without ACCOUNT_PREFIX**: outputs every account in the book. Multi-currency books require
+`--fx-rates` (or rates already in the GnuCash pricedb); otherwise an error is raised.
+
+**With ACCOUNT_PREFIX** (default): outputs only the matched account's recursive total.
+
+**With ACCOUNT_PREFIX + `--with-children`**: outputs the matched account and each
+sub-account, each showing its own recursive total.
+
+Output format (balance directive):
+
+```
+2024-12-31 balance
+	Assets:Bank  4899.00 CAD
+	Assets:Bank:Checking  3420.00 CAD
+	Assets:Bank:HKD  1479.00 CAD
+		share_price: "17/100"
+		original: "8700.00 HKD"
+```
+
+With `--fx-rates`: consolidate all accounts to CAD and update the GnuCash pricedb for any
+currencies whose rate has changed (only when the rate differs from the current pricedb entry):
+
+```bash
+gnucash-plaintext account-balance mybook.gnucash \
+    --as-of 2024-12-31 \
+    --fx-rates rates.yaml
+```
+
+Non-CAD leaf accounts include `share_price` (exchange rate used) and `original` (amount in
+the native currency) metadata lines, matching the transaction plaintext format.
+
 ### Validate GnuCash ledger
 
 Check ledger integrity:
