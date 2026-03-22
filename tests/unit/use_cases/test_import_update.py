@@ -3,8 +3,8 @@ Tests for ImportTransactionsUseCase with ResolutionStrategy.UPDATE
 
 Verifies the full import_from_file() flow when UPDATE strategy is used:
 - Transactions matched by GUID are updated in-place (GUID preserved)
-- Transactions without a GUID in the plaintext follow normal conflict detection
-- Transactions with a GUID not present in the book are created as new
+- Transactions without a GUID in the plaintext raise ValueError immediately
+- Transactions with a GUID not present in the book raise ValueError immediately
 - Stable roundtrip: export → re-import with UPDATE → no phantom duplicates
 
 These tests use real GnuCash files (no mocks), running in Docker.
@@ -278,19 +278,17 @@ class TestImportUpdateByGuid:
         assert result.skipped_count == 1
         assert result.imported_count == 0
 
-    def test_unknown_guid_creates_new_transaction(self, gnucash_with_exportable_transaction):
+    def test_unknown_guid_raises_error(self, gnucash_with_exportable_transaction):
         """
-        A GUID in the plaintext that does not exist in the book creates a new transaction.
+        A GUID in the plaintext that does not exist in the book raises ValueError.
+        --strategy update must not silently create a new transaction.
         """
-        from gnucash import Query, Transaction
-
         from repositories.gnucash_repository import GnuCashRepository
         from services.conflict_resolver import ResolutionStrategy
         from use_cases.import_transactions import ImportTransactionsUseCase
 
         path, _existing_guid = gnucash_with_exportable_transaction
 
-        # Use a fabricated GUID that does not exist in the book
         fake_guid = 'a' * 32
 
         plaintext = (
@@ -310,29 +308,17 @@ class TestImportUpdateByGuid:
             repo.open()
             try:
                 uc = ImportTransactionsUseCase(repo)
-                result = uc.import_from_file(pt_path, ResolutionStrategy.UPDATE)
-                repo.save()
+                with pytest.raises(ValueError, match="not found in book"):
+                    uc.import_from_file(pt_path, ResolutionStrategy.UPDATE)
             finally:
                 repo.close()
         finally:
             os.unlink(pt_path)
 
-        assert result.imported_count == 1
-        assert result.updated_count == 0
-
-        session = _open_session(path)
-        book = session.book
-        q = Query()
-        q.search_for('Trans')
-        q.set_book(book)
-        txs = [Transaction(instance=t) for t in q.run()]
-        assert len(txs) == 2  # original + new
-        session.end()
-
-    def test_no_guid_in_plaintext_uses_signature_matching(self, gnucash_with_exportable_transaction):
+    def test_no_guid_in_plaintext_raises_error(self, gnucash_with_exportable_transaction):
         """
-        Without a GUID in the plaintext, normal signature-based duplicate detection applies.
-        Same date+accounts+amounts → duplicate (skipped).
+        --strategy update requires a guid: field on every transaction.
+        Omitting it raises ValueError immediately.
         """
         from repositories.gnucash_repository import GnuCashRepository
         from services.conflict_resolver import ResolutionStrategy
@@ -340,7 +326,6 @@ class TestImportUpdateByGuid:
 
         path, _guid = gnucash_with_exportable_transaction
 
-        # Plaintext with no guid: matches existing by date+accounts+amounts
         plaintext = (
             '2024-05-10 commodity CAD\n'
             '\tmnemonic: "CAD"\n'
@@ -357,16 +342,12 @@ class TestImportUpdateByGuid:
             repo.open()
             try:
                 uc = ImportTransactionsUseCase(repo)
-                result = uc.import_from_file(pt_path, ResolutionStrategy.UPDATE)
+                with pytest.raises(ValueError, match="guid:"):
+                    uc.import_from_file(pt_path, ResolutionStrategy.UPDATE)
             finally:
                 repo.close()
         finally:
             os.unlink(pt_path)
-
-        # Signature match, no guid → goes through normal duplicate detection → skipped
-        assert result.imported_count == 0
-        assert result.updated_count == 0
-        assert result.skipped_count == 1
 
 
 class TestStableRoundtrip:
