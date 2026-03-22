@@ -274,25 +274,49 @@ class ImportTransactionsUseCase:
 
         # Step 3: Import transactions with duplicate detection
         existing_transactions = self.repository.get_all_transactions()
+        existing_guid_map = {tx.GetGUID().to_string(): tx for tx in existing_transactions}
+
+        # UPDATE strategy: validate ALL transactions before applying ANY update.
+        # This ensures atomicity: either the whole file is valid and all updates
+        # are applied, or we fail before touching the book.
+        if resolution_strategy == ResolutionStrategy.UPDATE:
+            tx_directives = [
+                child for child in parser.root_directive.children
+                if child.type == DirectiveType.TRANSACTION
+            ]
+            for child in tx_directives:
+                if 'guid' not in child.metadata:
+                    date_str = child.props.get('date', '?')
+                    desc = child.props.get('description', '?')
+                    raise ValueError(
+                        f"--strategy update requires a guid: field on every transaction "
+                        f"(transaction on {date_str} \"{desc}\" has none)"
+                    )
+                guid = child.metadata['guid']
+                if guid not in existing_guid_map:
+                    raise ValueError(f"Transaction GUID {guid!r} not found in book")
+
+            for child in tx_directives:
+                guid = child.metadata['guid']
+                existing_tx = existing_guid_map[guid]
+                try:
+                    importer.update_transaction(existing_tx, child, book)
+                    result.updated_count += 1
+                except Exception as e:
+                    logging.error(f"Failed to update transaction {guid}: {e}")
+                    result.errors.append({'transaction': child.props, 'error': str(e)})
+                    result.error_count += 1
+            return result
 
         for child in parser.root_directive.children:
             if child.type == DirectiveType.TRANSACTION:
                 try:
-                    # Check for match by GUID if present
+                    # Check for match by GUID if present (non-UPDATE strategies)
                     if 'guid' in child.metadata:
                         guid = child.metadata['guid']
-                        existing_tx = next(
-                            (tx for tx in existing_transactions
-                             if tx.GetGUID().to_string() == guid),
-                            None
-                        )
-                        if existing_tx is not None:
-                            if resolution_strategy == ResolutionStrategy.UPDATE:
-                                importer.update_transaction(existing_tx, child, book)
-                                result.updated_count += 1
-                            else:
-                                logging.info(f"Skipping duplicate transaction with GUID {guid}")
-                                result.skipped_count += 1
+                        if guid in existing_guid_map:
+                            logging.info(f"Skipping duplicate transaction with GUID {guid}")
+                            result.skipped_count += 1
                             continue
 
                     # Check for duplicate by date/accounts signature
