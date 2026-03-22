@@ -9,6 +9,7 @@ import click
 
 from cli.account_balance_cmd import account_balance
 from cli.close_books_cmd import close_books
+from cli.delete_transaction_cmd import delete_transaction_by_guid
 from cli.export_beancount_cmd import export_beancount
 from cli.export_cmd import export_transactions
 from cli.export_transaction_cmd import export_transaction
@@ -62,6 +63,7 @@ cli.add_command(export_transaction, name='export-transaction')
 cli.add_command(income_statement, name='income-statement')
 cli.add_command(print_invoice, name='print-invoice')
 cli.add_command(account_balance, name='account-balance')
+cli.add_command(delete_transaction_by_guid, name='delete-transaction-by-guid')
 
 
 if __name__ == '__main__':

@@ -256,6 +256,48 @@ gnucash-plaintext export-transaction mybook.gnucash --guid 317c8ae6e0084c33951d0
 
 `--guid` is required. Omitting it prints an error with usage guidance.
 
+### Delete a transaction by GUID
+
+Delete a single transaction permanently. The transaction is exported to plaintext **before** deletion so you always have a backup copy:
+
+```bash
+# Delete and print backup to stdout
+gnucash-plaintext delete-transaction-by-guid mybook.gnucash 317c8ae6e0084c33951d052b9f1b9f23
+
+# Delete and save backup to a file
+gnucash-plaintext delete-transaction-by-guid mybook.gnucash 317c8ae6e0084c33951d052b9f1b9f23 -o backup.txt
+```
+
+The command fails immediately (non-zero exit) if the GUID is not found — it will never silently do nothing.
+
+The backup plaintext is self-contained (commodity + account declarations + transaction) and looks like this:
+
+```
+2024-06-15 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-06-15 account Assets:Checking
+	commodity: "CAD"
+	type: "BANK"
+2024-06-15 account Expenses:Dining
+	commodity: "CAD"
+	type: "EXPENSE"
+2024-06-15 * "Dinner out"
+	guid: "317c8ae6e0084c33951d052b9f1b9f23"
+	Assets:Checking  -45.00 CAD
+	Expenses:Dining  45.00 CAD
+```
+
+**Undo:** re-import the backup plaintext to restore the transaction:
+
+```bash
+gnucash-plaintext import mybook.gnucash -f backup.txt
+```
+
+Only transactions are deleted. Accounts and commodities are not affected.
+
 ### Export GnuCash to GnuCash-Beancount format
 
 Export to [GnuCash-Beancount](docs/gnucash-beancount-format.md) format:
@@ -449,8 +491,11 @@ export → edit plaintext → re-import --strategy update → export again …
 Each re-import finds the same GUID and updates the same transaction. No phantom
 duplicates are created regardless of how many times you repeat the cycle.
 
-Transactions in the plaintext file that have no `guid:` field, or whose GUID is not
-found in the book, follow normal duplicate/conflict detection as usual.
+**`--strategy update` is strict:** every transaction in the plaintext file must have a
+`guid:` field, and every GUID must match an existing transaction in the book. The command
+fails immediately if either condition is not met — it will never silently create a new
+transaction. All GUIDs are validated before any changes are applied, so a file with one
+bad GUID leaves the book untouched.
 
 **How conflicts are detected:**
 
