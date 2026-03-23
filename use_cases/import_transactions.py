@@ -315,7 +315,17 @@ class ImportTransactionsUseCase:
                     if 'guid' in child.metadata:
                         guid = child.metadata['guid']
                         if guid in existing_guid_map:
-                            logging.info(f"Skipping duplicate transaction with GUID {guid}")
+                            _date = child.props.get('date', '?')
+                            _desc = child.props.get('tx_desc') or '(no description)'
+                            _splits = ', '.join(
+                                f"{s.props.get('account', '?')} {s.props.get('amount', '?')}"
+                                for s in child.children
+                                if s.props.get('account')
+                            )
+                            logging.info(
+                                f"Skipping duplicate (GUID match): {_date} \"{_desc}\" "
+                                f"[{_splits}] guid={guid}"
+                            )
                             result.skipped_count += 1
                             continue
 
@@ -337,7 +347,16 @@ class ImportTransactionsUseCase:
                                 break
 
                     if is_duplicate:
-                        logging.info(f"Skipping duplicate transaction on {date_str}")
+                        _desc = child.props.get('tx_desc') or '(no description)'
+                        _splits = ', '.join(
+                            f"{s.props.get('account', '?')} {s.props.get('amount', '?')}"
+                            for s in child.children
+                            if s.props.get('account')
+                        )
+                        logging.info(
+                            f"Skipping duplicate (signature match): {date_str} \"{_desc}\" "
+                            f"[{_splits}]"
+                        )
                         result.skipped_count += 1
                         continue
 
