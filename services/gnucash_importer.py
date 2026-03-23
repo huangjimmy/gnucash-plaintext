@@ -198,6 +198,9 @@ class GnuCashImporter:
             split_directive: PlaintextDirective = directive.children[0]
             split_account_name = split_directive.props['account']
             split_account = find_account(root_account, split_account_name)
+            if split_account is None:
+                raise Exception(f'Account {split_account_name!r} not found '
+                              f'when trying to determine currency for transaction {directive.line}')
             commodity = split_account.GetCommodity()
             mnemonic = commodity.get_mnemonic()
 
@@ -237,11 +240,12 @@ class GnuCashImporter:
             split_directive: PlaintextDirective = child
             split_account_str = split_directive.props['account']
             split_account = find_account(root_account, split_account_str)
-            split_account_currency = split_account.GetCommodity()
 
             if split_account is None:
-                raise Exception(f'Account {split_account_str} not found '
+                raise Exception(f'Account {split_account_str!r} not found '
                               f'when trying to create transaction split {directive.line}')
+
+            split_account_currency = split_account.GetCommodity()
 
             split_amount_str = split_directive.props['amount']
             amount = string_to_gnc_numeric(split_amount_str, split_account_currency)
@@ -449,7 +453,10 @@ class GnuCashImporter:
             # A taxtable must have at least one entry
             return
 
-        account = find_account(book.get_root_account(), first_entry_directive.metadata['account'])
+        acct_name = first_entry_directive.metadata['account']
+        account = find_account(book.get_root_account(), acct_name)
+        if account is None:
+            raise Exception(f'Account {acct_name!r} not found when creating tax table {directive.props["name"]}')
         rate_str = first_entry_directive.metadata['rate']
         rate = float(rate_str.replace("%", ""))
         first_entry = create_tax_table_entry(book, account, rate)
@@ -458,7 +465,10 @@ class GnuCashImporter:
 
         for entry_directive in directive.children[1:]:
             if entry_directive.type == DirectiveType.TAXTABLE_ENTRY:
-                account = find_account(book.get_root_account(), entry_directive.metadata['account'])
+                acct_name = entry_directive.metadata['account']
+                account = find_account(book.get_root_account(), acct_name)
+                if account is None:
+                    raise Exception(f'Account {acct_name!r} not found when creating tax table {directive.props["name"]}')
                 rate_str = entry_directive.metadata['rate']
                 rate = float(rate_str.replace("%", ""))
                 entry = create_tax_table_entry(book, account, rate)
@@ -487,7 +497,11 @@ class GnuCashImporter:
                 entry.SetDate(datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d"))
                 entry.SetDescription(entry_directive.metadata['description'])
                 entry.SetAction(entry_directive.metadata['action'])
-                entry.SetInvAccount(find_account(book.get_root_account(), entry_directive.metadata['account']))
+                inv_acct_name = entry_directive.metadata['account']
+                inv_acct = find_account(book.get_root_account(), inv_acct_name)
+                if inv_acct is None:
+                    raise Exception(f'Account {inv_acct_name!r} not found when creating invoice entry')
+                entry.SetInvAccount(inv_acct)
                 entry.SetQuantity(string_to_gnc_numeric_quantity(entry_directive.metadata['quantity']))
                 entry.SetInvPrice(string_to_gnc_numeric_quantity(entry_directive.metadata['price']))
                 entry.SetInvTaxable(entry_directive.metadata['taxable'] == 'true')
@@ -499,7 +513,10 @@ class GnuCashImporter:
                 invoice.AddEntry(entry)
                 entry.CommitEdit()
             elif entry_directive.type == DirectiveType.POSTED:
-                ar_account = find_account(book.get_root_account(), entry_directive.metadata['ar_account'])
+                ar_acct_name = entry_directive.metadata['ar_account']
+                ar_account = find_account(book.get_root_account(), ar_acct_name)
+                if ar_account is None:
+                    raise Exception(f'AR account {ar_acct_name!r} not found when posting invoice {directive.props["id"]}')
                 post_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
                 due_date = datetime.strptime(entry_directive.metadata['due'], "%Y-%m-%d")
                 memo = entry_directive.metadata['memo']
@@ -514,7 +531,10 @@ class GnuCashImporter:
                     posting_txn.SetNotes("business_generated: true")
                     posting_txn.CommitEdit()
             elif entry_directive.type == DirectiveType.PAYMENT:
-                bank_account = find_account(book.get_root_account(), entry_directive.metadata['bank_account'])
+                bank_acct_name = entry_directive.metadata['bank_account']
+                bank_account = find_account(book.get_root_account(), bank_acct_name)
+                if bank_account is None:
+                    raise Exception(f'Bank account {bank_acct_name!r} not found when applying invoice payment')
                 pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
                 amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
                 memo = entry_directive.metadata['memo']
@@ -541,7 +561,11 @@ class GnuCashImporter:
                 entry.BeginEdit()
                 entry.SetDate(datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d"))
                 entry.SetDescription(entry_directive.metadata['description'])
-                entry.SetInvAccount(find_account(book.get_root_account(), entry_directive.metadata['account']))
+                bill_acct_name = entry_directive.metadata['account']
+                bill_acct = find_account(book.get_root_account(), bill_acct_name)
+                if bill_acct is None:
+                    raise Exception(f'Account {bill_acct_name!r} not found when creating bill entry')
+                entry.SetInvAccount(bill_acct)
                 entry.SetQuantity(string_to_gnc_numeric_quantity(entry_directive.metadata['quantity']))
                 entry.SetInvPrice(string_to_gnc_numeric_quantity(entry_directive.metadata['price']))
                 entry.SetInvTaxable(entry_directive.metadata['taxable'] == 'true')
@@ -552,7 +576,10 @@ class GnuCashImporter:
                 bill.AddEntry(entry)
                 entry.CommitEdit()
             elif entry_directive.type == DirectiveType.POSTED:
-                ap_account = find_account(book.get_root_account(), entry_directive.metadata['ap_account'])
+                ap_acct_name = entry_directive.metadata['ap_account']
+                ap_account = find_account(book.get_root_account(), ap_acct_name)
+                if ap_account is None:
+                    raise Exception(f'AP account {ap_acct_name!r} not found when posting bill {directive.props["id"]}')
                 post_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
                 due_date = datetime.strptime(entry_directive.metadata['due'], "%Y-%m-%d")
                 memo = entry_directive.metadata['memo']
@@ -567,7 +594,10 @@ class GnuCashImporter:
                     posting_txn.SetNotes("business_generated: true")
                     posting_txn.CommitEdit()
             elif entry_directive.type == DirectiveType.PAYMENT:
-                bank_account = find_account(book.get_root_account(), entry_directive.metadata['bank_account'])
+                bank_acct_name = entry_directive.metadata['bank_account']
+                bank_account = find_account(book.get_root_account(), bank_acct_name)
+                if bank_account is None:
+                    raise Exception(f'Bank account {bank_acct_name!r} not found when applying bill payment')
                 pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
                 amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
                 memo = entry_directive.metadata['memo']
