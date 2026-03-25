@@ -17,6 +17,7 @@ from gnucash.gnucash_core_c import (
     xaccTransLookup,
 )
 
+from infrastructure.gnucash.kvp import get_custom_metadata
 from infrastructure.gnucash.utils import (
     encode_value_as_string,
     get_account_full_name,
@@ -325,6 +326,11 @@ class ExportTransactionsUseCase:
         if tx_notes and tx_notes.strip() != "":
             lines.append(f'\tnotes: {encode_value_as_string(tx_notes)}')
 
+        # Emit custom KVP metadata
+        custom_meta = get_custom_metadata(transaction)
+        for key, value in sorted(custom_meta.items()):
+            lines.append(f'\t{key}: {encode_value_as_string(value)}')
+
         # Splits
         for split in tx_splits:
             self._format_split(split, tx_currency_namespace, tx_currency_symbol, lines)
@@ -372,6 +378,11 @@ class ExportTransactionsUseCase:
 
         if memo and memo != "":
             lines.append(f'\t\tmemo:{encode_value_as_string(memo)}')
+
+        # Emit custom split KVP metadata
+        custom_split_meta = get_custom_metadata(split)
+        for key, value in sorted(custom_split_meta.items()):
+            lines.append(f'\t\t{key}: {encode_value_as_string(value)}')
 
     def execute_by_guid(self, guid: str) -> ExportResult:
         """

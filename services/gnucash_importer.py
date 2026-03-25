@@ -28,6 +28,12 @@ from gnucash.gnucash_core_c import (
     gncTaxTableEntrySetAccount,
 )
 
+from infrastructure.gnucash.kvp import (
+    KNOWN_SPLIT_METADATA_KEYS,
+    KNOWN_TX_METADATA_KEYS,
+    get_custom_metadata,
+    set_custom_metadata,
+)
 from infrastructure.gnucash.utils import find_account, get_account_full_name, string_to_gnc_numeric
 from services.plaintext_parser import DirectiveType, PlaintextDirective
 
@@ -276,6 +282,22 @@ class GnuCashImporter:
                 if memo is not None:
                     split.SetMemo(memo)
 
+            # Store any non-standard split metadata as KVP slots
+            custom_split_meta = {
+                k: v for k, v in split_directive.metadata.items()
+                if k not in KNOWN_SPLIT_METADATA_KEYS and v is not None
+            }
+            if custom_split_meta:
+                set_custom_metadata(split, custom_split_meta)
+
+        # Store any non-standard metadata as KVP slots
+        custom_tx_meta = {
+            k: v for k, v in directive.metadata.items()
+            if k not in KNOWN_TX_METADATA_KEYS and v is not None
+        }
+        if custom_tx_meta:
+            set_custom_metadata(transaction, custom_tx_meta)
+
         transaction.CommitEdit()
         logging.debug(f"Created transaction on {date_str}")
         return True
@@ -344,6 +366,16 @@ class GnuCashImporter:
                 if commodity is not None:
                     existing_tx.SetCurrency(commodity)
 
+            # Update transaction-level custom metadata (merge: new values win)
+            custom_tx_meta = {
+                k: v for k, v in directive.metadata.items()
+                if k not in KNOWN_TX_METADATA_KEYS and v is not None
+            }
+            if custom_tx_meta:
+                existing_custom = get_custom_metadata(existing_tx)
+                existing_custom.update(custom_tx_meta)
+                set_custom_metadata(existing_tx, existing_custom)
+
             tx_currency = existing_tx.GetCurrency()
 
             # Build account-name → split maps for existing and desired splits
@@ -400,6 +432,16 @@ class GnuCashImporter:
                     memo = split_directive.metadata['memo']
                     if memo is not None:
                         split.SetMemo(memo)
+
+                # Update split-level custom metadata (merge: new values win)
+                custom_split_meta = {
+                    k: v for k, v in split_directive.metadata.items()
+                    if k not in KNOWN_SPLIT_METADATA_KEYS and v is not None
+                }
+                if custom_split_meta:
+                    existing_split_custom = get_custom_metadata(split)
+                    existing_split_custom.update(custom_split_meta)
+                    set_custom_metadata(split, existing_split_custom)
 
             existing_tx.CommitEdit()
             logging.debug(f"Updated transaction on {date_str}")
