@@ -65,6 +65,7 @@ Right now, GnuCash plaintext supports GnuCash `Account`, `Commodity`, `Transacti
 | Document Link (of a transaction)                  | N/A                                               |
 | N/A                                               | Documents (attached to the journal of an account) |
 | Properties of Account/Commodity/Transaction/Split | Metadata                                          |
+| Custom metadata (KVP slots)                       | Metadata (open-ended key: value pairs)            |
 
 
 
@@ -215,6 +216,103 @@ Formula `value` = `share_price` * Split_Amount, e.g., 3.68 = 368/2170 * 21.70
 		share_price: "1"
 		value: "-3.68"
 ```
+
+### Custom Metadata
+
+GnuCash supports arbitrary key-value pairs (KVP slots) on any transaction or split.
+gnucash-plaintext exposes this as **custom metadata**: any tag in a transaction or
+split block that is not a reserved field (see tables below) is automatically stored
+in the GnuCash KVP layer and round-trips through export/import without loss.
+
+This makes the format directly comparable to beancount's open-ended metadata model.
+
+#### Reserved transaction fields (stored via dedicated GnuCash setters)
+
+| Field | GnuCash field |
+|-------|--------------|
+| `guid` | Transaction GUID |
+| `currency.namespace` | Transaction currency namespace |
+| `currency.mnemonic` | Transaction currency mnemonic |
+| `doc_link` | Document link / association |
+| `notes` | Transaction notes |
+
+#### Reserved split fields (stored via dedicated GnuCash setters)
+
+| Field | GnuCash field |
+|-------|--------------|
+| `share_price` | Share price |
+| `value` | Split value |
+| `action` | Split action |
+| `memo` | Split memo |
+| `account.commodity.mnemonic` | Account commodity mnemonic |
+| `account.commodity.namespace` | Account commodity namespace |
+
+#### Any other key → KVP slot
+
+Any key not in the tables above is stored in GnuCash's KVP slot system as a JSON
+blob under the `plaintext_metadata` slot name. Multiple custom keys on the same
+object are stored together in a single JSON object.
+
+**Key naming rules:**
+- Colons (`:`) are **not allowed** in custom metadata key names. The plaintext
+  format uses `key: value` syntax, so a colon inside a key name would create
+  parsing ambiguity. An error is raised at import time if a colon is found.
+- Use **dots** for hierarchical keys (e.g. `tax.category`, `receipt.id`).
+  Dots are already used by convention in the reserved fields above.
+
+```
+2024-06-15 * "Dinner with client"
+	guid: "317c8ae6e0084c33951d052b9f1b9f23"
+	notes: "Team dinner Q2"
+	tax_category: "meals_entertainment"
+	receipt_id: "RCP-2024-0615"
+	Expenses:Dining 85.00 CAD
+		vendor: "The Keg Steakhouse"
+		approved_by: "Alice"
+	Assets:Bank:Checking -85.00 CAD
+```
+
+In the example above:
+- `guid`, `notes` → stored via dedicated GnuCash API (reserved fields)
+- `tax_category`, `receipt_id` → stored in the transaction's KVP slot
+- `vendor`, `approved_by` → stored in the Dining split's KVP slot
+
+When you export this transaction back to plaintext, all four custom keys will
+appear in the output exactly as written.
+
+#### Update merges custom metadata
+
+When using `--strategy update`, custom metadata is **merged** — new keys are added
+and existing keys are overwritten, but keys not mentioned in the incoming directive
+are preserved from the existing GnuCash object. This means you can add or update
+custom tags without wiping out tags set in a previous pass.
+
+```
+# First import: stores receipt_id and tax_category
+2024-06-15 * "Dinner"
+	guid: "317c8ae6e0084c33951d052b9f1b9f23"
+	receipt_id: "RCP-001"
+	tax_category: "meals"
+	Expenses:Dining 85.00 CAD
+
+# Second import (--strategy update): adds approved_by, preserves receipt_id and tax_category
+2024-06-15 * "Dinner"
+	guid: "317c8ae6e0084c33951d052b9f1b9f23"
+	approved_by: "Alice"
+	Expenses:Dining 85.00 CAD
+```
+
+After the second import the transaction carries all three keys: `receipt_id`,
+`tax_category`, and `approved_by`.
+
+#### Cross-version compatibility
+
+KVP metadata works on all supported GnuCash versions:
+
+| GnuCash version | OS | API used |
+|---|---|---|
+| 4.x+ | Debian 11/12/13, Ubuntu 22/24 | SWIG `KvpFrame.set_slot_path` |
+| 3.8 | Ubuntu 20.04 | ctypes `qof_instance_set_kvp` + GLib `GValue` |
 
 ## Usage
 
@@ -480,8 +578,10 @@ gnucash-plaintext import mybook.gnucash transactions.txt --strategy update
 
 When a transaction in the plaintext file carries a `guid:` metadata field that matches
 an existing transaction in the book, `--strategy update` modifies that transaction
-in-place — description, date, amounts, splits, notes, doc_link — without destroying
-or recreating it. Because the GnuCash object itself is never replaced, its GUID is
+in-place — description, date, amounts, splits, notes, doc_link, and custom KVP
+metadata — without destroying or recreating it. Custom metadata is **merged**: new
+keys are added and existing keys are overwritten, but keys absent from the directive
+are preserved unchanged. Because the GnuCash object itself is never replaced, its GUID is
 preserved. This makes the workflow stable across multiple runs:
 
 ```

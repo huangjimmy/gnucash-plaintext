@@ -280,6 +280,27 @@ def _get_string_slot(obj, slot_name: str) -> Optional[str]:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _validate_custom_keys(metadata: dict) -> None:
+    """
+    Reject custom metadata keys that contain a colon.
+
+    Colons are the key/value delimiter in the plaintext format (`key: value`).
+    Allowing colons inside a key name would create parsing ambiguity —
+    the parser cannot tell where the key ends and the value begins.
+    Use dots for hierarchical keys instead (e.g. `tax.category`).
+
+    Raises:
+        ValueError: If any key contains a colon.
+    """
+    bad = [k for k in metadata if ':' in k]
+    if bad:
+        raise ValueError(
+            f"Custom metadata keys must not contain ':' (parsing ambiguity). "
+            f"Use dots for hierarchy instead (e.g. 'tax.category'). "
+            f"Invalid keys: {bad}"
+        )
+
+
 def set_custom_metadata(obj, metadata: dict) -> None:
     """
     Store custom metadata on a GnuCash Transaction or Split as a KVP slot.
@@ -287,13 +308,25 @@ def set_custom_metadata(obj, metadata: dict) -> None:
     Serializes metadata as JSON in the 'plaintext_metadata' slot.
     Any existing custom metadata in that slot is replaced.
 
+    Note on merge workflows: callers that read existing metadata with
+    `get_custom_metadata`, update it, and then call this function must only
+    pass the *merged* dict (not the raw stored one) — `get_custom_metadata`
+    already strips any pre-existing colon keys, so the merged dict will be
+    clean.
+
     Args:
         obj:      GnuCash Transaction or Split object (must be in BeginEdit
                   state if it is a Transaction)
-        metadata: Dict of string key → string/int/float/bool values
+        metadata: Dict of string key → string/int/float/bool values.
+                  Keys must not contain ':' (parsing ambiguity); use dots
+                  for hierarchy (e.g. 'tax.category').
+
+    Raises:
+        ValueError: If any key in *metadata* contains a colon.
     """
     if not metadata:
         return
+    _validate_custom_keys(metadata)
     try:
         json_str = json.dumps(metadata, ensure_ascii=False, sort_keys=True)
         _set_string_slot(obj, PT_DATA_SLOT, json_str)
@@ -305,17 +338,34 @@ def get_custom_metadata(obj) -> dict:
     """
     Read custom metadata from a GnuCash Transaction or Split KVP slot.
 
+    Any stored keys that contain ':' (written by external tools or by an
+    earlier version of this code before the colon restriction was added) are
+    silently dropped with a warning.  This prevents merge operations from
+    failing with a confusing error when the invalid key came from stored data
+    rather than from the current directive.
+
     Returns:
         Dict of custom key-value pairs, or {} if no custom metadata stored.
+        Keys containing ':' are excluded from the returned dict.
     """
     json_str = _get_string_slot(obj, PT_DATA_SLOT)
     if not json_str:
         return {}
     try:
         result = json.loads(json_str)
-        if isinstance(result, dict):
-            return result
-        return {}
+        if not isinstance(result, dict):
+            return {}
+        # Sanitize: drop keys that would now be rejected by _validate_custom_keys.
+        sanitized = {}
+        for k, v in result.items():
+            if ':' in k:
+                logging.warning(
+                    f"Custom metadata key {k!r} contains ':' (written by an "
+                    f"external tool or older version); dropping it on read."
+                )
+            else:
+                sanitized[k] = v
+        return sanitized
     except (json.JSONDecodeError, TypeError) as e:
         logging.warning(f"Failed to parse custom metadata JSON from KVP: {e}")
         return {}

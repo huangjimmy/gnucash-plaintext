@@ -921,3 +921,201 @@ class TestUpdateTransactionKvpMetadata:
         assert custom.get('split_key') == 'updated'
         assert custom.get('stable') == 'yes'
         session3.end()
+
+
+# ---------------------------------------------------------------------------
+# Tests: key validation — colons disallowed in custom metadata keys
+# ---------------------------------------------------------------------------
+
+class TestCustomMetadataKeyValidation:
+    def test_colon_in_key_raises_value_error(self):
+        """set_custom_metadata raises ValueError when a key contains ':'."""
+        import pytest
+
+        from infrastructure.gnucash.kvp import set_custom_metadata
+
+        session, book, path = _make_book()
+        try:
+            from gnucash import GncNumeric, Split, Transaction
+            cad = book.get_table().lookup('CURRENCY', 'CAD')
+            root = book.get_root_account()
+            checking = root.lookup_by_name('Assets').lookup_by_name('Bank').lookup_by_name('Checking')
+            dining = root.lookup_by_name('Expenses').lookup_by_name('Dining')
+
+            tx = Transaction(book)
+            tx.BeginEdit()
+            tx.SetCurrency(cad)
+            tx.SetDate(1, 3, 2024)
+            tx.SetDescription('Colon key test')
+            s1 = Split(book)
+            s1.SetParent(tx)
+            s1.SetAccount(dining)
+            s1.SetValue(GncNumeric(1000, 100))
+            s2 = Split(book)
+            s2.SetParent(tx)
+            s2.SetAccount(checking)
+            s2.SetValue(GncNumeric(-1000, 100))
+
+            with pytest.raises(ValueError, match="must not contain ':'"):
+                set_custom_metadata(tx, {'a:b': 'value'})
+
+            tx.RollbackEdit()
+            session.end()
+        finally:
+            import os
+            if os.path.exists(path):
+                os.unlink(path)
+            lock = path + '.LCK'
+            if os.path.exists(lock):
+                os.unlink(lock)
+
+    def test_colon_in_nested_key_raises_value_error(self):
+        """Multi-segment colon key like 'a:b:c' also raises ValueError."""
+        import pytest
+
+        from infrastructure.gnucash.kvp import set_custom_metadata
+
+        session, book, path = _make_book()
+        try:
+            from gnucash import GncNumeric, Split, Transaction
+            cad = book.get_table().lookup('CURRENCY', 'CAD')
+            root = book.get_root_account()
+            checking = root.lookup_by_name('Assets').lookup_by_name('Bank').lookup_by_name('Checking')
+            dining = root.lookup_by_name('Expenses').lookup_by_name('Dining')
+
+            tx = Transaction(book)
+            tx.BeginEdit()
+            tx.SetCurrency(cad)
+            tx.SetDate(2, 3, 2024)
+            tx.SetDescription('Nested colon key test')
+            s1 = Split(book)
+            s1.SetParent(tx)
+            s1.SetAccount(dining)
+            s1.SetValue(GncNumeric(500, 100))
+            s2 = Split(book)
+            s2.SetParent(tx)
+            s2.SetAccount(checking)
+            s2.SetValue(GncNumeric(-500, 100))
+
+            with pytest.raises(ValueError, match="must not contain ':'"):
+                set_custom_metadata(tx, {'a:b:c': 'value'})
+
+            tx.RollbackEdit()
+            session.end()
+        finally:
+            import os
+            if os.path.exists(path):
+                os.unlink(path)
+            lock = path + '.LCK'
+            if os.path.exists(lock):
+                os.unlink(lock)
+
+    def test_dot_in_key_is_allowed(self):
+        """Keys with dots (e.g. 'tax.category') are valid and round-trip correctly."""
+        from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
+
+        session, book, path = _make_book()
+        try:
+            from gnucash import GncNumeric, Split, Transaction
+            cad = book.get_table().lookup('CURRENCY', 'CAD')
+            root = book.get_root_account()
+            checking = root.lookup_by_name('Assets').lookup_by_name('Bank').lookup_by_name('Checking')
+            dining = root.lookup_by_name('Expenses').lookup_by_name('Dining')
+
+            tx = Transaction(book)
+            tx.BeginEdit()
+            tx.SetCurrency(cad)
+            tx.SetDate(3, 3, 2024)
+            tx.SetDescription('Dot key test')
+            s1 = Split(book)
+            s1.SetParent(tx)
+            s1.SetAccount(dining)
+            s1.SetValue(GncNumeric(2000, 100))
+            s2 = Split(book)
+            s2.SetParent(tx)
+            s2.SetAccount(checking)
+            s2.SetValue(GncNumeric(-2000, 100))
+
+            set_custom_metadata(tx, {'tax.category': 'meals', 'receipt.id': 'R-42'})
+            tx.CommitEdit()
+
+            result = get_custom_metadata(tx)
+            assert result.get('tax.category') == 'meals'
+            assert result.get('receipt.id') == 'R-42'
+            session.end()
+        finally:
+            import os
+            if os.path.exists(path):
+                os.unlink(path)
+            lock = path + '.LCK'
+            if os.path.exists(lock):
+                os.unlink(lock)
+
+    def test_import_with_colon_key_raises(self):
+        """create_transaction raises ValueError when a custom key contains ':'."""
+        import pytest
+
+        from services.gnucash_importer import GnuCashImporter
+
+        session, book, path = _make_book()
+        try:
+            directive = _build_directive('2024-03-04', 'Colon key import', [
+                {'account': 'Expenses:Dining', 'amount': '10.00'},
+                {'account': 'Assets:Bank:Checking', 'amount': '-10.00'},
+            ], metadata={'bad:key': 'value'})
+
+            with pytest.raises(ValueError, match="must not contain ':'"):
+                GnuCashImporter.create_transaction(directive, book)
+
+            session.end()
+        finally:
+            import os
+            if os.path.exists(path):
+                os.unlink(path)
+            lock = path + '.LCK'
+            if os.path.exists(lock):
+                os.unlink(lock)
+
+    def test_update_with_colon_key_raises(self):
+        """update_transaction raises ValueError when a custom tx key contains ':'."""
+        import os
+
+        import pytest
+        from gnucash import Query, Transaction
+
+        from services.gnucash_importer import GnuCashImporter
+
+        session, book, path = _make_book()
+        try:
+            # Create a transaction first
+            directive = _build_directive('2024-03-05', 'Update colon test', [
+                {'account': 'Expenses:Dining', 'amount': '20.00'},
+                {'account': 'Assets:Bank:Checking', 'amount': '-20.00'},
+            ])
+            GnuCashImporter.create_transaction(directive, book)
+            session.save()
+            session.end()
+
+            session2 = _open_session(path)
+            book2 = session2.book
+            q = Query()
+            q.search_for('Trans')
+            q.set_book(book2)
+            txs = [Transaction(instance=t) for t in q.run()]
+            existing_tx = txs[0]
+
+            bad_directive = _build_directive('2024-03-05', 'Update colon test', [
+                {'account': 'Expenses:Dining', 'amount': '20.00'},
+                {'account': 'Assets:Bank:Checking', 'amount': '-20.00'},
+            ], metadata={'bad:key': 'value'})
+
+            with pytest.raises(ValueError, match="must not contain ':'"):
+                GnuCashImporter.update_transaction(existing_tx, bad_directive, book2)
+
+            session2.end()
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+            lock = path + '.LCK'
+            if os.path.exists(lock):
+                os.unlink(lock)
