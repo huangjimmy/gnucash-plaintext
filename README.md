@@ -521,12 +521,52 @@ invoice "INV-2026-001"
     price: 150
     taxable: true
     tax_table: "GST"
+  posted: none
+  payment: none
+
+invoice "INV-2026-002"
+  customer_id: "CUST-001"
+  currency: CAD
+  date_opened: 2026-01-15
+  entry:
+    date: 2026-01-15
+    description: "Consulting services"
+    account: "Income:Consulting"
+    quantity: 10
+    price: 150
+    taxable: true
+    tax_table: "GST"
   posted:
     date: 2026-01-15
     due: 2026-02-14
     ar_account: "Assets:Accounts Receivable"
-    memo: "Invoice INV-2026-001"
+    memo: "Invoice INV-2026-002"
     accumulate: true
+  payment: none
+
+invoice "INV-2026-003"
+  customer_id: "CUST-001"
+  currency: CAD
+  date_opened: 2026-01-15
+  entry:
+    date: 2026-01-15
+    description: "Consulting services"
+    account: "Income:Consulting"
+    quantity: 10
+    price: 150
+    taxable: true
+    tax_table: "GST"
+  posted:
+    date: 2026-01-15
+    due: 2026-02-14
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-003"
+    accumulate: true
+  payment:
+    date: 2026-01-30
+    amount: 1575
+    bank_account: "Assets:Bank"
+    memo: "Payment received"
 
 bill "BILL-2026-001"
   vendor_id: "VEND-001"
@@ -545,6 +585,48 @@ bill "BILL-2026-001"
     ap_account: "Liabilities:Accounts Payable"
     memo: "Bill BILL-2026-001"
     accumulate: true
+  payment: none
+```
+
+**Invoice and bill status fields**
+
+The `posted:` and `payment:` fields are always present in exported output.
+`none` is an explicit sentinel meaning "not applicable":
+
+| `posted:` value | `payment:` value | Meaning |
+|---|---|---|
+| `none` | `none` | Invoice created but not yet posted to AR/AP |
+| data block | `none` | Posted, no payments received yet |
+| data block | data block(s) | Posted with one or more payments applied |
+
+On **import**, `posted: none` and `payment: none` are no-ops — they produce the same result as omitting the field entirely. The following combinations are rejected with a clear error:
+
+- `posted: none` together with a `posted:` block (contradictory)
+- More than one `posted:` block (an invoice can only be posted once)
+- `payment: none` together with a `payment:` block (contradictory)
+- A `payment:` block on an invoice that has `posted: none` (cannot pay an unposted invoice)
+
+An invoice with **multiple partial payments** can have multiple `payment:` blocks — one per payment transaction:
+
+```
+invoice "INV-2026-004"
+  ...
+  posted:
+    date: 2026-02-01
+    due: 2026-03-03
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-004"
+    accumulate: true
+  payment:
+    date: 2026-02-10
+    amount: 500
+    bank_account: "Assets:Bank"
+    memo: "First instalment"
+  payment:
+    date: 2026-02-20
+    amount: 500
+    bank_account: "Assets:Bank"
+    memo: "Second instalment"
 ```
 
 ### Print an invoice to PDF
