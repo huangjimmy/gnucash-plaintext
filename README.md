@@ -679,6 +679,18 @@ fails immediately if either condition is not met — it will never silently crea
 transaction. All GUIDs are validated before any changes are applied, so a file with one
 bad GUID leaves the book untouched.
 
+**`update` strategy — field update semantics:**
+
+When using `--strategy update`, each field is updated only if it is explicitly present in the plaintext file. The rules for `memo` (and `action`) on splits are:
+
+| Plaintext value | Effect on existing GnuCash memo |
+|---|---|
+| Field omitted entirely | Left unchanged |
+| `memo: ""` (empty string) | Cleared (set to empty) |
+| `memo: "some text"` | Replaced with new text |
+
+In other words, **omitting a field means "leave it alone"**, while supplying an empty string means "clear it". This applies to both split `memo` and split `action`.
+
 **How conflicts are detected:**
 
 An account from plaintext exists in GnuCash if:
