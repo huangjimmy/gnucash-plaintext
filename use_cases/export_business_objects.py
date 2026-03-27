@@ -177,11 +177,9 @@ class ExportBusinessObjectsUseCase:
         all_invoices = [gb.Invoice(instance=r) for r in q.run()]
         q.destroy()
 
-        # Only export customer invoices (owner is Customer, not Vendor)
+        # Export all customer invoices (owner is Customer, not Vendor), including unposted
         invoices = []
         for inv in all_invoices:
-            if not inv.IsPosted():
-                continue
             try:
                 cust = inv.GetOwner().GetCustomer()
                 if cust is not None:
@@ -205,7 +203,7 @@ class ExportBusinessObjectsUseCase:
             for raw_entry in inv.GetEntries():
                 lines += self._format_inv_entry(lib, raw_entry)
 
-            # posted block
+            # posted block — always emitted; "none" sentinel when not posted
             posted_txn = inv.GetPostedTxn()
             if posted_txn:
                 ar_name = get_account_full_name(inv.GetPostedAcc())
@@ -215,9 +213,12 @@ class ExportBusinessObjectsUseCase:
                 lines.append(f'    ar_account: "{ar_name}"')
                 lines.append(f'    memo: "{posted_txn.GetDescription()}"')
                 lines.append('    accumulate: true')
+            else:
+                lines.append('  posted: none')
 
-            # payment blocks — from lot splits, excluding the posting transaction
+            # payment blocks — always emitted; "none" sentinel when no payments exist
             lot = inv.GetPostedLot()
+            has_payments = False
             if lot:
                 for raw_split in lot.get_split_list():
                     s   = Split(instance=raw_split)
@@ -228,6 +229,9 @@ class ExportBusinessObjectsUseCase:
                     if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                         continue
                     lines += self._format_payment(txn)
+                    has_payments = True
+            if not has_payments:
+                lines.append('  payment: none')
 
             invoice_strings.append('\n'.join(lines))
         return '\n\n'.join(invoice_strings)
@@ -274,12 +278,15 @@ class ExportBusinessObjectsUseCase:
     def _format_payment(self, txn) -> list:
         """Format one payment transaction as payment: lines."""
         pay_date = txn.GetDate().strftime("%Y-%m-%d")
-        pay_memo = txn.GetDescription() or ''
         pay_num  = txn.GetNum() or ''
 
-        # Find the bank/asset side (non-AR) split for amount + account
+        # Find the bank/asset side (non-AR) split for amount, account, and memo.
+        # GnuCash's ApplyPayment stores the memo on the splits (not on the
+        # transaction description, which is set to the owner/customer name).
+        # Reading split.GetMemo() is consistent across all GnuCash versions.
         bank_name = ''
         pay_amt   = 0.0
+        pay_memo  = ''
         for i in range(txn.CountSplits()):
             split = txn.GetSplit(i)
             acct  = split.GetAccount()
@@ -287,6 +294,7 @@ class ExportBusinessObjectsUseCase:
             if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
                 bank_name = get_account_full_name(acct)
                 pay_amt   = abs(split.GetAmount().to_double())
+                pay_memo  = split.GetMemo() or ''
                 break
 
         lines = [
@@ -315,10 +323,9 @@ class ExportBusinessObjectsUseCase:
         all_invoices = [gb.Invoice(instance=r) for r in q.run()]
         q.destroy()
 
+        # Export all vendor bills, including unposted
         bills = []
         for inv in all_invoices:
-            if not inv.IsPosted():
-                continue
             try:
                 vendor = inv.GetOwner().GetVendor()
                 if vendor is not None:
@@ -338,6 +345,7 @@ class ExportBusinessObjectsUseCase:
             for raw_entry in inv.GetEntries():
                 lines += self._format_inv_entry(lib, raw_entry)
 
+            # posted block — always emitted; "none" sentinel when not posted
             posted_txn = inv.GetPostedTxn()
             if posted_txn:
                 ap_name = get_account_full_name(inv.GetPostedAcc())
@@ -347,8 +355,12 @@ class ExportBusinessObjectsUseCase:
                 lines.append(f'    ap_account: "{ap_name}"')
                 lines.append(f'    memo: "{posted_txn.GetDescription()}"')
                 lines.append('    accumulate: true')
+            else:
+                lines.append('  posted: none')
 
+            # payment blocks — always emitted; "none" sentinel when no payments exist
             lot = inv.GetPostedLot()
+            has_payments = False
             if lot:
                 for raw_split in lot.get_split_list():
                     s   = Split(instance=raw_split)
@@ -358,6 +370,9 @@ class ExportBusinessObjectsUseCase:
                     if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                         continue
                     lines += self._format_payment(txn)
+                    has_payments = True
+            if not has_payments:
+                lines.append('  payment: none')
 
             bill_strings.append('\n'.join(lines))
         return '\n\n'.join(bill_strings)

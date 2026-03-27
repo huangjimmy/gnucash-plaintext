@@ -523,7 +523,26 @@ class GnuCashImporter:
         if directive.type != DirectiveType.INVOICE:
             raise ValueError(f"Expected INVOICE but got {directive.type}")
 
-        invoice = Invoice(book, directive.props['id'], book.get_table().lookup("CURRENCY", directive.metadata['currency']), book.CustomerLookupByID(directive.metadata['customer_id']))
+        inv_id = directive.props['id']
+
+        # Validate: posted: none and a real posted: block are contradictory
+        has_posted_none = directive.metadata.get('posted') == 'none'
+        posted_children = [c for c in directive.children if c.type == DirectiveType.POSTED]
+        if has_posted_none and posted_children:
+            raise ValueError(f'Invoice {inv_id}: contradictory "posted: none" and posted: block')
+        if len(posted_children) > 1:
+            raise ValueError(f'Invoice {inv_id}: multiple posted: blocks are not allowed')
+
+        # Validate: payment: none and a real payment: block are contradictory;
+        # also, an unposted invoice cannot have payments
+        has_payment_none = directive.metadata.get('payment') == 'none'
+        payment_children = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
+        if has_payment_none and payment_children:
+            raise ValueError(f'Invoice {inv_id}: contradictory "payment: none" and payment: block')
+        if has_posted_none and payment_children:
+            raise ValueError(f'Invoice {inv_id}: cannot have payment: blocks on an unposted invoice (posted: none)')
+
+        invoice = Invoice(book, inv_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), book.CustomerLookupByID(directive.metadata['customer_id']))
         invoice.BeginEdit()
         invoice.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
 
@@ -580,9 +599,12 @@ class GnuCashImporter:
                 pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
                 amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
                 memo = entry_directive.metadata['memo']
-                num = entry_directive.metadata.get('num', None)
-                new_txn = Transaction(instance=gc.xaccMallocTransaction(book.instance))
-                invoice.ApplyPayment(new_txn, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
+                num = entry_directive.metadata.get('num', '')
+                # Pass None for txn: GnuCash creates the payment transaction
+                # internally. Passing a manually-allocated Transaction causes
+                # a segfault on GnuCash 3.8 (ubuntu20) because the transaction
+                # is not properly initialised before ApplyPayment uses it.
+                invoice.ApplyPayment(None, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
 
         invoice.CommitEdit()
         logging.debug(f"Created invoice {directive.props['id']}")
@@ -592,8 +614,27 @@ class GnuCashImporter:
         if directive.type != DirectiveType.BILL:
             raise ValueError(f"Expected BILL but got {directive.type}")
 
+        bill_id = directive.props['id']
+
+        # Validate: posted: none and a real posted: block are contradictory
+        has_posted_none = directive.metadata.get('posted') == 'none'
+        posted_children = [c for c in directive.children if c.type == DirectiveType.POSTED]
+        if has_posted_none and posted_children:
+            raise ValueError(f'Bill {bill_id}: contradictory "posted: none" and posted: block')
+        if len(posted_children) > 1:
+            raise ValueError(f'Bill {bill_id}: multiple posted: blocks are not allowed')
+
+        # Validate: payment: none and a real payment: block are contradictory;
+        # also, an unposted bill cannot have payments
+        has_payment_none = directive.metadata.get('payment') == 'none'
+        payment_children = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
+        if has_payment_none and payment_children:
+            raise ValueError(f'Bill {bill_id}: contradictory "payment: none" and payment: block')
+        if has_posted_none and payment_children:
+            raise ValueError(f'Bill {bill_id}: cannot have payment: blocks on an unposted bill (posted: none)')
+
         # Bills are Invoice objects whose owner is a Vendor (no separate Bill class)
-        bill = Invoice(book, directive.props['id'], book.get_table().lookup("CURRENCY", directive.metadata['currency']), book.VendorLookupByID(directive.metadata['vendor_id']))
+        bill = Invoice(book, bill_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), book.VendorLookupByID(directive.metadata['vendor_id']))
         bill.BeginEdit()
         bill.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
 
@@ -643,9 +684,8 @@ class GnuCashImporter:
                 pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
                 amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
                 memo = entry_directive.metadata['memo']
-                num = entry_directive.metadata.get('num', None)
-                new_txn = Transaction(instance=gc.xaccMallocTransaction(book.instance))
-                bill.ApplyPayment(new_txn, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
+                num = entry_directive.metadata.get('num', '')
+                bill.ApplyPayment(None, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
 
         bill.CommitEdit()
         logging.debug(f"Created bill {directive.props['id']}")

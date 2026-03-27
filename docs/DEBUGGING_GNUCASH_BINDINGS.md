@@ -179,6 +179,84 @@ SWIG's gncEntryGetDescription has const-type mismatches that:
 - ctypes version works reliably across all distributions
 ```
 
+## Invoice / Bill Payment — Hard-Won Findings
+
+Discovered 2026-03-27 while implementing multi-payment test coverage.
+
+### 1. `ApplyPayment` — always pass `None` for the transaction argument
+
+`gncInvoiceApplyPayment(invoice, txn, ...)` creates the payment transaction
+internally when `txn` is `NULL`/`None`. **Never** allocate the transaction
+yourself with `xaccMallocTransaction` and pass it in.
+
+```python
+# ❌ WRONG — segfaults on GnuCash 3.8 (ubuntu20)
+new_txn = Transaction(instance=gc.xaccMallocTransaction(book.instance))
+invoice.ApplyPayment(new_txn, bank, amount, exch, date, memo, num)
+
+# ✅ CORRECT — GnuCash allocates and initialises the transaction internally
+invoice.ApplyPayment(None, bank, amount, exch, date, memo, num)
+```
+
+**Why it segfaults**: `ApplyPayment` calls `xaccTransBeginEdit(txn)` internally.
+A transaction created via `Transaction(instance=xaccMallocTransaction(...))` in
+Python has not been through the same GnuCash object-initialisation path that
+`ApplyPayment` expects. On GnuCash 3.8, this causes a GLib assertion failure
+(`g_type_instance_get_private: instance != NULL`) and SIGSEGV.
+
+On GnuCash 4.x/5.x the manually-allocated transaction happened to work
+(probably because the object model changed), but the `None` path is correct
+and portable on all versions.
+
+### 2. Payment memo lives on the split, not the transaction description
+
+```python
+# ❌ WRONG — txn.GetDescription() returns the owner/customer name, not the memo
+pay_memo = txn.GetDescription()   # e.g. "Acme Corp" on OpenSUSE GnuCash 5.x
+
+# ✅ CORRECT — read memo from the bank (non-AR) split
+for i in range(txn.CountSplits()):
+    split = txn.GetSplit(i)
+    acct = split.GetAccount()
+    atype = gc.xaccAccountGetType(acct.instance)
+    if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
+        pay_memo = split.GetMemo() or ''
+        break
+```
+
+**Why**: `gncInvoiceApplyPayment` calls `xaccTransSetDescription(txn, owner_name)`
+unconditionally — the `memo` parameter is stored on the splits, not the
+transaction description. On newer GnuCash (Debian 13, Ubuntu 22/24) the
+description was incidentally set to the memo by some code path, but on
+OpenSUSE/GnuCash 5.x it contains the customer name. Reading from the split is
+the only portable approach.
+
+### 3. Pass `''` not `None` for `const char*` parameters on GnuCash 3.8
+
+```python
+# ❌ WRONG — None may be passed as NULL, which some GnuCash 3.8 functions
+#           do not guard against
+num = entry_directive.metadata.get('num', None)
+invoice.ApplyPayment(None, bank, amount, exch, date, memo, num)
+
+# ✅ CORRECT — empty string is always safe for optional const char* args
+num = entry_directive.metadata.get('num', '')
+invoice.ApplyPayment(None, bank, amount, exch, date, memo, num)
+```
+
+**Scope**: This pattern applies to any optional `const char*` SWIG binding
+parameter where the field may not be present in the input. GnuCash 4.x+ is
+generally null-safe, but GnuCash 3.8 on ubuntu20 is not.
+
+### 4. Platform-specific summary for payment operations
+
+| Platform | `ApplyPayment(None, ...)` | `split.GetMemo()` | `''` for optional num |
+|---|---|---|---|
+| Debian 11–13 (GnuCash 4.4–5.10) | ✅ | ✅ | ✅ |
+| Ubuntu 20.04 (GnuCash 3.8) | ✅ | ✅ | ✅ required |
+| Ubuntu 22/24 (GnuCash 4.8–4.9) | ✅ | ✅ | ✅ |
+| OpenSUSE / Fedora | ✅ | ✅ (txn.GetDescription ❌) | ✅ |
+
 ## Summary
 
 1. **No prediction possible** - test to discover failures
@@ -186,5 +264,7 @@ SWIG's gncEntryGetDescription has const-type mismatches that:
 3. **Test all platforms** - Ubuntu/Debian differences are common
 4. **Document the failures** - helps future maintainers
 5. **Use engine.py utilities** - safe ctypes patterns
+6. **`ApplyPayment(None, ...)`** - never pass a manually-allocated transaction
+7. **Payment memo on split** - never read from `txn.GetDescription()`
 
 This approach has proven necessary for maximum compatibility across Ubuntu 20/22/24 and Debian 11/12/13.

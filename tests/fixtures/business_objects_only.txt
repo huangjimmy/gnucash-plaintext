@@ -28,3 +28,109 @@ invoice "INV-2026-001"
     ar_account: "Assets:Accounts Receivable"
     memo: "Invoice INV-2026-001"
     accumulate: true
+  payment: none
+
+invoice "INV-2026-002"
+  customer_id: "1"
+  currency: CAD
+  date_opened: 2026-01-15
+  entry:
+    date: 2026-01-15
+    description: "Consulting Hours"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 2
+    price: 75
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+  posted: none
+  payment: none
+
+invoice "INV-2026-003"
+  customer_id: "1"
+  currency: CAD
+  date_opened: 2026-01-20
+  entry:
+    date: 2026-01-20
+    description: "Project Deliverable"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 200
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+  posted:
+    date: 2026-01-20
+    due: 2026-02-19
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-003"
+    accumulate: true
+  payment:
+    date: 2026-01-25
+    amount: 210
+    bank_account: "Assets:Bank"
+    memo: "Payment for INV-2026-003"
+
+invoice "INV-2026-004"
+  customer_id: "1"
+  currency: CAD
+  date_opened: 2026-02-01
+  entry:
+    date: 2026-02-01
+    description: "Retainer Services"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 3
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+  posted:
+    date: 2026-02-01
+    due: 2026-03-03
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-004"
+    accumulate: true
+  payment:
+    date: 2026-02-10
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Partial payment 1 for INV-2026-004"
+  payment:
+    date: 2026-02-20
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Partial payment 2 for INV-2026-004"
+
+invoice "INV-2026-005"
+  customer_id: "1"
+  currency: CAD
+  date_opened: 2026-02-05
+  entry:
+    date: 2026-02-05
+    description: "Annual Support"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 400
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+  posted:
+    date: 2026-02-05
+    due: 2026-03-07
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-005"
+    accumulate: true
+  payment:
+    date: 2026-02-15
+    amount: 200
+    bank_account: "Assets:Bank"
+    memo: "First payment for INV-2026-005"
+  payment:
+    date: 2026-02-28
+    amount: 220
+    bank_account: "Assets:Bank"
+    memo: "Final payment for INV-2026-005"
