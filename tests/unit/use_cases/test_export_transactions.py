@@ -260,3 +260,98 @@ class TestExportByGuid:
 
             with pytest.raises(ValueError, match="No transaction found"):
                 use_case.execute_by_guid("deadbeefdeadbeefdeadbeefdeadbeef")
+
+
+class TestExportByGuids:
+    """Test execute_by_guids — multi-transaction export"""
+
+    def test_export_two_guids_returns_both_transactions(self, temp_gnucash_with_transactions):
+        """execute_by_guids returns all requested transactions"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            all_result = use_case.execute()
+            assert len(all_result.transactions) >= 2, "fixture needs at least 2 transactions"
+            guid0 = all_result.transactions[0].GetGUID().to_string()
+            guid1 = all_result.transactions[1].GetGUID().to_string()
+
+            result = use_case.execute_by_guids([guid0, guid1])
+
+            assert len(result.transactions) == 2
+            result_guids = {tx.GetGUID().to_string() for tx in result.transactions}
+            assert guid0 in result_guids
+            assert guid1 in result_guids
+
+    def test_export_by_guids_shared_commodities_emitted_once(self, temp_gnucash_with_transactions):
+        """Commodities shared across multiple transactions appear only once in the result"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            all_result = use_case.execute()
+            guids = [tx.GetGUID().to_string() for tx in all_result.transactions[:2]]
+
+            result = use_case.execute_by_guids(guids)
+
+            # Commodity tickers must be unique in the result
+            tickers = [c.get_mnemonic() for c, _ in result.commodities]
+            assert len(tickers) == len(set(tickers)), "duplicate commodity in result"
+
+    def test_export_by_guids_duplicate_guid_ignored(self, temp_gnucash_with_transactions):
+        """Passing the same GUID twice produces exactly one transaction in the result"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            all_result = use_case.execute()
+            guid = all_result.transactions[0].GetGUID().to_string()
+
+            result = use_case.execute_by_guids([guid, guid])
+
+            assert len(result.transactions) == 1
+
+    def test_export_by_guids_invalid_guid_raises(self, temp_gnucash_with_transactions):
+        """execute_by_guids raises ValueError for a malformed GUID"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            with pytest.raises(ValueError, match="Invalid GUID format"):
+                use_case.execute_by_guids(["not-a-guid"])
+
+    def test_export_by_guids_nonexistent_guid_raises(self, temp_gnucash_with_transactions):
+        """execute_by_guids raises ValueError when a GUID is not found"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            with pytest.raises(ValueError, match="No transaction found"):
+                use_case.execute_by_guids(["deadbeefdeadbeefdeadbeefdeadbeef"])
+
+    def test_execute_by_guid_delegates_to_execute_by_guids(self, temp_gnucash_with_transactions):
+        """execute_by_guid (singular) returns same result as execute_by_guids with one element"""
+        from repositories.gnucash_repository import GnuCashRepository
+        from use_cases.export_transactions import ExportTransactionsUseCase
+
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            use_case = ExportTransactionsUseCase(repo)
+
+            all_result = use_case.execute()
+            guid = all_result.transactions[0].GetGUID().to_string()
+
+            single = use_case.execute_by_guid(guid)
+            multi  = use_case.execute_by_guids([guid])
+
+            assert len(single.transactions) == len(multi.transactions) == 1
+            assert single.transactions[0].GetGUID().to_string() == guid
