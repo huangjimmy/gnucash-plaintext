@@ -6,6 +6,7 @@ These tests verify the CLI command works end-to-end.
 
 import os
 import tempfile
+import time
 
 from click.testing import CliRunner
 
@@ -281,6 +282,65 @@ class TestImportCLI:
             assert result.exit_code != 0
             assert "mutually exclusive" in result.output
             assert not os.path.exists(new_gnucash)
+
+    def test_output_new_to_file(self, import_new_plaintext_with_transaction):
+        """--output-new <file> writes the imported transaction block (with guid) to the file."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            new_gnucash = os.path.join(tmpdir, "book.gnucash")
+            out_file = os.path.join(tmpdir, "new.txt")
+
+            result = runner.invoke(import_transactions, [
+                '--new', new_gnucash, import_new_plaintext_with_transaction,
+                '--output-new', out_file,
+            ])
+
+            assert result.exit_code == 0, result.output
+            assert "New transactions written to" in result.output
+            assert os.path.exists(out_file)
+            with open(out_file, encoding='utf-8') as f:
+                content = f.read()
+            assert 'guid:' in content
+            assert '"Test transaction"' in content
+
+    def test_output_new_to_stdout(self, import_new_plaintext_with_transaction):
+        """--output-new - writes the transaction block directly to stdout (no extra header)."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            new_gnucash = os.path.join(tmpdir, "book.gnucash")
+
+            result = runner.invoke(import_transactions, [
+                '--new', new_gnucash, import_new_plaintext_with_transaction,
+                '--output-new', '-',
+            ])
+
+            assert result.exit_code == 0, result.output
+            assert 'guid:' in result.output
+            assert '"Test transaction"' in result.output
+
+    def test_output_new_silent_when_no_new_transactions(self, import_new_plaintext_with_transaction):
+        """--output-new produces no output file when all transactions are duplicates."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            new_gnucash = os.path.join(tmpdir, "book.gnucash")
+            out_file = os.path.join(tmpdir, "new.txt")
+
+            # First import creates the transaction
+            runner.invoke(import_transactions, [
+                '--new', new_gnucash, import_new_plaintext_with_transaction,
+            ])
+            time.sleep(1)  # avoid backup timestamp collision on OpenSUSE
+            # Second import: duplicate — nothing new should be written
+            result = runner.invoke(import_transactions, [
+                new_gnucash, import_new_plaintext_with_transaction,
+                '--output-new', out_file,
+            ])
+
+            assert result.exit_code == 0, result.output
+            assert not os.path.exists(out_file), "output-new file should not be created when nothing is imported"
 
     def test_import_new_reports_account_creation_error(self, import_new_plaintext_invalid_account_type):
         """--new with an unrecognised account type reports the error in the summary.

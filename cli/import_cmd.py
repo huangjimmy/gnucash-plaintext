@@ -10,6 +10,7 @@ from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.conflict_resolver import ResolutionStrategy
 from services.gnucash_importer import GnuCashImporter
 from services.plaintext_parser import DirectiveType, PlaintextParser
+from use_cases.export_transactions import ExportTransactionsUseCase
 from use_cases.import_transactions import ImportTransactionsUseCase
 
 
@@ -37,7 +38,14 @@ from use_cases.import_transactions import ImportTransactionsUseCase
     help='Create a new GnuCash file (file must not already exist)'
 )
 @click.option('--include-business-objects', is_flag=True, help='Include business objects (customers, invoices, etc.)')
-def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run, create_new, include_business_objects):
+@click.option(
+    '--output-new',
+    'output_new',
+    type=click.Path(),
+    default=None,
+    help='Write newly imported transactions (with GUIDs) to this file. Use "-" for stdout.'
+)
+def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run, create_new, include_business_objects, output_new):
     """
     Import plaintext transactions to GnuCash file.
 
@@ -62,6 +70,10 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
         gnucash-plaintext import -i mybook.gnucash -f transactions.txt --strategy keep-incoming
 
         gnucash-plaintext import --new mybook.gnucash chart-of-accounts.txt
+
+        gnucash-plaintext import mybook.gnucash transactions.txt --output-new new.txt
+
+        gnucash-plaintext import mybook.gnucash transactions.txt --output-new -
     """
     # Support both positional and flag-based arguments
     gnucash_file = gnucash_path or gnucash_file
@@ -74,6 +86,8 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
 
     if create_new and dry_run:
         raise click.UsageError("--new and --dry-run are mutually exclusive: --new always creates a file.")
+    if output_new and dry_run:
+        click.echo("Warning: --output-new is ignored in dry-run mode (no changes are saved)", err=True)
 
     # Validate all paths before touching the filesystem
     if create_new:
@@ -90,6 +104,10 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             )
     if not os.path.exists(input_file):
         raise click.UsageError(f"Plaintext file does not exist: {input_file}")
+    if output_new and output_new != '-':
+        out_dir = os.path.dirname(os.path.abspath(output_new))
+        if not os.path.isdir(out_dir):
+            raise click.UsageError(f"--output-new directory does not exist: {out_dir}")
 
     # Map CLI strategy to ResolutionStrategy enum
     strategy_map = {
@@ -166,6 +184,23 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 click.echo("Saving changes...")
                 repo.save()
                 click.echo("✓ Changes saved")
+
+                # Write newly created transactions (transaction blocks only, with GUIDs)
+                if output_new and result.new_transactions:
+                    exporter = ExportTransactionsUseCase(repo)
+                    plaintext = exporter.format_transaction_list(result.new_transactions)
+                    if output_new == '-':
+                        # Write raw plaintext to stdout — no header so output
+                        # remains parseable when piped or redirected
+                        click.echo(plaintext, nl=False)
+                    else:
+                        try:
+                            with open(output_new, 'w', encoding='utf-8') as f:
+                                f.write(plaintext)
+                            click.echo(f"✓ New transactions written to {output_new}")
+                        except OSError as exc:
+                            click.echo(f"✗ Could not write --output-new file: {exc}", err=True)
+                            raise SystemExit(1) from exc
             elif dry_run:
                 click.echo("")
                 click.echo("✓ Dry run complete (no changes made)")

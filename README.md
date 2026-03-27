@@ -477,6 +477,29 @@ Preview without making changes (dry run):
 gnucash-plaintext import mybook.gnucash transactions.txt --dry-run
 ```
 
+#### Capturing GUIDs of newly imported transactions
+
+When importing new transactions, GnuCash assigns a GUID to each one. Use
+`--output-new` to capture those transaction blocks (with their `guid:` fields)
+immediately after import — without a separate export step:
+
+```bash
+# Write new transactions to a file
+gnucash-plaintext import mybook.gnucash transactions.txt --output-new new.txt
+
+# Print to stdout
+gnucash-plaintext import mybook.gnucash transactions.txt --output-new -
+```
+
+The output contains only the transaction blocks (no commodity or account
+preamble). Each block includes the `guid:` field assigned by GnuCash, which
+you can use later with `--strategy update` to edit those transactions
+in-place, or with `get-transaction` / `delete-transaction-by-guid` to
+look them up directly.
+
+If all transactions in the file are duplicates and none are imported, no
+output is written (the option is silently ignored).
+
 ### Import and export business objects
 
 Customers, vendors, tax tables, invoices, and bills can be round-tripped
