@@ -338,21 +338,30 @@ gnucash-plaintext export mybook.gnucash transactions.txt \
   --account "Assets:Bank"
 ```
 
-### Export a single transaction by GUID
+### Export transactions by GUID
 
-Export one specific transaction to plaintext (useful for AI-assisted editing or review):
+Export one or more transactions to plaintext (useful for AI-assisted editing or review):
 
 ```bash
+# Single transaction
 gnucash-plaintext export-transaction mybook.gnucash --guid 317c8ae6e0084c33951d052b9f1b9f23
+
+# Multiple transactions in one pass
+gnucash-plaintext export-transaction mybook.gnucash \
+    --guid 317c8ae6e0084c33951d052b9f1b9f23 \
+    --guid a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
 ```
 
-The output is self-contained — it includes the commodity and account declarations needed to re-import or process the transaction independently. Output goes to stdout by default; use `-o` to write to a file:
+The output is self-contained — it includes the commodity and account declarations needed to re-import or process the transactions independently. When multiple GUIDs are given, shared commodities and accounts are emitted only once. Output goes to stdout by default; use `-o` to write to a file:
 
 ```bash
-gnucash-plaintext export-transaction mybook.gnucash --guid 317c8ae6e0084c33951d052b9f1b9f23 -o tx.txt
+gnucash-plaintext export-transaction mybook.gnucash \
+    --guid 317c8ae6e0084c33951d052b9f1b9f23 \
+    --guid a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4 \
+    -o batch.txt
 ```
 
-`--guid` is required. Omitting it prints an error with usage guidance.
+At least one `--guid` is required. Omitting it prints an error with usage guidance.
 
 ### Delete a transaction by GUID
 

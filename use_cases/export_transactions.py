@@ -7,7 +7,7 @@ with all metadata required for round-trip import.
 
 import datetime
 import os
-from typing import Optional
+from typing import Optional, Sequence
 
 from gnucash import Transaction
 from gnucash.gnucash_core_c import (
@@ -397,13 +397,48 @@ class ExportTransactionsUseCase:
         for key, value in sorted(custom_split_meta.items()):
             lines.append(f'\t\t{key}: {encode_value_as_string(value)}')
 
+    def execute_by_guids(self, guids: Sequence[str]) -> ExportResult:
+        """
+        Export one or more transactions identified by their GUIDs in one pass.
+
+        Looks up each GUID with xaccTransLookup (O(1) per lookup), then feeds
+        every transaction into a single ExportResult via _collect_transaction_data.
+        Commodities and accounts are deduplicated naturally by the seen-sets in
+        ExportResult — no post-hoc merging needed.
+
+        Duplicate GUIDs in the input are silently ignored (each transaction
+        appears exactly once in the result).
+
+        Args:
+            guids: sequence of 32-character hex GUID strings
+
+        Returns:
+            ExportResult containing all matched transactions plus the union of
+            their commodity and account declarations
+
+        Raises:
+            ValueError: if any GUID is malformed or not found in the book
+        """
+        result = ExportResult()
+        seen_guids = set()
+        for guid in guids:
+            if guid in seen_guids:
+                continue
+            seen_guids.add(guid)
+            gnc_guid = GncGUID()
+            if not string_to_guid(guid, gnc_guid):
+                raise ValueError(f"Invalid GUID format: {guid}")
+            raw = xaccTransLookup(gnc_guid, self.repository.book.instance)
+            if raw is None:
+                raise ValueError(f"No transaction found with GUID: {guid}")
+            self._collect_transaction_data(Transaction(instance=raw), result)
+        return result
+
     def execute_by_guid(self, guid: str) -> ExportResult:
         """
         Export a single transaction identified by its GUID.
 
-        Uses xaccTransLookup for O(1) direct lookup — no scan of all
-        transactions. The result includes the commodity and account
-        declarations for that transaction so the output is self-contained.
+        Convenience wrapper around execute_by_guids for the single-item case.
 
         Args:
             guid: 32-character hex GUID string of the transaction to export
@@ -416,18 +451,7 @@ class ExportTransactionsUseCase:
             ValueError: if the GUID string is malformed or no transaction
                         with that GUID exists
         """
-        gnc_guid = GncGUID()
-        if not string_to_guid(guid, gnc_guid):
-            raise ValueError(f"Invalid GUID format: {guid}")
-
-        raw = xaccTransLookup(gnc_guid, self.repository.book.instance)
-        if raw is None:
-            raise ValueError(f"No transaction found with GUID: {guid}")
-
-        target = Transaction(instance=raw)
-        result = ExportResult()
-        self._collect_transaction_data(target, result)
-        return result
+        return self.execute_by_guids([guid])
 
     def export_to_file(
         self,
