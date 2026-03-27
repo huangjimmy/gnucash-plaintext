@@ -209,6 +209,19 @@ class ExportTransactionsUseCase:
             self._format_transaction(transaction, lines)
         return '\n'.join(lines) + '\n' if lines else ''
 
+    def format_transaction_list(self, transactions: list) -> str:
+        """
+        Format a list of Transaction objects as plaintext (transaction blocks only).
+
+        Collects all required data from the transactions and returns their
+        plaintext representation without commodity or account preamble.
+        Useful for outputting newly imported transactions with their GUIDs.
+        """
+        result = ExportResult()
+        for tx in transactions:
+            self._collect_transaction_data(tx, result)
+        return self.format_transactions_section(result)
+
     def _file_date_str(self) -> str:
         """Return GnuCash file modification date as YYYY-MM-DD string."""
         mtime = os.path.getmtime(self.repository.file_path)

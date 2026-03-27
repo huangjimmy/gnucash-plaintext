@@ -240,8 +240,11 @@ class TestCreateTransactionErrors:
             ]
             directive = _tx_directive_with_currency(splits)
 
+            from gnucash import Transaction
             result = GnuCashImporter.create_transaction(directive, book)
-            assert result is True
+            assert isinstance(result, Transaction)
+            assert result.GetDescription() == 'Test'
+            assert result.GetDate().strftime('%Y-%m-%d') == '2024-06-15'
         finally:
             session.end()
             if os.path.exists(path):

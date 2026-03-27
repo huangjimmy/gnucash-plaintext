@@ -32,6 +32,7 @@ class ImportResult:
         self.duplicates = []
         self.conflicts = []
         self.errors = []
+        self.new_transactions = []  # Transaction objects created during this import
 
     def get_summary(self) -> str:
         """Get summary string"""
@@ -361,8 +362,9 @@ class ImportTransactionsUseCase:
                         continue
 
                     # Create transaction
-                    importer.create_transaction(child, book)
+                    tx = importer.create_transaction(child, book)
                     result.imported_count += 1
+                    result.new_transactions.append(tx)
 
                 except Exception as e:
                     logging.error(f"Failed to import transaction: {e}")

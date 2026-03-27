@@ -177,13 +177,17 @@ class GnuCashImporter:
         logging.debug(f"Created account {account_fullname}")
 
     @staticmethod
-    def create_transaction(directive: PlaintextDirective, book: Book):
+    def create_transaction(directive: PlaintextDirective, book: Book) -> 'Transaction':
         """
         Create transaction from directive.
 
         Args:
             directive: PlaintextDirective of type TRANSACTION
             book: GnuCash book
+
+        Returns:
+            The newly created GnuCash Transaction object (after CommitEdit).
+            Raises on any error (e.g. missing account) — never returns None.
         """
         if directive.type != DirectiveType.TRANSACTION:
             raise ValueError(f"Expected TRANSACTION but got {directive.type}")
@@ -300,7 +304,7 @@ class GnuCashImporter:
 
         transaction.CommitEdit()
         logging.debug(f"Created transaction on {date_str}")
-        return True
+        return transaction
 
     @staticmethod
     def update_transaction(existing_tx, directive: PlaintextDirective, book: Book) -> None:
