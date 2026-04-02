@@ -42,6 +42,14 @@ def get_invoice_block(exported_biz: str, invoice_id: str) -> str:
     return ''
 
 
+def get_bill_block(exported_biz: str, bill_id: str) -> str:
+    """Return the exported block for the given bill ID, or empty string."""
+    for block in exported_biz.split('\n\n'):
+        if block.startswith(f'bill "{bill_id}"'):
+            return block
+    return ''
+
+
 def test_business_objects_roundtrip(tmp_path):
     runner = CliRunner()
     gnucash_file = tmp_path / "test.gnucash"
@@ -121,6 +129,46 @@ def test_business_objects_roundtrip(tmp_path):
     assert 'payment: none' not in inv5
     assert 'First payment for INV-2026-005' in inv5
     assert 'Final payment for INV-2026-005' in inv5
+
+    # ── Per-bill state assertions ─────────────────────────────────────────────
+
+    # BILL-2026-001: posted, not paid
+    bill1 = get_bill_block(exported_biz, 'BILL-2026-001')
+    assert bill1, "BILL-2026-001 must appear in export"
+    assert '  posted:' in bill1, "BILL-2026-001 must have a posted: block"
+    assert '  payment: none' in bill1, "BILL-2026-001 must have payment: none (not paid)"
+
+    # BILL-2026-002: unposted
+    bill2 = get_bill_block(exported_biz, 'BILL-2026-002')
+    assert bill2, "BILL-2026-002 (unposted) must appear in export"
+    assert '  posted: none' in bill2, "BILL-2026-002 must have posted: none (unposted)"
+    assert '  payment: none' in bill2, "BILL-2026-002 must have payment: none (unposted, no payments)"
+
+    # BILL-2026-003: posted, single full payment
+    bill3 = get_bill_block(exported_biz, 'BILL-2026-003')
+    assert bill3, "BILL-2026-003 must appear in export"
+    assert '  posted:' in bill3, "BILL-2026-003 must have a posted: block"
+    assert '  payment:' in bill3, "BILL-2026-003 must have a payment: block"
+    assert 'payment: none' not in bill3, "BILL-2026-003 must not have payment: none"
+    assert bill3.count('  payment:') == 1, "BILL-2026-003 must have exactly one payment block"
+
+    # BILL-2026-004: posted, two partial payments, amount still remaining
+    bill4 = get_bill_block(exported_biz, 'BILL-2026-004')
+    assert bill4, "BILL-2026-004 must appear in export"
+    assert '  posted:' in bill4, "BILL-2026-004 must have a posted: block"
+    assert bill4.count('  payment:') == 2, "BILL-2026-004 must have exactly two payment blocks"
+    assert 'payment: none' not in bill4
+    assert 'Partial payment 1 for BILL-2026-004' in bill4
+    assert 'Partial payment 2 for BILL-2026-004' in bill4
+
+    # BILL-2026-005: posted, two payments, fully paid (zero balance)
+    bill5 = get_bill_block(exported_biz, 'BILL-2026-005')
+    assert bill5, "BILL-2026-005 must appear in export"
+    assert '  posted:' in bill5, "BILL-2026-005 must have a posted: block"
+    assert bill5.count('  payment:') == 2, "BILL-2026-005 must have exactly two payment blocks"
+    assert 'payment: none' not in bill5
+    assert 'First payment for BILL-2026-005' in bill5
+    assert 'Final payment for BILL-2026-005' in bill5
 
     # Test the print-invoice command
     result = runner.invoke(cli, ["print-invoice", str(gnucash_file), "--invoice-id", "INV-2026-001", "-o", str(pdf_file)])
@@ -249,6 +297,135 @@ customer "1"
 """
     input_file = tmp_path / f"{case_name}.txt"
     input_file.write_text(preamble + invoice_txt)
+
+    result = runner.invoke(cli, ["import", "--new", str(gnucash_file), str(input_file), "--include-business-objects"])
+    assert result.exit_code != 0, f"Import should have failed for case {case_name!r} but succeeded"
+    assert expected_error in result.output, (
+        f"Expected error message {expected_error!r} not found in output:\n{result.output}"
+    )
+
+
+_BILL_CONTRADICTION_CASES = [
+    (
+        "bill_posted_none_and_posted_block",
+        """
+bill "BILL-X"
+  vendor_id: "1"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "Test"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted: none
+  posted:
+    date: 2026-01-01
+    due: 2026-01-31
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Test"
+    accumulate: true
+""",
+        'contradictory "posted: none" and posted: block',
+    ),
+    (
+        "bill_payment_none_and_payment_block",
+        """
+bill "BILL-X"
+  vendor_id: "1"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "Test"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-01
+    due: 2026-01-31
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Test"
+    accumulate: true
+  payment: none
+  payment:
+    date: 2026-01-15
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Pay"
+""",
+        'contradictory "payment: none" and payment: block',
+    ),
+    (
+        "bill_payment_on_unposted_bill",
+        """
+bill "BILL-X"
+  vendor_id: "1"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "Test"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted: none
+  payment:
+    date: 2026-01-15
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Pay"
+""",
+        'cannot have payment: blocks on an unposted bill',
+    ),
+]
+
+
+_BILL_PREAMBLE = """\
+2026-01-01 open Assets
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+  type: Bank
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+  type: Liability
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+  type: Accounts Payable
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+
+vendor "1"
+  name: "Test Vendor"
+  currency: CAD
+
+"""
+
+
+@pytest.mark.parametrize("case_name,bill_txt,expected_error", _BILL_CONTRADICTION_CASES)
+def test_bill_contradiction_errors(tmp_path, case_name, bill_txt, expected_error):
+    """Contradictory posted:/payment: combinations on bills must produce clear errors."""
+    runner = CliRunner()
+    gnucash_file = tmp_path / "test.gnucash"
+
+    input_file = tmp_path / f"{case_name}.txt"
+    input_file.write_text(_BILL_PREAMBLE + bill_txt)
 
     result = runner.invoke(cli, ["import", "--new", str(gnucash_file), str(input_file), "--include-business-objects"])
     assert result.exit_code != 0, f"Import should have failed for case {case_name!r} but succeeded"

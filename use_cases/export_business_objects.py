@@ -275,6 +275,47 @@ class ExportBusinessObjectsUseCase:
 
         return lines
 
+    def _format_bill_entry(self, lib, raw_entry) -> list:
+        """Format one bill (vendor invoice) entry as plaintext lines.
+
+        Note: the `action:` field is intentionally absent. GnuCash's Entry
+        object stores action on the invoice side only (gncEntryGetAction is
+        for customer invoices, not vendor bills). Bills do not expose or
+        persist an action field through the GnuCash API.
+        """
+        ptr = int(raw_entry.instance)
+
+        desc  = safe_ctypes_string(lib.gncEntryGetDescription, ptr)
+        qty_c = lib.gncEntryGetQuantity(ptr)
+        pri_c = lib.gncEntryGetBillPrice(ptr)
+        qty   = qty_c.num / qty_c.denom if qty_c.denom else 0.0
+        price = pri_c.num / pri_c.denom if pri_c.denom else 0.0
+
+        taxable  = bool(lib.gncEntryGetBillTaxable(ptr))
+        tax_incl = bool(lib.gncEntryGetBillTaxIncluded(ptr))
+
+        acct_name = get_account_full_name(raw_entry.GetBillAccount())
+        date_str  = raw_entry.GetDate().strftime("%Y-%m-%d")
+
+        lines = [
+            '  entry:',
+            f'    date: {date_str}',
+            f'    description: "{desc}"',
+            f'    account: "{acct_name}"',
+            f'    quantity: {_fmt_quantity(qty)}',
+            f'    price: {_fmt_quantity(price)}',
+            f'    taxable: {"true" if taxable else "false"}',
+            f'    tax_included: {"true" if tax_incl else "false"}',
+        ]
+
+        tt_ptr = lib.gncEntryGetBillTaxTable(ptr)
+        if tt_ptr:
+            tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
+            if tt_name:
+                lines.append(f'    tax_table: "{tt_name}"')
+
+        return lines
+
     def _format_payment(self, txn) -> list:
         """Format one payment transaction as payment: lines."""
         pay_date = txn.GetDate().strftime("%Y-%m-%d")
@@ -343,7 +384,7 @@ class ExportBusinessObjectsUseCase:
             ]
 
             for raw_entry in inv.GetEntries():
-                lines += self._format_inv_entry(lib, raw_entry)
+                lines += self._format_bill_entry(lib, raw_entry)
 
             # posted block — always emitted; "none" sentinel when not posted
             posted_txn = inv.GetPostedTxn()

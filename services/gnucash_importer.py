@@ -652,14 +652,14 @@ class GnuCashImporter:
                 bill_acct = find_account(book.get_root_account(), bill_acct_name)
                 if bill_acct is None:
                     raise Exception(f'Account {bill_acct_name!r} not found when creating bill entry')
-                entry.SetInvAccount(bill_acct)
+                entry.SetBillAccount(bill_acct)
                 entry.SetQuantity(string_to_gnc_numeric_quantity(entry_directive.metadata['quantity']))
-                entry.SetInvPrice(string_to_gnc_numeric_quantity(entry_directive.metadata['price']))
-                entry.SetInvTaxable(entry_directive.metadata['taxable'] == 'true')
+                entry.SetBillPrice(string_to_gnc_numeric_quantity(entry_directive.metadata['price']))
+                entry.SetBillTaxable(entry_directive.metadata['taxable'] == 'true')
                 if 'tax_table' in entry_directive.metadata:
                     tt_ptr = gc.gncTaxTableLookupByName(book.instance, entry_directive.metadata['tax_table'])
                     if tt_ptr:
-                        entry.SetInvTaxTable(TaxTable(instance=tt_ptr))
+                        entry.SetBillTaxTable(TaxTable(instance=tt_ptr))
                 bill.AddEntry(entry)
                 entry.CommitEdit()
             elif entry_directive.type == DirectiveType.POSTED:
@@ -686,10 +686,26 @@ class GnuCashImporter:
                 if bank_account is None:
                     raise Exception(f'Bank account {bank_acct_name!r} not found when applying bill payment')
                 pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
-                amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
+                amount_str = entry_directive.metadata['amount']
                 memo = entry_directive.metadata['memo']
                 num = entry_directive.metadata.get('num', '')
-                bill.ApplyPayment(None, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
+                # AP and AR have opposite sign conventions, so bill payments
+                # require a negated amount:
+                #
+                #   Invoice posting: DR AR +N  →  lot starts at +N
+                #   Invoice payment: CR AR −N  →  ApplyPayment(+N) creates AR = −N ✓
+                #
+                #   Bill posting:    CR AP −N  →  lot starts at −N
+                #   Bill payment:    DR AP +N  →  ApplyPayment(+N) creates AP = −N ✗
+                #                                 (same sign as posting → new lot)
+                #                   ApplyPayment(−N) creates AP = +N ✓
+                #                                 (opposite sign → closes existing lot)
+                #
+                # Passing a positive amount for a bill puts the payment split in a
+                # brand-new lot instead of the bill's posted lot, making the exporter
+                # unable to find the payment via GetPostedLot().get_split_list().
+                neg_amount = string_to_gnc_numeric_quantity(f'-{amount_str}')
+                bill.ApplyPayment(None, bank_account, neg_amount, GncNumeric(1, 1), pay_date, memo, num)
 
         bill.CommitEdit()
         logging.debug(f"Created bill {directive.props['id']}")
