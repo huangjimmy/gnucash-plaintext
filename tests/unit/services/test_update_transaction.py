@@ -56,6 +56,57 @@ def _build_directive(date_str, tx_desc, splits, metadata=None):
     return tx_dir
 
 
+def _make_book():
+    """
+    Create a minimal CAD GnuCash book suitable for update_transaction tests.
+
+    Accounts created:
+      Assets:Bank:Checking  (BANK)
+      Expenses:Groceries    (EXPENSE)
+      Expenses:Dining       (EXPENSE)
+
+    Returns (session, book, path). Caller owns session.end() and path cleanup.
+    """
+    import gnucash
+    from gnucash import Account
+
+    fd, path = tempfile.mkstemp(suffix='.gnucash')
+    os.close(fd)
+    os.unlink(path)
+
+    session = _make_session(path)
+    book = session.book
+    root = book.get_root_account()
+    cad = book.get_table().lookup('CURRENCY', 'CAD')
+
+    def _acct(name, acct_type, parent):
+        a = Account(book)
+        a.SetName(name)
+        a.SetType(acct_type)
+        a.SetCommodity(cad)
+        parent.append_child(a)
+        return a
+
+    assets   = _acct('Assets',   gnucash.ACCT_TYPE_ASSET,   root)
+    bank     = _acct('Bank',     gnucash.ACCT_TYPE_BANK,    assets)
+    _acct('Checking',  gnucash.ACCT_TYPE_BANK,    bank)
+    expenses = _acct('Expenses', gnucash.ACCT_TYPE_EXPENSE, root)
+    _acct('Groceries', gnucash.ACCT_TYPE_EXPENSE, expenses)
+    _acct('Dining',    gnucash.ACCT_TYPE_EXPENSE, expenses)
+
+    return session, book, path
+
+
+def _get_tx(book, guid):
+    """Return the Transaction with the given GUID from *book*."""
+    from gnucash import Query, Transaction
+    q = Query()
+    q.search_for('Trans')
+    q.set_book(book)
+    txs = [Transaction(instance=t) for t in q.run()]
+    return next(t for t in txs if t.GetGUID().to_string() == guid)
+
+
 @pytest.fixture
 def gnucash_with_one_transaction():
     """
@@ -66,75 +117,16 @@ def gnucash_with_one_transaction():
 
     Yields (path, guid_string).
     """
-    fd, path = tempfile.mkstemp(suffix='.gnucash')
-    os.close(fd)
-    os.unlink(path)
+    from services.gnucash_importer import GnuCashImporter
 
+    session, book, path = _make_book()
     try:
-        import gnucash
-        from gnucash import Account, GncNumeric, Split, Transaction
-
-        session = _make_session(path)
-        book = session.book
-        root = book.get_root_account()
-        commod_table = book.get_table()
-        cad = commod_table.lookup('CURRENCY', 'CAD')
-
-        assets = Account(book)
-        assets.SetName('Assets')
-        assets.SetType(gnucash.ACCT_TYPE_ASSET)
-        assets.SetCommodity(cad)
-        root.append_child(assets)
-
-        bank = Account(book)
-        bank.SetName('Bank')
-        bank.SetType(gnucash.ACCT_TYPE_BANK)
-        bank.SetCommodity(cad)
-        assets.append_child(bank)
-
-        checking = Account(book)
-        checking.SetName('Checking')
-        checking.SetType(gnucash.ACCT_TYPE_BANK)
-        checking.SetCommodity(cad)
-        bank.append_child(checking)
-
-        expenses = Account(book)
-        expenses.SetName('Expenses')
-        expenses.SetType(gnucash.ACCT_TYPE_EXPENSE)
-        expenses.SetCommodity(cad)
-        root.append_child(expenses)
-
-        groceries = Account(book)
-        groceries.SetName('Groceries')
-        groceries.SetType(gnucash.ACCT_TYPE_EXPENSE)
-        groceries.SetCommodity(cad)
-        expenses.append_child(groceries)
-
-        dining = Account(book)
-        dining.SetName('Dining')
-        dining.SetType(gnucash.ACCT_TYPE_EXPENSE)
-        dining.SetCommodity(cad)
-        expenses.append_child(dining)
-
-        tx = Transaction(book)
-        tx.BeginEdit()
-        tx.SetCurrency(cad)
-        tx.SetDate(1, 3, 2024)
-        tx.SetDescription("Grocery shopping")
-
-        s1 = Split(book)
-        s1.SetParent(tx)
-        s1.SetAccount(groceries)
-        s1.SetValue(GncNumeric(5000, 100))
-
-        s2 = Split(book)
-        s2.SetParent(tx)
-        s2.SetAccount(checking)
-        s2.SetValue(GncNumeric(-5000, 100))
-
-        tx.CommitEdit()
-        guid = tx.GetGUID().to_string()
-
+        directive = _build_directive('2024-03-01', 'Grocery shopping', [
+            {'account': 'Expenses:Groceries',    'amount': '50.00'},
+            {'account': 'Assets:Bank:Checking',  'amount': '-50.00'},
+        ])
+        result = GnuCashImporter.create_transaction(directive, book)
+        guid = result.GetGUID().to_string()
         session.save()
         session.end()
 
@@ -537,75 +529,17 @@ def gnucash_with_meal_and_tip_transaction():
 
     Yields (path, guid_string).
     """
-    fd, path = tempfile.mkstemp(suffix='.gnucash')
-    os.close(fd)
-    os.unlink(path)
+    from services.gnucash_importer import GnuCashImporter
 
+    session, book, path = _make_book()
     try:
-        import gnucash
-        from gnucash import Account, GncNumeric, Split, Transaction
-
-        session = _make_session(path)
-        book = session.book
-        root = book.get_root_account()
-        commod_table = book.get_table()
-        cad = commod_table.lookup('CURRENCY', 'CAD')
-
-        assets = Account(book)
-        assets.SetName('Assets')
-        assets.SetType(gnucash.ACCT_TYPE_ASSET)
-        assets.SetCommodity(cad)
-        root.append_child(assets)
-
-        bank = Account(book)
-        bank.SetName('Bank')
-        bank.SetType(gnucash.ACCT_TYPE_BANK)
-        bank.SetCommodity(cad)
-        assets.append_child(bank)
-
-        checking = Account(book)
-        checking.SetName('Checking')
-        checking.SetType(gnucash.ACCT_TYPE_BANK)
-        checking.SetCommodity(cad)
-        bank.append_child(checking)
-
-        expenses = Account(book)
-        expenses.SetName('Expenses')
-        expenses.SetType(gnucash.ACCT_TYPE_EXPENSE)
-        expenses.SetCommodity(cad)
-        root.append_child(expenses)
-
-        dining = Account(book)
-        dining.SetName('Dining')
-        dining.SetType(gnucash.ACCT_TYPE_EXPENSE)
-        dining.SetCommodity(cad)
-        expenses.append_child(dining)
-
-        tx = Transaction(book)
-        tx.BeginEdit()
-        tx.SetCurrency(cad)
-        tx.SetDate(7, 3, 2024)
-        tx.SetDescription("Restaurant meal with tip")
-
-        # Two splits on the same Dining account
-        s_meal = Split(book)
-        s_meal.SetParent(tx)
-        s_meal.SetAccount(dining)
-        s_meal.SetValue(GncNumeric(3045, 100))
-
-        s_tip = Split(book)
-        s_tip.SetParent(tx)
-        s_tip.SetAccount(dining)
-        s_tip.SetValue(GncNumeric(500, 100))
-
-        s_checking = Split(book)
-        s_checking.SetParent(tx)
-        s_checking.SetAccount(checking)
-        s_checking.SetValue(GncNumeric(-3545, 100))
-
-        tx.CommitEdit()
-        guid = tx.GetGUID().to_string()
-
+        directive = _build_directive('2024-03-07', 'Restaurant meal with tip', [
+            {'account': 'Expenses:Dining',       'amount': '30.45'},
+            {'account': 'Expenses:Dining',       'amount': '5.00'},
+            {'account': 'Assets:Bank:Checking',  'amount': '-35.45'},
+        ])
+        result = GnuCashImporter.create_transaction(directive, book)
+        guid = result.GetGUID().to_string()
         session.save()
         session.end()
 
@@ -842,3 +776,277 @@ class TestUpdateTransactionErrorHandling:
         # Original description must be intact
         assert existing_tx.GetDescription() == 'Grocery shopping'
         session.end()
+
+    def test_invalid_account_leaves_split_count_intact(self, gnucash_with_one_transaction):
+        """
+        Rollback on ValueError must leave the split list unchanged.
+        The validation guard fires before any splits are touched, so both
+        count and account names must match the pre-update state.
+        """
+        from services.gnucash_importer import GnuCashImporter
+
+        path, guid = gnucash_with_one_transaction
+        session = _open_session(path)
+        book = session.book
+        existing_tx = _get_tx(book, guid)
+
+        pre_accounts = {s.GetAccount().GetName() for s in existing_tx.GetSplitList()}
+        pre_count = len(existing_tx.GetSplitList())
+
+        # One valid, one invalid — validation should reject before any mutation
+        directive = _build_directive('2024-03-01', 'Bad transaction', [
+            {'account': 'Expenses:Groceries',    'amount': '50.00'},
+            {'account': 'Expenses:DoesNotExist', 'amount': '-50.00'},
+        ])
+
+        with pytest.raises(ValueError, match="Account not found"):
+            GnuCashImporter.update_transaction(existing_tx, directive, book)
+
+        post_accounts = {s.GetAccount().GetName() for s in existing_tx.GetSplitList()}
+        post_count = len(existing_tx.GetSplitList())
+        assert post_count == pre_count, f"Split count changed: {pre_count} → {post_count}"
+        assert post_accounts == pre_accounts, f"Accounts changed: {pre_accounts} → {post_accounts}"
+        session.end()
+
+    def test_wrong_directive_type_raises(self, gnucash_with_one_transaction):
+        """update_transaction raises ValueError if passed a non-TRANSACTION directive."""
+        from services.gnucash_importer import GnuCashImporter
+        from services.plaintext_parser import DirectiveType, PlaintextDirective
+
+        path, guid = gnucash_with_one_transaction
+        session = _open_session(path)
+        book = session.book
+        existing_tx = _get_tx(book, guid)
+
+        bad_directive = PlaintextDirective(DirectiveType.SPLIT, level=0, line='')
+        bad_directive.props = {}
+        bad_directive.metadata = {}
+
+        with pytest.raises(ValueError, match="Expected TRANSACTION"):
+            GnuCashImporter.update_transaction(existing_tx, bad_directive, book)
+        session.end()
+
+
+# ---------------------------------------------------------------------------
+# Fixture: two accounts each with two splits
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def gnucash_with_multi_duplicate_accounts():
+    """
+    Temp GnuCash file with a transaction having two splits each for
+    Expenses:Dining AND Expenses:Groceries:
+
+      2024-04-10  Shopping and dining
+        Expenses:Dining      20.00 CAD
+        Expenses:Dining       4.00 CAD  (tip)
+        Expenses:Groceries   30.00 CAD
+        Expenses:Groceries    6.00 CAD  (tax)
+        Assets:Bank:Checking -60.00 CAD
+
+    Yields (path, guid_string).
+    """
+    from services.gnucash_importer import GnuCashImporter
+
+    session, book, path = _make_book()
+    try:
+        directive = _build_directive('2024-04-10', 'Shopping and dining', [
+            {'account': 'Expenses:Dining',      'amount': '20.00'},
+            {'account': 'Expenses:Dining',      'amount': '4.00'},
+            {'account': 'Expenses:Groceries',   'amount': '30.00'},
+            {'account': 'Expenses:Groceries',   'amount': '6.00'},
+            {'account': 'Assets:Bank:Checking', 'amount': '-60.00'},
+        ])
+        result = GnuCashImporter.create_transaction(directive, book)
+        guid = result.GetGUID().to_string()
+        session.save()
+        session.end()
+
+        yield path, guid
+
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+        lock = path + '.LCK'
+        if os.path.exists(lock):
+            os.unlink(lock)
+
+
+class TestUpdateTransactionDuplicateAccountSplitsExtra:
+    """Additional duplicate-account scenarios beyond the original regression tests."""
+
+    def test_two_splits_same_account_reduced_to_one(self, gnucash_with_meal_and_tip_transaction):
+        """
+        Reducing two same-account splits to one must destroy the surplus second split.
+        Tests the `existing_splits[len(split_directives):]` path with len == 1.
+        """
+        from services.gnucash_importer import GnuCashImporter
+
+        path, guid = gnucash_with_meal_and_tip_transaction
+        session = _open_session(path)
+        book = session.book
+        existing_tx = _get_tx(book, guid)
+
+        directive = _build_directive('2024-03-07', 'Restaurant meal', [
+            {'account': 'Expenses:Dining',      'amount': '35.45'},
+            {'account': 'Assets:Bank:Checking', 'amount': '-35.45'},
+        ])
+
+        GnuCashImporter.update_transaction(existing_tx, directive, book)
+        session.save()
+        session.end()
+
+        session2 = _open_session(path)
+        book2 = session2.book
+        updated = _get_tx(book2, guid)
+
+        dining_splits = [s for s in updated.GetSplitList() if s.GetAccount().GetName() == 'Dining']
+        assert len(dining_splits) == 1, f"Expected 1 Dining split, got {len(dining_splits)}"
+        assert dining_splits[0].GetValue().num() == 3545
+        assert [s for s in updated.GetSplitList() if 'Imbalance' in s.GetAccount().GetName()] == []
+        session2.end()
+
+    def test_per_split_memo_independent_on_duplicate_pair(self, gnucash_with_meal_and_tip_transaction):
+        """
+        Each split in a same-account pair must receive its own memo independently —
+        the first split's memo must not bleed into the second.
+        """
+        from services.gnucash_importer import GnuCashImporter
+
+        path, guid = gnucash_with_meal_and_tip_transaction
+        session = _open_session(path)
+        book = session.book
+        existing_tx = _get_tx(book, guid)
+
+        directive = _build_directive('2024-03-07', 'Restaurant meal with tip', [
+            {'account': 'Expenses:Dining',      'amount': '30.45', 'memo': 'meal'},
+            {'account': 'Expenses:Dining',      'amount': '5.00',  'memo': 'tip'},
+            {'account': 'Assets:Bank:Checking', 'amount': '-35.45'},
+        ])
+
+        GnuCashImporter.update_transaction(existing_tx, directive, book)
+        session.save()
+        session.end()
+
+        session2 = _open_session(path)
+        book2 = session2.book
+        updated = _get_tx(book2, guid)
+
+        # Sort by amount so we reliably identify meal vs tip
+        dining_splits = sorted(
+            [s for s in updated.GetSplitList() if s.GetAccount().GetName() == 'Dining'],
+            key=lambda s: s.GetValue().num(),
+        )
+        assert len(dining_splits) == 2
+        assert dining_splits[0].GetMemo() == 'tip',  f"tip split memo: {dining_splits[0].GetMemo()!r}"
+        assert dining_splits[1].GetMemo() == 'meal', f"meal split memo: {dining_splits[1].GetMemo()!r}"
+        session2.end()
+
+    def test_two_accounts_each_with_two_splits_all_updated(self, gnucash_with_multi_duplicate_accounts):
+        """
+        When multiple accounts each have duplicate splits, positional matching must
+        work independently per account — no cross-contamination between groups.
+        """
+        from services.gnucash_importer import GnuCashImporter
+
+        path, guid = gnucash_with_multi_duplicate_accounts
+        session = _open_session(path)
+        book = session.book
+        existing_tx = _get_tx(book, guid)
+
+        directive = _build_directive('2024-04-10', 'Shopping and dining', [
+            {'account': 'Expenses:Dining',      'amount': '25.00'},
+            {'account': 'Expenses:Dining',      'amount': '5.00'},
+            {'account': 'Expenses:Groceries',   'amount': '40.00'},
+            {'account': 'Expenses:Groceries',   'amount': '8.00'},
+            {'account': 'Assets:Bank:Checking', 'amount': '-78.00'},
+        ])
+
+        GnuCashImporter.update_transaction(existing_tx, directive, book)
+        session.save()
+        session.end()
+
+        session2 = _open_session(path)
+        book2 = session2.book
+        updated = _get_tx(book2, guid)
+
+        dining_amounts = sorted(
+            s.GetValue().num()
+            for s in updated.GetSplitList()
+            if s.GetAccount().GetName() == 'Dining'
+        )
+        groceries_amounts = sorted(
+            s.GetValue().num()
+            for s in updated.GetSplitList()
+            if s.GetAccount().GetName() == 'Groceries'
+        )
+        assert dining_amounts == [500, 2500], f"Dining amounts: {dining_amounts}"
+        assert groceries_amounts == [800, 4000], f"Groceries amounts: {groceries_amounts}"
+        assert [s for s in updated.GetSplitList() if 'Imbalance' in s.GetAccount().GetName()] == []
+        session2.end()
+
+    def test_explicit_value_metadata_applied_to_split(self, gnucash_with_one_transaction):
+        """
+        When a split directive carries a 'value' metadata key, update_transaction
+        must use it rather than copying props['amount'].
+        This exercises the `if 'value' in split_directive.metadata` branch.
+
+        In a single-currency split GnuCash normalises Amount = Value, so both
+        Checking and Groceries use the same currency (CAD). The bank split is set
+        to -55.00 to keep the transaction balanced after value overrides 50→55 on
+        the Groceries split.
+        """
+        from services.gnucash_importer import GnuCashImporter
+
+        path, guid = gnucash_with_one_transaction
+        session = _open_session(path)
+        book = session.book
+        existing_tx = _get_tx(book, guid)
+
+        directive = _build_directive('2024-03-01', 'Grocery shopping', [
+            {'account': 'Expenses:Groceries',   'amount': '50.00', 'value': '55.00'},
+            {'account': 'Assets:Bank:Checking', 'amount': '-55.00'},
+        ])
+
+        GnuCashImporter.update_transaction(existing_tx, directive, book)
+        session.save()
+        session.end()
+
+        session2 = _open_session(path)
+        book2 = session2.book
+        updated = _get_tx(book2, guid)
+
+        groceries_split = next(
+            s for s in updated.GetSplitList()
+            if s.GetAccount().GetName() == 'Groceries'
+        )
+        assert groceries_split.GetValue().num() == 5500, (
+            f"value should be 55.00 (5500/100), got {groceries_split.GetValue().num()}"
+        )
+        assert [s for s in updated.GetSplitList() if 'Imbalance' in s.GetAccount().GetName()] == []
+        session2.end()
+
+    def test_tx_num_updated(self, gnucash_with_one_transaction):
+        """update_transaction sets the transaction number when tx_num is non-None."""
+        from services.gnucash_importer import GnuCashImporter
+
+        path, guid = gnucash_with_one_transaction
+        session = _open_session(path)
+        book = session.book
+        existing_tx = _get_tx(book, guid)
+
+        directive = _build_directive('2024-03-01', 'Grocery shopping', [
+            {'account': 'Expenses:Groceries',   'amount': '50.00'},
+            {'account': 'Assets:Bank:Checking', 'amount': '-50.00'},
+        ])
+        directive.props['tx_num'] = '42'
+
+        GnuCashImporter.update_transaction(existing_tx, directive, book)
+        session.save()
+        session.end()
+
+        session2 = _open_session(path)
+        book2 = session2.book
+        updated = _get_tx(book2, guid)
+        assert updated.GetNum() == '42'
+        session2.end()
