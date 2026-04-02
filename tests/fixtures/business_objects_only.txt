@@ -2,6 +2,10 @@ customer "1"
   name: "Test Customer"
   currency: CAD
 
+vendor "V001"
+  name: "Test Vendor"
+  currency: CAD
+
 taxtable "GST"
   entry:
     account: "Liabilities:GST"
@@ -134,3 +138,120 @@ invoice "INV-2026-005"
     amount: 220
     bank_account: "Assets:Bank"
     memo: "Final payment for INV-2026-005"
+
+bill "BILL-2026-001"
+  vendor_id: "V001"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "Office Supplies"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+  posted:
+    date: 2026-01-01
+    due: 2026-01-31
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Bill BILL-2026-001"
+    accumulate: true
+  payment: none
+
+bill "BILL-2026-002"
+  vendor_id: "V001"
+  currency: CAD
+  date_opened: 2026-01-15
+  entry:
+    date: 2026-01-15
+    description: "IT Supplies"
+    account: "Expenses:Supplies"
+    quantity: 2
+    price: 75
+    taxable: true
+    tax_included: false
+  posted: none
+  payment: none
+
+bill "BILL-2026-003"
+  vendor_id: "V001"
+  currency: CAD
+  date_opened: 2026-01-20
+  entry:
+    date: 2026-01-20
+    description: "Monthly Subscription"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 200
+    taxable: true
+    tax_included: false
+  posted:
+    date: 2026-01-20
+    due: 2026-02-19
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Bill BILL-2026-003"
+    accumulate: true
+  payment:
+    date: 2026-01-25
+    amount: 200
+    bank_account: "Assets:Bank"
+    memo: "Payment for BILL-2026-003"
+
+bill "BILL-2026-004"
+  vendor_id: "V001"
+  currency: CAD
+  date_opened: 2026-02-01
+  entry:
+    date: 2026-02-01
+    description: "Equipment Purchase"
+    account: "Expenses:Supplies"
+    quantity: 3
+    price: 100
+    taxable: true
+    tax_included: false
+  posted:
+    date: 2026-02-01
+    due: 2026-03-03
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Bill BILL-2026-004"
+    accumulate: true
+  payment:
+    date: 2026-02-10
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Partial payment 1 for BILL-2026-004"
+  payment:
+    date: 2026-02-20
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Partial payment 2 for BILL-2026-004"
+
+bill "BILL-2026-005"
+  vendor_id: "V001"
+  currency: CAD
+  date_opened: 2026-02-05
+  entry:
+    date: 2026-02-05
+    description: "Annual License"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 400
+    taxable: true
+    tax_included: false
+  posted:
+    date: 2026-02-05
+    due: 2026-03-07
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Bill BILL-2026-005"
+    accumulate: true
+  payment:
+    date: 2026-02-15
+    amount: 200
+    bank_account: "Assets:Bank"
+    memo: "First payment for BILL-2026-005"
+  payment:
+    date: 2026-02-28
+    amount: 200
+    bank_account: "Assets:Bank"
+    memo: "Final payment for BILL-2026-005"

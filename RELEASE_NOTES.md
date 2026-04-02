@@ -1,5 +1,48 @@
 # Release Notes
 
+## v0.3.1 - Bill payment bug fixes and test coverage (2026-04-02)
+
+### Bug fixes
+
+#### Bills now round-trip payments correctly
+
+Three bugs in the bill import/export pipeline prevented vendor bill payments
+from round-tripping:
+
+1. **Importer used invoice-side Entry API for bills** — `import_bill` was
+   calling `SetInvAccount`, `SetInvPrice`, `SetInvTaxable` instead of the
+   bill-side equivalents (`SetBillAccount`, `SetBillPrice`, `SetBillTaxable`).
+   This caused the AP posting split to have amount $0 and payments to land in
+   the wrong GnuCash lot.
+
+2. **Payment amount sign was wrong** — `bill.ApplyPayment(amount=+N)` created
+   AP split = −N (wrong direction), so the payment split was placed in a new
+   lot instead of the bill's posted lot and was invisible to the exporter.
+   Fixed by passing a negated amount so GnuCash creates AP = +N (debit,
+   reduces liability) and bank = −N (credit, money sent out).
+
+3. **Exporter used invoice-side entry reader for bills** — `_export_bills` was
+   calling `_format_inv_entry`, which reads invoice-side fields
+   (`GetInvAccount`, `gncEntryGetInvPrice`). Added `_format_bill_entry` that
+   uses the correct bill-side ctypes functions.
+
+#### GnuCash behaviour: bill `taxable` field is always exported as `true`
+
+GnuCash 5.x does not write `entry:b-taxable = false` to the XML file — the
+field is omitted when false and defaulted to `true` on reload. Consequently,
+exported bills always show `taxable: true` regardless of what was imported.
+This is a GnuCash engine constraint, not a bug in this tool.
+
+### Test coverage
+
+Added dedicated bill state scenario tests in
+`tests/integration/test_business_objects.py` covering all five states:
+unposted, posted/unpaid, single full payment, two partial payments, and two
+payments totalling full amount. Also added three contradiction-error tests for
+bills (mirrors the existing invoice contradiction tests).
+
+---
+
 ## v0.3.0 - Business Objects (2026-03-14)
 
 ### What's new
@@ -14,7 +57,7 @@ gnucash-plaintext export mybook.gnucash ledger.txt --include-business-objects
 ```
 
 Supported objects: `customer`, `vendor`, `taxtable`, `invoice` (with entries
-and payments), `bill` (with entries).
+and payments), `bill` (with entries and payments — see v0.3.1 for bug fixes).
 
 Business objects use no date prefix in the plaintext format — they are master
 data, not ledger events. GnuCash does not store a creation timestamp for

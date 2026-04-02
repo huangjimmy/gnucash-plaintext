@@ -617,8 +617,16 @@ bill "BILL-2026-001"
     ap_account: "Liabilities:Accounts Payable"
     memo: "Bill BILL-2026-001"
     accumulate: true
-  payment: none
+  payment:
+    date: 2026-02-05
+    amount: 200
+    bank_account: "Assets:Bank"
+    memo: "Payment for BILL-2026-001"
 ```
+
+> **Note:** GnuCash does not persist `taxable: false` for bill entries — the
+> field is omitted in the XML file and defaults to `true` on reload. Exported
+> bills therefore always show `taxable: true` regardless of what was imported.
 
 **Invoice and bill status fields**
 
@@ -627,18 +635,18 @@ The `posted:` and `payment:` fields are always present in exported output.
 
 | `posted:` value | `payment:` value | Meaning |
 |---|---|---|
-| `none` | `none` | Invoice created but not yet posted to AR/AP |
-| data block | `none` | Posted, no payments received yet |
+| `none` | `none` | Invoice/bill created but not yet posted to AR/AP |
+| data block | `none` | Posted, no payments received/made yet |
 | data block | data block(s) | Posted with one or more payments applied |
 
-On **import**, `posted: none` and `payment: none` are no-ops — they produce the same result as omitting the field entirely. The following combinations are rejected with a clear error:
+On **import**, `posted: none` and `payment: none` are no-ops — they produce the same result as omitting the field entirely. The following combinations are rejected with a clear error (for both invoices and bills):
 
 - `posted: none` together with a `posted:` block (contradictory)
-- More than one `posted:` block (an invoice can only be posted once)
+- More than one `posted:` block (can only be posted once)
 - `payment: none` together with a `payment:` block (contradictory)
-- A `payment:` block on an invoice that has `posted: none` (cannot pay an unposted invoice)
+- A `payment:` block when `posted: none` (cannot pay an unposted invoice or bill)
 
-An invoice with **multiple partial payments** can have multiple `payment:` blocks — one per payment transaction:
+An invoice or bill with **multiple partial payments** can have multiple `payment:` blocks — one per payment transaction:
 
 ```
 invoice "INV-2026-004"

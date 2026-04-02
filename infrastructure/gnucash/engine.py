@@ -134,6 +134,10 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncEntryGetAction',
             'gncEntryGetQuantity',
             'gncEntryGetInvPrice',
+            'gncEntryGetBillPrice',
+            'gncEntryGetBillTaxable',
+            'gncEntryGetBillTaxIncluded',
+            'gncEntryGetBillTaxTable',
         ]
 
     missing = [f for f in required_functions if not hasattr(lib, f)]
@@ -187,6 +191,15 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncEntryGetInvTaxIncluded.argtypes     = [ctypes.c_void_p]
     lib.gncEntryGetInvTaxTable.restype         = ctypes.c_void_p
     lib.gncEntryGetInvTaxTable.argtypes        = [ctypes.c_void_p]
+    # ── Bill entry ───────────────────────────────────────────────────────────
+    lib.gncEntryGetBillPrice.restype           = GncNumericC
+    lib.gncEntryGetBillPrice.argtypes          = [ctypes.c_void_p]
+    lib.gncEntryGetBillTaxable.restype         = ctypes.c_int
+    lib.gncEntryGetBillTaxable.argtypes        = [ctypes.c_void_p]
+    lib.gncEntryGetBillTaxIncluded.restype     = ctypes.c_int
+    lib.gncEntryGetBillTaxIncluded.argtypes    = [ctypes.c_void_p]
+    lib.gncEntryGetBillTaxTable.restype        = ctypes.c_void_p
+    lib.gncEntryGetBillTaxTable.argtypes       = [ctypes.c_void_p]
 
 
 def load_gnc_engine() -> ctypes.CDLL:

@@ -284,7 +284,74 @@ Test on all supported distributions:
 - `safe_ctypes_string()`: Null-safe string decoding
 - `verify_ctypes_functions()`: Runtime validation of required functions
 
+## GnuCash Business Object Quirks — Hard-Won Findings
+
+Discovered 2026-04-02 while adding bill state tests.
+
+### 6. Bill Entry API vs Invoice Entry API
+
+GnuCash has **separate setter/getter functions** for invoice-side and
+bill-side entry fields. Using the wrong side produces silent data corruption:
+
+| Invoice side | Bill side |
+|---|---|
+| `entry.SetInvAccount(acct)` | `entry.SetBillAccount(acct)` |
+| `entry.SetInvPrice(price)` | `entry.SetBillPrice(price)` |
+| `entry.SetInvTaxable(bool)` | `entry.SetBillTaxable(bool)` |
+| `entry.SetInvTaxTable(tt)` | `entry.SetBillTaxTable(tt)` |
+| `gncEntryGetInvPrice(ptr)` | `gncEntryGetBillPrice(ptr)` |
+| `gncEntryGetInvTaxable(ptr)` | `gncEntryGetBillTaxable(ptr)` |
+
+Symptom of using the wrong side: AP posting split has amount $0, and
+payments land in a new lot instead of the bill's posted lot.
+
+### 7. Bill payment amount must be negated before calling `ApplyPayment`
+
+**Accounting reasoning** (why, not just what):
+
+Double-entry accounting has opposite sign conventions for AR (asset) and AP
+(liability) accounts:
+
+| Event | Invoice (AR) | Bill (AP) |
+|---|---|---|
+| Posting | DR AR +N (asset up) | CR AP −N (liability up) |
+| Payment | CR AR −N (asset down) | DR AP +N (liability down) |
+| Bank | DR Bank +N (receive) | CR Bank −N (send) |
+
+GnuCash lots close when splits sum to zero. The posting split and the payment
+split must have opposite signs:
+
+- Invoice lot: posting = +N, payment AR split = −N → sum = 0 ✓
+- Bill lot: posting = −N, payment AP split = +N → sum = 0 ✓
+
+`ApplyPayment(amount=+N)` produces bank = +N, AP/AR = −N — correct for
+invoices (receive money, reduce receivable) but **wrong for bills** (should
+send money, reduce payable). Passing −N flips both splits:
+
+```python
+# amount_str is the text from the fixture, e.g. "200"
+neg_amount = string_to_gnc_numeric_quantity(f'-{amount_str}')
+bill.ApplyPayment(None, bank_account, neg_amount, ...)
+# → AP split = +N  (debit AP, reduces liability, same lot as posting)
+# → Bank split = −N (credit bank, money sent out)
+```
+
+Symptom of using positive amount: payment AP split = −N (same sign as
+posting), so GnuCash puts it in a **new lot** instead of the bill's lot.
+`inv.GetPostedLot().get_split_list()` then returns only 1 split (the posting)
+and the exporter emits `payment: none` for a paid bill.
+
+### 8. GnuCash does not persist `bill_taxable = false` to XML
+
+GnuCash 5.x only writes `entry:b-taxable` to the XML file when the value is
+`true`. When `false`, the field is omitted and defaults to `true` on reload.
+Consequently, all bill entries always read as `taxable = true` after a
+save/reload cycle, regardless of what `SetBillTaxable(False)` was called with.
+
+**Impact on round-trip tests**: the reference fixture must use `taxable: true`
+for all bill entries. Do NOT compare against `taxable: false` in bill export.
+
 ---
 
-**Last Updated**: 2026-03-15
+**Last Updated**: 2026-04-02
 **Current Phase**: Phase 8 (Business Objects)
