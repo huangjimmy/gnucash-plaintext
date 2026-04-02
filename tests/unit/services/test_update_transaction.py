@@ -524,6 +524,296 @@ class TestUpdateTransactionMetadata:
         session2.end()
 
 
+@pytest.fixture
+def gnucash_with_meal_and_tip_transaction():
+    """
+    Temp GnuCash file with one CAD transaction that has two splits for the same
+    Dining account (meal + tip):
+
+      2024-03-07  Restaurant meal with tip
+        Expenses:Dining  30.45 CAD  (meal)
+        Expenses:Dining   5.00 CAD  (tip)
+        Assets:Bank:Checking  -35.45 CAD
+
+    Yields (path, guid_string).
+    """
+    fd, path = tempfile.mkstemp(suffix='.gnucash')
+    os.close(fd)
+    os.unlink(path)
+
+    try:
+        import gnucash
+        from gnucash import Account, GncNumeric, Split, Transaction
+
+        session = _make_session(path)
+        book = session.book
+        root = book.get_root_account()
+        commod_table = book.get_table()
+        cad = commod_table.lookup('CURRENCY', 'CAD')
+
+        assets = Account(book)
+        assets.SetName('Assets')
+        assets.SetType(gnucash.ACCT_TYPE_ASSET)
+        assets.SetCommodity(cad)
+        root.append_child(assets)
+
+        bank = Account(book)
+        bank.SetName('Bank')
+        bank.SetType(gnucash.ACCT_TYPE_BANK)
+        bank.SetCommodity(cad)
+        assets.append_child(bank)
+
+        checking = Account(book)
+        checking.SetName('Checking')
+        checking.SetType(gnucash.ACCT_TYPE_BANK)
+        checking.SetCommodity(cad)
+        bank.append_child(checking)
+
+        expenses = Account(book)
+        expenses.SetName('Expenses')
+        expenses.SetType(gnucash.ACCT_TYPE_EXPENSE)
+        expenses.SetCommodity(cad)
+        root.append_child(expenses)
+
+        dining = Account(book)
+        dining.SetName('Dining')
+        dining.SetType(gnucash.ACCT_TYPE_EXPENSE)
+        dining.SetCommodity(cad)
+        expenses.append_child(dining)
+
+        tx = Transaction(book)
+        tx.BeginEdit()
+        tx.SetCurrency(cad)
+        tx.SetDate(7, 3, 2024)
+        tx.SetDescription("Restaurant meal with tip")
+
+        # Two splits on the same Dining account
+        s_meal = Split(book)
+        s_meal.SetParent(tx)
+        s_meal.SetAccount(dining)
+        s_meal.SetValue(GncNumeric(3045, 100))
+
+        s_tip = Split(book)
+        s_tip.SetParent(tx)
+        s_tip.SetAccount(dining)
+        s_tip.SetValue(GncNumeric(500, 100))
+
+        s_checking = Split(book)
+        s_checking.SetParent(tx)
+        s_checking.SetAccount(checking)
+        s_checking.SetValue(GncNumeric(-3545, 100))
+
+        tx.CommitEdit()
+        guid = tx.GetGUID().to_string()
+
+        session.save()
+        session.end()
+
+        yield path, guid
+
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+        lock = path + '.LCK'
+        if os.path.exists(lock):
+            os.unlink(lock)
+
+
+class TestUpdateTransactionDuplicateAccountSplits:
+    """Tests for update_transaction when multiple splits share the same account."""
+
+    def test_two_splits_same_account_both_amounts_updated(self, gnucash_with_meal_and_tip_transaction):
+        """
+        Regression: updating a transaction with two splits for the same account
+        must update both splits — not silently drop one and create an imbalance.
+        """
+        from gnucash import Query, Transaction
+
+        from services.gnucash_importer import GnuCashImporter
+
+        path, guid = gnucash_with_meal_and_tip_transaction
+        session = _open_session(path)
+        book = session.book
+
+        q = Query()
+        q.search_for('Trans')
+        q.set_book(book)
+        txs = [Transaction(instance=t) for t in q.run()]
+        existing_tx = next(t for t in txs if t.GetGUID().to_string() == guid)
+
+        directive = _build_directive('2024-03-07', 'Restaurant meal with tip', [
+            {'account': 'Expenses:Dining', 'amount': '40.00'},
+            {'account': 'Expenses:Dining', 'amount': '8.00'},
+            {'account': 'Assets:Bank:Checking', 'amount': '-48.00'},
+        ])
+
+        GnuCashImporter.update_transaction(existing_tx, directive, book)
+        session.save()
+        session.end()
+
+        session2 = _open_session(path)
+        book2 = session2.book
+        q2 = Query()
+        q2.search_for('Trans')
+        q2.set_book(book2)
+        txs2 = [Transaction(instance=t) for t in q2.run()]
+        updated = next(t for t in txs2 if t.GetGUID().to_string() == guid)
+
+        dining_splits = [
+            s for s in updated.GetSplitList()
+            if s.GetAccount().GetName() == 'Dining'
+        ]
+        assert len(dining_splits) == 2, (
+            f"Expected 2 Dining splits, got {len(dining_splits)}"
+        )
+
+        dining_amounts = sorted(s.GetValue().num() for s in dining_splits)
+        assert dining_amounts == [800, 4000], (
+            f"Expected Dining splits of 8.00 and 40.00, got {dining_amounts}"
+        )
+
+        account_names = [s.GetAccount().GetName() for s in updated.GetSplitList()]
+        imbalance_splits = [n for n in account_names if 'Imbalance' in n or 'imbalance' in n]
+        assert imbalance_splits == [], f"Unexpected imbalance splits: {imbalance_splits}"
+
+        session2.end()
+
+    def test_update_from_one_to_two_splits_same_account(self, gnucash_with_one_transaction):
+        """
+        Regression: updating from a single dining split to two dining splits
+        (adding a tip) must create both splits without imbalance.
+        """
+        from gnucash import Query, Transaction
+
+        from services.gnucash_importer import GnuCashImporter
+
+        path, guid = gnucash_with_one_transaction
+        session = _open_session(path)
+        book = session.book
+
+        q = Query()
+        q.search_for('Trans')
+        q.set_book(book)
+        txs = [Transaction(instance=t) for t in q.run()]
+        existing_tx = next(t for t in txs if t.GetGUID().to_string() == guid)
+
+        directive = _build_directive('2024-03-01', 'Grocery shopping', [
+            {'account': 'Expenses:Dining', 'amount': '45.00'},
+            {'account': 'Expenses:Dining', 'amount': '5.00'},
+            {'account': 'Assets:Bank:Checking', 'amount': '-50.00'},
+        ])
+
+        GnuCashImporter.update_transaction(existing_tx, directive, book)
+        session.save()
+        session.end()
+
+        session2 = _open_session(path)
+        book2 = session2.book
+        q2 = Query()
+        q2.search_for('Trans')
+        q2.set_book(book2)
+        txs2 = [Transaction(instance=t) for t in q2.run()]
+        updated = next(t for t in txs2 if t.GetGUID().to_string() == guid)
+
+        dining_splits = [
+            s for s in updated.GetSplitList()
+            if s.GetAccount().GetName() == 'Dining'
+        ]
+        assert len(dining_splits) == 2, (
+            f"Expected 2 Dining splits after update, got {len(dining_splits)}"
+        )
+
+        dining_amounts = sorted(s.GetValue().num() for s in dining_splits)
+        assert dining_amounts == [500, 4500], (
+            f"Expected Dining 45.00 and 5.00, got {dining_amounts}"
+        )
+
+        account_names = [s.GetAccount().GetName() for s in updated.GetSplitList()]
+        imbalance_splits = [n for n in account_names if 'Imbalance' in n or 'imbalance' in n]
+        assert imbalance_splits == [], f"Unexpected imbalance splits: {imbalance_splits}"
+
+        session2.end()
+
+    def test_three_splits_same_account_reduced_to_two(self, gnucash_with_meal_and_tip_transaction):
+        """
+        Regression: when directive has fewer splits for an account than currently
+        exist, the excess existing splits must be destroyed (not left as orphans).
+        Here we add a third Dining split to the fixture then update with only two.
+        """
+        import gnucash as gnc
+        from gnucash import GncNumeric, Query, Split, Transaction
+
+        from services.gnucash_importer import GnuCashImporter
+
+        path, guid = gnucash_with_meal_and_tip_transaction
+
+        # Add a third Dining split so the transaction has 3
+        session = _open_session(path)
+        book = session.book
+        q = Query()
+        q.search_for('Trans')
+        q.set_book(book)
+        txs = [Transaction(instance=t) for t in q.run()]
+        existing_tx = next(t for t in txs if t.GetGUID().to_string() == guid)
+
+        from infrastructure.gnucash.utils import find_account
+        dining = find_account(book.get_root_account(), 'Expenses:Dining')
+        existing_tx.BeginEdit()
+        extra = Split(book)
+        extra.SetParent(existing_tx)
+        extra.SetAccount(dining)
+        extra.SetValue(GncNumeric(200, 100))
+        existing_tx.CommitEdit()
+        session.save()
+        session.end()
+
+        import time
+        time.sleep(1)
+
+        # Now update with only 2 Dining splits — the third must be destroyed
+        session2 = _open_session(path)
+        book2 = session2.book
+        q2 = Query()
+        q2.search_for('Trans')
+        q2.set_book(book2)
+        txs2 = [Transaction(instance=t) for t in q2.run()]
+        existing_tx2 = next(t for t in txs2 if t.GetGUID().to_string() == guid)
+
+        directive = _build_directive('2024-03-07', 'Restaurant meal with tip', [
+            {'account': 'Expenses:Dining', 'amount': '30.45'},
+            {'account': 'Expenses:Dining', 'amount': '5.00'},
+            {'account': 'Assets:Bank:Checking', 'amount': '-35.45'},
+        ])
+
+        GnuCashImporter.update_transaction(existing_tx2, directive, book2)
+        session2.save()
+        session2.end()
+
+        time.sleep(1)
+
+        session3 = _open_session(path)
+        book3 = session3.book
+        q3 = Query()
+        q3.search_for('Trans')
+        q3.set_book(book3)
+        txs3 = [Transaction(instance=t) for t in q3.run()]
+        updated = next(t for t in txs3 if t.GetGUID().to_string() == guid)
+
+        dining_splits = [
+            s for s in updated.GetSplitList()
+            if s.GetAccount().GetName() == 'Dining'
+        ]
+        assert len(dining_splits) == 2, (
+            f"Expected 2 Dining splits after removing excess, got {len(dining_splits)}"
+        )
+
+        account_names = [s.GetAccount().GetName() for s in updated.GetSplitList()]
+        imbalance_splits = [n for n in account_names if 'Imbalance' in n or 'imbalance' in n]
+        assert imbalance_splits == [], f"Unexpected imbalance splits: {imbalance_splits}"
+
+        session3.end()
+
+
 class TestUpdateTransactionErrorHandling:
     def test_invalid_account_raises_and_does_not_corrupt(self, gnucash_with_one_transaction):
         """update_transaction raises ValueError for unknown account and leaves transaction intact."""

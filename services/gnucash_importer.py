@@ -322,8 +322,10 @@ class GnuCashImporter:
         full-name. Splits for accounts absent from the directive are removed; splits
         for new accounts are created.
 
-        Note: When two splits in the directive share the same account (rare but valid),
-        the last directive entry for that account wins — consistent with create_transaction.
+        Note: When two splits in the directive share the same account (e.g. meal + tip
+        both on Expenses:Dining), all of them are applied positionally — each directive
+        entry is matched to the corresponding existing split at the same index for that
+        account. Extra existing splits are removed; extra desired splits are created.
 
         Args:
             existing_tx: GnuCash Transaction object to update
@@ -382,15 +384,18 @@ class GnuCashImporter:
 
             tx_currency = existing_tx.GetCurrency()
 
-            # Build account-name → split maps for existing and desired splits
-            existing_splits_by_account = {}
+            # Build account-name → [splits] map for existing splits.
+            # Using lists preserves multiple splits that share the same account
+            # (e.g. meal + tip both posted to Expenses:Dining).
+            existing_splits_by_account: dict[str, list] = {}
             for split in existing_tx.GetSplitList():
                 acct_name = get_account_full_name(split.GetAccount())
-                existing_splits_by_account[acct_name] = split
+                existing_splits_by_account.setdefault(acct_name, []).append(split)
 
-            desired_by_account = {}
+            # Build account-name → [directives] map for desired splits.
+            desired_by_account: dict[str, list] = {}
             for child in directive.children:
-                desired_by_account[child.props['account']] = child
+                desired_by_account.setdefault(child.props['account'], []).append(child)
 
             # Validate all desired accounts exist before making any changes
             for acct_name in desired_by_account:
@@ -398,54 +403,63 @@ class GnuCashImporter:
                     raise ValueError(f"Account not found: {acct_name}")
 
             # Remove splits for accounts no longer in the directive
-            for acct_name, split in list(existing_splits_by_account.items()):
+            for acct_name, splits in list(existing_splits_by_account.items()):
                 if acct_name not in desired_by_account:
-                    split.Destroy()
+                    for split in splits:
+                        split.Destroy()
 
-            # Update existing splits or create new ones
-            for acct_name, split_directive in desired_by_account.items():
+            # Update existing splits or create new ones, matched positionally
+            # within each account group.
+            for acct_name, split_directives in desired_by_account.items():
                 split_account = find_account(root_account, acct_name)
                 split_account_currency = split_account.GetCommodity()
-                amount = string_to_gnc_numeric(split_directive.props['amount'], split_account_currency)
+                existing_splits = existing_splits_by_account.get(acct_name, [])
 
-                if 'value' in split_directive.metadata:
-                    value = string_to_gnc_numeric(split_directive.metadata['value'], tx_currency)
-                else:
-                    value = amount
+                # Destroy excess existing splits when directive has fewer
+                for surplus in existing_splits[len(split_directives):]:
+                    surplus.Destroy()
 
-                if acct_name in existing_splits_by_account:
-                    split = existing_splits_by_account[acct_name]
-                else:
-                    split = Split(book)
-                    split.SetParent(existing_tx)
-                    split.SetAccount(split_account)
+                for i, split_directive in enumerate(split_directives):
+                    amount = string_to_gnc_numeric(split_directive.props['amount'], split_account_currency)
 
-                split.SetAmount(amount)
-                split.SetValue(value)
+                    if 'value' in split_directive.metadata:
+                        value = string_to_gnc_numeric(split_directive.metadata['value'], tx_currency)
+                    else:
+                        value = amount
 
-                if 'share_price' in split_directive.metadata:
-                    share_price = string_to_gnc_numeric(split_directive.metadata['share_price'], tx_currency)
-                    split.SetSharePrice(share_price)
+                    if i < len(existing_splits):
+                        split = existing_splits[i]
+                    else:
+                        split = Split(book)
+                        split.SetParent(existing_tx)
+                        split.SetAccount(split_account)
 
-                if 'action' in split_directive.metadata:
-                    action = split_directive.metadata['action']
-                    if action is not None:
-                        split.SetAction(action)
+                    split.SetAmount(amount)
+                    split.SetValue(value)
 
-                if 'memo' in split_directive.metadata:
-                    memo = split_directive.metadata['memo']
-                    if memo is not None:
-                        split.SetMemo(memo)
+                    if 'share_price' in split_directive.metadata:
+                        share_price = string_to_gnc_numeric(split_directive.metadata['share_price'], tx_currency)
+                        split.SetSharePrice(share_price)
 
-                # Update split-level custom metadata (merge: new values win)
-                custom_split_meta = {
-                    k: v for k, v in split_directive.metadata.items()
-                    if k not in KNOWN_SPLIT_METADATA_KEYS and v is not None
-                }
-                if custom_split_meta:
-                    existing_split_custom = get_custom_metadata(split)
-                    existing_split_custom.update(custom_split_meta)
-                    set_custom_metadata(split, existing_split_custom)
+                    if 'action' in split_directive.metadata:
+                        action = split_directive.metadata['action']
+                        if action is not None:
+                            split.SetAction(action)
+
+                    if 'memo' in split_directive.metadata:
+                        memo = split_directive.metadata['memo']
+                        if memo is not None:
+                            split.SetMemo(memo)
+
+                    # Update split-level custom metadata (merge: new values win)
+                    custom_split_meta = {
+                        k: v for k, v in split_directive.metadata.items()
+                        if k not in KNOWN_SPLIT_METADATA_KEYS and v is not None
+                    }
+                    if custom_split_meta:
+                        existing_split_custom = get_custom_metadata(split)
+                        existing_split_custom.update(custom_split_meta)
+                        set_custom_metadata(split, existing_split_custom)
 
             existing_tx.CommitEdit()
             logging.debug(f"Updated transaction on {date_str}")
