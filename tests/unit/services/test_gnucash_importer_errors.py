@@ -871,3 +871,150 @@ class TestImportFromFileUnknownAccount:
             assert result.error_count == 0
         finally:
             os.unlink(plaintext)
+
+
+# ---------------------------------------------------------------------------
+# create_commodity — idempotency and already-exists path
+# ---------------------------------------------------------------------------
+
+class TestCreateCommodity:
+    def _commodity_directive(self, mnemonic='XTEST', namespace='CURRENCY',
+                              fullname='Test Commodity', fraction=100):
+        from services.plaintext_parser import DirectiveType, PlaintextDirective
+        d = PlaintextDirective(DirectiveType.CREATE_COMMODITY, 0, '')
+        d.props = {'symbol': mnemonic, 'date': '2024-01-01'}
+        d.metadata = {
+            'mnemonic': mnemonic,
+            'fullname': fullname,
+            'namespace': namespace,
+            'fraction': str(fraction),
+        }
+        return d
+
+    def test_create_commodity_inserts_into_table(self):
+        from services.gnucash_importer import GnuCashImporter
+
+        session, book, path = _make_book()
+        try:
+            directive = self._commodity_directive()
+            GnuCashImporter.create_commodity(directive, book)
+            table = book.get_table()
+            result = table.lookup('CURRENCY', 'XTEST')
+            assert result is not None
+        finally:
+            session.end()
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_create_commodity_already_exists_does_not_raise(self):
+        """Calling create_commodity twice for the same symbol must not raise."""
+        from services.gnucash_importer import GnuCashImporter
+
+        session, book, path = _make_book()
+        try:
+            directive = self._commodity_directive()
+            GnuCashImporter.create_commodity(directive, book)
+            # Second call — commodity already exists
+            GnuCashImporter.create_commodity(directive, book)
+            # Still exactly one entry
+            table = book.get_table()
+            result = table.lookup('CURRENCY', 'XTEST')
+            assert result is not None
+        finally:
+            session.end()
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_create_commodity_wrong_type_raises(self):
+        from services.gnucash_importer import GnuCashImporter
+        from services.plaintext_parser import DirectiveType, PlaintextDirective
+
+        session, book, path = _make_book()
+        try:
+            bad = PlaintextDirective(DirectiveType.TRANSACTION, 0, '')
+            bad.props = {}
+            bad.metadata = {}
+            with pytest.raises(ValueError, match="Expected CREATE_COMMODITY"):
+                GnuCashImporter.create_commodity(bad, book)
+        finally:
+            session.end()
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# create_account — idempotency and error paths
+# ---------------------------------------------------------------------------
+
+class TestCreateAccount:
+    def _account_directive(self, fullname, acct_type='Bank',
+                            namespace='CURRENCY', mnemonic='CAD'):
+        from services.plaintext_parser import DirectiveType, PlaintextDirective
+        d = PlaintextDirective(DirectiveType.OPEN_ACCOUNT, 0, '')
+        d.props = {'account': fullname, 'date': '2024-01-01'}
+        d.metadata = {
+            'type': acct_type,
+            'commodity.namespace': namespace,
+            'commodity.mnemonic': mnemonic,
+        }
+        return d
+
+    def test_create_account_creates_new(self):
+        from infrastructure.gnucash.utils import find_account
+        from services.gnucash_importer import GnuCashImporter
+
+        session, book, path = _make_book()
+        try:
+            directive = self._account_directive('Assets:Bank:Savings')
+            GnuCashImporter.create_account(directive, book)
+            root = book.get_root_account()
+            assert find_account(root, 'Assets:Bank:Savings') is not None
+        finally:
+            session.end()
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_create_account_idempotent(self):
+        """Calling create_account twice for the same name must not raise."""
+        from services.gnucash_importer import GnuCashImporter
+
+        session, book, path = _make_book()
+        try:
+            directive = self._account_directive('Assets:Bank:Savings')
+            GnuCashImporter.create_account(directive, book)
+            GnuCashImporter.create_account(directive, book)  # second call — no error
+        finally:
+            session.end()
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_create_account_unknown_parent_raises(self):
+        from services.gnucash_importer import GnuCashImporter
+
+        session, book, path = _make_book()
+        try:
+            # Parent "NoParent" does not exist
+            directive = self._account_directive('NoParent:NewAccount')
+            with pytest.raises(Exception, match="NoParent"):
+                GnuCashImporter.create_account(directive, book)
+        finally:
+            session.end()
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_create_account_unknown_commodity_raises(self):
+        from services.gnucash_importer import GnuCashImporter
+
+        session, book, path = _make_book()
+        try:
+            directive = self._account_directive(
+                'Assets:Bank:Savings',
+                namespace='CURRENCY',
+                mnemonic='NOTACURRENCY',
+            )
+            with pytest.raises(Exception, match="NOTACURRENCY"):
+                GnuCashImporter.create_account(directive, book)
+        finally:
+            session.end()
+            if os.path.exists(path):
+                os.unlink(path)

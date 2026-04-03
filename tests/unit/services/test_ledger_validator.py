@@ -549,3 +549,161 @@ class TestReportFormatting:
 
         # Should indicate no issues
         assert "no issues" in report.lower()
+
+
+# ---------------------------------------------------------------------------
+# Additional branch coverage
+# ---------------------------------------------------------------------------
+
+class TestValidateTransactionEdgeCases:
+
+    def test_empty_splits_produces_no_splits_error(self, temp_gnucash_with_transactions):
+        """validate_transaction() on a transaction with no splits must produce NO_SPLITS error."""
+        from gnucash import GncNumeric, Session, Split, Transaction
+
+        from services.ledger_validator import LedgerValidator
+
+        try:
+            from gnucash import SessionOpenMode
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              SessionOpenMode.SESSION_NORMAL_OPEN)
+        except ImportError:
+            session = Session(f'xml://{temp_gnucash_with_transactions}')
+
+        try:
+            book = session.book
+            cad = book.get_table().lookup('CURRENCY', 'CAD')
+
+            # Create a transaction with no splits
+            tx = Transaction(book)
+            tx.BeginEdit()
+            tx.SetCurrency(cad)
+            tx.SetDate(15, 6, 2024)
+            tx.SetDescription("Empty splits transaction")
+            tx.CommitEdit()
+
+            validator = LedgerValidator()
+            result = validator.validate_transaction(tx)
+            error_codes = [e.code for e in result.errors]
+            assert 'NO_SPLITS' in error_codes
+        finally:
+            session.end()
+
+
+class TestCheckTransactionDateOrderEdgeCases:
+
+    def test_single_transaction_no_error(self, temp_gnucash_with_transactions):
+        """check_transaction_date_order() with only 1 transaction returns no errors."""
+        from gnucash import Query, Session, Transaction
+
+        from services.ledger_validator import LedgerValidator
+
+        try:
+            from gnucash import SessionOpenMode
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              SessionOpenMode.SESSION_NORMAL_OPEN)
+        except ImportError:
+            session = Session(f'xml://{temp_gnucash_with_transactions}')
+
+        try:
+            book = session.book
+            q = Query()
+            q.search_for('Trans')
+            q.set_book(book)
+            txs = [Transaction(instance=t) for t in q.run()][:1]  # only first
+
+            validator = LedgerValidator()
+            result = validator.check_transaction_date_order(txs)
+            assert result.errors == []
+            assert result.info == []
+        finally:
+            session.end()
+
+    def test_empty_list_no_error(self):
+        """check_transaction_date_order() with empty list returns clean result."""
+        from services.ledger_validator import LedgerValidator
+
+        validator = LedgerValidator()
+        result = validator.check_transaction_date_order([])
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.info == []
+
+
+class TestCheckFutureTransactions:
+
+    def test_explicit_reference_date_past_transaction_no_flag(self, temp_gnucash_with_transactions):
+        """
+        When reference_date is set far in the future, no transaction should be flagged.
+        This exercises the explicit reference_date parameter branch.
+        """
+        from gnucash import Query, Session, Transaction
+
+        from services.ledger_validator import LedgerValidator
+
+        try:
+            from gnucash import SessionOpenMode
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              SessionOpenMode.SESSION_NORMAL_OPEN)
+        except ImportError:
+            session = Session(f'xml://{temp_gnucash_with_transactions}')
+
+        try:
+            book = session.book
+            q = Query()
+            q.search_for('Trans')
+            q.set_book(book)
+            txs = [Transaction(instance=t) for t in q.run()]
+
+            validator = LedgerValidator()
+            # All test transactions are in 2024; reference_date = 2030 → none are future
+            result = validator.check_future_transactions(txs, reference_date=datetime(2030, 1, 1))
+            assert result.info == []
+        finally:
+            session.end()
+
+    def test_explicit_reference_date_flags_future_transaction(self, temp_gnucash_with_transactions):
+        """
+        When reference_date is set before the transactions, they should all be flagged.
+        """
+        from gnucash import Query, Session, Transaction
+
+        from services.ledger_validator import LedgerValidator
+
+        try:
+            from gnucash import SessionOpenMode
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              SessionOpenMode.SESSION_NORMAL_OPEN)
+        except ImportError:
+            session = Session(f'xml://{temp_gnucash_with_transactions}')
+
+        try:
+            book = session.book
+            q = Query()
+            q.search_for('Trans')
+            q.set_book(book)
+            txs = [Transaction(instance=t) for t in q.run()]
+
+            validator = LedgerValidator()
+            # All test transactions are in 2024; reference_date = 2020 → all are future
+            result = validator.check_future_transactions(txs, reference_date=datetime(2020, 1, 1))
+            future_codes = [i.code for i in result.info]
+            assert all(c == 'FUTURE_DATE' for c in future_codes)
+            assert len(result.info) == len(txs)
+        finally:
+            session.end()
+
+
+class TestFormatValidationReportEdgeCases:
+
+    def test_empty_result_clean_output(self):
+        """format_validation_report() with no errors/warnings produces clean summary."""
+        from services.ledger_validator import LedgerValidator, ValidationResult
+
+        validator = LedgerValidator()
+        result = ValidationResult()
+        report = validator.format_validation_report(result)
+        assert "VALIDATION REPORT" in report
+        # No error/warning sections
+        assert "ERRORS:" not in report
+        assert "WARNINGS:" not in report
