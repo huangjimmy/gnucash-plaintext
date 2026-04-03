@@ -590,6 +590,53 @@ class TestValidateTransactionEdgeCases:
             session.end()
 
 
+    def test_is_transaction_balanced_false_for_partial_splits(self, temp_gnucash_with_transactions):
+        """_is_transaction_balanced() returns False when only a subset of splits is passed.
+
+        GnuCash auto-adds an 'Imbalance' split when a transaction is committed with a
+        non-zero net, so we cannot create a persisted unbalanced transaction through the
+        normal API.  Instead, we take a real balanced transaction and test the internal
+        method with only the first split — a known non-zero value — which must be unbalanced.
+
+        This is the regression test for the numerator-only implementation:
+            total_num += value.num()   (no denominator division)
+        GnuCash normalizes all splits in one transaction to the same denominator, so
+        summing numerators is mathematically equivalent.  The test confirms that the
+        check correctly detects an imbalanced subset and would flag a real imbalanced
+        transaction if one were loadable.
+        """
+        from gnucash import Query, Session, Transaction
+
+        from services.ledger_validator import LedgerValidator
+
+        try:
+            from gnucash import SessionOpenMode
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              SessionOpenMode.SESSION_NORMAL_OPEN)
+        except ImportError:
+            session = Session(f'xml://{temp_gnucash_with_transactions}')
+
+        try:
+            book = session.book
+            q = Query()
+            q.search_for('Trans')
+            q.set_book(book)
+            tx = Transaction(instance=q.run()[0])
+
+            splits = tx.GetSplitList()
+            assert len(splits) >= 2, "Fixture must have a multi-split transaction"
+
+            validator = LedgerValidator()
+            # Full split list → balanced
+            assert validator._is_transaction_balanced(splits) is True
+            # First split alone → non-zero value → unbalanced
+            assert validator._is_transaction_balanced(splits[:1]) is False, (
+                "_is_transaction_balanced should return False for a single-split subset"
+            )
+        finally:
+            session.end()
+
+
 class TestCheckTransactionDateOrderEdgeCases:
 
     def test_single_transaction_no_error(self, temp_gnucash_with_transactions):
