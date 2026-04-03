@@ -389,3 +389,92 @@ class TestFiscalYearStart:
         from use_cases.generate_income_statement import fiscal_year_start
         # 2024-02-29 → one year ago = 2023-02-28 (fallback) → +1 day = 2023-03-01
         assert fiscal_year_start(date(2024, 2, 29)) == date(2023, 3, 1)
+
+
+# ---------------------------------------------------------------------------
+# TestGetBalanceInRange — additional branch coverage
+# ---------------------------------------------------------------------------
+
+class TestGetBalanceInRangeEdgeCases:
+
+    def test_account_with_no_splits_returns_zero(self, temp_gnucash_for_close_books):
+        """An account that exists but has zero splits returns Fraction(0)."""
+        from fractions import Fraction
+
+        from infrastructure.gnucash.utils import find_account
+        from services.income_statement import IncomeStatementService
+
+        session = _open_read_only(temp_gnucash_for_close_books)
+        try:
+            root = session.book.get_root_account()
+            # Income:Salary is a placeholder parent — it has no direct splits
+            acc = find_account(root, "Income:Salary")
+            svc = IncomeStatementService()
+            bal = svc.get_balance_in_range(acc, date(2024, 1, 1), date(2024, 12, 31))
+            assert bal == Fraction(0)
+        finally:
+            session.end()
+
+    def test_transaction_on_start_boundary_included(self, temp_gnucash_for_close_books):
+        """The start_date boundary is inclusive (start_date <= tx_date)."""
+        from fractions import Fraction
+
+        from infrastructure.gnucash.utils import find_account
+        from services.income_statement import IncomeStatementService
+
+        session = _open_read_only(temp_gnucash_for_close_books)
+        try:
+            root = session.book.get_root_account()
+            acc = find_account(root, "Income:Salary:Base")
+            svc = IncomeStatementService()
+            # Jan 31 salary: balance exactly on the boundary
+            bal_with = svc.get_balance_in_range(acc, date(2024, 1, 31), date(2024, 1, 31))
+            bal_after = svc.get_balance_in_range(acc, date(2024, 2, 1), date(2024, 2, 27))
+            assert bal_with != Fraction(0), "transaction on start date should be included"
+            assert bal_after == Fraction(0), "range Feb 1-27 excludes both Jan 31 and Feb 28 salaries"
+        finally:
+            session.end()
+
+    def test_transaction_on_end_boundary_included(self, temp_gnucash_for_close_books):
+        """The end_date boundary is inclusive (tx_date <= end_date)."""
+        from fractions import Fraction
+
+        from infrastructure.gnucash.utils import find_account
+        from services.income_statement import IncomeStatementService
+
+        session = _open_read_only(temp_gnucash_for_close_books)
+        try:
+            root = session.book.get_root_account()
+            acc = find_account(root, "Income:Salary:Base")
+            svc = IncomeStatementService()
+            # Jan 31 salary: should be included when end=Jan 31
+            bal_with = svc.get_balance_in_range(acc, date(2024, 1, 1), date(2024, 1, 31))
+            bal_before = svc.get_balance_in_range(acc, date(2024, 1, 1), date(2024, 1, 30))
+            assert bal_with != Fraction(0), "transaction on end date should be included"
+            assert bal_before == Fraction(0), "range ending before transaction should be empty"
+        finally:
+            session.end()
+
+
+# ---------------------------------------------------------------------------
+# TestComputeEdgeCases
+# ---------------------------------------------------------------------------
+
+class TestComputeEdgeCases:
+
+    def test_compute_empty_period_returns_empty_sections(self, temp_gnucash_for_close_books):
+        """When no transactions fall in the period, both sections are empty."""
+        from fractions import Fraction
+
+        from services.income_statement import IncomeStatementService
+
+        session = _open_read_only(temp_gnucash_for_close_books)
+        try:
+            root = session.book.get_root_account()
+            svc = IncomeStatementService()
+            result = svc.compute(root, date(2020, 1, 1), date(2020, 12, 31))
+            assert result.income.lines == []
+            assert result.expenses.lines == []
+            assert result.net_currency_totals == {}
+        finally:
+            session.end()

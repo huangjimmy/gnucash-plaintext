@@ -647,3 +647,110 @@ class TestConflictResolver:
 
         finally:
             session.end()
+
+
+# ---------------------------------------------------------------------------
+# Additional branch coverage
+# ---------------------------------------------------------------------------
+
+class TestResolveEdgeCases:
+
+    def test_resolve_empty_conflicts_returns_empty_lists(self):
+        """resolve() with no conflicts must return ([], []) without crash."""
+        from services.conflict_resolver import ConflictResolver, ResolutionStrategy
+
+        resolver = ConflictResolver()
+        to_import, unresolved = resolver.resolve([], strategy=ResolutionStrategy.SKIP)
+        assert to_import == []
+        assert unresolved == []
+
+    def test_resolve_empty_keep_existing_returns_empty(self):
+        from services.conflict_resolver import ConflictResolver, ResolutionStrategy
+
+        resolver = ConflictResolver()
+        to_import, unresolved = resolver.resolve([], strategy=ResolutionStrategy.KEEP_EXISTING)
+        assert to_import == []
+        assert unresolved == []
+
+    def test_resolve_empty_keep_incoming_returns_empty(self):
+        from services.conflict_resolver import ConflictResolver, ResolutionStrategy
+
+        resolver = ConflictResolver()
+        to_import, unresolved = resolver.resolve([], strategy=ResolutionStrategy.KEEP_INCOMING)
+        assert to_import == []
+        assert unresolved == []
+
+
+class TestAmountsDifferEdgeCases:
+
+    def _make_split_dict(self, account, num, denom=100):
+        return {'account': account, 'value_num': num, 'value_denom': denom}
+
+    def test_amounts_differ_different_split_counts(self, temp_gnucash_with_transactions):
+        """amounts_differ() returns True when split counts differ."""
+        from gnucash import Query, Session, Transaction
+
+        from services.conflict_resolver import ConflictInfo
+
+        try:
+            from gnucash import SessionOpenMode
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              SessionOpenMode.SESSION_NORMAL_OPEN)
+        except ImportError:
+            session = Session(f'xml://{temp_gnucash_with_transactions}')
+
+        try:
+            book = session.book
+            q = Query()
+            q.search_for('Trans')
+            q.set_book(book)
+            txs = [Transaction(instance=t) for t in q.run()]
+            tx = txs[0]
+
+            info = ConflictInfo(tx, tx)
+            # Manually inject differing split lists to test the count path
+            info.existing_splits = [
+                self._make_split_dict('Expenses:Groceries', 5000),
+                self._make_split_dict('Assets:Bank:Checking', -5000),
+            ]
+            info.incoming_splits = [
+                self._make_split_dict('Expenses:Groceries', 5000),
+            ]
+            assert info.amounts_differ() is True
+        finally:
+            session.end()
+
+    def test_amounts_differ_same_splits_returns_false(self, temp_gnucash_with_transactions):
+        """amounts_differ() returns False when splits are identical."""
+        from gnucash import Query, Session, Transaction
+
+        from services.conflict_resolver import ConflictInfo
+
+        try:
+            from gnucash import SessionOpenMode
+            session = Session(f'xml://{temp_gnucash_with_transactions}',
+                              SessionOpenMode.SESSION_NORMAL_OPEN)
+        except ImportError:
+            session = Session(f'xml://{temp_gnucash_with_transactions}')
+
+        try:
+            book = session.book
+            q = Query()
+            q.search_for('Trans')
+            q.set_book(book)
+            txs = [Transaction(instance=t) for t in q.run()]
+            tx = txs[0]
+
+            info = ConflictInfo(tx, tx)
+            # Two separate lists with the same values — tests structural equality
+            info.existing_splits = [
+                self._make_split_dict('Expenses:Groceries', 5000),
+                self._make_split_dict('Assets:Bank:Checking', -5000),
+            ]
+            info.incoming_splits = [
+                self._make_split_dict('Expenses:Groceries', 5000),
+                self._make_split_dict('Assets:Bank:Checking', -5000),
+            ]
+            assert info.amounts_differ() is False
+        finally:
+            session.end()
