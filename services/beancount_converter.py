@@ -49,19 +49,8 @@ class BeancountConverter:
         need_append_top_level_prefix = not any(account_name.startswith(f'{prefix}:') or account_name == prefix
             for prefix in top_level_accounts)
 
-        def determine_prefix():
-            """Determine correct top-level prefix based on account type"""
-            # Note: Legacy code checks account_name == 'A/Payable' (not account_type)
-            # This is a quirk but we match it for parity
-            if account_type == 'Credit Card' or account_name == 'A/Payable':
-                return 'Liabilities'
-            if account_type in ['Stock', 'Cash', 'Mutual Fund', 'Bank', 'A/Receivable']:
-                return 'Assets'
-            # Check if account_type starts with one of the top-level names
-            for a in top_level_accounts:
-                if a.startswith(account_type):
-                    return a
-            return None
+        # Capture original name before translation — determine_prefix checks it
+        original_account_name = account_name
 
         # Replace special characters with dashes
         # Keep colons for hierarchy, replace everything else
@@ -69,11 +58,23 @@ class BeancountConverter:
         translation_table = str.maketrans(dict.fromkeys(custom_punctuation + ' ', '-'))
         account_name = account_name.translate(translation_table)
 
+        def determine_prefix():
+            """Determine correct top-level prefix based on account type"""
+            if account_type == 'Credit Card' or original_account_name == 'A/Payable':
+                return 'Liabilities'
+            if account_type in ['Stock', 'Cash', 'Mutual Fund', 'Bank', 'A/Receivable']:
+                return 'Assets'
+            if account_type == 'Liability':
+                return 'Liabilities'
+            # Check if account_type starts with one of the top-level names
+            for a in top_level_accounts:
+                if a.startswith(account_type):
+                    return a
+            return None
+
         # Add top-level prefix if needed
         if need_append_top_level_prefix:
             prefix = determine_prefix()
-            # Legacy code adds prefix even if None (becomes "None:...")
-            # This is a quirk but we match it for parity
             account_name = f'{prefix}:{account_name}'
 
         # Capitalize each component (words separated by :)

@@ -79,30 +79,13 @@ class TestConvertAccountName:
         result = BeancountConverter.convert_account_name('OpeningBalance', 'Equity')
         assert result.startswith('Equity:')
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Bug: 'Liability' type falls through determine_prefix() because "
-            "'Liabilities'.startswith('Liability') is False — 'i' vs 'y' at char 8. "
-            "Currently produces 'None:Loan'. Remove this marker when fixed."
-        ),
-    )
     def test_liability_type_gets_liabilities_prefix(self):
         from services.beancount_converter import BeancountConverter
         result = BeancountConverter.convert_account_name('Loan', 'Liability')
         assert result.startswith('Liabilities:')
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Bug: determine_prefix() checks 'account_name == A/Payable' but the "
-            "special-char translation runs first, replacing '/' with '-', so the "
-            "check always sees 'A-Payable' and never matches. "
-            "Currently produces 'Assets:A-Payable'. Remove this marker when fixed."
-        ),
-    )
     def test_a_payable_account_name_gets_liabilities_prefix(self):
-        """'A/Payable' as the account name should trigger Liabilities regardless of type."""
+        """'A/Payable' as the account name triggers Liabilities regardless of type."""
         from services.beancount_converter import BeancountConverter
         result = BeancountConverter.convert_account_name('A/Payable', 'Asset')
         assert result.startswith('Liabilities:')
