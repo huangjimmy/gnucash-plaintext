@@ -193,6 +193,44 @@ class ExportTransactionsUseCase:
         # Join lines and add trailing newline to match legacy format
         return '\n'.join(lines) + '\n' if lines else ''
 
+    def execute_accounts_only(self) -> ExportResult:
+        """
+        Export all accounts and their commodities without loading any transactions.
+
+        Much faster than execute() for account-structure-only exports since it
+        never touches the transaction log.
+
+        The open date for each declaration is determined at format time by
+        format_accounts_only(as_of_date=...).  This method only populates the
+        account and commodity lists — it carries no date information.
+
+        Returns:
+            ExportResult with all accounts and commodities; no transactions.
+        """
+        result = ExportResult()
+        for account in self.repository.get_all_accounts():
+            commodity = account.GetCommodity()
+            if commodity is None:
+                continue
+            ticker = get_commodity_ticker(commodity)
+            if ticker not in result.commodity_seen:
+                result.commodity_seen.add(ticker)
+                result.commodities.append((commodity, None))
+            account_guid = account.GetGUID().to_string()
+            if account_guid not in result.account_seen:
+                result.account_seen.add(account_guid)
+                result.accounts.append((account, None))
+        return result
+
+    def format_accounts_only(self, result: ExportResult, as_of_date: Optional[str] = None) -> str:
+        """Format commodities and accounts using as_of_date (or file mtime) for open dates."""
+        lines = []
+        for commodity, transaction in result.commodities:
+            self._format_commodity(commodity, transaction, lines, date_override=as_of_date)
+        for account, transaction in result.accounts:
+            self._format_account(account, transaction, lines, date_override=as_of_date)
+        return '\n'.join(lines) + '\n' if lines else ''
+
     def format_accounts_section(self, result: ExportResult) -> str:
         """Format only commodities and accounts (no transactions)."""
         lines = []
@@ -227,14 +265,16 @@ class ExportTransactionsUseCase:
         mtime = os.path.getmtime(self.repository.file_path)
         return datetime.date.fromtimestamp(mtime).strftime("%Y-%m-%d")
 
-    def _format_commodity(self, commodity, transaction, lines: list):
+    def _format_commodity(self, commodity, transaction, lines: list, date_override: Optional[str] = None):
         """Format commodity declaration"""
         mnemonic = commodity.get_mnemonic()
         namespace = commodity.get_namespace()
         fraction = commodity.get_fraction()
         fullname = commodity.get_fullname()
 
-        if transaction is not None:
+        if date_override is not None:
+            date_str = date_override
+        elif transaction is not None:
             date_str = transaction.GetDate().strftime("%Y-%m-%d")
         else:
             date_str = self._file_date_str()
@@ -246,7 +286,7 @@ class ExportTransactionsUseCase:
         lines.append(f'\tnamespace: {encode_value_as_string(namespace)}')
         lines.append(f'\tfraction: {fraction}')
 
-    def _format_account(self, account, transaction, lines: list):
+    def _format_account(self, account, transaction, lines: list, date_override: Optional[str] = None):
         """Format account declaration"""
         commodity = account.GetCommodity()
         if commodity is None:
@@ -257,7 +297,9 @@ class ExportTransactionsUseCase:
         fraction = commodity.get_fraction()
         commodity_scu = account.GetCommoditySCU()
 
-        if transaction is not None:
+        if date_override is not None:
+            date_str = date_override
+        elif transaction is not None:
             date_str = transaction.GetDate().strftime("%Y-%m-%d")
         else:
             date_str = self._file_date_str()
