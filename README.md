@@ -338,6 +338,24 @@ gnucash-plaintext export mybook.gnucash transactions.txt \
   --account "Assets:Bank"
 ```
 
+### Export account structure only
+
+Export all accounts and commodities without loading any transactions.
+Useful when you need the chart of accounts for reference or bootstrapping
+another tool, and don't want to wait for a full transaction scan:
+
+```bash
+gnucash-plaintext export-accounts mybook.gnucash accounts.txt
+```
+
+By default the open date on each account/commodity declaration is taken from
+the GnuCash file's modification time. Supply `--as-of` to use a specific date
+instead:
+
+```bash
+gnucash-plaintext export-accounts mybook.gnucash accounts.txt --as-of 2024-01-01
+```
+
 ### Export transactions by GUID
 
 Export one or more transactions to plaintext (useful for AI-assisted editing or review):

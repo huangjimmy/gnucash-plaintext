@@ -1,5 +1,28 @@
 # Release Notes
 
+## v0.3.2 - export-accounts command (2026-04-08)
+
+### What's new
+
+#### Export account structure without loading transactions
+
+A new `export-accounts` command exports all accounts and commodities directly
+from the book without scanning the transaction log. This is significantly
+faster on large files when only the chart of accounts is needed.
+
+```bash
+gnucash-plaintext export-accounts mybook.gnucash accounts.txt
+```
+
+Use `--as-of` to stamp a specific date on every `open`/`commodity`
+declaration (defaults to the file modification date):
+
+```bash
+gnucash-plaintext export-accounts mybook.gnucash accounts.txt --as-of 2024-01-01
+```
+
+---
+
 ## v0.3.1 - Bill payment bug fixes and test coverage (2026-04-02)
 
 ### Bug fixes
