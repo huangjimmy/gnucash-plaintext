@@ -7,6 +7,7 @@ with all metadata required for round-trip import.
 
 import datetime
 import os
+from fractions import Fraction
 from typing import Optional, Sequence
 
 from gnucash import Transaction
@@ -29,6 +30,34 @@ from infrastructure.gnucash.utils import (
 from repositories.gnucash_repository import GnuCashRepository
 
 
+def _format_fraction_as_decimal(f: Fraction, decimal_places: int) -> str:
+    """
+    Format a Fraction as a fixed-point decimal string.
+
+    GnuCash amounts always use power-of-10 denominators (100 for CAD, 1 for
+    JPY, etc.), so multiplying by 10**decimal_places always yields an exact
+    integer — no rounding is needed.
+
+    Args:
+        f: Fraction value to format
+        decimal_places: Number of digits after the decimal point (0 for JPY, 2
+            for CAD/USD, etc.)
+
+    Returns:
+        Formatted string, e.g. "1234.56", "-0.50", "12345"
+    """
+    if decimal_places == 0:
+        return str(int(f))
+    scale = 10 ** decimal_places
+    scaled_int = int(f * scale)
+    sign = '-' if scaled_int < 0 else ''
+    abs_str = str(abs(scaled_int))
+    if len(abs_str) > decimal_places:
+        return sign + abs_str[:-decimal_places] + '.' + abs_str[-decimal_places:]
+    else:
+        return sign + '0.' + '0' * (decimal_places - len(abs_str)) + abs_str
+
+
 class ExportResult:
     """Container for export data"""
     def __init__(self):
@@ -37,6 +66,9 @@ class ExportResult:
         self.transactions = [] # List of transactions
         self.commodity_seen = set()
         self.account_seen = set()
+        # Running balance data: tx_guid -> {account_guid -> Fraction}
+        # Populated by execute(with_balance=True); empty dict means no balances.
+        self.account_balances_after_tx: dict = {}
 
 
 class ExportTransactionsUseCase:
@@ -56,7 +88,8 @@ class ExportTransactionsUseCase:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         account_filter: Optional[str] = None,
-        all_accounts: bool = False
+        all_accounts: bool = False,
+        with_balance: bool = False,
     ) -> ExportResult:
         """
         Export transactions with ALL commodities and accounts.
@@ -71,12 +104,18 @@ class ExportTransactionsUseCase:
             end_date: Optional end date for filtering TRANSACTIONS only
             account_filter: Optional account path for filtering TRANSACTIONS only
             all_accounts: If True, export ALL accounts regardless of transactions
+            with_balance: If True, compute running per-account balances so that
+                format_as_plaintext() can emit a ``balance:`` line on every
+                split.  Balances are calculated over ALL transactions (not just
+                the filtered subset) so the values are always correct even when
+                a date or account filter is in effect.
 
         Returns:
             ExportResult with:
             - ALL commodities (not filtered, or all from accounts if all_accounts=True)
             - ALL accounts (not filtered, or all from repository if all_accounts=True)
             - Filtered transactions (by date/account if specified)
+            - account_balances_after_tx populated when with_balance=True
         """
         # Get ALL transactions first (we'll filter them later)
         all_transactions = self.repository.get_all_transactions()
@@ -132,6 +171,52 @@ class ExportTransactionsUseCase:
         # Only include the filtered transactions in the result
         result.transactions = transactions
 
+        # Pre-compute running balances across ALL transactions when requested so
+        # that filtered exports still show correct cumulative account balances.
+        if with_balance:
+            result.account_balances_after_tx = self._compute_running_balances(
+                all_transactions
+            )
+
+        return result
+
+    def _compute_running_balances(self, all_transactions_sorted: list) -> dict:
+        """
+        Compute the per-account running balance after each transaction.
+
+        Iterates every transaction in chronological order (caller must pre-sort)
+        and accumulates split amounts using exact Fraction arithmetic.  The
+        result is a mapping from tx_guid to a nested dict of
+        {account_guid -> Fraction} holding the account balance *after* that
+        transaction has been applied.
+
+        Only accounts that appear in a given transaction are stored for that
+        transaction; the caller looks up the balance for (tx_guid, account_guid)
+        at format time.
+
+        Args:
+            all_transactions_sorted: All transactions, already sorted by date.
+
+        Returns:
+            dict mapping tx_guid (str) -> dict[account_guid (str) -> Fraction]
+        """
+        running: dict = {}   # account_guid -> Fraction (cumulative)
+        result: dict = {}    # tx_guid -> {account_guid -> Fraction}
+
+        for tx in all_transactions_sorted:
+            tx_guid = tx.GetGUID().to_string()
+            tx_accounts: set = set()
+
+            for split in tx.GetSplitList():
+                account = split.GetAccount()
+                account_guid = account.GetGUID().to_string()
+                amount = split.GetAmount()
+                delta = Fraction(int(amount.num()), int(amount.denom()))
+                running[account_guid] = running.get(account_guid, Fraction(0)) + delta
+                tx_accounts.add(account_guid)
+
+            result[tx_guid] = {guid: running[guid] for guid in tx_accounts}
+
         return result
 
     def _collect_transaction_data(self, transaction, result: ExportResult):
@@ -170,6 +255,11 @@ class ExportTransactionsUseCase:
         """
         Format export result as plaintext string with full legacy format.
 
+        When result.account_balances_after_tx is non-empty (i.e. execute() was
+        called with with_balance=True), each split line will be followed by a
+        ``balance:`` metadata line showing the cumulative account balance after
+        that transaction, expressed in the account's own commodity.
+
         Args:
             result: ExportResult with commodities, accounts, and transactions
 
@@ -188,7 +278,9 @@ class ExportTransactionsUseCase:
 
         # Output transactions
         for transaction in result.transactions:
-            self._format_transaction(transaction, lines)
+            tx_guid = transaction.GetGUID().to_string()
+            balance_map = result.account_balances_after_tx.get(tx_guid)
+            self._format_transaction(transaction, lines, balance_map=balance_map)
 
         # Join lines and add trailing newline to match legacy format
         return '\n'.join(lines) + '\n' if lines else ''
@@ -244,7 +336,9 @@ class ExportTransactionsUseCase:
         """Format only transactions (no commodities or accounts)."""
         lines = []
         for transaction in result.transactions:
-            self._format_transaction(transaction, lines)
+            tx_guid = transaction.GetGUID().to_string()
+            balance_map = result.account_balances_after_tx.get(tx_guid)
+            self._format_transaction(transaction, lines, balance_map=balance_map)
         return '\n'.join(lines) + '\n' if lines else ''
 
     def format_transaction_list(self, transactions: list) -> str:
@@ -334,8 +428,22 @@ class ExportTransactionsUseCase:
         if commodity_scu != fraction:
             lines.append(f'\tcommodity_scu: {encode_value_as_string(commodity_scu)}')
 
-    def _format_transaction(self, transaction, lines: list):
-        """Format transaction with all metadata"""
+    def _format_transaction(
+        self,
+        transaction,
+        lines: list,
+        balance_map: Optional[dict] = None,
+    ):
+        """
+        Format transaction with all metadata.
+
+        Args:
+            transaction: GnuCash Transaction object
+            lines: Output lines list to append to
+            balance_map: Optional {account_guid -> Fraction} of running balances
+                after this transaction.  When provided, each split gets a
+                ``balance:`` metadata line.
+        """
         tx_guid = transaction.GetGUID()
         tx_splits = transaction.GetSplitList()
         date_str = transaction.GetDate().strftime("%Y-%m-%d")
@@ -388,10 +496,35 @@ class ExportTransactionsUseCase:
 
         # Splits
         for split in tx_splits:
-            self._format_split(split, tx_currency_namespace, tx_currency_symbol, lines)
+            balance: Optional[Fraction] = None
+            if balance_map is not None:
+                account_guid = split.GetAccount().GetGUID().to_string()
+                balance = balance_map.get(account_guid)
+            self._format_split(
+                split, tx_currency_namespace, tx_currency_symbol, lines,
+                balance=balance,
+            )
 
-    def _format_split(self, split, tx_currency_namespace, tx_currency_symbol, lines: list):
-        """Format split with all metadata"""
+    def _format_split(
+        self,
+        split,
+        tx_currency_namespace,
+        tx_currency_symbol,
+        lines: list,
+        balance: Optional[Fraction] = None,
+    ):
+        """
+        Format split with all metadata.
+
+        Args:
+            split: GnuCash Split object
+            tx_currency_namespace: Transaction currency namespace
+            tx_currency_symbol: Transaction currency mnemonic
+            lines: Output lines list to append to
+            balance: Optional running balance (Fraction) of this account after
+                the parent transaction.  When provided, a ``balance:`` metadata
+                line is emitted as the last item of the split's metadata block.
+        """
         split_account = split.GetAccount()
         split_currency = split_account.GetCommodity()
         split_currency_namespace = split_currency.get_namespace()
@@ -438,6 +571,14 @@ class ExportTransactionsUseCase:
         custom_split_meta = get_custom_metadata(split)
         for key, value in sorted(custom_split_meta.items()):
             lines.append(f'\t\t{key}: {encode_value_as_string(value)}')
+
+        # Running balance — emitted last so it reads as a post-transaction annotation
+        if balance is not None:
+            fraction = split_currency.get_fraction()
+            decimal_places = len(str(fraction)) - 1
+            balance_str = _format_fraction_as_decimal(balance, decimal_places)
+            balance_ticker = get_commodity_ticker(split_currency)
+            lines.append(f'\t\tbalance: "{balance_str} {balance_ticker}"')
 
     def execute_by_guids(self, guids: Sequence[str]) -> ExportResult:
         """
@@ -501,7 +642,8 @@ class ExportTransactionsUseCase:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         account_filter: Optional[str] = None,
-        all_accounts: bool = False
+        all_accounts: bool = False,
+        with_balance: bool = False,
     ) -> int:
         """
         Export transactions to file.
@@ -512,11 +654,15 @@ class ExportTransactionsUseCase:
             end_date: Optional end date
             account_filter: Optional account filter
             all_accounts: If True, export all accounts even without transactions
+            with_balance: If True, include running account balance per split
 
         Returns:
             Number of transactions exported
         """
-        result = self.execute(start_date, end_date, account_filter, all_accounts)
+        result = self.execute(
+            start_date, end_date, account_filter, all_accounts,
+            with_balance=with_balance,
+        )
         plaintext = self.format_as_plaintext(result)
 
         with open(output_path, 'w') as f:

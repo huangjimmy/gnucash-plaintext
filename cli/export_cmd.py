@@ -21,7 +21,9 @@ from use_cases.export_transactions import ExportTransactionsUseCase
 @click.option('--account', '-a', help='Filter by account path')
 @click.option('--all-accounts', 'all_accounts', is_flag=True, help='Export all accounts even if they have no transactions')
 @click.option('--include-business-objects', is_flag=True, help='Include business objects (customers, invoices, etc.)')
-def export_transactions(gnucash_file, output_file, input_file, output_path, start_date, end_date, account, all_accounts, include_business_objects):
+@click.option('--with-balance', 'with_balance', is_flag=True,
+              help='Append running account balance after each split (useful for bank reconciliation)')
+def export_transactions(gnucash_file, output_file, input_file, output_path, start_date, end_date, account, all_accounts, include_business_objects, with_balance):
     """
     Export transactions from GnuCash file to plaintext format.
 
@@ -44,6 +46,8 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
         gnucash-plaintext export mybook.gnucash transactions.txt --start-date 2024-01-01
 
         gnucash-plaintext export -i mybook.gnucash -o transactions.txt --account "Expenses:Groceries"
+
+        gnucash-plaintext export mybook.gnucash transactions.txt --with-balance
     """
     # Support both positional and flag-based arguments
     gnucash_file = input_file or gnucash_file
@@ -78,7 +82,8 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
                 start_date=start_date,
                 end_date=end_date,
                 account_filter=account,
-                all_accounts=all_accounts
+                all_accounts=all_accounts,
+                with_balance=with_balance,
             )
             count = len(result.transactions)
 
