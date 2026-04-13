@@ -94,9 +94,11 @@ run_test() {
     echo "[$version] Starting tests..." > "$log_file"
 
     if docker run --rm \
+        --user "$(id -u):$(id -g)" \
+        -e HOME=/tmp/home \
         -v "$workspace:/workspace" \
         gnucash-dev:$version \
-        sh -c "cd /workspace && python3 -m pip install -e '.[dev]' -q --break-system-packages && pytest tests/ -v --tb=short" \
+        sh -c "mkdir -p /tmp/home/.local && cd /workspace && python3 -m pip install -e '.[dev]' -q --break-system-packages --user && PATH=/tmp/home/.local/bin:\$PATH pytest tests/ -v --tb=short" \
         >> "$log_file" 2>&1; then
         echo "[$version] ✓ PASSED" >> "$log_file"
         return 0

@@ -273,3 +273,81 @@ class TestExportCLI:
         finally:
             if os.path.exists(output_path):
                 os.unlink(output_path)
+
+    def test_export_with_balance_flag_adds_balance_lines(self, temp_gnucash_with_transactions):
+        """--with-balance flag causes each split to include a balance: line"""
+        runner = CliRunner()
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            output_path = f.name
+
+        try:
+            result = runner.invoke(export_transactions, [
+                temp_gnucash_with_transactions,
+                output_path,
+                '--with-balance',
+            ])
+
+            assert result.exit_code == 0, result.output
+            assert "Exported 3 transaction(s)" in result.output
+
+            with open(output_path) as f:
+                content = f.read()
+
+            assert 'balance:' in content
+
+        finally:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+    def test_export_without_balance_flag_has_no_balance_lines(self, temp_gnucash_with_transactions):
+        """Without --with-balance, no balance: lines appear in the output"""
+        runner = CliRunner()
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            output_path = f.name
+
+        try:
+            result = runner.invoke(export_transactions, [
+                temp_gnucash_with_transactions,
+                output_path,
+            ])
+
+            assert result.exit_code == 0
+            with open(output_path) as f:
+                content = f.read()
+            assert 'balance:' not in content
+
+        finally:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+    def test_export_with_balance_and_date_filter(self, temp_gnucash_with_transactions):
+        """--with-balance with a date filter shows correct cumulative balance"""
+        runner = CliRunner()
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            output_path = f.name
+
+        try:
+            result = runner.invoke(export_transactions, [
+                temp_gnucash_with_transactions,
+                output_path,
+                '--with-balance',
+                '--start-date', '2024-01-25',
+                '--end-date', '2024-01-25',
+            ])
+
+            assert result.exit_code == 0
+            assert "Exported 1 transaction(s)" in result.output
+
+            with open(output_path) as f:
+                content = f.read()
+
+            # Checking balance after all 3 transactions = -125.00 CAD, not just -45.00
+            assert '"-125.00 CAD"' in content
+            assert 'balance:' in content
+
+        finally:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
