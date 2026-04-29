@@ -3,8 +3,7 @@
 Known issues, gaps, and planned enhancements identified by code review.
 Each file follows the naming convention `<category>-<NNN>-<slug>.md`.
 
-When a GitHub Issue is opened for one of these, add `github: #NNN` to its
-frontmatter. When the fix is merged, set `status: closed`.
+When a fix is merged, update `status: open` → `closed` in the file's frontmatter.
 
 ## Tests
 
