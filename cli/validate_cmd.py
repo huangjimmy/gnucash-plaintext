@@ -67,7 +67,7 @@ def validate_ledger(gnucash_file, input_file, report, quick, stats):
                     click.echo("✓ Ledger is valid (no errors)")
                 else:
                     click.echo("✗ Ledger has errors", err=True)
-                    raise click.Abort()
+                    raise SystemExit(1)
 
             elif stats:
                 # Show statistics
@@ -118,11 +118,10 @@ def validate_ledger(gnucash_file, input_file, report, quick, stats):
                     click.echo(f"✓ Report saved to {report}")
 
                 if not result.is_valid():
-                    raise click.Abort()
+                    raise SystemExit(1)
 
         finally:
             repo.close()
 
     except Exception as e:
-        click.echo(f"✗ Error: {str(e)}", err=True)
-        raise click.Abort() from e
+        raise click.ClickException(str(e)) from e

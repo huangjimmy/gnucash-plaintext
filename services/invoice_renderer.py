@@ -19,10 +19,11 @@ def read_book_company_info(file_path):
     book_slots = '{http://www.gnucash.org/XML/book}slots'
     gnc_book = '{http://www.gnucash.org/XML/gnc}book'
 
+    _not_gzip = getattr(_gz, 'BadGzipFile', OSError)
     try:
         with _gz.open(file_path, 'rb') as f:
             xml_root = xml.etree.ElementTree.parse(f).getroot()
-    except Exception:
+    except (_not_gzip, EOFError):
         xml_root = xml.etree.ElementTree.parse(file_path).getroot()
 
     def _frame_val(parent, key):

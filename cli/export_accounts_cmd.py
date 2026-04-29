@@ -56,5 +56,4 @@ def export_accounts(gnucash_file, output_file, as_of_date):
         finally:
             repo.close()
     except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
-        raise click.Abort() from e
+        raise click.ClickException(str(e)) from e

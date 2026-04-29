@@ -3,7 +3,7 @@ id: Q-002
 title: read_book_company_info bypasses the repository layer
 category: quality
 severity: low
-status: open
+status: closed
 ---
 
 ## Problem

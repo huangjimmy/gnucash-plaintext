@@ -70,8 +70,6 @@ def export_transaction(gnucash_file, input_file, guids, output_path):
             repo.close()
 
     except ValueError as e:
-        click.echo(f"✗ {str(e)}", err=True)
-        raise SystemExit(1) from e
+        raise click.ClickException(str(e)) from e
     except Exception as e:
-        click.echo(f"✗ Error: {str(e)}", err=True)
-        raise SystemExit(1) from e
+        raise click.ClickException(str(e)) from e

@@ -3,7 +3,7 @@ id: S-002
 title: Broad except-Exception in gzip fallback masks real errors
 category: security
 severity: low
-status: open
+status: closed
 ---
 
 ## Problem

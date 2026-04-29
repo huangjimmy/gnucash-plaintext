@@ -3,7 +3,7 @@ id: S-001
 title: run command executes arbitrary scripts without documented risk
 category: security
 severity: low
-status: open
+status: closed
 ---
 
 ## Problem
