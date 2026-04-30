@@ -3,7 +3,7 @@ id: Q-001
 title: Inconsistent exception types across CLI commands
 category: quality
 severity: low
-status: open
+status: closed
 ---
 
 ## Problem

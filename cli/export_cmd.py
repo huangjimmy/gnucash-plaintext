@@ -106,5 +106,4 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
             repo.close()
 
     except Exception as e:
-        click.echo(f"✗ Error: {str(e)}", err=True)
-        raise click.Abort() from e
+        raise click.ClickException(str(e)) from e

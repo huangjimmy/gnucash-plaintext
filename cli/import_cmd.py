@@ -199,8 +199,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                                 f.write(plaintext)
                             click.echo(f"✓ New transactions written to {output_new}")
                         except OSError as exc:
-                            click.echo(f"✗ Could not write --output-new file: {exc}", err=True)
-                            raise SystemExit(1) from exc
+                            raise click.ClickException(f"Could not write --output-new file: {exc}") from exc
             elif dry_run:
                 click.echo("")
                 click.echo("✓ Dry run complete (no changes made)")
@@ -214,5 +213,4 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
     except Exception as e:
         if create_new and os.path.exists(gnucash_file):
             os.remove(gnucash_file)
-        click.echo(f"✗ Error: {str(e)}", err=True)
-        raise click.Abort() from e
+        raise click.ClickException(str(e)) from e

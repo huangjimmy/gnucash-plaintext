@@ -95,5 +95,4 @@ def export_beancount(gnucash_file, output_file, input_file, output_path, date_fr
             repo.close()
 
     except Exception as e:
-        click.secho(f"✗ Export failed: {str(e)}", fg='red', err=True)
-        raise click.Abort() from e
+        raise click.ClickException(str(e)) from e

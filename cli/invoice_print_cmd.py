@@ -23,6 +23,8 @@ def print_invoice(gnucash_file, invoice_id, output):
     """Prints a GnuCash invoice to a PDF file."""
     click.echo(f"Printing invoice {invoice_id} from {gnucash_file} to {output}...")
 
+    company_info = read_book_company_info(gnucash_file)
+
     repo = GnuCashRepository(gnucash_file)
     repo.open(SessionMode.READ_ONLY)
     book = repo.book
@@ -39,8 +41,6 @@ def print_invoice(gnucash_file, invoice_id, output):
 
         if not invoice:
             raise click.UsageError(f"Invoice with ID '{invoice_id}' not found.")
-
-        company_info = read_book_company_info(gnucash_file)
 
         render_to_pdf(invoice, book, str(_XSLT_PATH), output, company_info)
 

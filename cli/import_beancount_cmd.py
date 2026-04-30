@@ -123,7 +123,7 @@ def import_beancount(gnucash_file, beancount_file, gnucash_path, beancount_path,
                         click.echo(f"  - {error}")
                     click.echo("")
                     click.echo("✗ Import completed with errors", err=True)
-                    raise click.Abort()
+                    raise SystemExit(1)
                 else:
                     repo.save()
                     click.echo("")
@@ -133,14 +133,11 @@ def import_beancount(gnucash_file, beancount_file, gnucash_path, beancount_path,
                 repo.close()
 
     except BeancountValidationError as e:
-        click.echo("")
-        click.echo("✗ Validation failed:", err=True)
-        click.echo(str(e), err=True)
-        click.echo("")
-        click.echo("This beancount file is missing required gnucash-* metadata.", err=True)
-        click.echo("Only beancount files exported from GnuCash can be imported.", err=True)
-        raise click.Abort() from e
+        raise click.ClickException(
+            f"Validation failed: {e}\n"
+            "This beancount file is missing required gnucash-* metadata.\n"
+            "Only beancount files exported from GnuCash can be imported."
+        ) from e
 
     except Exception as e:
-        click.echo(f"✗ Error: {str(e)}", err=True)
-        raise click.Abort() from e
+        raise click.ClickException(str(e)) from e

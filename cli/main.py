@@ -43,16 +43,6 @@ def cli():
     pass
 
 
-@cli.command()
-@click.argument('script', type=click.Path(exists=True))
-@click.argument('args', nargs=-1)
-def run(script, args):
-    """Runs a Python script."""
-    import subprocess
-    import sys
-    subprocess.run([sys.executable, script] + list(args), check=True)
-
-
 # Register commands
 cli.add_command(export_transactions, name='export')
 cli.add_command(export_accounts, name='export-accounts')

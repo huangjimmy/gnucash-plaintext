@@ -104,8 +104,7 @@ def close_books(gnucash_file, closing_date, equity_account, force, dry_run, stat
                 dry_run=dry_run,
             )
         except AlreadyClosedError as e:
-            click.echo(f"Error: {e}", err=True)
-            raise click.Abort() from e
+            raise click.ClickException(str(e)) from e
 
         if not dry_run:
             repo.save()
