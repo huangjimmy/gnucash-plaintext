@@ -5,6 +5,7 @@ Exports GnuCash data to beancount-compatible format with proper account names,
 commodity symbols, and metadata keys following beancount conventions.
 """
 
+from fractions import Fraction
 from typing import Optional
 
 from gnucash.gnucash_core_c import xaccAccountGetTypeStr
@@ -262,8 +263,14 @@ class ExportBeancountUseCase:
 
         formatted_amount = to_string_with_decimal_point_placed(split.GetAmount())
 
-        # Beancount posting format: <indent><account> <amount> <commodity>
-        lines.append(f'  {beancount_account} {formatted_amount} {beancount_commodity}')
+        # For cross-currency splits emit `@ price tx_commodity` so beancount
+        # tools know the exchange rate used for this posting.
+        tx_currency = split.GetParent().GetCurrency()
+        price_annotation = ''
+        if tx_currency.get_mnemonic() != split_currency.get_mnemonic():
+            price_annotation = self._price_annotation(split, tx_currency)
+
+        lines.append(f'  {beancount_account} {formatted_amount} {beancount_commodity}{price_annotation}')
 
         # Add split-level GnuCash metadata (indented under the posting)
         memo = split.GetMemo()
@@ -275,6 +282,32 @@ class ExportBeancountUseCase:
         if action:
             escaped_action = action.replace('"', '\\"').replace('\n', '\\n')
             lines.append(f'      gnucash-action: "{escaped_action}"')
+
+    def _price_annotation(self, split, tx_currency) -> str:
+        """
+        Return the beancount `@ price commodity` string for a cross-currency split.
+
+        price = |GetValue()| / |GetAmount()|  (tx_currency per unit of split commodity)
+        Returns '' when the amount is zero or when price cannot be determined.
+        """
+        amount = split.GetAmount()
+        value = split.GetValue()
+
+        amount_num = int(amount.num())
+        if amount_num == 0:
+            return ''
+
+        value_frac = Fraction(int(value.num()), int(value.denom()))
+        amount_frac = Fraction(abs(amount_num), int(amount.denom()))
+        price = abs(value_frac) / amount_frac
+
+        # Format as a clean decimal string (strip trailing zeros)
+        from decimal import Decimal
+        price_decimal = Decimal(price.numerator) / Decimal(price.denominator)
+        price_str = f'{price_decimal:.8f}'.rstrip('0').rstrip('.')
+
+        tx_beancount = self.converter.convert_commodity_symbol(tx_currency.get_mnemonic())
+        return f' @ {price_str} {tx_beancount}'
 
     def export_to_file(
         self,
