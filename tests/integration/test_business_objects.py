@@ -432,3 +432,73 @@ def test_bill_contradiction_errors(tmp_path, case_name, bill_txt, expected_error
     assert expected_error in result.output, (
         f"Expected error message {expected_error!r} not found in output:\n{result.output}"
     )
+
+
+def test_business_objects_persisted_when_imported_into_existing_file(tmp_path):
+    """
+    Regression test: business objects must be saved when imported into an existing
+    GnuCash file that already has all accounts and commodities.
+
+    Root cause: has_changes was computed from ImportResult (transactions + accounts
+    only). When the existing file already has all accounts, import_from_file returns
+    accounts_created=0 and imported_count=0, so has_changes=False and repo.save()
+    was never called. Business objects written to GnuCash memory were silently
+    discarded on session.end().
+
+    This test uses business_objects_biz_only.txt which contains ONLY customer /
+    vendor / taxtable / invoice / bill directives — no `open` account lines — to
+    reproduce the exact failure mode reported by an external project.
+    """
+    runner = CliRunner()
+
+    # Step 1: create a GnuCash file that already has all required accounts.
+    # Import the full business_objects.txt (which includes accounts) so the file
+    # is fully populated — AR, AP, Bank, Income:Sales, etc. already exist.
+    gnucash_file = tmp_path / "existing.gnucash"
+    result = runner.invoke(cli, ["import", "--new", str(gnucash_file),
+                                 "tests/fixtures/business_objects.txt",
+                                 "--include-business-objects"])
+    assert result.exit_code == 0, f"Setup import failed:\n{result.output}"
+
+    import time
+    time.sleep(1)  # GnuCash backup filenames are timestamp-based; avoid collision
+
+    # Step 2: import ONLY business objects (no `open` account directives) into
+    # the already-populated file. This is the exact scenario that was broken:
+    # the existing accounts mean import_from_file returns accounts_created=0 and
+    # imported_count=0, so has_changes was False and repo.save() was never called.
+    result = runner.invoke(cli, ["import", str(gnucash_file),
+                                 "tests/fixtures/business_objects_biz_only.txt",
+                                 "--include-business-objects"])
+    assert result.exit_code == 0, (
+        f"Import of biz-only file into existing file failed:\n{result.output}"
+    )
+    assert "Changes saved" in result.output, (
+        "Expected 'Changes saved' — repo.save() must be called when "
+        "--include-business-objects is set, even if no new accounts or transactions exist"
+    )
+
+    # Step 3: export and verify the business objects actually persisted on disk.
+    # If repo.save() was skipped, the GnuCash file on disk is unchanged and the
+    # export will show only the objects from the Step 1 import (which are the
+    # same IDs — INV-2026-001, BILL-2026-001 — confirming persistence requires
+    # checking the 'Changes saved' message above and non-empty export).
+    output_file = tmp_path / "exported.txt"
+    result = runner.invoke(cli, ["export", str(gnucash_file), str(output_file),
+                                 "--include-business-objects"])
+    assert result.exit_code == 0, f"Export failed:\n{result.output}"
+
+    with open(output_file) as f:
+        exported = f.read()
+
+    exported_biz = extract_business_objects(exported)
+    assert 'invoice "INV-2026-001"' in exported_biz, (
+        "INV-2026-001 must appear — business objects were not persisted. "
+        "This means repo.save() was not called after import_business_objects()."
+    )
+    assert 'bill "BILL-2026-001"' in exported_biz, (
+        "BILL-2026-001 must appear — business objects were not persisted."
+    )
+    assert 'customer "1"' in exported_biz or 'Test Customer' in exported_biz, (
+        "Customer must appear — business objects were not persisted."
+    )
