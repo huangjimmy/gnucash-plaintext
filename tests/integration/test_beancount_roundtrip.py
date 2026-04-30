@@ -595,3 +595,98 @@ class TestBeancountRoundtripFidelity:
             "Beancount output contains 'None:' — a beancount_converter bug "
             "is producing invalid account names"
         )
+
+    def test_multi_currency_export_contains_all_commodity_declarations(self, temp_gnucash_comprehensive):
+        """
+        Exporting a multi-currency book declares all commodities.
+
+        The comprehensive fixture uses CAD, USD, HKD, JPY, KRW and a
+        non-currency commodity.  The beancount output must have a 'commodity'
+        directive for each one so the file is self-contained.
+        """
+        repo = GnuCashRepository(temp_gnucash_comprehensive)
+        repo.open()
+        try:
+            beancount_content = ExportBeancountUseCase(repo).execute()
+        finally:
+            repo.close()
+
+        for currency in ('CAD', 'USD', 'HKD', 'JPY', 'KRW'):
+            assert f'commodity {currency}' in beancount_content, (
+                f"Multi-currency export should declare commodity {currency}"
+            )
+
+    def test_multi_currency_export_emits_price_annotations(self, temp_gnucash_comprehensive):
+        """
+        Cross-currency splits carry a beancount `@ price commodity` annotation.
+
+        The comprehensive fixture has FX transactions (e.g., buying USD with CAD,
+        buying HKD with CAD).  For each split whose account commodity differs from
+        the transaction currency, the exporter must emit an `@ price` annotation
+        so beancount tools can compute FX gains/losses and validate the transaction.
+        """
+        repo = GnuCashRepository(temp_gnucash_comprehensive)
+        repo.open()
+        try:
+            beancount_content = ExportBeancountUseCase(repo).execute()
+        finally:
+            repo.close()
+
+        lines = beancount_content.splitlines()
+        # Cross-currency posting lines have the form:
+        #   <account> <amount> <commodity> @ <price> <tx_commodity>
+        at_price_lines = [ln for ln in lines if ln.startswith('  ') and ' @ ' in ln]
+        assert len(at_price_lines) > 0, (
+            "Expected at least one posting with `@ price` annotation in multi-currency output"
+        )
+
+        # Spot-check: a CAD-funded transaction with a non-CAD account should have @ CAD
+        cad_price_lines = [ln for ln in at_price_lines if ln.endswith(' CAD')]
+        assert len(cad_price_lines) > 0, (
+            "Expected postings annotated with @ ... CAD for CAD-funded cross-currency transactions"
+        )
+
+    def test_multi_currency_roundtrip_preserves_transaction_count(self, temp_gnucash_comprehensive):
+        """
+        A multi-currency book round-trips through beancount without losing transactions.
+
+        Verifies that the full GnuCash → beancount → GnuCash pipeline handles
+        cross-currency splits (CAD/USD/HKD/JPY) without errors or data loss.
+        """
+        import os
+
+        repo1 = GnuCashRepository(temp_gnucash_comprehensive)
+        repo1.open()
+        try:
+            original_tx_count = len(repo1.get_all_transactions())
+            original_account_count = len(repo1.get_all_accounts())
+            use_case = ExportBeancountUseCase(repo1)
+            beancount_content = use_case.execute()
+        finally:
+            repo1.close()
+
+        assert original_tx_count > 0, "Comprehensive fixture should have transactions"
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.beancount', delete=False) as f:
+            f.write(beancount_content)
+            beancount_file = f.name
+
+        fd, new_gnucash = tempfile.mkstemp(suffix='.gnucash')
+        os.close(fd)
+        os.unlink(new_gnucash)
+
+        try:
+            GnuCashRepository.create_new_file(new_gnucash)
+            repo2 = GnuCashRepository(new_gnucash)
+            repo2.open()
+            try:
+                result = ImportBeancountUseCase(repo2).import_from_file(beancount_file)
+                assert not result.has_errors(), f"Round-trip import had errors: {result.errors}"
+                assert result.accounts_created == original_account_count
+                assert result.transactions_created == original_tx_count
+            finally:
+                repo2.close()
+        finally:
+            os.unlink(beancount_file)
+            if os.path.exists(new_gnucash):
+                os.unlink(new_gnucash)

@@ -3,7 +3,7 @@ id: T-001
 title: print-invoice command has no dedicated test file
 category: tests
 severity: high
-status: open
+status: closed
 ---
 
 ## Problem

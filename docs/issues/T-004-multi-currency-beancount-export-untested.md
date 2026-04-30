@@ -3,7 +3,7 @@ id: T-004
 title: Multi-currency beancount export has no integration test
 category: tests
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem

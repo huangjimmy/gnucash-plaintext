@@ -3,7 +3,7 @@ id: T-005
 title: Multi-currency close-books path has no test
 category: tests
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem
