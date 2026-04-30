@@ -263,3 +263,59 @@ class TestAccountBalanceFxRates:
         # No sub-account breakdown (default, no --with-children)
         assert "Assets:Bank:Checking" not in result.output
         assert "Assets:Bank:HKD" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# Pricedb persistence
+# ---------------------------------------------------------------------------
+
+
+class TestAccountBalancePricedbPersistence:
+    """Verify that --fx-rates actually saves price entries to disk.
+
+    Gap identified: all other tests verify the CLI output, which is computed
+    from the in-memory YAML rates within the same session. If repo.save() were
+    silently skipped, the output would be identical but the pricedb entries
+    would not survive the session close.
+    """
+
+    def test_fx_rates_written_to_pricedb_on_disk(self, temp_gnucash_account_balance, tmp_path):
+        """HKD/CAD price entry appears in a fresh session opened after the CLI run."""
+        import time
+
+        from gnucash.gnucash_core_c import gnc_pricedb_get_db, gnc_pricedb_lookup_latest
+
+        from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
+        # GnuCash backup filenames are timestamp-based (second resolution).
+        # The fixture saves during setup; without this sleep the CLI save would
+        # collide with the same-second backup → ERR_FILEIO_BACKUP_ERROR → no save.
+        time.sleep(1)
+
+        fx = _fx_file(tmp_path)
+        result = run_cli(temp_gnucash_account_balance, "--as-of", "2024-12-31",
+                         "--fx-rates", fx)
+        assert result.exit_code == 0, result.output
+
+        # Open a brand-new session from disk — no shared state with the CLI run.
+        repo = GnuCashRepository(temp_gnucash_account_balance)
+        repo.open(mode=SessionMode.READ_ONLY)
+        try:
+            book = repo.book
+            commod_table = book.get_table()
+            hkd = commod_table.lookup("CURRENCY", "HKD")
+            cad = commod_table.lookup("CURRENCY", "CAD")
+
+            assert hkd is not None, "HKD commodity not found in book"
+            assert cad is not None, "CAD commodity not found in book"
+
+            pricedb = gnc_pricedb_get_db(book.instance)
+            price = gnc_pricedb_lookup_latest(pricedb, hkd.instance, cad.instance)
+
+            assert price is not None, (
+                "No HKD/CAD price entry found in pricedb after account-balance "
+                "--fx-rates run. repo.save() was not called or the pricedb write "
+                "was not persisted to disk."
+            )
+        finally:
+            repo.close()
