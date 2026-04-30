@@ -3,7 +3,7 @@ id: T-002
 title: invoice_renderer.py has no unit tests
 category: tests
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem

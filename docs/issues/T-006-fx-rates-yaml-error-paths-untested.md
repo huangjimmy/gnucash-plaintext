@@ -3,7 +3,7 @@ id: T-006
 title: FX rates YAML error paths are untested
 category: tests
 severity: low
-status: open
+status: closed
 ---
 
 ## Problem

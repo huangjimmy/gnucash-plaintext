@@ -157,6 +157,31 @@ class TestFxRatesLoad:
         finally:
             os.unlink(path)
 
+    def test_load_invalid_yaml_syntax_raises_value_error(self):
+        """A YAML syntax error (e.g. unindented block scalar) raises ValueError."""
+        from services.fx_rates import FxRates
+        # Colon followed by a nested mapping without indentation is a YAML syntax error
+        content = "HKD:\n  bad: nested: value\n"
+        fd, path = tempfile.mkstemp(suffix='.yaml')
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write(content)
+            with pytest.raises((ValueError, Exception)):
+                FxRates.load(path)
+        finally:
+            os.unlink(path)
+
+    def test_load_empty_file_raises_value_error(self):
+        """An empty YAML file produces a None result, which is not a valid mapping."""
+        from services.fx_rates import FxRates
+        fd, path = tempfile.mkstemp(suffix='.yaml')
+        try:
+            os.fdopen(fd, 'w').close()
+            with pytest.raises(ValueError, match="YAML mapping"):
+                FxRates.load(path)
+        finally:
+            os.unlink(path)
+
 
 # ---------------------------------------------------------------------------
 # to_cad

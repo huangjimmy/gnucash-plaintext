@@ -336,3 +336,88 @@ class TestParseIndentationErrors:
         p = PlaintextParser()
         p.parse_string(text)
         assert len(p.errors) > 0
+
+
+# ---------------------------------------------------------------------------
+# Edge cases (T-007)
+# ---------------------------------------------------------------------------
+
+class TestParserEdgeCases:
+
+    def test_cjk_account_name_parses_correctly(self):
+        """Account names containing CJK characters are accepted."""
+        text = '2024-01-01 open Expenses:食費\n    type: Expense\n'
+        p = _parse(text)
+        assert not p.errors
+        accounts = [d for d in p.root_directive.children if d.type.name == 'OPEN_ACCOUNT']
+        assert any('食費' in a.props['account'] for a in accounts)
+
+    def test_account_name_with_spaces_parses_correctly(self):
+        """Account names containing spaces are accepted (GnuCash allows them)."""
+        text = '2024-01-01 open Expenses:Groceries & Household\n    type: Expense\n'
+        p = _parse(text)
+        assert not p.errors
+        accounts = [d for d in p.root_directive.children if d.type.name == 'OPEN_ACCOUNT']
+        assert any('Groceries' in a.props['account'] for a in accounts)
+
+    def test_transaction_with_no_splits_creates_directive(self):
+        """A transaction header with no splits creates a TRANSACTION directive with no children."""
+        text = '2024-03-01 * "Header only"\n    notes: just a note\n'
+        p = _parse(text)
+        assert not p.errors
+        txs = [d for d in p.root_directive.children if d.type.name == 'TRANSACTION']
+        assert len(txs) == 1
+        assert len(txs[0].children) == 0
+
+    def test_duplicate_commodity_last_one_wins(self):
+        """Two commodity declarations with the same symbol: last one is kept."""
+        text = (
+            '2024-01-01 commodity CAD\n    namespace: CURRENCY\n    mnemonic: CAD\n'
+            '2024-01-02 commodity CAD\n    namespace: CURRENCY\n    mnemonic: CAD\n'
+        )
+        p = _parse(text)
+        assert not p.errors
+        assert 'CAD' in p.commodities
+
+    def test_metadata_with_empty_value_parses_as_empty_string(self):
+        """A metadata line with no value (key:) yields an empty string value."""
+        from services.plaintext_parser import parse_metadata
+        key, value = parse_metadata('    code: ')
+        assert key == 'code'
+        assert value == '' or value is None
+
+    def test_metadata_unclosed_quote_treated_as_literal(self):
+        """An unclosed quoted string is returned as-is (parser is lenient, no crash)."""
+        from services.plaintext_parser import parse_metadata
+        key, value = parse_metadata('    notes: "unclosed')
+        assert key == 'notes'
+        assert value is not None
+
+    def test_multiple_transactions_all_parsed(self):
+        """Two consecutive transactions both appear in the directive tree."""
+        text = (
+            '2024-03-01 * "First"\n'
+            '    Expenses:Dining  10.00 CAD\n'
+            '    Assets:Bank  -10.00 CAD\n'
+            '\n'
+            '2024-03-02 * "Second"\n'
+            '    Expenses:Dining  20.00 CAD\n'
+            '    Assets:Bank  -20.00 CAD\n'
+        )
+        p = _parse(text)
+        assert not p.errors
+        txs = [d for d in p.root_directive.children if d.type.name == 'TRANSACTION']
+        assert len(txs) == 2
+
+    def test_large_amount_in_split_parses_correctly(self):
+        """Very large amounts (e.g. real estate) do not cause parsing errors."""
+        text = (
+            '2024-03-01 * "Property purchase"\n'
+            '    Assets:Real Estate  1500000.00 CAD\n'
+            '    Liabilities:Mortgage  -1500000.00 CAD\n'
+        )
+        p = _parse(text)
+        assert not p.errors
+        txs = [d for d in p.root_directive.children if d.type.name == 'TRANSACTION']
+        splits = txs[0].children
+        assert any(s.props['amount'] == '1500000.00' for s in splits)

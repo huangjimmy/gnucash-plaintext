@@ -3,7 +3,7 @@ id: T-003
 title: KVP metadata colon validation is untested
 category: tests
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem
