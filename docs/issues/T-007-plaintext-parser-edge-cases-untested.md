@@ -3,7 +3,7 @@ id: T-007
 title: Plaintext parser edge cases are not tested
 category: tests
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem
