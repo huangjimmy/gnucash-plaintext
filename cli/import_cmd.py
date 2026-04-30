@@ -128,6 +128,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
         repo.open(mode=mode)
 
         try:
+            biz_objects_imported = 0
             if include_business_objects:
                 click.echo("Importing business objects...")
                 parser = PlaintextParser()
@@ -139,6 +140,13 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     if directive.type == DirectiveType.OPEN_ACCOUNT:
                         importer.create_account(directive, repo.book)
 
+                biz_types = {
+                    DirectiveType.CUSTOMER, DirectiveType.VENDOR,
+                    DirectiveType.TAXTABLE, DirectiveType.INVOICE, DirectiveType.BILL,
+                }
+                biz_objects_imported = sum(
+                    1 for d in parser.root_directive.children if d.type in biz_types
+                )
                 importer.import_business_objects(parser.root_directive.children, repo.book)
 
             # Create use case
@@ -177,8 +185,19 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     else:
                         click.echo(f"  - {str(error)}")
 
-            # Save if not dry run and something was imported
-            has_changes = result.imported_count > 0 or result.updated_count > 0 or result.accounts_created > 0
+            # Save if not dry run and something was imported.
+            # biz_objects_imported must be included here: business objects are
+            # written to GnuCash memory before import_from_file() runs, so they
+            # are never reflected in result.imported_count / accounts_created.
+            # Without this, importing into an existing file that already has all
+            # accounts produces has_changes=False → repo.save() is skipped →
+            # customers/invoices/bills are silently lost on session.end().
+            has_changes = (
+                result.imported_count > 0
+                or result.updated_count > 0
+                or result.accounts_created > 0
+                or biz_objects_imported > 0
+            )
             if not dry_run and has_changes:
                 click.echo("")
                 click.echo("Saving changes...")
