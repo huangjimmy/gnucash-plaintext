@@ -595,3 +595,63 @@ class TestCloseBooksCLI:
         ])
         assert result.exit_code == 0, f"Exit {result.exit_code}: {result.output}"
         assert "Books closed as of" in result.output
+
+
+class TestCloseBooksDisks:
+    """Verify closing transactions actually persist to disk after CLI run.
+
+    Gap identified: all use-case tests (TestCloseSuccessCriteria,
+    TestMultiCurrencyCorrectness) open a repo, call use_case.execute(), call
+    repo.save() manually, and check balances in THE SAME open session. They
+    confirm the accounting logic is correct in memory, but nothing re-opens
+    the file from disk to prove the save actually persisted.
+    """
+
+    def test_closing_transactions_persist_to_disk(self, temp_gnucash_for_close_books):
+        """Income accounts are zero in a fresh session opened after close-books CLI run."""
+        from click.testing import CliRunner
+
+        from cli.close_books_cmd import close_books
+        from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
+        runner = CliRunner()
+        result = runner.invoke(close_books, [
+            temp_gnucash_for_close_books, "--closing-date", "2024-12-31"
+        ])
+        assert result.exit_code == 0, f"close-books failed:\n{result.output}"
+
+        # Open a completely fresh session from disk — no shared state with CLI run.
+        repo = GnuCashRepository(temp_gnucash_for_close_books)
+        repo.open(mode=SessionMode.READ_ONLY)
+        try:
+            # If repo.save() was called, the closing transactions are on disk and
+            # Income/Expense accounts have zero balance as of the closing date.
+            # If repo.save() was not called, these accounts still hold their
+            # pre-close values (-6000 CAD, -500 USD, etc.).
+            cad_income = get_balance(repo, "Income:Salary:Base", CLOSING_DATE)
+            assert cad_income == Fraction(0), (
+                f"Income:Salary:Base = {cad_income} after close — expected 0. "
+                "Closing transactions were not persisted to disk."
+            )
+
+            usd_income = get_balance(repo, "Income:Freelance", CLOSING_DATE)
+            assert usd_income == Fraction(0), (
+                f"Income:Freelance = {usd_income} after close — expected 0. "
+                "Closing transactions were not persisted to disk."
+            )
+
+            # Equity accounts are created by close-books. If they are missing or
+            # zero, the closing entry was not saved.
+            cad_equity = get_balance(repo, "Equity:Retained Earnings:CAD", CLOSING_DATE)
+            assert cad_equity == -CAD_NET_INCOME, (
+                f"Equity:Retained Earnings:CAD = {cad_equity}, "
+                f"expected {-CAD_NET_INCOME}. Disk not updated."
+            )
+
+            usd_equity = get_balance(repo, "Equity:Retained Earnings:USD", CLOSING_DATE)
+            assert usd_equity == -USD_NET_INCOME, (
+                f"Equity:Retained Earnings:USD = {usd_equity}, "
+                f"expected {-USD_NET_INCOME}. Disk not updated."
+            )
+        finally:
+            repo.close()
