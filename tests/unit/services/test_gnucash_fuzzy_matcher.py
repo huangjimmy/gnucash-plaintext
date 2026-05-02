@@ -6,6 +6,8 @@ and _IndexEntry (Python-native) — no GnuCash C-extension, no Docker.
 MatchStatus classification tests (NEW/LIKELY_DUP/PARTIAL_MATCH) and merged_tx
 content tests are in tests/integration/test_gnucash_fuzzy_matcher.py.
 """
+from __future__ import annotations
+
 from datetime import date
 from decimal import Decimal
 

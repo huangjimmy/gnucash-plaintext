@@ -3,6 +3,8 @@
 These tests run in Docker with real GnuCash Python bindings.
 No mocking of GnuCash types — per project testing philosophy.
 """
+from __future__ import annotations
+
 import os
 import tempfile
 from datetime import date

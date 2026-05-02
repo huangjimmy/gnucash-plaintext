@@ -1,4 +1,6 @@
 """Integration tests for ReconcilePreviewWriter + ReconcilePreviewReader pipeline."""
+from __future__ import annotations
+
 from datetime import date
 from decimal import Decimal
 from pathlib import Path

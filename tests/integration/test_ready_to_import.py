@@ -1,4 +1,6 @@
 """Integration test: full pipeline end-to-end with real GnuCash book."""
+from __future__ import annotations
+
 import os
 import tempfile
 from datetime import date
