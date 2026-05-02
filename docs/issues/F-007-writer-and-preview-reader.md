@@ -54,11 +54,9 @@ Output Format section):
 	Assets:...:BOC HKD Saving 18110.00 HKD
 	Income:Salary:HKD -18110.00 HKD
 
-;; For merged autopay transactions where source_pdfs has 2 entries:
-;; doc_link uses source_pdfs[0] (card PDF); source_pdfs[1] (bank PDF)
-;; is stored as a second metadata line:
+;; For merged autopay transactions, doc_link = source_pdfs[0] (card PDF).
+;; The card statement contains more transaction detail than the bank statement.
 ;;   doc_link: "bank_statements/boci-0012-2026-04.pdf"
-;;   doc_link_bank: "bank_statements/bochk-2026-04.pdf"
 
 ;; ===== UNRESOLVED =====
 

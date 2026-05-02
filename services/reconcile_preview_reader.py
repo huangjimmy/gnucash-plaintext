@@ -83,8 +83,7 @@ def _parse_blocks(lines: list[str]) -> list[StandardTransaction]:
                 elif key == "doc_link":
                     # Extract filename from "bank_statements/file.pdf"
                     source_pdfs.insert(0, val.split("/")[-1])
-                elif key == "doc_link_bank":
-                    source_pdfs.append(val.split("/")[-1])
+
                 elif key == "currency.mnemonic":
                     currency = val
                 i += 1

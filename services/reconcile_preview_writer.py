@@ -14,8 +14,7 @@ class ReconcilePreviewWriter:
     Format:
       - Section headers are ;; comment lines (human-readable, not parsed by reader)
       - Transaction blocks: date line, tab-indented metadata and splits, blank line
-      - Two source PDFs (merged autopay): doc_link = source_pdfs[0] (card),
-        doc_link_bank = source_pdfs[1] (bank)
+      - doc_link uses source_pdfs[0] (card PDF for merged autopay, only PDF otherwise)
     """
 
     doc_link_base: str = DOC_LINK_BASE
@@ -53,8 +52,6 @@ def _write_tx(f, tx: StandardTransaction, doc_link_base: str) -> None:
 
     if tx.source_pdfs:
         f.write(f'\tdoc_link: "{doc_link_base}/{tx.source_pdfs[0]}"\n')
-        if len(tx.source_pdfs) > 1:
-            f.write(f'\tdoc_link_bank: "{doc_link_base}/{tx.source_pdfs[1]}"\n')
 
     f.write(f'\tcurrency.mnemonic: "{tx.currency}"\n')
 

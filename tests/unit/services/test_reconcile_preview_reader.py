@@ -157,7 +157,8 @@ class TestRoundTrip:
         importable, _ = self._rw(tmp_path, [tx], [], [])
         assert importable[0].guid == "abc123"
 
-    def test_two_source_pdfs(self, tmp_path):
+    def test_two_source_pdfs_card_first_is_doc_link(self, tmp_path):
+        # Only source_pdfs[0] (card PDF) is written as doc_link — bank PDF is dropped
         tx = StandardTransaction(
             post_date=date(2026, 4, 15),
             description="AUTOPAY INGROUP",
@@ -170,4 +171,4 @@ class TestRoundTrip:
         )
         importable, _ = self._rw(tmp_path, [tx], [], [])
         assert importable[0].source_pdfs[0] == "boci.pdf"
-        assert importable[0].source_pdfs[1] == "bochk.pdf"
+        assert len(importable[0].source_pdfs) == 1  # only card PDF survives round-trip
