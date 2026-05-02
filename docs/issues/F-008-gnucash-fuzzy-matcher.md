@@ -117,3 +117,60 @@ that uses GnuCash's category and the generated `doc_link`.
 - `services/gnucash_fuzzy_matcher.py` (new)
 - `tests/unit/services/test_gnucash_fuzzy_matcher.py` (new)
 - `tests/integration/services/test_gnucash_fuzzy_matcher.py` (new)
+
+---
+
+## Implementation Finding: Session Leak Causes OOM
+
+**Discovered during implementation of F-008.**
+
+### Root Cause
+
+`GnuCashFuzzyMatcher._build_index()` opens a `GnuCashRepository` session
+(READ_ONLY) that is **never closed**. `self._index` holds live
+`gnucash.Transaction` references, keeping the entire parsed GnuCash book in
+memory for the lifetime of the matcher object.
+
+Python's GC does not guarantee timely destruction of GnuCash C extension
+objects. In the test suite, each integration test that creates a
+`GnuCashFuzzyMatcher` and calls `match()` opens a new session. With 9
+integration tests running in sequence, 9 open sessions accumulate on top of
+the ~700-test suite's existing GnuCash sessions → OOM kill inside Docker.
+
+### Fix Required Before Implementation Is Complete
+
+Store Python-native data in the index instead of live `gnucash.Transaction`
+references, then close the session after `_build_index()` completes:
+
+```python
+@dataclass
+class _IndexEntry:
+    date: date
+    amount: Decimal
+    account_names: frozenset[str]   # extracted as strings, not GnuCash objects
+    guid: str
+    description: str
+    splits: list[tuple[str, Decimal]]  # (account_name, amount)
+    existing_doc_link: str
+
+def _build_index(self) -> None:
+    ...
+    repo.open(READ_ONLY)
+    for tx in repo.get_all_transactions():
+        entry = _IndexEntry(...)   # extract all needed data
+        self._index[key].append(entry)
+    repo.close()   # ← session released; no live GnuCash refs remain
+```
+
+`MatchResult.existing_tx` type changes from `gnucash.Transaction | None`
+to `_IndexEntry | None` — the live GnuCash object is no longer needed after
+index build since all required data is extracted.
+
+### Impact on Tests
+
+PARTIAL_MATCH fixture: the existing transaction must be a credit card charge
+`boci → dining` (expense account), NOT `boci → bank` (two asset/liability
+accounts). With `boci → bank`, `existing_al = {boci, bank}` but
+`candidate_al = {boci}` — they never match and PARTIAL_MATCH returns NEW.
+The correct scenario: user manually categorized the charge as Dining;
+we generated it as Groceries; shared `boci` liability account triggers match.
