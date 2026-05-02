@@ -32,6 +32,11 @@ When a fix is merged, update `status: open` → `closed` in the file's frontmatt
 | [F-002](F-002-balance-sheet-command-missing.md) | No balance-sheet command | enhancement |
 | [F-003](F-003-export-date-range-filter-missing.md) | export command has no date-range filter | enhancement |
 | [F-004](F-004-no-search-find-transaction-command.md) | No search / find-transaction command | enhancement |
+| [F-005](F-005-data-models-and-provider-protocol.md) | Statement import: data models and StatementProvider protocol | feature |
+| [F-006](F-006-statement-reconciler.md) | Statement import: StatementReconciler (depends on F-005) | feature |
+| [F-007](F-007-writer-and-preview-reader.md) | Statement import: ReconcilePreviewWriter and ReconcilePreviewReader (depends on F-006) | feature |
+| [F-008](F-008-gnucash-fuzzy-matcher.md) | Statement import: GnuCashFuzzyMatcher (depends on F-007) | feature |
+| [F-009](F-009-ready-to-import-writer.md) | Statement import: ReadyToImportWriter and end-to-end test (depends on F-008) | feature |
 
 ## Quality
 
