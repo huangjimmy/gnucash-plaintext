@@ -13,6 +13,7 @@ import gnucash.gnucash_core_c as gc
 from gnucash import Book, Query, Split
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
+from infrastructure.gnucash.kvp import get_custom_metadata
 from infrastructure.gnucash.utils import get_account_full_name
 
 
@@ -102,6 +103,9 @@ class ExportBusinessObjectsUseCase:
             ]:
                 if val:
                     lines.append(f'  {field}: "{val}"')
+            custom_meta = get_custom_metadata(cust)
+            for k, v in sorted(custom_meta.items()):
+                lines.append(f'  {k}: "{v}"')
             lines_list.append('\n'.join(lines))
         return '\n\n'.join(lines_list)
 
@@ -121,6 +125,9 @@ class ExportBusinessObjectsUseCase:
                 f'  name: "{v.GetName()}"',
                 f'  currency: {v.GetCurrency().get_mnemonic()}',
             ]
+            custom_meta = get_custom_metadata(v)
+            for k, v_val in sorted(custom_meta.items()):
+                lines.append(f'  {k}: "{v_val}"')
             lines_list.append('\n'.join(lines))
         return '\n\n'.join(lines_list)
 
@@ -199,6 +206,10 @@ class ExportBusinessObjectsUseCase:
                 lines.append(f'  billing_id: "{inv.GetBillingID()}"')
             if inv.GetNotes():
                 lines.append(f'  notes: "{inv.GetNotes()}"')
+
+            custom_meta = get_custom_metadata(inv)
+            for k, v in sorted(custom_meta.items()):
+                lines.append(f'  {k}: "{v}"')
 
             for raw_entry in inv.GetEntries():
                 lines += self._format_inv_entry(lib, raw_entry)
@@ -382,6 +393,10 @@ class ExportBusinessObjectsUseCase:
                 f'  currency: {inv.GetCurrency().get_mnemonic()}',
                 f'  date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
             ]
+
+            custom_meta = get_custom_metadata(inv)
+            for k, v in sorted(custom_meta.items()):
+                lines.append(f'  {k}: "{v}"')
 
             for raw_entry in inv.GetEntries():
                 lines += self._format_bill_entry(lib, raw_entry)
