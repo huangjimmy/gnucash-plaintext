@@ -219,14 +219,18 @@ Formula `value` = `share_price` * Split_Amount, e.g., 3.68 = 368/2170 * 21.70
 
 ### Custom Metadata
 
-GnuCash supports arbitrary key-value pairs (KVP slots) on any transaction or split.
-gnucash-plaintext exposes this as **custom metadata**: any tag in a transaction or
-split block that is not a reserved field (see tables below) is automatically stored
-in the GnuCash KVP layer and round-trips through export/import without loss.
+GnuCash supports arbitrary key-value pairs (KVP slots) on all its object types.
+gnucash-plaintext exposes this as **custom metadata**: any field in a block that is
+not a reserved field (see tables below) is automatically stored in the GnuCash KVP
+layer and round-trips through export/import without loss.
 
-This makes the format directly comparable to beancount's open-ended metadata model.
+This applies to **every object type** — transactions, splits, accounts, customers,
+vendors, invoices, and bills — making the format directly comparable to beancount's
+open-ended metadata model.
 
-#### Reserved transaction fields (stored via dedicated GnuCash setters)
+#### Reserved fields per object type
+
+**Transaction** — reserved fields use dedicated GnuCash setters:
 
 | Field | GnuCash field |
 |-------|--------------|
@@ -236,7 +240,7 @@ This makes the format directly comparable to beancount's open-ended metadata mod
 | `doc_link` | Document link / association |
 | `notes` | Transaction notes |
 
-#### Reserved split fields (stored via dedicated GnuCash setters)
+**Split** — reserved fields use dedicated GnuCash setters:
 
 | Field | GnuCash field |
 |-------|--------------|
@@ -246,6 +250,60 @@ This makes the format directly comparable to beancount's open-ended metadata mod
 | `memo` | Split memo |
 | `account.commodity.mnemonic` | Account commodity mnemonic |
 | `account.commodity.namespace` | Account commodity namespace |
+
+**Account** (`open` directive) — reserved fields:
+
+| Field | GnuCash field |
+|-------|--------------|
+| `guid` | Account GUID |
+| `type` | Account type |
+| `placeholder` | Placeholder flag |
+| `code` | Account code |
+| `description` | Account description |
+| `color` | Account color |
+| `notes` | Account notes |
+| `tax_related` | Tax-related flag |
+| `commodity.namespace` | Commodity namespace |
+| `commodity.mnemonic` | Commodity mnemonic |
+| `commodity_scu` | Commodity smallest currency unit |
+
+**Customer** — reserved fields:
+
+| Field | GnuCash field |
+|-------|--------------|
+| `name` | Customer name |
+| `currency` | Customer currency |
+| `addr1`–`addr4` | Billing address lines |
+| `email` | Contact email |
+
+**Vendor** — reserved fields:
+
+| Field | GnuCash field |
+|-------|--------------|
+| `name` | Vendor name |
+| `currency` | Vendor currency |
+
+**Invoice** — reserved fields:
+
+| Field | GnuCash field |
+|-------|--------------|
+| `customer_id` | Customer reference |
+| `currency` | Invoice currency |
+| `date_opened` | Invoice open date |
+| `billing_id` | Billing ID |
+| `notes` | Invoice notes |
+| `posted` | Posted block / sentinel |
+| `payment` | Payment block / sentinel |
+
+**Bill** — reserved fields:
+
+| Field | GnuCash field |
+|-------|--------------|
+| `vendor_id` | Vendor reference |
+| `currency` | Bill currency |
+| `date_opened` | Bill open date |
+| `posted` | Posted block / sentinel |
+| `payment` | Payment block / sentinel |
 
 #### Any other key → KVP slot
 
@@ -257,8 +315,10 @@ object are stored together in a single JSON object.
 - Colons (`:`) are **not allowed** in custom metadata key names. The plaintext
   format uses `key: value` syntax, so a colon inside a key name would create
   parsing ambiguity. An error is raised at import time if a colon is found.
-- Use **dots** for hierarchical keys (e.g. `tax.category`, `receipt.id`).
+- Use **dots** for hierarchical keys (e.g. `tax.category`, `jw.country`).
   Dots are already used by convention in the reserved fields above.
+
+**Transaction / split example:**
 
 ```
 2024-06-15 * "Dinner with client"
@@ -272,13 +332,36 @@ object are stored together in a single JSON object.
 	Assets:Bank:Checking -85.00 CAD
 ```
 
-In the example above:
-- `guid`, `notes` → stored via dedicated GnuCash API (reserved fields)
+- `guid`, `notes` → reserved fields, stored via dedicated GnuCash API
 - `tax_category`, `receipt_id` → stored in the transaction's KVP slot
 - `vendor`, `approved_by` → stored in the Dining split's KVP slot
 
-When you export this transaction back to plaintext, all four custom keys will
-appear in the output exactly as written.
+**Customer / account example:**
+
+```
+customer "CUST-001"
+  name: "Acme Logistics"
+  currency: CAD
+  addr1: "2000 McGill College Ave"
+  addr3: "Montreal"
+  addr4: "QC"
+  jw.country: "CA"
+  jw.postal_code: "H3A 3H3"
+
+2024-01-01 open Assets:Bank:Checking
+	type: "BANK"
+	commodity.namespace: CURRENCY
+	commodity.mnemonic: CAD
+	erp.cost_centre: "DEPT-42"
+```
+
+- `name`, `currency`, `addr1`–`addr4` → reserved customer fields
+- `jw.country`, `jw.postal_code` → stored in the customer's KVP slot
+- `type`, `commodity.*` → reserved account fields
+- `erp.cost_centre` → stored in the account's KVP slot
+
+All custom keys are emitted after the standard fields on export, preserving the
+round-trip exactly.
 
 #### Update merges custom metadata
 
@@ -307,7 +390,7 @@ After the second import the transaction carries all three keys: `receipt_id`,
 
 #### Cross-version compatibility
 
-KVP metadata works on all supported GnuCash versions:
+KVP metadata works on all supported GnuCash versions for all object types:
 
 | GnuCash version | OS | API used |
 |---|---|---|

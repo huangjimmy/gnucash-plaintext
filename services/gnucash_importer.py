@@ -29,8 +29,13 @@ from gnucash.gnucash_core_c import (
 )
 
 from infrastructure.gnucash.kvp import (
+    KNOWN_ACCOUNT_METADATA_KEYS,
+    KNOWN_BILL_METADATA_KEYS,
+    KNOWN_CUSTOMER_METADATA_KEYS,
+    KNOWN_INVOICE_METADATA_KEYS,
     KNOWN_SPLIT_METADATA_KEYS,
     KNOWN_TX_METADATA_KEYS,
+    KNOWN_VENDOR_METADATA_KEYS,
     get_custom_metadata,
     set_custom_metadata,
 )
@@ -169,6 +174,11 @@ class GnuCashImporter:
         account.SetCode(code)
         account.SetDescription(description)
         account.SetTaxRelated(tax_related)
+
+        custom_meta = {k: v for k, v in directive.metadata.items()
+                       if k not in KNOWN_ACCOUNT_METADATA_KEYS and v is not None}
+        if custom_meta:
+            set_custom_metadata(account, custom_meta)
 
         if 'commodity_scu' in directive.metadata:
             commodity_scu = directive.metadata['commodity_scu']
@@ -485,6 +495,10 @@ class GnuCashImporter:
         addr.SetEmail(directive.metadata.get('email', ''))
 
         customer.CommitEdit()
+        custom_meta = {k: v for k, v in directive.metadata.items()
+                       if k not in KNOWN_CUSTOMER_METADATA_KEYS and v is not None}
+        if custom_meta:
+            set_custom_metadata(customer, custom_meta)
         logging.debug(f"Created customer {directive.props['id']}")
 
     @staticmethod
@@ -496,6 +510,10 @@ class GnuCashImporter:
         vendor.BeginEdit()
         vendor.SetName(directive.metadata['name'])
         vendor.CommitEdit()
+        custom_meta = {k: v for k, v in directive.metadata.items()
+                       if k not in KNOWN_VENDOR_METADATA_KEYS and v is not None}
+        if custom_meta:
+            set_custom_metadata(vendor, custom_meta)
         logging.debug(f"Created vendor {directive.props['id']}")
 
     @staticmethod
@@ -625,6 +643,10 @@ class GnuCashImporter:
                 invoice.ApplyPayment(None, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
 
         invoice.CommitEdit()
+        custom_meta = {k: v for k, v in directive.metadata.items()
+                       if k not in KNOWN_INVOICE_METADATA_KEYS and v is not None}
+        if custom_meta:
+            set_custom_metadata(invoice, custom_meta)
         logging.debug(f"Created invoice {directive.props['id']}")
 
     @staticmethod
@@ -722,6 +744,10 @@ class GnuCashImporter:
                 bill.ApplyPayment(None, bank_account, neg_amount, GncNumeric(1, 1), pay_date, memo, num)
 
         bill.CommitEdit()
+        custom_meta = {k: v for k, v in directive.metadata.items()
+                       if k not in KNOWN_BILL_METADATA_KEYS and v is not None}
+        if custom_meta:
+            set_custom_metadata(bill, custom_meta)
         logging.debug(f"Created bill {directive.props['id']}")
 
     def import_business_objects(self, directives: List[PlaintextDirective], book: Book):

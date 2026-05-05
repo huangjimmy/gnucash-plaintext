@@ -428,6 +428,10 @@ class ExportTransactionsUseCase:
         if commodity_scu != fraction:
             lines.append(f'\tcommodity_scu: {encode_value_as_string(commodity_scu)}')
 
+        custom_meta = get_custom_metadata(account)
+        for k, v in sorted(custom_meta.items()):
+            lines.append(f'\t{k}: {encode_value_as_string(v)}')
+
     def _format_transaction(
         self,
         transaction,
