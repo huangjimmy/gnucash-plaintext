@@ -632,6 +632,11 @@ customer "CUST-001"
   name: "Acme Corp"
   currency: CAD
 
+customer "CUST-002"
+  name: "Retired Client"
+  currency: CAD
+  active: false
+
 vendor "VEND-001"
   name: "Office Supplies Co."
   currency: CAD
@@ -769,6 +774,61 @@ invoice "INV-2026-004"
     bank_account: "Assets:Bank"
     memo: "Second instalment"
 ```
+
+### Retiring customers and vendors (archive)
+
+Use `archive-customers` or `archive-vendors` to soft-hide one or more
+entities by setting them inactive (`SetActive(False)`). Archived entities
+are hidden from the GnuCash UI but remain in the book with all their invoice
+and bill history intact. The `active: false` field is preserved on export and
+restored on import.
+
+```bash
+# Archive one or more customers
+gnucash-plaintext archive-customers mybook.gnucash CUST-001 CUST-002
+
+# Archive one or more vendors
+gnucash-plaintext archive-vendors mybook.gnucash VEND-001
+```
+
+Per-ID status is printed for every ID requested:
+
+```
+CUST-001: archived
+CUST-002: archived — 5 invoice(s) linked
+CUST-003: already archived
+CUST-004: not found
+```
+
+The linked invoice/bill count is informational — archiving always succeeds for
+a found, currently-active entity. Exit code 1 if any ID was not found or
+already archived.
+
+### Deleting customers permanently
+
+`delete-customers` hard-deletes a customer from the book. This is irreversible.
+**Archiving is almost always the better choice** — it preserves all invoice
+history and can be undone by re-importing the record without `active: false`.
+
+Use `delete-customers` only for customers created by mistake that have **never
+had any invoices raised against them**. Deletion is blocked if any invoices
+exist (paid or unpaid):
+
+```bash
+gnucash-plaintext delete-customers mybook.gnucash CUST-001 CUST-002
+```
+
+```
+CUST-001: deleted
+CUST-002: failed — cannot delete, 3 invoice(s) linked
+CUST-003: not found
+```
+
+Exit code 1 if any ID failed or was not found.
+
+> **Note:** Vendor deletion is not supported. GnuCash's vendor entity does not
+> persist correctly through the XML backend when `Destroy()` is called — the
+> vendor reappears after save/reload. Use `archive-vendors` instead.
 
 ### Print an invoice to PDF
 

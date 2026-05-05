@@ -2,9 +2,19 @@ customer "1"
   name: "Test Customer"
   currency: CAD
 
+customer "2"
+  name: "Retired Customer"
+  currency: CAD
+  active: false
+
 vendor "V001"
   name: "Test Vendor"
   currency: CAD
+
+vendor "V002"
+  name: "Retired Vendor"
+  currency: CAD
+  active: false
 
 taxtable "GST"
   entry:

@@ -82,7 +82,7 @@ class ExportBusinessObjectsUseCase:
         q = Query()
         q.search_for('gncCustomer')
         q.set_book(self.book)
-        customers = [gb.Customer(instance=r) for r in q.run()]
+        customers = sorted([gb.Customer(instance=r) for r in q.run()], key=lambda c: c.GetID())
         q.destroy()
 
         lines_list = []
@@ -93,6 +93,8 @@ class ExportBusinessObjectsUseCase:
                 f'  name: "{cust.GetName()}"',
                 f'  currency: {cust.GetCurrency().get_mnemonic()}',
             ]
+            if not cust.GetActive():
+                lines.append('  active: false')
             # Only emit optional address/contact fields when non-empty
             for field, val in [
                 ('addr1', addr.GetAddr1()),
@@ -115,7 +117,7 @@ class ExportBusinessObjectsUseCase:
         q = Query()
         q.search_for('gncVendor')
         q.set_book(self.book)
-        vendors = [gb.Vendor(instance=r) for r in q.run()]
+        vendors = sorted([gb.Vendor(instance=r) for r in q.run()], key=lambda v: v.GetID())
         q.destroy()
 
         lines_list = []
@@ -125,6 +127,8 @@ class ExportBusinessObjectsUseCase:
                 f'  name: "{v.GetName()}"',
                 f'  currency: {v.GetCurrency().get_mnemonic()}',
             ]
+            if not v.GetActive():
+                lines.append('  active: false')
             custom_meta = get_custom_metadata(v)
             for k, v_val in sorted(custom_meta.items()):
                 lines.append(f'  {k}: "{v_val}"')
