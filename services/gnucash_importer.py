@@ -57,6 +57,14 @@ def string_to_gnc_numeric_quantity(s):
         return GncNumeric(num, den)
 
 
+_FALSY_STRINGS = {'false', '0', 'no'}
+
+
+def _is_falsy(val: str) -> bool:
+    """Return True if val is a recognised falsy string (case-insensitive)."""
+    return val.strip().lower() in _FALSY_STRINGS
+
+
 ACCT_TYPE_MAP = {
     "Asset": ACCT_TYPE_ASSET,
     "Bank": ACCT_TYPE_BANK,
@@ -495,6 +503,8 @@ class GnuCashImporter:
         addr.SetEmail(directive.metadata.get('email', ''))
 
         customer.CommitEdit()
+        if _is_falsy(directive.metadata.get('active', 'true')):
+            customer.SetActive(False)
         custom_meta = {k: v for k, v in directive.metadata.items()
                        if k not in KNOWN_CUSTOMER_METADATA_KEYS and v is not None}
         if custom_meta:
@@ -510,6 +520,8 @@ class GnuCashImporter:
         vendor.BeginEdit()
         vendor.SetName(directive.metadata['name'])
         vendor.CommitEdit()
+        if _is_falsy(directive.metadata.get('active', 'true')):
+            vendor.SetActive(False)
         custom_meta = {k: v for k, v in directive.metadata.items()
                        if k not in KNOWN_VENDOR_METADATA_KEYS and v is not None}
         if custom_meta:
