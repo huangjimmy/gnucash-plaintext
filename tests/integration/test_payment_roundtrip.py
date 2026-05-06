@@ -339,6 +339,36 @@ def test_txn_guid_not_found_fails(tmp_path):
         f"Error must mention 'not found'. Got:\n{r.output}"
 
 
+def test_txn_guid_invalid_format_fails(tmp_path):
+    """txn_guid that is not a valid GUID/UUID string must fail with a format error."""
+    runner = CliRunner()
+    gf = tmp_path / "book.gnucash"
+    import_new(runner, gf, write_fixture(tmp_path, "bank.txt",
+                                         accounts_plus(BANK_INVOICE)))
+
+    bad_fmt_file = write_fixture(tmp_path, "inv.txt", invoice_fixture("hello"))
+    r = import_into(runner, gf, bad_fmt_file)
+    assert r.exit_code != 0
+    assert "invalid guid" in r.output.lower(), \
+        f"Error must mention 'invalid guid'. Got:\n{r.output}"
+
+
+def test_txn_guid_uuid_with_hyphens(tmp_path):
+    """txn_guid in UUID-with-hyphens form must resolve to the same transaction."""
+    runner = CliRunner()
+    gf = tmp_path / "book.gnucash"
+    import_new(runner, gf, write_fixture(tmp_path, "bank.txt",
+                                         accounts_plus(BANK_INVOICE)))
+    guid = get_guid(runner, gf, "Assets:Bank")
+    # Insert hyphens into the 32-char hex GUID: 8-4-4-4-12
+    uuid_form = f"{guid[0:8]}-{guid[8:12]}-{guid[12:16]}-{guid[16:20]}-{guid[20:32]}"
+    r = import_into(runner, gf, write_fixture(tmp_path, "inv.txt",
+                                              invoice_fixture(uuid_form)))
+    assert r.exit_code == 0, f"UUID-with-hyphens txn_guid must be accepted:\n{r.output}"
+    assert bank_tx_count(runner, gf, tmp_path) == 1, \
+        "UUID-with-hyphens must not create a duplicate bank transaction"
+
+
 def test_txn_guid_wrong_bank_account_fails(tmp_path):
     """bank_account that matches no split — counter-split search fails."""
     runner = CliRunner()

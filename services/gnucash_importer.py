@@ -62,18 +62,22 @@ _FALSY_STRINGS = {'false', '0', 'no'}
 
 
 def _find_transaction_by_guid(book, guid: str):
-    """Return the Transaction matching guid, or None."""
-    from gnucash import Query, Transaction
-    q = Query()
-    q.search_for('Trans')
-    q.set_book(book)
-    txns = list(q.run())
-    q.destroy()
-    for r in txns:
-        tx = Transaction(instance=r)
-        if tx.GetGUID().to_string() == guid:
-            return tx
-    return None
+    """Return the Transaction matching guid, or None.
+
+    Accepts 32-char hex or UUID-with-hyphens; normalises via string_to_guid
+    so both forms resolve to the same canonical GUID before lookup.
+    Raises ValueError for inputs that are not valid GUID/UUID strings.
+    Returns None when the format is valid but no transaction has that GUID.
+    """
+    from gnucash import Transaction
+    from gnucash.gnucash_core_c import GncGUID, string_to_guid, xaccTransLookup
+    gnc_guid = GncGUID()
+    if not string_to_guid(guid, gnc_guid):
+        raise ValueError(f"Invalid GUID format: {guid!r}")
+    raw = xaccTransLookup(gnc_guid, book.instance)
+    if raw is None:
+        return None
+    return Transaction(instance=raw)
 
 
 def _retarget_counter_split_to_lot(lib, existing_tx, bank_acct_name: str,
