@@ -1,6 +1,6 @@
 # GnuCash-Beancount Format
 
-**GnuCash-Beancount** (bc-gnc) is a special beancount format that enables bidirectional conversion between GnuCash and beancount with zero data loss.
+**GnuCash-Beancount** (bc-gnc) is a special beancount format that enables bidirectional conversion between GnuCash and beancount with zero data loss for accounts, transactions, splits, commodities, and prices. Business objects (customers, vendors, invoices, bills) have no equivalent in beancount and are dropped during export — see [Limitations](#limitations).
 
 ## Overview
 
@@ -425,6 +425,27 @@ gnucash-plaintext export-beancount mybook.gnucash backup-$(date +%Y%m%d).beancou
 # Restore from backup
 gnucash-plaintext import-beancount mybook-restored.gnucash backup-20240115.beancount
 ```
+
+## Limitations
+
+GnuCash-Beancount preserves accounts, transactions, splits, commodities, and prices with full fidelity. The following GnuCash data is **not** preserved during `export-beancount` because beancount has no equivalent concept:
+
+| GnuCash data | What happens on export | Round-trip preserved? |
+|---|---|---|
+| Customers | Dropped silently | No |
+| Vendors | Dropped silently | No |
+| Invoices (with entries, posted lots, payments) | Dropped silently | No |
+| Bills (with entries, posted lots, payments) | Dropped silently | No |
+| Tax tables | Dropped silently | No |
+| Employees | Dropped silently | No |
+| Jobs | Dropped silently | No |
+
+If you rely on GnuCash's business features and need a lossless plaintext format, use the native [GnuCash plaintext format](../README.md#gnucash-plaintext) (`export` / `import`) instead — it round-trips every object type the importer supports, including invoices, bills, customers, vendors, payments (with `txn_guid` retargeting), and tax tables.
+
+The two export commands serve different goals:
+
+- `export-beancount` → produces a file usable by [beancount](https://github.com/beancount/beancount) and [Fava](https://github.com/beancount/fava) for analysis and reporting; lossy for business objects.
+- `export` → produces gnucash-plaintext, lossless for all supported GnuCash data; not consumable by beancount tooling.
 
 ## See Also
 
