@@ -1,0 +1,5 @@
+2026-01-15 * "E-transfer from Acme"
+  notes: "fitid:20260115001  source:qfx"
+  Assets:Bank  100.00 CAD
+    memo: "QFX split memo to preserve"
+  Assets:Accounts Receivable  -100.00 CAD

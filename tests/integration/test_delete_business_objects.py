@@ -68,7 +68,7 @@ def test_active_flag_roundtrip_customer(tmp_path):
     exported = export_biz(runner, gf)
     # Customer "2" is inactive in the fixture
     assert 'customer "2"' in exported
-    assert '  active: false' in exported
+    assert '	active: false' in exported
 
 
 def test_active_flag_roundtrip_vendor(tmp_path):
@@ -78,7 +78,7 @@ def test_active_flag_roundtrip_vendor(tmp_path):
     import_fixture(runner, gf)
     exported = export_biz(runner, gf)
     assert 'vendor "V002"' in exported
-    assert '  active: false' in exported
+    assert '	active: false' in exported
 
 
 def test_active_customer_has_no_active_field(tmp_path):
@@ -92,7 +92,7 @@ def test_active_customer_has_no_active_field(tmp_path):
     for line in lines:
         if line == 'customer "1"':
             in_cust1 = True
-        elif in_cust1 and line and not line.startswith(' '):
+        elif in_cust1 and line and not line[0:1] in (' ', '\t'):
             break
         elif in_cust1:
             assert 'active:' not in line, \
@@ -110,7 +110,7 @@ def test_active_vendor_has_no_active_field(tmp_path):
     for line in lines:
         if line == 'vendor "V001"':
             in_v001 = True
-        elif in_v001 and line and not line.startswith(' '):
+        elif in_v001 and line and not line[0:1] in (' ', '\t'):
             break
         elif in_v001:
             assert 'active:' not in line, \
@@ -224,7 +224,7 @@ def test_archive_customer_active_no_invoices(tmp_path):
     for line in lines:
         if line == 'customer "1"':
             in_cust1 = True
-        elif in_cust1 and line and not line.startswith(' '):
+        elif in_cust1 and line and not line[0:1] in (' ', '\t'):
             break
         elif in_cust1 and 'active: false' in line:
             found_active_false = True
@@ -302,7 +302,7 @@ def test_archive_vendor_with_bills(tmp_path):
     for line in lines:
         if line == 'vendor "V001"':
             in_v001 = True
-        elif in_v001 and line and not line.startswith(' '):
+        elif in_v001 and line and not line[0:1] in (' ', '\t'):
             break
         elif in_v001 and 'active: false' in line:
             found_active_false = True

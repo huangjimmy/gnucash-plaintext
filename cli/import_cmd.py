@@ -138,7 +138,13 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 # Create accounts first
                 for directive in parser.root_directive.children:
                     if directive.type == DirectiveType.OPEN_ACCOUNT:
-                        importer.create_account(directive, repo.book)
+                        acct_name = directive.props.get('account_name', '?')
+                        try:
+                            importer.create_account(directive, repo.book)
+                        except Exception as e:
+                            raise click.ClickException(
+                                f'account "{acct_name}": {e}'
+                            ) from e
 
                 biz_types = {
                     DirectiveType.CUSTOMER, DirectiveType.VENDOR,

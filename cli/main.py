@@ -11,6 +11,7 @@ from cli.account_balance_cmd import account_balance
 from cli.close_books_cmd import close_books
 from cli.delete_cmd import archive_customers, archive_vendors, delete_customers
 from cli.delete_transaction_cmd import delete_transaction_by_guid
+from cli.find_transactions_cmd import find_transactions
 from cli.export_accounts_cmd import export_accounts
 from cli.export_beancount_cmd import export_beancount
 from cli.export_cmd import export_transactions
@@ -57,6 +58,7 @@ cli.add_command(income_statement, name='income-statement')
 cli.add_command(print_invoice, name='print-invoice')
 cli.add_command(account_balance, name='account-balance')
 cli.add_command(delete_transaction_by_guid, name='delete-transaction-by-guid')
+cli.add_command(find_transactions, name='find-transactions')
 cli.add_command(delete_customers, name='delete-customers')
 cli.add_command(archive_customers, name='archive-customers')
 cli.add_command(archive_vendors, name='archive-vendors')

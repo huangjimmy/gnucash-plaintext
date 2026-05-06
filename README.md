@@ -775,6 +775,33 @@ invoice "INV-2026-004"
     memo: "Second instalment"
 ```
 
+### Reconciling invoice and bill payments with a bank feed
+
+When a bank feed (QFX, CSV, HTML) is imported **before** the matching invoice
+or bill, you can link them without creating a duplicate bank entry using
+`txn_guid` in the `payment:` block:
+
+```
+payment:
+  bank_account: "Assets:Bank"
+  txn_guid: 317c8ae6e0084c33951d052b9f1b9f23
+```
+
+Use `find-transactions` to look up the GUID:
+
+```bash
+gnucash-plaintext find-transactions ledger.gnucash \
+    --account "Assets:Bank" --date 2026-01-15 --amount 500
+```
+
+The importer retargets the existing bank transaction's counter-split to AR (or
+AP for bills) and links it to the invoice lot in-place — no new transaction is
+created and all original bank metadata is preserved.
+
+See **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)**
+for the full workflow, bill examples, error reference, and the invoice-first
+alternative.
+
 ### Retiring customers and vendors (archive)
 
 Use `archive-customers` or `archive-vendors` to soft-hide one or more
