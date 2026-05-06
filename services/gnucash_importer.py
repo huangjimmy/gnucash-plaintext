@@ -8,7 +8,7 @@ Converts PlaintextDirective objects from the parser into GnuCash objects
 import ctypes
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 import gnucash.gnucash_core_c as gc
 from gnucash import Account, Book, GncCommodity, GncNumeric, Split, Transaction

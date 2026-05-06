@@ -92,7 +92,7 @@ def test_active_customer_has_no_active_field(tmp_path):
     for line in lines:
         if line == 'customer "1"':
             in_cust1 = True
-        elif in_cust1 and line and not line[0:1] in (' ', '\t'):
+        elif in_cust1 and line and line[0:1] not in (' ', '\t'):
             break
         elif in_cust1:
             assert 'active:' not in line, \
@@ -110,7 +110,7 @@ def test_active_vendor_has_no_active_field(tmp_path):
     for line in lines:
         if line == 'vendor "V001"':
             in_v001 = True
-        elif in_v001 and line and not line[0:1] in (' ', '\t'):
+        elif in_v001 and line and line[0:1] not in (' ', '\t'):
             break
         elif in_v001:
             assert 'active:' not in line, \
@@ -224,7 +224,7 @@ def test_archive_customer_active_no_invoices(tmp_path):
     for line in lines:
         if line == 'customer "1"':
             in_cust1 = True
-        elif in_cust1 and line and not line[0:1] in (' ', '\t'):
+        elif in_cust1 and line and line[0:1] not in (' ', '\t'):
             break
         elif in_cust1 and 'active: false' in line:
             found_active_false = True
@@ -302,7 +302,7 @@ def test_archive_vendor_with_bills(tmp_path):
     for line in lines:
         if line == 'vendor "V001"':
             in_v001 = True
-        elif in_v001 and line and not line[0:1] in (' ', '\t'):
+        elif in_v001 and line and line[0:1] not in (' ', '\t'):
             break
         elif in_v001 and 'active: false' in line:
             found_active_false = True
