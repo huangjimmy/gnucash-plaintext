@@ -6,39 +6,85 @@ gnucash plaintext is an app that can
 * load a .gnucash file and then export a [GnuCash](https://www.gnucash.org/) plaintext ledger file
 * load [GnuCash](https://www.gnucash.org/) plaintext ledger file and export a [beancount](https://github.com/beancount/beancount) compatible .beancount file
 * read from a [GnuCash](https://www.gnucash.org/) plaintext transaction file and create transaction in .gnucash file
-* bidirectional conversion between GnuCash and [GnuCash-Beancount](docs/gnucash-beancount-format.md) format with zero data loss
+* bidirectional conversion between GnuCash and [GnuCash-Beancount](docs/gnucash-beancount-format.md) format with zero data loss for accounts, transactions, splits, commodities, and prices (business objects — customers, vendors, invoices, bills — are not representable in beancount; see [Limitations](docs/gnucash-beancount-format.md#limitations))
 
 ## Motivation
 
-I have been using GnuCash to track my finance for several decades. At first, I was looking for a software that I could
-use to track my spending. Now, GnuCash is a place where I keep track of my expenses, income and investment. There are 
-commercial software and SaasS, people even mention notion as an online ledger, but I stick to GnuCash. I believe in one
-thing that I need to own my financial data and I would use an open source tool like GnuCash.
+### The everyday problem: GnuCash is great for entry, painful for bulk work
 
-At first, I used Microsoft Money but then Microsoft discontinued this product. I then found GnuCash. I was not quite sure
-how to use GnuCash in the very beginning. I had to learn accounting basic such as Assets, Liabilities, Income, Expense
-and Equity. I had to admit that if it were not for GnuCash, I wouldn't have learnt bookkeeping and accounting and I would
-not have reviewed my financial status regularly like a CFO of myself.
+I have used GnuCash for decades to track expenses, income, and investments. The
+GUI is excellent for the way most transactions actually arrive in your life —
+you sit down, enter a few items, reconcile a statement. But the moment the work
+is *bulk* or *programmatic*, the GUI becomes the bottleneck:
 
-As my ledger grows, I start to worry, what if GnuCash become obsolete? The first commit of GnuCash was made in 1997 and
-today GnuCash is still under active development. It seems unlikely that my worry will come true, but I want to always
-prepare for such event.
+- Importing a month of QFX entries and re-categorising 80 of them
+- Renaming an account that's used in thousands of splits
+- Fixing a typo across every invoice from a single vendor
+- Generating recurring bills from a spreadsheet
+- Asking an AI to clean up memos, propose categorisations, or sanity-check a
+  reconciliation
 
-Then I find [ledger-cli](https://ledger-cli.org/doc/ledger3.html) and [beancount](https://github.com/beancount/beancount).
-I immediately feel that plaintext accounting is what I am looking for. It is in human-readable text format and the content
-will be readable by others even without any software.
+For all of these, you want **text**. You want grep, sed, scripts, diffs,
+version control, and nowadays an LLM that can read and edit your ledger
+directly. GnuCash's XML file is technically text, but it's not
+human-editable — one wrong tag and the whole file is unusable.
 
-However, when I dive deeper into ledger-cli and beancount, I know I cannot migrate my ledger to either of them. There are
-features of GnuCash that I use and are not supported any of the two. Also, I have lots of reports in GnuCash that will
-take me lots of time to migrate. What's more, my account names are highly flexible, e.g., they include spaces, CJK and, 
-punctuations. 
+### The fix: a stable Export → edit → Import cycle
 
-I do agree with the author of beancount that GnuCash's UIs are inconvenient. Suddenly, I ask myself, why can't I build
-a plaintext language that is similar to beancount and compatible with GnuCash. I can edit my ledger in GnuCash UIs and
-then export to a text file. I can also edit my text file and then a cli will parse the text file and create transactions
-and/or accounts in GnuCash? I can also export a beancount compatible text file to use against [beancount](https://github.com/beancount/beancount) and [fava](https://github.com/beancount/fava).
+`gnucash-plaintext` gives you a round-trippable plaintext format for your
+GnuCash file. The workflow is:
 
-I explore GnuCash python bindings and beancount documentations. Now I am pretty sure that my idea is both viable and valuable. 
+1. **Export** your `.gnucash` file to plaintext.
+2. **Edit** the text however you like — by hand, with a script, by piping it
+   through an LLM, or as part of a larger tool chain.
+3. **Import** back into GnuCash. Accounts, transactions, splits, commodities,
+   prices, customers, vendors, invoices, bills, and payments all round-trip
+   without loss.
+
+Because every object carries its GnuCash GUID through the cycle, edits target
+the *same* underlying objects on re-import — no duplicates, no orphaned
+records. You keep using the GnuCash GUI for day-to-day entry, and reach for
+plaintext only when the job is bigger than a few clicks.
+
+### Bonus: Fava visualisation and long-term portability
+
+Two further things fall out of this design almost for free:
+
+- **Fava in your browser.** The same tool can export to a beancount-compatible
+  format, so you can point [Fava](https://github.com/beancount/fava) at your
+  GnuCash data and get a modern web UI for analysis and reporting without
+  leaving GnuCash for entry.
+- **A future-proof copy of your data.** GnuCash was first committed in 1997
+  and is still actively developed, but if it ever did go away, a plaintext
+  ledger remains readable by humans and by every accounting tool that supports
+  beancount-like formats. The same cycle that powers your weekly bulk edits
+  doubles as a long-term escape hatch.
+
+### How this came about
+
+I tried [ledger-cli](https://ledger-cli.org/doc/ledger3.html) and
+[beancount](https://github.com/beancount/beancount) when I first wanted
+plaintext accounting, but neither was a clean migration target. Beancount in
+particular has gaps that matter for a GnuCash user: business objects
+(customers, vendors, invoices, bills, payments) have no equivalent, GnuCash's
+KVP slots and multi-namespace commodities don't map cleanly, and I have years
+of GnuCash reports I'm unwilling to redo.
+
+Account names with spaces and CJK characters used to be a hard blocker too —
+beancount v2 rejects them — but that's no longer true in v3, which uses a
+UTF-8-aware scanner ([beancount#398](https://github.com/beancount/beancount/issues/398)).
+[rustledger](https://github.com/rustledger/rustledger), a Rust implementation
+of beancount, has landed the same support
+([rustledger#817](https://github.com/rustledger/rustledger/pull/817)). So if
+your only need is "let me edit my ledger as text", a beancount-native workflow
+is now genuinely viable.
+
+What's still missing from a beancount-only setup is the GnuCash side itself:
+the entry GUI, the business objects, the existing reports, the on-disk format
+my partner and accountant already know. Instead of migrating *away* from
+GnuCash, I built a plaintext layer *on top of* it — close enough to beancount
+that Fava and related tooling still work, but lossless against GnuCash so the
+GUI remains the source of truth.
 
 ## Concepts
 
@@ -526,7 +572,7 @@ gnucash-plaintext export-beancount mybook.gnucash output.beancount \
   --account "Assets:Bank"
 ```
 
-**Note:** The exported file is in [GnuCash-Beancount format](docs/gnucash-beancount-format.md), a special beancount format with GnuCash metadata that enables bidirectional conversion with zero data loss.
+**Note:** The exported file is in [GnuCash-Beancount format](docs/gnucash-beancount-format.md), a special beancount format with GnuCash metadata that enables bidirectional conversion with zero data loss for accounts, transactions, splits, commodities, and prices. Business objects (customers, vendors, invoices, bills) are not representable in beancount and are dropped during export — see [Limitations](docs/gnucash-beancount-format.md#limitations).
 
 ### View GnuCash data in Fava web UI
 
@@ -774,6 +820,33 @@ invoice "INV-2026-004"
     bank_account: "Assets:Bank"
     memo: "Second instalment"
 ```
+
+### Reconciling invoice and bill payments with a bank feed
+
+When a bank feed (QFX, CSV, HTML) is imported **before** the matching invoice
+or bill, you can link them without creating a duplicate bank entry using
+`txn_guid` in the `payment:` block:
+
+```
+payment:
+  bank_account: "Assets:Bank"
+  txn_guid: 317c8ae6e0084c33951d052b9f1b9f23
+```
+
+Use `find-transactions` to look up the GUID:
+
+```bash
+gnucash-plaintext find-transactions ledger.gnucash \
+    --account "Assets:Bank" --date 2026-01-15 --amount 500
+```
+
+The importer retargets the existing bank transaction's counter-split to AR (or
+AP for bills) and links it to the invoice lot in-place — no new transaction is
+created and all original bank metadata is preserved.
+
+See **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)**
+for the full workflow, bill examples, error reference, and the invoice-first
+alternative.
 
 ### Retiring customers and vendors (archive)
 

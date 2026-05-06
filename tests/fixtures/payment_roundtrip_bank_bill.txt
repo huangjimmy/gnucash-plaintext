@@ -1,0 +1,5 @@
+2026-01-15 * "Payment to supplier"
+  notes: "fitid:20260115002  source:qfx"
+  Assets:Bank  -100.00 CAD
+    memo: "Bill payment memo to preserve"
+  Liabilities:Accounts Payable  100.00 CAD

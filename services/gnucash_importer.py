@@ -5,6 +5,7 @@ Converts PlaintextDirective objects from the parser into GnuCash objects
 (commodities, accounts, transactions) with all metadata preserved.
 """
 
+import ctypes
 import logging
 from datetime import datetime
 from typing import List
@@ -60,6 +61,79 @@ def string_to_gnc_numeric_quantity(s):
 _FALSY_STRINGS = {'false', '0', 'no'}
 
 
+def _find_transaction_by_guid(book, guid: str):
+    """Return the Transaction matching guid, or None.
+
+    Accepts 32-char hex or UUID-with-hyphens; normalises via string_to_guid
+    so both forms resolve to the same canonical GUID before lookup.
+    Raises ValueError for inputs that are not valid GUID/UUID strings.
+    Returns None when the format is valid but no transaction has that GUID.
+    """
+    from gnucash import Transaction
+    from gnucash.gnucash_core_c import GncGUID, string_to_guid, xaccTransLookup
+    gnc_guid = GncGUID()
+    if not string_to_guid(guid, gnc_guid):
+        raise ValueError(f"Invalid GUID format: {guid!r}")
+    raw = xaccTransLookup(gnc_guid, book.instance)
+    if raw is None:
+        return None
+    return Transaction(instance=raw)
+
+
+def _retarget_counter_split_to_lot(lib, existing_tx, bank_acct_name: str,
+                                   ar_ap_account, lot) -> bool:
+    """
+    Modify existing_tx in-place: find the split whose account is NOT the
+    bank account (the "counter-split"), retarget it to ar_ap_account, and
+    link it to the invoice/bill lot.
+
+    This closes the lot without calling ApplyPayment(), preserving all
+    original transaction metadata (notes, description, split memos, KVP).
+
+    xaccSplitSetAccount has a SWIG const-type mismatch — ctypes is required.
+    See docs/DEBUGGING_GNUCASH_BINDINGS.md.
+    """
+    from infrastructure.gnucash.engine import safe_ctypes_string
+    lib.xaccSplitGetAccount.argtypes = [ctypes.c_void_p]
+    lib.xaccSplitGetAccount.restype  = ctypes.c_void_p
+    lib.xaccSplitSetAccount.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.xaccSplitSetAccount.restype  = None
+    lib.gnc_account_get_parent.argtypes = [ctypes.c_void_p]
+    lib.gnc_account_get_parent.restype  = ctypes.c_void_p
+
+    def _acct_name(acct_ptr):
+        parts = []
+        ptr = acct_ptr
+        while ptr:
+            name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
+            if name:
+                parts.append(name)
+            parent = lib.gnc_account_get_parent(ptr)
+            if not parent:
+                break
+            if not lib.gnc_account_get_parent(parent):
+                break
+            ptr = parent
+        parts.reverse()
+        return ':'.join(parts)
+
+    import gnucash.gnucash_core_c as _gc
+    existing_tx.BeginEdit()
+    for raw_sp in existing_tx.GetSplitList():
+        sp_ptr = int(raw_sp.instance)
+        acct_ptr = lib.xaccSplitGetAccount(sp_ptr)
+        if not acct_ptr:
+            continue
+        if _acct_name(acct_ptr) != bank_acct_name:
+            # This is the counter-split — retarget to AR/AP and close the lot
+            lib.xaccSplitSetAccount(sp_ptr, int(ar_ap_account.instance))
+            _gc.xaccSplitSetLot(raw_sp.instance, lot.instance)
+            existing_tx.CommitEdit()
+            return True
+    existing_tx.CommitEdit()
+    return False
+
+
 def _is_falsy(val: str) -> bool:
     """Return True if val is a recognised falsy string (case-insensitive)."""
     return val.strip().lower() in _FALSY_STRINGS
@@ -75,7 +149,9 @@ ACCT_TYPE_MAP = {
     "Liability": ACCT_TYPE_LIABILITY,
     "Mutual Fund": ACCT_TYPE_MUTUAL,
     "Accounts Payable": ACCT_TYPE_PAYABLE,
+    "A/Payable": ACCT_TYPE_PAYABLE,          # GnuCash internal short form
     "Accounts Receivable": ACCT_TYPE_RECEIVABLE,
+    "A/Receivable": ACCT_TYPE_RECEIVABLE,    # GnuCash internal short form
     "Stock": ACCT_TYPE_STOCK,
     "Cash": ACCT_TYPE_CASH,
 }
@@ -573,6 +649,13 @@ class GnuCashImporter:
 
         inv_id = directive.props['id']
 
+        # Idempotency: skip if this invoice already exists in the book.
+        # Re-importing the same file would otherwise create a duplicate invoice
+        # and a duplicate payment transaction for each payment: block.
+        if book.InvoiceLookupByID(inv_id) is not None:
+            logging.debug(f"Invoice {inv_id} already exists, skipping")
+            return
+
         # Validate: posted: none and a real posted: block are contradictory
         has_posted_none = directive.metadata.get('posted') == 'none'
         posted_children = [c for c in directive.children if c.type == DirectiveType.POSTED]
@@ -644,15 +727,40 @@ class GnuCashImporter:
                 bank_account = find_account(book.get_root_account(), bank_acct_name)
                 if bank_account is None:
                     raise Exception(f'Bank account {bank_acct_name!r} not found when applying invoice payment')
-                pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
-                amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
-                memo = entry_directive.metadata['memo']
-                num = entry_directive.metadata.get('num', '')
-                # Pass None for txn: GnuCash creates the payment transaction
-                # internally. Passing a manually-allocated Transaction causes
-                # a segfault on GnuCash 3.8 (ubuntu20) because the transaction
-                # is not properly initialised before ApplyPayment uses it.
-                invoice.ApplyPayment(None, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
+
+                txn_guid = entry_directive.metadata.get('txn_guid', '').strip()
+                if txn_guid:
+                    # Retarget approach: the bank transaction already exists.
+                    # Find the counter-split (non-bank side), retarget it to AR,
+                    # and link it to the invoice lot. No new transaction is created,
+                    # all original bank metadata (notes, memos, KVP) is preserved.
+                    # ApplyPayment() is NOT called — the lot closes automatically
+                    # when the AR split sum reaches zero.
+                    existing_tx = _find_transaction_by_guid(book, txn_guid)
+                    if existing_tx is None:
+                        raise Exception(f'txn_guid {txn_guid!r} not found in book')
+                    ar_account = invoice.GetPostedAcc()
+                    lot = invoice.GetPostedLot()
+                    if lot is None:
+                        raise Exception(f'Invoice {inv_id} has no posted lot — must be posted before payment')
+                    from infrastructure.gnucash.engine import load_gnc_engine
+                    if not _retarget_counter_split_to_lot(
+                            load_gnc_engine(), existing_tx, bank_acct_name, ar_account, lot):
+                        raise Exception(
+                            f'Could not find counter-split in tx {txn_guid!r} — '
+                            f'expected a non-{bank_acct_name!r} split'
+                        )
+                else:
+                    # Normal path: no pre-existing bank tx — ApplyPayment creates one.
+                    pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
+                    amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
+                    memo = entry_directive.metadata['memo']
+                    num = entry_directive.metadata.get('num', '')
+                    # Pass None for txn: GnuCash creates the payment transaction
+                    # internally. Passing a manually-allocated Transaction causes
+                    # a segfault on GnuCash 3.8 (ubuntu20) because the transaction
+                    # is not properly initialised before ApplyPayment uses it.
+                    invoice.ApplyPayment(None, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
 
         invoice.CommitEdit()
         custom_meta = {k: v for k, v in directive.metadata.items()
@@ -667,6 +775,11 @@ class GnuCashImporter:
             raise ValueError(f"Expected BILL but got {directive.type}")
 
         bill_id = directive.props['id']
+
+        # Idempotency: skip if this bill already exists in the book.
+        if book.InvoiceLookupByID(bill_id) is not None:
+            logging.debug(f"Bill {bill_id} already exists, skipping")
+            return
 
         # Validate: posted: none and a real posted: block are contradictory
         has_posted_none = directive.metadata.get('posted') == 'none'
@@ -733,27 +846,43 @@ class GnuCashImporter:
                 bank_account = find_account(book.get_root_account(), bank_acct_name)
                 if bank_account is None:
                     raise Exception(f'Bank account {bank_acct_name!r} not found when applying bill payment')
-                pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
-                amount_str = entry_directive.metadata['amount']
-                memo = entry_directive.metadata['memo']
-                num = entry_directive.metadata.get('num', '')
-                # AP and AR have opposite sign conventions, so bill payments
-                # require a negated amount:
-                #
-                #   Invoice posting: DR AR +N  →  lot starts at +N
-                #   Invoice payment: CR AR −N  →  ApplyPayment(+N) creates AR = −N ✓
-                #
-                #   Bill posting:    CR AP −N  →  lot starts at −N
-                #   Bill payment:    DR AP +N  →  ApplyPayment(+N) creates AP = −N ✗
-                #                                 (same sign as posting → new lot)
-                #                   ApplyPayment(−N) creates AP = +N ✓
-                #                                 (opposite sign → closes existing lot)
-                #
-                # Passing a positive amount for a bill puts the payment split in a
-                # brand-new lot instead of the bill's posted lot, making the exporter
-                # unable to find the payment via GetPostedLot().get_split_list().
-                neg_amount = string_to_gnc_numeric_quantity(f'-{amount_str}')
-                bill.ApplyPayment(None, bank_account, neg_amount, GncNumeric(1, 1), pay_date, memo, num)
+
+                txn_guid = entry_directive.metadata.get('txn_guid', '').strip()
+                if txn_guid:
+                    # Retarget approach — same as invoice, but targeting AP.
+                    existing_tx = _find_transaction_by_guid(book, txn_guid)
+                    if existing_tx is None:
+                        raise Exception(f'txn_guid {txn_guid!r} not found in book')
+                    ap_account = bill.GetPostedAcc()
+                    lot = bill.GetPostedLot()
+                    if lot is None:
+                        raise Exception(f'Bill {bill_id} has no posted lot — must be posted before payment')
+                    from infrastructure.gnucash.engine import load_gnc_engine
+                    if not _retarget_counter_split_to_lot(
+                            load_gnc_engine(), existing_tx, bank_acct_name, ap_account, lot):
+                        raise Exception(
+                            f'Could not find counter-split in tx {txn_guid!r} — '
+                            f'expected a non-{bank_acct_name!r} split'
+                        )
+                else:
+                    # Normal path: ApplyPayment creates the bank+AP transaction.
+                    # AP and AR have opposite sign conventions, so bill payments
+                    # require a negated amount:
+                    #
+                    #   Bill posting:    CR AP −N  →  lot starts at −N
+                    #   Bill payment:    DR AP +N  →  ApplyPayment(+N) creates AP = −N ✗
+                    #                                 (same sign as posting → new lot)
+                    #                   ApplyPayment(−N) creates AP = +N ✓
+                    #                                 (opposite sign → closes existing lot)
+                    #
+                    # Passing a positive amount puts the payment split in a brand-new
+                    # lot instead of the bill's posted lot.
+                    pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
+                    amount_str = entry_directive.metadata['amount']
+                    memo = entry_directive.metadata['memo']
+                    num = entry_directive.metadata.get('num', '')
+                    neg_amount = string_to_gnc_numeric_quantity(f'-{amount_str}')
+                    bill.ApplyPayment(None, bank_account, neg_amount, GncNumeric(1, 1), pay_date, memo, num)
 
         bill.CommitEdit()
         custom_meta = {k: v for k, v in directive.metadata.items()
@@ -766,18 +895,38 @@ class GnuCashImporter:
         # Import customers and vendors first
         for directive in directives:
             if directive.type == DirectiveType.CUSTOMER:
-                self.import_customer(directive, book)
+                cid = directive.props.get('id', '?')
+                try:
+                    self.import_customer(directive, book)
+                except Exception as e:
+                    raise ValueError(f'customer "{cid}": {e}') from e
             elif directive.type == DirectiveType.VENDOR:
-                self.import_vendor(directive, book)
+                vid = directive.props.get('id', '?')
+                try:
+                    self.import_vendor(directive, book)
+                except Exception as e:
+                    raise ValueError(f'vendor "{vid}": {e}') from e
 
         # Then tax tables
         for directive in directives:
             if directive.type == DirectiveType.TAXTABLE:
-                self.import_taxtable(directive, book)
+                tname = directive.props.get('name', '?')
+                try:
+                    self.import_taxtable(directive, book)
+                except Exception as e:
+                    raise ValueError(f'taxtable "{tname}": {e}') from e
 
         # Finally, invoices and bills
         for directive in directives:
             if directive.type == DirectiveType.INVOICE:
-                self.import_invoice(directive, book)
+                iid = directive.props.get('id', '?')
+                try:
+                    self.import_invoice(directive, book)
+                except Exception as e:
+                    raise ValueError(f'invoice "{iid}": {e}') from e
             elif directive.type == DirectiveType.BILL:
-                self.import_bill(directive, book)
+                bid = directive.props.get('id', '?')
+                try:
+                    self.import_bill(directive, book)
+                except Exception as e:
+                    raise ValueError(f'bill "{bid}": {e}') from e

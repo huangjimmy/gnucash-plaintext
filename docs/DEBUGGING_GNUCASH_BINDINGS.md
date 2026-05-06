@@ -88,6 +88,10 @@ GnuCash Python bindings have different reliability for reading vs writing:
 - `gncEntryGetDescription()`, `gncEntryGetAction()`: SWIG has const-type bugs
 - `xaccAccountGetName()`: Works in ctypes, SWIG version buggy on Ubuntu
 - `gnc_account_get_full_name()`: Use ctypes version for raw pointers
+- `xaccSplitGetAccount()`: SWIG const-type mismatch on all platforms — always ctypes
+- `xaccSplitGetAmount()`: SWIG `split.GetAmount().to_double()` confirmed working on
+  Debian 11/12/13, Ubuntu 20/22/24. ctypes (`GncNumericC` restype) also works
+  and is used when split_ptr is already in the ctypes domain ("once ctypes, stay ctypes").
 
 ## Pointer Lifetime Rules
 

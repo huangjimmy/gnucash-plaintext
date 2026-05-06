@@ -94,29 +94,29 @@ def test_business_objects_roundtrip(tmp_path):
     # Must have a posted: block and an explicit "payment: none" sentinel
     inv1 = get_invoice_block(exported_biz, 'INV-2026-001')
     assert inv1, "INV-2026-001 must appear in export"
-    assert '  posted:' in inv1, "INV-2026-001 must have a posted: block"
-    assert '  payment: none' in inv1, "INV-2026-001 must have payment: none (not paid)"
+    assert '	posted:' in inv1, "INV-2026-001 must have a posted: block"
+    assert '	payment: none' in inv1, "INV-2026-001 must have payment: none (not paid)"
 
     # INV-2026-002: unposted
     # Must appear (export now includes unposted) with both sentinels
     inv2 = get_invoice_block(exported_biz, 'INV-2026-002')
     assert inv2, "INV-2026-002 (unposted) must appear in export"
-    assert '  posted: none' in inv2, "INV-2026-002 must have posted: none (unposted)"
-    assert '  payment: none' in inv2, "INV-2026-002 must have payment: none (unposted, no payments)"
+    assert '	posted: none' in inv2, "INV-2026-002 must have posted: none (unposted)"
+    assert '	payment: none' in inv2, "INV-2026-002 must have payment: none (unposted, no payments)"
 
     # INV-2026-003: posted, single full payment
     inv3 = get_invoice_block(exported_biz, 'INV-2026-003')
     assert inv3, "INV-2026-003 must appear in export"
-    assert '  posted:' in inv3, "INV-2026-003 must have a posted: block"
-    assert '  payment:' in inv3, "INV-2026-003 must have a payment: block"
+    assert '	posted:' in inv3, "INV-2026-003 must have a posted: block"
+    assert '	payment:' in inv3, "INV-2026-003 must have a payment: block"
     assert 'payment: none' not in inv3, "INV-2026-003 must not have payment: none"
-    assert inv3.count('  payment:') == 1, "INV-2026-003 must have exactly one payment block"
+    assert inv3.count('	payment:') == 1, "INV-2026-003 must have exactly one payment block"
 
     # INV-2026-004: posted, two partial payments, amount still remaining
     inv4 = get_invoice_block(exported_biz, 'INV-2026-004')
     assert inv4, "INV-2026-004 must appear in export"
-    assert '  posted:' in inv4, "INV-2026-004 must have a posted: block"
-    assert inv4.count('  payment:') == 2, "INV-2026-004 must have exactly two payment blocks"
+    assert '	posted:' in inv4, "INV-2026-004 must have a posted: block"
+    assert inv4.count('	payment:') == 2, "INV-2026-004 must have exactly two payment blocks"
     assert 'payment: none' not in inv4
     assert 'Partial payment 1 for INV-2026-004' in inv4
     assert 'Partial payment 2 for INV-2026-004' in inv4
@@ -124,8 +124,8 @@ def test_business_objects_roundtrip(tmp_path):
     # INV-2026-005: posted, two payments, fully paid (zero balance)
     inv5 = get_invoice_block(exported_biz, 'INV-2026-005')
     assert inv5, "INV-2026-005 must appear in export"
-    assert '  posted:' in inv5, "INV-2026-005 must have a posted: block"
-    assert inv5.count('  payment:') == 2, "INV-2026-005 must have exactly two payment blocks"
+    assert '	posted:' in inv5, "INV-2026-005 must have a posted: block"
+    assert inv5.count('	payment:') == 2, "INV-2026-005 must have exactly two payment blocks"
     assert 'payment: none' not in inv5
     assert 'First payment for INV-2026-005' in inv5
     assert 'Final payment for INV-2026-005' in inv5
@@ -135,28 +135,28 @@ def test_business_objects_roundtrip(tmp_path):
     # BILL-2026-001: posted, not paid
     bill1 = get_bill_block(exported_biz, 'BILL-2026-001')
     assert bill1, "BILL-2026-001 must appear in export"
-    assert '  posted:' in bill1, "BILL-2026-001 must have a posted: block"
-    assert '  payment: none' in bill1, "BILL-2026-001 must have payment: none (not paid)"
+    assert '	posted:' in bill1, "BILL-2026-001 must have a posted: block"
+    assert '	payment: none' in bill1, "BILL-2026-001 must have payment: none (not paid)"
 
     # BILL-2026-002: unposted
     bill2 = get_bill_block(exported_biz, 'BILL-2026-002')
     assert bill2, "BILL-2026-002 (unposted) must appear in export"
-    assert '  posted: none' in bill2, "BILL-2026-002 must have posted: none (unposted)"
-    assert '  payment: none' in bill2, "BILL-2026-002 must have payment: none (unposted, no payments)"
+    assert '	posted: none' in bill2, "BILL-2026-002 must have posted: none (unposted)"
+    assert '	payment: none' in bill2, "BILL-2026-002 must have payment: none (unposted, no payments)"
 
     # BILL-2026-003: posted, single full payment
     bill3 = get_bill_block(exported_biz, 'BILL-2026-003')
     assert bill3, "BILL-2026-003 must appear in export"
-    assert '  posted:' in bill3, "BILL-2026-003 must have a posted: block"
-    assert '  payment:' in bill3, "BILL-2026-003 must have a payment: block"
+    assert '	posted:' in bill3, "BILL-2026-003 must have a posted: block"
+    assert '	payment:' in bill3, "BILL-2026-003 must have a payment: block"
     assert 'payment: none' not in bill3, "BILL-2026-003 must not have payment: none"
-    assert bill3.count('  payment:') == 1, "BILL-2026-003 must have exactly one payment block"
+    assert bill3.count('	payment:') == 1, "BILL-2026-003 must have exactly one payment block"
 
     # BILL-2026-004: posted, two partial payments, amount still remaining
     bill4 = get_bill_block(exported_biz, 'BILL-2026-004')
     assert bill4, "BILL-2026-004 must appear in export"
-    assert '  posted:' in bill4, "BILL-2026-004 must have a posted: block"
-    assert bill4.count('  payment:') == 2, "BILL-2026-004 must have exactly two payment blocks"
+    assert '	posted:' in bill4, "BILL-2026-004 must have a posted: block"
+    assert bill4.count('	payment:') == 2, "BILL-2026-004 must have exactly two payment blocks"
     assert 'payment: none' not in bill4
     assert 'Partial payment 1 for BILL-2026-004' in bill4
     assert 'Partial payment 2 for BILL-2026-004' in bill4
@@ -164,8 +164,8 @@ def test_business_objects_roundtrip(tmp_path):
     # BILL-2026-005: posted, two payments, fully paid (zero balance)
     bill5 = get_bill_block(exported_biz, 'BILL-2026-005')
     assert bill5, "BILL-2026-005 must appear in export"
-    assert '  posted:' in bill5, "BILL-2026-005 must have a posted: block"
-    assert bill5.count('  payment:') == 2, "BILL-2026-005 must have exactly two payment blocks"
+    assert '	posted:' in bill5, "BILL-2026-005 must have a posted: block"
+    assert bill5.count('	payment:') == 2, "BILL-2026-005 must have exactly two payment blocks"
     assert 'payment: none' not in bill5
     assert 'First payment for BILL-2026-005' in bill5
     assert 'Final payment for BILL-2026-005' in bill5

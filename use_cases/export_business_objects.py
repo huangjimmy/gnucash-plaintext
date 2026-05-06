@@ -90,11 +90,11 @@ class ExportBusinessObjectsUseCase:
             addr  = cust.GetAddr()
             lines = [
                 f'customer "{cust.GetID()}"',
-                f'  name: "{cust.GetName()}"',
-                f'  currency: {cust.GetCurrency().get_mnemonic()}',
+                f'\tname: "{cust.GetName()}"',
+                f'\tcurrency: {cust.GetCurrency().get_mnemonic()}',
             ]
             if not cust.GetActive():
-                lines.append('  active: false')
+                lines.append('	active: false')
             # Only emit optional address/contact fields when non-empty
             for field, val in [
                 ('addr1', addr.GetAddr1()),
@@ -104,10 +104,10 @@ class ExportBusinessObjectsUseCase:
                 ('email', addr.GetEmail()),
             ]:
                 if val:
-                    lines.append(f'  {field}: "{val}"')
+                    lines.append(f'	{field}: "{val}"')
             custom_meta = get_custom_metadata(cust)
             for k, v in sorted(custom_meta.items()):
-                lines.append(f'  {k}: "{v}"')
+                lines.append(f'	{k}: "{v}"')
             lines_list.append('\n'.join(lines))
         return '\n\n'.join(lines_list)
 
@@ -124,14 +124,14 @@ class ExportBusinessObjectsUseCase:
         for v in vendors:
             lines = [
                 f'vendor "{v.GetID()}"',
-                f'  name: "{v.GetName()}"',
-                f'  currency: {v.GetCurrency().get_mnemonic()}',
+                f'	name: "{v.GetName()}"',
+                f'	currency: {v.GetCurrency().get_mnemonic()}',
             ]
             if not v.GetActive():
-                lines.append('  active: false')
+                lines.append('	active: false')
             custom_meta = get_custom_metadata(v)
             for k, v_val in sorted(custom_meta.items()):
-                lines.append(f'  {k}: "{v_val}"')
+                lines.append(f'	{k}: "{v_val}"')
             lines_list.append('\n'.join(lines))
         return '\n\n'.join(lines_list)
 
@@ -167,10 +167,10 @@ class ExportBusinessObjectsUseCase:
             entry_parts.reverse()  # GnuCash prepends → put GST before PST/QST
 
             for acct_name, rate in entry_parts:
-                lines.append('  entry:')
-                lines.append(f'    account: "{acct_name}"')
-                lines.append(f'    rate: {_fmt_rate(rate)}')
-                lines.append('    type: PERCENT')
+                lines.append('	entry:')
+                lines.append(f'		account: "{acct_name}"')
+                lines.append(f'		rate: {_fmt_rate(rate)}')
+                lines.append('		type: PERCENT')
 
             return '\n'.join(lines)
 
@@ -202,18 +202,18 @@ class ExportBusinessObjectsUseCase:
         for inv, cust in invoices:
             lines = [
                 f'invoice "{inv.GetID()}"',
-                f'  customer_id: "{cust.GetID()}"',
-                f'  currency: {inv.GetCurrency().get_mnemonic()}',
-                f'  date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
+                f'	customer_id: "{cust.GetID()}"',
+                f'	currency: {inv.GetCurrency().get_mnemonic()}',
+                f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
             ]
             if inv.GetBillingID():
-                lines.append(f'  billing_id: "{inv.GetBillingID()}"')
+                lines.append(f'	billing_id: "{inv.GetBillingID()}"')
             if inv.GetNotes():
-                lines.append(f'  notes: "{inv.GetNotes()}"')
+                lines.append(f'	notes: "{inv.GetNotes()}"')
 
             custom_meta = get_custom_metadata(inv)
             for k, v in sorted(custom_meta.items()):
-                lines.append(f'  {k}: "{v}"')
+                lines.append(f'	{k}: "{v}"')
 
             for raw_entry in inv.GetEntries():
                 lines += self._format_inv_entry(lib, raw_entry)
@@ -222,14 +222,14 @@ class ExportBusinessObjectsUseCase:
             posted_txn = inv.GetPostedTxn()
             if posted_txn:
                 ar_name = get_account_full_name(inv.GetPostedAcc())
-                lines.append('  posted:')
-                lines.append(f'    date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
-                lines.append(f'    due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
-                lines.append(f'    ar_account: "{ar_name}"')
-                lines.append(f'    memo: "{posted_txn.GetDescription()}"')
-                lines.append('    accumulate: true')
+                lines.append('	posted:')
+                lines.append(f'		date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
+                lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
+                lines.append(f'		ar_account: "{ar_name}"')
+                lines.append(f'		memo: "{posted_txn.GetDescription()}"')
+                lines.append('		accumulate: true')
             else:
-                lines.append('  posted: none')
+                lines.append('	posted: none')
 
             # payment blocks — always emitted; "none" sentinel when no payments exist
             lot = inv.GetPostedLot()
@@ -246,7 +246,7 @@ class ExportBusinessObjectsUseCase:
                     lines += self._format_payment(txn)
                     has_payments = True
             if not has_payments:
-                lines.append('  payment: none')
+                lines.append('	payment: none')
 
             invoice_strings.append('\n'.join(lines))
         return '\n\n'.join(invoice_strings)
@@ -270,15 +270,15 @@ class ExportBusinessObjectsUseCase:
         date_str = raw_entry.GetDate().strftime("%Y-%m-%d")
 
         lines = [
-            '  entry:',
-            f'    date: {date_str}',
-            f'    description: "{desc}"',
-            f'    action: "{action}"',
-            f'    account: "{acct_name}"',
-            f'    quantity: {_fmt_quantity(qty)}',
-            f'    price: {_fmt_quantity(price)}',
-            f'    taxable: {"true" if taxable else "false"}',
-            f'    tax_included: {"true" if tax_incl else "false"}',
+            '	entry:',
+            f'		date: {date_str}',
+            f'		description: "{desc}"',
+            f'		action: "{action}"',
+            f'		account: "{acct_name}"',
+            f'		quantity: {_fmt_quantity(qty)}',
+            f'		price: {_fmt_quantity(price)}',
+            f'		taxable: {"true" if taxable else "false"}',
+            f'		tax_included: {"true" if tax_incl else "false"}',
         ]
 
         # Tax table — ctypes required (SWIG const-type bug)
@@ -286,7 +286,7 @@ class ExportBusinessObjectsUseCase:
         if tt_ptr:
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
             if tt_name:
-                lines.append(f'    tax_table: "{tt_name}"')
+                lines.append(f'		tax_table: "{tt_name}"')
 
         return lines
 
@@ -313,21 +313,21 @@ class ExportBusinessObjectsUseCase:
         date_str  = raw_entry.GetDate().strftime("%Y-%m-%d")
 
         lines = [
-            '  entry:',
-            f'    date: {date_str}',
-            f'    description: "{desc}"',
-            f'    account: "{acct_name}"',
-            f'    quantity: {_fmt_quantity(qty)}',
-            f'    price: {_fmt_quantity(price)}',
-            f'    taxable: {"true" if taxable else "false"}',
-            f'    tax_included: {"true" if tax_incl else "false"}',
+            '	entry:',
+            f'		date: {date_str}',
+            f'		description: "{desc}"',
+            f'		account: "{acct_name}"',
+            f'		quantity: {_fmt_quantity(qty)}',
+            f'		price: {_fmt_quantity(price)}',
+            f'		taxable: {"true" if taxable else "false"}',
+            f'		tax_included: {"true" if tax_incl else "false"}',
         ]
 
         tt_ptr = lib.gncEntryGetBillTaxTable(ptr)
         if tt_ptr:
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
             if tt_name:
-                lines.append(f'    tax_table: "{tt_name}"')
+                lines.append(f'		tax_table: "{tt_name}"')
 
         return lines
 
@@ -354,14 +354,14 @@ class ExportBusinessObjectsUseCase:
                 break
 
         lines = [
-            '  payment:',
-            f'    date: {pay_date}',
-            f'    amount: {_fmt_quantity(pay_amt)}',
-            f'    bank_account: "{bank_name}"',
-            f'    memo: "{pay_memo}"',
+            '	payment:',
+            f'		date: {pay_date}',
+            f'		amount: {_fmt_quantity(pay_amt)}',
+            f'		bank_account: "{bank_name}"',
+            f'		memo: "{pay_memo}"',
         ]
         if pay_num:
-            lines.append(f'    num: "{pay_num}"')
+            lines.append(f'		num: "{pay_num}"')
         return lines
 
     # ── Bills (vendor invoices) ───────────────────────────────────────────────
@@ -393,14 +393,14 @@ class ExportBusinessObjectsUseCase:
         for inv, vendor in bills:
             lines = [
                 f'bill "{inv.GetID()}"',
-                f'  vendor_id: "{vendor.GetID()}"',
-                f'  currency: {inv.GetCurrency().get_mnemonic()}',
-                f'  date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
+                f'	vendor_id: "{vendor.GetID()}"',
+                f'	currency: {inv.GetCurrency().get_mnemonic()}',
+                f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
             ]
 
             custom_meta = get_custom_metadata(inv)
             for k, v in sorted(custom_meta.items()):
-                lines.append(f'  {k}: "{v}"')
+                lines.append(f'	{k}: "{v}"')
 
             for raw_entry in inv.GetEntries():
                 lines += self._format_bill_entry(lib, raw_entry)
@@ -409,14 +409,14 @@ class ExportBusinessObjectsUseCase:
             posted_txn = inv.GetPostedTxn()
             if posted_txn:
                 ap_name = get_account_full_name(inv.GetPostedAcc())
-                lines.append('  posted:')
-                lines.append(f'    date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
-                lines.append(f'    due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
-                lines.append(f'    ap_account: "{ap_name}"')
-                lines.append(f'    memo: "{posted_txn.GetDescription()}"')
-                lines.append('    accumulate: true')
+                lines.append('	posted:')
+                lines.append(f'		date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
+                lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
+                lines.append(f'		ap_account: "{ap_name}"')
+                lines.append(f'		memo: "{posted_txn.GetDescription()}"')
+                lines.append('		accumulate: true')
             else:
-                lines.append('  posted: none')
+                lines.append('	posted: none')
 
             # payment blocks — always emitted; "none" sentinel when no payments exist
             lot = inv.GetPostedLot()
@@ -432,7 +432,7 @@ class ExportBusinessObjectsUseCase:
                     lines += self._format_payment(txn)
                     has_payments = True
             if not has_payments:
-                lines.append('  payment: none')
+                lines.append('	payment: none')
 
             bill_strings.append('\n'.join(lines))
         return '\n\n'.join(bill_strings)

@@ -1,0 +1,26 @@
+customer "C1"
+  name: "Acme"
+  currency: CAD
+
+invoice "INV-001"
+  customer_id: "C1"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "Service"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-01
+    due: 2026-01-31
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-001"
+    accumulate: true
+  payment:
+    bank_account: "Assets:Bank"
+    txn_guid: {txn_guid}

@@ -15,6 +15,7 @@ from cli.export_accounts_cmd import export_accounts
 from cli.export_beancount_cmd import export_beancount
 from cli.export_cmd import export_transactions
 from cli.export_transaction_cmd import export_transaction
+from cli.find_transactions_cmd import find_transactions
 from cli.import_beancount_cmd import import_beancount
 from cli.import_cmd import import_transactions
 from cli.income_statement_cmd import income_statement
@@ -57,6 +58,7 @@ cli.add_command(income_statement, name='income-statement')
 cli.add_command(print_invoice, name='print-invoice')
 cli.add_command(account_balance, name='account-balance')
 cli.add_command(delete_transaction_by_guid, name='delete-transaction-by-guid')
+cli.add_command(find_transactions, name='find-transactions')
 cli.add_command(delete_customers, name='delete-customers')
 cli.add_command(archive_customers, name='archive-customers')
 cli.add_command(archive_vendors, name='archive-vendors')

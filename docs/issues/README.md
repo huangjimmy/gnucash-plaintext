@@ -44,3 +44,7 @@ When a fix is merged, update `status: open` → `closed` in the file's frontmatt
 |----|-------|----------|
 | [Q-001](Q-001-inconsistent-cli-exception-types.md) | Inconsistent exception types across CLI commands | low |
 | [Q-002](Q-002-read-book-company-info-bypasses-repo-layer.md) | read_book_company_info bypasses the repository layer | low |
+| [Q-003](Q-003-account-type-export-not-reimportable.md) | Exported account types (A/Receivable, A/Payable) crash re-import | high |
+| [Q-004](Q-004-payment-transaction-duplicates.md) | Invoice payment blocks create duplicate bank transactions (Cases B and C) | high |
+| [Q-005](Q-005-import-errors-no-context.md) | Import errors show raw exception with no directive context | high |
+| [Q-004](Q-004-payment-transaction-duplicates.md) | Invoice payment blocks create duplicate bank transactions (Cases B and C) | high |
