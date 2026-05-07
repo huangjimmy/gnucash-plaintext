@@ -7,8 +7,9 @@ Converts PlaintextDirective objects from the parser into GnuCash objects
 
 import ctypes
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import gnucash.gnucash_core_c as gc
 from gnucash import Account, Book, GncCommodity, GncNumeric, Split, Transaction
@@ -59,6 +60,31 @@ def string_to_gnc_numeric_quantity(s):
 
 
 _FALSY_STRINGS = {'false', '0', 'no'}
+
+
+@dataclass
+class BusinessObjectImportResult:
+    """Per-type create/update/skip counts from `import_business_objects`.
+
+    Customers and vendors update on hit (Q-006), so they have all three
+    counters. Tax tables, invoices, and bills skip on hit (Q-007/Q-008),
+    so they have only created and skipped — `updated` stays zero.
+    """
+    counts: Dict[str, Dict[str, int]] = field(default_factory=lambda: {
+        'customer': {'created': 0, 'updated': 0, 'skipped': 0},
+        'vendor':   {'created': 0, 'updated': 0, 'skipped': 0},
+        'taxtable': {'created': 0, 'updated': 0, 'skipped': 0},
+        'invoice':  {'created': 0, 'updated': 0, 'skipped': 0},
+        'bill':     {'created': 0, 'updated': 0, 'skipped': 0},
+    })
+
+    def tally(self, kind: str, status: str) -> None:
+        if status not in ('created', 'updated', 'skipped'):
+            raise ValueError(f"Unknown import status {status!r} for {kind}")
+        self.counts[kind][status] += 1
+
+    def total(self, kind: str) -> int:
+        return sum(self.counts[kind].values())
 
 
 def _find_transaction_by_guid(book, guid: str):
@@ -336,6 +362,26 @@ def _find_taxtable_by_guid(book, guid_norm: str):
         if _taxtable_guid_str(ptr) == guid_norm:
             return ptr
     return None
+
+
+def _bill_remove_all_entries(book, bill) -> None:
+    """Detach and destroy every entry on a vendor bill.
+
+    SWIG `Invoice.RemoveEntry(entry)` wraps `gncInvoiceRemoveEntry` which is
+    customer-invoice-specific and is a no-op (or worse) on vendor bills.
+    Use the C `gncBillRemoveEntry` directly via ctypes so the bill's entry
+    list is properly cleared before we rebuild from the directive. Without
+    this, `gncInvoicePostToAccount` later iterates a list with dangling
+    pointers from destroyed entries and segfaults on GnuCash 3.8.
+    """
+    import ctypes
+    lib = ctypes.CDLL(None)
+    lib.gncBillRemoveEntry.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncBillRemoveEntry.restype = None
+    bill_ptr = int(bill.instance)
+    for old_entry in list(bill.GetEntries()):
+        lib.gncBillRemoveEntry(bill_ptr, int(old_entry.instance))
+        old_entry.Destroy()
 
 
 def _swig_invoice_guid_str(invoice) -> str:
@@ -1039,6 +1085,7 @@ class GnuCashImporter:
         if custom_meta:
             set_custom_metadata(customer, custom_meta)
         logging.debug(f"{'Updated' if existing else 'Created'} customer {cid}")
+        return 'updated' if existing else 'created'
 
     @staticmethod
     def import_vendor(directive: PlaintextDirective, book: Book):
@@ -1072,6 +1119,7 @@ class GnuCashImporter:
         if custom_meta:
             set_custom_metadata(vendor, custom_meta)
         logging.debug(f"{'Updated' if existing else 'Created'} vendor {vid}")
+        return 'updated' if existing else 'created'
 
     @staticmethod
     def import_taxtable(directive: PlaintextDirective, book: Book):
@@ -1094,7 +1142,7 @@ class GnuCashImporter:
         )
         if existing is not None:
             logging.debug(f"Tax table {tt_name!r} already exists, skipping")
-            return
+            return 'skipped'
 
         first_entry_directive = None
         for d in directive.children:
@@ -1103,8 +1151,9 @@ class GnuCashImporter:
                 break
 
         if not first_entry_directive:
-            # A taxtable must have at least one entry
-            return
+            # A taxtable must have at least one entry — treat the directive
+            # as a skip so the caller doesn't count it as a create.
+            return 'skipped'
 
         acct_name = first_entry_directive.metadata['account']
         account = find_account(book.get_root_account(), acct_name)
@@ -1130,6 +1179,7 @@ class GnuCashImporter:
                 taxtable.AddEntry(entry)
 
         logging.debug(f"Created taxtable {directive.props['name']}")
+        return 'created'
 
     @staticmethod
     def import_invoice(directive: PlaintextDirective, book: Book):
@@ -1138,19 +1188,29 @@ class GnuCashImporter:
 
         inv_id = directive.props['id']
 
-        # Resolve identity (Q-007): apply id ⇔ guid agreement rules and
-        # detect pre-existing duplicates. On a hit we SKIP rather than
-        # update — invoices have AR lots wired into a real transaction and
-        # mutating their fields after posting would corrupt accounting state.
+        # Resolve identity (Q-007): id ⇔ guid agreement, duplicate detection.
         existing, must_set_guid = _resolve_existing_or_none(
             'invoice', inv_id, directive.metadata.get('guid'),
             lambda i: _find_invoices_by_id(book, i),
             lambda g: _find_invoice_by_guid(book, g),
             get_guid_str=_swig_invoice_guid_str,
         )
+
+        # Q-007 follow-up: existing posted invoice is immutable (its AR lot
+        # is wired into a real transaction; mutating entries/posted block
+        # would corrupt accounting state). Existing UNPOSTED invoice can be
+        # updated — replace entries, optionally post, optionally pay. The
+        # gap that prompted this: a user's natural workflow is
+        #   1. import invoice with `posted: none`
+        #   2. edit file, replace `posted: none` with a real posted block
+        #   3. re-import
+        # Pre-fix this silently skipped at step 3.
+        status_on_success = 'created'
         if existing is not None:
-            logging.debug(f"Invoice {inv_id} already exists, skipping")
-            return
+            if existing.GetPostedTxn() is not None:
+                logging.debug(f"Invoice {inv_id} already exists and is posted; skipping")
+                return 'skipped'
+            status_on_success = 'updated'
 
         # Validate: posted: none and a real posted: block are contradictory
         has_posted_none = directive.metadata.get('posted') == 'none'
@@ -1169,16 +1229,30 @@ class GnuCashImporter:
         if has_posted_none and payment_children:
             raise ValueError(f'Invoice {inv_id}: cannot have payment: blocks on an unposted invoice (posted: none)')
 
-        customer = _resolve_cross_reference(
-            'customer',
-            directive.metadata.get('customer_id'),
-            directive.metadata.get('customer_guid'),
-            lambda i: _find_customers_by_id(book, i),
-            lambda g: _find_customer_by_guid(book, g),
-        )
-        invoice = Invoice(book, inv_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), customer)
-        if must_set_guid is not None:
-            _set_object_guid(book, invoice, 'invoice', inv_id, must_set_guid)
+        if existing is None:
+            customer = _resolve_cross_reference(
+                'customer',
+                directive.metadata.get('customer_id'),
+                directive.metadata.get('customer_guid'),
+                lambda i: _find_customers_by_id(book, i),
+                lambda g: _find_customer_by_guid(book, g),
+            )
+            invoice = Invoice(book, inv_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), customer)
+            if must_set_guid is not None:
+                _set_object_guid(book, invoice, 'invoice', inv_id, must_set_guid)
+        else:
+            # Existing unposted invoice: reuse it, drop its current entries
+            # so we can rebuild from the directive. RemoveEntry is essential
+            # before Destroy: gncEntryDestroy only sets the do_free flag and
+            # drops the entry from the QofCollection — it does NOT detach
+            # the entry from the invoice's internal entry list. Without
+            # RemoveEntry, `gncInvoicePostToAccount` later iterates a list
+            # that still contains the now-dangling pointer and segfaults
+            # (reproduced on GnuCash 3.8 / ubuntu20).
+            invoice = existing
+            for old_entry in list(invoice.GetEntries()):
+                invoice.RemoveEntry(old_entry)
+                old_entry.Destroy()
         invoice.BeginEdit()
         invoice.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
 
@@ -1272,7 +1346,11 @@ class GnuCashImporter:
                        if k not in KNOWN_INVOICE_METADATA_KEYS and v is not None}
         if custom_meta:
             set_custom_metadata(invoice, custom_meta)
-        logging.debug(f"Created invoice {directive.props['id']}")
+        logging.debug(
+            f"{'Updated' if status_on_success == 'updated' else 'Created'} "
+            f"invoice {directive.props['id']}"
+        )
+        return status_on_success
 
     @staticmethod
     def import_bill(directive: PlaintextDirective, book: Book):
@@ -1281,22 +1359,27 @@ class GnuCashImporter:
 
         bill_id = directive.props['id']
 
-        # Resolve identity (Q-007): apply id ⇔ guid agreement rules and
-        # detect pre-existing duplicates. On a hit we SKIP rather than
-        # update — bills have AP lots wired into a real transaction.
+        # Resolve identity (Q-007): id ⇔ guid agreement, duplicate detection.
         # `book.InvoiceLookupByID` is unsuitable here: it returns None for
-        # vendor bills (only customer invoices), so the pre-Q-007 skip
-        # logic was silently broken — re-importing the same bill file
-        # would create a duplicate every time.
+        # vendor bills (only customer invoices), so we use a Query filtered
+        # by owner-type 4 — see _find_bills_by_id.
         existing, must_set_guid = _resolve_existing_or_none(
             'bill', bill_id, directive.metadata.get('guid'),
             lambda i: _find_bills_by_id(book, i),
             lambda g: _find_bill_by_guid(book, g),
             get_guid_str=_swig_invoice_guid_str,
         )
+
+        # Q-007 follow-up: existing posted bill is immutable (its AP lot is
+        # wired into a real transaction). Existing UNPOSTED bill can be
+        # updated — replace entries, optionally post, optionally pay. Same
+        # rationale as the invoice path above.
+        status_on_success = 'created'
         if existing is not None:
-            logging.debug(f"Bill {bill_id} already exists, skipping")
-            return
+            if existing.GetPostedTxn() is not None:
+                logging.debug(f"Bill {bill_id} already exists and is posted; skipping")
+                return 'skipped'
+            status_on_success = 'updated'
 
         # Validate: posted: none and a real posted: block are contradictory
         has_posted_none = directive.metadata.get('posted') == 'none'
@@ -1315,17 +1398,25 @@ class GnuCashImporter:
         if has_posted_none and payment_children:
             raise ValueError(f'Bill {bill_id}: cannot have payment: blocks on an unposted bill (posted: none)')
 
-        # Bills are Invoice objects whose owner is a Vendor (no separate Bill class)
-        vendor = _resolve_cross_reference(
-            'vendor',
-            directive.metadata.get('vendor_id'),
-            directive.metadata.get('vendor_guid'),
-            lambda i: _find_vendors_by_id(book, i),
-            lambda g: _find_vendor_by_guid(book, g),
-        )
-        bill = Invoice(book, bill_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), vendor)
-        if must_set_guid is not None:
-            _set_object_guid(book, bill, 'bill', bill_id, must_set_guid)
+        if existing is None:
+            # Bills are Invoice objects whose owner is a Vendor (no separate Bill class)
+            vendor = _resolve_cross_reference(
+                'vendor',
+                directive.metadata.get('vendor_id'),
+                directive.metadata.get('vendor_guid'),
+                lambda i: _find_vendors_by_id(book, i),
+                lambda g: _find_vendor_by_guid(book, g),
+            )
+            bill = Invoice(book, bill_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), vendor)
+            if must_set_guid is not None:
+                _set_object_guid(book, bill, 'bill', bill_id, must_set_guid)
+        else:
+            # Existing unposted bill: reuse it, drop its current entries.
+            # NOTE: SWIG `Invoice.RemoveEntry` wraps `gncInvoiceRemoveEntry`
+            # which only handles customer invoices. For vendor bills we
+            # need `gncBillRemoveEntry` via ctypes — see _bill_remove_entry.
+            bill = existing
+            _bill_remove_all_entries(book, bill)
         bill.BeginEdit()
         bill.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
 
@@ -1415,44 +1506,75 @@ class GnuCashImporter:
                        if k not in KNOWN_BILL_METADATA_KEYS and v is not None}
         if custom_meta:
             set_custom_metadata(bill, custom_meta)
-        logging.debug(f"Created bill {directive.props['id']}")
+        logging.debug(
+            f"{'Updated' if status_on_success == 'updated' else 'Created'} "
+            f"bill {directive.props['id']}"
+        )
+        return status_on_success
 
-    def import_business_objects(self, directives: List[PlaintextDirective], book: Book):
-        # Import customers and vendors first
+    def import_business_objects(self, directives: List[PlaintextDirective], book: Book,
+                                 on_directive_status=None):
+        """Import every business-object directive and report per-record status.
+
+        `on_directive_status(kind, id, status)` is invoked once per directive
+        with kind ∈ {'customer','vendor','taxtable','invoice','bill'} and
+        status ∈ {'created','updated','skipped'}. Default is no-op for
+        library callers; the CLI passes a callback that prints
+        '<kind> "<id>": <status>' lines so the user sees activity inline.
+
+        Returns a `BusinessObjectImportResult` with per-type counts so the
+        caller can render an aggregate summary at the end of the import.
+        """
+        cb = on_directive_status or (lambda *_: None)
+        result = BusinessObjectImportResult()
+
+        # Customers and vendors first (invoices/bills depend on them)
         for directive in directives:
             if directive.type == DirectiveType.CUSTOMER:
                 cid = directive.props.get('id', '?')
                 try:
-                    self.import_customer(directive, book)
+                    status = self.import_customer(directive, book)
                 except Exception as e:
                     raise ValueError(f'customer "{cid}": {e}') from e
+                result.tally('customer', status)
+                cb('customer', cid, status)
             elif directive.type == DirectiveType.VENDOR:
                 vid = directive.props.get('id', '?')
                 try:
-                    self.import_vendor(directive, book)
+                    status = self.import_vendor(directive, book)
                 except Exception as e:
                     raise ValueError(f'vendor "{vid}": {e}') from e
+                result.tally('vendor', status)
+                cb('vendor', vid, status)
 
         # Then tax tables
         for directive in directives:
             if directive.type == DirectiveType.TAXTABLE:
                 tname = directive.props.get('name', '?')
                 try:
-                    self.import_taxtable(directive, book)
+                    status = self.import_taxtable(directive, book)
                 except Exception as e:
                     raise ValueError(f'taxtable "{tname}": {e}') from e
+                result.tally('taxtable', status)
+                cb('taxtable', tname, status)
 
         # Finally, invoices and bills
         for directive in directives:
             if directive.type == DirectiveType.INVOICE:
                 iid = directive.props.get('id', '?')
                 try:
-                    self.import_invoice(directive, book)
+                    status = self.import_invoice(directive, book)
                 except Exception as e:
                     raise ValueError(f'invoice "{iid}": {e}') from e
+                result.tally('invoice', status)
+                cb('invoice', iid, status)
             elif directive.type == DirectiveType.BILL:
                 bid = directive.props.get('id', '?')
                 try:
-                    self.import_bill(directive, book)
+                    status = self.import_bill(directive, book)
                 except Exception as e:
                     raise ValueError(f'bill "{bid}": {e}') from e
+                result.tally('bill', status)
+                cb('bill', bid, status)
+
+        return result

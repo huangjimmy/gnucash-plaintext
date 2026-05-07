@@ -153,7 +153,14 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 biz_objects_imported = sum(
                     1 for d in parser.root_directive.children if d.type in biz_types
                 )
-                importer.import_business_objects(parser.root_directive.children, repo.book)
+                # Inline per-directive status (Q-009) so a re-import that's
+                # all-skipped doesn't look identical to a fresh-create import.
+                biz_result = importer.import_business_objects(
+                    parser.root_directive.children, repo.book,
+                    on_directive_status=lambda kind, ident, status: click.echo(
+                        f'{kind} "{ident}": {status}'
+                    ),
+                )
 
             # Create use case
             use_case = ImportTransactionsUseCase(repo)
@@ -175,6 +182,30 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             click.echo(f"  Skipped:      {result.skipped_count} (duplicates)")
             click.echo(f"  Conflicts:    {len(result.conflicts)}")
             click.echo(f"  Errors:       {result.error_count}")
+
+            # Business-objects summary (Q-009): only emit when business
+            # objects were actually processed; otherwise this section is
+            # noise on transaction-only imports.
+            if include_business_objects and biz_objects_imported > 0:
+                click.echo("")
+                click.echo("Business Objects:")
+                labels = [
+                    ('customer', 'Customers'),
+                    ('vendor',   'Vendors'),
+                    ('taxtable', 'Tax tables'),
+                    ('invoice',  'Invoices'),
+                    ('bill',     'Bills'),
+                ]
+                for kind, label in labels:
+                    counts = biz_result.counts[kind]
+                    if biz_result.total(kind) == 0:
+                        continue
+                    parts = [
+                        f"{counts['created']} created",
+                        f"{counts['updated']} updated",
+                        f"{counts['skipped']} skipped",
+                    ]
+                    click.echo(f"  {(label + ':'):<12} {', '.join(parts)}")
 
             if result.conflicts:
                 click.echo("")
