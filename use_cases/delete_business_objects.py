@@ -43,8 +43,9 @@ class ArchiveStatus(Enum):
 
 @dataclass
 class DeleteResult:
-    id: str
-    status: DeleteStatus
+    id: str             # matched record's user-facing id (or original input on a miss)
+    guid: str = ''      # matched record's GUID (empty on a miss — no record to read it from)
+    status: DeleteStatus = None
     invoice_count: int = 0  # > 0 only for FAILED_HAS_INVOICES
 
     def message(self) -> str:
@@ -55,11 +56,19 @@ class DeleteResult:
             return f'failed — cannot delete, {self.invoice_count} {noun} linked'
         return 'not found'
 
+    def label(self) -> str:
+        """Per-record line prefix: '<id> (<guid>)' when a record was matched,
+        else just whatever the user typed (no guid is available on a miss)."""
+        if self.guid:
+            return f'{self.id} ({self.guid})'
+        return self.id
+
 
 @dataclass
 class ArchiveResult:
-    id: str
-    status: ArchiveStatus
+    id: str             # matched record's user-facing id (or original input on a miss)
+    guid: str = ''      # matched record's GUID (empty on a miss)
+    status: ArchiveStatus = None
     invoice_count: int = 0  # informational; > 0 when linked invoices exist
 
     def message(self) -> str:
@@ -72,6 +81,13 @@ class ArchiveResult:
             noun = 'invoice(s)' if self.invoice_count != 1 else 'invoice'
             return f'archived — {self.invoice_count} {noun} linked'
         return 'archived'
+
+    def label(self) -> str:
+        """Per-record line prefix: '<id> (<guid>)' when a record was matched,
+        else just whatever the user typed."""
+        if self.guid:
+            return f'{self.id} ({self.guid})'
+        return self.id
 
 
 def _count_invoices_for_owner(book: Book, owner_id: str, owner_type_int: int) -> int:
@@ -104,21 +120,22 @@ def _count_invoices_for_owner(book: Book, owner_id: str, owner_type_int: int) ->
 def _resolve_customer(book: Book, id_or_guid: str, by_guid: bool):
     """Look up a customer by id (default) or guid (when by_guid=True).
 
-    Returns (customer, report_id) where report_id is the user-facing id of
-    the matched customer for output, or — on a miss — the original input
-    so the caller can emit a NOT_FOUND result against what the user typed.
+    Returns (customer, report_id, report_guid):
+      - hit:  (Customer, customer.id, customer.guid)
+      - miss: (None,     original_input, '')
     """
     cust = find_customer_by_guid(book, id_or_guid) if by_guid else book.CustomerLookupByID(id_or_guid)
     if cust is None or not cust.GetID():
-        return None, id_or_guid
-    return cust, cust.GetID()
+        return None, id_or_guid, ''
+    return cust, cust.GetID(), cust.GetGUID().to_string()
 
 
 def _resolve_vendor(book: Book, id_or_guid: str, by_guid: bool):
+    """See _resolve_customer."""
     v = find_vendor_by_guid(book, id_or_guid) if by_guid else book.VendorLookupByID(id_or_guid)
     if v is None or not v.GetID():
-        return None, id_or_guid
-    return v, v.GetID()
+        return None, id_or_guid, ''
+    return v, v.GetID(), v.GetGUID().to_string()
 
 
 class DeleteCustomersUseCase:
@@ -132,16 +149,18 @@ class DeleteCustomersUseCase:
         """`ids` are customer numbers (default) or GUIDs (when by_guid=True)."""
         results = []
         for arg in ids:
-            cust, report_id = _resolve_customer(self.book, arg, by_guid)
+            cust, rid, rguid = _resolve_customer(self.book, arg, by_guid)
             if cust is None:
-                results.append(DeleteResult(id=report_id, status=DeleteStatus.NOT_FOUND))
+                results.append(DeleteResult(id=rid, status=DeleteStatus.NOT_FOUND))
                 continue
             n = _count_invoices_for_owner(self.book, cust.GetID(), 2)
             if n > 0:
-                results.append(DeleteResult(id=report_id, status=DeleteStatus.FAILED_HAS_INVOICES, invoice_count=n))
+                results.append(DeleteResult(id=rid, guid=rguid,
+                                            status=DeleteStatus.FAILED_HAS_INVOICES,
+                                            invoice_count=n))
                 continue
             cust.Destroy()
-            results.append(DeleteResult(id=report_id, status=DeleteStatus.DELETED))
+            results.append(DeleteResult(id=rid, guid=rguid, status=DeleteStatus.DELETED))
         return results
 
 
@@ -158,16 +177,18 @@ class ArchiveCustomersUseCase:
         """`ids` are customer numbers (default) or GUIDs (when by_guid=True)."""
         results = []
         for arg in ids:
-            cust, report_id = _resolve_customer(self.book, arg, by_guid)
+            cust, rid, rguid = _resolve_customer(self.book, arg, by_guid)
             if cust is None:
-                results.append(ArchiveResult(id=report_id, status=ArchiveStatus.NOT_FOUND))
+                results.append(ArchiveResult(id=rid, status=ArchiveStatus.NOT_FOUND))
                 continue
             if not cust.GetActive():
-                results.append(ArchiveResult(id=report_id, status=ArchiveStatus.ALREADY_ARCHIVED))
+                results.append(ArchiveResult(id=rid, guid=rguid,
+                                             status=ArchiveStatus.ALREADY_ARCHIVED))
                 continue
             n = _count_invoices_for_owner(self.book, cust.GetID(), 2)
             cust.SetActive(False)
-            results.append(ArchiveResult(id=report_id, status=ArchiveStatus.ARCHIVED, invoice_count=n))
+            results.append(ArchiveResult(id=rid, guid=rguid, status=ArchiveStatus.ARCHIVED,
+                                         invoice_count=n))
         return results
 
 
@@ -184,14 +205,16 @@ class ArchiveVendorsUseCase:
         """`ids` are vendor numbers (default) or GUIDs (when by_guid=True)."""
         results = []
         for arg in ids:
-            vendor, report_id = _resolve_vendor(self.book, arg, by_guid)
+            vendor, rid, rguid = _resolve_vendor(self.book, arg, by_guid)
             if vendor is None:
-                results.append(ArchiveResult(id=report_id, status=ArchiveStatus.NOT_FOUND))
+                results.append(ArchiveResult(id=rid, status=ArchiveStatus.NOT_FOUND))
                 continue
             if not vendor.GetActive():
-                results.append(ArchiveResult(id=report_id, status=ArchiveStatus.ALREADY_ARCHIVED))
+                results.append(ArchiveResult(id=rid, guid=rguid,
+                                             status=ArchiveStatus.ALREADY_ARCHIVED))
                 continue
             n = _count_invoices_for_owner(self.book, vendor.GetID(), 4)
             vendor.SetActive(False)
-            results.append(ArchiveResult(id=report_id, status=ArchiveStatus.ARCHIVED, invoice_count=n))
+            results.append(ArchiveResult(id=rid, guid=rguid, status=ArchiveStatus.ARCHIVED,
+                                         invoice_count=n))
         return results

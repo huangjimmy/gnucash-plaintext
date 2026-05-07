@@ -59,7 +59,7 @@ def _run_delete(gnucash_file, ids, use_case_cls, by_guid=False):
 
         all_ok = True
         for r in results:
-            click.echo(f'{r.id}: {r.message()}')
+            click.echo(f'{r.label()}: {r.message()}')
             if r.status != DeleteStatus.DELETED:
                 all_ok = False
 
@@ -94,7 +94,7 @@ def _run_archive(gnucash_file, ids, use_case_cls, by_guid=False):
 
         all_ok = True
         for r in results:
-            click.echo(f'{r.id}: {r.message()}')
+            click.echo(f'{r.label()}: {r.message()}')
             if r.status != ArchiveStatus.ARCHIVED:
                 all_ok = False
 

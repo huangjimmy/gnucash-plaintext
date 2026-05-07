@@ -55,19 +55,31 @@ GUID values follow the same rules as Q-006:
 - UUID-with-hyphens accepted (normalised via `string_to_guid`)
 - Any other format is an immediate `Invalid GUID format` error
 
-## Per-id output stays the same
+## Per-record output always shows both id and guid
 
-The existing per-id summary lines (`CUST-001: deleted`,
-`CUST-002: failed — cannot delete, 3 invoice(s) linked`, etc.) keep
-showing the user-facing id of the matched record, regardless of which
-form was used to look it up. So:
+When a record is matched, the per-record summary line includes **both**
+the user-facing id and the GUID, regardless of which form the user typed
+on the command line:
 
 ```bash
+$ gnucash-plaintext delete-customers FILE CUST-001
+CUST-001 (9f14a498cc894d50931f855a9a31d594): deleted
+
 $ gnucash-plaintext delete-customers FILE --by-guid 9f14a498cc894d50931f855a9a31d594
-CUST-001: deleted
+CUST-001 (9f14a498cc894d50931f855a9a31d594): deleted
 ```
 
-This keeps logs readable when the GUID-form is used.
+This is also a small UX improvement on the existing id-only path: a
+maintainer reading a deletion log can confirm exactly which record was
+removed without having to cross-reference an export.
+
+On a miss (record not found) only the typed input is shown — there's no
+matched record to read a guid from:
+
+```
+DOES-NOT-EXIST: not found
+deadbeefdeadbeefdeadbeefdeadbeef: not found
+```
 
 ## Files to change
 

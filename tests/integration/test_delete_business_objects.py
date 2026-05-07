@@ -16,12 +16,37 @@ Covers:
   - archive: mixed batch
 """
 
+import re
+
 import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
 
 FIXTURE = "tests/fixtures/business_objects.txt"
+
+
+def _has_status_line(output, id_, status_substring):
+    """Match a '<id> (<32-hex-guid>): <status...>' line in `output`.
+
+    The CLI always prints the matched record's GUID alongside the id, so
+    a successful hit looks like `2 (9f14a4…): deleted`. Use this helper
+    instead of plain substring checks so tests are explicit about the
+    format and don't accidentally match on substrings that would survive
+    a regression to id-only output.
+    """
+    pat = rf'(?m)^{re.escape(id_)} \([0-9a-f]{{32}}\): {re.escape(status_substring)}'
+    assert re.search(pat, output), (
+        f"Expected line matching {pat!r}\nGot:\n{output}"
+    )
+
+
+def _has_not_found_line(output, input_str):
+    """Match the miss line: '<input>: not found' (no guid since lookup failed)."""
+    pat = rf'(?m)^{re.escape(input_str)}: not found\s*$'
+    assert re.search(pat, output), (
+        f"Expected line matching {pat!r}\nGot:\n{output}"
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -129,7 +154,7 @@ def test_delete_customer_no_invoices(tmp_path):
 
     result = runner.invoke(cli, ["delete-customers", str(gf), "2"])
     assert result.exit_code == 0, result.output
-    assert "2: deleted" in result.output
+    _has_status_line(result.output, "2", "deleted")
 
     # Customer "2" must be gone from subsequent export
     exported = export_biz(runner, gf)
@@ -145,7 +170,7 @@ def test_delete_customer_with_invoices_blocked(tmp_path):
     # Customer "1" has invoices in the fixture
     result = runner.invoke(cli, ["delete-customers", str(gf), "1"])
     assert result.exit_code == 1
-    assert "1: failed" in result.output
+    _has_status_line(result.output, "1", "failed")
     assert "cannot delete" in result.output
     assert "invoice" in result.output
 
@@ -162,7 +187,7 @@ def test_delete_customer_not_found(tmp_path):
 
     result = runner.invoke(cli, ["delete-customers", str(gf), "DOES-NOT-EXIST"])
     assert result.exit_code == 1
-    assert "DOES-NOT-EXIST: not found" in result.output
+    _has_not_found_line(result.output, "DOES-NOT-EXIST")
 
 
 def test_delete_customers_batch_mixed(tmp_path):
@@ -173,8 +198,8 @@ def test_delete_customers_batch_mixed(tmp_path):
 
     result = runner.invoke(cli, ["delete-customers", str(gf), "2", "1"])
     assert result.exit_code == 1
-    assert "2: deleted" in result.output
-    assert "1: failed" in result.output
+    _has_status_line(result.output, "2", "deleted")
+    _has_status_line(result.output, "1", "failed")
 
     exported = export_biz(runner, gf)
     assert 'customer "2"' not in exported   # successfully deleted
@@ -190,7 +215,7 @@ def test_delete_customer_inactive_no_invoices(tmp_path):
     # "2" is inactive and has no invoices
     result = runner.invoke(cli, ["delete-customers", str(gf), "2"])
     assert result.exit_code == 0
-    assert "2: deleted" in result.output
+    _has_status_line(result.output, "2", "deleted")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -212,7 +237,7 @@ def test_archive_customer_active_no_invoices(tmp_path):
 
     result = runner.invoke(cli, ["archive-customers", str(gf), "1"])
     assert result.exit_code == 0, result.output
-    assert "1: archived" in result.output
+    _has_status_line(result.output, "1", "archived")
     # "1" has invoices — should show count
     assert "invoice" in result.output
 
@@ -240,7 +265,7 @@ def test_archive_customer_already_archived(tmp_path):
     # "2" is imported as inactive
     result = runner.invoke(cli, ["archive-customers", str(gf), "2"])
     assert result.exit_code == 1
-    assert "2: already archived" in result.output
+    _has_status_line(result.output, "2", "already archived")
 
 
 def test_archive_customer_not_found(tmp_path):
@@ -251,7 +276,7 @@ def test_archive_customer_not_found(tmp_path):
 
     result = runner.invoke(cli, ["archive-customers", str(gf), "DOES-NOT-EXIST"])
     assert result.exit_code == 1
-    assert "DOES-NOT-EXIST: not found" in result.output
+    _has_not_found_line(result.output, "DOES-NOT-EXIST")
 
 
 def test_archive_customers_batch_mixed(tmp_path):
@@ -262,8 +287,8 @@ def test_archive_customers_batch_mixed(tmp_path):
 
     result = runner.invoke(cli, ["archive-customers", str(gf), "1", "2"])
     assert result.exit_code == 1
-    assert "1: archived" in result.output
-    assert "2: already archived" in result.output
+    _has_status_line(result.output, "1", "archived")
+    _has_status_line(result.output, "2", "already archived")
 
 
 def test_archive_customer_invoice_count_in_output(tmp_path):
@@ -275,8 +300,7 @@ def test_archive_customer_invoice_count_in_output(tmp_path):
     result = runner.invoke(cli, ["archive-customers", str(gf), "1"])
     assert result.exit_code == 0
     # Must show count of linked invoices, not just "archived"
-    import re
-    assert re.search(r'1: archived — \d+ invoice', result.output), \
+    assert re.search(r'1 \([0-9a-f]{32}\): archived — \d+ invoice', result.output), \
         f"Expected invoice count in output, got: {result.output!r}"
 
 
@@ -292,7 +316,7 @@ def test_archive_vendor_with_bills(tmp_path):
 
     result = runner.invoke(cli, ["archive-vendors", str(gf), "V001"])
     assert result.exit_code == 0, result.output
-    assert "V001: archived" in result.output
+    _has_status_line(result.output, "V001", "archived")
     assert "invoice" in result.output
 
     exported = export_biz(runner, gf)
@@ -317,7 +341,7 @@ def test_archive_vendor_already_archived(tmp_path):
 
     result = runner.invoke(cli, ["archive-vendors", str(gf), "V002"])
     assert result.exit_code == 1
-    assert "V002: already archived" in result.output
+    _has_status_line(result.output, "V002", "already archived")
 
 
 def test_archive_vendor_not_found(tmp_path):
@@ -328,7 +352,7 @@ def test_archive_vendor_not_found(tmp_path):
 
     result = runner.invoke(cli, ["archive-vendors", str(gf), "DOES-NOT-EXIST"])
     assert result.exit_code == 1
-    assert "DOES-NOT-EXIST: not found" in result.output
+    _has_not_found_line(result.output, "DOES-NOT-EXIST")
 
 
 def test_archive_vendors_batch_mixed(tmp_path):
@@ -339,8 +363,8 @@ def test_archive_vendors_batch_mixed(tmp_path):
 
     result = runner.invoke(cli, ["archive-vendors", str(gf), "V001", "V002"])
     assert result.exit_code == 1
-    assert "V001: archived" in result.output
-    assert "V002: already archived" in result.output
+    _has_status_line(result.output, "V001", "archived")
+    _has_status_line(result.output, "V002", "already archived")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -377,7 +401,11 @@ def _vendor_guid_for_id(gnc_path, vend_id):
 
 
 def test_delete_customer_by_guid_no_invoices(tmp_path):
-    """delete-customers --by-guid <guid> deletes the matching customer."""
+    """delete-customers --by-guid <guid> deletes the matching customer.
+
+    Output uses the same `<id> (<guid>)` format whether you address by id
+    or by guid, so the user always sees both identifiers.
+    """
     runner = CliRunner()
     gf = tmp_path / "test.gnucash"
     import_fixture(runner, gf)
@@ -385,8 +413,7 @@ def test_delete_customer_by_guid_no_invoices(tmp_path):
 
     result = runner.invoke(cli, ["delete-customers", str(gf), "--by-guid", guid])
     assert result.exit_code == 0, result.output
-    # Output keeps the user-facing id for readability
-    assert "2: deleted" in result.output
+    assert f"2 ({guid}): deleted" in result.output
     exported = export_biz(runner, gf)
     assert 'customer "2"' not in exported
 
@@ -400,12 +427,16 @@ def test_delete_customer_by_guid_with_invoices_blocked(tmp_path):
 
     result = runner.invoke(cli, ["delete-customers", str(gf), "--by-guid", guid])
     assert result.exit_code == 1
-    assert "1: failed" in result.output
+    assert f"1 ({guid}): failed" in result.output
     assert "cannot delete" in result.output
 
 
 def test_delete_customer_by_guid_not_found(tmp_path):
-    """--by-guid with a valid-format guid that doesn't match → not found, exit 1."""
+    """--by-guid with a valid-format guid that doesn't match → not found, exit 1.
+
+    On a miss there's no record, so no resolved id — the line falls back to
+    just the user-typed guid.
+    """
     runner = CliRunner()
     gf = tmp_path / "test.gnucash"
     import_fixture(runner, gf)
@@ -413,7 +444,7 @@ def test_delete_customer_by_guid_not_found(tmp_path):
     bogus = "deadbeefdeadbeefdeadbeefdeadbeef"
     result = runner.invoke(cli, ["delete-customers", str(gf), "--by-guid", bogus])
     assert result.exit_code == 1
-    assert "not found" in result.output.lower()
+    _has_not_found_line(result.output, bogus)
 
 
 def test_delete_customer_by_guid_invalid_format(tmp_path):
@@ -437,8 +468,8 @@ def test_delete_customers_by_guid_batch(tmp_path):
 
     result = runner.invoke(cli, ["delete-customers", str(gf), "--by-guid", g1, g2])
     assert result.exit_code == 1  # 1 failed, 2 ok → overall failure
-    assert "1: failed" in result.output
-    assert "2: deleted" in result.output
+    assert f"1 ({g1}): failed" in result.output
+    assert f"2 ({g2}): deleted" in result.output
 
 
 def test_archive_customer_by_guid_active(tmp_path):
@@ -450,7 +481,7 @@ def test_archive_customer_by_guid_active(tmp_path):
 
     result = runner.invoke(cli, ["archive-customers", str(gf), "--by-guid", guid])
     assert result.exit_code == 0, result.output
-    assert "1: archived" in result.output
+    assert f"1 ({guid}): archived" in result.output
     exported = export_biz(runner, gf)
     # Customer "1" still present, just inactive
     assert 'customer "1"' in exported
@@ -462,10 +493,10 @@ def test_archive_customer_by_guid_not_found(tmp_path):
     gf = tmp_path / "test.gnucash"
     import_fixture(runner, gf)
 
-    result = runner.invoke(cli, ["archive-customers", str(gf),
-                                 "--by-guid", "deadbeefdeadbeefdeadbeefdeadbeef"])
+    bogus = "deadbeefdeadbeefdeadbeefdeadbeef"
+    result = runner.invoke(cli, ["archive-customers", str(gf), "--by-guid", bogus])
     assert result.exit_code == 1
-    assert "not found" in result.output.lower()
+    _has_not_found_line(result.output, bogus)
 
 
 def test_archive_vendor_by_guid_active(tmp_path):
@@ -477,7 +508,7 @@ def test_archive_vendor_by_guid_active(tmp_path):
 
     result = runner.invoke(cli, ["archive-vendors", str(gf), "--by-guid", guid])
     assert result.exit_code == 0, result.output
-    assert "V001: archived" in result.output
+    assert f"V001 ({guid}): archived" in result.output
 
 
 def test_archive_vendor_by_guid_already_archived(tmp_path):
@@ -489,7 +520,7 @@ def test_archive_vendor_by_guid_already_archived(tmp_path):
 
     result = runner.invoke(cli, ["archive-vendors", str(gf), "--by-guid", guid])
     assert result.exit_code == 1
-    assert "V002: already archived" in result.output
+    assert f"V002 ({guid}): already archived" in result.output
 
 
 def test_archive_vendor_by_guid_not_found(tmp_path):
@@ -497,14 +528,18 @@ def test_archive_vendor_by_guid_not_found(tmp_path):
     gf = tmp_path / "test.gnucash"
     import_fixture(runner, gf)
 
-    result = runner.invoke(cli, ["archive-vendors", str(gf),
-                                 "--by-guid", "deadbeefdeadbeefdeadbeefdeadbeef"])
+    bogus = "deadbeefdeadbeefdeadbeefdeadbeef"
+    result = runner.invoke(cli, ["archive-vendors", str(gf), "--by-guid", bogus])
     assert result.exit_code == 1
-    assert "not found" in result.output.lower()
+    _has_not_found_line(result.output, bogus)
 
 
 def test_by_guid_accepts_uuid_with_hyphens(tmp_path):
-    """UUID-with-hyphens form is normalised the same way --txn_guid is."""
+    """UUID-with-hyphens form is normalised the same way --txn_guid is.
+
+    The output echoes the *normalised* (no-hyphen, lowercase) form so it
+    matches what the GnuCash file actually stores.
+    """
     runner = CliRunner()
     gf = tmp_path / "test.gnucash"
     import_fixture(runner, gf)
@@ -514,4 +549,4 @@ def test_by_guid_accepts_uuid_with_hyphens(tmp_path):
     result = runner.invoke(cli, ["delete-customers", str(gf),
                                  "--by-guid", uuid_form])
     assert result.exit_code == 0, result.output
-    assert "2: deleted" in result.output
+    assert f"2 ({guid}): deleted" in result.output

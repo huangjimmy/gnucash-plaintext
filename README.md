@@ -942,14 +942,18 @@ gnucash-plaintext archive-customers mybook.gnucash CUST-001 CUST-002
 gnucash-plaintext archive-vendors mybook.gnucash VEND-001
 ```
 
-Per-ID status is printed for every ID requested:
+Per-ID status is printed for every ID requested. Each line shows both
+the user-facing id and the matched record's GUID so you can correlate the
+output with whatever you have on hand:
 
 ```
-CUST-001: archived
-CUST-002: archived — 5 invoice(s) linked
-CUST-003: already archived
+CUST-001 (9f14a498cc894d50931f855a9a31d594): archived
+CUST-002 (b02d3aa7df3a4f0a8e7c1cda5e88a3a1): archived — 5 invoice(s) linked
+CUST-003 (47b9c5e0b7e44b53b4d9f2c8e1e8a3b1): already archived
 CUST-004: not found
 ```
+
+The "not found" line has no GUID because no record was matched.
 
 The linked invoice/bill count is informational — archiving always succeeds for
 a found, currently-active entity. Exit code 1 if any ID was not found or
@@ -959,8 +963,8 @@ already archived.
 
 Both `archive-customers` and `archive-vendors` accept a `--by-guid` flag.
 With it set, positional args are interpreted as GUIDs (32-char hex, with or
-without UUID hyphens) instead of customer/vendor numbers. Output still shows
-the user-facing id of the matched record:
+without UUID hyphens) instead of customer/vendor numbers. The output format
+is the same `<id> (<guid>)` regardless of which form you used as input:
 
 ```bash
 gnucash-plaintext archive-customers mybook.gnucash --by-guid \
@@ -968,7 +972,7 @@ gnucash-plaintext archive-customers mybook.gnucash --by-guid \
 ```
 
 ```
-CUST-001: archived
+CUST-001 (9f14a498cc894d50931f855a9a31d594): archived
 ```
 
 Use this when you have an entity's GUID (e.g. parsed from an exported
@@ -993,8 +997,8 @@ gnucash-plaintext delete-customers mybook.gnucash CUST-001 CUST-002
 ```
 
 ```
-CUST-001: deleted
-CUST-002: failed — cannot delete, 3 invoice(s) linked
+CUST-001 (9f14a498cc894d50931f855a9a31d594): deleted
+CUST-002 (b02d3aa7df3a4f0a8e7c1cda5e88a3a1): failed — cannot delete, 3 invoice(s) linked
 CUST-003: not found
 ```
 
