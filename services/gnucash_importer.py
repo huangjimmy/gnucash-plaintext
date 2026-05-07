@@ -261,6 +261,7 @@ def _guid_in_use_anywhere(book, guid_norm: str) -> Optional[str]:
     the book becomes corrupted.
     """
     import ctypes
+
     from gnucash.gnucash_core_c import GncGUID, string_to_guid, xaccTransLookup
     g = GncGUID()
     if not string_to_guid(guid_norm, g):

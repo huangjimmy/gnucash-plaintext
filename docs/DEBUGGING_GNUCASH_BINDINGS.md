@@ -261,6 +261,78 @@ generally null-safe, but GnuCash 3.8 on ubuntu20 is not.
 | Ubuntu 22/24 (GnuCash 4.8–4.9) | ✅ | ✅ | ✅ |
 | OpenSUSE / Fedora | ✅ | ✅ (txn.GetDescription ❌) | ✅ |
 
+## Business-Object ID and GUID — Hard-Won Findings (Q-006, 2026-05-07)
+
+### 1. `Customer(book, id, currency)` does NOT enforce id uniqueness
+
+Calling the SWIG constructor `Customer(book, "C001", currency)` always
+creates a new record. There is no precondition check; if a customer with
+id `"C001"` already exists, you end up with two records sharing the same
+user-facing id but with different GUIDs. The same applies to
+`Vendor(book, id, currency)`, and likely to `TaxTable` / `Employee` /
+`Job`.
+
+GnuCash keys business objects by **GUID** internally (the QofCollection
+hash table), not by the user-facing id. The id is just a string field on
+the entity, like `name`. The GnuCash GUI prevents duplicate ids through
+UX (the "New Customer" dialog auto-increments and rejects collisions),
+but the bindings bypass that constraint entirely.
+
+**Symptom**: `gnucash-plaintext export` after re-importing the same
+business-objects file emits N copies of every customer/vendor block.
+
+**Fix in this codebase**: `_resolve_existing_or_none` in
+`services/gnucash_importer.py` does `book.CustomerLookupByID(id)` /
+`VendorLookupByID(id)` (or a Query when guid lookup is needed) before
+the constructor and returns the existing record so the importer
+updates fields rather than creating a duplicate.
+
+### 2. GUID is unique book-wide across ALL entity types
+
+GnuCash GUIDs sit in a single book-wide entity table. Two records of
+*different* types (e.g. a customer and a transaction) cannot legally
+share a GUID. However, `qof_instance_set_guid` does **not** check —
+calling it with a GUID already used by some other entity silently
+corrupts the book.
+
+**Fix**: `_guid_in_use_anywhere` checks `xaccTransLookup`,
+`xaccAccountLookup`, the customer query, and the vendor query before
+`_set_object_guid` writes a custom GUID. Any collision raises a clear
+error naming the conflicting entity type.
+
+### 3. `Invoice` (SWIG) does not expose `GetGUID()` on all platforms
+
+Where `Customer.GetGUID()` and `Vendor.GetGUID()` work fine via SWIG,
+`Invoice.GetGUID()` raises `AttributeError` on debian13/ubuntu24. Use
+ctypes via `qof_instance_get_guid(int(invoice.instance))` +
+`guid_to_string_buff(buf)` instead. Tax tables only exist via ctypes
+(`gncTaxTableGetTables`) so they always need this path.
+
+### 4. `Account(instance=raw_ptr)` from a Query result is unsafe
+
+`Query.run()` for accounts returns raw int pointers. Wrapping them in
+`Account(instance=ptr)` segfaults inside the full test suite (state
+pollution from earlier tests). The safe alternative: walk the account
+tree from `book.get_root_account()` via `acct.get_children()`. Same
+pattern presumably applies to other types — prefer iteration over the
+SWIG hierarchy when available.
+
+### 5. Plaintext-format quirk: all-digit GUIDs need quotes
+
+`decode_value_from_string` in `infrastructure/gnucash/utils.py`
+auto-converts all-digit field values to Python `int`. So
+`guid: 22222222222222222222222222222222` (32 hex chars all `2`) decodes
+to int `22…22`, losing the original digit count — `0000…0022` and `22`
+both decode to int `22`.
+
+The exporter emits `guid: "<hex>"` (quoted) so this never bites the
+round-trip. Hand-written files must quote all-digit GUIDs; mixed-hex
+forms like `b2b3…b4` work unquoted because the parser keeps strings as
+strings.
+
+`_normalise_guid` rejects non-string inputs with a message asking the
+user to quote.
+
 ## Summary
 
 1. **No prediction possible** - test to discover failures
@@ -270,5 +342,9 @@ generally null-safe, but GnuCash 3.8 on ubuntu20 is not.
 5. **Use engine.py utilities** - safe ctypes patterns
 6. **`ApplyPayment(None, ...)`** - never pass a manually-allocated transaction
 7. **Payment memo on split** - never read from `txn.GetDescription()`
+8. **Business-object constructors don't dedupe by id** - lookup-before-create
+9. **GUIDs are unique book-wide** - check across all entity types before forcing
+10. **`Account(instance=raw_ptr)` from a Query result is unsafe** - walk the tree instead
+11. **All-digit GUID values need quoting** - parser auto-converts to int
 
 This approach has proven necessary for maximum compatibility across Ubuntu 20/22/24 and Debian 11/12/13.

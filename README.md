@@ -317,8 +317,10 @@ open-ended metadata model.
 
 | Field | GnuCash field |
 |-------|--------------|
+| `guid` | Customer GUID (32-char hex; emitted on export, optional on import) |
 | `name` | Customer name |
 | `currency` | Customer currency |
+| `active` | Active flag (`true`/`false`; defaults `true`) |
 | `addr1`–`addr4` | Billing address lines |
 | `email` | Contact email |
 
@@ -326,14 +328,18 @@ open-ended metadata model.
 
 | Field | GnuCash field |
 |-------|--------------|
+| `guid` | Vendor GUID (32-char hex; emitted on export, optional on import) |
 | `name` | Vendor name |
 | `currency` | Vendor currency |
+| `active` | Active flag (`true`/`false`; defaults `true`) |
 
 **Invoice** — reserved fields:
 
 | Field | GnuCash field |
 |-------|--------------|
-| `customer_id` | Customer reference |
+| `guid` | Invoice GUID (32-char hex; emitted on export, optional on import) |
+| `customer_id` | Customer reference (by user-facing customer number) |
+| `customer_guid` | Customer reference (by GUID; must agree with `customer_id` when both present) |
 | `currency` | Invoice currency |
 | `date_opened` | Invoice open date |
 | `billing_id` | Billing ID |
@@ -345,11 +351,19 @@ open-ended metadata model.
 
 | Field | GnuCash field |
 |-------|--------------|
-| `vendor_id` | Vendor reference |
+| `guid` | Bill GUID (32-char hex; emitted on export, optional on import) |
+| `vendor_id` | Vendor reference (by user-facing vendor number) |
+| `vendor_guid` | Vendor reference (by GUID; must agree with `vendor_id` when both present) |
 | `currency` | Bill currency |
 | `date_opened` | Bill open date |
 | `posted` | Posted block / sentinel |
 | `payment` | Payment block / sentinel |
+
+**Tax table** — reserved fields:
+
+| Field | GnuCash field |
+|-------|--------------|
+| `guid` | Tax-table GUID (32-char hex; emitted on export, optional on import) |
 
 #### Any other key → KVP slot
 
@@ -820,6 +834,70 @@ invoice "INV-2026-004"
     bank_account: "Assets:Bank"
     memo: "Second instalment"
 ```
+
+### Identity and round-trip: `guid:`, `customer_guid:`, `vendor_guid:`
+
+Every business-object block (`customer`, `vendor`, `taxtable`, `invoice`,
+`bill`) carries a `guid:` field on export. The user-facing id (e.g.
+`customer "C001"`) is the human handle; the guid is GnuCash's internal
+primary key. Both are immutable once assigned.
+
+```
+customer "C001"
+	guid: "9f14a498cc894d50931f855a9a31d594"
+	name: "Acme Customer"
+	currency: CAD
+
+invoice "INV-001"
+	guid: "b61b7b200f5b41ad97a8f775e8ef6156"
+	customer_id: "C001"
+	customer_guid: "9f14a498cc894d50931f855a9a31d594"
+	currency: CAD
+	date_opened: 2026-01-01
+	...
+```
+
+**Hand-written files** can omit `guid:` entirely — GnuCash will assign a
+fresh one on first import. On subsequent re-imports (after the first export
+has put guids in the file) the importer uses the guid as the precise
+identity key.
+
+**Quote guid values.** Always quote: `guid: "abcd…"`. Mixed-hex unquoted
+forms (`guid: b2b3…b4`) work because the parser treats them as strings,
+but unquoted all-digit values like `guid: 22222222222222222222222222222222`
+are auto-converted to a number and lose their digit count. The exporter
+always emits quoted form.
+
+**Cross-references** (`customer_guid:` on invoices, `vendor_guid:` on
+bills) carry the *referenced* object's guid. `customer_id`/`vendor_id`
+keep the file readable; the guid is the authoritative key. When both are
+present they must resolve to the same record — otherwise the importer
+errors with the conflict spelled out.
+
+#### Re-import semantics: idempotent update
+
+Re-importing the same file is **idempotent**: existing records are
+*updated in place* rather than duplicated. The resolver looks up by `guid`
+first (when provided), falls back to lookup by id, and returns the
+existing record so the importer can update its mutable fields (name,
+address, active flag, custom KVP) without changing the GUID. This
+matches the natural workflow: edit the text, re-import, see your
+changes.
+
+The importer **errors** rather than silently doing the wrong thing in
+these cases:
+
+- the directive's `guid:` resolves to a record whose `id` doesn't match
+  (refusing to silently rename — invoices may reference the old id)
+- the directive's `guid:` is unknown but its `id` is taken (refusing to
+  rebuild because we cannot assign the new guid without overwriting the
+  existing record)
+- the book already contains multiple records with the same `id`
+  (legacy data needs cleanup in the GnuCash GUI before re-import)
+- an invoice/bill cross-reference has both `customer_id` (or `vendor_id`)
+  and the matching `_guid` field but they resolve to different records
+- the requested guid is already used by a different entity type
+  (transaction, account, etc.) — GnuCash GUIDs are unique book-wide
 
 ### Reconciling invoice and bill payments with a bank feed
 
