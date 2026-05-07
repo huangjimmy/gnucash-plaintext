@@ -1,6 +1,6 @@
 ---
 id: Q-007
-title: delete-customers / archive-customers / archive-vendors must accept GUID, not just user-facing id
+title: delete/archive accept GUIDs; invoice/bill identity enforced on import
 category: quality
 severity: medium
 status: open
@@ -90,6 +90,42 @@ deadbeefdeadbeefdeadbeefdeadbeef: not found
 | `services/gnucash_importer.py` | Re-export `_normalise_guid`, `_find_customer_by_guid`, `_find_vendor_by_guid` to the use case layer (they're currently module-private to `gnucash_importer`). Or move them to a shared helper module. |
 | `tests/integration/test_delete_business_objects.py` | New tests for `--by-guid`: happy path, unknown-guid not-found, malformed guid format error. |
 | `README.md` | Document the new flag for delete-customers, archive-customers, archive-vendors. |
+
+## Scope extension: invoice/bill identity enforcement on import
+
+Originally Q-007 was just about the CLI delete/archive flag. Two
+related importer issues surfaced during review and were rolled in:
+
+### Bills were silently duplicating on re-import
+
+`book.InvoiceLookupByID(bill_id)` returns `None` for vendor bills (it
+only finds customer invoices). The pre-Q-007 idempotency check in
+`import_bill` was therefore a no-op — re-importing the same bill
+fixture would create a fresh duplicate every time, accumulating bills
+with the same id and different GUIDs.
+
+Fixed by replacing `book.InvoiceLookupByID(bill_id)` with a Query that
+filters `gncInvoice` to owner-type 4 (vendor). New helpers
+`_find_bills_by_id` and `_find_bill_by_guid` live alongside
+`_find_invoices_by_id` and `_find_invoice_by_guid` in
+`services/gnucash_importer.py`.
+
+### Invoices/bills lacked Q-006-style id ⇔ guid enforcement
+
+Customers and vendors got the §2 resolution table in Q-006: directive
+guid ⇔ existing id must agree, multiple-match in book is an error.
+Invoices and bills had a simpler (and weaker) "skip on id match,
+ignore guid entirely" model.
+
+Now invoices and bills go through the same `_resolve_existing_or_none`
+helper, with one twist: on a hit they SKIP rather than UPDATE because
+posted invoices have AR/AP lots wired into a real transaction and
+mutating their fields would corrupt accounting state. Detection of
+inconsistency is orthogonal to update-vs-skip and applies equally.
+
+The resolver gained an optional `get_guid_str` callback because SWIG
+`Invoice.GetGUID()` is missing on some platforms — invoices/bills pass
+a ctypes-based reader (`_swig_invoice_guid_str`).
 
 ## Open questions
 

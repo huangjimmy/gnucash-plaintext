@@ -333,6 +333,48 @@ strings.
 `_normalise_guid` rejects non-string inputs with a message asking the
 user to quote.
 
+### 6. `book.InvoiceLookupByID(id)` does NOT find vendor bills (Q-007, 2026-05-07)
+
+GnuCash's customer invoices and vendor bills are both stored in the
+`gncInvoice` collection, distinguished only by their owner-type field
+(2 = Customer, 4 = Vendor). One might assume `book.InvoiceLookupByID(id)`
+queries the entire collection. It does not — it returns only customer
+invoices and silently returns `None` for bills, even when a bill with
+that exact id exists in the book.
+
+**Symptom**: an idempotency check like
+
+```python
+if book.InvoiceLookupByID(bill_id) is not None:
+    return  # skip; already imported
+```
+
+…is a no-op for bills. Re-importing the same bill fixture creates a
+fresh duplicate every time, accumulating bills with the same id and
+different GUIDs. The pre-Q-007 importer hit exactly this bug and
+nobody noticed because the existing tests only checked presence
+(`'bill "BILL-001"' in exported`), never count.
+
+**Fix**: drop `InvoiceLookupByID` for bills entirely; use a `Query` over
+`gncInvoice` filtered to owner-type 4. (Q-007's
+`_find_bills_by_id` / `_find_bill_by_guid` in
+`services/gnucash_importer.py`.)
+
+**Verified**:
+
+```
+>>> b.InvoiceLookupByID('BILL-001')
+None
+>>> # …yet a Query over gncInvoice returns:
+>>>   id='BILL-001'  owner_type=4
+```
+
+It's worth running the same Query-based replacement for customer
+invoices too, even though `InvoiceLookupByID` does work there — having
+both code paths use the same lookup shape avoids future surprises if
+the SWIG behaviour changes or if a query needs to detect legacy
+duplicates (multiple invoices with the same id, returned as a list).
+
 ## Summary
 
 1. **No prediction possible** - test to discover failures
@@ -346,5 +388,6 @@ user to quote.
 9. **GUIDs are unique book-wide** - check across all entity types before forcing
 10. **`Account(instance=raw_ptr)` from a Query result is unsafe** - walk the tree instead
 11. **All-digit GUID values need quoting** - parser auto-converts to int
+12. **`book.InvoiceLookupByID` does not find bills** - use a Query filtered by owner-type
 
 This approach has proven necessary for maximum compatibility across Ubuntu 20/22/24 and Debian 11/12/13.
