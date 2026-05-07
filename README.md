@@ -6,7 +6,7 @@ gnucash plaintext is an app that can
 * load a .gnucash file and then export a [GnuCash](https://www.gnucash.org/) plaintext ledger file
 * load [GnuCash](https://www.gnucash.org/) plaintext ledger file and export a [beancount](https://github.com/beancount/beancount) compatible .beancount file
 * read from a [GnuCash](https://www.gnucash.org/) plaintext transaction file and create transaction in .gnucash file
-* bidirectional conversion between GnuCash and [GnuCash-Beancount](docs/gnucash-beancount-format.md) format with zero data loss for accounts, transactions, splits, commodities, and prices (business objects — customers, vendors, invoices, bills — are not representable in beancount; see [Limitations](docs/gnucash-beancount-format.md#limitations))
+* bidirectional conversion between GnuCash and [GnuCash-Beancount](docs/gnucash-beancount-format.md) format with zero data loss for accounts, transactions, splits, commodities, and prices (business objects and custom KVP slots are not preserved; see [Limitations](docs/gnucash-beancount-format.md#limitations))
 
 ## Motivation
 
@@ -586,7 +586,7 @@ gnucash-plaintext export-beancount mybook.gnucash output.beancount \
   --account "Assets:Bank"
 ```
 
-**Note:** The exported file is in [GnuCash-Beancount format](docs/gnucash-beancount-format.md), a special beancount format with GnuCash metadata that enables bidirectional conversion with zero data loss for accounts, transactions, splits, commodities, and prices. Business objects (customers, vendors, invoices, bills) are not representable in beancount and are dropped during export — see [Limitations](docs/gnucash-beancount-format.md#limitations).
+**Note:** The exported file is in [GnuCash-Beancount format](docs/gnucash-beancount-format.md), a special beancount format with GnuCash metadata that enables bidirectional conversion with zero data loss for accounts, transactions, splits, commodities, and prices. Business objects (customers, vendors, invoices, bills) and custom KVP slots are dropped during export — see [Limitations](docs/gnucash-beancount-format.md#limitations).
 
 ### View GnuCash data in Fava web UI
 

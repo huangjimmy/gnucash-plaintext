@@ -2,7 +2,7 @@
 
 Covers the scenarios where bank transactions and invoice/bill payments need
 to be linked without creating duplicate bank entries, and how the GUID-based
-identity model from Q-006 affects re-imports.
+identity model affects re-imports.
 
 ## Background
 
@@ -22,9 +22,9 @@ This document describes:
 
 - [Workflow: Import bank feed first, then reconcile invoices](#workflow-import-bank-feed-first-then-reconcile-invoices)
 - [Vendor bills work the same way](#vendor-bills-work-the-same-way)
-- [GUID format conventions (Q-006)](#guid-format-conventions-q-006)
+- [GUID format conventions](#guid-format-conventions)
 - [Round-trip identity: the exporter writes back what you imported](#round-trip-identity-the-exporter-writes-back-what-you-imported)
-- [Idempotency after Q-006](#idempotency-after-q-006)
+- [Idempotency](#idempotency)
 - [Error cases](#error-cases)
 - [Without txn_guid (invoice-first workflow)](#without-txn_guid-invoice-first-workflow)
 
@@ -148,7 +148,7 @@ gnucash-plaintext find-transactions ledger.gnucash \
 
 ---
 
-## GUID format conventions (Q-006)
+## GUID format conventions
 
 `txn_guid`, `customer_guid`, `vendor_guid`, and the universal `guid:` field
 on every business-object block all carry GnuCash's 32-char hex GUID. A few
@@ -180,7 +180,7 @@ files.
 
 ## Round-trip identity: the exporter writes back what you imported
 
-After Q-006 the export is **identity-preserving** for every business object:
+The export is **identity-preserving** for every business object:
 
 - Customer/vendor/taxtable/invoice/bill blocks each carry a `guid:` field
 - Invoices reference their customer with both `customer_id:` and `customer_guid:`
@@ -204,10 +204,10 @@ KVP slots, etc.).
 
 ---
 
-## Idempotency after Q-006
+## Idempotency
 
-Before Q-006, re-importing a business-objects file *duplicated* customers
-and vendors silently. After Q-006, the rules are:
+Re-importing the same business-objects file is safe and predictable. The
+rules per object type:
 
 | Object | Lookup key | Re-import behavior |
 |---|---|---|
@@ -231,8 +231,8 @@ the whole block; the bank tx is left untouched.
 
 ## Error cases
 
-After Q-006 the importer halts on any inconsistency rather than silently
-doing the wrong thing. Common cases:
+The importer halts on any inconsistency rather than silently doing the wrong
+thing. Common cases:
 
 ### `payment:` / `txn_guid:` errors
 
@@ -245,7 +245,7 @@ doing the wrong thing. Common cases:
 | Invoice was created but not posted (no posted: block) | `invoice "X": has no posted lot — must be posted before payment` |
 | `bank_account` doesn't match any split in the transaction | `invoice "X": Could not find counter-split in tx '…'` |
 
-### Cross-reference errors (Q-006)
+### Cross-reference errors
 
 | Situation | Error |
 |---|---|
@@ -254,7 +254,7 @@ doing the wrong thing. Common cases:
 | Invoice has neither `customer_id` nor `customer_guid` | `missing customer reference (need _id or _guid)` |
 | Same patterns apply to bill → vendor refs | (substitute "vendor" for "customer") |
 
-### Object identity errors (Q-006)
+### Object identity errors
 
 | Situation | Error |
 |---|---|

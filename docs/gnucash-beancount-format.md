@@ -1,6 +1,6 @@
 # GnuCash-Beancount Format
 
-**GnuCash-Beancount** (bc-gnc) is a special beancount format that enables bidirectional conversion between GnuCash and beancount with zero data loss for accounts, transactions, splits, commodities, and prices. Business objects (customers, vendors, invoices, bills) have no equivalent in beancount and are dropped during export — see [Limitations](#limitations).
+**GnuCash-Beancount** (bc-gnc) is a special beancount format that enables bidirectional conversion between GnuCash and beancount with zero data loss for accounts, transactions, splits, commodities, and prices. Business objects (customers, vendors, invoices, bills) and user-defined KVP slots are not preserved — see [Limitations](#limitations).
 
 ## Overview
 
@@ -439,8 +439,11 @@ GnuCash-Beancount preserves accounts, transactions, splits, commodities, and pri
 | Tax tables | Dropped silently | No |
 | Employees | Dropped silently | No |
 | Jobs | Dropped silently | No |
+| Custom KVP slots on accounts/transactions/splits | Dropped silently | No |
 
-If you rely on GnuCash's business features and need a lossless plaintext format, use the native [GnuCash plaintext format](../README.md#gnucash-plaintext) (`export` / `import`) instead — it round-trips every object type the importer supports, including invoices, bills, customers, vendors, payments (with `txn_guid` retargeting), and tax tables.
+The custom KVP entry deserves a separate note: GnuCash exposes arbitrary key/value pairs (KVP slots) on every object, and the native plaintext format round-trips them via the custom-metadata mechanism (any unknown field on a block is stored in the object's KVP slot). The beancount export only emits the fixed set of `gnucash-*` metadata keys (`gnucash-guid`, `gnucash-type`, `gnucash-notes`, etc.); user-defined KVP entries are not extracted on export and would not be re-applied on import. If you store data in custom KVP slots and need a lossless cycle, stay on the native plaintext format.
+
+If you rely on GnuCash's business features or custom metadata and need a lossless plaintext format, use the native [GnuCash plaintext format](../README.md#gnucash-plaintext) (`export` / `import`) instead — it round-trips every object type the importer supports, including invoices, bills, customers, vendors, payments (with `txn_guid` retargeting), tax tables, and custom KVP metadata on every object type.
 
 The two export commands serve different goals:
 
