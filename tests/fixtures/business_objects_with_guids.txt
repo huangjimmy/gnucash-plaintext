@@ -1,0 +1,81 @@
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C001"
+	guid: "aa11aa11aa11aa11aa11aa11aa11aa11"
+	name: "Acme Customer"
+	currency: CAD
+
+vendor "V001"
+	guid: "bb22bb22bb22bb22bb22bb22bb22bb22"
+	name: "Supply Vendor"
+	currency: CAD
+
+invoice "INV-001"
+	guid: "cc33cc33cc33cc33cc33cc33cc33cc33"
+	customer_id: "C001"
+	customer_guid: "aa11aa11aa11aa11aa11aa11aa11aa11"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none
+
+bill "BILL-001"
+	guid: "dd44dd44dd44dd44dd44dd44dd44dd44"
+	vendor_id: "V001"
+	vendor_guid: "bb22bb22bb22bb22bb22bb22bb22bb22"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Supplies"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 50
+		taxable: true
+		tax_included: false
+	posted: none
+	payment: none
