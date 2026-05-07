@@ -279,6 +279,65 @@ def _find_bill_by_guid(book, guid_norm: str):
     return found
 
 
+def _iter_taxtables(book):
+    """Yield raw ctypes pointers to all tax tables in `book`.
+
+    Tax tables are stored in a per-book hash via `qof_book_get_data` and are
+    *not* enumerable through QofQuery — `gncTaxTableGetTables` (ctypes) is
+    the only way to list them. Once a pointer enters this codepath it stays
+    in ctypes (per the "once ctypes, stay ctypes" rule in CLAUDE.md).
+    """
+    from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine
+    lib = load_gnc_engine()
+    glist_ptr = lib.gncTaxTableGetTables(int(book.instance))
+    return iterate_glist(lib, glist_ptr, lambda lib, ptr: ptr)
+
+
+def _taxtable_guid_str(tt_ptr) -> str:
+    """Read a tax-table's GUID via ctypes given its raw pointer."""
+    import ctypes
+
+    from infrastructure.gnucash.engine import load_gnc_engine
+    lib = load_gnc_engine()
+    lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]
+    lib.qof_instance_get_guid.restype = ctypes.c_void_p
+    lib.guid_to_string_buff.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    lib.guid_to_string_buff.restype = ctypes.c_char_p
+    buf = ctypes.create_string_buffer(40)
+    guid_ptr = lib.qof_instance_get_guid(tt_ptr)
+    if not guid_ptr:
+        return ''
+    lib.guid_to_string_buff(guid_ptr, buf)
+    return buf.value.decode('ascii')
+
+
+def _taxtable_name_str(tt_ptr) -> str:
+    """Read a tax-table's name via ctypes given its raw pointer."""
+    from infrastructure.gnucash.engine import load_gnc_engine, safe_ctypes_string
+    lib = load_gnc_engine()
+    return safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
+
+
+def _find_taxtables_by_name(book, name: str):
+    """Return list of tax-table ctypes pointers whose name == `name`.
+
+    Returns a list (rather than a single pointer) so the resolver can detect
+    pre-existing duplicates that would otherwise silently misroute tax onto
+    whichever rate the lookup happened to pick first.
+    """
+    return [ptr for ptr in _iter_taxtables(book)
+            if _taxtable_name_str(ptr) == name]
+
+
+def _find_taxtable_by_guid(book, guid_norm: str):
+    """Return the tax-table ctypes pointer whose GUID matches `guid_norm`,
+    or None."""
+    for ptr in _iter_taxtables(book):
+        if _taxtable_guid_str(ptr) == guid_norm:
+            return ptr
+    return None
+
+
 def _swig_invoice_guid_str(invoice) -> str:
     """Read an Invoice's GUID via ctypes (qof_instance_get_guid + guid_to_string_buff).
     SWIG `Invoice.GetGUID()` is missing on some platforms; this works everywhere
@@ -299,17 +358,20 @@ def _swig_invoice_guid_str(invoice) -> str:
 
 def _resolve_existing_or_none(kind: str, id_: str, guid_str: Optional[str],
                               find_by_id, find_by_guid,
-                              get_guid_str=lambda r: r.GetGUID().to_string()):
+                              get_guid_str=lambda r: r.GetGUID().to_string(),
+                              get_id_str=lambda r: r.GetID()):
     """Apply Q-006 §2 resolution rules. Returns (existing, must_set_guid_str).
 
-    `kind` is 'customer'/'vendor'/'invoice'/'bill' for error messages.
+    `kind` is 'customer'/'vendor'/'invoice'/'bill'/'taxtable' for error messages.
     `existing` is the matched record or None (caller creates new).
     `must_set_guid_str` is the normalised guid to assign to a freshly-created
     record (for round-trip into a fresh book), or None.
     `get_guid_str(record) -> str` reads the guid from a matched record for
     error reporting. Defaults to SWIG `record.GetGUID().to_string()`, which
     works for Customer/Vendor; pass a ctypes-based callback for Invoice/Bill
-    where SWIG's `GetGUID` is missing on some platforms.
+    or for tax-table pointers where SWIG access is unavailable.
+    `get_id_str(record) -> str` reads the user-facing id (or name, for tax
+    tables) from a matched record. Defaults to SWIG `record.GetID()`.
 
     Raises ValueError on any contradiction the user must resolve manually.
     """
@@ -340,10 +402,11 @@ def _resolve_existing_or_none(kind: str, id_: str, guid_str: Optional[str],
         )
 
     if by_guid is not None:
-        if by_guid.GetID() != id_:
+        existing_id = get_id_str(by_guid)
+        if existing_id != id_:
             raise ValueError(
                 f'{kind} "{id_}": directive guid {guid_str!r} resolves to a '
-                f'{kind} with id {by_guid.GetID()!r} — refusing to rename. '
+                f'{kind} with id {existing_id!r} — refusing to rename. '
                 f'{kind} ids are immutable; fix the directive to match.'
             )
         return by_guid, None
@@ -424,6 +487,8 @@ def _guid_in_use_anywhere(book, guid_norm: str) -> Optional[str]:
         return 'customer'
     if _find_vendor_by_guid(book, guid_norm) is not None:
         return 'vendor'
+    if _find_taxtable_by_guid(book, guid_norm) is not None:
+        return 'taxtable'
     return None
 
 
@@ -1013,6 +1078,24 @@ class GnuCashImporter:
         if directive.type != DirectiveType.TAXTABLE:
             raise ValueError(f"Expected TAXTABLE but got {directive.type}")
 
+        tt_name = directive.props['name']
+
+        # Resolve identity (Q-008): apply id ⇔ guid agreement rules and
+        # detect pre-existing duplicates. On a hit we SKIP rather than
+        # update — tax tables are referenced by stored pointers from posted
+        # invoices/bills, and mutating their entries would silently change
+        # accounting on past posted invoices.
+        existing, must_set_guid = _resolve_existing_or_none(
+            'taxtable', tt_name, directive.metadata.get('guid'),
+            lambda n: _find_taxtables_by_name(book, n),
+            lambda g: _find_taxtable_by_guid(book, g),
+            get_guid_str=_taxtable_guid_str,
+            get_id_str=_taxtable_name_str,
+        )
+        if existing is not None:
+            logging.debug(f"Tax table {tt_name!r} already exists, skipping")
+            return
+
         first_entry_directive = None
         for d in directive.children:
             if d.type == DirectiveType.TAXTABLE_ENTRY:
@@ -1026,19 +1109,21 @@ class GnuCashImporter:
         acct_name = first_entry_directive.metadata['account']
         account = find_account(book.get_root_account(), acct_name)
         if account is None:
-            raise Exception(f'Account {acct_name!r} not found when creating tax table {directive.props["name"]}')
+            raise Exception(f'Account {acct_name!r} not found when creating tax table {tt_name}')
         rate_str = first_entry_directive.metadata['rate']
         rate = float(rate_str.replace("%", ""))
         first_entry = create_tax_table_entry(book, account, rate)
 
-        taxtable = TaxTable(book, directive.props['name'], first_entry)
+        taxtable = TaxTable(book, tt_name, first_entry)
+        if must_set_guid is not None:
+            _set_object_guid(book, taxtable, 'taxtable', tt_name, must_set_guid)
 
         for entry_directive in directive.children[1:]:
             if entry_directive.type == DirectiveType.TAXTABLE_ENTRY:
                 acct_name = entry_directive.metadata['account']
                 account = find_account(book.get_root_account(), acct_name)
                 if account is None:
-                    raise Exception(f'Account {acct_name!r} not found when creating tax table {directive.props["name"]}')
+                    raise Exception(f'Account {acct_name!r} not found when creating tax table {tt_name}')
                 rate_str = entry_directive.metadata['rate']
                 rate = float(rate_str.replace("%", ""))
                 entry = create_tax_table_entry(book, account, rate)

@@ -874,30 +874,36 @@ keep the file readable; the guid is the authoritative key. When both are
 present they must resolve to the same record — otherwise the importer
 errors with the conflict spelled out.
 
-#### Re-import semantics: idempotent update
+#### Re-import semantics: idempotent, per object type
 
-Re-importing the same file is **idempotent**: existing records are
-*updated in place* rather than duplicated. The resolver looks up by `guid`
-first (when provided), falls back to lookup by id, and returns the
-existing record so the importer can update its mutable fields (name,
-address, active flag, custom KVP) without changing the GUID. This
-matches the natural workflow: edit the text, re-import, see your
-changes.
+Re-importing the same file is **idempotent** — but the exact behaviour
+varies by object type because some records have downstream
+dependencies that can't be safely mutated mid-flight:
 
-The importer **errors** rather than silently doing the wrong thing in
-these cases:
+| Block | On hit (record already exists) |
+|---|---|
+| `customer`, `vendor` | **Update** mutable fields (name, address, active flag, custom KVP) in place. |
+| `taxtable` | **Skip**. Tax tables are referenced by stored pointers from posted invoices/bills; mutating their entries would silently change accounting on past posted records. |
+| `invoice`, `bill` | **Skip**. Posted invoices/bills have AR/AP lots wired into a real transaction; mutating their fields would corrupt accounting state. |
 
-- the directive's `guid:` resolves to a record whose `id` doesn't match
-  (refusing to silently rename — invoices may reference the old id)
-- the directive's `guid:` is unknown but its `id` is taken (refusing to
-  rebuild because we cannot assign the new guid without overwriting the
-  existing record)
-- the book already contains multiple records with the same `id`
-  (legacy data needs cleanup in the GnuCash GUI before re-import)
-- an invoice/bill cross-reference has both `customer_id` (or `vendor_id`)
-  and the matching `_guid` field but they resolve to different records
+In all cases the importer first verifies that the directive's identity
+agrees with whatever's already in the book. The following are caught
+with a clear error rather than silently doing the wrong thing:
+
+- the directive's `guid:` resolves to a record whose `id` (or name, for
+  tax tables) doesn't match — refusing to silently rename, since
+  invoices may reference the old id
+- the directive's `guid:` is unknown but its `id` is taken — refusing
+  to rebuild because we cannot assign the new guid without overwriting
+  the existing record
+- the book already contains multiple records with the same `id` —
+  legacy data needs cleanup in the GnuCash GUI before re-import
+- an invoice/bill cross-reference has both `customer_id` (or
+  `vendor_id`) and the matching `_guid` field but they resolve to
+  different records
 - the requested guid is already used by a different entity type
-  (transaction, account, etc.) — GnuCash GUIDs are unique book-wide
+  (transaction, account, customer, vendor, tax table) — GnuCash GUIDs
+  are unique book-wide
 
 ### Reconciling invoice and bill payments with a bank feed
 
