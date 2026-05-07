@@ -165,14 +165,151 @@ def _find_vendor_by_guid(book, guid_norm: str):
     return found
 
 
+# GnuCash's owner-type constants for gncInvoice. Customer invoices and
+# vendor bills both live in the gncInvoice collection, distinguished by
+# the owner type — 2 = Customer, 4 = Vendor.
+_GNC_OWNER_CUSTOMER = 2
+_GNC_OWNER_VENDOR = 4
+
+
+def _find_invoices_by_id(book, id_: str):
+    """All customer invoices with the given id.
+
+    `book.InvoiceLookupByID` is unsuitable: it returns at most one record
+    and (per Q-007 testing) does not return vendor bills at all. We use
+    Query so we can detect legacy duplicates and so the bill side has the
+    same lookup shape.
+    """
+    from gnucash import Query
+    from gnucash.gnucash_business import Invoice
+    q = Query()
+    q.search_for('gncInvoice')
+    q.set_book(book)
+    out = []
+    for r in q.run():
+        inv = Invoice(instance=r)
+        if inv.GetOwnerType() == _GNC_OWNER_CUSTOMER and inv.GetID() == id_:
+            out.append(inv)
+    q.destroy()
+    return out
+
+
+def _find_bills_by_id(book, id_: str):
+    """All vendor bills with the given id."""
+    from gnucash import Query
+    from gnucash.gnucash_business import Invoice
+    q = Query()
+    q.search_for('gncInvoice')
+    q.set_book(book)
+    out = []
+    for r in q.run():
+        inv = Invoice(instance=r)
+        if inv.GetOwnerType() == _GNC_OWNER_VENDOR and inv.GetID() == id_:
+            out.append(inv)
+    q.destroy()
+    return out
+
+
+def _find_invoice_by_guid(book, guid_norm: str):
+    """Customer invoice with the given GUID, or None.
+
+    SWIG `Invoice.GetGUID()` is missing on some platforms; use ctypes via
+    qof_instance_get_guid + guid_to_string_buff (same pattern as the
+    exporter's _guid_for_ptr_factory).
+    """
+    import ctypes
+
+    from gnucash import Query
+    from gnucash.gnucash_business import Invoice
+    lib = ctypes.CDLL(None)
+    lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]
+    lib.qof_instance_get_guid.restype = ctypes.c_void_p
+    lib.guid_to_string_buff.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    lib.guid_to_string_buff.restype = ctypes.c_char_p
+    buf = ctypes.create_string_buffer(40)
+
+    q = Query()
+    q.search_for('gncInvoice')
+    q.set_book(book)
+    found = None
+    for r in q.run():
+        inv = Invoice(instance=r)
+        if inv.GetOwnerType() != _GNC_OWNER_CUSTOMER:
+            continue
+        guid_ptr = lib.qof_instance_get_guid(int(inv.instance))
+        if not guid_ptr:
+            continue
+        lib.guid_to_string_buff(guid_ptr, buf)
+        if buf.value.decode('ascii') == guid_norm:
+            found = inv
+            break
+    q.destroy()
+    return found
+
+
+def _find_bill_by_guid(book, guid_norm: str):
+    """Vendor bill with the given GUID, or None."""
+    import ctypes
+
+    from gnucash import Query
+    from gnucash.gnucash_business import Invoice
+    lib = ctypes.CDLL(None)
+    lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]
+    lib.qof_instance_get_guid.restype = ctypes.c_void_p
+    lib.guid_to_string_buff.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    lib.guid_to_string_buff.restype = ctypes.c_char_p
+    buf = ctypes.create_string_buffer(40)
+
+    q = Query()
+    q.search_for('gncInvoice')
+    q.set_book(book)
+    found = None
+    for r in q.run():
+        inv = Invoice(instance=r)
+        if inv.GetOwnerType() != _GNC_OWNER_VENDOR:
+            continue
+        guid_ptr = lib.qof_instance_get_guid(int(inv.instance))
+        if not guid_ptr:
+            continue
+        lib.guid_to_string_buff(guid_ptr, buf)
+        if buf.value.decode('ascii') == guid_norm:
+            found = inv
+            break
+    q.destroy()
+    return found
+
+
+def _swig_invoice_guid_str(invoice) -> str:
+    """Read an Invoice's GUID via ctypes (qof_instance_get_guid + guid_to_string_buff).
+    SWIG `Invoice.GetGUID()` is missing on some platforms; this works everywhere
+    the invoice has been committed to the book."""
+    import ctypes
+    lib = ctypes.CDLL(None)
+    lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]
+    lib.qof_instance_get_guid.restype = ctypes.c_void_p
+    lib.guid_to_string_buff.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    lib.guid_to_string_buff.restype = ctypes.c_char_p
+    buf = ctypes.create_string_buffer(40)
+    guid_ptr = lib.qof_instance_get_guid(int(invoice.instance))
+    if not guid_ptr:
+        return ''
+    lib.guid_to_string_buff(guid_ptr, buf)
+    return buf.value.decode('ascii')
+
+
 def _resolve_existing_or_none(kind: str, id_: str, guid_str: Optional[str],
-                              find_by_id, find_by_guid):
+                              find_by_id, find_by_guid,
+                              get_guid_str=lambda r: r.GetGUID().to_string()):
     """Apply Q-006 §2 resolution rules. Returns (existing, must_set_guid_str).
 
-    `kind` is 'customer'/'vendor' for error messages.
+    `kind` is 'customer'/'vendor'/'invoice'/'bill' for error messages.
     `existing` is the matched record or None (caller creates new).
     `must_set_guid_str` is the normalised guid to assign to a freshly-created
     record (for round-trip into a fresh book), or None.
+    `get_guid_str(record) -> str` reads the guid from a matched record for
+    error reporting. Defaults to SWIG `record.GetGUID().to_string()`, which
+    works for Customer/Vendor; pass a ctypes-based callback for Invoice/Bill
+    where SWIG's `GetGUID` is missing on some platforms.
 
     Raises ValueError on any contradiction the user must resolve manually.
     """
@@ -197,7 +334,7 @@ def _resolve_existing_or_none(kind: str, id_: str, guid_str: Optional[str],
         raise ValueError(
             f'{kind} "{id_}": directive guid {guid_str!r} does not exist in '
             f'the book, but a {kind} with this id already exists '
-            f'(guid {existing.GetGUID().to_string()}). Refusing to rebuild — '
+            f'(guid {get_guid_str(existing)}). Refusing to rebuild — '
             f'either remove the guid: line to update the existing record, or '
             f'change the id to create a new {kind}.'
         )
@@ -916,10 +1053,17 @@ class GnuCashImporter:
 
         inv_id = directive.props['id']
 
-        # Idempotency: skip if this invoice already exists in the book.
-        # Re-importing the same file would otherwise create a duplicate invoice
-        # and a duplicate payment transaction for each payment: block.
-        if book.InvoiceLookupByID(inv_id) is not None:
+        # Resolve identity (Q-007): apply id ⇔ guid agreement rules and
+        # detect pre-existing duplicates. On a hit we SKIP rather than
+        # update — invoices have AR lots wired into a real transaction and
+        # mutating their fields after posting would corrupt accounting state.
+        existing, must_set_guid = _resolve_existing_or_none(
+            'invoice', inv_id, directive.metadata.get('guid'),
+            lambda i: _find_invoices_by_id(book, i),
+            lambda g: _find_invoice_by_guid(book, g),
+            get_guid_str=_swig_invoice_guid_str,
+        )
+        if existing is not None:
             logging.debug(f"Invoice {inv_id} already exists, skipping")
             return
 
@@ -948,9 +1092,8 @@ class GnuCashImporter:
             lambda g: _find_customer_by_guid(book, g),
         )
         invoice = Invoice(book, inv_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), customer)
-        if 'guid' in directive.metadata:
-            _set_object_guid(book, invoice, 'invoice', inv_id,
-                             _normalise_guid(directive.metadata['guid']))
+        if must_set_guid is not None:
+            _set_object_guid(book, invoice, 'invoice', inv_id, must_set_guid)
         invoice.BeginEdit()
         invoice.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
 
@@ -1053,8 +1196,20 @@ class GnuCashImporter:
 
         bill_id = directive.props['id']
 
-        # Idempotency: skip if this bill already exists in the book.
-        if book.InvoiceLookupByID(bill_id) is not None:
+        # Resolve identity (Q-007): apply id ⇔ guid agreement rules and
+        # detect pre-existing duplicates. On a hit we SKIP rather than
+        # update — bills have AP lots wired into a real transaction.
+        # `book.InvoiceLookupByID` is unsuitable here: it returns None for
+        # vendor bills (only customer invoices), so the pre-Q-007 skip
+        # logic was silently broken — re-importing the same bill file
+        # would create a duplicate every time.
+        existing, must_set_guid = _resolve_existing_or_none(
+            'bill', bill_id, directive.metadata.get('guid'),
+            lambda i: _find_bills_by_id(book, i),
+            lambda g: _find_bill_by_guid(book, g),
+            get_guid_str=_swig_invoice_guid_str,
+        )
+        if existing is not None:
             logging.debug(f"Bill {bill_id} already exists, skipping")
             return
 
@@ -1084,9 +1239,8 @@ class GnuCashImporter:
             lambda g: _find_vendor_by_guid(book, g),
         )
         bill = Invoice(book, bill_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), vendor)
-        if 'guid' in directive.metadata:
-            _set_object_guid(book, bill, 'bill', bill_id,
-                             _normalise_guid(directive.metadata['guid']))
+        if must_set_guid is not None:
+            _set_object_guid(book, bill, 'bill', bill_id, must_set_guid)
         bill.BeginEdit()
         bill.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
 

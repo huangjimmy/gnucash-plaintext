@@ -805,3 +805,183 @@ class TestPreexistingDuplicates:
                 f"Two same-id directives in one file must not produce two records.\n"
                 f"Export:\n{text}"
             )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Invoice / bill identity enforcement (Q-007 follow-up)
+#
+# Q-006 added id ⇔ guid conflict detection for customers and vendors.
+# Invoices and bills had a weaker idempotency model (skip on id match, no
+# guid check). These tests describe the desired behaviour after extending
+# the conflict detection to invoices/bills:
+#
+#   - skip-on-existing stays the same (invoices have AR/AP lots, can't
+#     update mutable fields safely mid-flight)
+#   - but BEFORE skipping, verify identity is consistent: directive's
+#     `guid:` must match the existing invoice's GUID, else error
+#   - if directive's guid resolves to a DIFFERENT invoice's id, error
+#   - same rules apply to bills
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+_INVOICE_BASE = """
+customer "C001"
+\tname: "Acme"
+\tcurrency: CAD
+
+invoice "INV-001"
+\tcustomer_id: "C001"
+\tcurrency: CAD
+\tdate_opened: 2026-01-01
+\tentry:
+\t\tdate: 2026-01-01
+\t\tdescription: "Service"
+\t\taction: "Hours"
+\t\taccount: "Income:Sales"
+\t\tquantity: 1
+\t\tprice: 100
+\t\ttaxable: false
+\t\ttax_included: false
+\tposted: none
+\tpayment: none
+"""
+
+
+_BILL_BASE = """
+vendor "V001"
+\tname: "Supplier"
+\tcurrency: CAD
+
+bill "BILL-001"
+\tvendor_id: "V001"
+\tcurrency: CAD
+\tdate_opened: 2026-01-01
+\tentry:
+\t\tdate: 2026-01-01
+\t\tdescription: "Supplies"
+\t\taccount: "Expenses:Supplies"
+\t\tquantity: 1
+\t\tprice: 50
+\t\ttaxable: true
+\t\ttax_included: false
+\tposted: none
+\tpayment: none
+"""
+
+
+class TestInvoiceBillIdentityEnforcement:
+    """Invoice/bill identity must be consistent on re-import."""
+
+    def test_reimport_same_invoice_is_idempotent(self, tmp_path):
+        """Existing baseline: re-importing identical invoice file is a no-op."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _INVOICE_BASE)
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + _INVOICE_BASE))
+        assert r.exit_code == 0, f"Re-import should be idempotent:\n{r.output}"
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        assert _count_blocks(text, 'invoice "INV-001"') == 1
+
+    def test_reimport_invoice_with_matching_guid_is_idempotent(self, tmp_path):
+        """Directive carries `guid:` matching the existing invoice → skip cleanly."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _INVOICE_BASE)
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        guid = _field_in_block(_block_for(text, 'invoice "INV-001"'),
+                               'guid', strip_quotes=True)
+        assert guid
+
+        with_guid = _INVOICE_BASE.replace(
+            'invoice "INV-001"\n',
+            f'invoice "INV-001"\n\tguid: "{guid}"\n',
+        )
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + with_guid))
+        assert r.exit_code == 0, f"Re-import with matching guid must succeed:\n{r.output}"
+        text2 = _exported_biz_text(runner, tmp_path, gnc)
+        assert _count_blocks(text2, 'invoice "INV-001"') == 1
+
+    def test_reimport_invoice_with_mismatched_guid_errors(self, tmp_path):
+        """Directive's `guid:` doesn't match the existing INV-001's guid → error.
+
+        Refuses to silently skip when the directive is claiming a different
+        identity for an existing id.
+        """
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _INVOICE_BASE)
+
+        bad = _INVOICE_BASE.replace(
+            'invoice "INV-001"\n',
+            'invoice "INV-001"\n\tguid: "deadbeefdeadbeefdeadbeefdeadbeef"\n',
+        )
+        r = _import(runner, gnc, _write(tmp_path / "bad.txt",
+                                        ACCOUNTS + "\n" + bad))
+        assert r.exit_code != 0, (
+            f"Mismatched guid on existing invoice id must error:\n{r.output}"
+        )
+
+    def test_reimport_invoice_guid_resolves_to_different_id_errors(self, tmp_path):
+        """Directive says `INV-002` + guid of INV-001 → error.
+
+        We must not let the user file a new invoice claiming an existing
+        invoice's GUID.
+        """
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _INVOICE_BASE)
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        inv1_guid = _field_in_block(_block_for(text, 'invoice "INV-001"'),
+                                    'guid', strip_quotes=True)
+        assert inv1_guid
+
+        # Replace only the header line (first occurrence) and add a guid line.
+        bad = _INVOICE_BASE.replace(
+            'invoice "INV-001"',
+            f'invoice "INV-002"\n\tguid: "{inv1_guid}"',
+            1,
+        )
+        r = _import(runner, gnc, _write(tmp_path / "bad.txt",
+                                        ACCOUNTS + "\n" + bad))
+        assert r.exit_code != 0, (
+            f"Reusing INV-001's guid for new INV-002 must error:\n{r.output}"
+        )
+
+    # ─── Same suite for bills ───────────────────────────────────────────────
+
+    def test_reimport_same_bill_is_idempotent(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _BILL_BASE)
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + _BILL_BASE))
+        assert r.exit_code == 0, f"Re-import should be idempotent:\n{r.output}"
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        assert _count_blocks(text, 'bill "BILL-001"') == 1
+
+    def test_reimport_bill_with_matching_guid_is_idempotent(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _BILL_BASE)
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        guid = _field_in_block(_block_for(text, 'bill "BILL-001"'),
+                               'guid', strip_quotes=True)
+        assert guid
+
+        with_guid = _BILL_BASE.replace(
+            'bill "BILL-001"\n',
+            f'bill "BILL-001"\n\tguid: "{guid}"\n',
+        )
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + with_guid))
+        assert r.exit_code == 0, f"Re-import with matching guid must succeed:\n{r.output}"
+
+    def test_reimport_bill_with_mismatched_guid_errors(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _BILL_BASE)
+
+        bad = _BILL_BASE.replace(
+            'bill "BILL-001"\n',
+            'bill "BILL-001"\n\tguid: "deadbeefdeadbeefdeadbeefdeadbeef"\n',
+        )
+        r = _import(runner, gnc, _write(tmp_path / "bad.txt",
+                                        ACCOUNTS + "\n" + bad))
+        assert r.exit_code != 0, (
+            f"Mismatched guid on existing bill id must error:\n{r.output}"
+        )
