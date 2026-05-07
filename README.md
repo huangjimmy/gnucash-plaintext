@@ -955,6 +955,29 @@ The linked invoice/bill count is informational — archiving always succeeds for
 a found, currently-active entity. Exit code 1 if any ID was not found or
 already archived.
 
+#### Addressing by GUID instead of customer/vendor number
+
+Both `archive-customers` and `archive-vendors` accept a `--by-guid` flag.
+With it set, positional args are interpreted as GUIDs (32-char hex, with or
+without UUID hyphens) instead of customer/vendor numbers. Output still shows
+the user-facing id of the matched record:
+
+```bash
+gnucash-plaintext archive-customers mybook.gnucash --by-guid \
+    9f14a498cc894d50931f855a9a31d594
+```
+
+```
+CUST-001: archived
+```
+
+Use this when you have an entity's GUID (e.g. parsed from an exported
+plaintext file) and don't want the extra ID-lookup step. Mixing GUIDs and
+numbers in one invocation isn't supported — pick one form per call.
+
+A malformed GUID (e.g. wrong length, not hex) is rejected up-front with a
+clear error rather than producing a confusing "not found".
+
 ### Deleting customers permanently
 
 `delete-customers` hard-deletes a customer from the book. This is irreversible.
@@ -976,6 +999,14 @@ CUST-003: not found
 ```
 
 Exit code 1 if any ID failed or was not found.
+
+`delete-customers` also accepts `--by-guid` to address records by GUID
+(same semantics as `archive-customers --by-guid` above):
+
+```bash
+gnucash-plaintext delete-customers mybook.gnucash --by-guid \
+    9f14a498cc894d50931f855a9a31d594
+```
 
 > **Note:** Vendor deletion is not supported. GnuCash's vendor entity does not
 > persist correctly through the XML backend when `Destroy()` is called — the

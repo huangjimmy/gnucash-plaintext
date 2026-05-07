@@ -341,3 +341,177 @@ def test_archive_vendors_batch_mixed(tmp_path):
     assert result.exit_code == 1
     assert "V001: archived" in result.output
     assert "V002: already archived" in result.output
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# E. --by-guid flag (Q-007)
+#
+# delete-customers / archive-customers / archive-vendors must accept GUIDs as
+# well as user-facing ids. The flag is opt-in (default behaviour stays
+# id-based) because nothing prevents a customer's id from happening to be a
+# 32-char hex string — auto-detection would silently misroute.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _customer_guid_for_id(gnc_path, cust_id):
+    """Read a customer's GUID from the saved gnucash file via the bindings."""
+    from gnucash import Session
+    s = Session(f"xml://{gnc_path}")
+    try:
+        cust = s.book.CustomerLookupByID(cust_id)
+        assert cust is not None, f"Setup fixture missing customer {cust_id!r}"
+        return cust.GetGUID().to_string()
+    finally:
+        s.end()
+
+
+def _vendor_guid_for_id(gnc_path, vend_id):
+    from gnucash import Session
+    s = Session(f"xml://{gnc_path}")
+    try:
+        v = s.book.VendorLookupByID(vend_id)
+        assert v is not None, f"Setup fixture missing vendor {vend_id!r}"
+        return v.GetGUID().to_string()
+    finally:
+        s.end()
+
+
+def test_delete_customer_by_guid_no_invoices(tmp_path):
+    """delete-customers --by-guid <guid> deletes the matching customer."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+    guid = _customer_guid_for_id(gf, "2")
+
+    result = runner.invoke(cli, ["delete-customers", str(gf), "--by-guid", guid])
+    assert result.exit_code == 0, result.output
+    # Output keeps the user-facing id for readability
+    assert "2: deleted" in result.output
+    exported = export_biz(runner, gf)
+    assert 'customer "2"' not in exported
+
+
+def test_delete_customer_by_guid_with_invoices_blocked(tmp_path):
+    """--by-guid still blocks when invoices are linked, exit 1."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+    guid = _customer_guid_for_id(gf, "1")  # Customer "1" has invoices in fixture
+
+    result = runner.invoke(cli, ["delete-customers", str(gf), "--by-guid", guid])
+    assert result.exit_code == 1
+    assert "1: failed" in result.output
+    assert "cannot delete" in result.output
+
+
+def test_delete_customer_by_guid_not_found(tmp_path):
+    """--by-guid with a valid-format guid that doesn't match → not found, exit 1."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+
+    bogus = "deadbeefdeadbeefdeadbeefdeadbeef"
+    result = runner.invoke(cli, ["delete-customers", str(gf), "--by-guid", bogus])
+    assert result.exit_code == 1
+    assert "not found" in result.output.lower()
+
+
+def test_delete_customer_by_guid_invalid_format(tmp_path):
+    """--by-guid with a malformed guid surfaces an Invalid GUID error, exit 1."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+
+    result = runner.invoke(cli, ["delete-customers", str(gf), "--by-guid", "hello"])
+    assert result.exit_code != 0
+    assert "invalid guid" in result.output.lower()
+
+
+def test_delete_customers_by_guid_batch(tmp_path):
+    """Batch of two GUIDs: one with invoices (blocked), one without (deleted)."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+    g1 = _customer_guid_for_id(gf, "1")
+    g2 = _customer_guid_for_id(gf, "2")
+
+    result = runner.invoke(cli, ["delete-customers", str(gf), "--by-guid", g1, g2])
+    assert result.exit_code == 1  # 1 failed, 2 ok → overall failure
+    assert "1: failed" in result.output
+    assert "2: deleted" in result.output
+
+
+def test_archive_customer_by_guid_active(tmp_path):
+    """archive-customers --by-guid soft-hides an active customer."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+    guid = _customer_guid_for_id(gf, "1")
+
+    result = runner.invoke(cli, ["archive-customers", str(gf), "--by-guid", guid])
+    assert result.exit_code == 0, result.output
+    assert "1: archived" in result.output
+    exported = export_biz(runner, gf)
+    # Customer "1" still present, just inactive
+    assert 'customer "1"' in exported
+    assert "active: false" in exported
+
+
+def test_archive_customer_by_guid_not_found(tmp_path):
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+
+    result = runner.invoke(cli, ["archive-customers", str(gf),
+                                 "--by-guid", "deadbeefdeadbeefdeadbeefdeadbeef"])
+    assert result.exit_code == 1
+    assert "not found" in result.output.lower()
+
+
+def test_archive_vendor_by_guid_active(tmp_path):
+    """archive-vendors --by-guid soft-hides an active vendor."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+    guid = _vendor_guid_for_id(gf, "V001")
+
+    result = runner.invoke(cli, ["archive-vendors", str(gf), "--by-guid", guid])
+    assert result.exit_code == 0, result.output
+    assert "V001: archived" in result.output
+
+
+def test_archive_vendor_by_guid_already_archived(tmp_path):
+    """V002 is inactive in the fixture — by-guid path must report that too."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+    guid = _vendor_guid_for_id(gf, "V002")
+
+    result = runner.invoke(cli, ["archive-vendors", str(gf), "--by-guid", guid])
+    assert result.exit_code == 1
+    assert "V002: already archived" in result.output
+
+
+def test_archive_vendor_by_guid_not_found(tmp_path):
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+
+    result = runner.invoke(cli, ["archive-vendors", str(gf),
+                                 "--by-guid", "deadbeefdeadbeefdeadbeefdeadbeef"])
+    assert result.exit_code == 1
+    assert "not found" in result.output.lower()
+
+
+def test_by_guid_accepts_uuid_with_hyphens(tmp_path):
+    """UUID-with-hyphens form is normalised the same way --txn_guid is."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+    guid = _customer_guid_for_id(gf, "2")
+    uuid_form = f"{guid[0:8]}-{guid[8:12]}-{guid[12:16]}-{guid[16:20]}-{guid[20:32]}"
+
+    result = runner.invoke(cli, ["delete-customers", str(gf),
+                                 "--by-guid", uuid_form])
+    assert result.exit_code == 0, result.output
+    assert "2: deleted" in result.output

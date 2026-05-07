@@ -23,6 +23,11 @@ from typing import List
 import gnucash.gnucash_business as gb
 from gnucash import Book, Query
 
+from infrastructure.gnucash.guid_lookup import (
+    find_customer_by_guid,
+    find_vendor_by_guid,
+)
+
 
 class DeleteStatus(Enum):
     DELETED = auto()
@@ -96,67 +101,97 @@ def _count_invoices_for_owner(book: Book, owner_id: str, owner_type_int: int) ->
     return count
 
 
+def _resolve_customer(book: Book, id_or_guid: str, by_guid: bool):
+    """Look up a customer by id (default) or guid (when by_guid=True).
+
+    Returns (customer, report_id) where report_id is the user-facing id of
+    the matched customer for output, or — on a miss — the original input
+    so the caller can emit a NOT_FOUND result against what the user typed.
+    """
+    cust = find_customer_by_guid(book, id_or_guid) if by_guid else book.CustomerLookupByID(id_or_guid)
+    if cust is None or not cust.GetID():
+        return None, id_or_guid
+    return cust, cust.GetID()
+
+
+def _resolve_vendor(book: Book, id_or_guid: str, by_guid: bool):
+    v = find_vendor_by_guid(book, id_or_guid) if by_guid else book.VendorLookupByID(id_or_guid)
+    if v is None or not v.GetID():
+        return None, id_or_guid
+    return v, v.GetID()
+
+
 class DeleteCustomersUseCase:
-    """Hard-delete customers by ID; blocked if any invoices are linked."""
+    """Hard-delete customers by ID (or GUID with by_guid=True);
+    blocked if any invoices are linked."""
 
     def __init__(self, book: Book):
         self.book = book
 
-    def execute(self, ids: List[str]) -> List[DeleteResult]:
+    def execute(self, ids: List[str], by_guid: bool = False) -> List[DeleteResult]:
+        """`ids` are customer numbers (default) or GUIDs (when by_guid=True)."""
         results = []
-        for cid in ids:
-            cust = self.book.CustomerLookupByID(cid)
-            if cust is None or not cust.GetID():
-                results.append(DeleteResult(id=cid, status=DeleteStatus.NOT_FOUND))
+        for arg in ids:
+            cust, report_id = _resolve_customer(self.book, arg, by_guid)
+            if cust is None:
+                results.append(DeleteResult(id=report_id, status=DeleteStatus.NOT_FOUND))
                 continue
-            n = _count_invoices_for_owner(self.book, cid, 2)
+            n = _count_invoices_for_owner(self.book, cust.GetID(), 2)
             if n > 0:
-                results.append(DeleteResult(id=cid, status=DeleteStatus.FAILED_HAS_INVOICES, invoice_count=n))
+                results.append(DeleteResult(id=report_id, status=DeleteStatus.FAILED_HAS_INVOICES, invoice_count=n))
                 continue
             cust.Destroy()
-            results.append(DeleteResult(id=cid, status=DeleteStatus.DELETED))
+            results.append(DeleteResult(id=report_id, status=DeleteStatus.DELETED))
         return results
 
 
 class ArchiveCustomersUseCase:
-    """Set customers inactive (SetActive(False)); informational invoice count."""
+    """Set customers inactive (SetActive(False)); informational invoice count.
+
+    Accepts customer ids by default; pass by_guid=True to look up by GUID.
+    """
 
     def __init__(self, book: Book):
         self.book = book
 
-    def execute(self, ids: List[str]) -> List[ArchiveResult]:
+    def execute(self, ids: List[str], by_guid: bool = False) -> List[ArchiveResult]:
+        """`ids` are customer numbers (default) or GUIDs (when by_guid=True)."""
         results = []
-        for cid in ids:
-            cust = self.book.CustomerLookupByID(cid)
-            if cust is None or not cust.GetID():
-                results.append(ArchiveResult(id=cid, status=ArchiveStatus.NOT_FOUND))
+        for arg in ids:
+            cust, report_id = _resolve_customer(self.book, arg, by_guid)
+            if cust is None:
+                results.append(ArchiveResult(id=report_id, status=ArchiveStatus.NOT_FOUND))
                 continue
             if not cust.GetActive():
-                results.append(ArchiveResult(id=cid, status=ArchiveStatus.ALREADY_ARCHIVED))
+                results.append(ArchiveResult(id=report_id, status=ArchiveStatus.ALREADY_ARCHIVED))
                 continue
-            n = _count_invoices_for_owner(self.book, cid, 2)
+            n = _count_invoices_for_owner(self.book, cust.GetID(), 2)
             cust.SetActive(False)
-            results.append(ArchiveResult(id=cid, status=ArchiveStatus.ARCHIVED, invoice_count=n))
+            results.append(ArchiveResult(id=report_id, status=ArchiveStatus.ARCHIVED, invoice_count=n))
         return results
 
 
 class ArchiveVendorsUseCase:
-    """Set vendors inactive (SetActive(False)); informational bill count."""
+    """Set vendors inactive (SetActive(False)); informational bill count.
+
+    Accepts vendor ids by default; pass by_guid=True to look up by GUID.
+    """
 
     def __init__(self, book: Book):
         self.book = book
 
-    def execute(self, ids: List[str]) -> List[ArchiveResult]:
+    def execute(self, ids: List[str], by_guid: bool = False) -> List[ArchiveResult]:
+        """`ids` are vendor numbers (default) or GUIDs (when by_guid=True)."""
         results = []
-        for vid in ids:
-            vendor = self.book.VendorLookupByID(vid)
-            if vendor is None or not vendor.GetID():
-                results.append(ArchiveResult(id=vid, status=ArchiveStatus.NOT_FOUND))
+        for arg in ids:
+            vendor, report_id = _resolve_vendor(self.book, arg, by_guid)
+            if vendor is None:
+                results.append(ArchiveResult(id=report_id, status=ArchiveStatus.NOT_FOUND))
                 continue
             if not vendor.GetActive():
-                results.append(ArchiveResult(id=vid, status=ArchiveStatus.ALREADY_ARCHIVED))
+                results.append(ArchiveResult(id=report_id, status=ArchiveStatus.ALREADY_ARCHIVED))
                 continue
-            n = _count_invoices_for_owner(self.book, vid, 4)
+            n = _count_invoices_for_owner(self.book, vendor.GetID(), 4)
             vendor.SetActive(False)
-            results.append(ArchiveResult(id=vid, status=ArchiveStatus.ARCHIVED, invoice_count=n))
+            results.append(ArchiveResult(id=report_id, status=ArchiveStatus.ARCHIVED, invoice_count=n))
         return results
