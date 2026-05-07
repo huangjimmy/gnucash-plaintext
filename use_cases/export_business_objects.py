@@ -35,6 +35,29 @@ class ExportBusinessObjectsUseCase:
         self.book = book
         self._lib = load_gnc_engine()
 
+    def _guid_for_ptr_factory(self):
+        """Return a function (qof_ptr -> 32-char hex guid) for use with ctypes pointers.
+
+        Used for Invoices/Bills (SWIG `Invoice` does not expose GetGUID on
+        all platforms) and tax tables (only available via ctypes).
+        """
+        import ctypes
+        lib = self._lib
+        lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]
+        lib.qof_instance_get_guid.restype = ctypes.c_void_p
+        lib.guid_to_string_buff.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        lib.guid_to_string_buff.restype = ctypes.c_char_p
+
+        def guid_for_ptr(qof_ptr):
+            buf = ctypes.create_string_buffer(40)
+            guid_ptr = lib.qof_instance_get_guid(qof_ptr)
+            if not guid_ptr:
+                return ''
+            lib.guid_to_string_buff(guid_ptr, buf)
+            return buf.value.decode('ascii')
+
+        return guid_for_ptr
+
     def _account_full_name(self, acct_ptr: int) -> str:
         """
         Build colon-separated account full name via ctypes (avoids SWIG const-type bug).
@@ -90,6 +113,7 @@ class ExportBusinessObjectsUseCase:
             addr  = cust.GetAddr()
             lines = [
                 f'customer "{cust.GetID()}"',
+                f'\tguid: "{cust.GetGUID().to_string()}"',
                 f'\tname: "{cust.GetName()}"',
                 f'\tcurrency: {cust.GetCurrency().get_mnemonic()}',
             ]
@@ -124,6 +148,7 @@ class ExportBusinessObjectsUseCase:
         for v in vendors:
             lines = [
                 f'vendor "{v.GetID()}"',
+                f'\tguid: "{v.GetGUID().to_string()}"',
                 f'	name: "{v.GetName()}"',
                 f'	currency: {v.GetCurrency().get_mnemonic()}',
             ]
@@ -147,10 +172,15 @@ class ExportBusinessObjectsUseCase:
         # gncTaxTableGetTables returns a GList* of GncTaxTable* pointers
         glist_ptr = lib.gncTaxTableGetTables(int(self.book.instance))
 
+        guid_for_ptr = self._guid_for_ptr_factory()
+
         def process_tax_table(lib, tt_ptr):
             """Process single tax table pointer to plaintext lines."""
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
-            lines = [f'taxtable "{tt_name}"']
+            lines = [
+                f'taxtable "{tt_name}"',
+                f'\tguid: "{guid_for_ptr(tt_ptr)}"',
+            ]
 
             # Process entries using iterate_glist
             entries_ptr = lib.gncTaxTableGetEntries(tt_ptr)
@@ -181,6 +211,7 @@ class ExportBusinessObjectsUseCase:
 
     def _export_invoices(self) -> str:
         lib = self._lib
+        guid_for_ptr = self._guid_for_ptr_factory()
 
         q = Query()
         q.search_for('gncInvoice')
@@ -202,7 +233,9 @@ class ExportBusinessObjectsUseCase:
         for inv, cust in invoices:
             lines = [
                 f'invoice "{inv.GetID()}"',
+                f'\tguid: "{guid_for_ptr(int(inv.instance))}"',
                 f'	customer_id: "{cust.GetID()}"',
+                f'\tcustomer_guid: "{cust.GetGUID().to_string()}"',
                 f'	currency: {inv.GetCurrency().get_mnemonic()}',
                 f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
             ]
@@ -389,11 +422,14 @@ class ExportBusinessObjectsUseCase:
             except Exception:
                 pass
 
+        guid_for_ptr = self._guid_for_ptr_factory()
         bill_strings = []
         for inv, vendor in bills:
             lines = [
                 f'bill "{inv.GetID()}"',
+                f'\tguid: "{guid_for_ptr(int(inv.instance))}"',
                 f'	vendor_id: "{vendor.GetID()}"',
+                f'\tvendor_guid: "{vendor.GetGUID().to_string()}"',
                 f'	currency: {inv.GetCurrency().get_mnemonic()}',
                 f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
             ]

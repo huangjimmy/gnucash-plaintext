@@ -8,7 +8,7 @@ Converts PlaintextDirective objects from the parser into GnuCash objects
 import ctypes
 import logging
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 import gnucash.gnucash_core_c as gc
 from gnucash import Account, Book, GncCommodity, GncNumeric, Split, Transaction
@@ -78,6 +78,243 @@ def _find_transaction_by_guid(book, guid: str):
     if raw is None:
         return None
     return Transaction(instance=raw)
+
+
+def _normalise_guid(guid) -> str:
+    """Normalise a user-supplied GUID to GnuCash's canonical 32-char lowercase hex.
+
+    Accepts:
+      - quoted hex string ("b2b3…b4")
+      - unquoted mixed hex (b2b3…b4) — the parser keeps it as a string
+      - UUID-with-hyphens
+    Rejects:
+      - int / float — these slip in when a user writes an unquoted all-digit
+        guid (e.g. `guid: 22222222222222222222222222222222`). The parser
+        auto-converts to int and the original digit count is lost (so
+        `0000…0022` would be indistinguishable from `22`). Force the user
+        to quote so we keep the literal hex digits.
+      - malformed strings ("hello") via `string_to_guid`
+    """
+    if isinstance(guid, (int, float, bool)):
+        raise ValueError(
+            f"guid must be a quoted string (got {type(guid).__name__} {guid!r}); "
+            f"unquoted all-digit values are auto-converted to a number and "
+            f"lose their digit count. Quote the guid: e.g. guid: \"{guid:032x}\""
+            if isinstance(guid, int) and 0 <= guid < 2**128
+            else f"guid must be a quoted string (got {type(guid).__name__} {guid!r})"
+        )
+
+    from gnucash.gnucash_core_c import GncGUID, string_to_guid
+    if not string_to_guid(guid, GncGUID()):
+        raise ValueError(f"Invalid GUID format: {guid!r}")
+    return guid.replace('-', '').lower()
+
+
+def _find_customers_by_id(book, id_: str):
+    """Return all Customer records with the given user-facing id."""
+    from gnucash import Query
+    from gnucash.gnucash_business import Customer
+    q = Query()
+    q.search_for('gncCustomer')
+    q.set_book(book)
+    out = [Customer(instance=r) for r in q.run() if Customer(instance=r).GetID() == id_]
+    q.destroy()
+    return out
+
+
+def _find_vendors_by_id(book, id_: str):
+    from gnucash import Query
+    from gnucash.gnucash_business import Vendor
+    q = Query()
+    q.search_for('gncVendor')
+    q.set_book(book)
+    out = [Vendor(instance=r) for r in q.run() if Vendor(instance=r).GetID() == id_]
+    q.destroy()
+    return out
+
+
+def _find_customer_by_guid(book, guid_norm: str):
+    from gnucash import Query
+    from gnucash.gnucash_business import Customer
+    q = Query()
+    q.search_for('gncCustomer')
+    q.set_book(book)
+    found = None
+    for r in q.run():
+        c = Customer(instance=r)
+        if c.GetGUID().to_string() == guid_norm:
+            found = c
+            break
+    q.destroy()
+    return found
+
+
+def _find_vendor_by_guid(book, guid_norm: str):
+    from gnucash import Query
+    from gnucash.gnucash_business import Vendor
+    q = Query()
+    q.search_for('gncVendor')
+    q.set_book(book)
+    found = None
+    for r in q.run():
+        v = Vendor(instance=r)
+        if v.GetGUID().to_string() == guid_norm:
+            found = v
+            break
+    q.destroy()
+    return found
+
+
+def _resolve_existing_or_none(kind: str, id_: str, guid_str: Optional[str],
+                              find_by_id, find_by_guid):
+    """Apply Q-006 §2 resolution rules. Returns (existing, must_set_guid_str).
+
+    `kind` is 'customer'/'vendor' for error messages.
+    `existing` is the matched record or None (caller creates new).
+    `must_set_guid_str` is the normalised guid to assign to a freshly-created
+    record (for round-trip into a fresh book), or None.
+
+    Raises ValueError on any contradiction the user must resolve manually.
+    """
+    matches_by_id = find_by_id(id_)
+    if len(matches_by_id) > 1:
+        raise ValueError(
+            f'{kind} "{id_}": book already has {len(matches_by_id)} records '
+            f'with this id; resolve in GnuCash GUI before re-importing'
+        )
+
+    if guid_str is None:
+        # No guid in the directive — match by id alone, update or create.
+        return (matches_by_id[0] if matches_by_id else None), None
+
+    guid_norm = _normalise_guid(guid_str)
+    by_guid = find_by_guid(guid_norm)
+
+    if by_guid is None and matches_by_id:
+        # GUID is unknown but id is taken — refuse to rebuild because we
+        # cannot assign that guid without overwriting the existing record.
+        existing = matches_by_id[0]
+        raise ValueError(
+            f'{kind} "{id_}": directive guid {guid_str!r} does not exist in '
+            f'the book, but a {kind} with this id already exists '
+            f'(guid {existing.GetGUID().to_string()}). Refusing to rebuild — '
+            f'either remove the guid: line to update the existing record, or '
+            f'change the id to create a new {kind}.'
+        )
+
+    if by_guid is not None:
+        if by_guid.GetID() != id_:
+            raise ValueError(
+                f'{kind} "{id_}": directive guid {guid_str!r} resolves to a '
+                f'{kind} with id {by_guid.GetID()!r} — refusing to rename. '
+                f'{kind} ids are immutable; fix the directive to match.'
+            )
+        return by_guid, None
+
+    # No id match, no guid match → fresh create with the requested guid.
+    return None, guid_norm
+
+
+def _resolve_cross_reference(kind: str, id_val: Optional[str], guid_val: Optional[str],
+                             find_by_id, find_by_guid):
+    """Resolve an invoice→customer or bill→vendor reference.
+
+    Q-006 §4 rules: id and guid (when both present) must resolve to the same
+    record. Single-field lookups are allowed for hand-written files.
+
+    Returns the resolved record. Raises ValueError on contradiction.
+    """
+    if id_val is None and guid_val is None:
+        raise ValueError(f"missing {kind} reference (need _id or _guid)")
+
+    by_guid = None
+    if guid_val is not None:
+        by_guid = find_by_guid(_normalise_guid(guid_val))
+        if by_guid is None:
+            raise ValueError(
+                f"{kind}_guid {guid_val!r} does not resolve to any record"
+            )
+        if id_val is not None and by_guid.GetID() != id_val:
+            raise ValueError(
+                f"{kind}_guid {guid_val!r} resolves to {kind} with id "
+                f"{by_guid.GetID()!r}, but {kind}_id says {id_val!r}"
+            )
+        return by_guid
+
+    matches = find_by_id(id_val)
+    if not matches:
+        raise ValueError(f"{kind}_id {id_val!r} not found")
+    if len(matches) > 1:
+        raise ValueError(
+            f"{kind}_id {id_val!r} matches {len(matches)} records — "
+            f"specify {kind}_guid to disambiguate, or fix duplicates in GnuCash GUI"
+        )
+    return matches[0]
+
+
+def _guid_in_use_anywhere(book, guid_norm: str) -> Optional[str]:
+    """Return the kind of entity that already uses guid_norm, or None if free.
+
+    GnuCash GUIDs are unique book-wide across every entity type. Before
+    forcing a freshly-created object's GUID via qof_instance_set_guid, callers
+    must ensure the target GUID is not already taken by another entity, or
+    the book becomes corrupted.
+    """
+    import ctypes
+
+    from gnucash.gnucash_core_c import GncGUID, string_to_guid, xaccTransLookup
+    g = GncGUID()
+    if not string_to_guid(guid_norm, g):
+        return None
+    if xaccTransLookup(g, book.instance) is not None:
+        return 'transaction'
+
+    lib = ctypes.CDLL(None)
+    lib.xaccAccountLookup.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.xaccAccountLookup.restype = ctypes.c_void_p
+    lib.string_to_guid.argtypes = [ctypes.c_char_p, ctypes.c_void_p]
+    lib.string_to_guid.restype = ctypes.c_int
+
+    class QofGuid(ctypes.Structure):
+        _fields_ = [("data", ctypes.c_uint8 * 16)]
+    cguid = QofGuid()
+    for i in range(16):
+        cguid.data[i] = int(guid_norm[i*2:i*2+2], 16)
+    if lib.xaccAccountLookup(ctypes.byref(cguid), int(book.instance)):
+        return 'account'
+
+    if _find_customer_by_guid(book, guid_norm) is not None:
+        return 'customer'
+    if _find_vendor_by_guid(book, guid_norm) is not None:
+        return 'vendor'
+    return None
+
+
+def _set_object_guid(book, obj, kind: str, id_: str, guid_norm: str) -> None:
+    """Force a freshly-created business object's GUID to a specific value.
+
+    Errors if the requested GUID is already used by any other entity in the
+    book — GnuCash GUIDs are unique across all object types, and a collision
+    would corrupt the book.
+    """
+    in_use = _guid_in_use_anywhere(book, guid_norm)
+    if in_use is not None:
+        raise ValueError(
+            f'{kind} "{id_}": guid {guid_norm} is already used by an existing '
+            f'{in_use} in this book; pick a different guid or remove the guid: '
+            f'line to let GnuCash assign one'
+        )
+
+    import ctypes
+    class QofGuid(ctypes.Structure):
+        _fields_ = [("data", ctypes.c_uint8 * 16)]
+    lib = ctypes.CDLL(None)
+    lib.qof_instance_set_guid.argtypes = [ctypes.c_void_p, ctypes.POINTER(QofGuid)]
+    lib.qof_instance_set_guid.restype = None
+    g = QofGuid()
+    for i in range(16):
+        g.data[i] = int(guid_norm[i*2:i*2+2], 16)
+    lib.qof_instance_set_guid(int(obj.instance), ctypes.byref(g))
 
 
 def _retarget_counter_split_to_lot(lib, existing_tx, bank_acct_name: str,
@@ -567,42 +804,72 @@ class GnuCashImporter:
         if directive.type != DirectiveType.CUSTOMER:
             raise ValueError(f"Expected CUSTOMER but got {directive.type}")
 
-        customer = Customer(book, directive.props['id'], book.get_table().lookup("CURRENCY", directive.metadata['currency']))
+        cid = directive.props['id']
+        guid_str = directive.metadata.get('guid')
+        existing, must_set_guid = _resolve_existing_or_none(
+            'customer', cid, guid_str,
+            lambda i: _find_customers_by_id(book, i),
+            lambda g: _find_customer_by_guid(book, g),
+        )
+
+        currency = book.get_table().lookup("CURRENCY", directive.metadata['currency'])
+        if existing is None:
+            customer = Customer(book, cid, currency)
+            if must_set_guid is not None:
+                _set_object_guid(book, customer, 'customer', cid, must_set_guid)
+        else:
+            customer = existing
+
         customer.BeginEdit()
         customer.SetName(directive.metadata['name'])
-
         addr = customer.GetAddr()
         addr.SetAddr1(directive.metadata.get('addr1', ''))
         addr.SetAddr2(directive.metadata.get('addr2', ''))
         addr.SetAddr3(directive.metadata.get('addr3', ''))
         addr.SetAddr4(directive.metadata.get('addr4', ''))
         addr.SetEmail(directive.metadata.get('email', ''))
-
         customer.CommitEdit()
-        if _is_falsy(directive.metadata.get('active', 'true')):
-            customer.SetActive(False)
+
+        customer.SetActive(not _is_falsy(directive.metadata.get('active', 'true')))
+
         custom_meta = {k: v for k, v in directive.metadata.items()
                        if k not in KNOWN_CUSTOMER_METADATA_KEYS and v is not None}
         if custom_meta:
             set_custom_metadata(customer, custom_meta)
-        logging.debug(f"Created customer {directive.props['id']}")
+        logging.debug(f"{'Updated' if existing else 'Created'} customer {cid}")
 
     @staticmethod
     def import_vendor(directive: PlaintextDirective, book: Book):
         if directive.type != DirectiveType.VENDOR:
             raise ValueError(f"Expected VENDOR but got {directive.type}")
 
-        vendor = Vendor(book, directive.props['id'], book.get_table().lookup("CURRENCY", directive.metadata['currency']))
+        vid = directive.props['id']
+        guid_str = directive.metadata.get('guid')
+        existing, must_set_guid = _resolve_existing_or_none(
+            'vendor', vid, guid_str,
+            lambda i: _find_vendors_by_id(book, i),
+            lambda g: _find_vendor_by_guid(book, g),
+        )
+
+        currency = book.get_table().lookup("CURRENCY", directive.metadata['currency'])
+        if existing is None:
+            vendor = Vendor(book, vid, currency)
+            if must_set_guid is not None:
+                _set_object_guid(book, vendor, 'vendor', vid, must_set_guid)
+        else:
+            vendor = existing
+
         vendor.BeginEdit()
         vendor.SetName(directive.metadata['name'])
         vendor.CommitEdit()
-        if _is_falsy(directive.metadata.get('active', 'true')):
-            vendor.SetActive(False)
+
+        vendor.SetActive(not _is_falsy(directive.metadata.get('active', 'true')))
+
         custom_meta = {k: v for k, v in directive.metadata.items()
                        if k not in KNOWN_VENDOR_METADATA_KEYS and v is not None}
         if custom_meta:
             set_custom_metadata(vendor, custom_meta)
-        logging.debug(f"Created vendor {directive.props['id']}")
+        logging.debug(f"{'Updated' if existing else 'Created'} vendor {vid}")
 
     @staticmethod
     def import_taxtable(directive: PlaintextDirective, book: Book):
@@ -673,7 +940,17 @@ class GnuCashImporter:
         if has_posted_none and payment_children:
             raise ValueError(f'Invoice {inv_id}: cannot have payment: blocks on an unposted invoice (posted: none)')
 
-        invoice = Invoice(book, inv_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), book.CustomerLookupByID(directive.metadata['customer_id']))
+        customer = _resolve_cross_reference(
+            'customer',
+            directive.metadata.get('customer_id'),
+            directive.metadata.get('customer_guid'),
+            lambda i: _find_customers_by_id(book, i),
+            lambda g: _find_customer_by_guid(book, g),
+        )
+        invoice = Invoice(book, inv_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), customer)
+        if 'guid' in directive.metadata:
+            _set_object_guid(book, invoice, 'invoice', inv_id,
+                             _normalise_guid(directive.metadata['guid']))
         invoice.BeginEdit()
         invoice.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
 
@@ -799,7 +1076,17 @@ class GnuCashImporter:
             raise ValueError(f'Bill {bill_id}: cannot have payment: blocks on an unposted bill (posted: none)')
 
         # Bills are Invoice objects whose owner is a Vendor (no separate Bill class)
-        bill = Invoice(book, bill_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), book.VendorLookupByID(directive.metadata['vendor_id']))
+        vendor = _resolve_cross_reference(
+            'vendor',
+            directive.metadata.get('vendor_id'),
+            directive.metadata.get('vendor_guid'),
+            lambda i: _find_vendors_by_id(book, i),
+            lambda g: _find_vendor_by_guid(book, g),
+        )
+        bill = Invoice(book, bill_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), vendor)
+        if 'guid' in directive.metadata:
+            _set_object_guid(book, bill, 'bill', bill_id,
+                             _normalise_guid(directive.metadata['guid']))
         bill.BeginEdit()
         bill.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
 

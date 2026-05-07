@@ -76,14 +76,26 @@ def test_business_objects_roundtrip(tmp_path):
     duplicates = [name for name in set(open_names) if open_names.count(name) > 1]
     assert not duplicates, f"Duplicate account declarations found: {duplicates}"
 
-    # Extract only the business objects from the output and compare with the reference
-    exported_biz = extract_business_objects(exported_text)
+    # Extract only the business objects from the output and compare with the reference.
+    # GUID-bearing lines (`guid:`, `customer_guid:`, `vendor_guid:`) are stripped
+    # because GUIDs are random per import; their round-trip behaviour is covered
+    # in test_business_object_idempotent_reimport.py.
+    def _strip_guid_lines(text):
+        keep = []
+        for line in text.splitlines():
+            stripped = line.lstrip(' \t')
+            if stripped.startswith(('guid:', 'customer_guid:', 'vendor_guid:')):
+                continue
+            keep.append(line)
+        return '\n'.join(keep)
+
+    exported_biz = _strip_guid_lines(extract_business_objects(exported_text))
 
     with open("tests/fixtures/business_objects_only.txt") as f:
-        reference_biz = extract_business_objects(f.read())
+        reference_biz = _strip_guid_lines(extract_business_objects(f.read()))
 
     assert exported_biz == reference_biz, (
-        f"Business objects mismatch.\n"
+        f"Business objects mismatch (ignoring guid lines).\n"
         f"--- reference ---\n{reference_biz}\n"
         f"--- exported ---\n{exported_biz}"
     )

@@ -49,23 +49,24 @@ KNOWN_SPLIT_METADATA_KEYS = frozenset({
 
 # Customer metadata keys that have dedicated GnuCash setters.
 KNOWN_CUSTOMER_METADATA_KEYS = frozenset({
-    'name', 'currency', 'addr1', 'addr2', 'addr3', 'addr4', 'email', 'active',
+    'guid', 'name', 'currency', 'addr1', 'addr2', 'addr3', 'addr4', 'email', 'active',
 })
 
 # Vendor metadata keys that have dedicated GnuCash setters.
 KNOWN_VENDOR_METADATA_KEYS = frozenset({
-    'name', 'currency', 'active',
+    'guid', 'name', 'currency', 'active',
 })
 
 # Invoice metadata keys that have dedicated GnuCash setters.
 KNOWN_INVOICE_METADATA_KEYS = frozenset({
-    'customer_id', 'currency', 'date_opened', 'billing_id', 'notes',
-    'posted', 'payment',
+    'guid', 'customer_id', 'customer_guid', 'currency', 'date_opened',
+    'billing_id', 'notes', 'posted', 'payment',
 })
 
 # Bill metadata keys that have dedicated GnuCash setters.
 KNOWN_BILL_METADATA_KEYS = frozenset({
-    'vendor_id', 'currency', 'date_opened', 'posted', 'payment',
+    'guid', 'vendor_id', 'vendor_guid', 'currency', 'date_opened',
+    'posted', 'payment',
 })
 
 # Account metadata keys that have dedicated GnuCash setters.
