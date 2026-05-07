@@ -985,3 +985,126 @@ class TestInvoiceBillIdentityEnforcement:
         assert r.exit_code != 0, (
             f"Mismatched guid on existing bill id must error:\n{r.output}"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tax-table identity enforcement (Q-008)
+#
+# Tax tables previously had no idempotency or guid honour at all in the
+# importer: each re-import created a fresh duplicate, and invoice/bill
+# entries that reference `tax_table: "GST"` would non-deterministically
+# pick whichever match `gncTaxTableLookupByName` returned first. That
+# silently misroutes tax onto the wrong rate. These tests describe the
+# desired behaviour after extending Q-006 §2 resolution to tax tables:
+#
+#   - skip-on-existing (referenced by posted invoices, can't safely mutate)
+#   - directive's `guid:` must match the existing tax table's guid, else
+#     error
+#   - directive's `guid:` resolving to a different name → error
+#   - book has multiple tax tables with the same name → error
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+_TAXTABLE_BASE = """
+taxtable "GST"
+\tentry:
+\t\taccount: "Liabilities:Accounts Payable"
+\t\trate: 5.0%
+\t\ttype: PERCENT
+"""
+
+
+_TAXTABLE_PST = """
+taxtable "PST"
+\tentry:
+\t\taccount: "Liabilities:Accounts Payable"
+\t\trate: 7.0%
+\t\ttype: PERCENT
+"""
+
+
+class TestTaxTableIdentityEnforcement:
+    """Tax-table identity must be consistent on re-import."""
+
+    def test_reimport_same_taxtable_is_idempotent(self, tmp_path):
+        """Re-importing a file with the same `taxtable "GST"` block must
+        not create a duplicate."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _TAXTABLE_BASE)
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + _TAXTABLE_BASE))
+        assert r.exit_code == 0, f"Re-import should be idempotent:\n{r.output}"
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        assert _count_blocks(text, 'taxtable "GST"') == 1, (
+            f"Expected exactly one taxtable 'GST' after re-import; got\n{text}"
+        )
+
+    def test_reimport_taxtable_with_matching_guid_is_idempotent(self, tmp_path):
+        """Directive carries `guid:` matching the existing tax table → skip."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _TAXTABLE_BASE)
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        guid = _field_in_block(_block_for(text, 'taxtable "GST"'),
+                               'guid', strip_quotes=True)
+        assert guid
+
+        with_guid = _TAXTABLE_BASE.replace(
+            'taxtable "GST"\n',
+            f'taxtable "GST"\n\tguid: "{guid}"\n',
+        )
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + with_guid))
+        assert r.exit_code == 0, f"Re-import with matching guid must succeed:\n{r.output}"
+        text2 = _exported_biz_text(runner, tmp_path, gnc)
+        assert _count_blocks(text2, 'taxtable "GST"') == 1
+
+    def test_reimport_taxtable_with_mismatched_guid_errors(self, tmp_path):
+        """Directive's `guid:` doesn't match the existing GST's guid → error."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _TAXTABLE_BASE)
+
+        bad = _TAXTABLE_BASE.replace(
+            'taxtable "GST"\n',
+            'taxtable "GST"\n\tguid: "deadbeefdeadbeefdeadbeefdeadbeef"\n',
+        )
+        r = _import(runner, gnc, _write(tmp_path / "bad.txt",
+                                        ACCOUNTS + "\n" + bad))
+        assert r.exit_code != 0, (
+            f"Mismatched guid on existing taxtable name must error:\n{r.output}"
+        )
+
+    def test_reimport_taxtable_guid_resolves_to_different_name_errors(self, tmp_path):
+        """Directive says `taxtable "PST"` + guid of existing GST → error."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _TAXTABLE_BASE)
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        gst_guid = _field_in_block(_block_for(text, 'taxtable "GST"'),
+                                   'guid', strip_quotes=True)
+        assert gst_guid
+
+        bad = _TAXTABLE_PST.replace(
+            'taxtable "PST"\n',
+            f'taxtable "PST"\n\tguid: "{gst_guid}"\n',
+        )
+        r = _import(runner, gnc, _write(tmp_path / "bad.txt",
+                                        ACCOUNTS + "\n" + bad))
+        assert r.exit_code != 0, (
+            f"Reusing GST's guid for new PST must error:\n{r.output}"
+        )
+
+    def test_same_file_two_taxtables_with_same_name(self, tmp_path):
+        """Two `taxtable "GST"` blocks in one file must NOT produce two
+        records. Either the importer errors or the second is skipped
+        (because the first already created the table). Both are acceptable;
+        what we forbid is silent duplication."""
+        runner = CliRunner()
+        fixture = _TAXTABLE_BASE + _TAXTABLE_BASE  # duplicate!
+        gnc = tmp_path / "book.gnucash"
+        fix = _write(tmp_path / "dup.txt", ACCOUNTS + "\n" + fixture)
+        r = _import_new(runner, gnc, fix)
+        if r.exit_code == 0:
+            text = _exported_biz_text(runner, tmp_path, gnc)
+            assert _count_blocks(text, 'taxtable "GST"') == 1, (
+                f"Two same-name taxtable directives must not produce two "
+                f"records.\nExport:\n{text}"
+            )

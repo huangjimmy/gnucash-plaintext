@@ -375,6 +375,35 @@ both code paths use the same lookup shape avoids future surprises if
 the SWIG behaviour changes or if a query needs to detect legacy
 duplicates (multiple invoices with the same id, returned as a list).
 
+### 7. Tax tables are not enumerable via QofQuery (Q-008, 2026-05-07)
+
+Customer/vendor/invoice/bill objects all live in standard QOF entity
+collections and are reachable via `Query.search_for(...)`. Tax tables
+are not — they live in a per-book hash table accessed through
+`qof_book_get_data(book, "gncTaxTable")`, and the only Python-reachable
+way to enumerate them is the ctypes call:
+
+```python
+glist_ptr = lib.gncTaxTableGetTables(int(book.instance))
+# returns a GList* of GncTaxTable* pointers
+```
+
+A previous session confirmed `Query().search_for('gncTaxTable')` returns
+zero results. This means:
+
+- Any "find tax tables by name/guid" code must use `gncTaxTableGetTables`
+  + `iterate_glist` (ctypes), not `Query`.
+- Tax-table identity work (Q-008) keeps the entire find/check path
+  in ctypes per the "once ctypes, stay ctypes" rule. The resolver
+  receives raw pointers and uses ctypes-aware callbacks
+  (`get_id_str=_taxtable_name_str`, `get_guid_str=_taxtable_guid_str`)
+  rather than SWIG `record.GetID()`/`record.GetGUID()`.
+
+`gncTaxTableLookupByName(book, name)` (the C builtin) does work, but
+returns at most one match — useless if you need to detect legacy
+duplicates or build a list. Use the Query-equivalent ctypes iteration
+above when you need a multi-match lookup.
+
 ## Summary
 
 1. **No prediction possible** - test to discover failures
@@ -389,5 +418,6 @@ duplicates (multiple invoices with the same id, returned as a list).
 10. **`Account(instance=raw_ptr)` from a Query result is unsafe** - walk the tree instead
 11. **All-digit GUID values need quoting** - parser auto-converts to int
 12. **`book.InvoiceLookupByID` does not find bills** - use a Query filtered by owner-type
+13. **Tax tables are not in QofQuery** - enumerate via `gncTaxTableGetTables` (ctypes-only)
 
 This approach has proven necessary for maximum compatibility across Ubuntu 20/22/24 and Debian 11/12/13.
