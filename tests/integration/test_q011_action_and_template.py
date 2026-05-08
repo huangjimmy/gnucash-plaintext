@@ -342,11 +342,20 @@ invoice "INV-001"
     def test_default_template_used_when_flag_omitted(self, gnc_with_invoice, tmp_path):
         """No --template → embedded invoice.xslt. Verify by rendering
         through the same render_to_html with the embedded path and
-        checking for a unique header from the default template."""
+        checking that:
+          - the default template's signature ('Tax Applied' header) is present,
+          - and the stub template's marker is absent (proves no stub leak
+            from a previous test run / global state).
+        """
         html = _render_invoice_html(gnc_with_invoice, "INV-001", str(_DEFAULT_XSLT))
         assert 'Tax Applied' in html, (
             f"Default template was not applied — 'Tax Applied' header "
             f"missing.\nHTML:\n{html}"
+        )
+        assert 'Q011-CUSTOM-TEMPLATE-MARKER' not in html, (
+            f"Default-template render must NOT contain the custom-template "
+            f"stub marker; if this fires, the XSLT path was not properly "
+            f"isolated.\nHTML:\n{html}"
         )
 
     def test_nonexistent_template_path_errors(self, gnc_with_invoice, tmp_path):

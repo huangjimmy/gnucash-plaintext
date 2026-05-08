@@ -61,7 +61,7 @@ else
 fi
 
 echo "🔍 Reviewing staged changes with $AI_NAME..."
-echo "   (Tip: This may take up to 90 seconds)"
+echo "   (Tip: This may take up to 2.5 minutes)"
 echo ""
 
 # Build review prompt
@@ -120,11 +120,11 @@ run_ai() {
   local exit_code
   if [ "$AI_CMD" = "gemini" ]; then
       # Gemini CLI can read from stdin, avoiding ARG_MAX limits for large diffs
-      timeout 90s gemini < "$TEMP_PROMPT" 2>&1
+      timeout 150s gemini < "$TEMP_PROMPT" 2>&1
       exit_code=$?
   else
       # Claude Code takes prompt via stdin
-      timeout 90s claude < "$TEMP_PROMPT" 2>&1
+      timeout 150s claude < "$TEMP_PROMPT" 2>&1
       exit_code=$?
   fi
   
@@ -149,7 +149,7 @@ rm -f "$TEMP_PROMPT"
 
 # Handle timeout
 if [ $REVIEW_EXIT -eq 124 ]; then
-    echo "⚠️  AI review timed out after 90 seconds - proceeding without review"
+    echo "⚠️  AI review timed out after 150 seconds - proceeding without review"
     exit 0
 fi
 

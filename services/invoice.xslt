@@ -38,6 +38,19 @@
 <xsl:variable name="show-unit-column"
               select="count(/invoice/entries/entry[normalize-space(action) != '']) &gt; 0"/>
 
+<!-- Q-011: shared colspan for label cells (Subtotal, Total, tax-line) that
+     span Description + (Unit?) + Qty + Unit Price. Drops 4 → 3 when the
+     Unit column is hidden. Caller emits this as the colspan attribute
+     of the surrounding <td>. -->
+<xsl:template name="label-colspan">
+  <xsl:attribute name="colspan">
+    <xsl:choose>
+      <xsl:when test="$show-unit-column">4</xsl:when>
+      <xsl:otherwise>3</xsl:otherwise>
+    </xsl:choose>
+  </xsl:attribute>
+</xsl:template>
+
 <!-- ═══════════════════════════════════════════════════════════════════════
      Root template
      ═══════════════════════════════════════════════════════════════════════ -->
@@ -204,16 +217,9 @@
       <xsl:apply-templates select="entries/entry"/>
 
       <!-- Subtotal row -->
-      <!-- Q-011: colspan covers Description + (Unit?) + Qty + Unit Price.
-           Drop by 1 when the Unit column is hidden. -->
       <tr class="subtotal-row">
         <td style="text-align:right">
-          <xsl:attribute name="colspan">
-            <xsl:choose>
-              <xsl:when test="$show-unit-column">4</xsl:when>
-              <xsl:otherwise>3</xsl:otherwise>
-            </xsl:choose>
-          </xsl:attribute>
+          <xsl:call-template name="label-colspan"/>
           <em>Subtotal</em>
         </td>
         <td style="text-align:right">
@@ -229,12 +235,7 @@
     <tfoot>
       <tr class="total-row">
         <td style="text-align:right">
-          <xsl:attribute name="colspan">
-            <xsl:choose>
-              <xsl:when test="$show-unit-column">4</xsl:when>
-              <xsl:otherwise>3</xsl:otherwise>
-            </xsl:choose>
-          </xsl:attribute>
+          <xsl:call-template name="label-colspan"/>
           Total Due (<xsl:value-of select="@currency"/>)
         </td>
         <td style="text-align:right">
@@ -351,12 +352,7 @@
 <xsl:template match="tax-line">
   <tr class="tax-row">
     <td style="text-align:right">
-      <xsl:attribute name="colspan">
-        <xsl:choose>
-          <xsl:when test="$show-unit-column">4</xsl:when>
-          <xsl:otherwise>3</xsl:otherwise>
-        </xsl:choose>
-      </xsl:attribute>
+      <xsl:call-template name="label-colspan"/>
       <xsl:value-of select="name"/>
     </td>
     <td style="text-align:right">
