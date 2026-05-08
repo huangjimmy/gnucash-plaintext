@@ -689,28 +689,32 @@ is processed, plus an aggregate summary at the end:
 ```
 Importing business objects...
 customer "C001": created
-customer "C002": updated
+customer "C002": unchanged
 vendor "V001": updated
 taxtable "GST": skipped
-invoice "INV-2026-001": skipped
+invoice "INV-2026-001": unchanged
 bill "BILL-2026-001": created
 
 ...
 
 Business Objects:
-  Customers:   1 created, 1 updated, 0 skipped
-  Vendors:     0 created, 1 updated, 0 skipped
-  Tax tables:  0 created, 0 updated, 1 skipped
-  Invoices:    0 created, 1 updated, 1 skipped
-  Bills:       1 created, 0 updated, 0 skipped
+  Customers:   1 created, 0 updated, 1 unchanged, 0 skipped
+  Vendors:     0 created, 1 updated, 0 unchanged, 0 skipped
+  Tax tables:  0 created, 0 updated, 0 unchanged, 1 skipped
+  Invoices:    0 created, 0 updated, 1 unchanged, 0 skipped
+  Bills:       1 created, 0 updated, 0 unchanged, 0 skipped
 ```
 
-`updated` for invoice/bill means the record was unposted before
-re-import and is now posted (or its entries were rebuilt) — the
-unposted→posted transition is allowed, but a posted invoice/bill
-always either skips or creates because its AR/AP lot can't be safely
-mutated. Tax tables only ever create or skip. See "Re-import
-semantics" below for the full state matrix.
+The four-status model:
+
+| Status | Meaning |
+|---|---|
+| `created` | Fresh record created — no record with this id existed. |
+| `updated` | Existing record had at least one mutable field changed. For posted invoices/bills this includes the unpost-edit-repost cycle (matches GnuCash's own UI behaviour). |
+| `unchanged` | Existing record matches the directive byte-for-byte — no work performed. The happy path for an idempotent re-run. |
+| `skipped` | Existing record is immutable for this directive; the importer refused to mutate it. Currently only **tax tables** report `skipped` — they're referenced by pointer from past posted invoices, so changing their entries would silently rewrite past accounting. |
+
+See "Re-import semantics" below for the full state matrix.
 
 Business objects use no date prefix — they are master data, not ledger
 events. Dates that belong to a record (e.g. `date_opened` on an invoice) are
@@ -905,16 +909,49 @@ errors with the conflict spelled out.
 
 #### Re-import semantics: idempotent, per object type
 
-Re-importing the same file is **idempotent** — but the exact behaviour
-varies by object type because some records have downstream
-dependencies that can't be safely mutated mid-flight:
+Re-importing the same file is **idempotent** — and the importer
+distinguishes between "no change needed" (`unchanged`) and "I refused
+your change" (`skipped`) so a re-run reports something meaningful:
 
-| Block | On hit (record already exists) |
-|---|---|
-| `customer`, `vendor` | **Update** mutable fields (name, address, active flag, custom KVP) in place. |
-| `taxtable` | **Skip**. Tax tables are referenced by stored pointers from posted invoices/bills; mutating their entries would silently change accounting on past posted records. |
-| `invoice`, `bill` (posted) | **Skip**. Posted records have AR/AP lots wired into a real transaction — entries, posted block, and mutable metadata are all locked. |
-| `invoice`, `bill` (unposted) | **Update**. Entries are rebuilt from the directive, fields refresh, and if the directive carries a real `posted:` block the record is posted as part of the same import. This is the natural workflow for "create draft → review → post" via plaintext edit + re-import. |
+| Block | Directive matches existing | Directive differs from existing |
+|---|---|---|
+| `customer`, `vendor` | `unchanged` (no-op) | `updated` (mutable fields refreshed: name, address, active flag, custom KVP). |
+| `taxtable` | `skipped` (refused) | `skipped` (refused). Tax tables are referenced by stored pointers from posted invoices/bills; mutating their entries would silently change accounting on past posted records. |
+| `invoice`, `bill` (unposted) | `unchanged` | `updated` (entries rebuilt; if the directive carries a real `posted:` block the record is posted in the same import). |
+| `invoice`, `bill` (posted) | `unchanged` | `updated` via **unpost → rebuild → repost**. Mirrors what the GnuCash UI itself supports: opening a posted invoice, unposting, editing, and reposting. The directive is the source of truth for the new posted state. As an optimisation: when the *only* difference is `posted: { ... }` → `posted: none` (entries and payments otherwise match), the importer takes a minimal-unpost path that preserves entry GUIDs (no destroy + recreate). |
+
+#### Unposting without re-importing: `unpost-invoices` / `unpost-bills`
+
+When you want to unpost without consulting any plaintext file (e.g. the
+`.txt` is stale, or you just need a one-shot operation), use the
+dedicated CLI commands:
+
+```
+gnucash-plaintext unpost-invoices ledger.gnucash INV-2026-001
+gnucash-plaintext unpost-bills    ledger.gnucash BILL-2026-001
+gnucash-plaintext unpost-invoices ledger.gnucash --by-guid 9f14a498cc894d50931f855a9a31d594
+```
+
+Behaviour:
+
+- Calls GnuCash's `Unpost(False)` directly. The posting transaction is
+  destroyed; payment transactions in the bank account remain but are
+  no longer linked to a lot. (Same end state as the GnuCash UI's
+  Unpost menu item.)
+- **Entry GUIDs are preserved** — entries are not destroyed and
+  recreated. External references to entries by GUID still resolve.
+- Per-record line: `<id> (<guid>): unposted` (or `not posted`,
+  `not found`, or `failed — multiple records share this id`).
+- Exit code 1 if any record was not found, not posted, or ambiguous;
+  successful unposts are still saved.
+
+Compared to the re-import path:
+
+| | Re-import (`posted: { ... }` → `posted: none`) | `unpost-invoices` / `unpost-bills` |
+|---|---|---|
+| Reads .txt? | Yes — directive entries replace existing | No |
+| Entry GUIDs | Preserved when only the posted block toggles; otherwise rebuilt | Always preserved |
+| Use when... | The .txt is your source of truth and may also edit fields | The .txt is stale/absent and you only want the unpost |
 
 In all cases the importer first verifies that the directive's identity
 agrees with whatever's already in the book. The following are caught
