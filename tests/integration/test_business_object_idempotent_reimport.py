@@ -1104,7 +1104,236 @@ class TestTaxTableIdentityEnforcement:
         r = _import_new(runner, gnc, fix)
         if r.exit_code == 0:
             text = _exported_biz_text(runner, tmp_path, gnc)
-            assert _count_blocks(text, 'taxtable "GST"') == 1, (
-                f"Two same-name taxtable directives must not produce two "
-                f"records.\nExport:\n{text}"
-            )
+            assert _count_blocks(text, 'taxtable "GST"') == 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Q-007 follow-up: unposted → posted transition must be allowed
+#
+# Q-007 introduced "skip on existing invoice/bill" so that posted records
+# (whose AR/AP lots are wired into a real transaction) can't be silently
+# mutated. That was right for the posted case but wrong for the unposted
+# case — a user's natural workflow is:
+#
+#   1. import invoice with `posted: none`
+#   2. edit the file: replace `posted: none` with a real `posted:` block
+#   3. re-import
+#
+# Reported by an external user. After Q-007 step 3 silently skipped,
+# leaving the invoice unposted forever. These tests describe the desired
+# behaviour: the importer should *allow* the unposted → posted transition
+# (no AR/AP lot exists yet to corrupt) but keep skipping when the existing
+# record is already posted.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+_INVOICE_UNPOSTED = """
+customer "C001"
+\tname: "Acme"
+\tcurrency: CAD
+
+invoice "INV-001"
+\tcustomer_id: "C001"
+\tcurrency: CAD
+\tdate_opened: 2026-01-01
+\tentry:
+\t\tdate: 2026-01-01
+\t\tdescription: "Service"
+\t\taction: "Hours"
+\t\taccount: "Income:Sales"
+\t\tquantity: 1
+\t\tprice: 100
+\t\ttaxable: false
+\t\ttax_included: false
+\tposted: none
+\tpayment: none
+"""
+
+
+_INVOICE_POSTED = """
+customer "C001"
+\tname: "Acme"
+\tcurrency: CAD
+
+invoice "INV-001"
+\tcustomer_id: "C001"
+\tcurrency: CAD
+\tdate_opened: 2026-01-01
+\tentry:
+\t\tdate: 2026-01-01
+\t\tdescription: "Service"
+\t\taction: "Hours"
+\t\taccount: "Income:Sales"
+\t\tquantity: 1
+\t\tprice: 100
+\t\ttaxable: false
+\t\ttax_included: false
+\tposted:
+\t\tdate: 2026-01-01
+\t\tdue: 2026-01-31
+\t\tar_account: "Assets:Accounts Receivable"
+\t\tmemo: "Invoice INV-001"
+\t\taccumulate: true
+\tpayment: none
+"""
+
+
+_BILL_UNPOSTED = """
+vendor "V001"
+\tname: "Supplier"
+\tcurrency: CAD
+
+bill "BILL-001"
+\tvendor_id: "V001"
+\tcurrency: CAD
+\tdate_opened: 2026-01-01
+\tentry:
+\t\tdate: 2026-01-01
+\t\tdescription: "Supplies"
+\t\taccount: "Expenses:Supplies"
+\t\tquantity: 1
+\t\tprice: 50
+\t\ttaxable: true
+\t\ttax_included: false
+\tposted: none
+\tpayment: none
+"""
+
+
+_BILL_POSTED = """
+vendor "V001"
+\tname: "Supplier"
+\tcurrency: CAD
+
+bill "BILL-001"
+\tvendor_id: "V001"
+\tcurrency: CAD
+\tdate_opened: 2026-01-01
+\tentry:
+\t\tdate: 2026-01-01
+\t\tdescription: "Supplies"
+\t\taccount: "Expenses:Supplies"
+\t\tquantity: 1
+\t\tprice: 50
+\t\ttaxable: true
+\t\ttax_included: false
+\tposted:
+\t\tdate: 2026-01-01
+\t\tdue: 2026-01-31
+\t\tap_account: "Liabilities:Accounts Payable"
+\t\tmemo: "Bill BILL-001"
+\t\taccumulate: true
+\tpayment: none
+"""
+
+
+class TestUnpostedToPostedTransition:
+    """Re-import must allow the unposted→posted transition (Q-007 fix)."""
+
+    def test_invoice_unposted_can_be_posted_via_reimport(self, tmp_path):
+        """Step 1: import invoice with `posted: none`. Step 2: re-import same
+        invoice but with a real `posted:` block. Expected: the existing
+        invoice is now posted, not silently skipped."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _INVOICE_UNPOSTED)
+        # Confirm baseline: invoice exists and is unposted
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        block = _block_for(text, 'invoice "INV-001"')
+        assert any('posted: none' in line for line in block), (
+            "Setup expected unposted invoice; got:\n" + "\n".join(block)
+        )
+
+        # Re-import with a real posted block
+        r = _import(runner, gnc, _write(tmp_path / "post.txt",
+                                        ACCOUNTS + "\n" + _INVOICE_POSTED))
+        assert r.exit_code == 0, f"Posting via re-import must succeed:\n{r.output}"
+
+        # The existing invoice should now have a posted: block (not 'posted: none')
+        text2 = _exported_biz_text(runner, tmp_path, gnc)
+        block2 = _block_for(text2, 'invoice "INV-001"')
+        assert _count_blocks(text2, 'invoice "INV-001"') == 1, (
+            "Posting must not duplicate the invoice"
+        )
+        assert any('posted:' in line and 'posted: none' not in line
+                   for line in block2), (
+            "Invoice must be posted after re-import; block:\n"
+            + "\n".join(block2)
+        )
+
+    def test_bill_unposted_can_be_posted_via_reimport(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _BILL_UNPOSTED)
+
+        r = _import(runner, gnc, _write(tmp_path / "post.txt",
+                                        ACCOUNTS + "\n" + _BILL_POSTED))
+        assert r.exit_code == 0, f"Posting via re-import must succeed:\n{r.output}"
+
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        block = _block_for(text, 'bill "BILL-001"')
+        assert _count_blocks(text, 'bill "BILL-001"') == 1
+        assert any('posted:' in line and 'posted: none' not in line
+                   for line in block), (
+            "Bill must be posted after re-import; block:\n" + "\n".join(block)
+        )
+
+    def test_already_posted_invoice_still_skips_on_reimport(self, tmp_path):
+        """No regression: re-importing a file containing an already-posted
+        invoice still skips (its lot is wired into a real transaction and
+        we can't safely mutate)."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _INVOICE_POSTED)
+
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + _INVOICE_POSTED))
+        assert r.exit_code == 0
+        assert 'invoice "INV-001": skipped' in r.output, (
+            f"Re-import of posted invoice should still skip:\n{r.output}"
+        )
+
+    def test_already_posted_bill_still_skips_on_reimport(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _BILL_POSTED)
+
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + _BILL_POSTED))
+        assert r.exit_code == 0
+        assert 'bill "BILL-001": skipped' in r.output
+
+    def test_unposted_to_posted_status_line_says_updated(self, tmp_path):
+        """When re-import successfully posts an unposted invoice, the
+        per-directive status line should say 'updated' (not 'skipped' and
+        not 'created' — the record already existed and was modified)."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _INVOICE_UNPOSTED)
+
+        r = _import(runner, gnc, _write(tmp_path / "post.txt",
+                                        ACCOUNTS + "\n" + _INVOICE_POSTED))
+        assert r.exit_code == 0
+        assert 'invoice "INV-001": updated' in r.output, (
+            f"Posting an unposted invoice should report 'updated':\n{r.output}"
+        )
+
+    def test_posted_invoice_notes_not_mutated_on_reimport(self, tmp_path):
+        """Posted = fully immutable. Even non-accounting fields like notes
+        must NOT be mutated on re-import — a posted invoice represents what
+        the customer already received, and silently changing notes after
+        the fact would mislead a maintainer reading the book."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _INVOICE_POSTED)
+        # Re-import with notes added to the posted invoice
+        with_notes = _INVOICE_POSTED.replace(
+            'invoice "INV-001"\n',
+            'invoice "INV-001"\n\tnotes: "Updated after the fact"\n',
+        )
+        r = _import(runner, gnc, _write(tmp_path / "with_notes.txt",
+                                        ACCOUNTS + "\n" + with_notes))
+        assert r.exit_code == 0, r.output
+        # Status line says skipped — nothing changed
+        assert 'invoice "INV-001": skipped' in r.output
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        block = _block_for(text, 'invoice "INV-001"')
+        # Notes from the directive must NOT appear in the exported invoice
+        assert not any('Updated after the fact' in line for line in block), (
+            "Posted invoice's notes must not be mutated on re-import; got:\n"
+            + "\n".join(block)
+        )

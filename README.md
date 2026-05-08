@@ -683,6 +683,35 @@ gnucash-plaintext import --new mybook.gnucash ledger.txt --include-business-obje
 gnucash-plaintext export mybook.gnucash ledger.txt --include-business-objects
 ```
 
+The importer prints a per-directive status line as each business object
+is processed, plus an aggregate summary at the end:
+
+```
+Importing business objects...
+customer "C001": created
+customer "C002": updated
+vendor "V001": updated
+taxtable "GST": skipped
+invoice "INV-2026-001": skipped
+bill "BILL-2026-001": created
+
+...
+
+Business Objects:
+  Customers:   1 created, 1 updated, 0 skipped
+  Vendors:     0 created, 1 updated, 0 skipped
+  Tax tables:  0 created, 0 updated, 1 skipped
+  Invoices:    0 created, 1 updated, 1 skipped
+  Bills:       1 created, 0 updated, 0 skipped
+```
+
+`updated` for invoice/bill means the record was unposted before
+re-import and is now posted (or its entries were rebuilt) — the
+unposted→posted transition is allowed, but a posted invoice/bill
+always either skips or creates because its AR/AP lot can't be safely
+mutated. Tax tables only ever create or skip. See "Re-import
+semantics" below for the full state matrix.
+
 Business objects use no date prefix — they are master data, not ledger
 events. Dates that belong to a record (e.g. `date_opened` on an invoice) are
 declared as fields inside the block:
@@ -884,7 +913,8 @@ dependencies that can't be safely mutated mid-flight:
 |---|---|
 | `customer`, `vendor` | **Update** mutable fields (name, address, active flag, custom KVP) in place. |
 | `taxtable` | **Skip**. Tax tables are referenced by stored pointers from posted invoices/bills; mutating their entries would silently change accounting on past posted records. |
-| `invoice`, `bill` | **Skip**. Posted invoices/bills have AR/AP lots wired into a real transaction; mutating their fields would corrupt accounting state. |
+| `invoice`, `bill` (posted) | **Skip**. Posted records have AR/AP lots wired into a real transaction — entries, posted block, and mutable metadata are all locked. |
+| `invoice`, `bill` (unposted) | **Update**. Entries are rebuilt from the directive, fields refresh, and if the directive carries a real `posted:` block the record is posted as part of the same import. This is the natural workflow for "create draft → review → post" via plaintext edit + re-import. |
 
 In all cases the importer first verifies that the directive's identity
 agrees with whatever's already in the book. The following are caught

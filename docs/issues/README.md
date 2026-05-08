@@ -47,4 +47,7 @@ When a fix is merged, update `status: open` → `closed` in the file's frontmatt
 | [Q-003](Q-003-account-type-export-not-reimportable.md) | Exported account types (A/Receivable, A/Payable) crash re-import | high |
 | [Q-004](Q-004-payment-transaction-duplicates.md) | Invoice payment blocks create duplicate bank transactions (Cases B and C) | high |
 | [Q-005](Q-005-import-errors-no-context.md) | Import errors show raw exception with no directive context | high |
-| [Q-004](Q-004-payment-transaction-duplicates.md) | Invoice payment blocks create duplicate bank transactions (Cases B and C) | high |
+| [Q-006](Q-006-business-object-id-uniqueness-and-guid-export.md) | Business-object IDs are not unique on re-import; GUIDs are not exported | high |
+| [Q-007](Q-007-delete-archive-by-guid.md) | delete/archive accept GUIDs; invoice/bill identity enforced on import | medium |
+| [Q-008](Q-008-taxtable-identity.md) | Tax-table identity not enforced on import; re-import duplicates | medium |
+| [Q-009](Q-009-import-summary-business-objects.md) | Business-object import is silent — re-import gives no signal of skip vs. create vs. update | medium |

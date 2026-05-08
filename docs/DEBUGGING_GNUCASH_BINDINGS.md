@@ -404,6 +404,51 @@ returns at most one match — useless if you need to detect legacy
 duplicates or build a list. Use the Query-equivalent ctypes iteration
 above when you need a multi-match lookup.
 
+### 8. `gncEntryDestroy` does NOT remove from the parent invoice/bill (2026-05-08)
+
+`Entry.Destroy()` (which wraps `gncEntryDestroy`) sets `do_free` on the
+entry's QofInstance and removes it from the QofCollection. It does
+**not** detach the entry from the parent invoice/bill's internal entry
+list. So:
+
+```python
+for old_entry in list(invoice.GetEntries()):
+    old_entry.Destroy()
+# invoice's entry list still contains dangling pointers!
+invoice.PostToAccount(...)   # iterates the list → segfault on GnuCash 3.8
+```
+
+Reproduced on ubuntu20 / GnuCash 3.8. Newer GnuCash either has memory-
+layout luck or has gained null-checks; the bug exists on every platform,
+just doesn't always crash visibly.
+
+**Fix**: detach before destroying.
+
+For customer invoices:
+
+```python
+for old_entry in list(invoice.GetEntries()):
+    invoice.RemoveEntry(old_entry)   # SWIG → gncInvoiceRemoveEntry
+    old_entry.Destroy()
+```
+
+For vendor bills the SWIG `Invoice.RemoveEntry` wraps the
+*customer-only* `gncInvoiceRemoveEntry`, which is a no-op (or worse) on
+bills — same wrong-API trap as `book.InvoiceLookupByID` (#6 above).
+Bills need `gncBillRemoveEntry` directly via ctypes:
+
+```python
+lib = ctypes.CDLL(None)
+lib.gncBillRemoveEntry.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+for old_entry in list(bill.GetEntries()):
+    lib.gncBillRemoveEntry(int(bill.instance), int(old_entry.instance))
+    old_entry.Destroy()
+```
+
+The fix is in `services/gnucash_importer.py` as
+`_bill_remove_all_entries`. See the post-mortem in
+`docs/post-mortems/2026-05-08-bill-postto-account-segfault.md`.
+
 ## Summary
 
 1. **No prediction possible** - test to discover failures
@@ -419,5 +464,6 @@ above when you need a multi-match lookup.
 11. **All-digit GUID values need quoting** - parser auto-converts to int
 12. **`book.InvoiceLookupByID` does not find bills** - use a Query filtered by owner-type
 13. **Tax tables are not in QofQuery** - enumerate via `gncTaxTableGetTables` (ctypes-only)
+14. **`gncEntryDestroy` does not detach from parent invoice/bill** - call `RemoveEntry` first; bills need `gncBillRemoveEntry` via ctypes
 
 This approach has proven necessary for maximum compatibility across Ubuntu 20/22/24 and Debian 11/12/13.
