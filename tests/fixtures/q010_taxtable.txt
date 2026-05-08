@@ -1,0 +1,5 @@
+taxtable "GST"
+	entry:
+		account: "Liabilities:Accounts Payable"
+		rate: 5.0%
+		type: PERCENT

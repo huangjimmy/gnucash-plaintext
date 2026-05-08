@@ -64,22 +64,32 @@ _FALSY_STRINGS = {'false', '0', 'no'}
 
 @dataclass
 class BusinessObjectImportResult:
-    """Per-type create/update/skip counts from `import_business_objects`.
+    """Per-type create/update/unchanged/skip counts from `import_business_objects`.
 
-    Customers and vendors update on hit (Q-006), so they have all three
-    counters. Tax tables, invoices, and bills skip on hit (Q-007/Q-008),
-    so they have only created and skipped — `updated` stays zero.
+    Status semantics (Q-010):
+      - created:   directive produced a brand-new object
+      - updated:   directive matched an existing object AND mutated it
+      - unchanged: directive matched an existing object whose persisted state
+                   already equals the directive, so no mutation was applied
+      - skipped:   directive matched an immutable existing object (posted
+                   invoice/bill, in-use tax table); the directive is honoured
+                   only as an idempotent no-op refusal
+
+    Customers and vendors are mutable on hit, so they use all four. Tax
+    tables, posted invoices, and posted bills are immutable on hit so they
+    skip rather than update; unposted invoices/bills follow the mutable
+    model.
     """
     counts: Dict[str, Dict[str, int]] = field(default_factory=lambda: {
-        'customer': {'created': 0, 'updated': 0, 'skipped': 0},
-        'vendor':   {'created': 0, 'updated': 0, 'skipped': 0},
-        'taxtable': {'created': 0, 'updated': 0, 'skipped': 0},
-        'invoice':  {'created': 0, 'updated': 0, 'skipped': 0},
-        'bill':     {'created': 0, 'updated': 0, 'skipped': 0},
+        'customer': {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': 0},
+        'vendor':   {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': 0},
+        'taxtable': {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': 0},
+        'invoice':  {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': 0},
+        'bill':     {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': 0},
     })
 
     def tally(self, kind: str, status: str) -> None:
-        if status not in ('created', 'updated', 'skipped'):
+        if status not in ('created', 'updated', 'unchanged', 'skipped'):
             raise ValueError(f"Unknown import status {status!r} for {kind}")
         self.counts[kind][status] += 1
 
@@ -657,6 +667,344 @@ def create_tax_table_entry(book, account, amount_percent):
     return TaxTableEntry(instance=raw)
 
 
+def _customer_matches_directive(customer, directive: 'PlaintextDirective') -> bool:
+    """Return True if the customer's persisted state equals the directive.
+
+    Used by Q-010 to distinguish 'unchanged' (no-diff re-import) from
+    'updated' (a real mutation passed through). Compares only persisted
+    fields — the same set that `import_customer` writes — so two views of
+    the *same* on-disk customer (after a save+reload cycle) compare equal.
+    """
+    md = directive.metadata
+    if customer.GetName() != md['name']:
+        return False
+    addr = customer.GetAddr()
+    if addr.GetAddr1() != md.get('addr1', ''):
+        return False
+    if addr.GetAddr2() != md.get('addr2', ''):
+        return False
+    if addr.GetAddr3() != md.get('addr3', ''):
+        return False
+    if addr.GetAddr4() != md.get('addr4', ''):
+        return False
+    if addr.GetEmail() != md.get('email', ''):
+        return False
+    desired_active = not _is_falsy(md.get('active', 'true'))
+    if bool(customer.GetActive()) != desired_active:
+        return False
+    desired_custom = {k: v for k, v in md.items()
+                      if k not in KNOWN_CUSTOMER_METADATA_KEYS and v is not None}
+    existing_custom = get_custom_metadata(customer) or {}
+    return existing_custom == desired_custom
+
+
+def _vendor_matches_directive(vendor, directive: 'PlaintextDirective') -> bool:
+    """Return True if the vendor's persisted state equals the directive (Q-010)."""
+    md = directive.metadata
+    if vendor.GetName() != md['name']:
+        return False
+    desired_active = not _is_falsy(md.get('active', 'true'))
+    if bool(vendor.GetActive()) != desired_active:
+        return False
+    desired_custom = {k: v for k, v in md.items()
+                      if k not in KNOWN_VENDOR_METADATA_KEYS and v is not None}
+    existing_custom = get_custom_metadata(vendor) or {}
+    return existing_custom == desired_custom
+
+
+def _gnc_numeric_equals(num, value_str: str) -> bool:
+    """Compare a GncNumeric against a string-form value (e.g. '100', '2.5').
+
+    Uses GncNumeric.equal() to compare exactly. The directive value is
+    parsed with `string_to_gnc_numeric_quantity` so the precision matches
+    what the importer would write.
+    """
+    return num.equal(string_to_gnc_numeric_quantity(value_str))
+
+
+def _entry_matches_invoice_directive(entry, ed: 'PlaintextDirective') -> bool:
+    """Compare an existing customer-invoice Entry to an INVOICE_ENTRY directive."""
+    md = ed.metadata
+    if entry.GetDate().strftime("%Y-%m-%d") != md['date']:
+        return False
+    if entry.GetDescription() != md['description']:
+        return False
+    if entry.GetAction() != md['action']:
+        return False
+    acct = entry.GetInvAccount()
+    if acct is None or get_account_full_name(acct) != md['account']:
+        return False
+    if not _gnc_numeric_equals(entry.GetQuantity(), md['quantity']):
+        return False
+    if not _gnc_numeric_equals(entry.GetInvPrice(), md['price']):
+        return False
+    if bool(entry.GetInvTaxable()) != (md['taxable'] == 'true'):
+        return False
+    if bool(entry.GetInvTaxIncluded()) != (md['tax_included'] == 'true'):
+        return False
+    desired_tt = md.get('tax_table')
+    actual_tt_obj = entry.GetInvTaxTable() if entry.GetInvTaxable() else None
+    actual_tt = actual_tt_obj.GetName() if actual_tt_obj is not None else None
+    return (desired_tt or None) == (actual_tt or None)
+
+
+def _entry_matches_bill_directive(entry, ed: 'PlaintextDirective') -> bool:
+    """Compare an existing vendor-bill Entry to a BILL_ENTRY directive.
+
+    NOTE on `taxable`: GnuCash does not persist `bill_taxable: false` to XML
+    (CLAUDE.md §8); a bill entry always reads back as taxable=True after a
+    save+reload. We treat both directive values as equivalent on the bill
+    side to avoid spurious 'updated' on every re-import. If a future GnuCash
+    version starts persisting it, this comparison can be tightened.
+    """
+    md = ed.metadata
+    if entry.GetDate().strftime("%Y-%m-%d") != md['date']:
+        return False
+    if entry.GetDescription() != md['description']:
+        return False
+    acct = entry.GetBillAccount()
+    if acct is None or get_account_full_name(acct) != md['account']:
+        return False
+    if not _gnc_numeric_equals(entry.GetQuantity(), md['quantity']):
+        return False
+    if not _gnc_numeric_equals(entry.GetBillPrice(), md['price']):
+        return False
+    desired_tt = md.get('tax_table')
+    actual_tt_obj = entry.GetBillTaxTable() if entry.GetBillTaxable() else None
+    actual_tt = actual_tt_obj.GetName() if actual_tt_obj is not None else None
+    return (desired_tt or None) == (actual_tt or None)
+
+
+def _posted_matches_directive(invoice, posted_dir: 'PlaintextDirective',
+                              ar_or_ap_key: str) -> bool:
+    """Compare an existing posted invoice/bill's posting state to a POSTED directive."""
+    md = posted_dir.metadata
+    posting_acct = invoice.GetPostedAcc()
+    if posting_acct is None or get_account_full_name(posting_acct) != md[ar_or_ap_key]:
+        return False
+    posted_date = invoice.GetDatePosted()
+    if posted_date.strftime("%Y-%m-%d") != md['date']:
+        return False
+    due_date = invoice.GetDateDue()
+    if due_date.strftime("%Y-%m-%d") != md['due']:
+        return False
+    posting_txn = invoice.GetPostedTxn()
+    if posting_txn is None:
+        return False
+    return posting_txn.GetDescription() == md['memo']
+
+
+def _payments_match_directive(invoice, payment_dirs) -> bool:
+    """Compare an invoice's existing payments against PAYMENT directives.
+
+    The exporter derives payment lines from the invoice's posted lot:
+    every transaction in the lot whose split is NOT the posting tx is a
+    payment. The bank-side split holds the date/amount/memo as the user
+    typed them (memo lives on the split, NOT on the transaction
+    description — see `_format_payment` in export_business_objects).
+
+    Two payment-directive flavours:
+      - **Normal payment**: directive supplies bank_account, date, amount,
+        memo (optionally num). Compare all of them.
+      - **Retarget (txn_guid)**: directive supplies bank_account and
+        txn_guid only — date/amount/memo come from the pre-existing bank
+        transaction and are not authoritative in the directive. Compare
+        only what the directive declares.
+
+    Note: `lot.get_split_list()` returns raw SwigPyObject pointers, so we
+    wrap them in `Split(instance=...)` and read the parent transaction
+    via `GetParent()`. This mirrors the pattern in `invoice_renderer`.
+    """
+    from gnucash import Split
+    lot = invoice.GetPostedLot()
+    if lot is None:
+        return len(payment_dirs) == 0
+    posting_txn = invoice.GetPostedTxn()
+    posting_txn_guid = posting_txn.GetGUID().to_string() if posting_txn else None
+    pay_splits = []
+    for raw in lot.get_split_list():
+        s = Split(instance=raw)
+        tx = s.GetParent()
+        if tx is None:
+            continue
+        if posting_txn_guid is not None and tx.GetGUID().to_string() == posting_txn_guid:
+            continue
+        pay_splits.append(s)
+    if len(pay_splits) != len(payment_dirs):
+        return False
+    for split, pd in zip(pay_splits, payment_dirs):
+        md = pd.metadata
+        tx = split.GetParent()
+        ar_ap_split_guid = split.GetGUID().to_string()
+        bank_split = next(
+            (s for s in tx.GetSplitList()
+             if s.GetGUID().to_string() != ar_ap_split_guid),
+            None,
+        )
+        if bank_split is None:
+            return False
+        bank_acct = bank_split.GetAccount()
+        if bank_acct is None or get_account_full_name(bank_acct) != md['bank_account']:
+            return False
+
+        directive_txn_guid = (md.get('txn_guid') or '').strip()
+        if directive_txn_guid:
+            if tx.GetGUID().to_string() != directive_txn_guid:
+                return False
+            continue
+        if tx.GetDate().strftime("%Y-%m-%d") != md['date']:
+            return False
+        if not _gnc_numeric_equals(bank_split.GetAmount().abs(), md['amount']):
+            return False
+        if (bank_split.GetMemo() or '') != md.get('memo', ''):
+            return False
+        if (tx.GetNum() or '') != md.get('num', ''):
+            return False
+    return True
+
+
+def _invoice_matches_directive(invoice, directive: 'PlaintextDirective', book) -> bool:
+    """Return True iff an existing customer invoice equals the directive (Q-010).
+
+    Compared fields: date_opened, billing_id, notes, custom KVP, entries
+    (positional, by field), the posted block (or absence thereof), and
+    payments (count + per-payment fields). Mismatch on ANY field returns
+    False so the importer falls through to the rebuild + repost path.
+    """
+    md = directive.metadata
+    if invoice.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
+        return False
+    if invoice.GetBillingID() != md.get('billing_id', ''):
+        return False
+    if invoice.GetNotes() != md.get('notes', ''):
+        return False
+    desired_custom = {k: v for k, v in md.items()
+                      if k not in KNOWN_INVOICE_METADATA_KEYS and v is not None}
+    existing_custom = get_custom_metadata(invoice) or {}
+    if existing_custom != desired_custom:
+        return False
+
+    entry_dirs = [c for c in directive.children if c.type == DirectiveType.INVOICE_ENTRY]
+    existing_entries = list(invoice.GetEntries())
+    if len(existing_entries) != len(entry_dirs):
+        return False
+    for entry, ed in zip(existing_entries, entry_dirs):
+        if not _entry_matches_invoice_directive(entry, ed):
+            return False
+
+    posted_dirs = [c for c in directive.children if c.type == DirectiveType.POSTED]
+    has_posted_none = md.get('posted') == 'none'
+    is_posted = invoice.GetPostedTxn() is not None
+    if has_posted_none and is_posted:
+        return False
+    if posted_dirs and not is_posted:
+        return False
+    if posted_dirs and is_posted and not _posted_matches_directive(
+            invoice, posted_dirs[0], 'ar_account'):
+        return False
+
+    payment_dirs = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
+    return _payments_match_directive(invoice, payment_dirs)
+
+
+def _is_only_unpost_diff(invoice_or_bill, directive: 'PlaintextDirective',
+                         is_bill: bool) -> bool:
+    """Return True iff the *only* difference between the existing record and
+    the directive is that existing is posted and the directive says
+    `posted: none` — entries, payments, and the rest of the metadata are
+    otherwise identical.
+
+    When this holds, the importer can call `Unpost(False)` and stop, instead
+    of running the full destroy-and-rebuild path. The win:
+    **entry GUIDs are preserved**. A cross-tool external reference to an
+    entry by GUID still resolves after the re-import; with the rebuild path
+    the entry is destroyed and a brand-new one created.
+
+    Strictly defensive: if the directive has any `posted:` block (rather
+    than `posted: none`), or has any other field difference, returns False
+    and the caller falls through to the full unpost-rebuild-repost path.
+    """
+    md = directive.metadata
+    is_posted = invoice_or_bill.GetPostedTxn() is not None
+    if not is_posted:
+        return False
+    if md.get('posted') != 'none':
+        return False
+    posted_dirs = [c for c in directive.children if c.type == DirectiveType.POSTED]
+    if posted_dirs:
+        return False
+    payment_dirs = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
+    if payment_dirs:
+        # Directive declares payments but invoice will be unposted — invalid
+        # combination caught later as a real error; here we just refuse the
+        # short-circuit and let the normal flow surface the validation.
+        return False
+
+    # Compare every non-posted field: entries, date_opened, billing_id (inv
+    # only), notes, custom KVP. We skip the actual posted/payment portion of
+    # the comparison since we already know those differ in the expected way.
+    if invoice_or_bill.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
+        return False
+    if not is_bill and invoice_or_bill.GetBillingID() != md.get('billing_id', ''):
+        return False
+    if invoice_or_bill.GetNotes() != md.get('notes', ''):
+        return False
+    known_keys = KNOWN_BILL_METADATA_KEYS if is_bill else KNOWN_INVOICE_METADATA_KEYS
+    desired_custom = {k: v for k, v in md.items()
+                      if k not in known_keys and v is not None}
+    existing_custom = get_custom_metadata(invoice_or_bill) or {}
+    if existing_custom != desired_custom:
+        return False
+
+    entry_type = DirectiveType.BILL_ENTRY if is_bill else DirectiveType.INVOICE_ENTRY
+    entry_dirs = [c for c in directive.children if c.type == entry_type]
+    existing_entries = list(invoice_or_bill.GetEntries())
+    if len(existing_entries) != len(entry_dirs):
+        return False
+    matcher = _entry_matches_bill_directive if is_bill else _entry_matches_invoice_directive
+    return all(matcher(entry, ed) for entry, ed in zip(existing_entries, entry_dirs))
+
+
+def _bill_matches_directive(bill, directive: 'PlaintextDirective', book) -> bool:
+    """Return True iff an existing vendor bill equals the directive (Q-010).
+
+    Same shape as `_invoice_matches_directive` but uses the bill-side
+    entry getters and AP account.
+    """
+    md = directive.metadata
+    if bill.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
+        return False
+    if bill.GetNotes() != md.get('notes', ''):
+        return False
+    desired_custom = {k: v for k, v in md.items()
+                      if k not in KNOWN_BILL_METADATA_KEYS and v is not None}
+    existing_custom = get_custom_metadata(bill) or {}
+    if existing_custom != desired_custom:
+        return False
+
+    entry_dirs = [c for c in directive.children if c.type == DirectiveType.BILL_ENTRY]
+    existing_entries = list(bill.GetEntries())
+    if len(existing_entries) != len(entry_dirs):
+        return False
+    for entry, ed in zip(existing_entries, entry_dirs):
+        if not _entry_matches_bill_directive(entry, ed):
+            return False
+
+    posted_dirs = [c for c in directive.children if c.type == DirectiveType.POSTED]
+    has_posted_none = md.get('posted') == 'none'
+    is_posted = bill.GetPostedTxn() is not None
+    if has_posted_none and is_posted:
+        return False
+    if posted_dirs and not is_posted:
+        return False
+    if posted_dirs and is_posted and not _posted_matches_directive(
+            bill, posted_dirs[0], 'ap_account'):
+        return False
+
+    payment_dirs = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
+    return _payments_match_directive(bill, payment_dirs)
+
+
 class GnuCashImporter:
     """Service for importing plaintext directives to GnuCash"""
 
@@ -1060,6 +1408,13 @@ class GnuCashImporter:
             lambda g: _find_customer_by_guid(book, g),
         )
 
+        # Q-010: short-circuit if the existing record is already byte-equal
+        # to the directive. Reports 'unchanged' so users see clearly that
+        # no mutation was applied (vs 'updated' which implies a write).
+        if existing is not None and _customer_matches_directive(existing, directive):
+            logging.debug(f"Customer {cid} already matches directive; unchanged")
+            return 'unchanged'
+
         currency = book.get_table().lookup("CURRENCY", directive.metadata['currency'])
         if existing is None:
             customer = Customer(book, cid, currency)
@@ -1099,6 +1454,11 @@ class GnuCashImporter:
             lambda i: _find_vendors_by_id(book, i),
             lambda g: _find_vendor_by_guid(book, g),
         )
+
+        # Q-010: short-circuit when existing matches directive byte-for-byte.
+        if existing is not None and _vendor_matches_directive(existing, directive):
+            logging.debug(f"Vendor {vid} already matches directive; unchanged")
+            return 'unchanged'
 
         currency = book.get_table().lookup("CURRENCY", directive.metadata['currency'])
         if existing is None:
@@ -1196,22 +1556,6 @@ class GnuCashImporter:
             get_guid_str=_swig_invoice_guid_str,
         )
 
-        # Q-007 follow-up: existing posted invoice is immutable (its AR lot
-        # is wired into a real transaction; mutating entries/posted block
-        # would corrupt accounting state). Existing UNPOSTED invoice can be
-        # updated — replace entries, optionally post, optionally pay. The
-        # gap that prompted this: a user's natural workflow is
-        #   1. import invoice with `posted: none`
-        #   2. edit file, replace `posted: none` with a real posted block
-        #   3. re-import
-        # Pre-fix this silently skipped at step 3.
-        status_on_success = 'created'
-        if existing is not None:
-            if existing.GetPostedTxn() is not None:
-                logging.debug(f"Invoice {inv_id} already exists and is posted; skipping")
-                return 'skipped'
-            status_on_success = 'updated'
-
         # Validate: posted: none and a real posted: block are contradictory
         has_posted_none = directive.metadata.get('posted') == 'none'
         posted_children = [c for c in directive.children if c.type == DirectiveType.POSTED]
@@ -1229,6 +1573,33 @@ class GnuCashImporter:
         if has_posted_none and payment_children:
             raise ValueError(f'Invoice {inv_id}: cannot have payment: blocks on an unposted invoice (posted: none)')
 
+        # Q-010: classify the existing record before any mutation.
+        #   - matches directive byte-for-byte → 'unchanged' (no-op)
+        #   - only difference is `posted → posted: none` → minimal Unpost,
+        #     skip the destroy-and-rebuild (preserves entry GUIDs)
+        #   - existing is posted, directive differs (entries/posted/payments)
+        #     → full Unpost-rebuild-repost cycle (mirrors GnuCash UI)
+        #   - existing is unposted → fall through to rebuild
+        # Q-007's old behaviour ("posted is immutable, return skipped")
+        # is gone — that left a permanent dead-end that contradicted the
+        # GnuCash UI itself.
+        status_on_success = 'created'
+        if existing is not None:
+            if _invoice_matches_directive(existing, directive, book):
+                logging.debug(f"Invoice {inv_id} already matches directive; unchanged")
+                return 'unchanged'
+            if _is_only_unpost_diff(existing, directive, is_bill=False):
+                logging.debug(
+                    f"Invoice {inv_id}: only difference is posted→posted:none; "
+                    f"minimal unpost (entry GUIDs preserved)"
+                )
+                existing.Unpost(False)
+                return 'updated'
+            status_on_success = 'updated'
+            if existing.GetPostedTxn() is not None:
+                logging.debug(f"Invoice {inv_id} is posted but differs; unposting for rebuild")
+                existing.Unpost(False)
+
         if existing is None:
             customer = _resolve_cross_reference(
                 'customer',
@@ -1241,14 +1612,14 @@ class GnuCashImporter:
             if must_set_guid is not None:
                 _set_object_guid(book, invoice, 'invoice', inv_id, must_set_guid)
         else:
-            # Existing unposted invoice: reuse it, drop its current entries
-            # so we can rebuild from the directive. RemoveEntry is essential
-            # before Destroy: gncEntryDestroy only sets the do_free flag and
-            # drops the entry from the QofCollection — it does NOT detach
-            # the entry from the invoice's internal entry list. Without
-            # RemoveEntry, `gncInvoicePostToAccount` later iterates a list
-            # that still contains the now-dangling pointer and segfaults
-            # (reproduced on GnuCash 3.8 / ubuntu20).
+            # Existing invoice (unposted now, after the Unpost above if needed):
+            # reuse it, drop its current entries so we can rebuild from the
+            # directive. RemoveEntry is essential before Destroy: gncEntryDestroy
+            # only sets the do_free flag and drops the entry from the
+            # QofCollection — it does NOT detach the entry from the invoice's
+            # internal entry list. Without RemoveEntry, `gncInvoicePostToAccount`
+            # later iterates a list that still contains the now-dangling pointer
+            # and segfaults (reproduced on GnuCash 3.8 / ubuntu20).
             invoice = existing
             for old_entry in list(invoice.GetEntries()):
                 invoice.RemoveEntry(old_entry)
@@ -1370,17 +1741,6 @@ class GnuCashImporter:
             get_guid_str=_swig_invoice_guid_str,
         )
 
-        # Q-007 follow-up: existing posted bill is immutable (its AP lot is
-        # wired into a real transaction). Existing UNPOSTED bill can be
-        # updated — replace entries, optionally post, optionally pay. Same
-        # rationale as the invoice path above.
-        status_on_success = 'created'
-        if existing is not None:
-            if existing.GetPostedTxn() is not None:
-                logging.debug(f"Bill {bill_id} already exists and is posted; skipping")
-                return 'skipped'
-            status_on_success = 'updated'
-
         # Validate: posted: none and a real posted: block are contradictory
         has_posted_none = directive.metadata.get('posted') == 'none'
         posted_children = [c for c in directive.children if c.type == DirectiveType.POSTED]
@@ -1398,6 +1758,27 @@ class GnuCashImporter:
         if has_posted_none and payment_children:
             raise ValueError(f'Bill {bill_id}: cannot have payment: blocks on an unposted bill (posted: none)')
 
+        # Q-010: same classification as import_invoice. Posted bills are
+        # mutable via Unpost-edit-repost; identical re-imports are unchanged;
+        # bare unpost (posted → posted: none, no other change) skips the
+        # destroy-and-rebuild and preserves entry GUIDs.
+        status_on_success = 'created'
+        if existing is not None:
+            if _bill_matches_directive(existing, directive, book):
+                logging.debug(f"Bill {bill_id} already matches directive; unchanged")
+                return 'unchanged'
+            if _is_only_unpost_diff(existing, directive, is_bill=True):
+                logging.debug(
+                    f"Bill {bill_id}: only difference is posted→posted:none; "
+                    f"minimal unpost (entry GUIDs preserved)"
+                )
+                existing.Unpost(False)
+                return 'updated'
+            status_on_success = 'updated'
+            if existing.GetPostedTxn() is not None:
+                logging.debug(f"Bill {bill_id} is posted but differs; unposting for rebuild")
+                existing.Unpost(False)
+
         if existing is None:
             # Bills are Invoice objects whose owner is a Vendor (no separate Bill class)
             vendor = _resolve_cross_reference(
@@ -1411,7 +1792,8 @@ class GnuCashImporter:
             if must_set_guid is not None:
                 _set_object_guid(book, bill, 'bill', bill_id, must_set_guid)
         else:
-            # Existing unposted bill: reuse it, drop its current entries.
+            # Existing bill (unposted now, after the Unpost above if needed):
+            # reuse it, drop its current entries.
             # NOTE: SWIG `Invoice.RemoveEntry` wraps `gncInvoiceRemoveEntry`
             # which only handles customer invoices. For vendor bills we
             # need `gncBillRemoveEntry` via ctypes — see _bill_remove_entry.
@@ -1518,9 +1900,10 @@ class GnuCashImporter:
 
         `on_directive_status(kind, id, status)` is invoked once per directive
         with kind ∈ {'customer','vendor','taxtable','invoice','bill'} and
-        status ∈ {'created','updated','skipped'}. Default is no-op for
-        library callers; the CLI passes a callback that prints
-        '<kind> "<id>": <status>' lines so the user sees activity inline.
+        status ∈ {'created','updated','unchanged','skipped'} (Q-010).
+        Default is no-op for library callers; the CLI passes a callback
+        that prints '<kind> "<id>": <status>' lines so the user sees
+        activity inline.
 
         Returns a `BusinessObjectImportResult` with per-type counts so the
         caller can render an aggregate summary at the end of the import.

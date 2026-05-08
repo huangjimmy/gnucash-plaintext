@@ -171,6 +171,19 @@ def _exported_biz_text(runner, tmp_path, gnc):
     return out.read_text()
 
 
+def _fixture(name: str) -> str:
+    """Read a `tests/fixtures/<name>.txt` fixture as a single string.
+
+    Big plaintext fixtures live in their own files rather than as inline
+    Python strings: easier to read, easier to diff, easier to reuse across
+    tests, and the indentation is preserved verbatim.
+    """
+    import os
+    path = os.path.join(os.path.dirname(__file__), '..', 'fixtures', f'{name}.txt')
+    with open(path) as f:
+        return f.read()
+
+
 # ── 1. Re-import idempotency ─────────────────────────────────────────────────
 
 
@@ -253,6 +266,324 @@ class TestReimportUpdatesFields:
         block = _block_for(text, 'customer "C001"')
         assert _field_in_block(block, 'active') == 'false', (
             "Expected active: false after re-import; got block:\n" + "\n".join(block)
+        )
+
+
+# ── 2b. No-change re-import is reported as 'unchanged' (Q-010) ──────────────
+#
+# An external reviewer flagged that 'updated' was liberal under Q-009: when
+# the directive matches the existing record byte-for-byte, the importer
+# was reporting 'updated' even though nothing actually changed. Q-010 adds
+# a new status `unchanged` for this case, freeing `skipped` to mean only
+# "the importer refused to apply the change because the record is immutable
+# (e.g. posted invoice)". Four statuses total:
+#
+#   created   — fresh record
+#   updated   — existing record had at least one mutable field changed
+#   unchanged — existing record matches the directive; no work performed
+#   skipped   — existing record is immutable for this directive
+#
+# Script writers can then assert on counts cleanly.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestNoChangeReimportIsUnchanged:
+    """Re-import where directive matches existing record must report 'unchanged'.
+
+    'unchanged' (this class) is distinct from 'skipped' (the
+    `TestImmutablePostedSkipReportsSkipped` class below):
+      - 'unchanged': record is mutable, directive matches existing state,
+        nothing to do.
+      - 'skipped':   record is immutable for this directive (e.g. posted
+        invoice/bill), so the importer refuses to apply any change.
+    """
+
+    def test_customer_no_change_is_unchanged(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path,
+                               'customer "C001"\n\tname: "Acme"\n\tcurrency: CAD\n')
+        same = _write(tmp_path / "again.txt",
+                      ACCOUNTS + "\n" +
+                      'customer "C001"\n\tname: "Acme"\n\tcurrency: CAD\n')
+        r = _import(runner, gnc, same)
+        assert r.exit_code == 0, f"Re-import must succeed:\n{r.output}"
+        assert 'customer "C001": unchanged' in r.output, (
+            f"No-change re-import must report 'unchanged', not 'updated' or "
+            f"'skipped'. Got:\n{r.output}"
+        )
+
+    def test_customer_name_change_is_updated(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path,
+                               'customer "C001"\n\tname: "Acme"\n\tcurrency: CAD\n')
+        renamed = _write(tmp_path / "renamed.txt",
+                         ACCOUNTS + "\n" +
+                         'customer "C001"\n\tname: "Acme Renamed"\n\tcurrency: CAD\n')
+        r = _import(runner, gnc, renamed)
+        assert r.exit_code == 0
+        assert 'customer "C001": updated' in r.output, (
+            f"Real change must report 'updated'. Got:\n{r.output}"
+        )
+
+    def test_customer_kvp_added_is_updated(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path,
+                               'customer "C001"\n\tname: "Acme"\n\tcurrency: CAD\n')
+        with_kvp = _write(tmp_path / "with_kvp.txt",
+                          ACCOUNTS + "\n" +
+                          'customer "C001"\n\tname: "Acme"\n\tcurrency: CAD\n'
+                          '\tjw.country: "CA"\n')
+        r = _import(runner, gnc, with_kvp)
+        assert r.exit_code == 0
+        assert 'customer "C001": updated' in r.output
+
+    def test_customer_active_change_is_updated(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path,
+                               'customer "C001"\n\tname: "Acme"\n\tcurrency: CAD\n')
+        archived = _write(tmp_path / "archived.txt",
+                          ACCOUNTS + "\n" +
+                          'customer "C001"\n\tname: "Acme"\n\tcurrency: CAD\n'
+                          '\tactive: false\n')
+        r = _import(runner, gnc, archived)
+        assert r.exit_code == 0
+        assert 'customer "C001": updated' in r.output
+
+    def test_vendor_no_change_is_unchanged(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path,
+                               'vendor "V001"\n\tname: "Supplier"\n\tcurrency: CAD\n')
+        same = _write(tmp_path / "again.txt",
+                      ACCOUNTS + "\n" +
+                      'vendor "V001"\n\tname: "Supplier"\n\tcurrency: CAD\n')
+        r = _import(runner, gnc, same)
+        assert r.exit_code == 0
+        assert 'vendor "V001": unchanged' in r.output
+
+    def test_vendor_name_change_is_updated(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path,
+                               'vendor "V001"\n\tname: "Supplier"\n\tcurrency: CAD\n')
+        renamed = _write(tmp_path / "renamed.txt",
+                         ACCOUNTS + "\n" +
+                         'vendor "V001"\n\tname: "Renamed Supplier"\n\tcurrency: CAD\n')
+        r = _import(runner, gnc, renamed)
+        assert r.exit_code == 0
+        assert 'vendor "V001": updated' in r.output
+
+    def test_unposted_invoice_no_change_is_unchanged(self, tmp_path):
+        """Re-importing an unposted invoice fixture with no edits must NOT
+        do destroy+rebuild — the directive matches existing state, so
+        the importer should short-circuit and report 'unchanged'."""
+        runner = CliRunner()
+        invoice_fixture = _fixture('q010_invoice_unposted')
+        gnc = _setup_book_with(runner, tmp_path, invoice_fixture)
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + invoice_fixture))
+        assert r.exit_code == 0, r.output
+        assert 'invoice "INV-001": unchanged' in r.output, (
+            f"No-change re-import of unposted invoice must report 'unchanged':\n"
+            f"{r.output}"
+        )
+
+    def test_unposted_invoice_entry_change_is_updated(self, tmp_path):
+        """Changing an entry on an unposted invoice via re-import must
+        still go through the update path and report 'updated'."""
+        runner = CliRunner()
+        base = _fixture('q010_invoice_unposted')
+        gnc = _setup_book_with(runner, tmp_path, base)
+        edited = base.replace('\t\tquantity: 1\n', '\t\tquantity: 2\n')
+        r = _import(runner, gnc, _write(tmp_path / "edited.txt",
+                                        ACCOUNTS + "\n" + edited))
+        assert r.exit_code == 0, r.output
+        assert 'invoice "INV-001": updated' in r.output, (
+            f"Entry change must report 'updated':\n{r.output}"
+        )
+
+    def test_unposted_bill_no_change_is_unchanged(self, tmp_path):
+        runner = CliRunner()
+        bill_fixture = _fixture('q010_bill_unposted')
+        gnc = _setup_book_with(runner, tmp_path, bill_fixture)
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + bill_fixture))
+        assert r.exit_code == 0, r.output
+        assert 'bill "BILL-001": unchanged' in r.output
+
+
+# ── 2c. Immutable records report 'skipped' (Q-010 status semantics) ─────────
+#
+# Distinct from 'unchanged' (mutable, no diff): 'skipped' means the importer
+# *refused* to apply the directive because the record's state forbids
+# mutation. Currently:
+#
+#   - Posted invoice / bill: AR/AP lots are wired into a real transaction;
+#     entries, posted block, and metadata are all locked.
+#   - Tax table on hit: tax tables are referenced by stored pointers from
+#     posted invoices/bills; mutating their entries would change accounting
+#     on past records.
+#
+# (`TestUnpostedToPostedTransition` further down also has assertions that
+# overlap with this class — kept for backward compatibility with Q-007's
+# original suite; the dedicated class here is the canonical test for the
+# 'skipped' status semantics introduced by Q-010.)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestTaxTableImmutableReportsSkipped:
+    """Tax tables are the only business-object kind that remains truly
+    immutable on hit: mutating their entries would silently change
+    accounting on past posted invoices that reference them. Status on
+    re-import: 'skipped', not 'unchanged'.
+
+    Posted invoices and bills are NOT in this category any more — Q-010
+    extended the importer to support unpost-edit-repost just like the
+    GnuCash UI does. See `TestPostedToPostedReimport` below.
+    """
+
+    def test_taxtable_reimport_is_skipped(self, tmp_path):
+        runner = CliRunner()
+        fixture = _fixture('q010_taxtable')
+        gnc = _setup_book_with(runner, tmp_path, fixture)
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + fixture))
+        assert r.exit_code == 0
+        assert 'taxtable "GST": skipped' in r.output
+
+
+class TestPostedToPostedReimport:
+    """Q-010 expanded scope: GnuCash itself supports unpost → edit → repost.
+    Pre-Q-010 our importer treated every posted invoice/bill as a permanent
+    dead-end for re-imports. This class covers the four scenarios that
+    Q-010 must handle when the existing record is posted:
+
+      1. directive matches existing      → 'unchanged' (no-op)
+      2. directive entry differs         → unpost, rebuild, repost → 'updated'
+      3. directive posted block differs  → unpost, rebuild, repost → 'updated'
+      4. directive sets posted: none     → unpost, leave unposted   → 'updated'
+    """
+
+    def test_posted_invoice_no_change_is_unchanged(self, tmp_path):
+        runner = CliRunner()
+        fixture = _fixture('q010_invoice_posted')
+        gnc = _setup_book_with(runner, tmp_path, fixture)
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + fixture))
+        assert r.exit_code == 0, r.output
+        assert 'invoice "INV-001": unchanged' in r.output, (
+            f"Identical re-import of posted invoice must report 'unchanged' "
+            f"(no diff applied). Got:\n{r.output}"
+        )
+        # Sanity: the invoice is still posted with the same single entry.
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        assert _count_blocks(text, 'invoice "INV-001"') == 1
+
+    def test_posted_invoice_entry_change_unposts_and_reposts(self, tmp_path):
+        """Editing an entry on a posted invoice must trigger Unpost → rebuild
+        → PostToAccount, and report 'updated'. The new posted state must
+        match the directive (quantity 2, not 1)."""
+        runner = CliRunner()
+        fixture = _fixture('q010_invoice_posted')
+        gnc = _setup_book_with(runner, tmp_path, fixture)
+        edited = fixture.replace('\t\tquantity: 1\n', '\t\tquantity: 2\n')
+        r = _import(runner, gnc, _write(tmp_path / "edited.txt",
+                                        ACCOUNTS + "\n" + edited))
+        assert r.exit_code == 0, r.output
+        assert 'invoice "INV-001": updated' in r.output, (
+            f"Posted-invoice entry edit must report 'updated' (unpost-repost "
+            f"cycle). Got:\n{r.output}"
+        )
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        block = _block_for(text, 'invoice "INV-001"')
+        # Verify the rebuilt entry has quantity 2 (not 1) and is still posted.
+        assert any('quantity: 2' in line for line in block), (
+            "Rebuilt entry must show quantity: 2:\n" + "\n".join(block)
+        )
+        assert any('posted:' in line and 'none' not in line for line in block), (
+            "Invoice must remain posted after edit:\n" + "\n".join(block)
+        )
+
+    def test_posted_invoice_memo_change_reposts(self, tmp_path):
+        """Editing the posted-block memo must trigger Unpost → repost with
+        the new memo. The posting transaction's description (set from
+        memo) is the externally-observable signal."""
+        runner = CliRunner()
+        fixture = _fixture('q010_invoice_posted')
+        gnc = _setup_book_with(runner, tmp_path, fixture)
+        edited = fixture.replace(
+            'memo: "Invoice INV-001"',
+            'memo: "Invoice INV-001 (corrected)"',
+        )
+        r = _import(runner, gnc, _write(tmp_path / "memo_edit.txt",
+                                        ACCOUNTS + "\n" + edited))
+        assert r.exit_code == 0, r.output
+        assert 'invoice "INV-001": updated' in r.output, r.output
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        block = _block_for(text, 'invoice "INV-001"')
+        assert any('Invoice INV-001 (corrected)' in line for line in block), (
+            "Posted memo must be rewritten on re-import:\n" + "\n".join(block)
+        )
+
+    def test_posted_invoice_to_posted_none_unposts(self, tmp_path):
+        """Going from posted → posted: none on re-import is a real change:
+        Unpost the invoice (drop the AR posting transaction) and leave
+        the invoice unposted. Status: 'updated'."""
+        runner = CliRunner()
+        fixture = _fixture('q010_invoice_posted')
+        gnc = _setup_book_with(runner, tmp_path, fixture)
+        edited = _fixture('q010_invoice_unposted')
+        r = _import(runner, gnc, _write(tmp_path / "to_unposted.txt",
+                                        ACCOUNTS + "\n" + edited))
+        assert r.exit_code == 0, r.output
+        assert 'invoice "INV-001": updated' in r.output, (
+            f"posted → posted:none must report 'updated' (unpost happened):\n"
+            f"{r.output}"
+        )
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        block = _block_for(text, 'invoice "INV-001"')
+        assert any('posted: none' in line for line in block), (
+            "Invoice must be unposted after re-import:\n" + "\n".join(block)
+        )
+
+    def test_posted_bill_no_change_is_unchanged(self, tmp_path):
+        runner = CliRunner()
+        fixture = _fixture('q010_bill_posted')
+        gnc = _setup_book_with(runner, tmp_path, fixture)
+        r = _import(runner, gnc, _write(tmp_path / "again.txt",
+                                        ACCOUNTS + "\n" + fixture))
+        assert r.exit_code == 0, r.output
+        assert 'bill "BILL-001": unchanged' in r.output, (
+            f"Identical re-import of posted bill must report 'unchanged':\n"
+            f"{r.output}"
+        )
+
+    def test_posted_bill_entry_change_unposts_and_reposts(self, tmp_path):
+        runner = CliRunner()
+        fixture = _fixture('q010_bill_posted')
+        gnc = _setup_book_with(runner, tmp_path, fixture)
+        edited = fixture.replace('\t\tquantity: 1\n', '\t\tquantity: 3\n')
+        r = _import(runner, gnc, _write(tmp_path / "edited.txt",
+                                        ACCOUNTS + "\n" + edited))
+        assert r.exit_code == 0, r.output
+        assert 'bill "BILL-001": updated' in r.output, r.output
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        block = _block_for(text, 'bill "BILL-001"')
+        assert any('quantity: 3' in line for line in block), (
+            "Rebuilt bill entry must show quantity: 3:\n" + "\n".join(block)
+        )
+
+    def test_posted_bill_to_posted_none_unposts(self, tmp_path):
+        runner = CliRunner()
+        fixture = _fixture('q010_bill_posted')
+        gnc = _setup_book_with(runner, tmp_path, fixture)
+        edited = _fixture('q010_bill_unposted')
+        r = _import(runner, gnc, _write(tmp_path / "to_unposted.txt",
+                                        ACCOUNTS + "\n" + edited))
+        assert r.exit_code == 0, r.output
+        assert 'bill "BILL-001": updated' in r.output, r.output
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        block = _block_for(text, 'bill "BILL-001"')
+        assert any('posted: none' in line for line in block), (
+            "Bill must be unposted after re-import:\n" + "\n".join(block)
         )
 
 
@@ -1276,28 +1607,28 @@ class TestUnpostedToPostedTransition:
             "Bill must be posted after re-import; block:\n" + "\n".join(block)
         )
 
-    def test_already_posted_invoice_still_skips_on_reimport(self, tmp_path):
-        """No regression: re-importing a file containing an already-posted
-        invoice still skips (its lot is wired into a real transaction and
-        we can't safely mutate)."""
+    def test_already_posted_invoice_unchanged_on_identical_reimport(self, tmp_path):
+        """Q-010: an identical re-import of a posted invoice is 'unchanged'
+        (not 'skipped'). The previous Q-007 'always skip posted' rule was
+        too coarse and contradicted GnuCash's own UI."""
         runner = CliRunner()
         gnc = _setup_book_with(runner, tmp_path, _INVOICE_POSTED)
 
         r = _import(runner, gnc, _write(tmp_path / "again.txt",
                                         ACCOUNTS + "\n" + _INVOICE_POSTED))
         assert r.exit_code == 0
-        assert 'invoice "INV-001": skipped' in r.output, (
-            f"Re-import of posted invoice should still skip:\n{r.output}"
+        assert 'invoice "INV-001": unchanged' in r.output, (
+            f"Identical re-import of posted invoice should be 'unchanged':\n{r.output}"
         )
 
-    def test_already_posted_bill_still_skips_on_reimport(self, tmp_path):
+    def test_already_posted_bill_unchanged_on_identical_reimport(self, tmp_path):
         runner = CliRunner()
         gnc = _setup_book_with(runner, tmp_path, _BILL_POSTED)
 
         r = _import(runner, gnc, _write(tmp_path / "again.txt",
                                         ACCOUNTS + "\n" + _BILL_POSTED))
         assert r.exit_code == 0
-        assert 'bill "BILL-001": skipped' in r.output
+        assert 'bill "BILL-001": unchanged' in r.output
 
     def test_unposted_to_posted_status_line_says_updated(self, tmp_path):
         """When re-import successfully posts an unposted invoice, the
@@ -1313,14 +1644,13 @@ class TestUnpostedToPostedTransition:
             f"Posting an unposted invoice should report 'updated':\n{r.output}"
         )
 
-    def test_posted_invoice_notes_not_mutated_on_reimport(self, tmp_path):
-        """Posted = fully immutable. Even non-accounting fields like notes
-        must NOT be mutated on re-import — a posted invoice represents what
-        the customer already received, and silently changing notes after
-        the fact would mislead a maintainer reading the book."""
+    def test_posted_invoice_notes_change_unposts_and_reposts(self, tmp_path):
+        """Q-010: posted invoices ARE editable via re-import (unpost → edit
+        → repost), matching what GnuCash's UI itself supports. Adding a
+        notes field to a posted invoice triggers the unpost-repost cycle
+        and the new notes appear in the exported invoice."""
         runner = CliRunner()
         gnc = _setup_book_with(runner, tmp_path, _INVOICE_POSTED)
-        # Re-import with notes added to the posted invoice
         with_notes = _INVOICE_POSTED.replace(
             'invoice "INV-001"\n',
             'invoice "INV-001"\n\tnotes: "Updated after the fact"\n',
@@ -1328,12 +1658,9 @@ class TestUnpostedToPostedTransition:
         r = _import(runner, gnc, _write(tmp_path / "with_notes.txt",
                                         ACCOUNTS + "\n" + with_notes))
         assert r.exit_code == 0, r.output
-        # Status line says skipped — nothing changed
-        assert 'invoice "INV-001": skipped' in r.output
+        assert 'invoice "INV-001": updated' in r.output, r.output
         text = _exported_biz_text(runner, tmp_path, gnc)
         block = _block_for(text, 'invoice "INV-001"')
-        # Notes from the directive must NOT appear in the exported invoice
-        assert not any('Updated after the fact' in line for line in block), (
-            "Posted invoice's notes must not be mutated on re-import; got:\n"
-            + "\n".join(block)
+        assert any('Updated after the fact' in line for line in block), (
+            "New notes must appear after re-import; got:\n" + "\n".join(block)
         )

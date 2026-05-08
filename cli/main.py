@@ -20,6 +20,7 @@ from cli.import_beancount_cmd import import_beancount
 from cli.import_cmd import import_transactions
 from cli.income_statement_cmd import income_statement
 from cli.invoice_print_cmd import print_invoice
+from cli.unpost_cmd import unpost_bills, unpost_invoices
 from cli.validate_cmd import validate_ledger
 
 
@@ -62,6 +63,8 @@ cli.add_command(find_transactions, name='find-transactions')
 cli.add_command(delete_customers, name='delete-customers')
 cli.add_command(archive_customers, name='archive-customers')
 cli.add_command(archive_vendors, name='archive-vendors')
+cli.add_command(unpost_invoices, name='unpost-invoices')
+cli.add_command(unpost_bills, name='unpost-bills')
 
 
 if __name__ == '__main__':

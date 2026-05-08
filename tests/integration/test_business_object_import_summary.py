@@ -1,28 +1,28 @@
 """
 Q-009: business-object import gives clear feedback on every directive.
+Q-010: extends the status set with 'unchanged' (no-diff re-import) and
+makes posted invoices/bills mutable via unpost-edit-repost. Tax tables
+remain the only kind that's immutable on hit.
 
-Tests describe the desired CLI output after Q-009. On import, the user
-should see two complementary signals:
+Tests describe the desired CLI output. On import, the user should see
+two complementary signals:
 
 1. **Per-directive line, inline as the import runs:**
 
        customer "C001": created
-       customer "C002": updated
-       taxtable "GST": skipped (already exists)
-       invoice "INV-001": created
-       bill "BILL-001": skipped (already exists)
-
-   Same shape as the per-record output from delete-customers /
-   archive-customers.
+       customer "C002": unchanged
+       taxtable "GST": skipped       ← immutable, refused
+       invoice "INV-001": unchanged  ← exact byte-for-byte match
+       bill "BILL-001": updated      ← entry edited, unposted+reposted
 
 2. **Aggregate counts in the import summary at the end:**
 
        Business Objects:
-         Customers:  1 created, 1 updated, 0 skipped
-         Vendors:    0 created, 1 updated, 0 skipped
-         Tax tables: 0 created, 1 skipped
-         Invoices:   1 created, 1 skipped
-         Bills:      0 created, 1 skipped
+         Customers:  1 created, 1 updated, 0 unchanged, 0 skipped
+         Vendors:    0 created, 1 updated, 0 unchanged, 0 skipped
+         Tax tables: 0 created, 0 updated, 0 unchanged, 1 skipped
+         Invoices:   1 created, 0 updated, 1 unchanged, 0 skipped
+         Bills:      0 created, 0 updated, 1 unchanged, 0 skipped
 
 These tests don't introspect the gnucash file at all — they're
 purely about CLI surface output. The other identity tests in
@@ -77,9 +77,10 @@ class TestPerDirectiveOutput:
                 f"Expected {line_substr!r} in import output:\n{r.output}"
             )
 
-    def test_reimport_shows_updated_for_customers_vendors(self, tmp_path):
-        """Customers and vendors update on re-import (id is constant; mutable
-        fields are refreshed). Status line says 'updated', not 'skipped'."""
+    def test_reimport_shows_unchanged_for_customers_vendors(self, tmp_path):
+        """Q-010: a no-diff re-import of customers/vendors reports 'unchanged',
+        not 'updated'. ('updated' is reserved for re-imports that actually
+        mutate something.)"""
         runner = CliRunner()
         gnc = tmp_path / "test.gnucash"
         r1 = _import_new(runner, gnc)
@@ -88,12 +89,14 @@ class TestPerDirectiveOutput:
 
         r2 = _reimport(runner, gnc)
         assert r2.exit_code == 0, r2.output
-        assert 'customer "1": updated' in r2.output
-        assert 'vendor "V001": updated' in r2.output
+        assert 'customer "1": unchanged' in r2.output, r2.output
+        assert 'vendor "V001": unchanged' in r2.output, r2.output
 
-    def test_reimport_shows_skipped_for_taxtable_invoice_bill(self, tmp_path):
-        """Tax tables, invoices, and bills skip on re-import (their fields
-        can't be safely mutated mid-flight)."""
+    def test_reimport_shows_unchanged_for_invoice_bill_and_skipped_for_taxtable(self, tmp_path):
+        """Q-010: invoices and bills are no longer permanently skipped on
+        re-import; an identical re-import is 'unchanged'. Tax tables are
+        the only kind that remains 'skipped' on hit (they're truly
+        immutable because past posted invoices reference them by pointer)."""
         runner = CliRunner()
         gnc = tmp_path / "test.gnucash"
         r1 = _import_new(runner, gnc)
@@ -102,9 +105,9 @@ class TestPerDirectiveOutput:
 
         r2 = _reimport(runner, gnc)
         assert r2.exit_code == 0, r2.output
-        assert 'taxtable "GST": skipped' in r2.output
-        assert 'invoice "INV-2026-001": skipped' in r2.output
-        assert 'bill "BILL-2026-001": skipped' in r2.output
+        assert 'taxtable "GST": skipped' in r2.output, r2.output
+        assert 'invoice "INV-2026-001": unchanged' in r2.output, r2.output
+        assert 'bill "BILL-2026-001": unchanged' in r2.output, r2.output
 
 
 # ── Aggregate summary ───────────────────────────────────────────────────────
@@ -136,10 +139,10 @@ class TestAggregateSummary:
         assert re.search(r'Bills:\s+5 created', r.output)
 
     def test_reimport_summary_counts(self, tmp_path):
-        """Re-import: customers/vendors update on hit; tax tables always
-        skip; invoices/bills skip when posted, but the fixture's unposted
-        records (INV-2026-002, BILL-2026-002) go through the unposted→
-        update path added in the Q-007 follow-up, so they show 'updated'."""
+        """Q-010: an identical re-import is 'unchanged' across the board for
+        customers/vendors/invoices/bills (no field differs). Tax tables
+        still report 'skipped' — they're immutable on hit so an identical
+        re-import is the only safe outcome."""
         runner = CliRunner()
         gnc = tmp_path / "test.gnucash"
         r1 = _import_new(runner, gnc)
@@ -147,21 +150,21 @@ class TestAggregateSummary:
         time.sleep(1)
 
         r2 = _reimport(runner, gnc)
-        assert r2.exit_code == 0
-        # Customers: 0 created, 2 updated, 0 skipped
-        assert re.search(r'Customers:\s+0 created,\s*2 updated', r2.output)
-        # Vendors: 0 created, 2 updated, 0 skipped
-        assert re.search(r'Vendors:\s+0 created,\s*2 updated', r2.output)
-        # Tax tables: 0 created, 0 updated, 1 skipped
+        assert r2.exit_code == 0, r2.output
+        # Customers: 0 created, 0 updated, 2 unchanged, 0 skipped
+        assert re.search(r'Customers:\s+0 created,\s*0 updated,\s*2 unchanged',
+                         r2.output), r2.output
+        # Vendors: 0 created, 0 updated, 2 unchanged, 0 skipped
+        assert re.search(r'Vendors:\s+0 created,\s*0 updated,\s*2 unchanged',
+                         r2.output), r2.output
+        # Tax tables: 0 created, 0 updated, 0 unchanged, 1 skipped
         assert re.search(r'Tax tables:\s+0 created,.*1 skipped', r2.output)
-        # Invoices: 0 created, 1 updated, 4 skipped
-        # (INV-2026-002 is unposted in the fixture — re-import re-runs the
-        # unposted-update path; the other 4 are posted and skip)
-        assert re.search(r'Invoices:\s+0 created,\s*1 updated,\s*4 skipped',
-                         r2.output)
-        # Bills: 0 created, 1 updated, 4 skipped (BILL-2026-002 is unposted)
-        assert re.search(r'Bills:\s+0 created,\s*1 updated,\s*4 skipped',
-                         r2.output)
+        # Invoices: 0 created, 0 updated, 5 unchanged, 0 skipped (all 5 match)
+        assert re.search(r'Invoices:\s+0 created,\s*0 updated,\s*5 unchanged',
+                         r2.output), r2.output
+        # Bills: 0 created, 0 updated, 5 unchanged, 0 skipped
+        assert re.search(r'Bills:\s+0 created,\s*0 updated,\s*5 unchanged',
+                         r2.output), r2.output
 
     def test_summary_appears_after_per_directive_lines(self, tmp_path):
         """Per-directive output comes first; aggregate summary at the end.

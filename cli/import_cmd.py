@@ -203,6 +203,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     parts = [
                         f"{counts['created']} created",
                         f"{counts['updated']} updated",
+                        f"{counts['unchanged']} unchanged",
                         f"{counts['skipped']} skipped",
                     ]
                     click.echo(f"  {(label + ':'):<12} {', '.join(parts)}")
