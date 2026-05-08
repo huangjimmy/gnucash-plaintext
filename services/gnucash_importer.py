@@ -729,7 +729,7 @@ def _entry_matches_invoice_directive(entry, ed: 'PlaintextDirective') -> bool:
         return False
     if entry.GetDescription() != md['description']:
         return False
-    if entry.GetAction() != md['action']:
+    if entry.GetAction() != md.get('action', ''):
         return False
     acct = entry.GetInvAccount()
     if acct is None or get_account_full_name(acct) != md['account']:
@@ -1638,7 +1638,13 @@ class GnuCashImporter:
                 entry.BeginEdit()
                 entry.SetDate(datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d"))
                 entry.SetDescription(entry_directive.metadata['description'])
-                entry.SetAction(entry_directive.metadata['action'])
+                # Q-011: `action` is optional. Omitting the directive line
+                # is equivalent to `action: ""` — the entry's action is set
+                # to empty. To preserve a non-empty action across re-imports
+                # the user must include `action: "<value>"` explicitly; the
+                # importer treats each directive as the full source of truth
+                # for its fields, not a partial patch.
+                entry.SetAction(entry_directive.metadata.get('action', ''))
                 inv_acct_name = entry_directive.metadata['account']
                 inv_acct = find_account(book.get_root_account(), inv_acct_name)
                 if inv_acct is None:
