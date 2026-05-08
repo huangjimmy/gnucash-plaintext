@@ -219,17 +219,26 @@ def invoice_to_xml(inv, book, company_info=None):
     return ET.ElementTree(root)
 
 
-def render_to_pdf(invoice, book, xslt_path, pdf_path, company_info=None):
-    import weasyprint
+def render_to_html(invoice, book, xslt_path, company_info=None) -> str:
+    """Apply the XSLT to the invoice's XML and return the resulting HTML.
+
+    Q-011: split out from render_to_pdf so callers (and tests) can
+    inspect the XSLT output directly without going through weasyprint.
+    Useful for verifying that a custom `--template <path>` was actually
+    threaded through to the transform.
+    """
     from lxml import etree as lxml_etree
 
     xml_tree = invoice_to_xml(invoice, book, company_info=company_info)
-
-    # In-memory transformation
     xml_str = ET.tostring(xml_tree.getroot(), encoding='unicode')
     xml_doc = lxml_etree.fromstring(xml_str)
     xslt_doc = lxml_etree.parse(xslt_path)
     transform = lxml_etree.XSLT(xslt_doc)
-    html_doc = transform(xml_doc)
+    return str(transform(xml_doc))
 
-    weasyprint.HTML(string=str(html_doc)).write_pdf(pdf_path)
+
+def render_to_pdf(invoice, book, xslt_path, pdf_path, company_info=None):
+    import weasyprint
+
+    html = render_to_html(invoice, book, xslt_path, company_info=company_info)
+    weasyprint.HTML(string=html).write_pdf(pdf_path)

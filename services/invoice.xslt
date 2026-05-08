@@ -30,6 +30,14 @@
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 <xsl:output method="html" encoding="UTF-8" indent="yes" doctype-public="-//W3C//DTD HTML 4.01//EN"/>
 
+<!-- Q-011: hide the Unit column when no entry has a non-empty <action>.
+     The action field in GnuCash is free-form metadata ("Hours", "Project",
+     "Material", or just empty). When every entry has an empty action the
+     column would just be a row of blanks; suppress it. Used as a guard on
+     both the header <th> and the per-row <td>. -->
+<xsl:variable name="show-unit-column"
+              select="count(/invoice/entries/entry[normalize-space(action) != '']) &gt; 0"/>
+
 <!-- ═══════════════════════════════════════════════════════════════════════
      Root template
      ═══════════════════════════════════════════════════════════════════════ -->
@@ -183,7 +191,9 @@
     <thead>
       <tr>
         <th>Description</th>
-        <th style="text-align:center">Unit</th>
+        <xsl:if test="$show-unit-column">
+          <th style="text-align:center">Unit</th>
+        </xsl:if>
         <th style="text-align:right">Qty</th>
         <th style="text-align:right">Unit Price</th>
         <th style="text-align:right">Amount</th>
@@ -194,8 +204,18 @@
       <xsl:apply-templates select="entries/entry"/>
 
       <!-- Subtotal row -->
+      <!-- Q-011: colspan covers Description + (Unit?) + Qty + Unit Price.
+           Drop by 1 when the Unit column is hidden. -->
       <tr class="subtotal-row">
-        <td colspan="4" style="text-align:right"><em>Subtotal</em></td>
+        <td style="text-align:right">
+          <xsl:attribute name="colspan">
+            <xsl:choose>
+              <xsl:when test="$show-unit-column">4</xsl:when>
+              <xsl:otherwise>3</xsl:otherwise>
+            </xsl:choose>
+          </xsl:attribute>
+          <em>Subtotal</em>
+        </td>
         <td style="text-align:right">
           <xsl:value-of select="concat(@currency, '&#160;')"/>
           <xsl:value-of select="format-number(subtotal, '#,##0.00')"/>
@@ -208,7 +228,15 @@
     </tbody>
     <tfoot>
       <tr class="total-row">
-        <td colspan="4" style="text-align:right">Total Due (<xsl:value-of select="@currency"/>)</td>
+        <td style="text-align:right">
+          <xsl:attribute name="colspan">
+            <xsl:choose>
+              <xsl:when test="$show-unit-column">4</xsl:when>
+              <xsl:otherwise>3</xsl:otherwise>
+            </xsl:choose>
+          </xsl:attribute>
+          Total Due (<xsl:value-of select="@currency"/>)
+        </td>
         <td style="text-align:right">
           <xsl:value-of select="concat(@currency, '&#160;')"/>
           <xsl:value-of select="format-number(total, '#,##0.00')"/>
@@ -272,7 +300,9 @@
 <xsl:template match="entry">
   <tr>
     <td><xsl:value-of select="description"/></td>
-    <td style="text-align:center"><xsl:value-of select="action"/></td>
+    <xsl:if test="$show-unit-column">
+      <td style="text-align:center"><xsl:value-of select="action"/></td>
+    </xsl:if>
     <td style="text-align:right">
       <xsl:value-of select="format-number(quantity, '#,##0.##')"/>
     </td>
@@ -320,7 +350,13 @@
      ═══════════════════════════════════════════════════════════════════════ -->
 <xsl:template match="tax-line">
   <tr class="tax-row">
-    <td colspan="4" style="text-align:right">
+    <td style="text-align:right">
+      <xsl:attribute name="colspan">
+        <xsl:choose>
+          <xsl:when test="$show-unit-column">4</xsl:when>
+          <xsl:otherwise>3</xsl:otherwise>
+        </xsl:choose>
+      </xsl:attribute>
       <xsl:value-of select="name"/>
     </td>
     <td style="text-align:right">

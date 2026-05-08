@@ -1097,8 +1097,26 @@ Generate a PDF for any posted invoice:
 gnucash-plaintext print-invoice mybook.gnucash --invoice-id INV-2026-001 -o invoice.pdf
 ```
 
-The PDF is rendered using the XSLT template at `services/invoice.xslt`, which
-you can customise to match your company's branding.
+The PDF is rendered using the XSLT template at `services/invoice.xslt`. The
+default template covers Description, Qty, Unit Price, Amount, and Tax Applied
+columns. A "Unit" column appears only if at least one entry on the invoice
+has a non-empty `action:` field — e.g. `"Hours"`, `"Project"`, `"Material"`.
+For goods/items invoices the column stays hidden (Q-011).
+
+**Custom templates**: pass `--template <path>` to use your own XSLT (custom
+columns, branding, multi-language). The XML schema the template receives is
+documented at the top of `services/invoice.xslt`.
+
+```bash
+gnucash-plaintext print-invoice mybook.gnucash --invoice-id INV-2026-001 \
+    -o invoice.pdf --template my-invoice-template.xslt
+```
+
+**The `action:` field on invoice entries** is optional. Omitting the line is
+equivalent to `action: ""` — the entry's action is set to empty. If you want
+to preserve a non-empty action (e.g. "Hours") across re-imports, you must
+include `action: "Hours"` in the directive every time; the importer treats
+each entry directive as the full source of truth, not a partial patch.
 
 Handle conflicts with resolution strategies:
 

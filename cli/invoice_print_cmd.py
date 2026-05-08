@@ -19,7 +19,13 @@ _XSLT_PATH = Path(__file__).parent.parent / "services" / "invoice.xslt"
 @click.argument('gnucash_file', type=click.Path(exists=True))
 @click.option("--invoice-id", required=True, help="ID of the invoice to print.")
 @click.option("-o", "--output", required=True, type=click.Path(), help="Output PDF file path.")
-def print_invoice(gnucash_file, invoice_id, output):
+@click.option("--template", "template_path", default=None,
+              type=click.Path(exists=True, dir_okay=False),
+              help=("Path to a custom XSLT template (Q-011). The XML schema "
+                    "the template receives is documented at the top of "
+                    "services/invoice.xslt. Defaults to the embedded "
+                    "template."))
+def print_invoice(gnucash_file, invoice_id, output, template_path):
     """Prints a GnuCash invoice to a PDF file."""
     click.echo(f"Printing invoice {invoice_id} from {gnucash_file} to {output}...")
 
@@ -42,7 +48,8 @@ def print_invoice(gnucash_file, invoice_id, output):
         if not invoice:
             raise click.UsageError(f"Invoice with ID '{invoice_id}' not found.")
 
-        render_to_pdf(invoice, book, str(_XSLT_PATH), output, company_info)
+        xslt = template_path if template_path else str(_XSLT_PATH)
+        render_to_pdf(invoice, book, xslt, output, company_info)
 
         click.echo(f"✓ Successfully printed invoice to {output}")
 

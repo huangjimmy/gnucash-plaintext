@@ -52,3 +52,4 @@ When a fix is merged, update `status: open` → `closed` in the file's frontmatt
 | [Q-008](Q-008-taxtable-identity.md) | Tax-table identity not enforced on import; re-import duplicates | medium |
 | [Q-009](Q-009-import-summary-business-objects.md) | Business-object import is silent — re-import gives no signal of skip vs. create vs. update | medium |
 | [Q-010](Q-010-strict-updated-status-on-no-change-reimport.md) | `'updated'` is liberal — reports updated for no-change re-imports; posted invoices/bills can't be edited via re-import | low |
+| [Q-011](Q-011-invoice-action-optional-and-custom-template.md) | Invoice `action` field forces a hardcode; UNIT column shows nonsense; no template override | low |
