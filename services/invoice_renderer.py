@@ -101,7 +101,12 @@ def invoice_to_xml(inv, book, company_info=None):
     lib = load_gnc_engine()
 
     inv_id = inv.GetID()
-    is_paid = gc.gncInvoiceIsPaid(inv.instance)
+    # Q-012: detect unposted state up front. The renderer's tax/payment
+    # blocks below all assume a posted invoice (posting_txn + posted_lot
+    # both non-None); for unposted we render a "draft" preview instead.
+    posting_txn = inv.GetPostedTxn()
+    is_draft = posting_txn is None
+    is_paid = False if is_draft else gc.gncInvoiceIsPaid(inv.instance)
     currency = inv.GetCurrency().get_mnemonic()
     date_opened = inv.GetDateOpened().strftime("%Y-%m-%d")
     date_due = inv.GetDateDue()
@@ -124,9 +129,13 @@ def invoice_to_xml(inv, book, company_info=None):
     addr3, addr4 = addr.GetAddr3(), addr.GetAddr4()
     email = addr.GetEmail()
 
-    root = ET.Element('invoice',
-                      status='paid' if is_paid else 'unpaid',
-                      currency=currency)
+    if is_draft:
+        status = 'draft'
+    elif is_paid:
+        status = 'paid'
+    else:
+        status = 'unpaid'
+    root = ET.Element('invoice', status=status, currency=currency)
     ET.SubElement(root, 'id').text = inv_id
     ET.SubElement(root, 'date').text = date_opened
     ET.SubElement(root, 'due-date').text = date_due_s
@@ -154,6 +163,7 @@ def invoice_to_xml(inv, book, company_info=None):
     ET.SubElement(co_el, 'url').text = co.get('url', '')
 
     entries_el = ET.SubElement(root, 'entries')
+    entries_subtotal = 0.0  # Q-012: accumulate for drafts (no posting tx yet).
     for raw_entry in inv.GetEntries():
         ptr = int(raw_entry.instance)
         desc = safe_ctypes_string(lib.gncEntryGetDescription, ptr)
@@ -162,6 +172,8 @@ def invoice_to_xml(inv, book, company_info=None):
         price_c = lib.gncEntryGetInvPrice(ptr)
         qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
         price = price_c.num / price_c.denom if price_c.denom else 0.0
+        line_amount = qty * price
+        entries_subtotal += line_amount
 
         tax_label, tax_type = _read_tax_label(lib, ptr)
 
@@ -170,12 +182,25 @@ def invoice_to_xml(inv, book, company_info=None):
         ET.SubElement(e_el, 'action').text = action
         ET.SubElement(e_el, 'quantity').text = f"{qty:.4f}".rstrip('0').rstrip('.')
         ET.SubElement(e_el, 'unit-price').text = f"{price:.2f}"
-        ET.SubElement(e_el, 'amount').text = f"{qty * price:.2f}"
+        ET.SubElement(e_el, 'amount').text = f"{line_amount:.2f}"
         ET.SubElement(e_el, 'tax-label', type=tax_type).text = tax_label
 
-    posting_txn = inv.GetPostedTxn()
-    subtotal_total = 0.0
     tax_lines_el = ET.SubElement(root, 'tax-lines')
+    payments_el = ET.SubElement(root, 'payments')
+
+    if is_draft:
+        # Q-012: drafts have no posting tx and no lot. Show subtotal from
+        # the entries themselves; no per-tax breakdown (would require
+        # walking each entry's tax_table — non-trivial across GnuCash
+        # versions, see issue Q-012 "Known limitation"). No payments,
+        # no amount-remaining. Total = subtotal as a placeholder; the
+        # XSLT shows a DRAFT badge so the user knows tax isn't included.
+        ET.SubElement(root, 'subtotal').text = f"{entries_subtotal:.2f}"
+        ET.SubElement(root, 'total').text = f"{entries_subtotal:.2f}"
+        return ET.ElementTree(root)
+
+    # Posted: derive tax lines + subtotal from the posting transaction's splits.
+    subtotal_total = 0.0
     for i in range(posting_txn.CountSplits()):
         s = posting_txn.GetSplit(i)
         acct = s.GetAccount()
@@ -195,7 +220,6 @@ def invoice_to_xml(inv, book, company_info=None):
     ET.SubElement(root, 'total').text = f"{grand_total:.2f}"
 
     lot = inv.GetPostedLot()
-    payments_el = ET.SubElement(root, 'payments')
     for raw_split in lot.get_split_list():
         s = Split(instance=raw_split)
         txn = s.GetParent()

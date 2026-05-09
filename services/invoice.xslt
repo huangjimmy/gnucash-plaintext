@@ -4,7 +4,7 @@
   ============================================
   Input XML structure (see invoice_to_xml() in test_business_roundtrip.py):
 
-    <invoice status="paid|unpaid" currency="CAD">
+    <invoice status="paid|unpaid|draft" currency="CAD">
       <id>, <date>, <due-date>, <billing-id>, <notes>
       <customer>  <name>, <addr1..4>, <email>, <phone>
       <company>   <name>, <id>, <addr1..4>, <phone>, <email>, <url>
@@ -72,6 +72,7 @@
                     letter-spacing: 1px; margin-left: 10px; vertical-align: middle; }
     .badge-paid   { background: #d4edda; color: #155724; }
     .badge-unpaid { background: #fff3cd; color: #856404; }
+    .badge-draft  { background: #e2e3e5; color: #383d41; }
 
     /* ── Payment history section ───────────────────────────────────── */
     .payment-section { margin-top: 28px; }
@@ -122,11 +123,17 @@
 <body>
 
   <!-- Invoice title + status badge -->
+  <!-- Q-012: 'draft' status is set by the renderer when the invoice is
+       not yet posted. A draft has line items but no per-tax breakdown
+       (taxes only exist post-posting) and no payment history. -->
   <h1>
     Invoice
     <xsl:choose>
       <xsl:when test="@status = 'paid'">
         <span class="badge badge-paid">Paid</span>
+      </xsl:when>
+      <xsl:when test="@status = 'draft'">
+        <span class="badge badge-draft">Draft</span>
       </xsl:when>
       <xsl:otherwise>
         <span class="badge badge-unpaid">Unpaid</span>

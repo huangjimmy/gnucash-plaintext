@@ -1,0 +1,24 @@
+customer "C001"
+	name: "Acme Corp"
+	currency: CAD
+
+invoice "INV-POSTED-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-05-08
+	entry:
+		date: 2026-05-08
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 10
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-08
+		due: 2026-05-23
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-POSTED-001"
+		accumulate: true
+	payment: none
