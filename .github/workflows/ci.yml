@@ -24,15 +24,18 @@ jobs:
           - distribution: 'GnuCash-44_Debian-11'
             base_image: 'debian:11'
             tag: 'debian11'
-          - distribution: 'GnuCash-38_Ubuntu-2004'
-            base_image: 'ubuntu:20.04'
-            tag: 'ubuntu20'
+          - distribution: 'GnuCash-514_Ubuntu-2604'
+            base_image: 'ubuntu:26.04'
+            tag: 'ubuntu26'
           - distribution: 'GnuCash-49_Ubuntu-2404'
             base_image: 'ubuntu:24.04'
             tag: 'ubuntu24'
           - distribution: 'GnuCash-48_Ubuntu-2204'
             base_image: 'ubuntu:22.04'
             tag: 'ubuntu22'
+          - distribution: 'GnuCash-38_Ubuntu-2004'
+            base_image: 'ubuntu:20.04'
+            tag: 'ubuntu20'
 
     steps:
       - name: Checkout code

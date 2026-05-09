@@ -48,6 +48,9 @@ Tests run inside Docker containers against real GnuCash files (no mocking):
 | debian:13 | 5.10 | default |
 | debian:12 | 4.13 | supported |
 | debian:11 | 4.4 | supported |
+| ubuntu:26.04 | 5.14 | supported |
+| ubuntu:24.04 | 4.9 | supported |
+| ubuntu:22.04 | 4.8 | supported |
 | ubuntu:20.04 | 3.8 | minimum |
 
 ### Code Style
