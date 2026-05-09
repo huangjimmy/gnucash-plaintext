@@ -1,0 +1,28 @@
+customer "C001"
+	name: "Acme Corp"
+	currency: CAD
+
+invoice "INV-DRAFT-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-05-08
+	entry:
+		date: 2026-05-08
+		description: "Goods"
+		action: ""
+		account: "Income:Sales"
+		quantity: 100
+		price: 15
+		taxable: false
+		tax_included: false
+	entry:
+		date: 2026-05-08
+		description: "Sales"
+		action: ""
+		account: "Income:Sales"
+		quantity: 5
+		price: 20
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none
