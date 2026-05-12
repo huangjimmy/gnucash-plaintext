@@ -4,9 +4,12 @@ Cross-platform helper scripts for GnuCash development with Docker.
 
 ## Supported Platforms
 
-- **Linux/macOS**: Shell scripts (`.sh`)
-- **Windows PowerShell**: PowerShell scripts (`.ps1`)
-- **Windows CMD**: Batch files (`.bat`)
+- **Linux** and **macOS**: native shell scripts (`.sh`).
+- **Windows**: run from **WSL2**. Native PowerShell / CMD wrappers were
+  removed because (a) Docker-in-Docker depends on the host's Unix
+  socket and (b) the wrappers had drifted out of sync with the bash
+  scripts. WSL2 also gives meaningfully better Docker performance on
+  Windows.
 
 **Using Podman instead of Docker?** Most scripts work with Podman out of the box. See [PODMAN.md](../PODMAN.md) for detailed compatibility notes and setup instructions.
 
@@ -14,25 +17,10 @@ Cross-platform helper scripts for GnuCash development with Docker.
 
 ### `dev-start` - Start Development Environment (Recommended)
 
-Start a full development environment with VS Code Server in your browser. This is the easiest way to develop on Windows/Mac/Linux.
+Start a full development environment with VS Code Server in your browser. This is the easiest way to develop on any host OS.
 
-**Platform Support:**
-- **Linux/macOS/WSL2**: Full Docker-in-Docker support
-- **Windows PowerShell/CMD**: VS Code Server works, but use `pytest` directly (no DinD)
-
-**Linux/macOS:**
 ```bash
 ./scripts/dev-start.sh
-```
-
-**Windows PowerShell:**
-```powershell
-.\scripts\dev-start.ps1
-```
-
-**Windows CMD:**
-```cmd
-scripts\dev-start.bat
 ```
 
 Once started, open https://localhost:8765 in your browser and enter password `123456`.
@@ -101,66 +89,32 @@ To stop the environment, press Ctrl+C or use the `dev-stop` script.
 
 Stop the running development environment.
 
-**Linux/macOS:**
 ```bash
 ./scripts/dev-stop.sh
-```
-
-**Windows PowerShell:**
-```powershell
-.\scripts\dev-stop.ps1
-```
-
-**Windows CMD:**
-```cmd
-scripts\dev-stop.bat
 ```
 
 ### `build` - Build Docker Image
 
 Build a Docker image for a specific distribution.
 
-**Linux/macOS:**
 ```bash
 ./scripts/build.sh              # Default (Debian 13, GnuCash 5.10)
 ./scripts/build.sh debian:12    # Debian 12, GnuCash 4.13
 ./scripts/build.sh debian:11    # Debian 11, GnuCash 4.4
+./scripts/build.sh ubuntu:26.04 # Ubuntu 26.04, GnuCash 5.14
+./scripts/build.sh ubuntu:24.04 # Ubuntu 24.04, GnuCash 4.9
+./scripts/build.sh ubuntu:22.04 # Ubuntu 22.04, GnuCash 4.8
 ./scripts/build.sh ubuntu:20.04 # Ubuntu 20.04, GnuCash 3.8
-```
-
-**Windows PowerShell:**
-```powershell
-.\scripts\build.ps1 debian:13
-.\scripts\build.ps1 ubuntu:20.04
-```
-
-**Windows CMD:**
-```cmd
-scripts\build.bat debian:13
-scripts\build.bat ubuntu:20.04
 ```
 
 ### `shell` - Interactive Development Shell
 
 Start an interactive bash shell in the container.
 
-**Linux/macOS:**
 ```bash
 ./scripts/shell.sh          # Use latest image
 ./scripts/shell.sh debian12 # Use Debian 12 image
-./scripts/shell.sh ubuntu20 # Use Ubuntu 20.04 image
-```
-
-**Windows PowerShell:**
-```powershell
-.\scripts\shell.ps1
-.\scripts\shell.ps1 debian12
-```
-
-**Windows CMD:**
-```cmd
-scripts\shell.bat
-scripts\shell.bat debian12
+./scripts/shell.sh ubuntu26 # Use Ubuntu 26.04 image
 ```
 
 The script automatically builds the image if it doesn't exist.
@@ -171,26 +125,11 @@ Run tests in the Docker container. Automatically installs the package with depen
 
 **Works everywhere!** Use from host machine OR inside VS Code Server (Docker-in-Docker supported).
 
-**Linux/macOS:**
 ```bash
 ./scripts/test.sh                    # Run all tests (default image)
 ./scripts/test.sh debian12           # Run with Debian 12
 ./scripts/test.sh latest tests/unit  # Run specific test directory
-./scripts/test.sh ubuntu20 tests/integration/test_roundtrip.py  # Run specific test file
-```
-
-**Windows PowerShell:**
-```powershell
-.\scripts\test.ps1
-.\scripts\test.ps1 debian12
-.\scripts\test.ps1 latest tests/unit
-```
-
-**Windows CMD:**
-```cmd
-scripts\test.bat
-scripts\test.bat debian12
-scripts\test.bat latest tests/unit
+./scripts/test.sh ubuntu26 tests/integration/test_roundtrip.py  # Run specific test file
 ```
 
 **Note:** The test scripts call `test-in-docker.sh` internally, which:
@@ -205,24 +144,11 @@ scripts\test.bat latest tests/unit
 
 Run any command in the Docker container.
 
-**Linux/macOS:**
 ```bash
 ./scripts/run.sh python3 --version
 ./scripts/run.sh debian12 python3 -c "import gnucash; print('OK')"
 ./scripts/run.sh gnucash-plaintext --help
 ./scripts/run.sh ls -la
-```
-
-**Windows PowerShell:**
-```powershell
-.\scripts\run.ps1 python3 --version
-.\scripts\run.ps1 debian12 python3 script.py
-```
-
-**Windows CMD:**
-```cmd
-scripts\run.bat python3 --version
-scripts\run.bat debian12 python3 script.py
 ```
 
 ## Image Tags
@@ -234,16 +160,16 @@ The scripts use these image tags:
 | `latest` | debian:13 | 5.10 |
 | `debian12` | debian:12 | 4.13 |
 | `debian11` | debian:11 | 4.4 |
+| `ubuntu26` | ubuntu:26.04 | 5.14 |
+| `ubuntu24` | ubuntu:24.04 | 4.9 |
+| `ubuntu22` | ubuntu:22.04 | 4.8 |
 | `ubuntu20` | ubuntu:20.04 | 3.8 |
 
 ## Features
 
 - **Browser-based IDE**: VS Code Server accessible at https://localhost:8765 with password `123456` (self-signed certificate)
-- **Docker-in-Docker**: Use `./scripts/test.sh` from anywhere (host or VS Code Server) - Linux/macOS/WSL2
+- **Docker-in-Docker**: Use `./scripts/test.sh` from anywhere (host or VS Code Server) on Linux/macOS/WSL2
 - **Auto-build**: Scripts automatically build images if they don't exist
-- **Cross-platform**: Same functionality on Linux, macOS, and Windows
-  - Full DinD support: Linux, macOS, WSL2
-  - Basic support: Windows PowerShell/CMD (use `pytest` directly in VS Code Server)
 - **Volume mounting**: Your project directory is mounted at `/workspace` in the container
 - **Auto-install**: Dependencies are automatically installed on startup
 - **Error handling**: Scripts check for common issues and provide helpful messages
@@ -269,10 +195,7 @@ The project includes a `docker-compose.yml` that provides:
 
 **Requirements:**
 - Docker with Docker Compose V2 (uses `docker compose` command)
-- **Windows users**: Must run from WSL2 for Docker-in-Docker support
-  - Docker socket path `/var/run/docker.sock` is Unix-only
-  - WSL2 is recommended anyway for better Docker performance on Windows
-  - Alternative: Run without DinD (use `pytest` directly inside VS Code Server)
+- **Windows users**: run from WSL2. The Docker socket path `/var/run/docker.sock` is Unix-only, and WSL2 also gives better Docker performance than Docker Desktop's named-pipe path.
 
 ## Examples
 
@@ -280,19 +203,8 @@ The project includes a `docker-compose.yml` that provides:
 
 **Option 1: VS Code Server in Browser (Recommended)**
 
-**All Platforms:**
 ```bash
-# Linux/macOS
 ./scripts/dev-start.sh
-
-# Windows (WSL2) - Recommended
-./scripts/dev-start.sh
-
-# Windows (PowerShell) - DinD may not work, use pytest directly
-.\scripts\dev-start.ps1
-
-# Windows (CMD) - DinD may not work, use pytest directly
-scripts\dev-start.bat
 
 # Then open https://localhost:8765 (password: 123456)
 # Browser will show security warning (self-signed certificate) - click "Advanced" → "Proceed"
@@ -301,24 +213,14 @@ scripts\dev-start.bat
 
 **Inside VS Code Server terminal:**
 
-**Linux/macOS/WSL2:**
 ```bash
 ./scripts/test.sh tests/unit/      # Docker-in-Docker works!
 ./scripts/test.sh debian12          # Test on different distribution!
 pytest tests/                       # Or run directly (faster)
 ```
 
-**Windows (PowerShell/CMD):**
-```bash
-# Docker-in-Docker doesn't work (Unix socket issue)
-# Use pytest directly instead:
-pytest tests/
-pytest tests/unit/ -v
-```
-
 **Option 2: Interactive Shell**
 
-**Linux/macOS:**
 ```bash
 # Build development image
 ./scripts/build.sh
@@ -331,41 +233,29 @@ cd /workspace
 python3 -c "import gnucash; print('Ready!')"
 ```
 
-**Windows PowerShell:**
-```powershell
-# Build development image
-.\scripts\build.ps1
-
-# Start interactive shell
-.\scripts\shell.ps1
-```
-
 ### Testing on Multiple Distributions
 
-**Linux/macOS:**
 ```bash
-# Test on all distributions
+# Test on each distribution individually
 ./scripts/test.sh latest
 ./scripts/test.sh debian12
 ./scripts/test.sh debian11
+./scripts/test.sh ubuntu26
+./scripts/test.sh ubuntu24
+./scripts/test.sh ubuntu22
 ./scripts/test.sh ubuntu20
 
 # Run specific tests on different distributions
 ./scripts/test.sh latest tests/unit
 ./scripts/test.sh debian12 tests/integration
-```
 
-**Windows CMD:**
-```cmd
-scripts\test.bat latest
-scripts\test.bat debian12
-scripts\test.bat debian11
-scripts\test.bat ubuntu20
+# Or run the full matrix
+./scripts/test-all-versions.sh           # Sequential
+./scripts/test-all-versions-parallel.sh  # Parallel (~4x faster)
 ```
 
 ### Quick Commands
 
-**Linux/macOS:**
 ```bash
 # Check GnuCash version
 ./scripts/run.sh dpkg -l gnucash
@@ -374,7 +264,7 @@ scripts\test.bat ubuntu20
 ./scripts/run.sh python3 my_script.py
 
 # Run with specific distribution
-./scripts/run.sh ubuntu20 python3 my_script.py
+./scripts/run.sh ubuntu26 python3 my_script.py
 ```
 
 ## Troubleshooting
@@ -384,17 +274,10 @@ scripts\test.bat ubuntu20
 If you see "Image not found", the script will automatically build it. You can also manually build:
 
 ```bash
-# Linux/macOS
 ./scripts/build.sh
-
-# Windows PowerShell
-.\scripts\build.ps1
-
-# Windows CMD
-scripts\build.bat
 ```
 
-### Permission Denied (Linux/macOS)
+### Permission Denied
 
 Make sure scripts are executable:
 
@@ -424,8 +307,6 @@ The project directory is mounted as a volume, so changes should appear immediate
 
 ### Docker Commands Fail Inside VS Code Server
 
-**On Linux/macOS/WSL2:**
-
 If `docker` commands fail with permission errors inside VS Code Server:
 
 ```bash
@@ -443,23 +324,13 @@ sudo usermod -aG docker $USER
 
 This is a Docker socket permission issue on the host. The container needs read/write access to `/var/run/docker.sock`.
 
-**On Windows (PowerShell/CMD):**
+**Windows users**: run all commands from WSL2. Docker-in-Docker won't work from PowerShell or CMD because Windows uses named pipes instead of Unix sockets.
 
-Docker-in-Docker won't work because Windows uses named pipes instead of Unix sockets. Two options:
-
-1. **Use WSL2 (Recommended)**: Run all commands from WSL2 terminal
-   ```bash
-   # From WSL2:
-   cd /mnt/c/Users/YourName/path/to/gnucash-plaintext
-   ./scripts/dev-start.sh
-   ```
-
-2. **Skip Docker-in-Docker**: Inside VS Code Server, use `pytest` directly instead of `./scripts/test.sh`
-   ```bash
-   # Inside VS Code Server on Windows:
-   pytest tests/
-   pytest tests/unit/ -v
-   ```
+```bash
+# From WSL2:
+cd /mnt/c/Users/YourName/path/to/gnucash-plaintext
+./scripts/dev-start.sh
+```
 
 ### Scripts Can't Find /workspace Inside VS Code Server
 

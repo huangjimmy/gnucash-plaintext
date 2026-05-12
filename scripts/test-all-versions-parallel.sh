@@ -17,7 +17,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Supported versions
-VERSIONS=("latest" "debian12" "debian11" "ubuntu24" "ubuntu22" "ubuntu20" "fedora41" "arch" "opensuse")
+VERSIONS=("latest" "debian12" "debian11" "ubuntu26" "ubuntu24" "ubuntu22" "ubuntu20" "fedora41" "arch" "opensuse")
 
 echo "Testing against all supported versions IN PARALLEL..."
 echo "This is ~4x faster than sequential testing"
@@ -69,6 +69,7 @@ build_input_for() {
         ubuntu20) echo "ubuntu:20.04" ;;
         ubuntu22) echo "ubuntu:22.04" ;;
         ubuntu24) echo "ubuntu:24.04" ;;
+        ubuntu26) echo "ubuntu:26.04" ;;
         fedora41) echo "fedora:41" ;;
         arch)     echo "arch" ;;
         opensuse) echo "opensuse" ;;

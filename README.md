@@ -1311,15 +1311,12 @@ This project uses Docker for development to ensure a consistent environment acro
 After cloning the repository, start the dev environment:
 
 ```bash
-# Linux/macOS
 ./scripts/dev-start.sh
-
-# Windows (PowerShell)
-.\scripts\dev-start.ps1
-
-# Windows (CMD)
-scripts\dev-start.bat
 ```
+
+**Windows users**: run from WSL2. Native PowerShell / CMD wrappers were
+removed because Docker-in-Docker depends on the host's Unix socket;
+WSL2 also gives meaningfully better Docker performance on Windows.
 
 **What you get:**
 - VS Code Server at https://localhost:8765 (password: `123456`)
@@ -1327,7 +1324,7 @@ scripts\dev-start.bat
   - Click "Advanced" → "Proceed to localhost (unsafe)" to continue (safe for local dev)
 - GnuCash Python bindings pre-installed and ready to use
 - Python package installed with all dependencies
-- Docker-in-Docker support (Linux/macOS/WSL2) - run test scripts from anywhere
+- Docker-in-Docker support — run test scripts from anywhere
 - Live code sync - changes reflect immediately
 - Git hooks automatically installed (linting + tests before commit)
 
@@ -1337,7 +1334,7 @@ scripts\dev-start.bat
 pytest tests/
 pytest tests/unit/ -v
 
-# Or use the same scripts as on host (Docker-in-Docker on Linux/macOS/WSL2)
+# Or use the same scripts as on host (Docker-in-Docker)
 ./scripts/test.sh
 ./scripts/test.sh debian12  # Test on different GnuCash version
 
@@ -1348,14 +1345,7 @@ gnucash-plaintext export myfile.gnucash output.txt
 
 To stop the environment:
 ```bash
-# Linux/macOS
 ./scripts/dev-stop.sh
-
-# Windows (PowerShell)
-.\scripts\dev-stop.ps1
-
-# Windows (CMD)
-scripts\dev-stop.bat
 ```
 
 ### Git Hooks
@@ -1374,24 +1364,22 @@ Commits are blocked if checks fail. To manually install hooks (if needed):
 
 ### Platform Support
 
-- **Linux/macOS/WSL2**: Full Docker-in-Docker support - same commands work on host and inside container
-- **Windows (PowerShell/CMD)**: VS Code Server works, but use `pytest` directly inside container (Docker-in-Docker not supported on native Windows)
+- **Linux** and **macOS**: Full Docker-in-Docker support — same commands
+  work on host and inside container.
+- **Windows**: run from **WSL2**. Native PowerShell / CMD wrappers were
+  removed (see "Getting Started" above for the rationale).
 
 ### Running Tests
 
 ```bash
-# From host machine (Linux/macOS/WSL2)
+# From host machine
 ./scripts/test.sh           # Run all tests with default image
 ./scripts/test.sh debian12  # Run with Debian 12 (GnuCash 4.13)
 ./scripts/test.sh latest tests/unit/  # Run specific test directory
 
-# From Windows (PowerShell)
-.\scripts\test.ps1
-.\scripts\test.ps1 debian12
-
-# Inside VS Code Server (all platforms)
+# Inside VS Code Server
 pytest tests/               # Direct execution (faster)
-./scripts/test.sh          # Via Docker wrapper (Linux/macOS/WSL2 only)
+./scripts/test.sh           # Via Docker wrapper (Docker-in-Docker)
 ```
 
 ### Code Quality & Linting
@@ -1424,6 +1412,7 @@ The project is tested against multiple GnuCash versions using different Docker b
 | Debian 13 | 5.10 | `latest` |
 | Debian 12 | 4.13 | `debian12` |
 | Debian 11 | 4.4 | `debian11` |
+| Ubuntu 26.04 | 5.14 | `ubuntu26` |
 | Ubuntu 24.04 | 4.9 | `ubuntu24` |
 | Ubuntu 22.04 | 4.8 | `ubuntu22` |
 | Ubuntu 20.04 | 3.8 | `ubuntu20` |
@@ -1456,7 +1445,7 @@ For comprehensive documentation on Docker development, helper scripts, troublesh
 
 Key topics covered:
 - Docker Compose architecture (base image, dev image, volumes, DinD)
-- Cross-platform script usage (Linux/macOS/Windows)
+- Cross-platform script usage (Linux/macOS native; Windows via WSL2)
 - Troubleshooting Docker socket permissions
 - Fixing path mounting issues in Docker-in-Docker
 - VS Code Server configuration and settings persistence

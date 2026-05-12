@@ -4,6 +4,7 @@
 # Usage:
 #   ./scripts/build.sh              # Build default (debian:13)
 #   ./scripts/build.sh debian:12    # Build specific distribution
+#   ./scripts/build.sh ubuntu:26.04 # Build Ubuntu 26.04
 #   ./scripts/build.sh ubuntu:24.04 # Build Ubuntu 24.04
 #   ./scripts/build.sh fedora:41    # Build Fedora 41
 #   ./scripts/build.sh arch         # Build Arch Linux (rolling)
@@ -42,6 +43,10 @@ case "$BASE_IMAGE" in
         TAG="ubuntu24"
         GNUCASH_VERSION="4.9"
         ;;
+    ubuntu:26.04)
+        TAG="ubuntu26"
+        GNUCASH_VERSION="5.14"
+        ;;
     fedora:41)
         TAG="fedora41"
         GNUCASH_VERSION="5.13"
@@ -63,7 +68,7 @@ case "$BASE_IMAGE" in
     *)
         echo "Unknown distribution: $BASE_IMAGE"
         echo "Supported: debian:13, debian:12, debian:11, ubuntu:20.04, ubuntu:22.04, ubuntu:24.04,"
-        echo "           fedora:41, arch, opensuse"
+        echo "           ubuntu:26.04, fedora:41, arch, opensuse"
         exit 1
         ;;
 esac
