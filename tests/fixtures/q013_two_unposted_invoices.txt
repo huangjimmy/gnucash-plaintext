@@ -1,0 +1,35 @@
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "First"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none
+
+invoice "INV-002"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-02
+	entry:
+		date: 2026-01-02
+		description: "Second"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 200
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none

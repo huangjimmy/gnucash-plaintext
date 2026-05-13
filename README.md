@@ -953,6 +953,39 @@ Compared to the re-import path:
 | Entry GUIDs | Preserved when only the posted block toggles; otherwise rebuilt | Always preserved |
 | Use when... | The .txt is your source of truth and may also edit fields | The .txt is stale/absent and you only want the unpost |
 
+#### Deleting unposted invoices/bills: `delete-invoices` / `delete-bills`
+
+Hard-delete an unposted customer invoice or vendor bill by ID (or GUID
+with `--by-guid`). Refuses posted records — to delete a previously
+posted record, run the two-step:
+
+```bash
+gnucash-plaintext unpost-invoices ledger.gnucash INV-2026-001
+gnucash-plaintext delete-invoices ledger.gnucash INV-2026-001
+```
+
+The explicit two-step keeps the destruction of the posting transaction
+(and the orphaning of payment splits) under its own command rather
+than as a silent side effect of `delete-*`.
+
+```bash
+gnucash-plaintext delete-invoices ledger.gnucash INV-DRAFT-001
+gnucash-plaintext delete-bills    ledger.gnucash BILL-DRAFT-001 BILL-DRAFT-002
+gnucash-plaintext delete-invoices ledger.gnucash --by-guid 9f14a498cc894d50931f855a9a31d594
+```
+
+Per-record output mirrors `delete-customers` / `unpost-invoices`:
+
+```
+INV-DRAFT-001 (abc123…): deleted
+INV-POSTED-002 (def456…): failed — posted; run unpost-invoices first, then delete-invoices
+INV-MISSING: not found
+INV-DUPLICATE-ID: failed — multiple records share this id; rerun with --by-guid
+```
+
+Exit code 1 if any record was not found, was posted, or had a duplicate
+id; successful deletes are still saved.
+
 In all cases the importer first verifies that the directive's identity
 agrees with whatever's already in the book. The following are caught
 with a clear error rather than silently doing the wrong thing:
@@ -1063,11 +1096,16 @@ history and can be undone by re-importing the record without `active: false`.
 
 Use `delete-customers` only for customers created by mistake that have **never
 had any invoices raised against them**. Deletion is blocked if any invoices
-exist (paid or unpaid):
+exist (paid or unpaid, posted or unposted):
 
 ```bash
 gnucash-plaintext delete-customers mybook.gnucash CUST-001 CUST-002
 ```
+
+To clean up a customer whose only invoices were also mistakes, drop the
+invoices first with [`delete-invoices`](#deleting-unposted-invoicesbills-delete-invoices--delete-bills)
+(running `unpost-invoices` first if any were posted), then re-run
+`delete-customers`.
 
 ```
 CUST-001 (9f14a498cc894d50931f855a9a31d594): deleted

@@ -54,3 +54,4 @@ When a fix is merged, update `status: open` → `closed` in the file's frontmatt
 | [Q-010](Q-010-strict-updated-status-on-no-change-reimport.md) | `'updated'` is liberal — reports updated for no-change re-imports; posted invoices/bills can't be edited via re-import | low |
 | [Q-011](Q-011-invoice-action-optional-and-custom-template.md) | Invoice `action` field forces a hardcode; UNIT column shows nonsense; no template override | low |
 | [Q-012](Q-012-print-invoice-on-unposted-invoice-crashes.md) | `print-invoice` on an unposted invoice crashes with NoneType error | medium |
+| [Q-013](Q-013-delete-unposted-invoice-bill.md) | No way to delete an unposted invoice or bill from the CLI | medium |
