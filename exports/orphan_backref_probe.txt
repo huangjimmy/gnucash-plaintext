@@ -1,0 +1,81 @@
+Orphan-bank-tx back-reference probe
+===================================
+Fixture: one customer C001, one invoice INV-001 ($100), paid in full from Assets:Bank on 2026-01-15.
+
+── PRE-UNPOST  (step C world): tx @ 0x1179c8f0 ──────────────────────────────
+  description:          'Acme'
+  notes:                None
+  xaccTransGetTxnType:  'P'   ('I'=invoice posting, 'P'=payment, 'N'=normal, 'L'=link)
+  tx guid:              2e82afe628d04bbd89c7a634f8a8a765
+  num_splits:           2
+  gncInvoiceGetInvoiceFromTxn(tx) → None
+  gncOwnerGetOwnerFromTxn(tx, &owner) → returned=1
+    owner.id='C001'  owner.name='Acme'  owner.type=2
+  split[0]:
+    account:        'Assets.Bank' (type=0)
+    memo:           'Payment INV-001'
+    action:         'Payment'
+    lot ptr:        None  (guid=None)
+    gncInvoiceGetInvoiceFromLot(lot) → id=None guid=None
+    gncOwnerGetOwnerFromLot(lot,&o) → owner.id=None
+  split[1]:
+    account:        'Assets.Accounts Receivable' (type=11)
+    memo:           'Payment INV-001'
+    action:         'Payment'
+    lot ptr:        293195760  (guid=d5b0cb06f6254f3e9314e4a7a816b26d)
+    gncInvoiceGetInvoiceFromLot(lot) → id='INV-001' guid=813f83cdd158458a818b005fa2f10c7e
+    gncOwnerGetOwnerFromLot(lot,&o) → owner.id=None
+
+── POST-UNPOST (step D world): tx @ 0x117e7ec0 ──────────────────────────────
+  description:          'Acme'
+  notes:                None
+  xaccTransGetTxnType:  'P'   ('I'=invoice posting, 'P'=payment, 'N'=normal, 'L'=link)
+  tx guid:              2e82afe628d04bbd89c7a634f8a8a765
+  num_splits:           2
+  gncInvoiceGetInvoiceFromTxn(tx) → None
+  gncOwnerGetOwnerFromTxn(tx, &owner) → returned=1
+    owner.id='C001'  owner.name='Acme'  owner.type=2
+  split[0]:
+    account:        'Assets.Bank' (type=0)
+    memo:           'Payment INV-001'
+    action:         'Payment'
+    lot ptr:        None  (guid=None)
+    gncInvoiceGetInvoiceFromLot(lot) → id=None guid=None
+    gncOwnerGetOwnerFromLot(lot,&o) → owner.id=None
+  split[1]:
+    account:        'Assets.Accounts Receivable' (type=11)
+    memo:           'Payment INV-001'
+    action:         'Payment'
+    lot ptr:        293607408  (guid=d5b0cb06f6254f3e9314e4a7a816b26d)
+    gncInvoiceGetInvoiceFromLot(lot) → id=None guid=None
+    gncOwnerGetOwnerFromLot(lot,&o) → owner.id='C001'
+
+── what changed ────────────────────────────────────────
+   description                      'Acme'  →  'Acme'
+   notes                            None  →  None
+   txn_type                         'P'  →  'P'
+   tx_guid                          '2e82afe628d04bbd89c7a634f8a8a765'  →  '2e82afe628d04bbd89c7a634f8a8a765'
+   invoice_from_txn_id              None  →  None
+   invoice_from_txn_guid            None  →  None
+   owner_from_txn_id                'C001'  →  'C001'
+   owner_from_txn_name              'Acme'  →  'Acme'
+   owner_from_txn_type              2  →  2
+   owner_from_txn_returned          1  →  1
+
+  per-split changes:
+  split[0] (account='Assets.Bank'):
+     memo                           'Payment INV-001'  →  'Payment INV-001'
+     action                         'Payment'  →  'Payment'
+     lot_ptr                        None  →  None
+     lot_guid                       None  →  None
+     invoice_from_lot_id            None  →  None
+     invoice_from_lot_guid          None  →  None
+     owner_from_lot_id              None  →  None
+  split[1] (account='Assets.Accounts Receivable'):
+     memo                           'Payment INV-001'  →  'Payment INV-001'
+     action                         'Payment'  →  'Payment'
+   * lot_ptr                        293195760  →  293607408
+     lot_guid                       'd5b0cb06f6254f3e9314e4a7a816b26d'  →  'd5b0cb06f6254f3e9314e4a7a816b26d'
+   * invoice_from_lot_id            'INV-001'  →  None
+   * invoice_from_lot_guid          '813f83cdd158458a818b005fa2f10c7e'  →  None
+   * owner_from_lot_id              None  →  'C001'

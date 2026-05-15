@@ -55,3 +55,4 @@ When a fix is merged, update `status: open` → `closed` in the file's frontmatt
 | [Q-011](Q-011-invoice-action-optional-and-custom-template.md) | Invoice `action` field forces a hardcode; UNIT column shows nonsense; no template override | low |
 | [Q-012](Q-012-print-invoice-on-unposted-invoice-crashes.md) | `print-invoice` on an unposted invoice crashes with NoneType error | medium |
 | [Q-013](Q-013-delete-unposted-invoice-bill.md) | No way to delete an unposted invoice or bill from the CLI | medium |
+| [Q-014](Q-014-orphan-payment-warning-on-unpost.md) | `unpost-invoices` / `unpost-bills` don't warn about soon-to-be-orphan bank payments | medium |

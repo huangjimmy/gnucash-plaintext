@@ -1,15 +1,22 @@
 """
-CLI command for deleting a GnuCash transaction by GUID.
+CLI command for deleting GnuCash transactions by GUID.
 
-The transaction is exported to plaintext before deletion so the user has a
-copy they can re-import to undo the operation:
+Each transaction is exported to plaintext before deletion so the user
+has a copy they can re-import to undo the operation:
 
-    gnucash-plaintext delete-transaction-by-guid ledger.gnucash <GUID> -o backup.txt
+    gnucash-plaintext delete-transactions ledger.gnucash <GUID> --by-guid -o backup.txt
     # ... inspect backup.txt ...
     gnucash-plaintext import ledger.gnucash -f backup.txt
 
-Without -o, the plaintext backup is written to stdout before the confirmation
-message, so it can be piped or redirected independently.
+Without -o, the plaintext backup is written to stdout before the per-tx
+status lines (which go to stderr) so it can be piped or redirected
+independently.
+
+`--by-guid` is required and is the only addressing scheme currently
+supported for transactions (transactions have no user-facing ID like
+invoices/customers do). The flag is explicit for consistency with
+`delete-customers --by-guid`, `delete-invoices --by-guid`, etc., and
+to leave room for `--by-num` / `--by-description` in the future.
 """
 
 import sys
@@ -20,26 +27,35 @@ from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from use_cases.delete_transaction import DeleteTransactionUseCase
 
 
-@click.command("delete-transaction-by-guid")
+@click.command("delete-transactions")
 @click.argument("gnucash_file", type=click.Path(exists=True))
-@click.argument("guid")
+@click.argument("guids", nargs=-1, required=True)
+@click.option(
+    "--by-guid", "by_guid", is_flag=True, required=True,
+    help="Address positional args as transaction GUIDs. Required — "
+         "no other addressing scheme is currently supported for "
+         "transactions.",
+)
 @click.option(
     "-o", "--output",
     "output_file",
     default=None,
     type=click.Path(),
-    help="Save the pre-deletion plaintext backup to this file instead of stdout.",
+    help="Save the pre-deletion plaintext backups to this file instead "
+         "of stdout. All transactions are concatenated.",
 )
-def delete_transaction_by_guid(gnucash_file, guid, output_file):
+def delete_transactions(gnucash_file, guids, by_guid, output_file):
     """
-    Delete a transaction by GUID, exporting it first as a plaintext backup.
+    Delete one or more transactions by GUID, exporting them first as
+    plaintext backups.
 
-    GUID must match an existing transaction in the book; the command fails
-    immediately if it does not. Only transactions are deleted — accounts and
-    commodities are not affected.
+    Each GUID must match an existing transaction in the book; the
+    command reports per-GUID status and exits 1 if any failed. Only
+    transactions are deleted — accounts and commodities are not
+    affected.
 
-    The deleted transaction is written as plaintext (to -o FILE or stdout)
-    before deletion so you can restore it with:
+    The deleted transactions are written as plaintext (to -o FILE or
+    stdout) before deletion so you can restore them with:
 
     \b
         gnucash-plaintext import GNUCASH_FILE -f BACKUP_FILE
@@ -47,39 +63,75 @@ def delete_transaction_by_guid(gnucash_file, guid, output_file):
     \b
     Examples:
 
-        Delete and print backup to stdout:
-          gnucash-plaintext delete-transaction-by-guid ledger.gnucash 317c8ae6e0084c33951d052b9f1b9f23
+        Delete one transaction, print backup to stdout:
+          gnucash-plaintext delete-transactions ledger.gnucash --by-guid \\
+              317c8ae6e0084c33951d052b9f1b9f23
 
-        Delete and save backup to file:
-          gnucash-plaintext delete-transaction-by-guid ledger.gnucash 317c8ae6e0084c33951d052b9f1b9f23 -o backup.txt
+        Delete one, save backup to a file:
+          gnucash-plaintext delete-transactions ledger.gnucash --by-guid \\
+              317c8ae6e0084c33951d052b9f1b9f23 -o backup.txt
+
+        Delete several, single concatenated backup:
+          gnucash-plaintext delete-transactions ledger.gnucash --by-guid \\
+              317c8ae6e0084c33951d052b9f1b9f23 \\
+              589d2f1c7a1b4e5a803b1ce9a72f0344 \\
+              -o batch_backup.txt
     """
+    # Click enforces `required=True` for the flag, but we keep an
+    # explicit guard so the use case is callable from tests with
+    # by_guid=False without silently picking GUID anyway.
+    if not by_guid:
+        raise click.UsageError(
+            "--by-guid is required; no other addressing scheme is "
+            "currently supported for transactions.")
+
     repo = GnuCashRepository(gnucash_file)
     repo.open(mode=SessionMode.NORMAL)
+    backups = []
+    results = []
+    all_ok = True
     try:
         use_case = DeleteTransactionUseCase(repo)
-        try:
-            result = use_case.execute(guid)
-        except ValueError as e:
-            raise click.ClickException(str(e)) from e
+        for guid in guids:
+            try:
+                result = use_case.execute(guid)
+                backups.append(result.plaintext)
+                results.append((guid, result, None))
+            except ValueError as e:
+                results.append((guid, None, str(e)))
+                all_ok = False
 
-        # Write backup before saving so the user always has it even on save error
-        if output_file:
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(result.plaintext)
-            click.echo(f"Backup written to {output_file}")
-        else:
-            sys.stdout.write(result.plaintext)
+        # Write backups (only those that succeeded) before saving so
+        # the user always has them even on save error.
+        combined = "\n\n".join(p for p in backups if p)
+        if combined:
+            if output_file:
+                with open(output_file, "w", encoding="utf-8") as f:
+                    f.write(combined)
+                click.echo(f"Backup written to {output_file}", err=True)
+            else:
+                sys.stdout.write(combined)
 
-        try:
-            repo.save()
-        except Exception as e:
-            if "ERR_FILEIO_BACKUP_ERROR" not in str(e):
-                raise click.ClickException(f"Failed to save: {e}") from e
+        # Save once after all deletes — keeps the backup file atomic
+        # with respect to the on-disk book state.
+        if any(r is not None for _, r, _ in results):
+            try:
+                repo.save()
+            except Exception as e:
+                if "ERR_FILEIO_BACKUP_ERROR" not in str(e):
+                    raise click.ClickException(f"Failed to save: {e}") from e
 
-        click.echo(
-            f"Deleted transaction {result.guid} "
-            f"({result.date} \"{result.description}\")",
-            err=True,
-        )
+        for guid, result, err in results:
+            if result is not None:
+                click.echo(
+                    f'{result.guid}: deleted '
+                    f'({result.date} "{result.description}")',
+                    err=True,
+                )
+            else:
+                click.echo(f'{guid}: {err}', err=True)
+
+        if not all_ok:
+            sys.exit(1)
     finally:
         repo.close()
