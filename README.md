@@ -524,19 +524,27 @@ gnucash-plaintext export-transaction mybook.gnucash \
 
 At least one `--guid` is required. Omitting it prints an error with usage guidance.
 
-### Delete a transaction by GUID
+### Delete transactions by GUID
 
-Delete a single transaction permanently. The transaction is exported to plaintext **before** deletion so you always have a backup copy:
+Delete one or more transactions permanently. Each transaction is exported to plaintext **before** deletion so you always have a backup copy. `--by-guid` is required (it's the only addressing scheme currently supported for transactions; the flag is explicit for consistency with `delete-customers --by-guid`, `delete-invoices --by-guid`, etc.):
 
 ```bash
-# Delete and print backup to stdout
-gnucash-plaintext delete-transaction-by-guid mybook.gnucash 317c8ae6e0084c33951d052b9f1b9f23
+# Delete one and print backup to stdout
+gnucash-plaintext delete-transactions mybook.gnucash --by-guid \
+    317c8ae6e0084c33951d052b9f1b9f23
 
-# Delete and save backup to a file
-gnucash-plaintext delete-transaction-by-guid mybook.gnucash 317c8ae6e0084c33951d052b9f1b9f23 -o backup.txt
+# Delete one, save backup to a file
+gnucash-plaintext delete-transactions mybook.gnucash --by-guid \
+    317c8ae6e0084c33951d052b9f1b9f23 -o backup.txt
+
+# Delete several in one call, single concatenated backup
+gnucash-plaintext delete-transactions mybook.gnucash --by-guid \
+    317c8ae6e0084c33951d052b9f1b9f23 \
+    589d2f1c7a1b4e5a803b1ce9a72f0344 \
+    -o batch_backup.txt
 ```
 
-The command fails immediately (non-zero exit) if the GUID is not found — it will never silently do nothing.
+Per-GUID status is reported on stderr; the overall exit code is 1 if any GUID failed (e.g. not found), and successfully-deleted transactions in the same batch are still saved.
 
 The backup plaintext is self-contained (commodity + account declarations + transaction) and looks like this:
 
@@ -664,7 +672,7 @@ gnucash-plaintext import mybook.gnucash transactions.txt --output-new -
 The output contains only the transaction blocks (no commodity or account
 preamble). Each block includes the `guid:` field assigned by GnuCash, which
 you can use later with `--strategy update` to edit those transactions
-in-place, or with `get-transaction` / `delete-transaction-by-guid` to
+in-place, or with `get-transaction` / `delete-transactions --by-guid` to
 look them up directly.
 
 If all transactions in the file are duplicates and none are imported, no

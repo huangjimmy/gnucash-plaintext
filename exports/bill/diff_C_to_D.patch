@@ -1,0 +1,71 @@
+--- step_C_paid.txt	2026-05-14 23:38:24.220632750 +0000
++++ step_D_unposted.txt	2026-05-14 23:38:25.241096331 +0000
+@@ -1,27 +1,9 @@
+-2026-01-01 commodity CAD
++2026-01-15 commodity CAD
+ 	mnemonic: "CAD"
+ 	fullname: "Canadian Dollar"
+ 	namespace: "CURRENCY"
+ 	fraction: 100
+-2026-01-01 open Expenses
+-	guid: "8c82de7833114f3e8db08eb011c6b07c"
+-	type: "Expense"
+-	placeholder: #False
+-	code: ""
+-	description: ""
+-	tax_related: #False
+-	commodity.namespace: "CURRENCY"
+-	commodity.mnemonic: "CAD"
+-2026-01-01 open Expenses:Supplies
+-	guid: "a8be8c7e6e894ccd957b1d38ed1a0b52"
+-	type: "Expense"
+-	placeholder: #False
+-	code: ""
+-	description: ""
+-	tax_related: #False
+-	commodity.namespace: "CURRENCY"
+-	commodity.mnemonic: "CAD"
+-2026-01-01 open Liabilities
++2026-01-15 open Liabilities
+ 	guid: "f53f5ba23e154da5bd097e17b93324e8"
+ 	type: "Liability"
+ 	placeholder: #False
+@@ -30,7 +12,7 @@
+ 	tax_related: #False
+ 	commodity.namespace: "CURRENCY"
+ 	commodity.mnemonic: "CAD"
+-2026-01-01 open Liabilities:Accounts Payable
++2026-01-15 open Liabilities:Accounts Payable
+ 	guid: "6787dcdd7b3540269bd5b5e0ed3bb5d2"
+ 	type: "A/Payable"
+ 	placeholder: #False
+@@ -77,27 +59,9 @@
+ 		price: 100
+ 		taxable: true
+ 		tax_included: false
+-	posted:
+-		date: 2026-01-01
+-		due: 2026-01-31
+-		ap_account: "Liabilities:Accounts Payable"
+-		memo: "Bill BILL-001"
+-		accumulate: true
+-	payment:
+-		date: 2026-01-15
+-		amount: 100
+-		bank_account: "Assets:Bank"
+-		memo: "Payment BILL-001 (first)"
++	posted: none
++	payment: none
+ 
+-2026-01-01 * "BILL-001" "Bill BILL-001"
+-	guid: "93ba2e49a5414a77867e1091ffa19106"
+-	notes: "business_generated: true"
+-	Expenses:Supplies 100.00 CAD
+-		action: "Bill"
+-		memo:"Bill BILL-001"
+-	Liabilities:Accounts Payable -100.00 CAD
+-		action: "Bill"
+-		memo:"Bill BILL-001"
+ 2026-01-15 * "Supplier"
+ 	guid: "a7707891c2d24be1856556546c621b1b"
+ 	Liabilities:Accounts Payable 100.00 CAD

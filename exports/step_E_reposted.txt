@@ -1,0 +1,96 @@
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	guid: "c65b88f1907d4cd899fec15aa28efd9e"
+	type: "Asset"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	guid: "8bdd7730da6e45f8b03a28e8185e2903"
+	type: "A/Receivable"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	guid: "bf4e2b148d0f456c917d2626bf7973c0"
+	type: "Income"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	guid: "7c50703e2c94499bbb1b4ef2941263a6"
+	type: "Income"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-15 open Assets:Bank
+	guid: "69e09c4807814639a04f9db9386898e3"
+	type: "Bank"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C001"
+	guid: "17b563c1985d446f9ba4e712dc93c5aa"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-001"
+	guid: "67aa1da06f58425aa32dbf2848988086"
+	customer_id: "C001"
+	customer_guid: "17b563c1985d446f9ba4e712dc93c5aa"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-001"
+		accumulate: true
+	payment: none
+
+2026-01-01 * "INV-001" "Invoice INV-001"
+	guid: "d749c5bc49ac4a48b69163fba84d7f27"
+	notes: "business_generated: true"
+	Assets:Accounts Receivable 100.00 CAD
+		action: "Invoice"
+		memo:"Invoice INV-001"
+	Income:Sales -100.00 CAD
+		action: "Invoice"
+		memo:"Invoice INV-001"
+2026-01-15 * "Acme"
+	guid: "63210942c2d84dde959e4ac640f57c3e"
+	Assets:Bank 100.00 CAD
+		action: "Payment"
+		memo:"Payment INV-001 (first)"
+	Assets:Accounts Receivable -100.00 CAD
+		action: "Payment"
+		memo:"Payment INV-001 (first)"

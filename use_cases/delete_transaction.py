@@ -16,7 +16,7 @@ from use_cases.export_transactions import ExportTransactionsUseCase
 
 @dataclass
 class DeleteTransactionResult:
-    """Result of the delete-transaction-by-guid use case."""
+    """Result of the delete-transactions use case (single tx)."""
     guid: str
     description: str
     date: str

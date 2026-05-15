@@ -277,7 +277,7 @@ gnucash-plaintext find-transactions ledger.gnucash \
     --account "Assets:Bank" --date 2026-01-15 --amount 500
 # → two GUIDs; one has notes "business_generated: true" (the payment tx)
 # Delete the bank-feed duplicate:
-gnucash-plaintext delete-transaction-by-guid ledger.gnucash <bank-feed-guid>
+gnucash-plaintext delete-transactions ledger.gnucash --by-guid <bank-feed-guid>
 ```
 
 See also: `docs/bank-import-workflow.md` for the full ordering analysis.
