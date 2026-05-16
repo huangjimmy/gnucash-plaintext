@@ -264,6 +264,14 @@ def test_bill_post_pay_unpost_cycle(tmp_path):
     r = runner.invoke(cli, ["unpost-bills", str(gnc), "BILL-001"])
     assert r.exit_code == 0, r.output
     assert ": unposted" in r.output
+    # Q-014: same warning path as for invoices, but with AP/sent wording
+    # (mirroring the invoice side's AR/received).
+    assert "1 bank-side payment transaction is now orphaned" in r.output, (
+        "Q-014: unpost-bills on a paid bill must surface the orphan "
+        f"bank-side payment transaction. Got:\n{r.output}")
+    assert "AP posting transaction" in r.output
+    assert "sent from" in r.output
+    assert "CAD 100.00" in r.output
     time.sleep(1)
     entry_guid_trace["D"] = _read_entry_guids(str(gnc), "BILL-001")
     text_d = _snapshot(runner, gnc, tmp_path, "step_D_unposted")

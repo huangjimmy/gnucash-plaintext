@@ -338,3 +338,148 @@ class TestUnpostBillCommand:
             f"unpost-bills CLI must preserve entry GUIDs; "
             f"before={before}, after={after}"
         )
+
+
+# ── Q-014: orphan-payment warning on unpost ──────────────────────────────────
+
+
+class TestQ014OrphanPaymentWarning:
+    """Unposting a *paid* invoice/bill destroys the AR/AP posting transaction
+    but leaves the bank-side payment transaction in place, orphaned from any
+    lot. Pre-Q-014 the CLI silently said `unposted` and nothing else; users
+    didn't know the bank tx was still there and re-pay-after-unpost silently
+    duplicated the bank deposit. Q-014 makes the CLI list every soon-to-be-
+    orphan with its GUID, date, bank account, amount, and currency so the
+    user can choose between `delete-transactions --by-guid` and Q-004's
+    `txn_guid:` retarget."""
+
+    def test_unposting_paid_invoice_emits_orphan_warning(self, tmp_path):
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path,
+                               _fixture('q014_invoice_posted_paid'))
+
+        r = runner.invoke(cli, ["unpost-invoices", str(gnc), "INV-001"])
+        assert r.exit_code == 0, r.output
+        assert ': unposted' in r.output
+
+        # Warning header: count + AR/received wording (invoice side).
+        assert '1 bank-side payment transaction is now orphaned' in r.output, (
+            f"Expected one-orphan warning header. Got:\n{r.output}")
+        assert 'AR posting transaction' in r.output, r.output
+        assert 'received in' in r.output, r.output
+
+        # Per-orphan details: payment date, bank account, currency, amount,
+        # customer name (in description). Memo line uses the fixture's value.
+        assert '2026-01-15' in r.output
+        assert 'Assets:Bank' in r.output
+        assert 'CAD 100.00' in r.output
+        assert '"Acme"' in r.output
+        assert 'Payment INV-001' in r.output
+
+        # The hyphenated guid is shown for human reading, and the unhyphenated
+        # form appears inside the recommended `delete-transactions --by-guid`
+        # command line.
+        import re
+        hyphenated = re.search(r'guid:\s+([0-9a-f-]{36})', r.output)
+        assert hyphenated, f"Expected hyphenated guid in output. Got:\n{r.output}"
+        guid32 = hyphenated.group(1).replace('-', '')
+        assert f'--by-guid {guid32}' in r.output, (
+            f"Expected the cleanup command to reference the orphan's "
+            f"unhyphenated GUID. Got:\n{r.output}")
+        assert f'txn_guid: "{guid32}"' in r.output, (
+            f"Expected the retarget option to reference the orphan's "
+            f"unhyphenated GUID. Got:\n{r.output}")
+
+    def test_unposting_unpaid_invoice_emits_no_warning(self, tmp_path):
+        """Posted-but-never-paid invoice: silent success after unpost. No
+        warning block, because there are no payment txs to orphan."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _fixture('q010_invoice_posted'))
+
+        r = runner.invoke(cli, ["unpost-invoices", str(gnc), "INV-001"])
+        assert r.exit_code == 0, r.output
+        assert 'INV-001' in r.output and ': unposted' in r.output
+        assert 'orphaned' not in r.output, (
+            f"Unpaid invoice unpost must not print an orphan warning. "
+            f"Got:\n{r.output}")
+
+    def test_unposting_partial_payments_lists_each_orphan_and_total(self, tmp_path):
+        """When an invoice was paid in multiple instalments, each instalment
+        is a separate bank-side payment transaction. Unposting orphans all of
+        them; the warning must list each and report the per-bank-account total."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path,
+                               _fixture('q014_invoice_partial_payments'))
+
+        r = runner.invoke(cli, ["unpost-invoices", str(gnc), "INV-001"])
+        assert r.exit_code == 0, r.output
+        assert '2 bank-side payment transactions are now orphaned' in r.output, (
+            f"Expected the warning header to count 2 orphans. Got:\n{r.output}")
+
+        # Both partial-payment dates + amounts present:
+        assert '2026-01-10' in r.output
+        assert '2026-01-25' in r.output
+        assert 'CAD 60.00' in r.output
+        assert 'CAD 40.00' in r.output
+        # And the rolled-up total for the single bank account:
+        assert 'Total orphaned: CAD 100.00 in Assets:Bank' in r.output, (
+            f"Expected per-bank-account total line. Got:\n{r.output}")
+
+    def test_unposting_paid_bill_uses_ap_and_sent_wording(self, tmp_path):
+        """Bill side mirrors invoices but with AP/sent wording. Same helper,
+        templated output."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path,
+                               _fixture('q014_bill_posted_paid'))
+
+        r = runner.invoke(cli, ["unpost-bills", str(gnc), "BILL-001"])
+        assert r.exit_code == 0, r.output
+        assert ': unposted' in r.output
+        assert '1 bank-side payment transaction is now orphaned' in r.output, r.output
+
+        # AP / sent wording (vs AR / received for invoices):
+        assert 'AP posting transaction' in r.output, r.output
+        assert 'sent from' in r.output, r.output
+
+        assert 'CAD 50.00' in r.output
+        assert 'Payment BILL-001' in r.output
+        assert 'this bill' in r.output, (
+            f"Cleanup recommendation should refer to 'this bill' "
+            f"(not 'this invoice'). Got:\n{r.output}")
+
+    def test_batch_with_mixed_paid_unpaid_warns_only_for_paid(self, tmp_path):
+        """`unpost-invoices INV-PAID INV-UNPAID INV-MISSING`: the warning
+        block appears only for the paid record, not for the unpaid one nor
+        the not-found one. Each status line still appears in order."""
+        # Build a book with two invoices: one paid, one posted-but-unpaid.
+        runner = CliRunner()
+        gnc = tmp_path / "book.gnucash"
+        # First import: paid invoice.
+        paid_fix = _write(tmp_path / "paid.txt",
+                          ACCOUNTS + "\n" + _fixture('q014_invoice_posted_paid'))
+        r = _import_new(runner, gnc, paid_fix)
+        assert r.exit_code == 0, r.output
+        time.sleep(1)
+        # Then import: also create an unpaid posted invoice (different id).
+        unpaid_fix = _fixture('q010_invoice_posted').replace(
+            'INV-001', 'INV-UNPAID')
+        unpaid_path = _write(tmp_path / "unpaid.txt", unpaid_fix)
+        r = _import(runner, gnc, unpaid_path)
+        assert r.exit_code == 0, r.output
+        time.sleep(1)
+
+        r = runner.invoke(cli, [
+            "unpost-invoices", str(gnc),
+            "INV-001", "INV-UNPAID", "INV-MISSING",
+        ])
+        assert r.exit_code == 1, r.output  # missing → exit 1
+        # Both unposts succeeded:
+        assert 'INV-001' in r.output and ': unposted' in r.output
+        assert 'INV-UNPAID' in r.output
+        # The missing one was reported:
+        assert 'INV-MISSING' in r.output and 'not found' in r.output
+
+        # Exactly one warning block — for the paid invoice only.
+        assert r.output.count('orphaned in the book') == 1, (
+            f"Expected exactly one orphan-warning block (for INV-001). "
+            f"Got:\n{r.output}")

@@ -35,6 +35,14 @@ KNOWN_TX_METADATA_KEYS = frozenset({
     'currency.mnemonic',
     'doc_link',
     'notes',
+    # NOTE: `txn_type` and `owner` are deliberately NOT in this set even
+    # though the exporter emits them on payment-class transactions. The
+    # in-memory mutators (`xaccTransSetTxnType`, `gncOwnerCopyOnTxn`) are
+    # no-ops from Python in GnuCash 5.x (both ctypes and SWIG paths
+    # silently fail to mutate). Letting them fall into the custom-KVP
+    # path makes the values round-trip-preserved as plain KVP slots —
+    # `find-orphan-payments` reads either the C field (in-book) or the
+    # KVP (after a plaintext roundtrip).
 })
 
 # Split metadata keys that have dedicated GnuCash setters.
@@ -45,6 +53,15 @@ KNOWN_SPLIT_METADATA_KEYS = frozenset({
     'memo',
     'account.commodity.mnemonic',
     'account.commodity.namespace',
+    # Q-014: emitted on the AR/AP-side split of an orphan payment tx so
+    # the importer can re-create the orphan lot at re-import time. The
+    # value is "customer:<id>" or "vendor:<id>". Without this round-trip,
+    # the GnuCash 5.x txn-type heuristic on the restored book returns
+    # NONE (it needs the AR/AP-side split's lot to have either an
+    # invoice attached OR an owner) and `find-orphan-payments` would
+    # only fire via the custom-KVP fallback (also emitted on the txn
+    # itself as `owner:` / `txn_type:`).
+    'lot_owner',
 })
 
 # Customer metadata keys that have dedicated GnuCash setters.

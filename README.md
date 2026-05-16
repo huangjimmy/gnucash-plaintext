@@ -167,6 +167,8 @@ many currencies explicitly.
 	fraction: 100
 ```
 
+For `namespace: "CURRENCY"` commodities, the importer honors your declared `fraction` in memory, but GnuCash 5.15+ subsequently normalises ISO 4217 currencies to their official smallest-unit value on save. The most visible case is KRW (Korean Won): old GnuCash shipped it with `fraction: 100`, but [GnuCash 5.15 corrected it to `fraction: 1`](https://github.com/Gnucash/gnucash/releases/tag/5.15) (Bug 666536 — KRW has no sub-units per ISO 4217). On 5.15+, declaring `KRW fraction: 100` parses successfully but the saved book will hold `fraction: 1`. If you genuinely need a non-ISO precision (e.g. a points/rewards "currency"), use a custom `namespace:` (anything other than `CURRENCY`) — GnuCash never normalises user namespaces.
+
 However, if you need to support Stocks, for example, 
 your broker supports fractional trading of AMZN.
 
@@ -942,16 +944,13 @@ gnucash-plaintext unpost-invoices ledger.gnucash --by-guid 9f14a498cc894d50931f8
 
 Behaviour:
 
-- Calls GnuCash's `Unpost(False)` directly. The posting transaction is
-  destroyed; payment transactions in the bank account remain but are
-  no longer linked to a lot. (Same end state as the GnuCash UI's
-  Unpost menu item.)
-- **Entry GUIDs are preserved** — entries are not destroyed and
-  recreated. External references to entries by GUID still resolve.
-- Per-record line: `<id> (<guid>): unposted` (or `not posted`,
-  `not found`, or `failed — multiple records share this id`).
-- Exit code 1 if any record was not found, not posted, or ambiguous;
-  successful unposts are still saved.
+- Calls GnuCash's `Unpost(False)` directly. The posting transaction is destroyed; payment transactions in the bank account remain but are no longer linked to a lot. (Same end state as the GnuCash UI's Unpost menu item.)
+- **Entry GUIDs are preserved** — entries are not destroyed and recreated. External references to entries by GUID still resolve.
+- Per-record line: `<id> (<guid>): unposted` (or `not posted`, `not found`, or `failed — multiple records share this id`).
+- **Orphan-payment warning**: when the record being unposted was paid, the CLI lists each bank-side payment transaction that is about to be orphaned — with the orphan's GUID, date, bank account, amount, currency, customer/vendor name, and memo. The warning steers the user toward the two safe cleanup paths: `delete-transactions --by-guid <orphan-guid>` (drop the orphan, then re-import with a fresh `payment:` block), or a `payment:` block carrying `txn_guid: "<orphan-guid>"` on re-import (retargets the existing bank tx into the new posted lot — see [Q-004](docs/issues/Q-004-payment-transaction-duplicates.md)). Doing neither, then re-paying via a fresh `payment:` block, leaves the orphan in place alongside the new payment and silently doubles the recorded bank balance.
+- Exit code 1 if any record was not found, not posted, or ambiguous; successful unposts are still saved.
+
+For after-the-fact recovery — auditing a book that's already accumulated orphans from prior unpost runs — use `find-orphan-payments` (next section).
 
 Compared to the re-import path:
 
@@ -960,6 +959,32 @@ Compared to the re-import path:
 | Reads .txt? | Yes — directive entries replace existing | No |
 | Entry GUIDs | Preserved when only the posted block toggles; otherwise rebuilt | Always preserved |
 | Use when... | The .txt is your source of truth and may also edit fields | The .txt is stale/absent and you only want the unpost |
+
+#### Listing orphan bank-side payments: `find-orphan-payments`
+
+After a series of unposts, the book may have payment-class bank transactions whose AR/AP-side split's lot is no longer attached to any invoice or bill — orphans. The live `unpost-invoices` / `unpost-bills` flow warns about each orphan it's about to create, but if those messages were missed (a prior session, an inherited book, etc.) the orphans accumulate silently and cause the re-pay-after-unpost duplicate-bank-balance trap.
+
+`find-orphan-payments` scans the book and lists every orphan with its GUID, date, bank account, amount, currency, the customer/vendor it was originally paying, and the bank-side split memo. Per-bank-account totals at the end. Read-only — the command never deletes or modifies anything; the user picks the cleanup path per orphan.
+
+```bash
+# Whole-book sweep:
+gnucash-plaintext find-orphan-payments ledger.gnucash
+
+# Scope to a single customer (orphan must carry that customer's KVP backref):
+gnucash-plaintext find-orphan-payments ledger.gnucash --customer C001
+
+# Scope to a single vendor (bill-side orphans):
+gnucash-plaintext find-orphan-payments ledger.gnucash --vendor V001
+```
+
+Exit code 0 whether or not any orphans are found — the command is informational. A clean book reports `No orphan bank-side payment transactions found.` and exits 0.
+
+Cleanup options the command points at, per orphan:
+
+  a) `gnucash-plaintext delete-transactions <book> --by-guid <guid>` — drop the orphan (with a plaintext backup written), then re-import the invoice/bill with a fresh `payment:` block.
+  b) Re-import the invoice/bill with a `payment:` block carrying `txn_guid: "<orphan-guid>"` — retargets the existing bank tx into the new posted lot (Q-004).
+
+Detection criteria (so the user can trust the result): payment-class transactions (`txn_type == 'P'`) whose KVP customer/vendor backref is intact and whose AR/AP-side split's lot has no invoice attached. The KVP backref survives unpost authoritatively (set by `gncOwnerApplyPayment` when the payment was first recorded), so each orphan can be pinned to a specific customer/vendor — though not to a specific invoice, since the lot → invoice link is destroyed by unpost.
 
 #### Deleting unposted invoices/bills: `delete-invoices` / `delete-bills`
 
