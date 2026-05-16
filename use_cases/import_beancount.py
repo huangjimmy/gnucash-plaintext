@@ -96,29 +96,25 @@ class ImportBeancountUseCase:
         return result
 
     def _create_commodity(self, commodity_data):
-        """Create or update commodity from beancount data"""
-        # Check if commodity already exists
-        commodity = self.repository.get_commodity(
-            commodity_data.gnucash_namespace,
-            commodity_data.gnucash_mnemonic
+        """Create or update commodity from beancount data.
+
+        GnuCashImporter.create_commodity handles both create and update of
+        an existing commodity (e.g. updating fraction for a pre-registered
+        ISO 4217 currency the user customized).
+        """
+        directive = PlaintextDirective(
+            directive_type=DirectiveType.CREATE_COMMODITY,
+            level=0,
+            line=f"commodity {commodity_data.symbol}"
         )
+        directive.metadata = {
+            'mnemonic': commodity_data.gnucash_mnemonic,
+            'fullname': commodity_data.gnucash_fullname or "",
+            'namespace': commodity_data.gnucash_namespace,
+            'fraction': commodity_data.gnucash_fraction
+        }
 
-        if commodity is None:
-            # Convert to PlaintextDirective format to reuse GnuCashImporter
-            directive = PlaintextDirective(
-                directive_type=DirectiveType.CREATE_COMMODITY,
-                level=0,
-                line=f"commodity {commodity_data.symbol}"
-            )
-            directive.metadata = {
-                'mnemonic': commodity_data.gnucash_mnemonic,
-                'fullname': commodity_data.gnucash_fullname or "",
-                'namespace': commodity_data.gnucash_namespace,
-                'fraction': commodity_data.gnucash_fraction
-            }
-
-            # Use existing GnuCashImporter
-            GnuCashImporter.create_commodity(directive, self.repository.book)
+        GnuCashImporter.create_commodity(directive, self.repository.book)
 
     def _create_account(self, account_data):
         """Create account from beancount data using original GnuCash name"""

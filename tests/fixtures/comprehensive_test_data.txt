@@ -152,7 +152,7 @@
 	mnemonic: "KRW"
 	fullname: "Won"
 	namespace: "CURRENCY"
-	fraction: 100
+	fraction: 1
 2024-03-12 open Assets:Cash In Wallets:KRW
 	guid: "942fcdde6b66483784d8fb8275049bcb"
 	type: "Asset"

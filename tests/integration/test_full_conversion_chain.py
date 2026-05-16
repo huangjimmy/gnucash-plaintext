@@ -251,11 +251,27 @@ class TestFullConversionChain:
                     f.write(plaintext2)
                     roundtrip_debug = f.name
 
+                # The "Commodities only in X" prints in `differences` only show
+                # the commodity ticker (first line of a sorted block), which
+                # hides cases where the same ticker has a different metadata
+                # line on each side (e.g. fraction:100 vs fraction:1). Emit
+                # the full diverging blocks so the mismatch is visible.
+                struct1_dbg = parse_plaintext_structure(plaintext1)
+                struct2_dbg = parse_plaintext_structure(plaintext2)
+                detail_blocks = []
+                for label, only_set in (
+                    ('original', struct1_dbg['commodities'] - struct2_dbg['commodities']),
+                    ('roundtrip', struct2_dbg['commodities'] - struct1_dbg['commodities']),
+                ):
+                    for blk in only_set:
+                        detail_blocks.append(f'  ---- commodity-block only in {label} ----\n  ' + blk.replace('\n', '\n  '))
+
                 error_msg = (
                     f"\n\nSemantic differences detected in full conversion chain.\n"
                     f"Original: {original_debug}\n"
                     f"After roundtrip: {roundtrip_debug}\n\n"
-                    f"Differences:\n" + "\n".join(differences[:10])
+                    f"Differences:\n" + "\n".join(differences[:10]) +
+                    ("\n\nFull mismatched commodity blocks:\n" + "\n".join(detail_blocks) if detail_blocks else "")
                 )
                 if len(differences) > 10:
                     error_msg += f"\n... and {len(differences) - 10} more differences"

@@ -1034,6 +1034,16 @@ class GnuCashImporter:
             commodity_table.insert(commodity)
             logging.debug(f"Created commodity {namespace}.{mnemonic}")
         else:
+            # Honor the user's declared fraction even when the commodity is
+            # already in the book. This matters for non-CURRENCY commodities
+            # the user has fully under their control (stocks, points, custom
+            # units) and for re-imports that adjust the fraction. For ISO
+            # 4217 CURRENCY commodities, GnuCash 5.15+ subsequently
+            # normalises the fraction back to its ISO value on save (e.g.
+            # KRW → 1) — that is upstream behaviour, not ours; the in-memory
+            # value still matches the user during the import session.
+            if commodity.get_fraction() != fraction:
+                commodity.set_fraction(fraction)
             logging.debug(f"Commodity {namespace}.{mnemonic} already exists")
 
     @staticmethod
