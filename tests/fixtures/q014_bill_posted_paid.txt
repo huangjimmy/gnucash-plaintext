@@ -1,0 +1,27 @@
+vendor "V001"
+	name: "Supplier"
+	currency: CAD
+
+bill "BILL-001"
+	vendor_id: "V001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Supplies"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-001"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 50
+		bank_account: "Assets:Bank"
+		memo: "Payment BILL-001"

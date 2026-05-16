@@ -288,6 +288,16 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     r = runner.invoke(cli, ["unpost-invoices", str(gnc), "INV-001"])
     assert r.exit_code == 0, r.output
     assert ": unposted" in r.output
+    # Q-014: the paid invoice's payment tx is about to be orphaned, so the
+    # CLI now warns the user with the orphan's date, bank account, amount,
+    # and GUID. The warning is what tells the user that re-pay-after-unpost
+    # would silently duplicate the bank deposit unless they delete the
+    # orphan or use `txn_guid:` retarget.
+    assert "1 bank-side payment transaction is now orphaned" in r.output, (
+        "Q-014: unpost-invoices on a paid invoice must surface the orphan "
+        f"bank-side payment transaction. Got:\n{r.output}")
+    assert "Assets:Bank" in r.output
+    assert "CAD 100.00" in r.output
     time.sleep(1)
 
     entry_guid_trace["D"] = _read_entry_guids(str(gnc), "INV-001")

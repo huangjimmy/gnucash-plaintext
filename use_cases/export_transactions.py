@@ -493,9 +493,66 @@ class ExportTransactionsUseCase:
         if tx_notes and tx_notes.strip() != "":
             lines.append(f'\tnotes: {encode_value_as_string(tx_notes)}')
 
-        # Emit custom KVP metadata
+        # txn_type + owner: GnuCash internal classifier + customer/vendor
+        # KVP backref set by the business-object machinery (txn_type='I'
+        # on invoice/bill posting transactions and 'P' on payments
+        # created by `gncOwnerApplyPayment`; the gncOwner KVP slot names
+        # the customer/vendor that the payment paid). Default txn_type
+        # is 'N' (normal); only emit non-N values so old plaintext files
+        # round-trip unchanged. Both fields are needed so that orphan
+        # bank-side payment transactions (whose AR/AP lot was detached
+        # by unpost) can still be detected by `find-orphan-payments`
+        # after a plaintext roundtrip — without these fields the
+        # restored tx defaults to txn_type='N' and no owner ref, so
+        # criteria 1 and 2 of the classifier fail.
+        import ctypes as _ctypes
+
+        from infrastructure.gnucash.engine import load_gnc_engine as _load
+        _lib = _load()
+        _tx_ptr = int(transaction.instance)
+        try:
+            _lib.xaccTransGetTxnType.restype = _ctypes.c_char
+            _lib.xaccTransGetTxnType.argtypes = [_ctypes.c_void_p]
+            _t = _lib.xaccTransGetTxnType(_tx_ptr)
+            if isinstance(_t, bytes):
+                _t = _t.decode('ascii', errors='replace')
+            if _t and _t != 'N':
+                lines.append(f'\ttxn_type: {_t}')
+        except AttributeError:
+            pass
+
+        try:
+            _lib.gncOwnerGetOwnerFromTxn.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
+            _lib.gncOwnerGetOwnerFromTxn.restype = _ctypes.c_int
+            _lib.gncOwnerGetID.argtypes = [_ctypes.c_void_p]
+            _lib.gncOwnerGetID.restype = _ctypes.c_char_p
+            _lib.gncOwnerGetType.argtypes = [_ctypes.c_void_p]
+            _lib.gncOwnerGetType.restype = _ctypes.c_int
+            _owner_buf = _ctypes.create_string_buffer(256)
+            _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
+            if _lib.gncOwnerGetOwnerFromTxn(_tx_ptr, _owner_p) == 1:
+                _otype = _lib.gncOwnerGetType(_owner_p)
+                _oid_raw = _lib.gncOwnerGetID(_owner_p)
+                _oid = (_oid_raw.decode('utf-8', errors='replace')
+                        if _oid_raw else '')
+                _kind = {2: 'customer', 4: 'vendor'}.get(_otype)
+                if _kind and _oid:
+                    lines.append(f'\towner: {_kind}:{_oid}')
+        except AttributeError:
+            pass
+
+        # Emit custom KVP metadata. Skip Q-014's `txn_type` and `owner`
+        # slots — they're already emitted above as dedicated lines based
+        # on the live C state, and re-emitting from the KVP slot would
+        # produce duplicate lines on the second pass of an export → import
+        # → export roundtrip (the importer stores `txn_type:` and `owner:`
+        # from the plaintext as custom KVPs since the matching C setters
+        # are no-ops on GnuCash 4.8+).
+        _q014_reserved_tx = {'txn_type', 'owner'}
         custom_meta = get_custom_metadata(transaction)
         for key, value in sorted(custom_meta.items()):
+            if key in _q014_reserved_tx:
+                continue
             lines.append(f'\t{key}: {encode_value_as_string(value)}')
 
         # Splits
@@ -571,9 +628,55 @@ class ExportTransactionsUseCase:
         if memo and memo != "":
             lines.append(f'\t\tmemo:{encode_value_as_string(memo)}')
 
-        # Emit custom split KVP metadata
+        # Q-014: orphan-lot reconstruction marker. When this split is on
+        # the AR/AP side of an unposted/orphan payment lot (lot exists,
+        # is owner-attached, but has no invoice), emit the owner so the
+        # importer can re-create the orphan lot — that's what makes the
+        # GnuCash 5.x txn-type heuristic return 'P' on the restored book
+        # (the heuristic is "AR/AP split's lot has an invoice OR an
+        # owner"; the second arm covers our case).
+        import ctypes as _ctypes
+
+        from infrastructure.gnucash.engine import load_gnc_engine as _load
+        _lib = _load()
+        try:
+            _lib.xaccSplitGetLot.argtypes = [_ctypes.c_void_p]
+            _lib.xaccSplitGetLot.restype = _ctypes.c_void_p
+            _lib.gncInvoiceGetInvoiceFromLot.argtypes = [_ctypes.c_void_p]
+            _lib.gncInvoiceGetInvoiceFromLot.restype = _ctypes.c_void_p
+            _lib.gncOwnerGetOwnerFromLot.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
+            _lib.gncOwnerGetOwnerFromLot.restype = _ctypes.c_int
+            _lib.gncOwnerGetID.argtypes = [_ctypes.c_void_p]
+            _lib.gncOwnerGetID.restype = _ctypes.c_char_p
+            _lib.gncOwnerGetType.argtypes = [_ctypes.c_void_p]
+            _lib.gncOwnerGetType.restype = _ctypes.c_int
+            _lot_ptr = _lib.xaccSplitGetLot(int(split.instance))
+            if _lot_ptr:
+                _inv = _lib.gncInvoiceGetInvoiceFromLot(_lot_ptr)
+                if not _inv:                       # orphan lot — emit marker
+                    _owner_buf = _ctypes.create_string_buffer(256)
+                    _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
+                    if _lib.gncOwnerGetOwnerFromLot(_lot_ptr, _owner_p) == 1:
+                        _otype = _lib.gncOwnerGetType(_owner_p)
+                        _oid_raw = _lib.gncOwnerGetID(_owner_p)
+                        _oid = (_oid_raw.decode('utf-8', errors='replace')
+                                if _oid_raw else '')
+                        _kind = {2: 'customer', 4: 'vendor'}.get(_otype)
+                        if _kind and _oid:
+                            lines.append(f'\t\tlot_owner: {_kind}:{_oid}')
+        except AttributeError:
+            pass
+
+        # Emit custom split KVP metadata. Skip Q-014's `lot_owner` slot
+        # for the same reason as the tx-level reserved keys above:
+        # the importer stores `lot_owner:` as a custom KVP AND uses it
+        # to reconstruct an orphan lot; on re-export we already emit it
+        # from the live lot state via the block above.
+        _q014_reserved_split = {'lot_owner'}
         custom_split_meta = get_custom_metadata(split)
         for key, value in sorted(custom_split_meta.items()):
+            if key in _q014_reserved_split:
+                continue
             lines.append(f'\t\t{key}: {encode_value_as_string(value)}')
 
         # Running balance — emitted last so it reads as a post-transaction annotation

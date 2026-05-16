@@ -3,7 +3,7 @@ id: Q-014
 title: `unpost-invoices` / `unpost-bills` don't warn about soon-to-be-orphan bank payments
 category: quality
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem
@@ -89,17 +89,32 @@ The exact spec is in the research doc, [section "4. CLI mockup"](../research/202
 
 The research probe at `tests/research/orphan_detection_probe.py:find_pre_unpost_payments` is the working prototype. Lift directly; the four passing probe tests (`test_orphan_backreference_probe`, `test_orphan_backreference_probe_bill`, `test_find_orphan_payments_prototype`, `test_find_orphan_payments_prototype_bill`) cover both customer and vendor sides.
 
+## Also in scope: `find-orphan-payments` (retrospective discovery)
+
+The live unpost flow surfaces orphans at the moment they're created. For after-the-fact recovery — auditing a book that's already accumulated orphans from prior unpost runs, or one inherited from another user — Q-014 ships a separate read-only command:
+
+```
+gnucash-plaintext find-orphan-payments <book> [--customer C001] [--vendor V001]
+```
+
+The command walks every transaction in the book and applies four criteria to identify orphans:
+
+1. `xaccTransGetTxnType == 'P'` — payment-class only (excludes manual deposits, transfers, lot-management entries).
+2. `gncOwnerGetOwnerFromTxn` returns success — the KVP customer/vendor backref set by `gncOwnerApplyPayment` survived unpost.
+3. Payment shape — one split on an AR/AP account, one elsewhere.
+4. The AR/AP-side split's lot has no invoice/bill attached (`gncInvoiceGetInvoiceFromLot` returns NULL) — the lot was detached when the invoice/bill was unposted.
+
+Each match is reported with its GUID, date, bank account, amount, currency, customer/vendor backref, description, memo, AND a per-orphan "why classified as orphan" block that quotes the actual classifier evidence for that transaction. Per-bank-account totals summarise the rolled-up impact. The command is read-only — it never modifies the book; the user picks the cleanup path per orphan (`delete-transactions --by-guid` or `txn_guid:` retarget).
+
+False-positive risk is bounded: the four criteria collectively cannot match anything other than a `gncOwnerApplyPayment`-created tx whose lot is now detached. The post-unpost helper cannot pin an orphan to a specific original *invoice* (the lot → invoice link was destroyed by unpost), only to a specific customer/vendor; the user-controlled memo/description may carry an invoice id by convention but is not relied upon for classification.
+
 ## Out of scope
 
-The research surfaced three follow-up areas. Q-014 ships **only the warning**:
+Two follow-ups remain for future Q tickets:
 
-1. **Auto-cleanup CLI** — `unpost-invoices --cleanup-payments` flag or a dedicated `cleanup-orphan-payments <book> <invoice-id>` command. The research notes this is a useful safety net for users who already unposted and want to clean up after the fact, but it's a bigger design (separate command, separate confirmation, separate test surface). Defer to a future Q ticket.
+1. **Auto-cleanup CLI** — `unpost-invoices --cleanup-payments` flag or a dedicated `cleanup-orphan-payments <book> <invoice-id>` command that automatically deletes the orphan(s) as part of the unpost flow. Skipped from Q-014 because real-money bank-tx deletion needs more guardrails than the unpost path provides: refuse-if-reconciled (or `--force`), per-orphan plaintext backup, and an explicit confirmation prompt. Without those, a single missed flag could silently drop bank entries that the user wanted to keep (e.g. they unposted to fix the invoice date and the payment was correct). The current PR's warning-only approach leaves the destructive decision with the user.
 
-2. **Post-unpost recovery helper** — the `find_orphan_payments_post_unpost` prototype in the probe walks the book heuristically (KVP owner ref + AR/AP-no-invoice filter). Useful as a building block for the cleanup CLI above, but not needed for the warning path. Defer.
-
-3. **Plaintext orphan-flagging** — exporting orphan bank txs with a marker (e.g. `orphan: true` under the invoice's `payment:` block, or a `notes:` annotation) so export → import is lossless. Bigger design question for the plaintext format. Defer to a future Q ticket; the current behaviour is to emit orphans only in the free-form `transactions:` section.
-
-Out-of-scope items are flagged in the research doc's "Implications for the codebase" section with the same numbering.
+2. **Plaintext orphan-flagging** — exporting orphan bank txs with a marker (e.g. `orphan: true` under the invoice's `payment:` block, or a `notes:` annotation) so export → import is lossless across an unpost cycle. Bigger design question for the plaintext format. Current behaviour is to emit orphans only in the free-form `transactions:` section; the importer cannot reconstruct the orphan ↔ original-invoice association on re-import.
 
 ## Related issues
 

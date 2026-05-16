@@ -1213,6 +1213,58 @@ class GnuCashImporter:
                 if memo is not None:
                     split.SetMemo(memo)
 
+            # Q-014: re-create an orphan lot when the exporter marked
+            # this split as the AR/AP side of an orphan payment. The
+            # GnuCash 5.x txn-type heuristic returns 'P' for a tx whose
+            # AR/AP split's lot has either an invoice OR an owner — we
+            # take the second arm (lot with owner, no invoice) since
+            # the original orphan lot was already in that state when
+            # exported. Without this, the restored book's heuristic
+            # returns NONE and `find-orphan-payments` would fall back
+            # to the custom-KVP signal alone.
+            _lot_owner_str = split_directive.metadata.get('lot_owner', '')
+            if _lot_owner_str and ':' in _lot_owner_str:
+                _kind, _, _oid = _lot_owner_str.partition(':')
+                _kind = _kind.strip()
+                _oid = _oid.strip().strip('"')
+                if _kind in ('customer', 'vendor') and _oid:
+                    import ctypes as _ctypes
+
+                    from infrastructure.gnucash.engine import (
+                        load_gnc_engine as _load,
+                    )
+                    _lib = _load()
+                    try:
+                        _lib.gnc_lot_new.argtypes = [_ctypes.c_void_p]
+                        _lib.gnc_lot_new.restype = _ctypes.c_void_p
+                        _lib.xaccAccountInsertLot.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
+                        _lib.xaccAccountInsertLot.restype = None
+                        _lib.gnc_lot_add_split.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
+                        _lib.gnc_lot_add_split.restype = None
+                        _lib.gncOwnerAttachToLot.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
+                        _lib.gncOwnerAttachToLot.restype = None
+                        _lib.gncOwnerInitCustomer.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
+                        _lib.gncOwnerInitCustomer.restype = None
+                        _lib.gncOwnerInitVendor.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
+                        _lib.gncOwnerInitVendor.restype = None
+                        if _kind == 'customer':
+                            _ref = book.CustomerLookupByID(_oid)
+                        else:
+                            _ref = book.VendorLookupByID(_oid)
+                        if _ref is not None and _ref.GetID():
+                            _new_lot = _lib.gnc_lot_new(int(book.instance))
+                            _lib.xaccAccountInsertLot(int(split_account.instance), _new_lot)
+                            _lib.gnc_lot_add_split(_new_lot, int(split.instance))
+                            _owner_buf = _ctypes.create_string_buffer(256)
+                            _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
+                            if _kind == 'customer':
+                                _lib.gncOwnerInitCustomer(_owner_p, int(_ref.instance))
+                            else:
+                                _lib.gncOwnerInitVendor(_owner_p, int(_ref.instance))
+                            _lib.gncOwnerAttachToLot(_owner_p, _new_lot)
+                    except AttributeError:
+                        pass
+
             # Store any non-standard split metadata as KVP slots
             custom_split_meta = {
                 k: v for k, v in split_directive.metadata.items()
