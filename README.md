@@ -167,6 +167,8 @@ many currencies explicitly.
 	fraction: 100
 ```
 
+For `namespace: "CURRENCY"` commodities, the importer honors your declared `fraction` in memory, but GnuCash 5.15+ subsequently normalises ISO 4217 currencies to their official smallest-unit value on save. The most visible case is KRW (Korean Won): old GnuCash shipped it with `fraction: 100`, but [GnuCash 5.15 corrected it to `fraction: 1`](https://github.com/Gnucash/gnucash/releases/tag/5.15) (Bug 666536 — KRW has no sub-units per ISO 4217). On 5.15+, declaring `KRW fraction: 100` parses successfully but the saved book will hold `fraction: 1`. If you genuinely need a non-ISO precision (e.g. a points/rewards "currency"), use a custom `namespace:` (anything other than `CURRENCY`) — GnuCash never normalises user namespaces.
+
 However, if you need to support Stocks, for example, 
 your broker supports fractional trading of AMZN.
 
