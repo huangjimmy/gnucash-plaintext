@@ -1,0 +1,3 @@
+2026-01-10 * "Pre-existing bill payment wire 150"
+  Assets:Bank  -150.00 CAD
+  Liabilities:Accounts Payable  150.00 CAD

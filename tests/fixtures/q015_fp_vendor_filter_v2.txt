@@ -1,0 +1,29 @@
+vendor "V002"
+	name: "Supplier B"
+	currency: CAD
+
+bill "BILL-FP-FILTER-200"
+	vendor_id: "V002"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Mat"
+		action: "Material"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 200
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-FP-FILTER-200"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 230
+		bank_account: "Assets:Bank"
+		memo: "Bill paid"
+		prepayment: 30

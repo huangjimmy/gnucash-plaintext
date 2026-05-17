@@ -878,6 +878,123 @@ invoice "INV-2026-004"
     memo: "Second instalment"
 ```
 
+**Adding a payment via re-import is incremental.** If a posted invoice is already in the book with one `payment:` block, editing the plaintext to append a second `payment:` block and re-importing applies *only* the new payment on the still-posted invoice. Two sub-paths, both incremental:
+
+* The new payment block has no `txn_guid:` — the importer calls `ApplyPayment` to create a fresh bank-side transaction.
+* The new payment block has `txn_guid: "..."` pointing at a pre-existing bank transaction (e.g. one already loaded from a QFX import) — the importer retargets that transaction's counter-split into the invoice's posted lot (the Q-004 mechanism), no new bank transaction created. Original tx GUID, notes, and KVP preserved.
+
+Either way the posting transaction, every entry, and the original bank-side payment transactions already on the invoice's lot are left untouched (same GUIDs throughout) — no orphan is created and the bank balance reflects exactly the payments the user recorded. Any other shape of diff (entry add/remove/modify, posted block change, payment field edited or removed) still takes the GnuCash-UI-equivalent unpost-rebuild-repost path, and any payment-side bank transactions about to be orphaned by that rebuild are listed in the import output with the same warning block `unpost-invoices` / `unpost-bills` emit (see the unpost section below).
+
+#### Overpayment / pre-payment credit: `prepayment:`
+
+When the customer pays more than the invoice total, GnuCash splits the single payment into two AR-side splits and routes them to two separate lots on the AR account, [exactly as the GnuCash manual describes](https://www.gnucash.org/docs/v5/C/gnucash-manual/busnss-ar-payment.html): the invoice lot (closes at $0) and a new pre-payment lot that stays open as a credit available against the next invoice.
+
+For a $100 invoice paid $150 the plaintext is:
+
+```
+invoice "INV-2026-005"
+  ...
+  posted:
+    date: 2026-03-01
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-005"
+    accumulate: true
+  payment:
+    date: 2026-03-10
+    amount: 150
+    bank_account: "Assets:Bank"
+    memo: "Overpaid by 50"
+    prepayment: 50
+```
+
+What that creates in the book (one payment transaction, three splits across two accounts and two AR lots):
+
+```
+Transaction 2026-03-10 — "Acme Customer" (payment)
+  Assets:Bank                    +$150.00   (the cash you received)
+  Assets:Accounts Receivable     -$100.00   (in invoice lot — closes INV-2026-005)
+  Assets:Accounts Receivable      -$50.00   (in NEW pre-payment lot — customer credit)
+```
+
+After the payment, `Assets:Accounts Receivable` shows a net **-$50** for this customer — that's the pre-payment credit. The invoice itself is marked paid (its lot's balance is zero). The next invoice you post for the same customer can consume the credit via Process Payment in GnuCash's UI, or via a `payment:` block on the next invoice that uses `txn_guid:` to retarget the customer's existing pre-payment bank tx into the new invoice's lot.
+
+For the `txn_guid:` retarget path (Q-004), when the pre-existing bank transaction's counter-split is larger than the invoice's remaining balance, the `prepayment:` field is **required**. The importer splits the counter-split into the invoice-portion (closes the lot) and the residual (new pre-payment lot on AR/AP). Omitting `prepayment:` on an over-sized retarget is rejected with an explicit error that names the bank tx, the counter-split amount, the invoice's remaining, and the expected `prepayment` value.
+
+The same applies symmetrically to bills (AP, opposite signs): overpaying a $100 bill by $50 produces an open AP lot with **+$50** balance — a vendor credit you can apply against the next bill from the same supplier.
+
+#### Consuming an existing credit on the next invoice / bill: `auto_apply_credit:`
+
+When the customer (or vendor) already has an open pre-payment credit on AR/AP, the *next* invoice or bill for that owner can consume the credit automatically — add `auto_apply_credit: true` to the invoice/bill header:
+
+```
+invoice "INV-2026-006"
+  customer_id: "C001"
+  currency: CAD
+  date_opened: 2026-04-01
+  auto_apply_credit: true
+  entry:
+    date: 2026-04-01
+    description: "Service C"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 30
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-04-01
+    due: 2026-04-30
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-006"
+    accumulate: true
+```
+
+On import the invoice is posted normally, then `gncInvoiceAutoApplyPayments` runs and takes from the open prepay lot(s) toward the invoice's outstanding balance. If credit ≥ invoice the lot closes via consumption; the residual stays open as a smaller credit (split in-place by GnuCash). If credit < invoice the full credit consumes; the invoice stays partially open. The flag composes with cash `payment:` blocks — cash goes first, credit auto-applies for any remainder. The exporter detects the post-auto-apply book state and emits `auto_apply_credit: true` again on round-trip; identical re-import is a no-op.
+
+#### Listing open credits: `find-prepayments`
+
+After a series of overpayments (or standalone pre-payments), the book may carry open AR / AP credit lots that aren't yet attached to any invoice or bill. `find-prepayments` walks the book and lists them — read-only, parallel to `find-orphan-payments`:
+
+```bash
+gnucash-plaintext find-prepayments ledger.gnucash
+gnucash-plaintext find-prepayments ledger.gnucash --customer C001
+gnucash-plaintext find-prepayments ledger.gnucash --vendor V001
+```
+
+Example output for a book where Acme (C001) overpaid INV-001 by $50:
+
+```
+Found 1 open pre-payment credit.
+
+  • customer C001 (Acme)  CAD 50.00  in Assets:Accounts Receivable
+    source bank tx: 2026-01-10 on Assets:Bank  "Acme"
+      memo: "Overpaid"
+      guid: e9a2b1c4-3f6d-4a17-b218-c47e85d290f3
+      NOTE: this is the parent bank tx of the credit lot's split.
+      Deleting it via `delete-transactions --by-guid` may also remove other
+      splits on the same tx (e.g. the original invoice payment if this credit
+      came from an overpayment). Consuming via `auto_apply_credit` on the next
+      invoice/bill is the non-destructive option.
+    why classified as a pre-payment (AR credit):
+      - the lot lives on an AR/AP account and is open (balance != 0),
+      - gncInvoiceGetInvoiceFromLot returned NULL — no invoice / bill
+        owns this lot, so the credit is unconsumed,
+      - parent tx owner backref points at customer C001.
+
+Total credit available: CAD 50.00 for customer C001 (Acme).
+```
+
+The `guid` field is the **source bank transaction** of the credit lot — i.e. the original payment that left the residual. For a customer overpayment, that's the same tx that paid the original invoice, so deleting it would also drop the invoice payment. For a standalone customer pre-payment (no invoice attached at the time the payment was recorded), the bank tx only carries this credit, so deleting it cleanly refunds.
+
+The same shape applies to vendor credits (`AP credit`, account is `Liabilities:Accounts Payable`, owner is the vendor). Per-owner totals at the end. Exit code is 0 whether or not any credits are found.
+
+What to do with each credit:
+
+  a) **Consume** against the next invoice/bill for that owner — add `auto_apply_credit: true` to that invoice/bill (above). Non-destructive; the only safe option for credits that came from invoice overpayment.
+  b) **Refund** — only safe for standalone-payment credits (the source bank tx has just the bank-side split and the AR/AP credit split, nothing else). In that case `delete-transactions --by-guid <source-bank-tx>` drops the tx and produces a plaintext backup. For overpayment-residual credits, a clean refund is a *new* bank transaction (bank -50 / AR +50) — record it in plaintext and re-import; this closes the prepay lot without touching the original payment.
+
+When the book and the plaintext have diverged (the user hand-edited the `.gnucash` file in the GnuCash UI, or hand-edited the `.txt` file before re-importing, or a third-party tool modified the book), the importer's recovery behaviour per scenario is documented in [`docs/payment-manual-edit-behavior.md`](docs/payment-manual-edit-behavior.md).
+
 ### Identity and round-trip: `guid:`, `customer_guid:`, `vendor_guid:`
 
 Every business-object block (`customer`, `vendor`, `taxtable`, `invoice`,

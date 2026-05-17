@@ -1,0 +1,28 @@
+customer "C200"
+	name: "Gamma Holdings"
+	currency: CAD
+
+invoice "INV-PARTIAL-200"
+	customer_id: "C200"
+	currency: CAD
+	date_opened: 2026-03-15
+	entry:
+		date: 2026-03-15
+		description: "Equipment lease (March)"
+		action: "Lease"
+		account: "Income:Sales"
+		quantity: 1
+		price: 200
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-16
+		due: 2026-04-15
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-PARTIAL-200"
+		accumulate: true
+	payment:
+		date: 2026-03-20
+		amount: 77
+		bank_account: "Assets:Bank"
+		memo: "Partial — 77 of 200"

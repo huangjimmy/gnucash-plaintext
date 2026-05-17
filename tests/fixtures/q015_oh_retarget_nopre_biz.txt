@@ -1,0 +1,29 @@
+customer "C005"
+	name: "Epsilon Inc"
+	currency: CAD
+
+invoice "INV-RT-NOPRE-100"
+	customer_id: "C005"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-RT-NOPRE-100"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 150
+		bank_account: "Assets:Bank"
+		txn_guid: "{txn_guid}"
+		memo: "Trying to retarget oversize tx without prepayment marker"

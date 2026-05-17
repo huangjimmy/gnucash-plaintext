@@ -629,6 +629,107 @@ def _retarget_counter_split_to_lot(lib, existing_tx, bank_acct_name: str,
     return False
 
 
+def _retarget_with_prepayment_split(lib, book, existing_tx, bank_acct_name: str,
+                                    post_account, invoice_lot,
+                                    invoice_portion: float,
+                                    prepayment_portion: float) -> bool:
+    """Q-015 overpayment-retarget mechanic.
+
+    The bank-side tx already exists (e.g. imported from QFX) and its
+    counter-split (the non-bank side) is for more money than the invoice
+    /bill's remaining balance. We split the counter-split into two:
+
+      * the invoice-portion split: re-account to AR/AP, attach to the
+        record's posted lot — closes the lot,
+      * the prepayment-portion split (new): account = same AR/AP, attach
+        to a freshly created lot on the same account — that lot stays
+        open as a customer/vendor credit.
+
+    Returns True iff the split was successful; False if no counter-split
+    was found on `existing_tx`.
+
+    Sign handling: the new prepayment split must match the counter-split's
+    sign (same direction on AR/AP). For an invoice overpayment the
+    counter-split is negative (e.g. -150 on AR); we split into -100 +
+    -50. For a bill the counter-split is positive (+150 on AP) → +100 +
+    +50.
+    """
+    from gnucash import GncNumeric, Split
+
+    from infrastructure.gnucash.engine import safe_ctypes_string
+
+    lib.xaccSplitGetAccount.argtypes = [ctypes.c_void_p]
+    lib.xaccSplitGetAccount.restype  = ctypes.c_void_p
+    lib.xaccSplitSetAccount.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.xaccSplitSetAccount.restype  = None
+    lib.gnc_account_get_parent.argtypes = [ctypes.c_void_p]
+    lib.gnc_account_get_parent.restype  = ctypes.c_void_p
+    lib.gnc_lot_new.argtypes = [ctypes.c_void_p]
+    lib.gnc_lot_new.restype  = ctypes.c_void_p
+    lib.xaccAccountInsertLot.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.xaccAccountInsertLot.restype  = None
+    lib.gnc_lot_add_split.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gnc_lot_add_split.restype  = None
+
+    def _acct_name(acct_ptr):
+        parts = []
+        ptr = acct_ptr
+        while ptr:
+            name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
+            if name:
+                parts.append(name)
+            parent = lib.gnc_account_get_parent(ptr)
+            if not parent:
+                break
+            if not lib.gnc_account_get_parent(parent):
+                break
+            ptr = parent
+        parts.reverse()
+        return ':'.join(parts)
+
+    import gnucash.gnucash_core_c as _gc
+
+    existing_tx.BeginEdit()
+    counter_split = None
+    for raw_sp in existing_tx.GetSplitList():
+        sp_ptr = int(raw_sp.instance)
+        acct_ptr = lib.xaccSplitGetAccount(sp_ptr)
+        if not acct_ptr:
+            continue
+        if _acct_name(acct_ptr) != bank_acct_name:
+            counter_split = raw_sp
+            break
+    if counter_split is None:
+        existing_tx.CommitEdit()
+        return False
+
+    # Reduce the existing counter-split to the invoice-portion (preserving
+    # its sign), retarget it to AR/AP, link it to the invoice lot.
+    sign = 1 if counter_split.GetAmount().to_double() >= 0 else -1
+    invoice_signed = GncNumeric(sign * int(round(invoice_portion * 100)), 100)
+    prepay_signed  = GncNumeric(sign * int(round(prepayment_portion * 100)), 100)
+
+    counter_split.SetAmount(invoice_signed)
+    counter_split.SetValue(invoice_signed)
+    lib.xaccSplitSetAccount(int(counter_split.instance), int(post_account.instance))
+    _gc.xaccSplitSetLot(counter_split.instance, invoice_lot.instance)
+
+    # Create the prepayment split on the same tx, on the same AR/AP account,
+    # in a brand-new lot on that account.
+    new_split = Split(book)
+    new_split.SetParent(existing_tx)
+    new_split.SetAccount(post_account)
+    new_split.SetAmount(prepay_signed)
+    new_split.SetValue(prepay_signed)
+
+    new_lot_ptr = lib.gnc_lot_new(int(book.instance))
+    lib.xaccAccountInsertLot(int(post_account.instance), new_lot_ptr)
+    lib.gnc_lot_add_split(new_lot_ptr, int(new_split.instance))
+
+    existing_tx.CommitEdit()
+    return True
+
+
 def _is_falsy(val: str) -> bool:
     """Return True if val is a recognised falsy string (case-insensitive)."""
     return val.strip().lower() in _FALSY_STRINGS
@@ -794,34 +895,27 @@ def _posted_matches_directive(invoice, posted_dir: 'PlaintextDirective',
     return posting_txn.GetDescription() == md['memo']
 
 
-def _payments_match_directive(invoice, payment_dirs) -> bool:
-    """Compare an invoice's existing payments against PAYMENT directives.
+def _lot_payment_splits(record):
+    """Return the AR/AP-side splits in the record's posted lot, in
+    GnuCash's iteration order, excluding the posting tx's own split AND
+    any split whose parent tx is a credit-consumption tx (Q-015
+    `auto_apply_credit`).
 
-    The exporter derives payment lines from the invoice's posted lot:
-    every transaction in the lot whose split is NOT the posting tx is a
-    payment. The bank-side split holds the date/amount/memo as the user
-    typed them (memo lives on the split, NOT on the transaction
-    description — see `_format_payment` in export_business_objects).
-
-    Two payment-directive flavours:
-      - **Normal payment**: directive supplies bank_account, date, amount,
-        memo (optionally num). Compare all of them.
-      - **Retarget (txn_guid)**: directive supplies bank_account and
-        txn_guid only — date/amount/memo come from the pre-existing bank
-        transaction and are not authoritative in the directive. Compare
-        only what the directive declares.
-
-    Note: `lot.get_split_list()` returns raw SwigPyObject pointers, so we
-    wrap them in `Split(instance=...)` and read the parent transaction
-    via `GetParent()`. This mirrors the pattern in `invoice_renderer`.
+    Used by both `_payments_match_directive` (strict count + field equality)
+    and `_payments_only_added_diff` (prefix-equal-superset check). In both
+    cases, auto-applied credit-consumption splits don't represent
+    user-declared `payment:` blocks — they're tracked via the
+    `auto_apply_credit: true` flag on the invoice/bill header.
     """
+    import gnucash.gnucash_core_c as _gc
     from gnucash import Split
-    lot = invoice.GetPostedLot()
+    lot = record.GetPostedLot()
     if lot is None:
-        return len(payment_dirs) == 0
-    posting_txn = invoice.GetPostedTxn()
+        return []
+    posting_txn = record.GetPostedTxn()
     posting_txn_guid = posting_txn.GetGUID().to_string() if posting_txn else None
-    pay_splits = []
+    this_lot_id = int(lot.instance)
+    out = []
     for raw in lot.get_split_list():
         s = Split(instance=raw)
         tx = s.GetParent()
@@ -829,48 +923,318 @@ def _payments_match_directive(invoice, payment_dirs) -> bool:
             continue
         if posting_txn_guid is not None and tx.GetGUID().to_string() == posting_txn_guid:
             continue
-        pay_splits.append(s)
+        # Skip splits that came from gncInvoiceAutoApplyPayments: their
+        # parent tx has AR/AP-side splits in another invoice/bill lot
+        # (the original invoice's lot, where the credit was created).
+        is_credit_consumption = False
+        for i in range(tx.CountSplits()):
+            other = tx.GetSplit(i)
+            other_acct = other.GetAccount()
+            if other_acct is None:
+                continue
+            other_type = other_acct.GetType()
+            if other_type not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+                continue
+            other_lot = other.GetLot()
+            if other_lot is None:
+                continue
+            if int(other_lot) == this_lot_id:
+                continue
+            if _gc.gncInvoiceGetInvoiceFromLot(other_lot):
+                is_credit_consumption = True
+                break
+        if is_credit_consumption:
+            continue
+        out.append(s)
+    return out
+
+
+def _prepayment_amount_for(in_lot_split):
+    """Sum of absolute amounts of AR/AP-side splits on `in_lot_split`'s
+    parent transaction OTHER than `in_lot_split` itself.
+
+    Returns 0 (as a `Decimal`-castable float) when the payment tx has
+    exactly one AR/AP split — the normal full-or-partial-payment case.
+    Returns the residual amount (as `float`) when GnuCash split the
+    payment across multiple AR/AP lots (overpayment → in-invoice lot +
+    one or more prepayment lots).
+    """
+    tx = in_lot_split.GetParent()
+    in_lot_guid = in_lot_split.GetGUID().to_string()
+    total = 0.0
+    for s in tx.GetSplitList():
+        if s.GetGUID().to_string() == in_lot_guid:
+            continue
+        acct = s.GetAccount()
+        if acct is None:
+            continue
+        if acct.GetType() in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+            total += abs(s.GetAmount().to_double())
+    return total
+
+
+def _single_payment_matches(split, pd) -> bool:
+    """Compare one AR/AP-side payment split against one PAYMENT directive.
+
+    Returns True iff the directive's fields match the underlying bank-side
+    transaction. Two directive flavours:
+      - **Normal**: bank_account, date, amount, memo, num all compared.
+      - **Retarget (txn_guid)**: only bank_account and the tx GUID itself
+        — date/amount/memo on the directive aren't authoritative.
+
+    Memo lives on the bank-side split (see `_format_payment` in the
+    exporter), not on the transaction description.
+
+    Identifying the bank-side split: an overpayment tx has THREE splits —
+    bank + AR/AP-in-lot + AR/AP-in-prepayment-lot. We must find the
+    bank-side split by account match (the directive declares
+    `bank_account` authoritatively), not by exclusion against the
+    AR/AP-side split we were passed — the latter would pick the
+    other AR/AP split when iteration order put it first.
+    """
+    md = pd.metadata
+    tx = split.GetParent()
+    bank_acct_name = md['bank_account']
+    bank_split = next(
+        (s for s in tx.GetSplitList()
+         if (a := s.GetAccount()) is not None
+         and get_account_full_name(a) == bank_acct_name),
+        None,
+    )
+    if bank_split is None:
+        return False
+    directive_txn_guid = (md.get('txn_guid') or '').strip()
+    if directive_txn_guid:
+        return tx.GetGUID().to_string() == directive_txn_guid
+    if tx.GetDate().strftime("%Y-%m-%d") != md['date']:
+        return False
+    if not _gnc_numeric_equals(bank_split.GetAmount().abs(), md['amount']):
+        return False
+    if (bank_split.GetMemo() or '') != md.get('memo', ''):
+        return False
+    if (tx.GetNum() or '') != md.get('num', ''):
+        return False
+    # Q-015: compare prepayment portion (sum of AR/AP-side splits OTHER
+    # than the in-lot one) against the directive's `prepayment:` field.
+    # Missing on the directive ⇔ 0 in the book.
+    actual_prepay = _prepayment_amount_for(split)
+    raw_prepay = md.get('prepayment')
+    if raw_prepay is None or str(raw_prepay).strip() == '':
+        expected_prepay = 0.0
+    else:
+        try:
+            expected_prepay = float(str(raw_prepay).strip())
+        except ValueError:
+            return False
+    return not abs(actual_prepay - expected_prepay) > 1e-06
+
+
+def _payments_match_directive(record, payment_dirs) -> bool:
+    """True iff the record's posted-lot payments match the directives
+    one-for-one (same count, same field values). Used by the strict
+    `_invoice_matches_directive` / `_bill_matches_directive`.
+    """
+    pay_splits = _lot_payment_splits(record)
     if len(pay_splits) != len(payment_dirs):
         return False
-    for split, pd in zip(pay_splits, payment_dirs):
-        md = pd.metadata
-        tx = split.GetParent()
-        ar_ap_split_guid = split.GetGUID().to_string()
-        bank_split = next(
-            (s for s in tx.GetSplitList()
-             if s.GetGUID().to_string() != ar_ap_split_guid),
-            None,
-        )
-        if bank_split is None:
-            return False
-        bank_acct = bank_split.GetAccount()
-        if bank_acct is None or get_account_full_name(bank_acct) != md['bank_account']:
-            return False
-
-        directive_txn_guid = (md.get('txn_guid') or '').strip()
-        if directive_txn_guid:
-            if tx.GetGUID().to_string() != directive_txn_guid:
-                return False
-            continue
-        if tx.GetDate().strftime("%Y-%m-%d") != md['date']:
-            return False
-        if not _gnc_numeric_equals(bank_split.GetAmount().abs(), md['amount']):
-            return False
-        if (bank_split.GetMemo() or '') != md.get('memo', ''):
-            return False
-        if (tx.GetNum() or '') != md.get('num', ''):
-            return False
-    return True
+    return all(_single_payment_matches(s, pd) for s, pd in zip(pay_splits, payment_dirs))
 
 
-def _invoice_matches_directive(invoice, directive: 'PlaintextDirective', book) -> bool:
-    """Return True iff an existing customer invoice equals the directive (Q-010).
+def _emit_orphan_warning_before_unpost(record, kind: str, ident: str,
+                                       on_orphan_warning):
+    """Q-015: every importer-side `Unpost(False)` on a paid record must
+    surface the resulting orphan(s) to the user. Call this *before*
+    `record.Unpost(False)` — once unposted, the lot's invoice association
+    is destroyed and the orphans can no longer be enumerated from `record`.
 
-    Compared fields: date_opened, billing_id, notes, custom KVP, entries
-    (positional, by field), the posted block (or absence thereof), and
-    payments (count + per-payment fields). Mismatch on ANY field returns
-    False so the importer falls through to the rebuild + repost path.
+    `on_orphan_warning(kind, ident, orphans)` is invoked only when the
+    record has at least one payment-class transaction attached to its
+    posted lot. If the callback is None (library callers that don't want
+    the warning surfaced) the helper is a no-op aside from the
+    `find_lot_payment_transactions` call, which is safe.
     """
+    if on_orphan_warning is None:
+        return
+    if record.GetPostedTxn() is None:
+        return
+    from use_cases.unpost_business_objects import find_lot_payment_transactions
+    orphans = find_lot_payment_transactions(record)
+    if orphans:
+        on_orphan_warning(kind, ident, orphans)
+
+
+def _apply_payment_directive(record, pay_dir, book, is_bill):
+    """Apply one PAYMENT directive to an already-posted invoice or bill.
+
+    Used by both the normal rebuild path (after entries/posted have been
+    re-applied) and the Q-015 add-payment fast path (the record is still
+    posted and is mutated in-place).
+
+    For invoices, `ApplyPayment(+amount)` closes the AR lot. For bills,
+    AP has the opposite sign convention so we pass `-amount`; see Q-014
+    notes in `CLAUDE.md` for the accounting reasoning.
+    """
+    bank_acct_name = pay_dir.metadata['bank_account']
+    bank_account = find_account(book.get_root_account(), bank_acct_name)
+    if bank_account is None:
+        kind = 'bill' if is_bill else 'invoice'
+        raise Exception(f'Bank account {bank_acct_name!r} not found when applying {kind} payment')
+
+    txn_guid = pay_dir.metadata.get('txn_guid', '').strip()
+    if txn_guid:
+        # Retarget: existing bank tx is retargeted into the AR/AP lot
+        # without `ApplyPayment` (no new tx, preserves original tx GUID
+        # and KVP). Counter-split retargeting closes the lot when the
+        # AR/AP-side split sum hits zero.
+        existing_tx = _find_transaction_by_guid(book, txn_guid)
+        if existing_tx is None:
+            raise Exception(f'txn_guid {txn_guid!r} not found in book')
+        post_acct = record.GetPostedAcc()
+        lot = record.GetPostedLot()
+        if lot is None:
+            kind = 'Bill' if is_bill else 'Invoice'
+            raise Exception(f'{kind} has no posted lot — must be posted before payment')
+        from infrastructure.gnucash.engine import load_gnc_engine
+        lib = load_gnc_engine()
+
+        # Q-015: detect overpayment via retarget. The counter-split's
+        # absolute amount = bank-side amount. If it exceeds the lot's
+        # remaining balance the user is asking us to overpay; that
+        # requires the `prepayment:` field on the directive (we will not
+        # silently leave the lot in an overpaid state).
+        counter_amount_abs = None
+        for raw_sp in existing_tx.GetSplitList():
+            acct = raw_sp.GetAccount()
+            if acct is None:
+                continue
+            if get_account_full_name(acct) != bank_acct_name:
+                counter_amount_abs = abs(raw_sp.GetAmount().to_double())
+                break
+        invoice_remaining_abs = abs(lot.get_balance().to_double())
+
+        if counter_amount_abs is not None and \
+                counter_amount_abs > invoice_remaining_abs + 1e-6:
+            expected_prepay = counter_amount_abs - invoice_remaining_abs
+            raw_declared = pay_dir.metadata.get('prepayment')
+            declared_str = '' if raw_declared is None else str(raw_declared).strip()
+            kind = 'bill' if is_bill else 'invoice'
+            if not declared_str:
+                raise Exception(
+                    f'tx {txn_guid!r} amount {counter_amount_abs:.2f} '
+                    f'exceeds {kind} remaining {invoice_remaining_abs:.2f}; '
+                    f'add `prepayment: {expected_prepay:.2f}` to the payment '
+                    f'block to accept the residual as a pre-payment credit, '
+                    f'or retarget a bank tx whose counter-split matches the '
+                    f'{kind}\'s outstanding amount exactly.'
+                )
+            try:
+                declared = float(declared_str)
+            except ValueError as exc:
+                raise Exception(
+                    f'prepayment field must be a number, got {declared_str!r}'
+                ) from exc
+            if abs(declared - expected_prepay) > 1e-6:
+                raise Exception(
+                    f'declared `prepayment: {declared}` does not match the '
+                    f'computed residual {expected_prepay:.2f} (tx counter-split '
+                    f'{counter_amount_abs:.2f} − {kind} remaining '
+                    f'{invoice_remaining_abs:.2f}).'
+                )
+            if not _retarget_with_prepayment_split(
+                    lib, book, existing_tx, bank_acct_name,
+                    post_acct, lot, invoice_remaining_abs, expected_prepay):
+                raise Exception(
+                    f'Could not find counter-split in tx {txn_guid!r} — '
+                    f'expected a non-{bank_acct_name!r} split'
+                )
+            return
+
+        # Exact or partial retarget: original whole-split move.
+        if not _retarget_counter_split_to_lot(
+                lib, existing_tx, bank_acct_name, post_acct, lot):
+            raise Exception(
+                f'Could not find counter-split in tx {txn_guid!r} — '
+                f'expected a non-{bank_acct_name!r} split'
+            )
+        return
+
+    pay_date = datetime.strptime(pay_dir.metadata['date'], "%Y-%m-%d")
+    amount_str = pay_dir.metadata['amount']
+    memo = pay_dir.metadata['memo']
+    num = pay_dir.metadata.get('num', '')
+    if is_bill:
+        amount = string_to_gnc_numeric_quantity(f'-{amount_str}')
+    else:
+        amount = string_to_gnc_numeric_quantity(amount_str)
+    # Pass txn=None: GnuCash creates the payment transaction internally.
+    # Passing a manually-allocated Transaction causes a segfault on
+    # GnuCash 3.8 (ubuntu20) because the tx is not initialised before
+    # ApplyPayment uses it.
+    record.ApplyPayment(None, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
+
+
+def _payments_only_added_diff(record, payment_dirs):
+    """Q-015 classifier helper.
+
+    Return (True, added_directives) iff the directive's PAYMENT list is a
+    strict prefix-equal superset of the record's existing lot payments:
+    every existing payment matches the corresponding directive 1:1, and
+    the directive has additional payment directives at the tail.
+
+    Return (False, []) for any other shape — equal count, directive has
+    fewer payments, or any in-place modification of an existing payment.
+    """
+    pay_splits = _lot_payment_splits(record)
+    if len(pay_splits) >= len(payment_dirs):
+        return False, []
+    for s, pd in zip(pay_splits, payment_dirs[:len(pay_splits)]):
+        if not _single_payment_matches(s, pd):
+            return False, []
+    return True, list(payment_dirs[len(pay_splits):])
+
+
+def _record_consumed_credit(record) -> bool:
+    """Q-015: True iff the record's posted lot contains splits that came
+    from `gncInvoiceAutoApplyPayments` (i.e. a payment tx attached to
+    another invoice/bill's lot for the same owner). Mirrors the exporter's
+    `_payment_is_credit_consumption` heuristic — see use_cases/export_business_objects.py.
+    """
+    import gnucash.gnucash_core_c as _gc
+    lot = record.GetPostedLot()
+    if lot is None:
+        return False
+    this_lot_id = int(lot.instance)
+    posting_txn = record.GetPostedTxn()
+    posting_txn_guid = posting_txn.GetGUID().to_string() if posting_txn else None
+    from gnucash import Split
+    for raw in lot.get_split_list():
+        s = Split(instance=raw)
+        tx = s.GetParent()
+        if tx is None:
+            continue
+        if posting_txn_guid is not None and tx.GetGUID().to_string() == posting_txn_guid:
+            continue
+        for i in range(tx.CountSplits()):
+            other = tx.GetSplit(i)
+            other_acct = other.GetAccount()
+            if other_acct is None:
+                continue
+            if other_acct.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+                continue
+            other_lot = other.GetLot()
+            if other_lot is None or int(other_lot) == this_lot_id:
+                continue
+            if _gc.gncInvoiceGetInvoiceFromLot(other_lot):
+                return True
+    return False
+
+
+def _invoice_non_payment_matches(invoice, directive: 'PlaintextDirective') -> bool:
+    """True iff every non-payment field of an existing customer invoice
+    matches the directive: date_opened, billing_id, notes, custom KVP,
+    entries (positional by field), and the posted block (or its absence).
+    Used by both the strict-equality classifier and the Q-015 add-only
+    classifier — payments are checked separately."""
     md = directive.metadata
     if invoice.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
         return False
@@ -882,6 +1246,11 @@ def _invoice_matches_directive(invoice, directive: 'PlaintextDirective', book) -
                       if k not in KNOWN_INVOICE_METADATA_KEYS and v is not None}
     existing_custom = get_custom_metadata(invoice) or {}
     if existing_custom != desired_custom:
+        return False
+
+    # Q-015: auto_apply_credit flag must match the book's effective state.
+    desired_auto = not _is_falsy(str(md.get('auto_apply_credit', 'false')))
+    if desired_auto != _record_consumed_credit(invoice):
         return False
 
     entry_dirs = [c for c in directive.children if c.type == DirectiveType.INVOICE_ENTRY]
@@ -899,12 +1268,45 @@ def _invoice_matches_directive(invoice, directive: 'PlaintextDirective', book) -
         return False
     if posted_dirs and not is_posted:
         return False
-    if posted_dirs and is_posted and not _posted_matches_directive(
-            invoice, posted_dirs[0], 'ar_account'):
-        return False
+    return not (posted_dirs and is_posted and not _posted_matches_directive(invoice, posted_dirs[0], 'ar_account'))
 
+
+def _invoice_matches_directive(invoice, directive: 'PlaintextDirective', book) -> bool:
+    """Return True iff an existing customer invoice equals the directive (Q-010).
+
+    Compared fields: date_opened, billing_id, notes, custom KVP, entries
+    (positional, by field), the posted block (or absence thereof), and
+    payments (count + per-payment fields). Mismatch on ANY field returns
+    False so the importer falls through to the rebuild + repost path.
+    """
+    if not _invoice_non_payment_matches(invoice, directive):
+        return False
     payment_dirs = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
     return _payments_match_directive(invoice, payment_dirs)
+
+
+def _is_only_added_payment_diff_invoice(invoice, directive):
+    """Q-015 classifier for customer invoices.
+
+    Return (True, added_directives) iff the only difference between the
+    existing posted invoice and the directive is that the directive
+    appends additional `payment:` blocks at the tail (entries + posted +
+    metadata all match; the existing payments are a prefix-equal subset
+    of the directive's payments).
+
+    When True, the caller can apply just the additional payments via
+    `ApplyPayment` on the still-posted invoice — no Unpost, no rebuild,
+    posting/entry/existing-payment GUIDs preserved.
+
+    Return (False, []) for any other shape — falls through to the
+    destructive rebuild path the test suite already covers.
+    """
+    if invoice.GetPostedTxn() is None:
+        return False, []
+    if not _invoice_non_payment_matches(invoice, directive):
+        return False, []
+    payment_dirs = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
+    return _payments_only_added_diff(invoice, payment_dirs)
 
 
 def _is_only_unpost_diff(invoice_or_bill, directive: 'PlaintextDirective',
@@ -965,12 +1367,9 @@ def _is_only_unpost_diff(invoice_or_bill, directive: 'PlaintextDirective',
     return all(matcher(entry, ed) for entry, ed in zip(existing_entries, entry_dirs))
 
 
-def _bill_matches_directive(bill, directive: 'PlaintextDirective', book) -> bool:
-    """Return True iff an existing vendor bill equals the directive (Q-010).
-
-    Same shape as `_invoice_matches_directive` but uses the bill-side
-    entry getters and AP account.
-    """
+def _bill_non_payment_matches(bill, directive: 'PlaintextDirective') -> bool:
+    """Bill-side counterpart of `_invoice_non_payment_matches` — same
+    shape, uses the bill entry getters and AP account."""
     md = directive.metadata
     if bill.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
         return False
@@ -980,6 +1379,10 @@ def _bill_matches_directive(bill, directive: 'PlaintextDirective', book) -> bool
                       if k not in KNOWN_BILL_METADATA_KEYS and v is not None}
     existing_custom = get_custom_metadata(bill) or {}
     if existing_custom != desired_custom:
+        return False
+
+    desired_auto = not _is_falsy(str(md.get('auto_apply_credit', 'false')))
+    if desired_auto != _record_consumed_credit(bill):
         return False
 
     entry_dirs = [c for c in directive.children if c.type == DirectiveType.BILL_ENTRY]
@@ -997,12 +1400,30 @@ def _bill_matches_directive(bill, directive: 'PlaintextDirective', book) -> bool
         return False
     if posted_dirs and not is_posted:
         return False
-    if posted_dirs and is_posted and not _posted_matches_directive(
-            bill, posted_dirs[0], 'ap_account'):
-        return False
+    return not (posted_dirs and is_posted and not _posted_matches_directive(bill, posted_dirs[0], 'ap_account'))
 
+
+def _bill_matches_directive(bill, directive: 'PlaintextDirective', book) -> bool:
+    """Return True iff an existing vendor bill equals the directive (Q-010).
+
+    Same shape as `_invoice_matches_directive` but uses the bill-side
+    entry getters and AP account.
+    """
+    if not _bill_non_payment_matches(bill, directive):
+        return False
     payment_dirs = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
     return _payments_match_directive(bill, payment_dirs)
+
+
+def _is_only_added_payment_diff_bill(bill, directive):
+    """Q-015 classifier for vendor bills. Symmetric to
+    `_is_only_added_payment_diff_invoice`."""
+    if bill.GetPostedTxn() is None:
+        return False, []
+    if not _bill_non_payment_matches(bill, directive):
+        return False, []
+    payment_dirs = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
+    return _payments_only_added_diff(bill, payment_dirs)
 
 
 class GnuCashImporter:
@@ -1604,7 +2025,8 @@ class GnuCashImporter:
         return 'created'
 
     @staticmethod
-    def import_invoice(directive: PlaintextDirective, book: Book):
+    def import_invoice(directive: PlaintextDirective, book: Book,
+                       on_orphan_warning=None):
         if directive.type != DirectiveType.INVOICE:
             raise ValueError(f"Expected INVOICE but got {directive.type}")
 
@@ -1635,11 +2057,15 @@ class GnuCashImporter:
         if has_posted_none and payment_children:
             raise ValueError(f'Invoice {inv_id}: cannot have payment: blocks on an unposted invoice (posted: none)')
 
-        # Q-010: classify the existing record before any mutation.
+        # Q-010 / Q-015: classify the existing record before any mutation.
         #   - matches directive byte-for-byte → 'unchanged' (no-op)
         #   - only difference is `posted → posted: none` → minimal Unpost,
         #     skip the destroy-and-rebuild (preserves entry GUIDs)
-        #   - existing is posted, directive differs (entries/posted/payments)
+        #   - only difference is the directive appends payment(s) at the
+        #     tail → apply just those new payments via ApplyPayment on
+        #     the still-posted invoice (preserves posting/entry GUIDs and
+        #     does NOT orphan existing payment bank txs)
+        #   - existing is posted, directive differs in other ways
         #     → full Unpost-rebuild-repost cycle (mirrors GnuCash UI)
         #   - existing is unposted → fall through to rebuild
         # Q-007's old behaviour ("posted is immutable, return skipped")
@@ -1655,11 +2081,25 @@ class GnuCashImporter:
                     f"Invoice {inv_id}: only difference is posted→posted:none; "
                     f"minimal unpost (entry GUIDs preserved)"
                 )
+                _emit_orphan_warning_before_unpost(
+                    existing, 'invoice', inv_id, on_orphan_warning)
                 existing.Unpost(False)
+                return 'updated'
+            added, added_pays = _is_only_added_payment_diff_invoice(existing, directive)
+            if added:
+                logging.debug(
+                    f"Invoice {inv_id}: only difference is +{len(added_pays)} "
+                    f"appended payment(s); applying incrementally (posting/entry/"
+                    f"existing-payment GUIDs preserved)"
+                )
+                for pay_dir in added_pays:
+                    _apply_payment_directive(existing, pay_dir, book, is_bill=False)
                 return 'updated'
             status_on_success = 'updated'
             if existing.GetPostedTxn() is not None:
                 logging.debug(f"Invoice {inv_id} is posted but differs; unposting for rebuild")
+                _emit_orphan_warning_before_unpost(
+                    existing, 'invoice', inv_id, on_orphan_warning)
                 existing.Unpost(False)
 
         if existing is None:
@@ -1741,44 +2181,19 @@ class GnuCashImporter:
                     posting_txn.SetNotes("business_generated: true")
                     posting_txn.CommitEdit()
             elif entry_directive.type == DirectiveType.PAYMENT:
-                bank_acct_name = entry_directive.metadata['bank_account']
-                bank_account = find_account(book.get_root_account(), bank_acct_name)
-                if bank_account is None:
-                    raise Exception(f'Bank account {bank_acct_name!r} not found when applying invoice payment')
+                _apply_payment_directive(invoice, entry_directive, book, is_bill=False)
 
-                txn_guid = entry_directive.metadata.get('txn_guid', '').strip()
-                if txn_guid:
-                    # Retarget approach: the bank transaction already exists.
-                    # Find the counter-split (non-bank side), retarget it to AR,
-                    # and link it to the invoice lot. No new transaction is created,
-                    # all original bank metadata (notes, memos, KVP) is preserved.
-                    # ApplyPayment() is NOT called — the lot closes automatically
-                    # when the AR split sum reaches zero.
-                    existing_tx = _find_transaction_by_guid(book, txn_guid)
-                    if existing_tx is None:
-                        raise Exception(f'txn_guid {txn_guid!r} not found in book')
-                    ar_account = invoice.GetPostedAcc()
-                    lot = invoice.GetPostedLot()
-                    if lot is None:
-                        raise Exception(f'Invoice {inv_id} has no posted lot — must be posted before payment')
-                    from infrastructure.gnucash.engine import load_gnc_engine
-                    if not _retarget_counter_split_to_lot(
-                            load_gnc_engine(), existing_tx, bank_acct_name, ar_account, lot):
-                        raise Exception(
-                            f'Could not find counter-split in tx {txn_guid!r} — '
-                            f'expected a non-{bank_acct_name!r} split'
-                        )
-                else:
-                    # Normal path: no pre-existing bank tx — ApplyPayment creates one.
-                    pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
-                    amount = string_to_gnc_numeric_quantity(entry_directive.metadata['amount'])
-                    memo = entry_directive.metadata['memo']
-                    num = entry_directive.metadata.get('num', '')
-                    # Pass None for txn: GnuCash creates the payment transaction
-                    # internally. Passing a manually-allocated Transaction causes
-                    # a segfault on GnuCash 3.8 (ubuntu20) because the transaction
-                    # is not properly initialised before ApplyPayment uses it.
-                    invoice.ApplyPayment(None, bank_account, amount, GncNumeric(1, 1), pay_date, memo, num)
+        # Q-015: auto_apply_credit consumes the customer's open prepayment
+        # lots toward this invoice via gncInvoiceAutoApplyPayments. Cash
+        # payments above are applied first; auto-apply then fills any
+        # remaining balance from existing credit.
+        if not _is_falsy(str(directive.metadata.get('auto_apply_credit', 'false'))):
+            if invoice.GetPostedTxn() is None:
+                raise Exception(
+                    f'Invoice {inv_id}: auto_apply_credit requires a posted: '
+                    f'block (cannot apply credit to an unposted invoice)'
+                )
+            invoice.AutoApplyPayments()
 
         invoice.CommitEdit()
         custom_meta = {k: v for k, v in directive.metadata.items()
@@ -1792,7 +2207,8 @@ class GnuCashImporter:
         return status_on_success
 
     @staticmethod
-    def import_bill(directive: PlaintextDirective, book: Book):
+    def import_bill(directive: PlaintextDirective, book: Book,
+                    on_orphan_warning=None):
         if directive.type != DirectiveType.BILL:
             raise ValueError(f"Expected BILL but got {directive.type}")
 
@@ -1826,10 +2242,11 @@ class GnuCashImporter:
         if has_posted_none and payment_children:
             raise ValueError(f'Bill {bill_id}: cannot have payment: blocks on an unposted bill (posted: none)')
 
-        # Q-010: same classification as import_invoice. Posted bills are
-        # mutable via Unpost-edit-repost; identical re-imports are unchanged;
-        # bare unpost (posted → posted: none, no other change) skips the
-        # destroy-and-rebuild and preserves entry GUIDs.
+        # Q-010 / Q-015: same classification as import_invoice. Posted
+        # bills are mutable via Unpost-edit-repost; identical re-imports
+        # are unchanged; bare unpost (posted → posted: none, no other
+        # change) skips the destroy-and-rebuild and preserves entry
+        # GUIDs; appended payments hit the Q-015 fast path.
         status_on_success = 'created'
         if existing is not None:
             if _bill_matches_directive(existing, directive, book):
@@ -1840,11 +2257,25 @@ class GnuCashImporter:
                     f"Bill {bill_id}: only difference is posted→posted:none; "
                     f"minimal unpost (entry GUIDs preserved)"
                 )
+                _emit_orphan_warning_before_unpost(
+                    existing, 'bill', bill_id, on_orphan_warning)
                 existing.Unpost(False)
+                return 'updated'
+            added, added_pays = _is_only_added_payment_diff_bill(existing, directive)
+            if added:
+                logging.debug(
+                    f"Bill {bill_id}: only difference is +{len(added_pays)} "
+                    f"appended payment(s); applying incrementally (posting/entry/"
+                    f"existing-payment GUIDs preserved)"
+                )
+                for pay_dir in added_pays:
+                    _apply_payment_directive(existing, pay_dir, book, is_bill=True)
                 return 'updated'
             status_on_success = 'updated'
             if existing.GetPostedTxn() is not None:
                 logging.debug(f"Bill {bill_id} is posted but differs; unposting for rebuild")
+                _emit_orphan_warning_before_unpost(
+                    existing, 'bill', bill_id, on_orphan_warning)
                 existing.Unpost(False)
 
         if existing is None:
@@ -1909,47 +2340,16 @@ class GnuCashImporter:
                     posting_txn.SetNotes("business_generated: true")
                     posting_txn.CommitEdit()
             elif entry_directive.type == DirectiveType.PAYMENT:
-                bank_acct_name = entry_directive.metadata['bank_account']
-                bank_account = find_account(book.get_root_account(), bank_acct_name)
-                if bank_account is None:
-                    raise Exception(f'Bank account {bank_acct_name!r} not found when applying bill payment')
+                _apply_payment_directive(bill, entry_directive, book, is_bill=True)
 
-                txn_guid = entry_directive.metadata.get('txn_guid', '').strip()
-                if txn_guid:
-                    # Retarget approach — same as invoice, but targeting AP.
-                    existing_tx = _find_transaction_by_guid(book, txn_guid)
-                    if existing_tx is None:
-                        raise Exception(f'txn_guid {txn_guid!r} not found in book')
-                    ap_account = bill.GetPostedAcc()
-                    lot = bill.GetPostedLot()
-                    if lot is None:
-                        raise Exception(f'Bill {bill_id} has no posted lot — must be posted before payment')
-                    from infrastructure.gnucash.engine import load_gnc_engine
-                    if not _retarget_counter_split_to_lot(
-                            load_gnc_engine(), existing_tx, bank_acct_name, ap_account, lot):
-                        raise Exception(
-                            f'Could not find counter-split in tx {txn_guid!r} — '
-                            f'expected a non-{bank_acct_name!r} split'
-                        )
-                else:
-                    # Normal path: ApplyPayment creates the bank+AP transaction.
-                    # AP and AR have opposite sign conventions, so bill payments
-                    # require a negated amount:
-                    #
-                    #   Bill posting:    CR AP −N  →  lot starts at −N
-                    #   Bill payment:    DR AP +N  →  ApplyPayment(+N) creates AP = −N ✗
-                    #                                 (same sign as posting → new lot)
-                    #                   ApplyPayment(−N) creates AP = +N ✓
-                    #                                 (opposite sign → closes existing lot)
-                    #
-                    # Passing a positive amount puts the payment split in a brand-new
-                    # lot instead of the bill's posted lot.
-                    pay_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
-                    amount_str = entry_directive.metadata['amount']
-                    memo = entry_directive.metadata['memo']
-                    num = entry_directive.metadata.get('num', '')
-                    neg_amount = string_to_gnc_numeric_quantity(f'-{amount_str}')
-                    bill.ApplyPayment(None, bank_account, neg_amount, GncNumeric(1, 1), pay_date, memo, num)
+        # Q-015: symmetric to invoice side — consume vendor credit lots.
+        if not _is_falsy(str(directive.metadata.get('auto_apply_credit', 'false'))):
+            if bill.GetPostedTxn() is None:
+                raise Exception(
+                    f'Bill {bill_id}: auto_apply_credit requires a posted: '
+                    f'block (cannot apply credit to an unposted bill)'
+                )
+            bill.AutoApplyPayments()
 
         bill.CommitEdit()
         custom_meta = {k: v for k, v in directive.metadata.items()
@@ -1963,7 +2363,8 @@ class GnuCashImporter:
         return status_on_success
 
     def import_business_objects(self, directives: List[PlaintextDirective], book: Book,
-                                 on_directive_status=None):
+                                 on_directive_status=None,
+                                 on_orphan_warning=None):
         """Import every business-object directive and report per-record status.
 
         `on_directive_status(kind, id, status)` is invoked once per directive
@@ -1972,6 +2373,14 @@ class GnuCashImporter:
         Default is no-op for library callers; the CLI passes a callback
         that prints '<kind> "<id>": <status>' lines so the user sees
         activity inline.
+
+        `on_orphan_warning(kind, id, orphans)` is invoked when a re-import
+        of a *paid* invoice/bill is about to call `Unpost(False)`
+        (Q-015): the helper captures the still-attached payment-class
+        transactions before the unpost destroys the lot, and the callback
+        gets the list so the CLI can render the same orphan-payment
+        warning block that `unpost-invoices` / `unpost-bills` emit.
+        `orphans` is a `List[OrphanPayment]`.
 
         Returns a `BusinessObjectImportResult` with per-type counts so the
         caller can render an aggregate summary at the end of the import.
@@ -2014,7 +2423,8 @@ class GnuCashImporter:
             if directive.type == DirectiveType.INVOICE:
                 iid = directive.props.get('id', '?')
                 try:
-                    status = self.import_invoice(directive, book)
+                    status = self.import_invoice(directive, book,
+                                                 on_orphan_warning=on_orphan_warning)
                 except Exception as e:
                     raise ValueError(f'invoice "{iid}": {e}') from e
                 result.tally('invoice', status)
@@ -2022,7 +2432,8 @@ class GnuCashImporter:
             elif directive.type == DirectiveType.BILL:
                 bid = directive.props.get('id', '?')
                 try:
-                    status = self.import_bill(directive, book)
+                    status = self.import_bill(directive, book,
+                                              on_orphan_warning=on_orphan_warning)
                 except Exception as e:
                     raise ValueError(f'bill "{bid}": {e}') from e
                 result.tally('bill', status)

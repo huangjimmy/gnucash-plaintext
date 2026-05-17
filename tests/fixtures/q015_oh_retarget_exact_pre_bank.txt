@@ -1,0 +1,3 @@
+2026-01-10 * "Pre-existing payment 100 exact"
+  Assets:Bank  100.00 CAD
+  Assets:Accounts Receivable  -100.00 CAD

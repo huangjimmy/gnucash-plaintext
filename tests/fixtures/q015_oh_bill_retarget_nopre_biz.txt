@@ -1,0 +1,29 @@
+vendor "V004"
+	name: "Supplier Delta"
+	currency: CAD
+
+bill "BILL-RT-NOPRE-100"
+	vendor_id: "V004"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Materials"
+		action: "Material"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-RT-NOPRE-100"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 150
+		bank_account: "Assets:Bank"
+		txn_guid: "{txn_guid}"
+		memo: "Bill retarget without prepayment marker"

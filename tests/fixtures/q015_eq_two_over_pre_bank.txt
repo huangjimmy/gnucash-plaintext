@@ -1,0 +1,9 @@
+2026-04-10 * "Delta Café"
+  Assets:Bank  130.00 CAD
+    memo: "Overpaid A (130 of 80)"
+  Assets:Accounts Receivable  -130.00 CAD
+
+2026-05-12 * "Delta Café"
+  Assets:Bank  300.00 CAD
+    memo: "Overpaid B (300 of 250)"
+  Assets:Accounts Receivable  -300.00 CAD

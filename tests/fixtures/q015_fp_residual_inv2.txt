@@ -1,0 +1,20 @@
+invoice "INV-FP-RESIDUAL-30"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	auto_apply_credit: true
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-FP-RESIDUAL-30"
+		accumulate: true

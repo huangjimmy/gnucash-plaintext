@@ -1,0 +1,28 @@
+vendor "V001"
+	name: "Supplier Co"
+	currency: CAD
+
+bill "BILL-PR-FULL-100"
+	vendor_id: "V001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Materials"
+		action: "Material"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-PR-FULL-100"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 100
+		bank_account: "Assets:Bank"
+		memo: "Full bill payment"
