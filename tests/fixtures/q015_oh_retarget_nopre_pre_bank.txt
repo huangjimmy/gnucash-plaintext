@@ -1,0 +1,4 @@
+2026-01-10 * "Pre-existing wire transfer 150 no-prepayment"
+  Assets:Bank  150.00 CAD
+    memo: "External payment"
+  Assets:Accounts Receivable  -150.00 CAD

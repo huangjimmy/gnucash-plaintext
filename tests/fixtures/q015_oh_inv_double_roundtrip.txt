@@ -1,0 +1,28 @@
+customer "C003"
+	name: "Gamma Ltd"
+	currency: CAD
+
+invoice "INV-OH-DBL-120"
+	customer_id: "C003"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 120
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-OH-DBL-120"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 170
+		bank_account: "Assets:Bank"
+		memo: "Overpaid double-roundtrip"

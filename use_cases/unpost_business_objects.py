@@ -116,6 +116,108 @@ class UnpostResult:
         return self.id
 
 
+def format_orphan_warning_block(kind: str, orphans: List['OrphanPayment'],
+                                 ident: str = '') -> str:
+    """Render the per-record orphan-payment warning block.
+
+    Used both by the `unpost-invoices` / `unpost-bills` CLI commands and
+    by the Q-015 importer plumbing — every importer-side `Unpost(False)`
+    on a paid record runs this through `cli/import_cmd.py`'s callback so
+    the user sees the same warning shape as the dedicated CLI commands.
+
+    Returns the empty string if `orphans` is empty (record posted but
+    never paid — silent success). For invoices: "AR", "received". For
+    bills: "AP", "sent".
+
+    `ident` (e.g. "INV-001") is prepended to the lead-in when given so a
+    multi-record import distinguishes which record each warning belongs
+    to. The unpost CLI sets it to '' because its per-record output line
+    immediately precedes the warning.
+    """
+    if not orphans:
+        return ''
+
+    n = len(orphans)
+    noun = 'transaction' if n == 1 else 'transactions'
+    is_invoice = (kind == 'invoice')
+    side = 'AR' if is_invoice else 'AP'
+    flow = 'received in' if is_invoice else 'sent from'
+    record_word = kind
+    label = f' for {kind} "{ident}"' if ident else ''
+
+    lines = []
+    lines.append('')
+    lines.append(
+        f'⚠  {n} bank-side payment {noun} {"is" if n == 1 else "are"} '
+        f'now orphaned in the book{label}.'
+    )
+    lines.append(
+        f'   GnuCash unpost destroys the {side} posting transaction but '
+        f'leaves payment'
+    )
+    lines.append(
+        f'   transactions intact — the money still shows as {flow} '
+        f'your bank account.'
+    )
+    lines.append('')
+
+    def _hyphenate(guid32: str) -> str:
+        g = guid32
+        return f'{g[0:8]}-{g[8:12]}-{g[12:16]}-{g[16:20]}-{g[20:32]}'
+
+    for o in orphans:
+        lines.append(
+            f'   • {o.date}  {o.bank_account}  {o.currency} {o.amount}  '
+            f'"{o.description}"'
+        )
+        if o.memo:
+            lines.append(f'     memo: "{o.memo}"')
+        lines.append(f'     guid: {_hyphenate(o.tx_guid)}')
+
+    if n > 1:
+        by_acct: dict = {}
+        for o in orphans:
+            by_acct.setdefault((o.bank_account, o.currency), 0.0)
+            by_acct[(o.bank_account, o.currency)] += float(o.amount)
+        if len(by_acct) == 1:
+            (acct, ccy), total = next(iter(by_acct.items()))
+            lines.append('')
+            lines.append(f'   Total orphaned: {ccy} {total:.2f} in {acct}.')
+        else:
+            lines.append('')
+            lines.append('   Total orphaned per bank account:')
+            for (acct, ccy), total in sorted(by_acct.items()):
+                lines.append(f'     {ccy} {total:.2f} in {acct}')
+
+    lines.append('')
+    lines.append(f'   If you intend to re-pay this {record_word}, either:')
+    lines.append('     a) delete the orphan(s) first:')
+    for o in orphans:
+        lines.append(
+            f'          gnucash-plaintext delete-transactions <book> '
+            f'--by-guid {o.tx_guid}'
+        )
+    lines.append(
+        f'        then re-import the {record_word} with a fresh '
+        f'`payment:` block, or'
+    )
+    lines.append(
+        f'     b) re-import the {record_word} with a `payment:` block '
+        f'that includes'
+    )
+    if n == 1:
+        lines.append(f'          txn_guid: "{orphans[0].tx_guid}"')
+    else:
+        lines.append('          txn_guid: "<orphan-guid>"  (one block per orphan)')
+    lines.append(
+        '        to retarget the existing bank transaction(s) into the '
+        'new posted lot'
+    )
+    lines.append('        (see docs/issues/Q-004 for the retarget mechanism).')
+
+    return '\n'.join(lines)
+
+
 def find_lot_payment_transactions(rec) -> List[OrphanPayment]:
     """Return every payment-class transaction attached to `rec`'s posted lot.
 
@@ -261,6 +363,202 @@ def find_lot_payment_transactions(rec) -> List[OrphanPayment]:
             description=description,
             memo=bank_memo,
         ))
+    return results
+
+
+def find_prepayments_in_book(book: Book,
+                              customer_id: str = None,
+                              vendor_id: str = None) -> List['OrphanPayment']:
+    """Walk the book and return every open AR/AP lot that holds an
+    unconsumed customer/vendor credit (a "pre-payment").
+
+    A prepayment lot is the residual GnuCash creates when a customer
+    overpays an invoice (or a vendor is overpaid on a bill), or when a
+    standalone payment is recorded without an invoice to attach to. The
+    lot stays open on the AR/AP account until consumed by a future
+    invoice via `gncInvoiceAutoApplyPayments` (or by the GnuCash UI's
+    Process Payment).
+
+    Criteria — every lot must satisfy all of them:
+
+      1. Lives on an A/Receivable or A/Payable account.
+      2. `gncInvoiceGetInvoiceFromLot` returns NULL (no invoice/bill is
+         the source of the lot's existence — distinguishes prepay lots
+         from invoice/bill lots that happen to still be open from
+         partial payment).
+      3. Lot balance != 0 (excludes empty lots that haven't been
+         garbage-collected yet).
+      4. We can identify the owner (customer/vendor) from the parent
+         payment tx of one of the lot's splits, via
+         `gncOwnerGetOwnerFromTxn` (or the custom-KVP fallback that
+         Q-014 introduced for roundtripped payments).
+
+    Returns `List[OrphanPayment]` — the dataclass is reused because the
+    surface fields (owner, source tx, amount, currency, bank account)
+    are the same as for orphan payments. The `amount` field is the
+    *lot's balance* (the unconsumed credit), not the original payment
+    amount.
+
+    Filters:
+      - `customer_id` restricts to that customer's credits.
+      - `vendor_id` restricts to that vendor's credits.
+      - Pass neither for the whole-book sweep.
+    """
+    import gnucash.gnucash_core_c as _gc
+    from gnucash import GncLot, Split
+
+    lib = load_gnc_engine()
+    for name, restype, argtypes in [
+        ('xaccAccountGetType',         ctypes.c_int,    [ctypes.c_void_p]),
+        ('xaccSplitGetAccount',        ctypes.c_void_p, [ctypes.c_void_p]),
+        ('xaccSplitGetAmount',         GncNumericC,     [ctypes.c_void_p]),
+        ('xaccTransGetDate',           ctypes.c_int64,  [ctypes.c_void_p]),
+        ('xaccTransGetDescription',    ctypes.c_char_p, [ctypes.c_void_p]),
+        ('xaccTransGetCurrency',       ctypes.c_void_p, [ctypes.c_void_p]),
+        ('gnc_commodity_get_mnemonic', ctypes.c_char_p, [ctypes.c_void_p]),
+        ('qof_instance_get_guid',      ctypes.c_void_p, [ctypes.c_void_p]),
+        ('guid_to_string_buff',        ctypes.c_char_p, [ctypes.c_void_p, ctypes.c_char_p]),
+        ('xaccAccountGetName',         ctypes.c_char_p, [ctypes.c_void_p]),
+        ('gnc_account_get_parent',     ctypes.c_void_p, [ctypes.c_void_p]),
+        ('gncOwnerGetOwnerFromTxn',    ctypes.c_int,    [ctypes.c_void_p, ctypes.c_void_p]),
+        ('gncOwnerGetID',              ctypes.c_char_p, [ctypes.c_void_p]),
+        ('gncOwnerGetName',            ctypes.c_char_p, [ctypes.c_void_p]),
+        ('gncOwnerGetType',            ctypes.c_int,    [ctypes.c_void_p]),
+    ]:
+        try:
+            f = getattr(lib, name)
+            f.restype = restype
+            f.argtypes = argtypes
+        except AttributeError:
+            pass
+
+    def _acct_full_name(acct_ptr) -> str:
+        parts = []
+        ptr = acct_ptr
+        while ptr:
+            name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
+            if name:
+                parts.append(name)
+            parent = lib.gnc_account_get_parent(ptr)
+            if not parent or not lib.gnc_account_get_parent(parent):
+                break
+            ptr = parent
+        parts.reverse()
+        return ':'.join(parts)
+
+    owner_buf = ctypes.create_string_buffer(256)
+    owner_ptr = ctypes.cast(owner_buf, ctypes.c_void_p).value
+
+    from gnucash import (
+        ACCT_TYPE_PAYABLE,
+        ACCT_TYPE_RECEIVABLE,
+    )
+
+    from infrastructure.gnucash.kvp import get_custom_metadata
+    from infrastructure.gnucash.utils import get_account_full_name
+
+    results: List[OrphanPayment] = []
+
+    def walk(acct):
+        atype = lib.xaccAccountGetType(int(acct.instance))
+        if atype in (11, 12):  # AR, AP
+            for raw_lot in acct.GetLotList():
+                lot = GncLot(instance=raw_lot)
+                # Criterion 2: no invoice attached.
+                if _gc.gncInvoiceGetInvoiceFromLot(raw_lot):
+                    continue
+                # Criterion 3: nonzero balance (unconsumed credit).
+                balance = lot.get_balance().to_double()
+                if abs(balance) < 1e-6:
+                    continue
+
+                # Identify owner via the parent tx of the first split.
+                members = list(lot.get_split_list())
+                if not members:
+                    continue
+                first = Split(instance=members[0])
+                tx = first.GetParent()
+                tx_ptr = int(tx.instance)
+
+                got = lib.gncOwnerGetOwnerFromTxn(tx_ptr, owner_ptr)
+                owner_id = ''
+                owner_type = 0
+                owner_name = ''
+                if got == 1:
+                    oid_raw = lib.gncOwnerGetID(owner_ptr)
+                    owner_id = oid_raw.decode('utf-8', errors='replace') if oid_raw else ''
+                    owner_type = lib.gncOwnerGetType(owner_ptr)
+                    name_raw = lib.gncOwnerGetName(owner_ptr)
+                    owner_name = name_raw.decode('utf-8', errors='replace') if name_raw else ''
+                else:
+                    # Custom-KVP fallback (Q-014 plaintext roundtrip).
+                    kvp = get_custom_metadata(tx) or {}
+                    kvp_owner = kvp.get('owner', '')
+                    if kvp_owner and ':' in kvp_owner:
+                        kind, _, oid = kvp_owner.partition(':')
+                        kind, oid = kind.strip(), oid.strip()
+                        if kind == 'customer' and oid:
+                            cust = book.CustomerLookupByID(oid)
+                            if cust is not None and cust.GetID():
+                                owner_type, owner_id, owner_name = 2, oid, cust.GetName() or ''
+                        elif kind == 'vendor' and oid:
+                            vend = book.VendorLookupByID(oid)
+                            if vend is not None and vend.GetID():
+                                owner_type, owner_id, owner_name = 4, oid, vend.GetName() or ''
+                if not owner_id:
+                    continue
+                if customer_id and not (owner_type == 2 and owner_id == customer_id):
+                    continue
+                if vendor_id and not (owner_type == 4 and owner_id == vendor_id):
+                    continue
+
+                # Source tx fields. Find the bank-side split of the original
+                # payment tx (for the user's reference back to where the
+                # credit came from).
+                bank_acct_name = ''
+                bank_memo = ''
+                for i in range(tx.CountSplits()):
+                    sp = tx.GetSplit(i)
+                    sp_acct = sp.GetAccount()
+                    if sp_acct is None:
+                        continue
+                    sp_atype = sp_acct.GetType()
+                    if sp_atype in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+                        continue
+                    bank_acct_name = get_account_full_name(sp_acct)
+                    bank_memo = sp.GetMemo() or ''
+                    break
+
+                date_str = tx.GetDate().strftime('%Y-%m-%d')
+                description = tx.GetDescription() or ''
+                commodity_ptr = lib.xaccTransGetCurrency(tx_ptr)
+                mnemonic_raw = (lib.gnc_commodity_get_mnemonic(commodity_ptr)
+                                if commodity_ptr else None)
+                currency = (mnemonic_raw.decode('ascii', errors='replace')
+                            if mnemonic_raw else '')
+                guid_ptr = lib.qof_instance_get_guid(tx_ptr)
+                buf = ctypes.create_string_buffer(40)
+                lib.guid_to_string_buff(guid_ptr, buf)
+                tx_guid = buf.value.decode('ascii').replace('-', '')
+
+                results.append(OrphanPayment(
+                    tx_guid=tx_guid,
+                    date=date_str,
+                    bank_account=bank_acct_name,
+                    amount=f'{abs(balance):.2f}',
+                    currency=currency,
+                    description=description,
+                    memo=bank_memo,
+                    owner_type=owner_type,
+                    owner_id=owner_id,
+                    owner_name=owner_name,
+                    ar_ap_account=get_account_full_name(acct),
+                ))
+
+        for child in acct.get_children():
+            walk(child)
+
+    walk(book.get_root_account())
     return results
 
 

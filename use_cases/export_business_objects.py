@@ -30,6 +30,34 @@ def _fmt_quantity(val: float) -> str:
     return f'{val:g}'
 
 
+def _payment_is_credit_consumption(txn, this_lot_id: int) -> bool:
+    """Q-015: True if any AR/AP-side split on `txn` is in a lot OTHER than
+    `this_lot_id` that has an invoice/bill attached. That's the signature
+    of `gncInvoiceAutoApplyPayments`: the same payment tx is now linked to
+    two (or more) invoice/bill lots, with its splits redistributed across
+    them. The exporter must mark the consuming invoice with
+    `auto_apply_credit: true` rather than emit a misleading `payment:` block
+    for what is actually a credit re-routing.
+    """
+    for i in range(txn.CountSplits()):
+        sp = txn.GetSplit(i)
+        acct = sp.GetAccount()
+        if acct is None:
+            continue
+        atype = gc.xaccAccountGetType(acct.instance)
+        if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
+            continue
+        raw_lot = sp.GetLot()
+        if raw_lot is None:
+            continue
+        if int(raw_lot) == this_lot_id:
+            continue
+        other_inv_ptr = gc.gncInvoiceGetInvoiceFromLot(raw_lot)
+        if other_inv_ptr:
+            return True
+    return False
+
+
 class ExportBusinessObjectsUseCase:
     def __init__(self, book: Book):
         self.book = book
@@ -264,10 +292,16 @@ class ExportBusinessObjectsUseCase:
             else:
                 lines.append('	posted: none')
 
-            # payment blocks — always emitted; "none" sentinel when no payments exist
+            # payment blocks — always emitted; "none" sentinel when no payments exist.
+            # Q-015: payment-txs that are also attached to a different invoice's
+            # lot were applied via gncInvoiceAutoApplyPayments (credit consumption).
+            # They are NOT this invoice's payment; instead we set the
+            # `auto_apply_credit: true` flag on the invoice header.
             lot = inv.GetPostedLot()
             has_payments = False
+            uses_auto_apply = False
             if lot:
+                this_lot_id = int(lot.instance)
                 for raw_split in lot.get_split_list():
                     s   = Split(instance=raw_split)
                     txn = s.GetParent()
@@ -276,10 +310,17 @@ class ExportBusinessObjectsUseCase:
                     # Skip the posting transaction itself
                     if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                         continue
-                    lines += self._format_payment(txn)
+                    if _payment_is_credit_consumption(txn, this_lot_id):
+                        uses_auto_apply = True
+                        continue
+                    lines += self._format_payment(txn, s)
                     has_payments = True
             if not has_payments:
                 lines.append('	payment: none')
+            if uses_auto_apply:
+                # Insert the flag after date_opened (slot 5 in `lines`),
+                # before any billing_id / notes / custom_meta / entries.
+                lines.insert(6, '	auto_apply_credit: true')
 
             invoice_strings.append('\n'.join(lines))
         return '\n\n'.join(invoice_strings)
@@ -364,15 +405,21 @@ class ExportBusinessObjectsUseCase:
 
         return lines
 
-    def _format_payment(self, txn) -> list:
-        """Format one payment transaction as payment: lines."""
+    def _format_payment(self, txn, in_lot_ar_ap_split) -> list:
+        """Format one payment transaction as `payment:` lines.
+
+        `in_lot_ar_ap_split` is the AR/AP-side split that lives in the
+        invoice/bill's posted lot (the loop driving the export is already
+        walking that lot's splits). Used to compute the `prepayment:`
+        residual when GnuCash split the payment across multiple lots
+        (overpayment).
+        """
         pay_date = txn.GetDate().strftime("%Y-%m-%d")
         pay_num  = txn.GetNum() or ''
 
-        # Find the bank/asset side (non-AR) split for amount, account, and memo.
-        # GnuCash's ApplyPayment stores the memo on the splits (not on the
-        # transaction description, which is set to the owner/customer name).
-        # Reading split.GetMemo() is consistent across all GnuCash versions.
+        # Find the bank/asset side (non-AR/AP) split for amount, account,
+        # and memo. ApplyPayment stores the memo on the splits (not on
+        # the transaction description, which is set to the owner name).
         bank_name = ''
         pay_amt   = 0.0
         pay_memo  = ''
@@ -386,6 +433,22 @@ class ExportBusinessObjectsUseCase:
                 pay_memo  = split.GetMemo() or ''
                 break
 
+        # Q-015: prepayment residual — AR/AP splits OUTSIDE the
+        # invoice/bill's posted lot. Customers overpaying an invoice and
+        # vendors being overpaid both produce these via ApplyPayment.
+        in_lot_guid = in_lot_ar_ap_split.GetGUID().to_string()
+        prepay = 0.0
+        for i in range(txn.CountSplits()):
+            s = txn.GetSplit(i)
+            if s.GetGUID().to_string() == in_lot_guid:
+                continue
+            acct = s.GetAccount()
+            if acct is None:
+                continue
+            atype = gc.xaccAccountGetType(acct.instance)
+            if atype in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
+                prepay += abs(s.GetAmount().to_double())
+
         lines = [
             '	payment:',
             f'		date: {pay_date}',
@@ -395,6 +458,8 @@ class ExportBusinessObjectsUseCase:
         ]
         if pay_num:
             lines.append(f'		num: "{pay_num}"')
+        if prepay > 0:
+            lines.append(f'		prepayment: {_fmt_quantity(prepay)}')
         return lines
 
     # ── Bills (vendor invoices) ───────────────────────────────────────────────
@@ -454,10 +519,12 @@ class ExportBusinessObjectsUseCase:
             else:
                 lines.append('	posted: none')
 
-            # payment blocks — always emitted; "none" sentinel when no payments exist
+            # payment blocks — same Q-015 auto-apply logic as the invoice side.
             lot = inv.GetPostedLot()
             has_payments = False
+            uses_auto_apply = False
             if lot:
+                this_lot_id = int(lot.instance)
                 for raw_split in lot.get_split_list():
                     s   = Split(instance=raw_split)
                     txn = s.GetParent()
@@ -465,10 +532,16 @@ class ExportBusinessObjectsUseCase:
                         continue
                     if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                         continue
-                    lines += self._format_payment(txn)
+                    if _payment_is_credit_consumption(txn, this_lot_id):
+                        uses_auto_apply = True
+                        continue
+                    lines += self._format_payment(txn, s)
                     has_payments = True
             if not has_payments:
                 lines.append('	payment: none')
+            if uses_auto_apply:
+                # Insert after date_opened (slot 5 — bills have no billing_id).
+                lines.insert(6, '	auto_apply_credit: true')
 
             bill_strings.append('\n'.join(lines))
         return '\n\n'.join(bill_strings)

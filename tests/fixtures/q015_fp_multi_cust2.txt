@@ -1,0 +1,29 @@
+customer "C002"
+	name: "Beta Inc"
+	currency: CAD
+
+invoice "INV-FP-MULTI-200"
+	customer_id: "C002"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 200
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-FP-MULTI-200"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 220
+		bank_account: "Assets:Bank"
+		memo: "Payment for INV-FP-MULTI-200"
+		prepayment: 20

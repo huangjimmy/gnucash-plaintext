@@ -1,0 +1,18 @@
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-DEST-POSTNONE-120"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 120
+		taxable: false
+		tax_included: false
+	posted: none

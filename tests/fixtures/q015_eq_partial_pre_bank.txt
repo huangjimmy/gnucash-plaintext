@@ -1,0 +1,4 @@
+2026-03-20 * "Gamma Holdings"
+  Assets:Bank  77.00 CAD
+    memo: "Partial — 77 of 200"
+  Assets:Accounts Receivable  -77.00 CAD

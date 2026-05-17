@@ -78,12 +78,14 @@ KNOWN_VENDOR_METADATA_KEYS = frozenset({
 KNOWN_INVOICE_METADATA_KEYS = frozenset({
     'guid', 'customer_id', 'customer_guid', 'currency', 'date_opened',
     'billing_id', 'notes', 'posted', 'payment',
+    'auto_apply_credit',  # Q-015: triggers gncInvoiceAutoApplyPayments after posting
 })
 
 # Bill metadata keys that have dedicated GnuCash setters.
 KNOWN_BILL_METADATA_KEYS = frozenset({
     'guid', 'vendor_id', 'vendor_guid', 'currency', 'date_opened',
     'posted', 'payment',
+    'auto_apply_credit',  # Q-015: triggers gncInvoiceAutoApplyPayments after posting
 })
 
 # Account metadata keys that have dedicated GnuCash setters.

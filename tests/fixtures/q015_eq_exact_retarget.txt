@@ -1,0 +1,29 @@
+customer "C123"
+	name: "Beta Studio"
+	currency: CAD
+
+invoice "INV-EXACT-123"
+	customer_id: "C123"
+	currency: CAD
+	date_opened: 2026-02-03
+	entry:
+		date: 2026-02-03
+		description: "Consultation"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 123
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-05
+		due: 2026-03-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-EXACT-123"
+		accumulate: true
+	payment:
+		date: 2026-02-09
+		amount: 123
+		bank_account: "Assets:Bank"
+		txn_guid: "{txn_guid}"
+		memo: "Paid exactly"

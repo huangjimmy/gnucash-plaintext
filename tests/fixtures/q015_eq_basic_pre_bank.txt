@@ -1,0 +1,4 @@
+2026-01-10 * "Acme"
+  Assets:Bank  150.00 CAD
+    memo: "Overpaid"
+  Assets:Accounts Receivable  -150.00 CAD

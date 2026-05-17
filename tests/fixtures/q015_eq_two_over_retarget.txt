@@ -1,0 +1,57 @@
+customer "C700"
+	name: "Delta Café"
+	currency: CAD
+
+invoice "INV-DOUBLE-A"
+	customer_id: "C700"
+	currency: CAD
+	date_opened: 2026-04-02
+	entry:
+		date: 2026-04-02
+		description: "Catering (April)"
+		action: "Service"
+		account: "Income:Sales"
+		quantity: 1
+		price: 80
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-04-03
+		due: 2026-05-03
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-DOUBLE-A"
+		accumulate: true
+	payment:
+		date: 2026-04-10
+		amount: 130
+		bank_account: "Assets:Bank"
+		txn_guid: "{txn_guid_a}"
+		prepayment: 50
+		memo: "Overpaid A (130 of 80)"
+
+invoice "INV-DOUBLE-B"
+	customer_id: "C700"
+	currency: CAD
+	date_opened: 2026-05-04
+	entry:
+		date: 2026-05-04
+		description: "Catering (May)"
+		action: "Service"
+		account: "Income:Sales"
+		quantity: 1
+		price: 250
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-05
+		due: 2026-06-04
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-DOUBLE-B"
+		accumulate: true
+	payment:
+		date: 2026-05-12
+		amount: 300
+		bank_account: "Assets:Bank"
+		txn_guid: "{txn_guid_b}"
+		prepayment: 50
+		memo: "Overpaid B (300 of 250)"

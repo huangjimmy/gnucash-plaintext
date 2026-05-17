@@ -22,6 +22,7 @@ from cli.export_beancount_cmd import export_beancount
 from cli.export_cmd import export_transactions
 from cli.export_transaction_cmd import export_transaction
 from cli.find_orphan_payments_cmd import find_orphan_payments
+from cli.find_prepayments_cmd import find_prepayments
 from cli.find_transactions_cmd import find_transactions
 from cli.import_beancount_cmd import import_beancount
 from cli.import_cmd import import_transactions
@@ -75,6 +76,7 @@ cli.add_command(archive_vendors, name='archive-vendors')
 cli.add_command(unpost_invoices, name='unpost-invoices')
 cli.add_command(unpost_bills, name='unpost-bills')
 cli.add_command(find_orphan_payments, name='find-orphan-payments')
+cli.add_command(find_prepayments, name='find-prepayments')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,3 @@
+2026-01-10 * "Pre-existing partial payment 60"
+  Assets:Bank  60.00 CAD
+  Assets:Accounts Receivable  -60.00 CAD

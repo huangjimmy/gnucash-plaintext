@@ -1,0 +1,16 @@
+vendor "V001"
+	name: "Supplier Co"
+	currency: CAD
+
+bill "BILL-DEST-POSTNONE-145"
+	vendor_id: "V001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Materials"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 145
+		taxable: false
+	posted: none

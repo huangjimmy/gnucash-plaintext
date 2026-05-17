@@ -12,6 +12,7 @@ from services.gnucash_importer import GnuCashImporter
 from services.plaintext_parser import DirectiveType, PlaintextParser
 from use_cases.export_transactions import ExportTransactionsUseCase
 from use_cases.import_transactions import ImportTransactionsUseCase
+from use_cases.unpost_business_objects import format_orphan_warning_block
 
 
 @click.command()
@@ -159,6 +160,10 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     parser.root_directive.children, repo.book,
                     on_directive_status=lambda kind, ident, status: click.echo(
                         f'{kind} "{ident}": {status}'
+                    ),
+                    on_orphan_warning=lambda kind, ident, orphans: click.echo(
+                        format_orphan_warning_block(kind, orphans, ident=ident),
+                        err=True,
                     ),
                 )
 
