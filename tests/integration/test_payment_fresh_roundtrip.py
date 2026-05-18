@@ -170,7 +170,7 @@ def _bank_tx_splits(gf, amount):
 def test_multi_invoice_one_payment_fresh_roundtrip(tmp_path):
     """3 invoices ($100, $120, $180) all closed by 1 bank tx ($400).
     The bank tx has 4 splits — bank +$400 plus 3 AR splits, each routed
-    to its own invoice's lot via `payment_split_guid:`. After export →
+    to its own invoice's lot via `txn_split_guid:`. After export →
     fresh-book reimport: exactly 1 bank tx (preserved GUID), 3 closed
     AR lots with their original split membership."""
     runner = CliRunner()
@@ -544,7 +544,7 @@ def test_overpayment_with_retarget_fresh_roundtrip(tmp_path):
 
 def test_backward_compat_legacy_payment_without_split_guid(tmp_path):
     """A plaintext file written before Q-016 has a `payment:` block with
-    no `txn_guid:` and no `payment_split_guid:` (the old ApplyPayment
+    no `txn_guid:` and no `txn_split_guid:` (the old ApplyPayment
     shape). The Q-016 importer must still accept it — falling through
     to the existing ApplyPayment path, no error, invoice closes."""
     runner = CliRunner()
@@ -558,7 +558,7 @@ def test_backward_compat_legacy_payment_without_split_guid(tmp_path):
     r = runner.invoke(cli, ['import', str(gf), str(legacy_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, (
-        f'legacy plaintext (no txn_guid / no payment_split_guid) must still '
+        f'legacy plaintext (no txn_guid / no txn_split_guid) must still '
         f'import via the ApplyPayment fallback. output:\n{r.output}'
     )
     time.sleep(1)

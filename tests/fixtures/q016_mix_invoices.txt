@@ -26,7 +26,7 @@ invoice "INV-MIX-RETARGET-90"
 		amount: 90
 		bank_account: "Assets:Bank"
 		txn_guid: "{retarget_txn_guid}"
-		payment_split_guid: "{retarget_split_guid}"
+		txn_split_guid: "{retarget_split_guid}"
 		memo: "Retarget side of mix scenario"
 
 invoice "INV-MIX-APPLY-65"

@@ -62,10 +62,13 @@ KNOWN_SPLIT_METADATA_KEYS = frozenset({
     # only fire via the custom-KVP fallback (also emitted on the txn
     # itself as `owner:` / `txn_type:`).
     'lot_owner',
-    # Q-016: emitted on every split so a `payment_split_guid:` reference
-    # from an invoice/bill payment block can resolve to the right split
-    # of a shared bank tx (multi-invoice payment scenario).
-    'split_guid',
+    # Q-016: every split serialises its own GUID as `guid:` (matching
+    # the convention used at the transaction/customer/invoice level —
+    # self-identification, not a foreign reference). An invoice/bill
+    # payment block then refers to it via `txn_split_guid:` (the typed-
+    # reference form). Handled by the importer's `_set_object_guid`
+    # path, not as a KVP slot.
+    'guid',
 })
 
 # Customer metadata keys that have dedicated GnuCash setters.

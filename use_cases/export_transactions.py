@@ -609,8 +609,12 @@ class ExportTransactionsUseCase:
         # downstream reference) can identify this specific split on the
         # tx by GUID — critical for the multi-invoice-1-bank-tx case
         # where the same tx has multiple AR/AP-side splits, each routed
-        # to a different invoice's lot.
-        lines.append(f'\t\tsplit_guid: {encode_value_as_string(split.GetGUID().to_string())}')
+        # to a different invoice's lot. The split identifies *itself*
+        # here, so the field name is `guid:` (same convention as the
+        # transaction-level `guid:`); only foreign references (like
+        # `txn_split_guid:` in a payment block) carry a typed
+        # `split_` prefix.
+        lines.append(f'\t\tguid: {encode_value_as_string(split.GetGUID().to_string())}')
 
         # Split metadata
         split_currency_not_match_tx = (
@@ -679,7 +683,7 @@ class ExportTransactionsUseCase:
         # the importer stores `lot_owner:` as a custom KVP AND uses it
         # to reconstruct an orphan lot; on re-export we already emit it
         # from the live lot state via the block above.
-        _q014_reserved_split = {'lot_owner', 'split_guid'}
+        _q014_reserved_split = {'lot_owner', 'guid'}
         custom_split_meta = get_custom_metadata(split)
         for key, value in sorted(custom_split_meta.items()):
             if key in _q014_reserved_split:

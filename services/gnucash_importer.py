@@ -1086,6 +1086,19 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
         kind = 'bill' if is_bill else 'invoice'
         raise Exception(f'Bank account {bank_acct_name!r} not found when applying {kind} payment')
 
+    # Q-016: the field carrying the bank-tx-split pointer was renamed
+    # from `payment_split_guid:` to `txn_split_guid:` so the prefix
+    # mirrors `txn_guid:`. Fail loudly on the legacy name rather than
+    # silently fall through to the iterative-retarget path — that path
+    # is fragile/wrong in multi-invoice and same-amount cases, and a
+    # silent fallback would erode the round-trip identity guarantee.
+    if pay_dir.metadata.get('payment_split_guid'):
+        raise Exception(
+            'payment_split_guid: is no longer accepted — rename to '
+            'txn_split_guid: (the field points at a split on the bank '
+            'tx named by txn_guid:, so the prefix matches)'
+        )
+
     txn_guid = pay_dir.metadata.get('txn_guid', '').strip()
     if txn_guid:
         # Retarget: existing bank tx is retargeted into the AR/AP lot
@@ -1103,47 +1116,47 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
         from infrastructure.gnucash.engine import load_gnc_engine
         lib = load_gnc_engine()
 
-        # Q-016: if `payment_split_guid:` is declared, the directive
-        # identifies the exact AR/AP-side split to attach to this
-        # invoice/bill's lot. No retargeting math, no counter-split
-        # splitting — just attach. This is the multi-invoice-1-bank-tx
-        # mechanism and also the deterministic single-invoice path.
-        # Composes with `prepayment:` for the overpayment-via-retarget
-        # case: the specified split closes the invoice/bill, and the
-        # remaining AR/AP-side splits stay in their prepay lot (this
-        # function does not need to split anything further).
-        payment_split_guid = pay_dir.metadata.get('payment_split_guid', '').strip()
-        if payment_split_guid:
+        # Q-016: if `txn_split_guid:` is declared, the directive
+        # identifies the exact AR/AP-side split on the bank tx (named
+        # by `txn_guid:` above) to attach to this invoice/bill's lot.
+        # No retargeting math, no counter-split splitting — just
+        # attach. This is the multi-invoice-1-bank-tx mechanism and
+        # also the deterministic single-invoice path. Composes with
+        # `prepayment:` for the overpayment-via-retarget case: the
+        # specified split closes the invoice/bill, and the remaining
+        # AR/AP-side splits stay in their prepay lot.
+        declared_split_guid = pay_dir.metadata.get('txn_split_guid', '').strip()
+        if declared_split_guid:
             try:
-                psg = _normalise_guid(payment_split_guid)
+                target_split_guid = _normalise_guid(declared_split_guid)
             except Exception as exc:
                 raise Exception(
-                    f'payment_split_guid {payment_split_guid!r} is not a valid GUID'
+                    f'txn_split_guid {declared_split_guid!r} is not a valid GUID'
                 ) from exc
             target_split = None
             for raw_sp in existing_tx.GetSplitList():
-                if raw_sp.GetGUID().to_string().replace('-', '').lower() == psg:
+                if raw_sp.GetGUID().to_string().replace('-', '').lower() == target_split_guid:
                     target_split = raw_sp
                     break
             if target_split is None:
                 raise Exception(
-                    f'payment_split_guid {payment_split_guid!r} not found on '
+                    f'txn_split_guid {declared_split_guid!r} not found on '
                     f'tx {txn_guid!r}'
                 )
-            t_acct = target_split.GetAccount()
-            if t_acct is None or t_acct.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+            target_acct = target_split.GetAccount()
+            if target_acct is None or target_acct.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
                 raise Exception(
-                    f'payment_split_guid {payment_split_guid!r} on tx {txn_guid!r} '
+                    f'txn_split_guid {declared_split_guid!r} on tx {txn_guid!r} '
                     f'does not live on an AR/AP account'
                 )
             # Q-016 defensive check: the named split's account must match
             # the invoice/bill's posted AR/AP account. A typo in
-            # `payment_split_guid:` pointing at a split on a DIFFERENT
+            # `txn_split_guid:` pointing at a split on a DIFFERENT
             # AR account would otherwise attach to the wrong lot silently.
-            if get_account_full_name(t_acct) != get_account_full_name(post_acct):
+            if get_account_full_name(target_acct) != get_account_full_name(post_acct):
                 raise Exception(
-                    f'payment_split_guid {payment_split_guid!r} on tx {txn_guid!r} '
-                    f'lives on {get_account_full_name(t_acct)!r} but the '
+                    f'txn_split_guid {declared_split_guid!r} on tx {txn_guid!r} '
+                    f'lives on {get_account_full_name(target_acct)!r} but the '
                     f'invoice/bill\'s posted account is {get_account_full_name(post_acct)!r}'
                 )
             import gnucash.gnucash_core_c as _gc
@@ -1171,7 +1184,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
                 # declared prepayment (defensive check).
                 loose_siblings = []
                 for raw_sp in existing_tx.GetSplitList():
-                    if raw_sp.GetGUID().to_string().replace('-', '').lower() == psg:
+                    if raw_sp.GetGUID().to_string().replace('-', '').lower() == target_split_guid:
                         continue
                     sp_acct = raw_sp.GetAccount()
                     if sp_acct is None:
@@ -1760,19 +1773,32 @@ class GnuCashImporter:
                 if memo is not None:
                     split.SetMemo(memo)
 
-            # Q-016: honour declared `split_guid:` so business-object
-            # payment blocks (or any other downstream reference) can
-            # look this split up by GUID — critical for the
+            # Q-016: a split that declares its own GUID uses `guid:`
+            # (the same convention used at the transaction, customer,
+            # invoice, vendor, and taxtable level). The previous Q-016
+            # prerelease used `split_guid:` here; reject the legacy name
+            # loudly rather than let it silently become a custom KVP slot
+            # while the split is auto-assigned a fresh GUID.
+            if split_directive.metadata.get('split_guid'):
+                raise Exception(
+                    'split_guid: is no longer accepted on a split — '
+                    'rename to guid: (a split identifies itself with '
+                    '`guid:`, matching the transaction-level `guid:`)'
+                )
+
+            # Q-016: honour declared `guid:` on the split so business-
+            # object payment blocks (or any other downstream reference)
+            # can look this split up by GUID — critical for the
             # multi-invoice-1-bank-tx case.
-            split_declared_guid = split_directive.metadata.get('split_guid')
+            split_declared_guid = split_directive.metadata.get('guid')
             if split_declared_guid:
                 try:
-                    sg = _normalise_guid(split_declared_guid)
+                    normalised_split_guid = _normalise_guid(split_declared_guid)
                 except Exception:
-                    sg = None
-                if sg:
+                    normalised_split_guid = None
+                if normalised_split_guid:
                     _set_object_guid(book, split, 'split',
-                                     split_account_str, sg)
+                                     split_account_str, normalised_split_guid)
 
             # Q-014: re-create an orphan lot when the exporter marked
             # this split as the AR/AP side of an orphan payment. The

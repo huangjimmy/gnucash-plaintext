@@ -26,7 +26,7 @@ invoice "INV-Q16-SAME-X-200"
 		amount: 200
 		bank_account: "Assets:Bank"
 		txn_guid: "{bank_txn_guid}"
-		payment_split_guid: "{split_guid_x}"
+		txn_split_guid: "{split_guid_x}"
 		memo: "Portion for INV-Q16-SAME-X-200"
 
 invoice "INV-Q16-SAME-Y-200"
@@ -53,5 +53,5 @@ invoice "INV-Q16-SAME-Y-200"
 		amount: 200
 		bank_account: "Assets:Bank"
 		txn_guid: "{bank_txn_guid}"
-		payment_split_guid: "{split_guid_y}"
+		txn_split_guid: "{split_guid_y}"
 		memo: "Portion for INV-Q16-SAME-Y-200"

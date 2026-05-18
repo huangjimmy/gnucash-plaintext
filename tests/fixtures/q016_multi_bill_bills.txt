@@ -25,7 +25,7 @@ bill "BILL-Q16-A-90"
 		amount: 90
 		bank_account: "Assets:Bank"
 		txn_guid: "{bank_txn_guid}"
-		payment_split_guid: "{split_guid_a}"
+		txn_split_guid: "{split_guid_a}"
 		memo: "Portion for BILL-Q16-A-90"
 
 bill "BILL-Q16-B-110"
@@ -51,7 +51,7 @@ bill "BILL-Q16-B-110"
 		amount: 110
 		bank_account: "Assets:Bank"
 		txn_guid: "{bank_txn_guid}"
-		payment_split_guid: "{split_guid_b}"
+		txn_split_guid: "{split_guid_b}"
 		memo: "Portion for BILL-Q16-B-110"
 
 bill "BILL-Q16-C-160"
@@ -77,5 +77,5 @@ bill "BILL-Q16-C-160"
 		amount: 160
 		bank_account: "Assets:Bank"
 		txn_guid: "{bank_txn_guid}"
-		payment_split_guid: "{split_guid_c}"
+		txn_split_guid: "{split_guid_c}"
 		memo: "Portion for BILL-Q16-C-160"

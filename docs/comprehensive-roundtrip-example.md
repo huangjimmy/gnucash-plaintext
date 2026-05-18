@@ -145,7 +145,7 @@ invoice "INV-EX-A-100"
     amount: 130
     bank_account: "Assets:Bank"
     txn_guid: "<guid of the 2026-04-10 bank tx>"
-    payment_split_guid: "<guid of the -130 AR split on that tx>"
+    txn_split_guid: "<guid of the -130 AR split on that tx>"
     prepayment: 30
     memo: "Overpayment for INV-EX-A-100"
 
@@ -173,14 +173,14 @@ invoice "INV-EX-B-120"
     amount: 50
     bank_account: "Assets:Bank"
     txn_guid: "<guid of the 2026-05-04 bank tx>"
-    payment_split_guid: "<guid of the -50 AR split>"
+    txn_split_guid: "<guid of the -50 AR split>"
     memo: "Partial payment for INV-EX-B-120"
   payment:
     date: 2026-05-15
     amount: 70
     bank_account: "Assets:Bank"
     txn_guid: "<guid of the 2026-05-15 $250 wire>"
-    payment_split_guid: "<guid of the -70 AR split on that wire>"
+    txn_split_guid: "<guid of the -70 AR split on that wire>"
     memo: "Remainder of INV-EX-B-120"
 
 invoice "INV-EX-C-180"
@@ -207,7 +207,7 @@ invoice "INV-EX-C-180"
     amount: 180
     bank_account: "Assets:Bank"
     txn_guid: "<guid of the 2026-05-15 $250 wire>"
-    payment_split_guid: "<guid of the -180 AR split on that wire>"
+    txn_split_guid: "<guid of the -180 AR split on that wire>"
     memo: "Full payment of INV-EX-C-180"
 
 invoice "INV-EX-CASH-50"
@@ -287,7 +287,7 @@ bill "BILL-EX-001"
     amount: 84.75
     bank_account: "Assets:Bank"
     txn_guid: "<guid of the 2026-06-01 -84.75 bank tx>"
-    payment_split_guid: "<guid of the +84.75 AP split>"
+    txn_split_guid: "<guid of the +84.75 AP split>"
     memo: "Payment for BILL-EX-001 (with HST)"
 ```
 
@@ -302,7 +302,7 @@ After all six payment events:
 | `INV-EX-CONSUME-30` | closed at $0 | Same 2026-04-10 wire — the $30 prepay split is now half in the prepay lot, half consumed into INV-EX-CONSUME-30's lot |
 | `INV-EX-B-120` | closed at $0 | Two payment splits — $50 from 2026-05-04 + $70 from 2026-05-15 wire |
 | `INV-EX-C-180` | closed at $0 | $180 from 2026-05-15 wire |
-| `BILL-EX-001` | closed at $0 | 2026-06-01 $84.75 wire (retargeted via `txn_guid:` + `payment_split_guid:`) |
+| `BILL-EX-001` | closed at $0 | 2026-06-01 $84.75 wire (retargeted via `txn_guid:` + `txn_split_guid:`) |
 
 Open AR lots: none after `INV-EX-CONSUME-30` consumes the $30 credit. Open AP lots: none. All five bank transactions are still in place (the QFX-imported $130 + $50 + $250 + $84.75 wires, plus the cash-payment $50 that `ApplyPayment` created for `INV-EX-CASH-50`).
 
@@ -318,8 +318,8 @@ gnucash-plaintext export source.gnucash exported.txt --include-business-objects
 2. Account declarations with `guid:`.
 3. Tax table `HST-13` with `guid:` and rate.
 4. Customer and vendor with `guid:`.
-5. Invoice and bill business-object blocks. Every `payment:` block carries `txn_guid:` and `payment_split_guid:`. Where a payment overpays, `prepayment:` records the residual. Where a separate invoice consumes that residual, the consuming invoice has `auto_apply_credit: true` and `payment: none`.
-6. All standalone `*` transactions — including the QFX-imported bank txs, the $50 bank tx that `ApplyPayment` created for the cash payment, and the invoice posting txs that are emitted as a side effect of the business-object pass. Every split carries `split_guid:`.
+5. Invoice and bill business-object blocks. Every `payment:` block carries `txn_guid:` and `txn_split_guid:`. Where a payment overpays, `prepayment:` records the residual. Where a separate invoice consumes that residual, the consuming invoice has `auto_apply_credit: true` and `payment: none`.
+6. All standalone `*` transactions — including the QFX-imported bank txs, the $50 bank tx that `ApplyPayment` created for the cash payment, and the invoice posting txs that are emitted as a side effect of the business-object pass. Every transaction carries `guid:` and every split carries its own `guid:`.
 
 The full file is long enough not to inline here, but a representative slice — the multi-invoice wire and its three claimants — looks like this:
 
@@ -332,38 +332,38 @@ invoice "INV-EX-B-120"
     amount: 50
     bank_account: "Assets:Bank"
     txn_guid: "8a3b9c0d1e2f4a5b6c7d8e9f0a1b2c3d"
-    payment_split_guid: "9c1f2d3e4b5a6c7d8e9f0a1b2c3d4e5f"
+    txn_split_guid: "9c1f2d3e4b5a6c7d8e9f0a1b2c3d4e5f"
     memo: "Partial payment for INV-EX-B-120"
   payment:
     date: 2026-05-15
     amount: 70
     bank_account: "Assets:Bank"
     txn_guid: "5f6e7d8c9b0a1f2e3d4c5b6a7c8d9e0f"
-    payment_split_guid: "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
+    txn_split_guid: "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
     memo: "Remainder of INV-EX-B-120"
 
 invoice "INV-EX-C-180"
   ...
   payment:
     txn_guid: "5f6e7d8c9b0a1f2e3d4c5b6a7c8d9e0f"   ← same as INV-EX-B's second payment
-    payment_split_guid: "7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f"  ← different split
+    txn_split_guid: "7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f"  ← different split
 
 2026-05-15 * "Acme — wire covering B-remainder + C"
   guid: "5f6e7d8c9b0a1f2e3d4c5b6a7c8d9e0f"
   txn_type: P
   owner: customer:C-EX-001
   Assets:Bank 250.00 CAD
-    split_guid: "f3c561adfe1c4296bd6ed114773b7518"
+    guid: "f3c561adfe1c4296bd6ed114773b7518"
     memo:"Multi-invoice wire"
   Assets:Accounts Receivable -70.00 CAD
-    split_guid: "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
+    guid: "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
     memo:"Remainder of INV-EX-B-120"
   Assets:Accounts Receivable -180.00 CAD
-    split_guid: "7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f"
+    guid: "7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f"
     memo:"Full payment of INV-EX-C-180"
 ```
 
-Two invoices (`INV-EX-B-120` and `INV-EX-C-180`) carry payment blocks referencing the same `txn_guid:` — that's the multi-invoice signature. Their `payment_split_guid:` fields point at different splits of that one shared bank transaction.
+Two invoices (`INV-EX-B-120` and `INV-EX-C-180`) carry payment blocks referencing the same `txn_guid:` — that's the multi-invoice signature. Their `txn_split_guid:` fields point at different splits of that one shared bank transaction.
 
 ## Fresh-book re-import
 
@@ -375,10 +375,10 @@ The importer runs in this order (Q-016):
 
 1. **Account hierarchy** — every `open` directive creates an account, restoring the declared `guid:` so business-object cross-references resolve.
 2. **Customers, vendors, tax tables** — created with their declared GUIDs.
-3. **Standalone `*` transactions** — every bank transaction is recreated with its declared `guid:` and each split with its declared `split_guid:`. AR/AP-side splits are LOOSE at this point (no lot membership) — that's normal because invoice posting hasn't happened yet.
+3. **Standalone `*` transactions** — every bank transaction is recreated with its declared `guid:` and each split with its declared `guid:`. AR/AP-side splits are LOOSE at this point (no lot membership) — that's normal because invoice posting hasn't happened yet.
 4. **Invoices and bills** — for each:
    - Entries and posting block create the invoice/bill and its posted lot.
-   - Each `payment:` block looks up the bank tx by `txn_guid:` (found in step 3) and the specific split by `payment_split_guid:` (also found), then attaches that split to the invoice/bill's posted lot. The lot closes when its split sum hits zero.
+   - Each `payment:` block looks up the bank tx by `txn_guid:` (found in step 3) and the specific split by `txn_split_guid:` (also found), then attaches that split to the invoice/bill's posted lot. The lot closes when its split sum hits zero.
    - When `auto_apply_credit: true` is set, after posting and any explicit payment blocks, `gncInvoiceAutoApplyPayments` runs to consume open prepay credit lots toward this invoice's remaining balance.
    - When `prepayment:` is set, the importer validates the resulting prepay lot's balance matches.
 
@@ -388,13 +388,13 @@ Net effect: the reconstructed book has the same five bank transactions (same GUI
 
 **Cash payment** (`INV-EX-CASH-50`) — no `txn_guid:` in the payment block, so the importer uses the `ApplyPayment` path which creates a new bank tx on the fly. Round-trip preserves the GUID of that auto-created tx because the exporter emits it as a standalone `*` block too, and the re-import sees `txn_guid:` and uses the standalone tx instead of creating another.
 
-**Retarget** (`INV-EX-B-120`'s first payment, `BILL-EX-001`) — `txn_guid:` points at a bank tx the user pre-created (typically from a QFX import). The importer attaches the specific split via `payment_split_guid:` rather than creating a duplicate bank tx.
+**Retarget** (`INV-EX-B-120`'s first payment, `BILL-EX-001`) — `txn_guid:` points at a bank tx the user pre-created (typically from a QFX import). The importer attaches the specific split via `txn_split_guid:` rather than creating a duplicate bank tx.
 
 **Overpayment** (`INV-EX-A-100`) — `prepayment:` field on the payment block records the residual. The importer creates the invoice lot plus a new prepay lot for the residual, leaving an open credit on AR.
 
 **Credit consumption** (`INV-EX-CONSUME-30`) — `auto_apply_credit: true` on the invoice, no explicit `payment:`. The importer posts the invoice, then calls `gncInvoiceAutoApplyPayments` which finds the open prepay lot from `INV-EX-A-100`'s overpayment and consumes it.
 
-**Multi-invoice payment** (`INV-EX-B-120`'s second payment + `INV-EX-C-180`) — both invoices reference the same `txn_guid:`. The shared bank tx's three AR splits each go in the right invoice's lot via per-invoice `payment_split_guid:`.
+**Multi-invoice payment** (`INV-EX-B-120`'s second payment + `INV-EX-C-180`) — both invoices reference the same `txn_guid:`. The shared bank tx's three AR splits each go in the right invoice's lot via per-invoice `txn_split_guid:`.
 
 **Bill payment via retarget** (`BILL-EX-001`) — symmetric to invoice retarget but on the AP side with opposite signs.
 
@@ -413,4 +413,4 @@ Net: bank transaction duplication, mismatched lot membership, and a book that no
 
 ## Backward compatibility
 
-Files written by pre-Q-016 versions still import — the `payment:` block falls back to the Q-015 iterative-retarget mechanism when `payment_split_guid:` is absent, and the importer order swap is benign for any plaintext that doesn't use cross-block GUID references. New plaintext should always include the full GUID set on export; hand-authored plaintext can omit `payment_split_guid:` for single-invoice cases and let iterative-retarget handle it, though for multi-invoice you should include it.
+Files written by pre-Q-016 versions still import — the `payment:` block falls back to the Q-015 iterative-retarget mechanism when `txn_split_guid:` is absent, and the importer order swap is benign for any plaintext that doesn't use cross-block GUID references. New plaintext should always include the full GUID set on export; hand-authored plaintext can omit `txn_split_guid:` for single-invoice cases and let iterative-retarget handle it, though for multi-invoice you should include it.

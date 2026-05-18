@@ -48,9 +48,9 @@ If you must edit a payment in the GnuCash UI, prefer deleting and re-creating th
 
 Q-016 made every bank-tx and per-split GUID round-trip natively. The scenarios above (book-side hand-edits in the GnuCash UI) still produce the same recovery shape — the matcher still detects the divergence, the Q-014/Q-015 orphan warning still fires, and the destructive rebuild path still re-applies the payment cleanly. What changes is what survives across a clean `import → export → import-into-fresh-book` cycle when no manual edits happen between exports:
 
-- Standalone bank transactions carry their `guid:` and every split carries `split_guid:` in exported plaintext, so a fresh re-import reconstructs the same transaction objects (same GUIDs) rather than auto-assigning new ones.
-- Every `payment:` block carries `txn_guid:` (the bank tx) and `payment_split_guid:` (the specific AR/AP-side split that belongs to this invoice/bill). The fresh-book importer attaches that exact split to the invoice's posted lot — no inference, no order-dependence, no destructive rebuild needed.
-- The one-bank-transaction-covering-multiple-invoices shape (which used to require the Q-015 `prepayment:` + `auto_apply_credit:` workaround) round-trips natively: each invoice's `payment:` block claims its own `payment_split_guid:`.
+- Standalone bank transactions carry their `guid:` and every split carries its own `guid:` in exported plaintext, so a fresh re-import reconstructs the same transaction objects (same GUIDs) rather than auto-assigning new ones.
+- Every `payment:` block carries `txn_guid:` (the bank tx) and `txn_split_guid:` (the specific AR/AP-side split that belongs to this invoice/bill). The fresh-book importer attaches that exact split to the invoice's posted lot — no inference, no order-dependence, no destructive rebuild needed.
+- The one-bank-transaction-covering-multiple-invoices shape (which used to require the Q-015 `prepayment:` + `auto_apply_credit:` workaround) round-trips natively: each invoice's `payment:` block claims its own `txn_split_guid:`.
 
 The divergence-recovery scenarios in this document are still correct — they document what the importer does when the book and the plaintext genuinely differ. Q-016 is about the *no-divergence* case (clean round-trip) being deterministic; the manual-edit scenarios continue to fall through to the rebuild path with the orphan warning.
 

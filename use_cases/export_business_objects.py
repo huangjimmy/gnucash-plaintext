@@ -48,7 +48,7 @@ def _payment_is_credit_consumption(txn, this_lot_id: int) -> bool:
     AR/AP-side split on this tx whose lot has no invoice attached.
     Without that signature, the tx is a Q-016 multi-invoice payment and
     the exporter should emit a regular `payment:` block with
-    `txn_guid:` + `payment_split_guid:` for each invoice's slice.
+    `txn_guid:` + `txn_split_guid:` for each invoice's slice.
     """
     has_other_invoice_lot = False
     has_prepay_lot = False
@@ -483,12 +483,15 @@ class ExportBusinessObjectsUseCase:
         # would create a duplicate bank transaction).
         txn_guid = txn.GetGUID().to_string()
 
-        # Q-016: emit `payment_split_guid:` identifying the specific
-        # AR/AP-side split that belongs to this invoice/bill. For a
-        # single-invoice payment this is unambiguous; for a shared bank
-        # tx covering multiple invoices, the importer needs this to
-        # know which split to attach to this invoice's posted lot.
-        payment_split_guid = in_lot_ar_ap_split.GetGUID().to_string()
+        # Q-016: emit `txn_split_guid:` identifying the specific
+        # AR/AP-side split that belongs to this invoice/bill on the
+        # bank tx named by `txn_guid:` above. For a single-invoice
+        # payment this is unambiguous; for a shared bank tx covering
+        # multiple invoices, the importer needs this to know which
+        # split to attach to this invoice's posted lot. The `txn_`
+        # prefix mirrors `txn_guid:` — both point at the bank tx that
+        # the payment block is linking to.
+        txn_split_guid = in_lot_ar_ap_split.GetGUID().to_string()
 
         lines = [
             '	payment:',
@@ -496,7 +499,7 @@ class ExportBusinessObjectsUseCase:
             f'		amount: {_fmt_quantity(pay_amt)}',
             f'		bank_account: "{bank_name}"',
             f'		txn_guid: "{txn_guid}"',
-            f'		payment_split_guid: "{payment_split_guid}"',
+            f'		txn_split_guid: "{txn_split_guid}"',
             f'		memo: "{pay_memo}"',
         ]
         if pay_num:

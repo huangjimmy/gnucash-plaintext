@@ -20,7 +20,7 @@ transaction in-place**, retargeting its counter-split to AR (or AP for bills)
 and linking it to the invoice/bill lot. All original bank metadata — notes,
 description, split memos, FITID — is preserved.
 
-The companion `payment_split_guid:` field names the *specific* AR/AP-side split that belongs to this invoice/bill. It's optional in hand-written plaintext (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order) but is **always** emitted on export so a round-tripped book reconstructs bit-for-bit on a fresh re-import — including the shape where one bank transaction covers several invoices or bills, each claiming one specific AR/AP-side split via its own `payment_split_guid:`.
+The companion `txn_split_guid:` field names the *specific* AR/AP-side split that belongs to this invoice/bill. It's optional in hand-written plaintext (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order) but is **always** emitted on export so a round-tripped book reconstructs bit-for-bit on a fresh re-import — including the shape where one bank transaction covers several invoices or bills, each claiming one specific AR/AP-side split via its own `txn_split_guid:`.
 
 This document describes:
 
@@ -84,12 +84,12 @@ invoice "INV-2026-001"
 	payment:
 		bank_account: "Assets:Bank"
 		txn_guid: "317c8ae6e0084c33951d052b9f1b9f23"
-		payment_split_guid: "b6b63193116644cbb33cd72b53980011"
+		txn_split_guid: "b6b63193116644cbb33cd72b53980011"
 ```
 
 Only `bank_account` and `txn_guid` are required in the `payment:` block —
 `date`, `amount`, and `memo` are taken from the existing transaction and do
-not need to be repeated. `payment_split_guid:` is optional in hand-written files (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order) but is recommended for multi-invoice bank transactions and is always emitted on export.
+not need to be repeated. `txn_split_guid:` is optional in hand-written files (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order) but is recommended for multi-invoice bank transactions and is always emitted on export.
 
 The `customer_guid:` line is optional in hand-written files but emitted on
 every export. When both `customer_id:` and `customer_guid:` are present,
@@ -107,7 +107,7 @@ The importer:
 1. Creates and posts the invoice (AR lot opened) — or finds the existing one
    by id/guid and updates it
 2. Finds the existing bank transaction by `txn_guid:`
-3. Locates the specific AR-side split by `payment_split_guid:` (or, if absent, picks the counter-split via the iterative-retarget fallback)
+3. Locates the specific AR-side split by `txn_split_guid:` (or, if absent, picks the counter-split via the iterative-retarget fallback)
 4. Attaches that split to the invoice's posted lot
 5. The lot sum reaches zero → invoice is marked paid
 6. **No new transaction is created** — the original bank entry survives intact
@@ -143,7 +143,7 @@ bill "BILL-2026-001"
 	payment:
 		bank_account: "Assets:Bank"
 		txn_guid: "abc123def456abc123def456abc123de"
-		payment_split_guid: "11223344556677889900aabbccddeeff"
+		txn_split_guid: "11223344556677889900aabbccddeeff"
 ```
 
 Use `find-transactions` with a negative amount to find outgoing payments:
@@ -159,9 +159,12 @@ gnucash-plaintext find-transactions ledger.gnucash \
 
 ## GUID format conventions
 
-`txn_guid`, `payment_split_guid`, `split_guid`, `customer_guid`, `vendor_guid`, and the universal `guid:` field
-on every business-object and transaction block all carry GnuCash's 32-char hex GUID. A few
-syntactic rules are worth noting:
+`guid`, `txn_guid`, `txn_split_guid`, `customer_guid`, and `vendor_guid` all
+carry GnuCash's 32-char hex GUID. `guid:` is the universal self-identification
+field used on every object (transaction, split, customer, vendor, taxtable,
+invoice, bill); the typed-reference forms (`txn_guid`, `txn_split_guid`,
+`customer_guid`, `vendor_guid`) name a foreign object from inside another
+block. A few syntactic rules are worth noting:
 
 | Form | Accepted on import | Emitted on export |
 |---|---|---|
@@ -194,8 +197,8 @@ The export is **identity-preserving** for every business object and every transa
 - Customer/vendor/taxtable/invoice/bill blocks each carry a `guid:` field
 - Invoices reference their customer with both `customer_id:` and `customer_guid:`
 - Bills reference their vendor with both `vendor_id:` and `vendor_guid:`
-- Standalone transaction blocks (`* "..."`) carry `guid:` and every split inside carries its own `split_guid:`
-- `payment:` blocks always carry `txn_guid:` (the bank transaction) and `payment_split_guid:` (the AR/AP-side split that belongs to this invoice/bill) — re-imports on a fresh book reconstruct the same bank-tx-to-invoice routing without inference
+- Standalone transaction blocks (`* "..."`) carry `guid:` and every split inside carries its own `guid:`
+- `payment:` blocks always carry `txn_guid:` (the bank transaction) and `txn_split_guid:` (the AR/AP-side split that belongs to this invoice/bill) — re-imports on a fresh book reconstruct the same bank-tx-to-invoice routing without inference
 
 ```
 invoice "INV-2026-001"

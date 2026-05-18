@@ -130,7 +130,7 @@ mostly a CLI-surface change.
 ## Related
 
 - **Q-016** — separately makes invoice payment-block roundtrip
-  deterministic (`txn_guid:` + `payment_split_guid:` always emitted on
+  deterministic (`txn_guid:` + `txn_split_guid:` always emitted on
   export). No interaction with the action / UNIT-column work here,
   but invoices touched by both issues will carry both the optional
   `action:` field and the full payment-block GUID set after export.
