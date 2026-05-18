@@ -881,7 +881,7 @@ invoice "INV-2026-004"
 **Adding a payment via re-import is incremental.** If a posted invoice is already in the book with one `payment:` block, editing the plaintext to append a second `payment:` block and re-importing applies *only* the new payment on the still-posted invoice. Two sub-paths, both incremental:
 
 * The new payment block has no `txn_guid:` — the importer calls `ApplyPayment` to create a fresh bank-side transaction.
-* The new payment block has `txn_guid: "..."` pointing at a pre-existing bank transaction (e.g. one already loaded from a QFX import) — the importer retargets that transaction's counter-split into the invoice's posted lot (the Q-004 mechanism), no new bank transaction created. Original tx GUID, notes, and KVP preserved.
+* The new payment block has `txn_guid: "..."` pointing at a pre-existing bank transaction (e.g. one already loaded from a QFX import) — the importer retargets that transaction's counter-split into the invoice's posted lot (the Q-004 mechanism), no new bank transaction created. Original tx GUID, notes, and KVP preserved. Exported payment blocks always include `txn_guid:` and `payment_split_guid:` so the same retarget is reproducible on a fresh re-import; see [Reconciling invoice and bill payments with a bank feed](#reconciling-invoice-and-bill-payments-with-a-bank-feed) below for the multi-invoice variant.
 
 Either way the posting transaction, every entry, and the original bank-side payment transactions already on the invoice's lot are left untouched (same GUIDs throughout) — no orphan is created and the bank balance reflects exactly the payments the user recorded. Any other shape of diff (entry add/remove/modify, posted block change, payment field edited or removed) still takes the GnuCash-UI-equivalent unpost-rebuild-repost path, and any payment-side bank transactions about to be orphaned by that rebuild are listed in the import output with the same warning block `unpost-invoices` / `unpost-bills` emit (see the unpost section below).
 
@@ -1157,14 +1157,13 @@ with a clear error rather than silently doing the wrong thing:
 
 ### Reconciling invoice and bill payments with a bank feed
 
-When a bank feed (QFX, CSV, HTML) is imported **before** the matching invoice
-or bill, you can link them without creating a duplicate bank entry using
-`txn_guid` in the `payment:` block:
+When a bank feed (QFX, CSV, HTML) is imported **before** the matching invoice or bill, you can link them without creating a duplicate bank entry using `txn_guid:` in the `payment:` block. Exported `payment:` blocks always carry both `txn_guid:` and `payment_split_guid:` so the importer can deterministically rebuild the same bank-tx-to-invoice routing in a fresh book:
 
 ```
 payment:
   bank_account: "Assets:Bank"
-  txn_guid: 317c8ae6e0084c33951d052b9f1b9f23
+  txn_guid: "317c8ae6e0084c33951d052b9f1b9f23"
+  payment_split_guid: "b6b63193116644cbb33cd72b53980011"
 ```
 
 Use `find-transactions` to look up the GUID:
@@ -1174,13 +1173,47 @@ gnucash-plaintext find-transactions ledger.gnucash \
     --account "Assets:Bank" --date 2026-01-15 --amount 500
 ```
 
-The importer retargets the existing bank transaction's counter-split to AR (or
-AP for bills) and links it to the invoice lot in-place — no new transaction is
-created and all original bank metadata is preserved.
+The importer looks up the existing bank transaction by `txn_guid:`, finds the specific AR-side split named by `payment_split_guid:`, and attaches it to the invoice's posted lot in-place — no new transaction is created and all original bank metadata is preserved.
 
-See **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)**
-for the full workflow, bill examples, error reference, and the invoice-first
-alternative.
+`payment_split_guid:` is optional in hand-written plaintext (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order). It is **always** emitted on export so every round-trip is order-independent and unambiguous.
+
+#### One bank transaction covering multiple invoices or bills
+
+When a single bank deposit covers several invoices (or one cheque pays several bills), each invoice's `payment:` block names the same `txn_guid:` and its own `payment_split_guid:` — pointing at the specific AR/AP-side split that belongs to that invoice. The bank tx itself is emitted once as a standalone `*` transaction with `guid:` and per-split `split_guid:` so the per-invoice references resolve cleanly:
+
+```
+2026-05-15 * "Acme — wire covering INV-A/B/C"
+  guid: "31f0b8e6c5a14df8b29a4d8e9c3471f2"
+  Assets:Bank 400.00 CAD
+    split_guid: "f3c561adfe1c4296bd6ed114773b7518"
+  Assets:Accounts Receivable -100.00 CAD
+    split_guid: "b6b63193116644cbb33cd72b53980011"
+  Assets:Accounts Receivable -120.00 CAD
+    split_guid: "67550ad77789476eb9dcd30982cffde7"
+  Assets:Accounts Receivable -180.00 CAD
+    split_guid: "aa746aa94e1d48118ec16d0fc31479d6"
+
+invoice "INV-EX-A-100"
+  ...
+  payment:
+    bank_account: "Assets:Bank"
+    txn_guid: "31f0b8e6c5a14df8b29a4d8e9c3471f2"
+    payment_split_guid: "b6b63193116644cbb33cd72b53980011"
+```
+
+The same `txn_guid:` appears on the other two invoices' payment blocks, each with its own `payment_split_guid:`.
+
+#### Import order guarantee
+
+A single `import --include-business-objects` call processes directives in this order:
+
+```
+accounts → customers/vendors/taxtables → standalone transactions → invoices/bills
+```
+
+Standalone transactions are created (with their declared `guid:` and per-split `split_guid:`) **before** any invoice or bill is processed, so the `payment:` blocks' `txn_guid:`/`payment_split_guid:` references always resolve in the same import call — no two-step import needed, even for a fresh book.
+
+See **[docs/comprehensive-roundtrip-example.md](docs/comprehensive-roundtrip-example.md)** for the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, all payment shapes: cash, retarget, overpayment with prepayment credit, credit consumption via `auto_apply_credit`, and the multi-invoice-one-bank-tx shape) exported and re-imported into a fresh book with semantic identity preserved down to per-split GUIDs. And **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)** for the bank-feed-first workflow, bill examples, error reference, and the invoice-first alternative.
 
 ### Retiring customers and vendors (archive)
 

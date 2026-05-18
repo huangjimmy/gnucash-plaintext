@@ -67,6 +67,10 @@ emit TABs.
 | `tests/fixtures/business_objects_only.txt` | Update reference to use TAB indentation if business objects exporter is changed |
 | `tests/integration/test_payment_roundtrip.py` | `test_account_type_roundtrip` should pass after both fixes |
 
+## Related
+
+- **Q-016** — `test_account_type_roundtrip` was the original roundtrip smoke test added here, but it only exercised `SINGLE_PAID_INVOICE` (a plain `ApplyPayment` payment, no `txn_guid:`) and asserted on `exit_code == 0`. It did not count bank transactions across the roundtrip, so the latent gap where exported payment blocks dropped `txn_guid:` and re-imported with duplicate bank transactions on a fresh book stayed hidden until Q-016 added explicit fresh-book roundtrip tests.
+
 ---
 
 **Created**: 2026-05-06

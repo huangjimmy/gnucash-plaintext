@@ -158,6 +158,10 @@ bank account). This is the split to retarget to AR.
 - What if the existing tx has more than 2 splits (e.g. a split transaction) —
   needs further research.
 
+## Related
+
+- **Q-016** — Q-004's `txn_guid:` was only emitted when the user originally used the retarget path; an exported book whose payments came from plain `ApplyPayment` lost the bank-tx-to-invoice link on export and re-imported with duplicate bank transactions into a fresh book. Q-016 closes that roundtrip gap by always emitting `txn_guid:` (plus `payment_split_guid:` to identify the specific AR/AP-side split) on every exported `payment:` block, by emitting the bank tx as a standalone `*` transaction with `guid:` and per-split `split_guid:`, and by swapping the importer order so standalone transactions are created before invoices/bills are processed. Q-016 also generalises Q-004's "what if the existing tx has more than 2 splits" case: the one-bank-transaction-covering-many-invoices shape now round-trips natively via per-invoice `payment_split_guid:`.
+
 ---
 
 **Created**: 2026-05-06

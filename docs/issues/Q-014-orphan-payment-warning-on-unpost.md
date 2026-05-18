@@ -121,6 +121,7 @@ Two follow-ups remain for future Q tickets:
 - **Q-004** — `txn_guid:` retarget mechanism. The warning text steers the user toward it as one of the two recommended cleanup paths.
 - **Q-010** — `unpost-invoices` / `unpost-bills` CLI. The orphan caveat is currently a footnote in `cli/unpost_cmd.py`'s module docstring; Q-014 promotes it to user-visible output.
 - **Q-013** — `delete-invoices` / `delete-bills`. The warning text references `delete-transactions --by-guid` (existing CLI, renamed from `delete-transaction-by-guid` in this branch for naming-consistency with the other delete-* commands) as the recommended way to clean up the orphan; Q-013's `delete-invoices` is a separate cleanup path for the unposted record itself.
+- **Q-016** — generalises the GUID emission this issue relied on. The orphan-detection plumbing (`find_orphan_payments_in_book`, the pre-unpost lot-walking helper) is unchanged, but a re-imported book now also preserves bank-tx and per-split GUIDs across the export → import cycle. As a result the GUIDs the orphan-warning block prints stay stable across roundtrips: an orphan identified by GUID `cf230c62…` after one round-trip still has that same GUID after the next, so a user who copies the GUID into a `txn_guid:` directive (cleanup path b in the warning) can re-run that cleanup deterministically. Q-014's custom KVP-based owner backref still anchors orphan-to-customer/vendor identification; Q-016 just extends the same continuity guarantee to the tx and split level.
 
 ---
 

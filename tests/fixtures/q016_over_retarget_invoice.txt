@@ -1,0 +1,30 @@
+customer "C-Q16-OVER"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-OVER-RETARGET-100"
+	customer_id: "C-Q16-OVER"
+	currency: CAD
+	date_opened: 2026-10-01
+	entry:
+		date: 2026-10-01
+		description: "Service with overpayment"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-10-02
+		due: 2026-11-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-OVER-RETARGET-100"
+		accumulate: true
+	payment:
+		date: 2026-10-15
+		amount: 140
+		bank_account: "Assets:Bank"
+		txn_guid: "{retarget_txn_guid}"
+		prepayment: 40
+		memo: "Overpayment by 40"

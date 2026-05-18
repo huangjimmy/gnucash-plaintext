@@ -84,12 +84,31 @@ def test_business_objects_roundtrip(tmp_path):
         keep = []
         for line in text.splitlines():
             stripped = line.lstrip(' \t')
-            if stripped.startswith(('guid:', 'customer_guid:', 'vendor_guid:')):
+            if stripped.startswith(('guid:', 'customer_guid:', 'vendor_guid:',
+                                    'txn_guid:', 'payment_split_guid:',
+                                    'split_guid:')):
                 continue
             keep.append(line)
         return '\n'.join(keep)
 
-    exported_biz = _strip_guid_lines(extract_business_objects(exported_text))
+    # Q-016 positive guards: the exporter must EMIT every GUID field on
+    # business-object payment blocks. Stripping the lines for the
+    # comparison below loses signal about whether those lines exist at
+    # all — assert their presence here so a future regression that drops
+    # `txn_guid:` / `payment_split_guid:` on export trips this test.
+    biz_text = extract_business_objects(exported_text)
+    if 'payment:' in biz_text and 'payment: none' not in biz_text.replace(
+            'payment:\n', 'payment:non'):
+        # There's at least one real payment block (not just `payment: none`).
+        assert 'txn_guid:' in biz_text, (
+            'Q-016: every exported payment: block must carry txn_guid:. '
+            'Missing in:\n' + biz_text
+        )
+        assert 'payment_split_guid:' in biz_text, (
+            'Q-016: every exported payment: block must carry '
+            'payment_split_guid:. Missing in:\n' + biz_text
+        )
+    exported_biz = _strip_guid_lines(biz_text)
 
     with open("tests/fixtures/business_objects_only.txt") as f:
         reference_biz = _strip_guid_lines(extract_business_objects(f.read()))

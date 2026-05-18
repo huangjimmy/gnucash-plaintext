@@ -127,6 +127,14 @@ mostly a CLI-surface change.
 - Smart defaults like "Item" or "Goods" for missing action — leaves
   the user's intent clearer to leave it blank than to invent a value.
 
+## Related
+
+- **Q-016** — separately makes invoice payment-block roundtrip
+  deterministic (`txn_guid:` + `payment_split_guid:` always emitted on
+  export). No interaction with the action / UNIT-column work here,
+  but invoices touched by both issues will carry both the optional
+  `action:` field and the full payment-block GUID set after export.
+
 ---
 
 **Created**: 2026-05-08

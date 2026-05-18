@@ -130,13 +130,21 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
 
         try:
             biz_objects_imported = 0
+            biz_directives = None
             if include_business_objects:
+                # Q-016: parse + create accounts now so business-object
+                # directives are ready, but defer their import until AFTER
+                # the standalone transaction pass. An invoice's `payment:`
+                # block with `txn_guid:` resolves against a bank tx that
+                # must already exist in the book — the standalone tx
+                # import is what creates it.
                 click.echo("Importing business objects...")
                 parser = PlaintextParser()
                 parser.parse_file(input_file)
                 importer = GnuCashImporter()
 
-                # Create accounts first
+                # Create accounts first (referenced by both standalone txs
+                # and business-object directives).
                 for directive in parser.root_directive.children:
                     if directive.type == DirectiveType.OPEN_ACCOUNT:
                         acct_name = directive.props.get('account_name', '?')
@@ -147,17 +155,52 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                                 f'account "{acct_name}": {e}'
                             ) from e
 
-                biz_types = {
+                # Customers, vendors, and tax tables don't depend on
+                # standalone txs and may be referenced from txs (rare but
+                # possible). Run them now so the standalone tx pass has
+                # full account + owner context.
+                biz_types_early = {
                     DirectiveType.CUSTOMER, DirectiveType.VENDOR,
-                    DirectiveType.TAXTABLE, DirectiveType.INVOICE, DirectiveType.BILL,
+                    DirectiveType.TAXTABLE,
                 }
-                biz_objects_imported = sum(
-                    1 for d in parser.root_directive.children if d.type in biz_types
+                early_directives = [
+                    d for d in parser.root_directive.children
+                    if d.type in biz_types_early
+                ]
+                early_biz_result = importer.import_business_objects(
+                    early_directives, repo.book,
+                    on_directive_status=lambda kind, ident, status: click.echo(
+                        f'{kind} "{ident}": {status}'
+                    ),
                 )
-                # Inline per-directive status (Q-009) so a re-import that's
-                # all-skipped doesn't look identical to a fresh-create import.
-                biz_result = importer.import_business_objects(
-                    parser.root_directive.children, repo.book,
+
+                # Defer invoice + bill processing until after the
+                # standalone transaction pass so `txn_guid:` lookups
+                # resolve.
+                biz_directives = [
+                    d for d in parser.root_directive.children
+                    if d.type in (DirectiveType.INVOICE, DirectiveType.BILL)
+                ]
+                biz_objects_imported = (
+                    len(early_directives) + len(biz_directives)
+                )
+
+            # Create use case
+            use_case = ImportTransactionsUseCase(repo)
+
+            # Import standalone transactions (Q-016: BEFORE invoices/bills).
+            click.echo(f"Importing transactions from {input_file}...")
+            if dry_run:
+                click.echo("(Dry run - no changes will be made)")
+
+            result = use_case.import_from_file(input_file, resolution_strategy)
+
+            # Now process the deferred invoice/bill directives — by now
+            # any bank tx referenced via `txn_guid:` is in the book.
+            biz_result = early_biz_result if include_business_objects else None
+            if biz_directives:
+                late_result = importer.import_business_objects(
+                    biz_directives, repo.book,
                     on_directive_status=lambda kind, ident, status: click.echo(
                         f'{kind} "{ident}": {status}'
                     ),
@@ -166,16 +209,11 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                         err=True,
                     ),
                 )
-
-            # Create use case
-            use_case = ImportTransactionsUseCase(repo)
-
-            # Import
-            click.echo(f"Importing transactions from {input_file}...")
-            if dry_run:
-                click.echo("(Dry run - no changes will be made)")
-
-            result = use_case.import_from_file(input_file, resolution_strategy)
+                # Merge invoice/bill counts into the early (customer/vendor/
+                # taxtable) result for the summary output.
+                for kind in ('invoice', 'bill'):
+                    for k, v in late_result.counts[kind].items():
+                        biz_result.counts[kind][k] += v
 
             # Display results
             click.echo("")

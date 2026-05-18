@@ -923,10 +923,15 @@ def _lot_payment_splits(record):
             continue
         if posting_txn_guid is not None and tx.GetGUID().to_string() == posting_txn_guid:
             continue
-        # Skip splits that came from gncInvoiceAutoApplyPayments: their
-        # parent tx has AR/AP-side splits in another invoice/bill lot
-        # (the original invoice's lot, where the credit was created).
-        is_credit_consumption = False
+        # Q-015 / Q-016: skip splits that came from
+        # `gncInvoiceAutoApplyPayments`. Auto-apply signature: the
+        # parent tx has AR/AP splits in BOTH another invoice lot (the
+        # original-closure lot) AND a prepay lot (the residual). Q-015
+        # overpayment has only the prepay lot; Q-016 multi-invoice has
+        # only other invoice lots; both must NOT be classified as
+        # credit consumption — their splits ARE real payments.
+        has_other_invoice_lot = False
+        has_prepay_lot = False
         for i in range(tx.CountSplits()):
             other = tx.GetSplit(i)
             other_acct = other.GetAccount()
@@ -941,9 +946,10 @@ def _lot_payment_splits(record):
             if int(other_lot) == this_lot_id:
                 continue
             if _gc.gncInvoiceGetInvoiceFromLot(other_lot):
-                is_credit_consumption = True
-                break
-        if is_credit_consumption:
+                has_other_invoice_lot = True
+            else:
+                has_prepay_lot = True
+        if has_other_invoice_lot and has_prepay_lot:
             continue
         out.append(s)
     return out
@@ -1097,6 +1103,106 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
         from infrastructure.gnucash.engine import load_gnc_engine
         lib = load_gnc_engine()
 
+        # Q-016: if `payment_split_guid:` is declared, the directive
+        # identifies the exact AR/AP-side split to attach to this
+        # invoice/bill's lot. No retargeting math, no counter-split
+        # splitting — just attach. This is the multi-invoice-1-bank-tx
+        # mechanism and also the deterministic single-invoice path.
+        # Composes with `prepayment:` for the overpayment-via-retarget
+        # case: the specified split closes the invoice/bill, and the
+        # remaining AR/AP-side splits stay in their prepay lot (this
+        # function does not need to split anything further).
+        payment_split_guid = pay_dir.metadata.get('payment_split_guid', '').strip()
+        if payment_split_guid:
+            try:
+                psg = _normalise_guid(payment_split_guid)
+            except Exception as exc:
+                raise Exception(
+                    f'payment_split_guid {payment_split_guid!r} is not a valid GUID'
+                ) from exc
+            target_split = None
+            for raw_sp in existing_tx.GetSplitList():
+                if raw_sp.GetGUID().to_string().replace('-', '').lower() == psg:
+                    target_split = raw_sp
+                    break
+            if target_split is None:
+                raise Exception(
+                    f'payment_split_guid {payment_split_guid!r} not found on '
+                    f'tx {txn_guid!r}'
+                )
+            t_acct = target_split.GetAccount()
+            if t_acct is None or t_acct.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+                raise Exception(
+                    f'payment_split_guid {payment_split_guid!r} on tx {txn_guid!r} '
+                    f'does not live on an AR/AP account'
+                )
+            # Q-016 defensive check: the named split's account must match
+            # the invoice/bill's posted AR/AP account. A typo in
+            # `payment_split_guid:` pointing at a split on a DIFFERENT
+            # AR account would otherwise attach to the wrong lot silently.
+            if get_account_full_name(t_acct) != get_account_full_name(post_acct):
+                raise Exception(
+                    f'payment_split_guid {payment_split_guid!r} on tx {txn_guid!r} '
+                    f'lives on {get_account_full_name(t_acct)!r} but the '
+                    f'invoice/bill\'s posted account is {get_account_full_name(post_acct)!r}'
+                )
+            import gnucash.gnucash_core_c as _gc
+            _gc.xaccSplitSetLot(target_split.instance, lot.instance)
+
+            # If `prepayment:` is also declared, the user is composing
+            # explicit-split routing with an overpayment residual. The
+            # standalone tx import created the residual as a loose AR/AP
+            # split (no lot membership); we need to park it in a fresh
+            # prepay lot here. (In the multi-invoice case there is no
+            # `prepayment:` — the sibling AR splits belong to OTHER
+            # invoices' lots and their own directives will attach them.)
+            raw_prepay = pay_dir.metadata.get('prepayment')
+            declared_prepay_str = '' if raw_prepay is None else str(raw_prepay).strip()
+            if declared_prepay_str:
+                try:
+                    declared_prepay = float(declared_prepay_str)
+                except ValueError as exc:
+                    raise Exception(
+                        f'prepayment field must be a number, got {declared_prepay_str!r}'
+                    ) from exc
+                # Find sibling splits on the same AR/AP account, not the
+                # target, that are still loose. Each becomes its own
+                # prepay lot. Their absolute amounts must sum to the
+                # declared prepayment (defensive check).
+                loose_siblings = []
+                for raw_sp in existing_tx.GetSplitList():
+                    if raw_sp.GetGUID().to_string().replace('-', '').lower() == psg:
+                        continue
+                    sp_acct = raw_sp.GetAccount()
+                    if sp_acct is None:
+                        continue
+                    if get_account_full_name(sp_acct) != get_account_full_name(post_acct):
+                        continue
+                    if raw_sp.GetLot() is not None:
+                        continue
+                    loose_siblings.append(raw_sp)
+                actual_prepay = sum(abs(sp.GetAmount().to_double())
+                                    for sp in loose_siblings)
+                if abs(actual_prepay - declared_prepay) > 1e-6:
+                    raise Exception(
+                        f'declared `prepayment: {declared_prepay}` does not '
+                        f'match the residual AR/AP splits on tx {txn_guid!r} '
+                        f'(sum of loose siblings = {actual_prepay:.2f})'
+                    )
+                lib.gnc_lot_new.argtypes = [ctypes.c_void_p]
+                lib.gnc_lot_new.restype  = ctypes.c_void_p
+                lib.xaccAccountInsertLot.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+                lib.xaccAccountInsertLot.restype  = None
+                lib.gnc_lot_add_split.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+                lib.gnc_lot_add_split.restype  = None
+                existing_tx.BeginEdit()
+                for sib in loose_siblings:
+                    new_lot_ptr = lib.gnc_lot_new(int(book.instance))
+                    lib.xaccAccountInsertLot(int(post_acct.instance), new_lot_ptr)
+                    lib.gnc_lot_add_split(new_lot_ptr, int(sib.instance))
+                existing_tx.CommitEdit()
+            return
+
         # Q-015: detect overpayment via retarget. The counter-split's
         # absolute amount = bank-side amount. If it exceeds the lot's
         # remaining balance the user is asking us to overpay; that
@@ -1214,6 +1320,8 @@ def _record_consumed_credit(record) -> bool:
             continue
         if posting_txn_guid is not None and tx.GetGUID().to_string() == posting_txn_guid:
             continue
+        has_other_invoice_lot = False
+        has_prepay_lot = False
         for i in range(tx.CountSplits()):
             other = tx.GetSplit(i)
             other_acct = other.GetAccount()
@@ -1225,7 +1333,15 @@ def _record_consumed_credit(record) -> bool:
             if other_lot is None or int(other_lot) == this_lot_id:
                 continue
             if _gc.gncInvoiceGetInvoiceFromLot(other_lot):
-                return True
+                has_other_invoice_lot = True
+            else:
+                has_prepay_lot = True
+        # Q-015 / Q-016: auto-apply consumption requires BOTH another
+        # invoice lot (original closure) AND a prepay lot (residual).
+        # Q-015 overpayment lacks the former; Q-016 multi-invoice lacks
+        # the latter — neither is credit consumption.
+        if has_other_invoice_lot and has_prepay_lot:
+            return True
     return False
 
 
@@ -1644,6 +1760,20 @@ class GnuCashImporter:
                 if memo is not None:
                     split.SetMemo(memo)
 
+            # Q-016: honour declared `split_guid:` so business-object
+            # payment blocks (or any other downstream reference) can
+            # look this split up by GUID — critical for the
+            # multi-invoice-1-bank-tx case.
+            split_declared_guid = split_directive.metadata.get('split_guid')
+            if split_declared_guid:
+                try:
+                    sg = _normalise_guid(split_declared_guid)
+                except Exception:
+                    sg = None
+                if sg:
+                    _set_object_guid(book, split, 'split',
+                                     split_account_str, sg)
+
             # Q-014: re-create an orphan lot when the exporter marked
             # this split as the AR/AP side of an orphan payment. The
             # GnuCash 5.x txn-type heuristic returns 'P' for a tx whose
@@ -1713,6 +1843,22 @@ class GnuCashImporter:
             set_custom_metadata(transaction, custom_tx_meta)
 
         transaction.CommitEdit()
+
+        # Q-016: honour the declared `guid:` on a standalone tx so a
+        # subsequent invoice/bill `payment: txn_guid:` block can find
+        # this tx by GUID. Without this, GnuCash auto-assigns a fresh
+        # GUID and roundtrip-into-fresh-book is broken.
+        declared_guid = directive.metadata.get('guid')
+        if declared_guid:
+            try:
+                guid_norm = _normalise_guid(declared_guid)
+            except Exception:
+                guid_norm = None
+            if guid_norm:
+                _set_object_guid(book, transaction, 'transaction',
+                                 directive.metadata.get('tx_desc', '<tx>'),
+                                 guid_norm)
+
         logging.debug(f"Created transaction on {date_str}")
         return transaction
 

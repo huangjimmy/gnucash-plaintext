@@ -1,0 +1,9 @@
+2026-06-20 * "Supplier Co — bill payments wire"
+  Assets:Bank  -360.00 CAD
+    memo: "Multi-bill wire to vendor"
+  Liabilities:Accounts Payable  90.00 CAD
+    memo: "Portion for BILL-Q16-A-90"
+  Liabilities:Accounts Payable  110.00 CAD
+    memo: "Portion for BILL-Q16-B-110"
+  Liabilities:Accounts Payable  160.00 CAD
+    memo: "Portion for BILL-Q16-C-160"

@@ -1,0 +1,57 @@
+customer "C-Q16-SAME"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-Q16-SAME-X-200"
+	customer_id: "C-Q16-SAME"
+	currency: CAD
+	date_opened: 2026-07-01
+	entry:
+		date: 2026-07-01
+		description: "Project X"
+		action: "Project"
+		account: "Income:Sales"
+		quantity: 1
+		price: 200
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-02
+		due: 2026-08-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q16-SAME-X-200"
+		accumulate: true
+	payment:
+		date: 2026-07-15
+		amount: 200
+		bank_account: "Assets:Bank"
+		txn_guid: "{bank_txn_guid}"
+		payment_split_guid: "{split_guid_x}"
+		memo: "Portion for INV-Q16-SAME-X-200"
+
+invoice "INV-Q16-SAME-Y-200"
+	customer_id: "C-Q16-SAME"
+	currency: CAD
+	date_opened: 2026-07-01
+	entry:
+		date: 2026-07-01
+		description: "Project Y"
+		action: "Project"
+		account: "Income:Sales"
+		quantity: 1
+		price: 200
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-02
+		due: 2026-08-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q16-SAME-Y-200"
+		accumulate: true
+	payment:
+		date: 2026-07-15
+		amount: 200
+		bank_account: "Assets:Bank"
+		txn_guid: "{bank_txn_guid}"
+		payment_split_guid: "{split_guid_y}"
+		memo: "Portion for INV-Q16-SAME-Y-200"

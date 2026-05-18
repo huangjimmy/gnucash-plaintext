@@ -1,0 +1,28 @@
+customer "C-Q16-LEGACY"
+	name: "Acme Legacy"
+	currency: CAD
+
+invoice "INV-Q16-LEGACY-50"
+	customer_id: "C-Q16-LEGACY"
+	currency: CAD
+	date_opened: 2026-08-01
+	entry:
+		date: 2026-08-01
+		description: "Legacy service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-08-02
+		due: 2026-09-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q16-LEGACY-50"
+		accumulate: true
+	payment:
+		date: 2026-08-10
+		amount: 50
+		bank_account: "Assets:Bank"
+		memo: "Cash"
