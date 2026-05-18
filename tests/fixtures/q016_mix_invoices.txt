@@ -1,0 +1,55 @@
+customer "C-Q16-MIX"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-MIX-RETARGET-90"
+	customer_id: "C-Q16-MIX"
+	currency: CAD
+	date_opened: 2026-09-01
+	entry:
+		date: 2026-09-01
+		description: "Retarget service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 90
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-09-02
+		due: 2026-10-02
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-MIX-RETARGET-90"
+		accumulate: true
+	payment:
+		date: 2026-09-08
+		amount: 90
+		bank_account: "Assets:Bank"
+		txn_guid: "{retarget_txn_guid}"
+		txn_split_guid: "{retarget_split_guid}"
+		memo: "Retarget side of mix scenario"
+
+invoice "INV-MIX-APPLY-65"
+	customer_id: "C-Q16-MIX"
+	currency: CAD
+	date_opened: 2026-09-01
+	entry:
+		date: 2026-09-01
+		description: "ApplyPayment service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 65
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-09-02
+		due: 2026-10-02
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-MIX-APPLY-65"
+		accumulate: true
+	payment:
+		date: 2026-09-10
+		amount: 65
+		bank_account: "Assets:Bank"
+		memo: "Cash payment (no txn_guid)"

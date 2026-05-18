@@ -1,0 +1,84 @@
+customer "C-Q16-MULTI"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-Q16-A-100"
+	customer_id: "C-Q16-MULTI"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service A"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q16-A-100"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "{bank_txn_guid}"
+		txn_split_guid: "{split_guid_a}"
+		memo: "Portion for INV-Q16-A-100"
+
+invoice "INV-Q16-B-120"
+	customer_id: "C-Q16-MULTI"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 120
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q16-B-120"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: 120
+		bank_account: "Assets:Bank"
+		txn_guid: "{bank_txn_guid}"
+		txn_split_guid: "{split_guid_b}"
+		memo: "Portion for INV-Q16-B-120"
+
+invoice "INV-Q16-C-180"
+	customer_id: "C-Q16-MULTI"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service C"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 180
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q16-C-180"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: 180
+		bank_account: "Assets:Bank"
+		txn_guid: "{bank_txn_guid}"
+		txn_split_guid: "{split_guid_c}"
+		memo: "Portion for INV-Q16-C-180"

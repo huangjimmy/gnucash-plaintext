@@ -1,0 +1,9 @@
+2026-05-15 * "Acme — wire covering INV-A/B/C"
+  Assets:Bank  400.00 CAD
+    memo: "Multi-invoice wire"
+  Assets:Accounts Receivable  -100.00 CAD
+    memo: "Portion for INV-Q16-A-100"
+  Assets:Accounts Receivable  -120.00 CAD
+    memo: "Portion for INV-Q16-B-120"
+  Assets:Accounts Receivable  -180.00 CAD
+    memo: "Portion for INV-Q16-C-180"

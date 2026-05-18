@@ -1,0 +1,4 @@
+2026-10-15 * "Acme — overpayment wire for INV-OVER-RETARGET-100"
+  Assets:Bank  140.00 CAD
+    memo: "Overpayment by 40"
+  Assets:Accounts Receivable  -140.00 CAD

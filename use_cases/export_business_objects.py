@@ -31,14 +31,27 @@ def _fmt_quantity(val: float) -> str:
 
 
 def _payment_is_credit_consumption(txn, this_lot_id: int) -> bool:
-    """Q-015: True if any AR/AP-side split on `txn` is in a lot OTHER than
-    `this_lot_id` that has an invoice/bill attached. That's the signature
-    of `gncInvoiceAutoApplyPayments`: the same payment tx is now linked to
-    two (or more) invoice/bill lots, with its splits redistributed across
-    them. The exporter must mark the consuming invoice with
-    `auto_apply_credit: true` rather than emit a misleading `payment:` block
-    for what is actually a credit re-routing.
+    """Q-015 / Q-016: True iff this payment tx was an
+    `gncInvoiceAutoApplyPayments` credit consumption — distinct from a
+    Q-016 multi-invoice shared bank tx.
+
+    Credit consumption produces a tx with splits in:
+      * THIS invoice's lot, AND
+      * a PREPAY lot (open AR/AP lot with NO invoice attached — the
+        residual that the auto-apply consumed against this invoice).
+
+    A Q-016 multi-invoice shared tx produces splits in MULTIPLE invoice
+    lots but NO prepay lot — every other AR/AP-side split is in a
+    different invoice's lot, all closed via posting + payment portion.
+
+    We differentiate by looking for the prepay-lot signature: an
+    AR/AP-side split on this tx whose lot has no invoice attached.
+    Without that signature, the tx is a Q-016 multi-invoice payment and
+    the exporter should emit a regular `payment:` block with
+    `txn_guid:` + `txn_split_guid:` for each invoice's slice.
     """
+    has_other_invoice_lot = False
+    has_prepay_lot = False
     for i in range(txn.CountSplits()):
         sp = txn.GetSplit(i)
         acct = sp.GetAccount()
@@ -52,10 +65,17 @@ def _payment_is_credit_consumption(txn, this_lot_id: int) -> bool:
             continue
         if int(raw_lot) == this_lot_id:
             continue
-        other_inv_ptr = gc.gncInvoiceGetInvoiceFromLot(raw_lot)
-        if other_inv_ptr:
-            return True
-    return False
+        if gc.gncInvoiceGetInvoiceFromLot(raw_lot):
+            has_other_invoice_lot = True
+        else:
+            has_prepay_lot = True
+    # Auto-apply consumption signature: tx has splits in BOTH another
+    # invoice lot (the original-closure lot) AND a prepay lot (the
+    # residual). Q-015 overpayment has only the prepay lot (no other
+    # invoice involved); Q-016 multi-invoice payments have only other
+    # invoice lots (no prepay residual). Both must NOT trigger the
+    # auto_apply_credit emission.
+    return has_other_invoice_lot and has_prepay_lot
 
 
 class ExportBusinessObjectsUseCase:
@@ -433,9 +453,13 @@ class ExportBusinessObjectsUseCase:
                 pay_memo  = split.GetMemo() or ''
                 break
 
-        # Q-015: prepayment residual — AR/AP splits OUTSIDE the
-        # invoice/bill's posted lot. Customers overpaying an invoice and
-        # vendors being overpaid both produce these via ApplyPayment.
+        # Q-015 / Q-016: prepayment residual — AR/AP splits on this tx
+        # that are NOT in another invoice/bill's lot. In the Q-015
+        # overpayment case the residual lives in a fresh prepay lot
+        # (open lot, no invoice attached) or is loose (no lot). In the
+        # Q-016 multi-invoice case, sibling AR splits ARE in another
+        # invoice's lot — those must NOT count as prepayment residual,
+        # they're portions for other invoices.
         in_lot_guid = in_lot_ar_ap_split.GetGUID().to_string()
         prepay = 0.0
         for i in range(txn.CountSplits()):
@@ -446,14 +470,36 @@ class ExportBusinessObjectsUseCase:
             if acct is None:
                 continue
             atype = gc.xaccAccountGetType(acct.instance)
-            if atype in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
-                prepay += abs(s.GetAmount().to_double())
+            if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
+                continue
+            raw_lot = s.GetLot()
+            if raw_lot is not None and gc.gncInvoiceGetInvoiceFromLot(raw_lot):
+                # Belongs to another invoice/bill's lot — not residual.
+                continue
+            prepay += abs(s.GetAmount().to_double())
+
+        # Q-016: always emit `txn_guid:` so re-import resolves the payment
+        # via the standalone-tx pass rather than via ApplyPayment (which
+        # would create a duplicate bank transaction).
+        txn_guid = txn.GetGUID().to_string()
+
+        # Q-016: emit `txn_split_guid:` identifying the specific
+        # AR/AP-side split that belongs to this invoice/bill on the
+        # bank tx named by `txn_guid:` above. For a single-invoice
+        # payment this is unambiguous; for a shared bank tx covering
+        # multiple invoices, the importer needs this to know which
+        # split to attach to this invoice's posted lot. The `txn_`
+        # prefix mirrors `txn_guid:` — both point at the bank tx that
+        # the payment block is linking to.
+        txn_split_guid = in_lot_ar_ap_split.GetGUID().to_string()
 
         lines = [
             '	payment:',
             f'		date: {pay_date}',
             f'		amount: {_fmt_quantity(pay_amt)}',
             f'		bank_account: "{bank_name}"',
+            f'		txn_guid: "{txn_guid}"',
+            f'		txn_split_guid: "{txn_split_guid}"',
             f'		memo: "{pay_memo}"',
         ]
         if pay_num:

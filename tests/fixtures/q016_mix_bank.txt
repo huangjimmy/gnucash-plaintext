@@ -1,0 +1,4 @@
+2026-09-08 * "Acme — wire for INV-MIX-RETARGET-90"
+  Assets:Bank  90.00 CAD
+    memo: "Retarget side of mix scenario"
+  Assets:Accounts Receivable  -90.00 CAD

@@ -1,0 +1,4 @@
+2026-04-10 * "Acme — wire INV-Q16-100"
+  Assets:Bank  100.00 CAD
+    memo: "Wire memo to preserve"
+  Assets:Accounts Receivable  -100.00 CAD

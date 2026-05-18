@@ -1,0 +1,29 @@
+customer "C-Q16-001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-Q16-100"
+	customer_id: "C-Q16-001"
+	currency: CAD
+	date_opened: 2026-04-01
+	entry:
+		date: 2026-04-01
+		description: "Consulting hours (Apr)"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-04-02
+		due: 2026-05-02
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q16-100"
+		accumulate: true
+	payment:
+		date: 2026-04-10
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "{txn_guid}"
+		memo: "Wire memo to preserve"

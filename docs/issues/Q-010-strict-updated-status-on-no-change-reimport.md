@@ -204,6 +204,21 @@ identical to a no-change pass-through.
 - Cleaning up orphan payment transactions left behind by `Unpost`
   (see "Known limitation" above) — deferred to a follow-up issue.
 
+## Related
+
+- **Q-014** — orphan-payment warning at `unpost-invoices` / `unpost-bills`
+  time. Closes the "known limitation" above for the dedicated CLI path.
+- **Q-015** — extends the orphan warning to every importer-side
+  `Unpost(False)` callsite (the destructive rebuild that Q-010
+  introduced).
+- **Q-016** — generalises the `txn_guid:` retarget contract from
+  "supported on the unpost → re-import path" to "emitted on every
+  exported `payment:` block so a fresh-book re-import reconstructs the
+  same routing deterministically". The `posted: { ... } → posted: none`
+  minimal-unpost optimisation introduced here continues to preserve
+  entry GUIDs, and Q-016 additionally preserves bank-tx and per-split
+  GUIDs across the export → re-import cycle.
+
 ---
 
 **Created**: 2026-05-08

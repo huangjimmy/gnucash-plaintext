@@ -1,0 +1,7 @@
+2026-07-15 * "Acme — two same-amount invoices"
+  Assets:Bank  400.00 CAD
+    memo: "Two-invoice $200 each wire"
+  Assets:Accounts Receivable  -200.00 CAD
+    memo: "Portion for INV-Q16-SAME-X-200"
+  Assets:Accounts Receivable  -200.00 CAD
+    memo: "Portion for INV-Q16-SAME-Y-200"

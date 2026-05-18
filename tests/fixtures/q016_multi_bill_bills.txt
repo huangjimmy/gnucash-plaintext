@@ -1,0 +1,81 @@
+vendor "V-Q16-MULTI"
+	name: "Supplier Co"
+	currency: CAD
+
+bill "BILL-Q16-A-90"
+	vendor_id: "V-Q16-MULTI"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Materials A"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 90
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-02
+		due: 2026-07-02
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-Q16-A-90"
+		accumulate: true
+	payment:
+		date: 2026-06-20
+		amount: 90
+		bank_account: "Assets:Bank"
+		txn_guid: "{bank_txn_guid}"
+		txn_split_guid: "{split_guid_a}"
+		memo: "Portion for BILL-Q16-A-90"
+
+bill "BILL-Q16-B-110"
+	vendor_id: "V-Q16-MULTI"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Materials B"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 110
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-02
+		due: 2026-07-02
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-Q16-B-110"
+		accumulate: true
+	payment:
+		date: 2026-06-20
+		amount: 110
+		bank_account: "Assets:Bank"
+		txn_guid: "{bank_txn_guid}"
+		txn_split_guid: "{split_guid_b}"
+		memo: "Portion for BILL-Q16-B-110"
+
+bill "BILL-Q16-C-160"
+	vendor_id: "V-Q16-MULTI"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Materials C"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 160
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-02
+		due: 2026-07-02
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-Q16-C-160"
+		accumulate: true
+	payment:
+		date: 2026-06-20
+		amount: 160
+		bank_account: "Assets:Bank"
+		txn_guid: "{bank_txn_guid}"
+		txn_split_guid: "{split_guid_c}"
+		memo: "Portion for BILL-Q16-C-160"
