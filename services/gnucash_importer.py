@@ -2306,8 +2306,10 @@ class GnuCashImporter:
         if 'notes' in directive.metadata:
             invoice.SetNotes(directive.metadata['notes'])
 
+        entry_index = 0
         for entry_directive in directive.children:
             if entry_directive.type == DirectiveType.INVOICE_ENTRY:
+                entry_index += 1
                 entry = Entry(book)
                 entry.BeginEdit()
                 entry.SetDate(datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d"))
@@ -2334,6 +2336,36 @@ class GnuCashImporter:
                         entry.SetInvTaxTable(TaxTable(instance=tt_ptr))
                 invoice.AddEntry(entry)
                 entry.CommitEdit()
+
+                # Q-017: validate informational fields against recompute
+                # (entry_amount, entry_tax, and any `breakdown:` sub-blocks).
+                # Renderer emits these; if a user tampered with the rendered
+                # file before re-import, fail loudly here.
+                breakdown_declared = [
+                    dict(child.metadata.items())
+                    for child in entry_directive.children
+                    if child.type == DirectiveType.TAX_BREAKDOWN
+                ]
+                informational = {
+                    k: entry_directive.metadata[k]
+                    for k in ('entry_amount', 'entry_tax')
+                    if k in entry_directive.metadata
+                }
+                if informational or breakdown_declared:
+                    from infrastructure.gnucash.engine import (
+                        load_gnc_engine as _load,
+                    )
+                    from services.invoice_renderer import (
+                        validate_entry_informational,
+                    )
+                    validate_entry_informational(
+                        _load(), int(entry.instance),
+                        informational, breakdown_declared,
+                        entry_label=(
+                            f'invoice {directive.props["id"]!r} entry '
+                            f'#{entry_index}'
+                        ),
+                    )
             elif entry_directive.type == DirectiveType.POSTED:
                 ar_acct_name = entry_directive.metadata['ar_account']
                 ar_account = find_account(book.get_root_account(), ar_acct_name)
@@ -2368,6 +2400,37 @@ class GnuCashImporter:
             invoice.AutoApplyPayments()
 
         invoice.CommitEdit()
+
+        # Q-017: invoice-level informational totals. Recompute by summing
+        # the entries' source-of-truth fields and compare against the
+        # declared totals. Renderer emits these; mismatch is an error.
+        declared_totals = {
+            k: directive.metadata[k]
+            for k in ('invoice_subtotal', 'invoice_tax_total', 'invoice_total')
+            if k in directive.metadata
+        }
+        if declared_totals:
+            from infrastructure.gnucash.engine import (
+                load_gnc_engine as _load,
+            )
+            from services.invoice_renderer import (
+                compute_entry_informational,
+                validate_invoice_informational,
+            )
+            _lib = _load()
+            subtotal = 0.0
+            tax_total = 0.0
+            for raw_entry in invoice.GetEntries():
+                amount, tax, _ = compute_entry_informational(
+                    _lib, int(raw_entry.instance)
+                )
+                subtotal += amount
+                tax_total += tax
+            validate_invoice_informational(
+                declared_totals, subtotal, tax_total,
+                invoice_label=f'invoice {directive.props["id"]!r}',
+            )
+
         custom_meta = {k: v for k, v in directive.metadata.items()
                        if k not in KNOWN_INVOICE_METADATA_KEYS and v is not None}
         if custom_meta:

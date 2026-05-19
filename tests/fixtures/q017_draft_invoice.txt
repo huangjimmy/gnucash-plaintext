@@ -1,0 +1,19 @@
+customer "C003"
+	name: "Gamma Ltd"
+	currency: CAD
+
+invoice "INV-Q17-DRAFT-50"
+	customer_id: "C003"
+	currency: CAD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Draft (unposted) work-in-progress entry"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none

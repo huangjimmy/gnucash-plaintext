@@ -266,3 +266,420 @@ def render_to_pdf(invoice, book, xslt_path, pdf_path, company_info=None):
 
     html = render_to_html(invoice, book, xslt_path, company_info=company_info)
     weasyprint.HTML(string=html).write_pdf(pdf_path)
+
+
+# ── Q-017: plaintext render ────────────────────────────────────────────────
+#
+# Same canonical format as `export --include-business-objects`, with
+# **informational** fields added (entry_amount, entry_tax,
+# entry_tax_breakdown, invoice_subtotal, invoice_tax_total, invoice_total).
+# The importer recomputes the informational fields from the source-of-truth
+# fields (quantity, price, tax_table, tax_included) on re-import and errors
+# loudly on mismatch — see the format-spec section in
+# docs/issues/Q-017-print-invoice-plaintext-format-and-multi-invoice.md.
+
+
+def _fmt_money(value: float) -> str:
+    """Format an amount with 2 decimals, matching the importer's tolerance."""
+    return f'{value:.2f}'
+
+
+def _fmt_rate(rate_decimal: float) -> str:
+    """Format a tax rate as it appears in the plaintext: percentage with the
+    smallest representation (e.g. `5.0`, `9.975`)."""
+    s = f'{rate_decimal * 100:g}'
+    if '.' not in s:
+        s += '.0'
+    return s
+
+
+def _ctypes_account_full_name(lib, acct_ptr) -> str:
+    """Walk the parent chain via ctypes to produce 'Liabilities:Tax:GST'.
+    Same approach as `_export_tax_tables` in use_cases/export_business_objects
+    — required because acct_ptr comes from `gncTaxTableEntryGetAccount`,
+    a ctypes function, and SWIG's `Account(instance=ptr)` doesn't accept
+    raw pointers safely (Ubuntu const-type bug — see CLAUDE.md)."""
+    parts = []
+    ptr = acct_ptr
+    while ptr:
+        name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
+        if name:
+            parts.append(name)
+        parent = lib.gnc_account_get_parent(ptr)
+        if not parent:
+            break
+        grandparent = lib.gnc_account_get_parent(parent)
+        if not grandparent:
+            break  # parent is the root; stop before climbing into it
+        ptr = parent
+    parts.reverse()
+    return ':'.join(parts)
+
+
+def _tax_table_entries(lib, tt_ptr):
+    """Return [(account_name, rate_as_decimal)] for one tax-table pointer,
+    in declaration order (GST before PST, etc.)."""
+
+    def _one(_lib, tte_ptr):
+        acct_ptr = _lib.gncTaxTableEntryGetAccount(tte_ptr)
+        amt_c = _lib.gncTaxTableEntryGetAmount(tte_ptr)
+        rate_pct = amt_c.num / amt_c.denom if amt_c.denom else 0.0
+        # GnuCash stores tax-table amounts as percentages (e.g. 13.0
+        # for HST). Internally we want the decimal fraction (0.13) so
+        # `entry_amount × rate` gives the tax dollars directly.
+        rate = rate_pct / 100.0
+        acct_name = _ctypes_account_full_name(_lib, acct_ptr) if acct_ptr else '?'
+        return (acct_name, rate)
+
+    entries_ptr = lib.gncTaxTableGetEntries(tt_ptr)
+    entries = iterate_glist(lib, entries_ptr, _one)
+    entries.reverse()  # GnuCash prepends; we want declaration order.
+    return entries
+
+
+def compute_entry_informational(lib, entry_ptr):
+    """For one invoice entry, return (entry_amount, entry_tax,
+    breakdown) where:
+      * entry_amount = qty × price, adjusted for tax_included (the net
+        amount; informational invoice_subtotal sums these).
+      * entry_tax    = total tax dollars contributed by this entry.
+      * breakdown    = [(account_name, rate_decimal, amount), ...] —
+        one tuple per tax-table entry, or [] when the entry isn't
+        taxable (or has no tax_table).
+
+    `tax_included` semantics: when true, the displayed price already
+    includes tax; the net amount is `gross / (1 + total_rate)` and the
+    tax dollars are `gross − net`. When false, the price is the net
+    amount and tax is added on top.
+    """
+    qty_c = lib.gncEntryGetQuantity(entry_ptr)
+    pri_c = lib.gncEntryGetInvPrice(entry_ptr)
+    qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
+    price = pri_c.num / pri_c.denom if pri_c.denom else 0.0
+    gross_or_net = qty * price
+
+    taxable = bool(lib.gncEntryGetInvTaxable(entry_ptr))
+    tax_included = bool(lib.gncEntryGetInvTaxIncluded(entry_ptr))
+    tt_ptr = lib.gncEntryGetInvTaxTable(entry_ptr) if taxable else None
+
+    if not taxable or not tt_ptr:
+        return (gross_or_net, 0.0, [])
+
+    tt_entries = _tax_table_entries(lib, tt_ptr)
+    total_rate = sum(rate for _, rate in tt_entries)
+
+    net = gross_or_net / (1.0 + total_rate) if tax_included else gross_or_net
+
+    breakdown = [(acct_name, rate, net * rate) for acct_name, rate in tt_entries]
+    entry_tax = sum(amount for _, _, amount in breakdown)
+    return (net, entry_tax, breakdown)
+
+
+def validate_entry_informational(lib, entry_ptr, declared, breakdown_declared,
+                                 entry_label):
+    """Q-017: recompute entry_amount/entry_tax/breakdown from the entry's
+    source-of-truth fields (qty/price/tax_table/tax_included) and verify
+    each declared informational field matches.
+
+    Arguments:
+        lib                  — engine library (load_gnc_engine())
+        entry_ptr            — int pointer to the gnc Entry (post-commit)
+        declared             — dict with optional keys 'entry_amount' and
+                               'entry_tax' (string values from plaintext);
+                               either or both may be absent.
+        breakdown_declared   — list of dicts [{account, rate, amount}]; may
+                               be empty if no `breakdown:` blocks were
+                               present on this entry.
+        entry_label          — human-readable identifier for error messages
+                               (e.g. "invoice INV-Q17 entry #1").
+
+    Raises ValueError with a clear message naming the field and the two
+    numbers when any declared informational value disagrees with the
+    recomputed value by more than 0.01.
+    """
+    computed_amount, computed_tax, computed_breakdown = (
+        compute_entry_informational(lib, entry_ptr)
+    )
+
+    def _close(a, b, tol=0.01):
+        return abs(float(a) - float(b)) <= tol
+
+    if 'entry_amount' in declared:
+        declared_amount = float(declared['entry_amount'])
+        if not _close(declared_amount, computed_amount):
+            raise ValueError(
+                f'{entry_label}: declared entry_amount {declared_amount:.2f} '
+                f'does not match recomputed {computed_amount:.2f} '
+                f'(from quantity × price, adjusted for tax_included)'
+            )
+
+    if 'entry_tax' in declared:
+        declared_tax = float(declared['entry_tax'])
+        if not _close(declared_tax, computed_tax):
+            raise ValueError(
+                f'{entry_label}: declared entry_tax {declared_tax:.2f} does '
+                f'not match recomputed {computed_tax:.2f} (from tax_table '
+                f'entries × entry_amount)'
+            )
+
+    # Breakdown validation: each declared breakdown block must match one
+    # of the computed breakdown rows by account name (the canonical key),
+    # and the declared rate + amount must match within tolerance. Counts
+    # must agree too (no missing or extra blocks).
+    if breakdown_declared:
+        if len(breakdown_declared) != len(computed_breakdown):
+            raise ValueError(
+                f'{entry_label}: declared breakdown has '
+                f'{len(breakdown_declared)} block(s) but the tax_table '
+                f'has {len(computed_breakdown)} entry/entries'
+            )
+        computed_by_acct = {acct: (rate, amt)
+                            for acct, rate, amt in computed_breakdown}
+        for decl in breakdown_declared:
+            acct = decl.get('account', '').strip().strip('"')
+            if acct not in computed_by_acct:
+                raise ValueError(
+                    f'{entry_label}: breakdown account {acct!r} is not on '
+                    f'the entry\'s tax_table (table has '
+                    f'{sorted(computed_by_acct)})'
+                )
+            comp_rate, comp_amount = computed_by_acct[acct]
+            try:
+                decl_rate = float(decl['rate'])
+                decl_amount = float(decl['amount'])
+            except (KeyError, ValueError) as exc:
+                raise ValueError(
+                    f'{entry_label}: breakdown for {acct!r} must declare '
+                    f'numeric rate and amount; got {decl!r}'
+                ) from exc
+            # `rate` is stored as decimal fraction internally (0.13) but
+            # serialised as percent (13.0); accept either form.
+            if not (_close(decl_rate, comp_rate * 100, tol=0.001)
+                    or _close(decl_rate, comp_rate, tol=0.00001)):
+                raise ValueError(
+                    f'{entry_label}: breakdown for {acct!r} declares '
+                    f'rate {decl_rate} but tax_table stores '
+                    f'{comp_rate * 100:.4f}%'
+                )
+            if not _close(decl_amount, comp_amount):
+                raise ValueError(
+                    f'{entry_label}: breakdown for {acct!r} declares '
+                    f'amount {decl_amount:.2f} but recomputed value is '
+                    f'{comp_amount:.2f} (entry_amount × rate)'
+                )
+
+
+def validate_invoice_informational(declared, computed_subtotal,
+                                   computed_tax, invoice_label):
+    """Q-017: invoice-level totals. `declared` is a dict with optional
+    keys invoice_subtotal/invoice_tax_total/invoice_total (or the bill_*
+    analogues — caller passes whichever set). Raises ValueError on any
+    mismatch."""
+    def _close(a, b, tol=0.01):
+        return abs(float(a) - float(b)) <= tol
+
+    pairs = [
+        ('invoice_subtotal', computed_subtotal),
+        ('bill_subtotal',    computed_subtotal),
+        ('invoice_tax_total', computed_tax),
+        ('bill_tax_total',    computed_tax),
+        ('invoice_total', computed_subtotal + computed_tax),
+        ('bill_total',    computed_subtotal + computed_tax),
+    ]
+    for field, computed in pairs:
+        if field in declared:
+            try:
+                decl = float(declared[field])
+            except ValueError as exc:
+                raise ValueError(
+                    f'{invoice_label}: {field} must be a number, got '
+                    f'{declared[field]!r}'
+                ) from exc
+            if not _close(decl, computed):
+                raise ValueError(
+                    f'{invoice_label}: declared {field} {decl:.2f} does '
+                    f'not match recomputed {computed:.2f} (sum of entries)'
+                )
+
+
+def _render_taxtable_block(lib, tt_ptr) -> str:
+    """Render one tax-table object as plaintext (same syntax `export`
+    emits). Used to make the per-invoice plaintext self-contained for
+    the recipient — they get the tax rates inline."""
+
+    tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
+    lines = [f'taxtable "{tt_name}"']
+    for acct_name, rate in _tax_table_entries(lib, tt_ptr):
+        lines.append('\tentry:')
+        lines.append(f'\t\taccount: "{acct_name}"')
+        lines.append(f'\t\trate: {_fmt_rate(rate)}%')
+        lines.append('\t\ttype: PERCENT')
+    return '\n'.join(lines)
+
+
+def _render_customer_block(cust) -> str:
+    """Minimal customer block — id, name, currency. The renderer doesn't
+    emit address/email because the recipient already has those; the block
+    exists to satisfy the importer's `customer_id:` lookup if someone
+    re-imports the rendered file for validation."""
+    return (
+        f'customer "{cust.GetID()}"\n'
+        f'\tname: "{cust.GetName()}"\n'
+        f'\tcurrency: {cust.GetCurrency().get_mnemonic()}'
+    )
+
+
+def render_to_plaintext(invoice, book, company_info=None) -> str:
+    """Render one invoice as canonical plaintext, populated with the
+    Q-017 informational fields (per-entry amount + tax breakdown, plus
+    invoice subtotal/tax_total/total). Output is self-contained for the
+    invoice itself: taxtable definitions for every referenced table, the
+    customer header, and the invoice block. Accounts must already exist
+    on the importing side."""
+    lib = load_gnc_engine()
+
+    inv_id = invoice.GetID()
+    cust = invoice.GetOwner().GetCustomer()
+    if cust is None:
+        raise ValueError(f'invoice {inv_id!r} has no customer owner')
+
+    posting_txn = invoice.GetPostedTxn()
+    is_draft = posting_txn is None
+    currency = invoice.GetCurrency().get_mnemonic()
+    date_opened = invoice.GetDateOpened().strftime('%Y-%m-%d')
+
+    # Collect referenced tax tables (de-dup by pointer).
+    seen_tt = {}
+    entries_data = []  # [(raw_entry, entry_amount, entry_tax, breakdown)]
+    for raw_entry in invoice.GetEntries():
+        ent_ptr = int(raw_entry.instance)
+        entry_amount, entry_tax, breakdown = compute_entry_informational(
+            lib, ent_ptr
+        )
+        entries_data.append((raw_entry, entry_amount, entry_tax, breakdown))
+        tt_ptr = lib.gncEntryGetInvTaxTable(ent_ptr)
+        if tt_ptr and int(tt_ptr) not in seen_tt:
+            seen_tt[int(tt_ptr)] = tt_ptr
+
+    blocks = []
+    for tt_ptr in seen_tt.values():
+        blocks.append(_render_taxtable_block(lib, tt_ptr))
+
+    blocks.append(_render_customer_block(cust))
+
+    # Invoice block
+    inv_lines = [
+        f'invoice "{inv_id}"',
+        f'\tcustomer_id: "{cust.GetID()}"',
+        f'\tcurrency: {currency}',
+        f'\tdate_opened: {date_opened}',
+    ]
+    if invoice.GetBillingID():
+        inv_lines.append(f'\tbilling_id: "{invoice.GetBillingID()}"')
+    if invoice.GetNotes():
+        inv_lines.append(f'\tnotes: "{invoice.GetNotes()}"')
+
+    # Per-entry blocks with informational fields
+    from infrastructure.gnucash.utils import get_account_full_name
+
+    for raw_entry, entry_amount, entry_tax, breakdown in entries_data:
+        ent_ptr = int(raw_entry.instance)
+        desc = safe_ctypes_string(lib.gncEntryGetDescription, ent_ptr)
+        action = safe_ctypes_string(lib.gncEntryGetAction, ent_ptr)
+        qty_c = lib.gncEntryGetQuantity(ent_ptr)
+        pri_c = lib.gncEntryGetInvPrice(ent_ptr)
+        qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
+        price = pri_c.num / pri_c.denom if pri_c.denom else 0.0
+        taxable = bool(lib.gncEntryGetInvTaxable(ent_ptr))
+        tax_included = bool(lib.gncEntryGetInvTaxIncluded(ent_ptr))
+        acct_name = get_account_full_name(raw_entry.GetInvAccount())
+        date_str = raw_entry.GetDate().strftime('%Y-%m-%d')
+
+        inv_lines.append('\tentry:')
+        inv_lines.append(f'\t\tdate: {date_str}')
+        inv_lines.append(f'\t\tdescription: "{desc}"')
+        inv_lines.append(f'\t\taction: "{action}"')
+        inv_lines.append(f'\t\taccount: "{acct_name}"')
+        inv_lines.append(f'\t\tquantity: {qty:g}')
+        inv_lines.append(f'\t\tprice: {price:g}')
+        inv_lines.append(f'\t\ttaxable: {"true" if taxable else "false"}')
+        inv_lines.append(f'\t\ttax_included: {"true" if tax_included else "false"}')
+
+        tt_ptr = lib.gncEntryGetInvTaxTable(ent_ptr)
+        if tt_ptr:
+            tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
+            if tt_name:
+                inv_lines.append(f'\t\ttax_table: "{tt_name}"')
+
+        # Q-017 informational fields. `breakdown:` is a nested block (one
+        # per tax-table entry); matches the existing taxtable entry-block
+        # convention so the parser can use the same indented-children path.
+        if not is_draft:
+            inv_lines.append(f'\t\tentry_amount: {_fmt_money(entry_amount)}')
+            inv_lines.append(f'\t\tentry_tax: {_fmt_money(entry_tax)}')
+            for bd_acct_name, bd_rate, bd_amount in breakdown:
+                inv_lines.append('\t\tbreakdown:')
+                inv_lines.append(f'\t\t\taccount: "{bd_acct_name}"')
+                inv_lines.append(f'\t\t\trate: {_fmt_rate(bd_rate)}')
+                inv_lines.append(f'\t\t\tamount: {_fmt_money(bd_amount)}')
+
+    # Posted / payment blocks (mirror canonical export sentinel form)
+    if is_draft:
+        inv_lines.append('\tposted: none')
+        inv_lines.append('\tpayment: none')
+    else:
+        ar_name = get_account_full_name(invoice.GetPostedAcc())
+        inv_lines.append('\tposted:')
+        inv_lines.append(f'\t\tdate: {invoice.GetDatePosted().strftime("%Y-%m-%d")}')
+        inv_lines.append(f'\t\tdue: {invoice.GetDateDue().strftime("%Y-%m-%d")}')
+        inv_lines.append(f'\t\tar_account: "{ar_name}"')
+        inv_lines.append(f'\t\tmemo: "{posting_txn.GetDescription()}"')
+        inv_lines.append('\t\taccumulate: true')
+
+        # Payment blocks reuse the export logic — but the render path
+        # cares about audit info, not round-trip, so we emit a minimal
+        # form (date / amount / bank_account / memo). No txn_guid here:
+        # the rendered file is for human consumption, not re-importing
+        # full lot structure.
+        lot = invoice.GetPostedLot()
+        had_payment = False
+        if lot is not None:
+            for raw_split in lot.get_split_list():
+                s = Split(instance=raw_split)
+                txn = s.GetParent()
+                if txn is None:
+                    continue
+                if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
+                    continue
+                pay_date = txn.GetDate().strftime('%Y-%m-%d')
+                # bank-side split = the non-AR side; find any
+                bank_name = ''
+                pay_amt = 0.0
+                pay_memo = ''
+                for i in range(txn.CountSplits()):
+                    sp = txn.GetSplit(i)
+                    atype = gc.xaccAccountGetType(sp.GetAccount().instance)
+                    if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
+                        bank_name = get_account_full_name(sp.GetAccount())
+                        pay_amt = abs(sp.GetAmount().to_double())
+                        pay_memo = sp.GetMemo() or ''
+                        break
+                inv_lines.append('\tpayment:')
+                inv_lines.append(f'\t\tdate: {pay_date}')
+                inv_lines.append(f'\t\tamount: {pay_amt:g}')
+                inv_lines.append(f'\t\tbank_account: "{bank_name}"')
+                inv_lines.append(f'\t\tmemo: "{pay_memo}"')
+                had_payment = True
+        if not had_payment:
+            inv_lines.append('\tpayment: none')
+
+    # Invoice-level informational totals
+    subtotal = sum(e[1] for e in entries_data)
+    tax_total = sum(e[2] for e in entries_data)
+    inv_lines.append(f'\tinvoice_subtotal: {_fmt_money(subtotal)}')
+    if not is_draft:
+        inv_lines.append(f'\tinvoice_tax_total: {_fmt_money(tax_total)}')
+        inv_lines.append(f'\tinvoice_total: {_fmt_money(subtotal + tax_total)}')
+
+    blocks.append('\n'.join(inv_lines))
+    return '\n\n'.join(blocks) + '\n'

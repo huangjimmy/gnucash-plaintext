@@ -137,6 +137,11 @@ class DirectiveType(Enum):
     BILL_ENTRY = 13
     POSTED = 14
     PAYMENT = 15
+    # Q-017: per-entry tax breakdown — repeated child block under
+    # INVOICE_ENTRY / BILL_ENTRY when rendered by `print-invoice
+    # --format plaintext`. Informational only; the importer recomputes
+    # from the tax_table + entry fields and errors on mismatch.
+    TAX_BREAKDOWN = 16
 
 
 
@@ -341,6 +346,11 @@ class PlaintextParser:
                         obj = PlaintextDirective(DirectiveType.BILL_ENTRY, line_level, line, parent_directive)
                 elif block_type == "posted":
                     obj = PlaintextDirective(DirectiveType.POSTED, line_level, line, parent_directive)
+                elif block_type == "breakdown":
+                    # Q-017: tax-breakdown sub-block, repeats under an
+                    # invoice/bill entry. Each block carries account,
+                    # rate, amount keys (informational).
+                    obj = PlaintextDirective(DirectiveType.TAX_BREAKDOWN, line_level, line, parent_directive)
                 else:
                     obj = PlaintextDirective(DirectiveType.PAYMENT, line_level, line, parent_directive)
                 parent_directive.children.append(obj)
@@ -375,7 +385,7 @@ taxtable_pattern = r'^taxtable\s+"(.*?)"\s*$'
 invoice_pattern = r'^invoice\s+"(.*?)"\s*$'
 vendor_pattern = r'^vendor\s+"(.*?)"\s*$'
 bill_pattern = r'^bill\s+"(.*?)"\s*$'
-block_pattern = r'^\s*(entry|posted|payment):\s*$'
+block_pattern = r'^\s*(entry|posted|payment|breakdown):\s*$'
 
 
 def parse_customer(line: str) -> Optional[str]:

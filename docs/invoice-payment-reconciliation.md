@@ -190,6 +190,32 @@ files.
 
 ---
 
+## Informational fields (Q-017): rendered plaintext vs canonical export
+
+Two commands emit the same plaintext syntax with different field sets:
+
+- **`export --include-business-objects`** — canonical, source-of-truth fields only. What round-trips into a fresh book deterministically.
+- **`print-invoice --format plaintext`** — same syntax, **plus** informational totals derived from those source-of-truth fields. What you share with an auditor / customer / yourself for grep-friendly reading.
+
+Informational fields:
+
+| Field | Scope | Meaning |
+|---|---|---|
+| `entry_amount` | invoice/bill entry | `quantity × price`, net of `tax_included` |
+| `entry_tax` | invoice/bill entry | total tax dollars contributed by this line |
+| `breakdown:` (repeatable sub-block) | invoice/bill entry | one block per tax-table entry: `account`, `rate`, `amount`. Audit-friendly: shows which government got which dollar |
+| `invoice_subtotal` / `bill_subtotal` | invoice/bill | sum of all `entry_amount` |
+| `invoice_tax_total` / `bill_tax_total` | invoice/bill | sum of all `entry_tax` |
+| `invoice_total` / `bill_total` | invoice/bill | `subtotal + tax_total` |
+
+On re-import the importer recomputes every informational field from the source-of-truth fields (`quantity × price × tax_table`) and errors loudly on any mismatch — so a tampered rendered file fails the import rather than silently storing the wrong totals. Same shape as Q-015's `prepayment:` cross-check.
+
+Draft (unposted) invoices/bills emit only `*_subtotal` since per-entry tax requires posting.
+
+See `docs/issues/Q-017-print-invoice-plaintext-format-and-multi-invoice.md` for the full spec.
+
+---
+
 ## Round-trip identity: the exporter writes back what you imported
 
 The export is **identity-preserving** for every business object and every transaction split:
