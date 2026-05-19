@@ -86,6 +86,10 @@ KNOWN_INVOICE_METADATA_KEYS = frozenset({
     'guid', 'customer_id', 'customer_guid', 'currency', 'date_opened',
     'billing_id', 'notes', 'posted', 'payment',
     'auto_apply_credit',  # Q-015: triggers gncInvoiceAutoApplyPayments after posting
+    # Q-017: informational totals emitted by `print-invoice --format
+    # plaintext`. Recomputed from entries on import; mismatch is an
+    # error. Listed here so they don't fall into the custom-KVP path.
+    'invoice_subtotal', 'invoice_tax_total', 'invoice_total',
 })
 
 # Bill metadata keys that have dedicated GnuCash setters.
@@ -93,6 +97,8 @@ KNOWN_BILL_METADATA_KEYS = frozenset({
     'guid', 'vendor_id', 'vendor_guid', 'currency', 'date_opened',
     'posted', 'payment',
     'auto_apply_credit',  # Q-015: triggers gncInvoiceAutoApplyPayments after posting
+    # Q-017: bill analogues of the invoice informational totals.
+    'bill_subtotal', 'bill_tax_total', 'bill_total',
 })
 
 # Account metadata keys that have dedicated GnuCash setters.

@@ -1,0 +1,35 @@
+taxtable "HST"
+	entry:
+		account: "Liabilities:Tax:HST"
+		rate: 13.0%
+		type: PERCENT
+
+customer "C001"
+	name: "Acme Corp"
+	currency: CAD
+
+invoice "INV-Q17-HST-100"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Single-line HST taxed service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "HST"
+	posted:
+		date: 2026-02-02
+		due: 2026-03-04
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q17-HST-100"
+		accumulate: true
+	payment:
+		date: 2026-02-10
+		amount: 113
+		bank_account: "Assets:Bank"
+		memo: "Cash payment for HST invoice"

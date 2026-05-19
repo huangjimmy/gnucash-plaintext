@@ -1310,34 +1310,44 @@ gnucash-plaintext delete-customers mybook.gnucash --by-guid \
 > persist correctly through the XML backend when `Destroy()` is called — the
 > vendor reappears after save/reload. Use `archive-vendors` instead.
 
-### Print an invoice to PDF
+### Print an invoice (PDF, HTML, or plaintext)
 
 Generate a PDF for any posted invoice:
 
 ```bash
-gnucash-plaintext print-invoice mybook.gnucash --invoice-id INV-2026-001 -o invoice.pdf
+gnucash-plaintext print-invoice mybook.gnucash INV-2026-001 -o invoice.pdf
 ```
 
-The PDF is rendered using the XSLT template at `services/invoice.xslt`. The
-default template covers Description, Qty, Unit Price, Amount, and Tax Applied
-columns. A "Unit" column appears only if at least one entry on the invoice
-has a non-empty `action:` field — e.g. `"Hours"`, `"Project"`, `"Material"`.
-For goods/items invoices the column stays hidden (Q-011).
+`--format {pdf,html,plaintext}` selects the output format (defaults to `pdf`). The PDF/HTML paths render via the XSLT template at `services/invoice.xslt`. The default template covers Description, Qty, Unit Price, Amount, and Tax Applied columns. A "Unit" column appears only if at least one entry on the invoice has a non-empty `action:` field — e.g. `"Hours"`, `"Project"`, `"Material"`. For goods/items invoices the column stays hidden (Q-011).
 
-**Custom templates**: pass `--template <path>` to use your own XSLT (custom
-columns, branding, multi-language). The XML schema the template receives is
-documented at the top of `services/invoice.xslt`.
+**Multi-invoice selection (Q-017)**: `print-invoice` accepts any combination of positional IDs, glob patterns, a `--from`/`--to` date range, or a `--customer` filter:
 
 ```bash
-gnucash-plaintext print-invoice mybook.gnucash --invoice-id INV-2026-001 \
+# Combined multi-page PDF
+gnucash-plaintext print-invoice mybook.gnucash INV-001 INV-002 INV-003 -o combined.pdf
+
+# All Q1 invoices for one customer, one PDF per invoice in a directory
+gnucash-plaintext print-invoice mybook.gnucash --from 2026-01-01 --to 2026-03-31 \
+    --customer C-001 -o q1/
+
+# Glob pattern, plaintext output to stdout
+gnucash-plaintext print-invoice mybook.gnucash 'INV-2026-*' --format plaintext -o -
+```
+
+Output composition is `-o file.ext` (single combined file), `-o dir/` (one file per invoice), or `-o -` (stdout, plaintext only).
+
+**Plaintext format (Q-017)**: `--format plaintext` emits the same canonical plaintext syntax used by `export`, populated with **informational** totals — `entry_amount` and `entry_tax` per line, repeatable `breakdown:` sub-blocks showing which tax account got which dollar (audit-friendly for combined HST = GST + PST), and invoice-level `invoice_subtotal`, `invoice_tax_total`, `invoice_total`. The exporter never emits these (round-trip stays minimal); the renderer does. On re-import the values are recomputed from the source-of-truth fields (`quantity × price × tax_table`) and the importer errors loudly on any mismatch — so you get tamper detection automatically when sharing rendered plaintext files. Draft (unposted) invoices emit only `invoice_subtotal` since per-entry tax requires posting.
+
+**Custom templates**: pass `--template <path>` to use your own XSLT (custom columns, branding, multi-language). The XML schema the template receives is documented at the top of `services/invoice.xslt`.
+
+```bash
+gnucash-plaintext print-invoice mybook.gnucash INV-2026-001 \
     -o invoice.pdf --template my-invoice-template.xslt
 ```
 
-**The `action:` field on invoice entries** is optional. Omitting the line is
-equivalent to `action: ""` — the entry's action is set to empty. If you want
-to preserve a non-empty action (e.g. "Hours") across re-imports, you must
-include `action: "Hours"` in the directive every time; the importer treats
-each entry directive as the full source of truth, not a partial patch.
+**The `action:` field on invoice entries** is optional. Omitting the line is equivalent to `action: ""` — the entry's action is set to empty. If you want to preserve a non-empty action (e.g. "Hours") across re-imports, you must include `action: "Hours"` in the directive every time; the importer treats each entry directive as the full source of truth, not a partial patch.
+
+**Back-compat**: the original `--invoice-id <ID>` flag is still accepted and behaves as a single-value alias for a positional ID.
 
 Handle conflicts with resolution strategies:
 

@@ -1,0 +1,107 @@
+customer "CUST-X"
+	name: "X Industries"
+	currency: CAD
+
+customer "CUST-Y"
+	name: "Y Holdings"
+	currency: CAD
+
+invoice "INV-Q17-A-100"
+	customer_id: "CUST-X"
+	currency: CAD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "January work for X"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-06
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q17-A-100"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		memo: "Cash"
+
+invoice "INV-Q17-B-200"
+	customer_id: "CUST-X"
+	currency: CAD
+	date_opened: 2026-02-05
+	entry:
+		date: 2026-02-05
+		description: "February work for X"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 200
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-06
+		due: 2026-03-08
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q17-B-200"
+		accumulate: true
+	payment:
+		date: 2026-02-15
+		amount: 200
+		bank_account: "Assets:Bank"
+		memo: "Cash"
+
+invoice "INV-Q17-C-300"
+	customer_id: "CUST-Y"
+	currency: CAD
+	date_opened: 2026-03-05
+	entry:
+		date: 2026-03-05
+		description: "March work for Y"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 300
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-06
+		due: 2026-04-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q17-C-300"
+		accumulate: true
+	payment:
+		date: 2026-03-15
+		amount: 300
+		bank_account: "Assets:Bank"
+		memo: "Cash"
+
+invoice "INV-Q17-D-400"
+	customer_id: "CUST-Y"
+	currency: CAD
+	date_opened: 2026-04-05
+	entry:
+		date: 2026-04-05
+		description: "April work for Y"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 400
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-04-06
+		due: 2026-05-06
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q17-D-400"
+		accumulate: true
+	payment:
+		date: 2026-04-15
+		amount: 400
+		bank_account: "Assets:Bank"
+		memo: "Cash"
