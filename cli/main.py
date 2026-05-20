@@ -33,7 +33,7 @@ from cli.validate_cmd import validate_ledger
 
 
 @click.group()
-@click.version_option(version='0.2.0', prog_name='gnucash-plaintext')
+@click.version_option(version='0.3.3', prog_name='gnucash-plaintext')
 def cli():
     """
     GnuCash Plaintext - Work with GnuCash files in plaintext format.

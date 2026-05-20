@@ -3,7 +3,7 @@ id: Q-009
 title: Business-object import is silent — re-import gives no signal of skip vs. create vs. update
 category: quality
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem

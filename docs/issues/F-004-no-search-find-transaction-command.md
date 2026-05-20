@@ -3,7 +3,7 @@ id: F-004
 title: No search / find-transaction command
 category: feature
 severity: enhancement
-status: open
+status: closed
 ---
 
 ## Problem

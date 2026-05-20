@@ -3,7 +3,7 @@ id: Q-005
 title: Import errors show raw exception message with no context
 category: quality
 severity: high
-status: open
+status: closed
 ---
 
 ## Problem

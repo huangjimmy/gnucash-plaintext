@@ -3,7 +3,7 @@ id: Q-007
 title: delete/archive accept GUIDs; invoice/bill identity enforced on import
 category: quality
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem

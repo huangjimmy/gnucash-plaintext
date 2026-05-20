@@ -3,7 +3,7 @@ id: F-005
 title: "Statement import: data models and StatementProvider protocol"
 category: feature
 severity: high
-status: open
+status: closed
 branch: feature/statement-import-pipeline
 ---
 

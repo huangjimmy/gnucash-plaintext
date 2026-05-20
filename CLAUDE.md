@@ -34,6 +34,7 @@ Project-specific rules and conventions for Claude Code and Gemini CLI assistance
    - Blank line after subject
    - **Detailed body** explaining *what* was changed and *why* (the context/rationale)
    - Use bullet points for multiple specific changes
+   - Describe the end-state of the project, not the path that got there: don't reference old filenames being "renamed" or behaviour being "replaced" — the diff already shows that and the description ages badly
    - This provides critical context for future developers (and future AI sessions)
 
 3. **Verify before commit**
@@ -68,24 +69,12 @@ This is an open-source project. **Never commit directly to `main`.**
 ### ❌ NEVER Do These:
 - Commit directly to `main`
 - Do feature work inside `worktree/main` — it is reserved for the main branch only
+- Delete the remote branch (`git push origin --delete <branch>`); the GitHub PR-merge UI handles remote cleanup
+
+### After creating a worktree
+- Run `git config --worktree core.bare false` inside the new worktree before any other git ops; otherwise commits fail with a bare-repo error.
 
 ---
-
-## Branch Strategy
-
-### Working Branch: `architecture-migration`
-- All Phase 0-6 work happens here
-- Old code (`editor/`, `parser/`) stays in place until Phase 6
-- New code (`cli/`, `services/`, `infrastructure/`, `use_cases/`) built alongside
-
-### Merge to `main` ONLY After Phase 6
-Merge criteria:
-- ✅ All new tests pass in Docker
-- ✅ Regression tests confirm same output as old code
-- ✅ CLI commands work end-to-end
-- ✅ Documentation updated
-- ✅ Old code deleted
-- ✅ Migration guide in README
 
 ## Docker Rules
 
@@ -109,19 +98,15 @@ Merge criteria:
 - `reference_file*.txt` - sample data for understanding format
 - `.claude/` - Claude CLI directory
 
-### Migration Work (IN git, on architecture-migration branch)
-- `Dockerfile` - unified Docker environment
-- `migration_plan.md` - architecture and phase plan
-- `migration_log.md` - progress tracking
-- `scripts/` - helper scripts for all platforms
-- `CLAUDE.md` - this file with project rules
-
-### Future Work (will be added during Phases 1-6)
-- `cli/` - CLI commands (Phase 4)
-- `services/` - business logic (Phase 1)
-- `infrastructure/` - I/O layers (Phase 2)
-- `use_cases/` - orchestration (Phase 3)
-- `tests/` - test suites (all phases)
+### Repository Layout
+- `cli/` - Click-based CLI commands; `cli/main.py` is the entry point
+- `services/` - business logic (importer, exporter, matcher, validator, renderer, statement-reconciler, ...)
+- `use_cases/` - orchestration that composes services for a single CLI command
+- `infrastructure/` - I/O adapters: `gnucash/` (engine bindings + ctypes wrappers), `plaintext/`, `pdf/`, `qfx/`
+- `repositories/` - thin GnuCash session and query layer
+- `tests/` - `unit/` (services / use cases / infrastructure / repositories) and `integration/` (CLI end-to-end); `research/` holds long-running scenario probes
+- `docs/` - design notes, issue tracker (`docs/issues/`), research probes, post-mortems
+- `templates/` - Jinja/XSLT templates for invoice and report rendering
 
 ## Testing Philosophy
 
@@ -160,12 +145,11 @@ Merge criteria:
 
 ## Common Mistakes to Avoid
 
-1. **Committing too early** - Phase 0 has 3 days, only Day 1 is complete
-2. **Adding reference files** - They're external, don't commit
-3. **Using git add -A** - Stage files explicitly
-4. **Skipping planning** - Follow the phase plan in migration_plan.md
-5. **Working on main** - Use architecture-migration branch
-6. **Merging too early** - Only after Phase 6 completion
+1. **Adding reference files** - `convert_qfx.py`, `ledger.py`, `reference_file*.txt` are external; don't commit them
+2. **Using `git add -A`** - Stage files explicitly so you don't sweep in untracked probes or secrets
+3. **Working on main** - Always create a feature worktree + branch (see Feature Branch Workflow)
+4. **Running pytest / python directly** - All tests must run via `./scripts/test.sh` in Docker so they hit a real GnuCash install
+5. **Skipping lint before commit** - Run `./scripts/fix-lint.sh --unsafe` before staging, not after the pre-commit hook rejects you
 
 ## Useful Commands
 
@@ -177,7 +161,7 @@ git diff --cached --name-only
 
 ### Verify branch
 ```bash
-git branch --show-current  # Should be: architecture-migration
+git branch --show-current  # main only when on worktree/main; a feature branch elsewhere
 ```
 
 ### Build and test
@@ -355,5 +339,4 @@ for all bill entries. Do NOT compare against `taxable: false` in bill export.
 
 ---
 
-**Last Updated**: 2026-04-02
-**Current Phase**: Phase 8 (Business Objects)
+**Last Updated**: 2026-05-20

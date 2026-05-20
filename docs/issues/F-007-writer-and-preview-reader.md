@@ -3,7 +3,7 @@ id: F-007
 title: "Statement import: ReconcilePreviewWriter and ReconcilePreviewReader"
 category: feature
 severity: high
-status: open
+status: closed
 branch: feature/statement-import-pipeline
 depends_on: F-006
 ---

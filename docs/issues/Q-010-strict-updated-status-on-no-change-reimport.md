@@ -3,7 +3,7 @@ id: Q-010
 title: Q-009 'updated' status is liberal — reports 'updated' for no-change re-imports
 category: quality
 severity: low
-status: open
+status: closed
 ---
 
 ## Problem

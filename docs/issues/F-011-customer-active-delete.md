@@ -1,7 +1,10 @@
-# F-011 — Customer/Vendor Active Flag Round-Trip and Safe Deletion
-
-## Status
-Open
+---
+id: F-011
+title: "Customer/vendor active flag round-trip and safe deletion"
+category: feature
+severity: high
+status: closed
+---
 
 ## Problem
 

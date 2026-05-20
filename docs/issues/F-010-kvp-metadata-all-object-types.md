@@ -1,8 +1,10 @@
-# F-010: KVP Custom Metadata for All GnuCash Object Types
-
-## Status
-
-Open
+---
+id: F-010
+title: "KVP custom metadata for all GnuCash object types"
+category: feature
+severity: high
+status: closed
+---
 
 ## Summary
 

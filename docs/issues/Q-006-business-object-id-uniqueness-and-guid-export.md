@@ -3,7 +3,7 @@ id: Q-006
 title: Business object IDs are not unique on re-import; GUIDs are not exported
 category: quality
 severity: high
-status: open
+status: closed
 ---
 
 ## Problem

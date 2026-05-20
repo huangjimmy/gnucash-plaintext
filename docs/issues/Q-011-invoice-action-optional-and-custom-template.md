@@ -3,7 +3,7 @@ id: Q-011
 title: Invoice `action` field forces a hardcode; UNIT column shows nonsense; no template override
 category: quality
 severity: low
-status: open
+status: closed
 ---
 
 ## Problem

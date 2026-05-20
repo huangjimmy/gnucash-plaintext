@@ -3,7 +3,7 @@ id: F-009
 title: "Statement import: ReadyToImportWriter and end-to-end pipeline test"
 category: feature
 severity: high
-status: open
+status: closed
 branch: feature/statement-import-pipeline
 depends_on: F-008
 ---
