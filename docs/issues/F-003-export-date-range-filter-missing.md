@@ -3,7 +3,7 @@ id: F-003
 title: export command has no date-range filter
 category: feature
 severity: enhancement
-status: open
+status: closed
 ---
 
 ## Problem

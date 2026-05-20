@@ -3,7 +3,7 @@ id: Q-008
 title: Tax-table identity not enforced on import; re-import duplicates
 category: quality
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem

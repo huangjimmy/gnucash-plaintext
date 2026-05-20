@@ -1,4 +1,10 @@
-# Q-018 — `cash_basis: true` invoice marker for cash-basis tax filing
+---
+id: Q-018
+title: "`cash_basis: true` invoice marker for cash-basis tax filing"
+category: quality
+severity: low
+status: closed
+---
 
 ## Pain point
 

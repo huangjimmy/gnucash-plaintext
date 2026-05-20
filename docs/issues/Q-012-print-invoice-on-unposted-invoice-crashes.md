@@ -3,7 +3,7 @@ id: Q-012
 title: `print-invoice` on an unposted invoice crashes with NoneType error
 category: quality
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem

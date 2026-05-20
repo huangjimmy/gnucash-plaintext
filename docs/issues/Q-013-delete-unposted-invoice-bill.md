@@ -3,7 +3,7 @@ id: Q-013
 title: No way to delete an unposted invoice or bill from the CLI
 category: feature
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem

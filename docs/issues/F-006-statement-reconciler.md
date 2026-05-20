@@ -3,7 +3,7 @@ id: F-006
 title: "Statement import: StatementReconciler"
 category: feature
 severity: high
-status: open
+status: closed
 branch: feature/statement-import-pipeline
 depends_on: F-005
 ---

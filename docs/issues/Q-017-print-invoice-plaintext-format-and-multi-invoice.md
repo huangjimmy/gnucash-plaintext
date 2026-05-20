@@ -1,4 +1,10 @@
-# Q-017 — `print-invoice` plaintext format + multi-invoice selection
+---
+id: Q-017
+title: "`print-invoice` plaintext format with tax totals; multi-invoice selection"
+category: quality
+severity: low
+status: closed
+---
 
 ## Pain point
 

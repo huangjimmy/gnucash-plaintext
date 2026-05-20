@@ -3,7 +3,7 @@ id: Q-016
 title: Full GUID emission (txn + per-split) + standalone-tx-first import order — enables clean roundtrip for single-invoice retarget AND multi-invoice shared bank tx
 category: quality
 severity: high
-status: open
+status: closed
 ---
 
 ## Problem

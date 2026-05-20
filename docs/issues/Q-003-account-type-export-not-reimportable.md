@@ -3,7 +3,7 @@ id: Q-003
 title: Exported file is not re-importable (mixed indentation + account type short-forms)
 category: quality
 severity: high
-status: open
+status: closed
 ---
 
 ## Problem

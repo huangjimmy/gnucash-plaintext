@@ -1,5 +1,109 @@
 # Release Notes
 
+## v0.3.3 - Payment workflows, statement import, business-object round-trip hardening (2026-05-20)
+
+This release closes the round-trip story for invoices, bills, and payments, and adds an end-to-end pipeline for reconciling raw bank statements into import-ready plaintext. Two months of bug fixes, format extensions, and new CLI subcommands.
+
+### Payment workflows
+
+Posted invoices and bills now accept incremental edits via re-import: append a `payment:` block to a posted record, re-import, and only the new payment is applied — the posting transaction, every entry, and the original bank-side payment transactions on the lot keep their GUIDs. Overpayments create an AR/AP credit lot for the owner; subsequent invoices/bills can consume the credit by setting `auto_apply_credit: true`. ([Q-015](docs/issues/Q-015-incremental-payment-reimport-rebuilds-destructively.md))
+
+Single-invoice payment retarget and multi-invoice shared bank transactions now round-trip cleanly: both the bank-side transaction and the invoice's payment block emit the full transaction GUID plus per-split GUIDs, and the importer processes standalone transactions before business objects so `payment: txn_guid:` resolves on the first pass. ([Q-016](docs/issues/Q-016-full-guid-emission-and-import-order-for-payment-roundtrip.md))
+
+```bash
+# Append a payment to a posted invoice
+$EDITOR ledger.txt   # add another payment: { ... } block
+gnucash-plaintext import mybook.gnucash ledger.txt --include-business-objects
+```
+
+### New CLI subcommands
+
+- `unpost-invoices` / `unpost-bills`: unpost without re-import. Warns about bank-side payment transactions that would become orphan if their lot is unposted. ([Q-014](docs/issues/Q-014-orphan-payment-warning-on-unpost.md))
+- `delete-invoices` / `delete-bills`: remove unposted invoices and bills from the book (refuses posted records — unpost first). ([Q-013](docs/issues/Q-013-delete-unposted-invoice-bill.md))
+- `find-orphan-payments`: list bank-side payment transactions whose AR/AP lot is no longer attached to any invoice or bill. Read-only.
+- `find-prepayments`: list open AR/AP credit lots not yet consumed by an invoice or bill. Read-only.
+- `find-transactions`: search transactions by account, date, or description.
+- `delete-customers` / `archive-customers` / `archive-vendors`: retire owners by ID or `--by-guid`. Archive flips the `active` flag; delete refuses owners with open invoices, bills, or payments. ([F-011](docs/issues/F-011-customer-active-delete.md), [Q-007](docs/issues/Q-007-delete-archive-by-guid.md))
+
+### Statement import pipeline
+
+A four-stage pipeline takes a raw bank statement (CSV / OFX / QFX provider) through reconciliation against the book and produces an import-ready plaintext file with categorized splits.
+
+1. `StatementProvider` — adapter protocol for statement sources.
+2. `StatementReconciler` — matches statement rows against existing transactions in the book (by date + amount + memo signature).
+3. `ReconcilePreviewWriter` / `ReconcilePreviewReader` — human-editable preview file lists matches, ambiguous rows, and unmatched rows.
+4. `GnuCashFuzzyMatcher` + `ReadyToImportWriter` — suggests counter-accounts from history and emits import-ready plaintext.
+
+See [docs/statement-import-pipeline.md](docs/statement-import-pipeline.md) and [docs/bank-import-workflow.md](docs/bank-import-workflow.md). ([F-005](docs/issues/F-005-data-models-and-provider-protocol.md)..[F-009](docs/issues/F-009-ready-to-import-writer.md))
+
+### print-invoice: plaintext output and multi-invoice selection
+
+`print-invoice` gained a plaintext renderer with audit-friendly tax totals (subtotal, per-tax-table breakdown, total) suitable for `git diff` review of quarterly invoices, and a `--template` flag for custom XSLT/Jinja templates. Multi-invoice selection by date range, customer, or glob produces either a combined PDF or one file per invoice. The `UNIT` column is hidden by default and the `action:` field is now optional. ([Q-011](docs/issues/Q-011-invoice-action-optional-and-custom-template.md), [Q-017](docs/issues/Q-017-print-invoice-plaintext-format-and-multi-invoice.md))
+
+```bash
+# Plaintext, all Q1 2026 invoices for one customer
+gnucash-plaintext print-invoice mybook.gnucash \
+  --customer C001 --date-from 2026-01-01 --date-to 2026-03-31 \
+  --format plaintext -o q1-acme.txt
+
+# One PDF per invoice, into a directory
+gnucash-plaintext print-invoice mybook.gnucash \
+  --customer C001 --date-from 2026-01-01 --date-to 2026-03-31 \
+  --format pdf -o q1-acme/
+```
+
+Also: `print-invoice` no longer crashes on unposted invoices — they render as a draft watermark. ([Q-012](docs/issues/Q-012-print-invoice-on-unposted-invoice-crashes.md))
+
+### Cash-basis invoice marker
+
+Invoices can be tagged `cash_basis: true` to identify revenue that should be reported on the payment date rather than the invoice date — for cash-basis tax filers (Canadian small business below the CRA threshold, US Schedule C, single-entity service consultancies). The flag is descriptive metadata stored as a KVP slot; it round-trips and does not change accounting behaviour. ([Q-018](docs/issues/Q-018-cash-basis-invoice-marker.md))
+
+### Business-object round-trip correctness
+
+- Exported account-type short-forms (`A/Receivable`, `A/Payable`) no longer crash re-import. ([Q-003](docs/issues/Q-003-account-type-export-not-reimportable.md))
+- Invoice payment blocks no longer create duplicate bank transactions when the same posted invoice is re-imported. ([Q-004](docs/issues/Q-004-payment-transaction-duplicates.md))
+- Business-object IDs are enforced unique on re-import, and full GUIDs are exported so conflict detection works across export/import cycles. ([Q-006](docs/issues/Q-006-business-object-id-uniqueness-and-guid-export.md))
+- Tax-table identity is enforced on import — re-importing a tax table with the same name no longer creates duplicates. ([Q-008](docs/issues/Q-008-taxtable-identity.md))
+- Posted invoices and bills are now mutable via the unpost-rebuild-repost cycle the importer runs internally; `unchanged` status is reported strictly when no field differs. ([Q-010](docs/issues/Q-010-strict-updated-status-on-no-change-reimport.md))
+- Import emits explicit create / update / unchanged / skip signals for every business object so re-imports are no longer silent. ([Q-009](docs/issues/Q-009-import-summary-business-objects.md))
+- The `active` flag round-trips for customers and vendors. ([F-011](docs/issues/F-011-customer-active-delete.md))
+- KVP custom-metadata round-trip is extended to every business-object type (was Transaction and Split only). ([F-010](docs/issues/F-010-kvp-metadata-all-object-types.md))
+- Business objects imported into an existing file are now persisted correctly (a save-path regression that bypassed the repository layer).
+
+### Error reporting
+
+Import errors include the source directive's line number, the directive type, and a snippet of the offending block. Inconsistent CLI exception types were normalized to a single hierarchy. ([Q-005](docs/issues/Q-005-import-errors-no-context.md), [Q-001](docs/issues/Q-001-inconsistent-cli-exception-types.md))
+
+### Platform support
+
+- Ubuntu 26.04 LTS (GnuCash 5.14) added to the test matrix.
+- Stale Windows scripts removed (Linux/macOS via Docker remains the supported development path).
+
+### Security
+
+- The `run` shim, which previously executed arbitrary scripts, is removed. ([S-001](docs/issues/S-001-run-command-executes-arbitrary-scripts.md))
+- The broad `except Exception` in the gzip fallback path is narrowed to the specific exceptions GnuCash raises so real errors are no longer masked. ([S-002](docs/issues/S-002-broad-exception-in-gzip-fallback.md))
+
+### Tests
+
+Coverage expanded across services and use cases:
+
+- Beancount round-trip data-fidelity tests.
+- `update_transaction` covers duplicate-account splits (the "meal + tip" bug) and is no longer dropped by deduplication.
+- Cross-currency split exports emit `@ price` annotations; multi-currency beancount export and close-books paths are now tested.
+- Plaintext parser edge cases, KVP colon validation, FX-rates YAML error paths, invoice renderer, and `print-invoice` have dedicated test files.
+- Disk-persistence tests for account-balance pricedb and close-books.
+- Five-state scenario tests for bills (unposted, posted/unpaid, single full payment, two partials, two payments totalling full amount) plus contradiction-error tests.
+
+### Documentation
+
+- [docs/bank-import-workflow.md](docs/bank-import-workflow.md) — end-to-end walk-through of the statement reconciliation pipeline.
+- [docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md) — payment lifecycle, incremental edits, orphan recovery, prepayment consumption.
+- [docs/payment-manual-edit-behavior.md](docs/payment-manual-edit-behavior.md) — reference for what the importer does to a payment block under each kind of diff (entry change vs. payment-only change).
+- [docs/research/2026-05-14-invoice-post-pay-unpost-cycle.md](docs/research/2026-05-14-invoice-post-pay-unpost-cycle.md) and [docs/post-mortems/2026-05-08-bill-postto-account-segfault.md](docs/post-mortems/2026-05-08-bill-postto-account-segfault.md) — research and post-mortem notes from this cycle.
+
+---
+
 ## v0.3.2 - export-accounts command (2026-04-08)
 
 ### What's new

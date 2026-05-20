@@ -3,7 +3,7 @@ id: Q-004
 title: Invoice payment blocks create duplicate bank transactions
 category: quality
 severity: high
-status: open
+status: closed
 ---
 
 ## Problem

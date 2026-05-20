@@ -3,7 +3,7 @@ id: F-008
 title: "Statement import: GnuCashFuzzyMatcher"
 category: feature
 severity: high
-status: open
+status: closed
 branch: feature/statement-import-pipeline
 depends_on: F-007
 ---
