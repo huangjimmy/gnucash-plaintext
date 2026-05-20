@@ -190,6 +190,14 @@ If `due_date` is omitted on an unposted cash-basis invoice, the rendered output 
 
 The Q-012 draft path is preserved for invoices that do NOT carry the `cash_basis: true` flag: an ordinary work-in-progress invoice still renders with the DRAFT badge as before.
 
+### Not supported: bank tx with the income/tax breakdown baked in
+
+If your bank tx is already a "complete" cash-sale entry — `Bank +N`, `Income −x`, `Tax −y` with NO `Accounts Receivable` split at all — Q-018 cannot link it to an invoice via the paid-on-receipt workflow. The Q-016 retarget mechanism needs an AR-side split on the bank tx to move into the invoice's posted lot, and a bank tx without an AR leg has nothing to retarget.
+
+The fix is in the bank tx, not the invoice: restructure it to `Bank: +N` / `Accounts Receivable: −N` (no Income or Tax splits on the bank tx). Then the standard Q-018 paid-on-receipt workflow above creates the Income and Tax splits via the invoice's posting tx, and the two same-day transactions net to a clean cash-basis P&L.
+
+If restructuring isn't acceptable (e.g. the bank tx must stay byte-identical to a QFX import for bank reconciliation), the only fallback is to leave the invoice unposted with `cash_basis: true` (renders UNPAID) and treat the link between the invoice and the bank tx as documentary only — via memo / billing-id matching by eye, not via GnuCash's posting machinery. See **[docs/issues/Q-018-cash-basis-invoice-marker.md § Intentionally not supported](issues/Q-018-cash-basis-invoice-marker.md#intentionally-not-supported-bank-tx-that-already-has-the-incometax-breakdown)** for the full rationale on why this isn't built as a first-class feature.
+
 ---
 
 ## Vendor bills work the same way

@@ -116,6 +116,24 @@ Outcome: invoice posted + paid, AR lot closed at $0 same-day, single bank tx pre
 - `test_unposted_cash_basis_without_due_date_renders_unpaid_no_due_row` — same flag, no `due_date` KVP; UNPAID badge present, and the `<strong>Due:</strong>` label omitted entirely.
 - `test_unposted_invoice_without_cash_basis_still_renders_draft` — Q-012 regression: an unposted invoice with no Q-018 flag still renders DRAFT.
 
+## Intentionally not supported: bank tx that already has the income/tax breakdown
+
+If the user imports a bank transaction that already carries the FULL cash-sale legs — `Bank: +113`, `Income:Sales: −100`, `Liabilities:Tax:HST: −13` with NO `Accounts Receivable` split at all — Q-018 cannot link it to an invoice. The paid-on-receipt workflow relies on Q-016 retarget, which requires an AR-side split on the bank tx to move into the invoice's posted lot. A bank tx without an AR leg has nothing to retarget.
+
+We deliberately don't build a "linked payment" feature for this shape. The right machinery would have to (a) validate the bank tx's Income split account matches each invoice entry's `account:`, (b) enumerate the invoice entry's `tax_table` entries and verify each maps to a tax-account split on the bank tx with the right amount, (c) maintain a KVP linkage that the renderer overrides `gncInvoiceIsPaid()` against. The validation surface is large, the audience is narrow (users who keep their books in this specific pre-broken-down shape AND want invoice documents for the same sale), and a simple workaround exists.
+
+**Workaround for users in this situation**: restructure the bank tx to the standard "Bank + AR" cash-sale shape:
+
+```
+2026-05-20 * "Acme cash sale"
+  Assets:Bank                  113.00 CAD
+  Assets:Accounts Receivable  -113.00 CAD
+```
+
+Then post the invoice through the standard Q-018 paid-on-receipt workflow. The GnuCash-generated posting tx will create the Income and Tax splits on the same date, the Q-016 retarget will close the AR lot, and the books end up with two same-day transactions (bank + posting) that net to a clean cash-basis P&L. The shape the user gave up is exactly the shape Q-018 doesn't need.
+
+For users who genuinely cannot restructure (e.g. the bank tx came from a QFX import that they need to preserve byte-identically for reconciliation), the fallback is the unposted path documented above: leave the invoice unposted with `cash_basis: true` (renders UNPAID until they manually post) and treat the link between the invoice document and the bank tx as documentary only (via memo / notes), not via GnuCash's posting machinery.
+
 ## Out of scope
 
 - Per-payment tax-method classification (a single invoice with one cash-basis payment + one accrual-basis prepayment) — not a real-world pattern; deferred.
