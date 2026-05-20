@@ -313,3 +313,110 @@ def test_cash_basis_flag_does_not_appear_in_pdf_or_html(tmp_path):
     assert 'cash_basis' not in html_with_flag.lower(), (
         'Rendered HTML must not contain the literal string "cash_basis"'
     )
+
+
+# ── Unposted-render path (cash_basis: true on an invoice awaiting cash) ──
+
+def _render_invoice(gnc, invoice_id):
+    """Helper: render the named invoice through the default XSLT and
+    return the HTML string."""
+    from gnucash import Query
+    from gnucash.gnucash_business import Invoice as BizInvoice
+
+    from repositories.gnucash_repository import GnuCashRepository
+    from services.invoice_renderer import render_to_html
+
+    repo = GnuCashRepository(str(gnc))
+    repo.open()
+    try:
+        q = Query()
+        q.search_for('gncInvoice')
+        q.set_book(repo.book)
+        inv = next(
+            (i for r in q.run() for i in [BizInvoice(instance=r)]
+             if i.GetID() == invoice_id),
+            None,
+        )
+        q.destroy()
+        assert inv is not None, f'invoice {invoice_id!r} not found'
+        xslt = Path(__file__).resolve().parents[2] / 'services' / 'invoice.xslt'
+        return render_to_html(inv, repo.book, str(xslt))
+    finally:
+        repo.close()
+
+
+def _import_into_fresh_book(runner, tmp_path, fixture_name):
+    gnc = tmp_path / 'book.gnucash'
+    r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
+    assert r.exit_code == 0, f'accounts: {r.output}'
+    time.sleep(1)
+    fx_path = tmp_path / fixture_name
+    fx_path.write_text(_fx(fixture_name))
+    r = runner.invoke(cli, ['import', str(gnc), str(fx_path),
+                            '--include-business-objects'])
+    assert r.exit_code == 0, f'{fixture_name}: {r.output}'
+    time.sleep(1)
+    return gnc
+
+
+# The badge CSS classes (.badge-paid / .badge-draft / .badge-unpaid)
+# all live in the <style> block on every render, so substring tests
+# against the class name match too eagerly. The actual badge element
+# uses the closing-tag form below — pick that for the assertions.
+_BADGE_DRAFT = '<span class="badge badge-draft">Draft</span>'
+_BADGE_UNPAID = '<span class="badge badge-unpaid">Unpaid</span>'
+_BADGE_PAID = '<span class="badge badge-paid">Paid</span>'
+
+
+def test_unposted_cash_basis_with_due_date_renders_unpaid(tmp_path):
+    """An unposted invoice with `cash_basis: true` AND a `due_date:`
+    KVP renders as UNPAID (not DRAFT) and shows the due date."""
+    runner = CliRunner()
+    gnc = _import_into_fresh_book(
+        runner, tmp_path, 'q018_unposted_cash_with_due.txt'
+    )
+    html = _render_invoice(gnc, 'INV-Q18-UNPOSTED-WITH-DUE')
+    assert _BADGE_UNPAID in html, (
+        f'expected UNPAID badge, got:\n{html[:1500]}'
+    )
+    assert _BADGE_DRAFT not in html, (
+        f'must not render DRAFT for cash-basis invoice:\n{html[:1500]}'
+    )
+    assert '2026-05-30' in html, (
+        f'due_date KVP must surface in the rendered output:\n{html[:1500]}'
+    )
+    # And the marker itself stays out of customer-facing HTML.
+    assert 'cash_basis' not in html.lower()
+
+
+def test_unposted_cash_basis_without_due_date_renders_unpaid_no_due_row(tmp_path):
+    """Unposted + cash_basis + NO due_date KVP renders UNPAID with no
+    due-date row at all (the `Due:` label simply isn't emitted)."""
+    runner = CliRunner()
+    gnc = _import_into_fresh_book(
+        runner, tmp_path, 'q018_unposted_cash_no_due.txt'
+    )
+    html = _render_invoice(gnc, 'INV-Q18-UNPOSTED-NO-DUE')
+    assert _BADGE_UNPAID in html
+    assert _BADGE_DRAFT not in html
+    # The "Due:" label only renders when due-date has content; absent
+    # here, so no "Due:" appears in the meta row.
+    assert '<strong>Due:</strong>' not in html, (
+        f'unposted cash-basis with no due_date must not emit a "Due:" '
+        f'label; got:\n{html[:1500]}'
+    )
+
+
+def test_unposted_invoice_without_cash_basis_still_renders_draft(tmp_path):
+    """Regression: the Q-012 draft path is unchanged for invoices that
+    do NOT carry `cash_basis: true`. An ordinary work-in-progress
+    invoice still renders with the DRAFT badge."""
+    runner = CliRunner()
+    gnc = _import_into_fresh_book(
+        runner, tmp_path, 'q018_unposted_draft_no_flag.txt'
+    )
+    html = _render_invoice(gnc, 'INV-Q18-DRAFT')
+    assert _BADGE_DRAFT in html, (
+        f'expected DRAFT badge (Q-012 default), got:\n{html[:1500]}'
+    )
+    assert _BADGE_UNPAID not in html

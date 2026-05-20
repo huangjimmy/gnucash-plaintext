@@ -20,19 +20,27 @@ The structural-validator alternative (require `posted.date == payment.date == ba
 
 ## What the flag does NOT change
 
-Customer-facing rendering — `print-invoice --format {pdf,html}` — stays identical regardless of the flag. Cash basis vs accrual basis is a tax-method classification internal to the issuer; the customer paying the bill has no business with it. Same goes for the `--format plaintext` output the issuer might share with bookkeepers — the existing Q-017 informational fields cover all the audit numbers; no new visible markers are added.
+The flag does NOT expose the issuer's tax-method classification to the customer. Cash basis vs accrual basis is internal to the issuer's filing; the customer paying the bill doesn't see "cash basis" anywhere in the rendered output. The literal string `cash_basis` never appears in the customer-facing HTML/PDF, and the document title stays "Invoice" — no "Sales Receipt" relabel.
 
-The GnuCash UI also continues to show the invoice in its normal posted/paid state — the flag lives in the KVP slot, not in GnuCash's invoice schema.
+For **posted** invoices (the same-day post+pay path), customer-facing rendering is fully unchanged regardless of the flag — the existing PAID badge already says everything that matters.
+
+The `--format plaintext` output (Q-017) doesn't change either — the existing informational fields (`entry_amount`, `entry_tax`, `breakdown:`, invoice totals) cover all the audit numbers; the flag rides along as a header KVP slot for the issuer's own tooling.
+
+The GnuCash UI continues to show the invoice in its normal posted/paid state — the flag lives in the KVP slot, not in GnuCash's invoice schema.
 
 ## What this issue actually adds
 
 1. **A blessed name in the format spec.** Documenting `cash_basis: true` as the canonical KVP marker for cash-basis intent, so all tools / scripts / future features that filter by tax-method use the same spelling. Without blessing, three different users would pick three different names (`cash_basis`, `tax_method`, `revenue_basis`) and downstream tooling would have to guess.
 
-2. **The canonical workflow recipe.** Cash-basis filers commonly want "post and pay on the same day from an already-imported bank tx" (the receipt-time pattern). This works today via Q-016 retarget — set `posted.date == payment.date == bank-tx.date` and use `txn_guid:` + `txn_split_guid:` in the payment block to link the existing bank tx. We document the recipe so users don't have to reinvent it.
+2. **The canonical workflow recipe (paid-on-receipt).** Cash-basis filers commonly want "post and pay on the same day from an already-imported bank tx." This works today via Q-016 retarget — set `posted.date == payment.date == bank-tx.date` and use `txn_guid:` + `txn_split_guid:` in the payment block to link the existing bank tx. We document the recipe so users don't have to reinvent it.
 
-3. **An integration test pinning the round-trip.** `tests/integration/test_q018_cash_basis_marker.py` covers: same-day post-and-pay produces invoice posted+paid with AR balanced same-day and a single bank tx (the original retargeted); the `cash_basis: true` flag round-trips through import → export → fresh-book re-import as a KVP slot on the invoice; partial payment with the flag still applies (no validator); customer-facing PDF rendering is unchanged whether the flag is set or not.
+3. **A render adjustment for the UNPOSTED case.** A cash-basis invoice doesn't post until cash arrives — but the customer still needs a payable document in the meantime. Today's Q-012 path renders any unposted invoice with a DRAFT badge, which is the wrong label for a real bill awaiting payment. When `cash_basis: true` is set on an unposted invoice, the renderer now emits an **UNPAID** badge instead of DRAFT. The Q-012 draft path is preserved for invoices that do NOT carry the flag (work-in-progress drafts still render with the DRAFT badge, unchanged).
 
-No code changes to renderer, importer, exporter, or CLI. This is a format-convention blessing plus documentation plus regression protection. Roughly 200 lines of test + 50 lines of doc.
+4. **An optional `due_date:` KVP slot.** For unposted cash-basis invoices, the `posted:` block is absent so there's no `posted.due` to pull a due date from. An optional `due_date: YYYY-MM-DD` line on the invoice header provides the customer-facing due date. The renderer reads it only when the invoice is unposted — once posted, the GnuCash `posted.due` field takes over and `due_date` KVP is ignored. The XSLT renders the "Due:" meta row only when the date is non-empty, so a cash-basis invoice with no `due_date` KVP gets no "Due:" line at all.
+
+5. **An integration test suite pinning the round-trip and the render.** `tests/integration/test_q018_cash_basis_marker.py` (7 cases): same-day post+pay produces invoice posted+paid with AR balanced same-day and a single bank tx; `cash_basis: true` survives import → export → fresh-book re-import as a KVP slot; partial payment with the flag still applies (no validator); the literal string `cash_basis` never appears in customer-facing HTML; unposted cash-basis with `due_date` KVP renders UNPAID + the date; unposted cash-basis without `due_date` renders UNPAID with no due-date row; unposted invoice WITHOUT the flag still renders DRAFT (Q-012 regression).
+
+Code touched: `services/invoice_renderer.py::invoice_to_xml` (reads the KVP, decides between draft/unpaid badge, falls back to `due_date` KVP for unposted invoices); `services/invoice.xslt` (the "Due:" meta row is now conditional on a non-empty value). No importer/exporter/CLI changes — the KVP path stores `cash_basis: true` and `due_date: <date>` automatically via the existing custom-metadata mechanism.
 
 ## Research already done
 
@@ -103,7 +111,10 @@ Outcome: invoice posted + paid, AR lot closed at $0 same-day, single bank tx pre
 - `test_same_date_post_pay_via_retarget_produces_paid_invoice` — verifies the basic workflow (probe behavior promoted to a regression test).
 - `test_cash_basis_kvp_roundtrips` — `cash_basis: true` survives export → re-import unchanged, queryable via `get_custom_metadata(invoice)`.
 - `test_cash_basis_with_partial_payment_is_allowed` — partial payment + `cash_basis: true` produces no error, AR has the expected open balance, the flag still applies to the invoice.
-- `test_cash_basis_flag_does_not_appear_in_pdf` — rendered HTML for an invoice with the flag is byte-identical (after stripping non-deterministic IDs) to the same invoice without the flag.
+- `test_cash_basis_flag_does_not_appear_in_pdf_or_html` — for the **posted** path, rendered HTML for an invoice with the flag is byte-identical (after stripping non-deterministic IDs) to the same invoice without the flag, and the literal string `cash_basis` never appears in customer-facing HTML.
+- `test_unposted_cash_basis_with_due_date_renders_unpaid` — fixture with `cash_basis: true` and `due_date: 2026-05-30` on an unposted invoice; assert UNPAID badge present, DRAFT badge absent, the date appears in the meta row, and the literal "cash_basis" stays out of the HTML.
+- `test_unposted_cash_basis_without_due_date_renders_unpaid_no_due_row` — same flag, no `due_date` KVP; UNPAID badge present, and the `<strong>Due:</strong>` label omitted entirely.
+- `test_unposted_invoice_without_cash_basis_still_renders_draft` — Q-012 regression: an unposted invoice with no Q-018 flag still renders DRAFT.
 
 ## Out of scope
 

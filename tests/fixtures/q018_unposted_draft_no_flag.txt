@@ -1,0 +1,19 @@
+customer "C-Q18-U3"
+	name: "Epsilon Corp"
+	currency: CAD
+
+invoice "INV-Q18-DRAFT"
+	customer_id: "C-Q18-U3"
+	currency: CAD
+	date_opened: 2026-05-03
+	entry:
+		date: 2026-05-03
+		description: "Genuine work-in-progress draft"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 40
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none

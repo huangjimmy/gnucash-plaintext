@@ -1,0 +1,21 @@
+customer "C-Q18-U1"
+	name: "Gamma Ltd"
+	currency: CAD
+
+invoice "INV-Q18-UNPOSTED-WITH-DUE"
+	customer_id: "C-Q18-U1"
+	currency: CAD
+	date_opened: 2026-05-01
+	cash_basis: true
+	due_date: 2026-05-30
+	entry:
+		date: 2026-05-01
+		description: "Awaiting cash receipt"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 80
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none

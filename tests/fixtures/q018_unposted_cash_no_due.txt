@@ -1,0 +1,20 @@
+customer "C-Q18-U2"
+	name: "Delta Services"
+	currency: CAD
+
+invoice "INV-Q18-UNPOSTED-NO-DUE"
+	customer_id: "C-Q18-U2"
+	currency: CAD
+	date_opened: 2026-05-02
+	cash_basis: true
+	entry:
+		date: 2026-05-02
+		description: "Awaiting cash, no fixed due date"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 60
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none

@@ -165,7 +165,30 @@ Post-import the invoice is GnuCash-posted and GnuCash-paid; the AR account sees 
 
 `cash_basis: true` is a **descriptive** flag — a tax-method label for the issuer's own filing / reporting tools. It does NOT constrain the invoice's structure: partial payments, multi-payment, overpayment, and prepayment are all allowed alongside the flag (cash-basis filers commonly receive installments — each payment recognizes its portion of revenue at its own date). The flag survives import → export → fresh-book re-import as a KVP slot on the invoice.
 
-The flag does **not** appear in customer-facing rendering. `print-invoice --format pdf|html` produces the same output whether the flag is set or not — the customer paying the bill has no business with the issuer's tax-method classification. The flag is internal metadata for the issuer's own systems.
+For the **posted** path above, customer-facing rendering is unchanged — the existing PAID badge already conveys everything that matters; the customer never sees "cash basis" anywhere in the output.
+
+### Unposted cash-basis invoices (waiting for cash to arrive)
+
+In a cash-basis workflow the invoice posts only when cash arrives. Before that, the document still needs to be sent to the customer — they're being billed and haven't paid yet. When `cash_basis: true` is set on an unposted invoice, `print-invoice` renders an **UNPAID** badge (instead of DRAFT, which is the default for unposted invoices) so the customer-facing PDF reads as a real bill rather than a work-in-progress draft.
+
+Because the `posted:` block is absent on an unposted invoice (there's no `posted.due` to read from), an optional `due_date: YYYY-MM-DD` field can be added directly to the invoice header to supply the customer-facing due date:
+
+```
+invoice "INV-CASH-002"
+    customer_id: "C001"
+    currency: CAD
+    date_opened: 2026-05-01
+    cash_basis: true
+    due_date: 2026-05-30            # KVP slot, read only when unposted
+    entry:
+        ...
+    posted: none
+    payment: none
+```
+
+If `due_date` is omitted on an unposted cash-basis invoice, the rendered output simply has no "Due:" row — the customer sees an UNPAID badge but no calendar date. Once the invoice is posted (cash has arrived), `due_date` is ignored — the GnuCash `posted.due` field takes over.
+
+The Q-012 draft path is preserved for invoices that do NOT carry the `cash_basis: true` flag: an ordinary work-in-progress invoice still renders with the DRAFT badge as before.
 
 ---
 
