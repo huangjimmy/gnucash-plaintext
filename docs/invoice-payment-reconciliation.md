@@ -116,6 +116,59 @@ A single import call can carry both the standalone bank transaction directive an
 
 ---
 
+## Cash-basis sales (Q-018): same-day post + pay
+
+Cash-basis tax filers recognize revenue when cash is received, not when an invoice is posted. They still issue normal invoices (the billing document and the tax-method classification are separate concerns), but they typically want each sale's posted date to match the cash-receipt date so the books and the tax filing align.
+
+The mechanic is just the bank-feed-first workflow above with three constraints applied:
+
+- `posted.date == payment.date == bank-tx.date` (the cash-receipt date).
+- Exactly one `payment:` block carrying `txn_guid:` + `txn_split_guid:` retargeting the existing bank tx.
+- An optional `cash_basis: true` line on the invoice header marking tax-method intent.
+
+```
+# Step 1: bank tx already in the book (e.g. from a QFX import)
+2026-04-15 * "Acme deposit, paid on receipt"
+  Assets:Bank  113.00 CAD
+  Assets:Accounts Receivable  -113.00 CAD
+
+# Step 2: invoice posts and pays on the same date
+invoice "INV-CASH-001"
+    customer_id: "C001"
+    currency: CAD
+    date_opened: 2026-04-15
+    cash_basis: true                     # Q-018 blessed KVP marker
+    entry:
+        date: 2026-04-15
+        description: "One-day consulting"
+        account: "Income:Sales"
+        quantity: 1
+        price: 100
+        taxable: true
+        tax_table: "HST"
+    posted:
+        date: 2026-04-15
+        due: 2026-04-15
+        ar_account: "Assets:Accounts Receivable"
+        memo: "INV-CASH-001 cash sale"
+        accumulate: true
+    payment:
+        date: 2026-04-15
+        amount: 113
+        bank_account: "Assets:Bank"
+        txn_guid: "<the bank tx guid from step 1>"
+        txn_split_guid: "<that tx's AR-side split guid>"
+        memo: "INV-CASH-001 cash sale"
+```
+
+Post-import the invoice is GnuCash-posted and GnuCash-paid; the AR account sees a same-day debit-and-credit netting to zero in a single closed lot; only one bank tx exists (the original, retargeted — Q-016 prevents the duplicate that the ApplyPayment path would create). Income and any tax-account splits are dated on the cash-receipt date, so a P&L grouped by date matches the cash-basis books.
+
+`cash_basis: true` is a **descriptive** flag — a tax-method label for the issuer's own filing / reporting tools. It does NOT constrain the invoice's structure: partial payments, multi-payment, overpayment, and prepayment are all allowed alongside the flag (cash-basis filers commonly receive installments — each payment recognizes its portion of revenue at its own date). The flag survives import → export → fresh-book re-import as a KVP slot on the invoice.
+
+The flag does **not** appear in customer-facing rendering. `print-invoice --format pdf|html` produces the same output whether the flag is set or not — the customer paying the bill has no business with the issuer's tax-method classification. The flag is internal metadata for the issuer's own systems.
+
+---
+
 ## Vendor bills work the same way
 
 Bills use AP instead of AR. The `payment:` block in a `bill` directive is

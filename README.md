@@ -1215,6 +1215,10 @@ Standalone transactions are created (with their declared `guid:` on both the tra
 
 See **[docs/comprehensive-roundtrip-example.md](docs/comprehensive-roundtrip-example.md)** for the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, all payment shapes: cash, retarget, overpayment with prepayment credit, credit consumption via `auto_apply_credit`, and the multi-invoice-one-bank-tx shape) exported and re-imported into a fresh book with semantic identity preserved down to per-split GUIDs. And **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)** for the bank-feed-first workflow, bill examples, error reference, and the invoice-first alternative.
 
+#### Cash-basis sales (Q-018)
+
+For cash-basis tax filers who want each sale's posted date to match the cash-receipt date, the workflow is the bank-feed-first pattern with three constraints: `posted.date == payment.date == bank-tx.date`, a single `payment:` block carrying `txn_guid:` + `txn_split_guid:` to retarget the existing bank tx, and an optional `cash_basis: true` line on the invoice header as a tax-method marker. The flag is descriptive (purely a label for the issuer's tax filing — partial / installment payments are still allowed alongside it) and does not appear in customer-facing PDF / HTML rendering. See **[docs/invoice-payment-reconciliation.md § Cash-basis sales](docs/invoice-payment-reconciliation.md#cash-basis-sales-q-018-same-day-post--pay)** for the worked example.
+
 ### Retiring customers and vendors (archive)
 
 Use `archive-customers` or `archive-vendors` to soft-hide one or more
