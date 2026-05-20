@@ -145,8 +145,12 @@
     <strong>Invoice #:</strong> <xsl:value-of select="id"/>
     &#160;|&#160;
     <strong>Date:</strong> <xsl:value-of select="date"/>
-    &#160;|&#160;
-    <strong>Due:</strong> <xsl:value-of select="due-date"/>
+    <!-- Q-018: due-date row hidden when empty (unposted cash-basis
+         invoice with no `due_date` KVP). -->
+    <xsl:if test="string-length(due-date) > 0">
+      &#160;|&#160;
+      <strong>Due:</strong> <xsl:value-of select="due-date"/>
+    </xsl:if>
     <xsl:if test="string-length(billing-id) > 0">
       &#160;|&#160;
       <strong>PO / Billing ID:</strong> <xsl:value-of select="billing-id"/>

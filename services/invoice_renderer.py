@@ -8,6 +8,7 @@ import gnucash.gnucash_core_c as gc
 from gnucash import Split
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
+from infrastructure.gnucash.kvp import get_custom_metadata
 
 
 def read_book_company_info(file_path):
@@ -107,10 +108,26 @@ def invoice_to_xml(inv, book, company_info=None):
     posting_txn = inv.GetPostedTxn()
     is_draft = posting_txn is None
     is_paid = False if is_draft else gc.gncInvoiceIsPaid(inv.instance)
+
+    # Q-018: a `cash_basis: true` KVP on an UNPOSTED invoice means
+    # "this is a real bill awaiting cash, not a work-in-progress draft."
+    # In a cash-basis workflow, the invoice posts only when cash arrives;
+    # before that, the customer still needs a payable document. Render
+    # as UNPAID (not DRAFT) for the badge, but keep the same draft-only
+    # layout (no tax breakdown / no payment history — those don't exist
+    # until posting). Also accept an optional KVP `due_date` slot
+    # (string YYYY-MM-DD) for the due date — the GnuCash `posted:`
+    # block is absent so there's no posted.due to pull from.
+    inv_kvp = get_custom_metadata(inv) or {}
+    cash_basis_marker = str(inv_kvp.get('cash_basis', '')).strip().lower() == 'true'
     currency = inv.GetCurrency().get_mnemonic()
     date_opened = inv.GetDateOpened().strftime("%Y-%m-%d")
     date_due = inv.GetDateDue()
     date_due_s = date_due.strftime("%Y-%m-%d") if date_due else ''
+    # Q-018: when posted.due is absent (unposted cash-basis invoice),
+    # fall back to the `due_date` KVP slot if the user provided one.
+    if not date_due_s and is_draft and inv_kvp.get('due_date'):
+        date_due_s = str(inv_kvp['due_date']).strip()
     notes = inv.GetNotes() or ''
     billing_id = inv.GetBillingID() or ''
 
@@ -129,11 +146,13 @@ def invoice_to_xml(inv, book, company_info=None):
     addr3, addr4 = addr.GetAddr3(), addr.GetAddr4()
     email = addr.GetEmail()
 
-    if is_draft:
+    if is_draft and not cash_basis_marker:
         status = 'draft'
     elif is_paid:
         status = 'paid'
     else:
+        # Posted-but-unpaid (accrual), or unposted+cash_basis (Q-018):
+        # both render with the same UNPAID badge.
         status = 'unpaid'
     root = ET.Element('invoice', status=status, currency=currency)
     ET.SubElement(root, 'id').text = inv_id

@@ -1,0 +1,37 @@
+taxtable "HST"
+	entry:
+		account: "Liabilities:Tax:HST"
+		rate: 13.0%
+		type: PERCENT
+
+customer "C-Q18-1"
+	name: "Acme Corp"
+	currency: CAD
+
+invoice "INV-Q18-CASH-100"
+	customer_id: "C-Q18-1"
+	currency: CAD
+	date_opened: 2026-04-15
+	entry:
+		date: 2026-04-15
+		description: "One-day consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "HST"
+	posted:
+		date: 2026-04-15
+		due: 2026-04-15
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-Q18-CASH-100 cash sale"
+		accumulate: true
+	payment:
+		date: 2026-04-15
+		amount: 113
+		bank_account: "Assets:Bank"
+		txn_guid: "{txn_guid}"
+		txn_split_guid: "{txn_split_guid}"
+		memo: "INV-Q18-CASH-100 cash sale"

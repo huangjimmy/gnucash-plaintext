@@ -1,0 +1,5 @@
+2026-04-15 * "Acme deposit, paid on receipt"
+  Assets:Bank  113.00 CAD
+    memo: "INV-Q18-CASH-100 cash sale"
+  Assets:Accounts Receivable  -113.00 CAD
+    memo: "INV-Q18-CASH-100 cash sale"

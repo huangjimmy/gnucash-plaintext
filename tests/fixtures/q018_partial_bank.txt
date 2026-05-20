@@ -1,0 +1,5 @@
+2026-04-15 * "Acme partial deposit"
+  Assets:Bank  50.00 CAD
+    memo: "INV-Q18-PARTIAL-200 first installment"
+  Assets:Accounts Receivable  -50.00 CAD
+    memo: "INV-Q18-PARTIAL-200 first installment"
