@@ -63,3 +63,4 @@ and in the **Status** column below.
 | [Q-016](Q-016-full-guid-emission-and-import-order-for-payment-roundtrip.md) | Full GUID emission and import-order swap for clean payment roundtrip | high | closed |
 | [Q-017](Q-017-print-invoice-plaintext-format-and-multi-invoice.md) | `print-invoice` plaintext format with tax totals; multi-invoice selection | low | closed |
 | [Q-018](Q-018-cash-basis-invoice-marker.md) | `cash_basis: true` invoice marker for cash-basis tax filing | low | closed |
+| [Q-019](Q-019-draft-tax-render-and-two-sided-bill-rendering.md) | Draft tax breakdown + `print-bill` + two-sided rendering with company info | medium | closed |

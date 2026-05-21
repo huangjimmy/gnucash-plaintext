@@ -182,7 +182,13 @@ def invoice_to_xml(inv, book, company_info=None):
     ET.SubElement(co_el, 'url').text = co.get('url', '')
 
     entries_el = ET.SubElement(root, 'entries')
-    entries_subtotal = 0.0  # Q-012: accumulate for drafts (no posting tx yet).
+    # Q-019: drafts (cash-basis or accrual) now compute tax from each
+    # entry's tax_table via compute_entry_informational. The net amount
+    # (qty × price adjusted for tax_included) is the per-entry subtotal,
+    # and per-tax-account dollars are aggregated into tax_account_totals
+    # for the <tax-lines> block below.
+    entries_subtotal = 0.0
+    tax_account_totals = {}
     for raw_entry in inv.GetEntries():
         ptr = int(raw_entry.instance)
         desc = safe_ctypes_string(lib.gncEntryGetDescription, ptr)
@@ -191,8 +197,14 @@ def invoice_to_xml(inv, book, company_info=None):
         price_c = lib.gncEntryGetInvPrice(ptr)
         qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
         price = price_c.num / price_c.denom if price_c.denom else 0.0
-        line_amount = qty * price
-        entries_subtotal += line_amount
+        net_amount, _entry_tax, breakdown = compute_entry_informational(
+            lib, ptr,
+        )
+        entries_subtotal += net_amount
+        for bd_acct_name, _bd_rate, bd_amount in breakdown:
+            tax_account_totals[bd_acct_name] = (
+                tax_account_totals.get(bd_acct_name, 0.0) + bd_amount
+            )
 
         tax_label, tax_type = _read_tax_label(lib, ptr)
 
@@ -201,21 +213,32 @@ def invoice_to_xml(inv, book, company_info=None):
         ET.SubElement(e_el, 'action').text = action
         ET.SubElement(e_el, 'quantity').text = f"{qty:.4f}".rstrip('0').rstrip('.')
         ET.SubElement(e_el, 'unit-price').text = f"{price:.2f}"
-        ET.SubElement(e_el, 'amount').text = f"{line_amount:.2f}"
+        ET.SubElement(e_el, 'amount').text = f"{net_amount:.2f}"
         ET.SubElement(e_el, 'tax-label', type=tax_type).text = tax_label
 
     tax_lines_el = ET.SubElement(root, 'tax-lines')
     payments_el = ET.SubElement(root, 'payments')
 
     if is_draft:
-        # Q-012: drafts have no posting tx and no lot. Show subtotal from
-        # the entries themselves; no per-tax breakdown (would require
-        # walking each entry's tax_table — non-trivial across GnuCash
-        # versions, see issue Q-012 "Known limitation"). No payments,
-        # no amount-remaining. Total = subtotal as a placeholder; the
-        # XSLT shows a DRAFT badge so the user knows tax isn't included.
+        # Q-019: render full tax breakdown for unposted invoices (cash-basis
+        # or plain draft). GnuCash only materialises tax splits on the
+        # posting transaction; before that, recompute the same numbers
+        # from each entry's tax_table. The <draft-tax-notice/> element
+        # tells the XSLT to mark these figures as provisional. Payment
+        # history and amount-remaining still require a posted AR lot, so
+        # they stay omitted on the draft path.
+        for acct_name, dollars in tax_account_totals.items():
+            tl = ET.SubElement(tax_lines_el, 'tax-line')
+            # The posted path uses acct.GetName() (leaf only);
+            # compute_entry_informational produces colon-joined fullnames
+            # ("Liabilities:Tax:GST"). Take the leaf so a draft tax-line
+            # row reads identically to the same row on a posted invoice.
+            ET.SubElement(tl, 'name').text = acct_name.rsplit(':', 1)[-1]
+            ET.SubElement(tl, 'amount').text = f"{dollars:.2f}"
+        grand_total = entries_subtotal + sum(tax_account_totals.values())
         ET.SubElement(root, 'subtotal').text = f"{entries_subtotal:.2f}"
-        ET.SubElement(root, 'total').text = f"{entries_subtotal:.2f}"
+        ET.SubElement(root, 'total').text = f"{grand_total:.2f}"
+        ET.SubElement(root, 'draft-tax-notice')
         return ET.ElementTree(root)
 
     # Posted: derive tax lines + subtotal from the posting transaction's splits.
@@ -548,6 +571,42 @@ def _render_customer_block(cust) -> str:
     )
 
 
+def _render_seller_header(company_info) -> str:
+    """Q-019: emit a `# Issued by: ...` comment header so the recipient
+    of a rendered plaintext invoice / bill knows who issued it. Uses
+    `#` comment syntax so the line is dropped on re-import (we don't
+    want seller info to land as KVPs on the recipient's invoice).
+
+    Returns an empty string when company_info is missing or has no
+    company name — there's nothing useful to render in that case."""
+    if not company_info:
+        return ''
+    name = (company_info.get('name') or '').strip()
+    if not name:
+        return ''
+    parts = [f'Issued by: {name}']
+    company_id = (company_info.get('id') or '').strip()
+    if company_id:
+        # Label matches GnuCash's own slot name ("Company ID") rather
+        # than any one jurisdiction's tax-registration scheme. Users
+        # put a CRA business number, US EIN, UK VAT, HK BR, JP
+        # corporate number, etc. here; the rendered output stays
+        # neutral so the slot value reads correctly regardless.
+        parts.append(f'Company ID: {company_id}')
+    addr_lines = [
+        (company_info.get(k) or '').strip()
+        for k in ('addr1', 'addr2', 'addr3', 'addr4')
+    ]
+    addr_joined = ', '.join(line for line in addr_lines if line)
+    if addr_joined:
+        parts.append(addr_joined)
+    for key in ('phone', 'email', 'url'):
+        val = (company_info.get(key) or '').strip()
+        if val:
+            parts.append(val)
+    return '# ' + ' | '.join(parts)
+
+
 def render_to_plaintext(invoice, book, company_info=None) -> str:
     """Render one invoice as canonical plaintext, populated with the
     Q-017 informational fields (per-entry amount + tax breakdown, plus
@@ -633,14 +692,18 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         # Q-017 informational fields. `breakdown:` is a nested block (one
         # per tax-table entry); matches the existing taxtable entry-block
         # convention so the parser can use the same indented-children path.
-        if not is_draft:
-            inv_lines.append(f'\t\tentry_amount: {_fmt_money(entry_amount)}')
-            inv_lines.append(f'\t\tentry_tax: {_fmt_money(entry_tax)}')
-            for bd_acct_name, bd_rate, bd_amount in breakdown:
-                inv_lines.append('\t\tbreakdown:')
-                inv_lines.append(f'\t\t\taccount: "{bd_acct_name}"')
-                inv_lines.append(f'\t\t\trate: {_fmt_rate(bd_rate)}')
-                inv_lines.append(f'\t\t\tamount: {_fmt_money(bd_amount)}')
+        # Q-019: emitted for drafts too — compute_entry_informational works
+        # off the entry's tax_table, which exists pre-posting. The leading
+        # `# Tax figures are provisional` comment on the invoice block
+        # (added below) tells the recipient these numbers will be
+        # recomputed at post time.
+        inv_lines.append(f'\t\tentry_amount: {_fmt_money(entry_amount)}')
+        inv_lines.append(f'\t\tentry_tax: {_fmt_money(entry_tax)}')
+        for bd_acct_name, bd_rate, bd_amount in breakdown:
+            inv_lines.append('\t\tbreakdown:')
+            inv_lines.append(f'\t\t\taccount: "{bd_acct_name}"')
+            inv_lines.append(f'\t\t\trate: {_fmt_rate(bd_rate)}')
+            inv_lines.append(f'\t\t\tamount: {_fmt_money(bd_amount)}')
 
     # Posted / payment blocks (mirror canonical export sentinel form)
     if is_draft:
@@ -696,9 +759,27 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
     subtotal = sum(e[1] for e in entries_data)
     tax_total = sum(e[2] for e in entries_data)
     inv_lines.append(f'\tinvoice_subtotal: {_fmt_money(subtotal)}')
-    if not is_draft:
-        inv_lines.append(f'\tinvoice_tax_total: {_fmt_money(tax_total)}')
-        inv_lines.append(f'\tinvoice_total: {_fmt_money(subtotal + tax_total)}')
+    # Q-019: tax_total and grand total are now emitted for drafts too,
+    # computed from each entry's tax_table.
+    inv_lines.append(f'\tinvoice_tax_total: {_fmt_money(tax_total)}')
+    inv_lines.append(f'\tinvoice_total: {_fmt_money(subtotal + tax_total)}')
+
+    # Q-019: provisional-tax caveat — invoice-scoped (drafts only),
+    # prepended inside the invoice block. The seller `# Issued by:`
+    # header (also Q-019) is file-scoped and emitted ahead of every
+    # block below.
+    if is_draft:
+        inv_lines.insert(
+            0,
+            '# Tax figures are provisional — invoice not yet posted; '
+            'recomputed at post time.',
+        )
 
     blocks.append('\n'.join(inv_lines))
+
+    seller_header = _render_seller_header(company_info)
+    if seller_header:
+        # File-scoped — "this whole rendered document is from Acme".
+        blocks.insert(0, seller_header)
+
     return '\n\n'.join(blocks) + '\n'

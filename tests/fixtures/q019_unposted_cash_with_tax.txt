@@ -1,0 +1,32 @@
+taxtable "GST+PST"
+	entry:
+		account: "Liabilities:Tax:GST"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax:PST"
+		rate: 7.0%
+		type: PERCENT
+
+customer "C-Q19-1"
+	name: "Beta Industries"
+	currency: CAD
+
+invoice "INV-Q19-CASH-TAX-200"
+	customer_id: "C-Q19-1"
+	currency: CAD
+	date_opened: 2026-05-10
+	cash_basis: true
+	due_date: 2026-06-09
+	entry:
+		date: 2026-05-10
+		description: "Q-019 cash-basis combined-tax line"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 2
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "GST+PST"
+	posted: none
+	payment: none

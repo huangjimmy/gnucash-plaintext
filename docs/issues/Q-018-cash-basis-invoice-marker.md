@@ -30,7 +30,7 @@ The flag does NOT expose the issuer's tax-method classification to the customer.
 
 For **posted** invoices (the same-day post+pay path), customer-facing rendering is fully unchanged regardless of the flag — the existing PAID badge already says everything that matters.
 
-The `--format plaintext` output (Q-017) doesn't change either — the existing informational fields (`entry_amount`, `entry_tax`, `breakdown:`, invoice totals) cover all the audit numbers; the flag rides along as a header KVP slot for the issuer's own tooling.
+The `--format plaintext` output (Q-017) doesn't change either — the existing informational fields (`entry_amount`, `entry_tax`, `breakdown:`, invoice totals) cover all the audit numbers; the flag rides along as a header KVP slot for the issuer's own tooling. Q-019 generalises the informational-field emission so they're present on every unposted invoice (cash-basis or accrual draft), not only on posted ones.
 
 The GnuCash UI continues to show the invoice in its normal posted/paid state — the flag lives in the KVP slot, not in GnuCash's invoice schema.
 

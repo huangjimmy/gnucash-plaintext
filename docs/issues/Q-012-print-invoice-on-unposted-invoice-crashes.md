@@ -64,18 +64,17 @@ class `badge-draft` for grey/neutral colouring. The payment-history
 section is already conditional (`<xsl:if test="payments/payment">`) so
 it naturally vanishes when no payments exist.
 
-## Known limitation (Q-012 v1)
+## Resolved in Q-019: draft per-tax breakdown
 
-A draft invoice's PDF will show subtotal but **no per-tax breakdown**
-(no GST line, PST line, etc.) and no grand total inclusive of tax. To
-compute taxes pre-posting we'd need to walk each entry's `tax_table`
-and apply the rate (PERCENT/VALUE) per entry, then aggregate by tax
-account — non-trivial because GnuCash's `gnc_entry_get_value` /
-`gnc_entry_get_tax_value` SWIG bindings are unreliable across versions
-(per CLAUDE.md hard-won findings). A future issue can extend this.
-
-For the draft preview use case, showing line items + subtotal is
-already a meaningful improvement over "500 Internal Server Error".
+(Originally Q-012 documented a known limitation here: draft invoices
+showed subtotal only, no per-tax breakdown, because GnuCash only
+materialises tax splits on the posting transaction.) Q-019 resolves
+this by walking each entry's tax_table directly via
+`compute_entry_informational`, aggregating per-tax-account totals, and
+emitting full `<tax-lines>` + grand-total-with-tax on every unposted
+invoice. A `<draft-tax-notice/>` element on the XML carries through to
+the XSLT as a "figures are provisional" caption so the viewer knows
+the numbers will be recomputed at post time.
 
 ## Files to change
 
@@ -85,13 +84,13 @@ already a meaningful improvement over "500 Internal Server Error".
 | `services/invoice.xslt` | Add `'draft'` case to the status badge `<xsl:choose>`. Add `.badge-draft` CSS rule. |
 | `tests/integration/test_q012_print_unposted_invoice.py` | New test file: print-invoice on unposted → exit 0 + PDF created; rendered HTML contains DRAFT badge; rendered HTML contains entry rows; rendered HTML does NOT contain payment-history table. |
 
-## Out of scope
+## Out of scope (originally — both shipped later)
 
-- Computing tax breakdown for drafts (see Known limitation above).
+- ~~Computing tax breakdown for drafts.~~ → Shipped in Q-019.
 - A "watermark" / overlay on draft PDFs — `badge-draft` in the header
   is enough signal.
-- Bill rendering — there's no `print-bill` command; bills are received,
-  not sent.
+- ~~Bill rendering — there's no `print-bill` command; bills are received,
+  not sent.~~ → `print-bill` shipped in Q-019 (audit-print use case).
 
 ---
 

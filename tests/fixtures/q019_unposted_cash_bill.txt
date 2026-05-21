@@ -1,0 +1,31 @@
+taxtable "GST+PST"
+	entry:
+		account: "Liabilities:Tax:GST"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax:PST"
+		rate: 7.0%
+		type: PERCENT
+
+vendor "V-Q19-1"
+	name: "Office Depot Wholesale"
+	currency: CAD
+
+bill "BILL-Q19-CASH-TAX-400"
+	vendor_id: "V-Q19-1"
+	currency: CAD
+	date_opened: 2026-05-12
+	cash_basis: true
+	due_date: 2026-06-11
+	entry:
+		date: 2026-05-12
+		description: "Office supplies for May"
+		account: "Expenses:Office Supplies"
+		quantity: 4
+		price: 50
+		taxable: true
+		tax_included: false
+		tax_table: "GST+PST"
+	posted: none
+	payment: none

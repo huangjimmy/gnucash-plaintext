@@ -257,6 +257,13 @@ class PlaintextParser:
         for line_number, line in enumerate(plaintext_lines):
             if line.strip() == "":
                 continue
+            # Q-019: skip `#` comment lines. The print-invoice / print-bill
+            # plaintext renderer prepends caveats (e.g. "tax figures are
+            # provisional", "Issued by: ...") on lines starting with `#`;
+            # the parser must tolerate them so rendered output re-imports
+            # cleanly.
+            if line.lstrip().startswith('#'):
+                continue
 
             leading_spaces = re.match(r'^[\t\s]*', line).group(0)
             (is_indent_valid, line_level, indent_error_msg) = self.verify_line_indentation(leading_spaces)
