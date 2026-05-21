@@ -395,6 +395,59 @@ def set_custom_metadata(obj, metadata: dict) -> None:
         logging.error(f"Failed to store custom metadata: {e}")
 
 
+def set_book_string_option(book, section: str, name: str, value: str) -> bool:
+    """Set a string-valued book option at the canonical nested slot path
+    `options → <section> → <name>`. This is the same KVP layout the
+    GnuCash File→Properties dialog writes to, and the same one
+    `read_book_company_info` reads from. Used to populate book-level
+    options like Business→Company Name without going through the
+    GnuCash GUI.
+
+    Calls `qof_book_set_string_option(book, opt_name, opt_val)` via
+    ctypes: opt_name is slash-separated (e.g. `options/Business/Company
+    Name`) and the C side does the GSList path construction +
+    `g_strdup`-ing internally — no lifetime / variadic-ABI hazards to
+    manage in Python. Marks the book instance dirty so the next
+    session save serialises the new slots to XML.
+
+    There is no SWIG fallback: GnuCash's Python bindings don't expose
+    `KvpValue` at the top level on any platform we ship (verified on
+    Debian 11/12/13, Ubuntu 20/22/24/26), and the `KvpFrame.set_slot_path`
+    method on `book.GetSlots()` requires a `KvpValue` to wrap the string.
+    All paths funnel through ctypes.
+
+    Why this exists separately from `set_custom_metadata`: that helper
+    targets per-business-object KVPs (transactions, invoices) at a
+    single flat slot key (`plaintext_metadata`). Book options live at a
+    nested 3-deep path in a different namespace, so they need their
+    own API.
+    """
+    try:
+        obj_ptr = int(book.instance)
+        lib = _load_gnc_engine()
+        lib.qof_book_set_string_option.argtypes = [
+            ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p,
+        ]
+        lib.qof_book_set_string_option.restype = None
+
+        opt_path = f'options/{section}/{name}'.encode()
+        lib.qof_book_set_string_option(
+            ctypes.c_void_p(obj_ptr),
+            opt_path,
+            value.encode('utf-8'),
+        )
+        # qof_book_set_string_option marks the book dirty internally,
+        # but call our helper too so the session save reliably re-emits
+        # the slots (matches the pattern of every other write here).
+        _mark_instance_dirty(obj_ptr)
+        return True
+    except Exception as e:
+        logging.error(
+            f"Failed to set book option options/{section}/{name}: {e}"
+        )
+        return False
+
+
 def get_custom_metadata(obj) -> dict:
     """
     Read custom metadata from a GnuCash Transaction or Split KVP slot.

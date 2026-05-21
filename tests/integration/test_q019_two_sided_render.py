@@ -35,79 +35,27 @@ def _fx(name):
 
 
 def _populate_company_options(gnc_path):
-    """Write Acme's Business → Company options into the .gnucash XML
-    directly, mirroring what the GnuCash GUI's File→Properties→Business
-    dialog writes. This is the SAME XML shape that
-    `read_book_company_info` (services/invoice_renderer.py) reads from,
-    so the test exercises the production reader end-to-end.
+    """Set Acme's Business → Company options on the book via the proper
+    GnuCash API (`set_book_string_option`, which wraps
+    `qof_instance_set_kvp` with a 3-element nested path). This goes
+    through GnuCash's dirty-tracking + session-save machinery, the
+    same path File→Properties→Business uses in the GUI, so the test
+    setup is faithful to how production users populate these slots.
 
-    Uses lxml (already a project dependency, see render_to_html) so
-    namespace prefixes — many of which the test doesn't enumerate
-    explicitly — survive the round-trip. Stdlib ElementTree would
-    remap unknown prefixes to ns0:/ns1:/..., which GnuCash's XML
-    backend then rejects on the next session-load.
-
-    Why not the SWIG KvpFrame API: GnuCash's Python bindings don't
-    export `KvpValue` as a top-level name in our installed build, and
-    `Business → Company` is a nested-frame slot (options frame →
-    Business frame → string fields) that our flat-slot helpers in
-    `infrastructure/gnucash/kvp.py` don't cover. Direct XML injection
-    is the realistic alternative — the read path is untouched."""
-    import gzip
-
-    from lxml import etree
-
-    slot_ns = 'http://www.gnucash.org/XML/slot'
-    book_ns = 'http://www.gnucash.org/XML/book'
-    gnc_ns = 'http://www.gnucash.org/XML/gnc'
-
-    with open(gnc_path, 'rb') as f:
-        head = f.read(2)
-    is_gzip = head == b'\x1f\x8b'
-
-    if is_gzip:
-        with gzip.open(gnc_path, 'rb') as f:
-            raw = f.read()
-    else:
-        with open(gnc_path, 'rb') as f:
-            raw = f.read()
-
-    tree = etree.fromstring(raw)
-    book = tree.find(f'{{{gnc_ns}}}book')
-    assert book is not None, f'no <gnc:book> in {gnc_path!r}'
-
-    slots = book.find(f'{{{book_ns}}}slots')
-    if slots is None:
-        slots = etree.SubElement(book, f'{{{book_ns}}}slots')
-
-    def _str_slot(parent, key, text):
-        s = etree.SubElement(parent, 'slot')
-        etree.SubElement(s, f'{{{slot_ns}}}key').text = key
-        v = etree.SubElement(s, f'{{{slot_ns}}}value')
-        v.set('type', 'string')
-        v.text = text
-        return s
-
-    options_slot = etree.SubElement(slots, 'slot')
-    etree.SubElement(options_slot, f'{{{slot_ns}}}key').text = 'options'
-    options_value = etree.SubElement(options_slot, f'{{{slot_ns}}}value')
-    options_value.set('type', 'frame')
-
-    biz_slot = etree.SubElement(options_value, 'slot')
-    etree.SubElement(biz_slot, f'{{{slot_ns}}}key').text = 'Business'
-    biz_value = etree.SubElement(biz_slot, f'{{{slot_ns}}}value')
-    biz_value.set('type', 'frame')
-
-    for slot_key, slot_text in COMPANY.items():
-        _str_slot(biz_value, slot_key, slot_text)
-
-    out = etree.tostring(tree, xml_declaration=True, encoding='utf-8')
-    if is_gzip:
-        with gzip.open(gnc_path, 'wb') as f:
-            f.write(out)
-    else:
-        with open(gnc_path, 'wb') as f:
-            f.write(out)
+    The renderer's `read_book_company_info` then reads the resulting
+    XML directly — no production code is bypassed."""
+    from infrastructure.gnucash.kvp import set_book_string_option
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(str(gnc_path))
+    repo.open()
+    try:
+        for slot_key, slot_val in COMPANY.items():
+            assert set_book_string_option(
+                repo.book, 'Business', slot_key, slot_val,
+            ), f'set_book_string_option failed for Business/{slot_key}'
+        repo.save()
+    finally:
+        repo.close()
 
     # Self-check: read back via the production reader. If the renderer
     # can't see the options we just wrote, the test setup is broken
@@ -116,7 +64,7 @@ def _populate_company_options(gnc_path):
     from services.invoice_renderer import read_book_company_info
     info = read_book_company_info(str(gnc_path))
     assert info.get('name') == COMPANY['Company Name'], (
-        f'read_book_company_info did not see the injected options; '
+        f'read_book_company_info did not see the populated options; '
         f'got: {info!r}'
     )
 
