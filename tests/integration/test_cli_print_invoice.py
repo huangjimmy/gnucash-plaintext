@@ -85,6 +85,29 @@ class TestPrintInvoiceErrors:
         )
         assert not os.path.exists(pdf_file), "PDF should not be created for unknown invoice"
 
+    def test_no_match_error_message_has_balanced_parens(
+        self, gnucash_with_invoice, tmp_path,
+    ):
+        """The "no invoices matched the selection (…)" message must have
+        balanced parentheses. An operator-precedence bug on the original
+        line — `'(' + ', '.join(c) if c else 'none' + ')'` parsed as
+        `('(' + ', '.join(c)) if c else ('none' + ')')` — dropped the
+        closing paren whenever criteria were present (the common case)."""
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "print-invoice", gnucash_with_invoice,
+            "DOES-NOT-EXIST",
+            "-o", str(tmp_path / "no.txt"),
+            "--format", "plaintext",
+        ])
+        assert result.exit_code != 0
+        assert "no invoices matched the selection (" in result.output, (
+            f"unexpected message:\n{result.output}"
+        )
+        assert result.output.count("(") == result.output.count(")"), (
+            f"unbalanced parentheses in error message:\n{result.output}"
+        )
+
     def test_missing_invoice_id_flag_exits_2(self, gnucash_with_invoice, tmp_path):
         """Omitting --invoice-id exits with code 2 (Click UsageError)."""
         pdf_file = tmp_path / "no.pdf"

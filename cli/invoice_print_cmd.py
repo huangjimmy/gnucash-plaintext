@@ -11,6 +11,7 @@ importer recomputes these on re-import and errors on mismatch.
 """
 
 import fnmatch
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -135,7 +136,14 @@ def _write_combined(invoices, book, fmt, xslt_path, company_info, output):
             inner = frag
             for tag in ('</body>', '</html>'):
                 inner = inner.replace(tag, '')
-            inner = inner.replace('<html>', '').replace('<body>', '')
+            # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
+            # per-fragment; literal `<html>` and absent DOCTYPE stripping
+            # leaves nested DOCTYPEs and nested `<html>` in the combined
+            # output (invalid both as HTML and XML). Strip all three so
+            # the combined doc has exactly one outer shell.
+            inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
+            inner = re.sub(r'<html\b[^>]*>', '', inner)
+            inner = re.sub(r'<body\b[^>]*>', '', inner)
             shell_parts.append(
                 f'<section style="page-break-after: always;">{inner}</section>'
             )
@@ -156,7 +164,14 @@ def _write_combined(invoices, book, fmt, xslt_path, company_info, output):
             inner = frag
             for tag in ('</body>', '</html>'):
                 inner = inner.replace(tag, '')
-            inner = inner.replace('<html>', '').replace('<body>', '')
+            # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
+            # per-fragment; literal `<html>` and absent DOCTYPE stripping
+            # leaves nested DOCTYPEs and nested `<html>` in the combined
+            # output (invalid both as HTML and XML). Strip all three so
+            # the combined doc has exactly one outer shell.
+            inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
+            inner = re.sub(r'<html\b[^>]*>', '', inner)
+            inner = re.sub(r'<body\b[^>]*>', '', inner)
             shell_parts.append(
                 f'<section style="page-break-after: always;">{inner}</section>'
             )
@@ -272,7 +287,7 @@ def print_invoice(gnucash_file, invoice_selectors, invoice_id,
                 criteria.append(f'customer={customer!r}')
             raise click.UsageError(
                 'no invoices matched the selection ('
-                + ', '.join(criteria) if criteria else 'no selectors given'
+                + (', '.join(criteria) if criteria else 'no selectors given')
                 + ')'
             )
 

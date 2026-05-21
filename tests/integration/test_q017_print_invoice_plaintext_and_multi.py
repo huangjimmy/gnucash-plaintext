@@ -165,9 +165,13 @@ def test_tampered_entry_tax_breakdown_errors_loudly(tmp_path):
     )
 
 
-def test_draft_invoice_plaintext_subtotal_only(tmp_path):
-    """Unposted invoice has no posted tax splits, so plaintext renders
-    only the subtotal — no entry_tax, no invoice_tax_total, no total."""
+def test_draft_invoice_plaintext_emits_provisional_totals(tmp_path):
+    """Q-019: drafts now render the full informational stack — subtotal,
+    tax_total, total, per-entry entry_tax — computed from each entry's
+    tax_table (independent of posting state). A `# Tax figures are
+    provisional` comment header tells the recipient the numbers will
+    be recomputed at post time. For the fixture's single non-taxable
+    line item, tax_total = 0.00 and total == subtotal."""
     runner = CliRunner()
     gf = _build_book(runner, tmp_path,
                      str(FIXTURES / 'q017_draft_invoice.txt'))
@@ -178,12 +182,19 @@ def test_draft_invoice_plaintext_subtotal_only(tmp_path):
                             '-o', str(out)])
     assert r.exit_code == 0, f'render: {r.output}'
     text = out.read_text()
-    assert 'invoice_subtotal: 50.00' in text
-    assert 'invoice_tax_total' not in text, (
-        f'draft must not emit tax_total:\n{text}'
+    assert '# Tax figures are provisional' in text, (
+        f'draft must carry provisional-tax caveat; got:\n{text}'
     )
-    assert 'invoice_total' not in text.replace('invoice_subtotal', '_____')
-    assert 'entry_tax' not in text
+    assert 'invoice_subtotal: 50.00' in text
+    assert 'invoice_tax_total: 0.00' in text, (
+        f'draft must emit tax_total even when zero (post-Q-019):\n{text}'
+    )
+    assert 'invoice_total: 50.00' in text, (
+        f'draft must emit grand total (post-Q-019):\n{text}'
+    )
+    assert 'entry_tax: 0.00' in text, (
+        f'draft must emit per-entry entry_tax (post-Q-019):\n{text}'
+    )
 
 
 # ── Multi-invoice selection ────────────────────────────────────────────────

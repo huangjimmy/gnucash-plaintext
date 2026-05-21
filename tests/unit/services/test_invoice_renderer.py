@@ -192,3 +192,69 @@ class TestReadBookCompanyInfoCompressed:
             assert info['email'] == 'info@zipped.example'
         finally:
             os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# Tests: _render_seller_header (Q-019)
+# ---------------------------------------------------------------------------
+#
+# `_render_seller_header` builds the `# Issued by: ...` comment that
+# the plaintext invoice renderer puts at the top of each rendered
+# document. Unit-tested here because it's pure-Python (no GnuCash
+# session) and the format is what recipients see byte-for-byte.
+
+class TestRenderSellerHeader:
+    def test_full_company_info_emits_all_fields(self):
+        from services.invoice_renderer import _render_seller_header
+        out = _render_seller_header({
+            'name':  'Acme Inc.',
+            'id':    '12345RT0001',
+            'addr1': '100 Main St',
+            'addr2': '',
+            'addr3': '',
+            'addr4': '',
+            'phone': '+1-555-0000',
+            'email': 'hi@acme.test',
+            'url':   'https://acme.test',
+        })
+        assert out.startswith('# Issued by: Acme Inc.')
+        # Label uses "Company ID:" (jurisdiction-neutral) — matches the
+        # GnuCash slot name. The slot value itself remains the supplier's
+        # tax-registration number (e.g. CRA GST/HST, US EIN, etc.), so
+        # ITC validity isn't affected by the neutral label.
+        assert 'Company ID: 12345RT0001' in out
+        assert '100 Main St' in out
+        assert '+1-555-0000' in out
+        assert 'hi@acme.test' in out
+        assert 'https://acme.test' in out
+        # Pre-fix iteration was `for key, label in (('phone', None), ...)`
+        # and the dead branch `f'{label}: {val}'` would have produced
+        # `None: +1-555-0000` if the label were ever set. Pin the
+        # invariant so the next refactor doesn't reintroduce the
+        # broken structure.
+        assert 'None:' not in out
+
+    def test_missing_company_returns_empty_string(self):
+        from services.invoice_renderer import _render_seller_header
+        assert _render_seller_header(None) == ''
+        assert _render_seller_header({}) == ''
+        # Whitespace-only name counts as missing — plaintext output then
+        # skips the file-scoped seller block entirely.
+        assert _render_seller_header({'name': '   '}) == ''
+
+    def test_partial_company_skips_empty_fields(self):
+        """Address lines and optional contact fields are omitted from
+        the header when blank — no `| |` or trailing `| ` artifacts."""
+        from services.invoice_renderer import _render_seller_header
+        out = _render_seller_header({
+            'name':  'Sole Proprietor',
+            'id':    '',
+            'addr1': '',
+            'addr2': '',
+            'addr3': '',
+            'addr4': '',
+            'phone': '',
+            'email': 'me@example.test',
+            'url':   '',
+        })
+        assert out == '# Issued by: Sole Proprietor | me@example.test'

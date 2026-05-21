@@ -1,0 +1,26 @@
+taxtable "Sales Tax"
+	entry:
+		account: "Liabilities:Tax:Sales Tax"
+		rate: 10.0%
+		type: PERCENT
+
+customer "C-Q19-2"
+	name: "Gamma Holdings"
+	currency: CAD
+
+invoice "INV-Q19-DRAFT-TAX-300"
+	customer_id: "C-Q19-2"
+	currency: CAD
+	date_opened: 2026-05-11
+	entry:
+		date: 2026-05-11
+		description: "Plain accrual draft, single-rate taxable"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 3
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "Sales Tax"
+	posted: none
+	payment: none
