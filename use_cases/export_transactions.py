@@ -465,11 +465,15 @@ class ExportTransactionsUseCase:
             # Fall back to older GnuCash API (< 4.0)
             tx_doc_link = transaction.GetAssociation()
 
-        # Transaction header
+        # Transaction header. When tx_num is set, always emit the desc slot
+        # too (with "" if desc is empty); otherwise the parser sees `* "X"`
+        # as desc=X (single quoted string → desc) and Num gets silently
+        # relabeled as Description on re-import — Q-020.
         line = f'{date_str} *'
         if tx_num and tx_num.strip() != "":
             line += f' {encode_value_as_string(tx_num)}'
-        if tx_desc and tx_desc.strip() != "":
+            line += f' {encode_value_as_string(tx_desc or "")}'
+        elif tx_desc and tx_desc.strip() != "":
             line += f' {encode_value_as_string(tx_desc)}'
         lines.append(line)
 

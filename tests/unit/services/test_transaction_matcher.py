@@ -45,10 +45,10 @@ class TestTransactionMatcherSignature:
             tx = Transaction(instance=result[0])
             signature = matcher.get_signature(tx)
 
-            # Signature should be (date_str, tuple_of_accounts, doc_link)
+            # Signature is (date_str, tuple_of_accounts, doc_link, tx_num, owner)
             assert isinstance(signature, tuple)
-            assert len(signature) == 3
-            date_str, accounts, doc_link = signature
+            assert len(signature) == 5
+            date_str, accounts, doc_link, tx_num, owner = signature
 
             # Date should be YYYY-MM-DD format
             assert isinstance(date_str, str)
@@ -76,7 +76,11 @@ class TestTransactionMatcherSignature:
             ["Assets:Bank:Checking", "Expenses:Groceries"]
         )
 
-        assert sig == ("2024-01-15", ("Assets:Bank:Checking", "Expenses:Groceries"), None)
+        assert sig == (
+            "2024-01-15",
+            ("Assets:Bank:Checking", "Expenses:Groceries"),
+            None, None, None,
+        )
 
     def test_signature_account_order_doesnt_matter(self):
         """Test that account order doesn't affect signature"""

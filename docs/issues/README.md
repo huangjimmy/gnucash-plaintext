@@ -64,3 +64,4 @@ and in the **Status** column below.
 | [Q-017](Q-017-print-invoice-plaintext-format-and-multi-invoice.md) | `print-invoice` plaintext format with tax totals; multi-invoice selection | low | closed |
 | [Q-018](Q-018-cash-basis-invoice-marker.md) | `cash_basis: true` invoice marker for cash-basis tax filing | low | closed |
 | [Q-019](Q-019-draft-tax-render-and-two-sided-bill-rendering.md) | Draft tax breakdown + `print-bill` + two-sided rendering with company info | medium | closed |
+| [Q-020](Q-020-num-only-roundtrip-and-import-dedup-signature.md) | Num-only roundtrip relabels Num as Description; `import_from_file` dedup ignores `doc_link` / `tx_num` / `owner` | high | open |
