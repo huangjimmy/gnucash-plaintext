@@ -855,6 +855,15 @@ On **import**, `posted: none` and `payment: none` are no-ops — they produce th
 - `payment: none` together with a `payment:` block (contradictory)
 - A `payment:` block when `posted: none` (cannot pay an unposted invoice or bill)
 
+#### Posted-tx linkage: `posted_txn_guid:`
+
+Every exported `posted:` block carries a `posted_txn_guid:` line — the GUID of the AR/AP posting transaction that GnuCash created. Two reasons it's there:
+
+* **External cross-reference.** Scripts, bank-reconciliation tools, and audit pipelines that already track transactions by GUID get a stable handle from the invoice/bill block to "the transaction that recorded this posting". Edit the resulting tx directly in GnuCash and the same GUID survives.
+* **Roundtrip integrity.** The exporter also emits the posting transaction as a normal `* "INV-NNN"` standalone block with the same GUID + `txn_type: I` + owner backref. On re-import, the standalone-tx pass creates that tx first; the invoice's `posted:` handler then finds it by `posted_txn_guid:` and *attaches* it (`gncInvoiceAttachToTxn` + lot creation) instead of calling `PostToAccount`. Without `posted_txn_guid:` the importer would call `PostToAccount`, which always mints a fresh tx — leaving the standalone-imported original orphan (AR/AP split with no lot) and doubling the AR/AP and income/expense balances on every roundtrip.
+
+`posted_txn_guid:` is optional on hand-authored plaintext. When absent, the importer falls back to `PostToAccount` (the original code path) — fine for plaintext that doesn't also include a matching standalone `*` block for the posting tx.
+
 An invoice or bill with **multiple partial payments** can have multiple `payment:` blocks — one per payment transaction:
 
 ```

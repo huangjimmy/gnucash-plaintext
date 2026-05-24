@@ -308,6 +308,12 @@ class ExportBusinessObjectsUseCase:
                 lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
                 lines.append(f'		ar_account: "{ar_name}"')
                 lines.append(f'		memo: "{posted_txn.GetDescription()}"')
+                # Always emit posted_txn_guid (symmetric with Q-016's
+                # always-emit payment txn_guid). On re-import, the importer
+                # links this existing tx instead of calling PostToAccount,
+                # which would otherwise mint a duplicate alongside the
+                # standalone-imported one and orphan the original.
+                lines.append(f'		posted_txn_guid: "{posted_txn.GetGUID().to_string()}"')
                 lines.append('		accumulate: true')
             else:
                 lines.append('	posted: none')
@@ -561,6 +567,7 @@ class ExportBusinessObjectsUseCase:
                 lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
                 lines.append(f'		ap_account: "{ap_name}"')
                 lines.append(f'		memo: "{posted_txn.GetDescription()}"')
+                lines.append(f'		posted_txn_guid: "{posted_txn.GetGUID().to_string()}"')
                 lines.append('		accumulate: true')
             else:
                 lines.append('	posted: none')
