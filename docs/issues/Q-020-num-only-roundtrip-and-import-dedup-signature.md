@@ -120,12 +120,6 @@ Fixtures (`tests/fixtures/q020_*.txt`) follow the project convention of plaintex
 | Existing `tests/unit/services/test_transaction_matcher*.py` | Updated for the new signature arity. |
 | `docs/issues/README.md` | Add Q-020 row to Quality table. |
 
-## Out of scope
-
-- **Merging `execute()` and `import_from_file()`.** They take different inputs (parsed dicts vs full plaintext directives). Q-020 only ensures both paths agree on the matcher contract.
-- **`None`-as-wildcard semantics.** The matcher docstring explicitly forbids it for `doc_link`; same rule applies to `tx_num` and `owner`. Strict equality with documented empty-equivalence normalisation.
-- **Header grammar changes** (e.g., putting `tx_num` directly in the slot occupied by `*`). The current `date * "num" "desc"` form is the canonical grammar and continues unchanged.
-
 ---
 
 **Created**: 2026-05-23
