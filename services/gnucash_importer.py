@@ -730,6 +730,159 @@ def _retarget_with_prepayment_split(lib, book, existing_tx, bank_acct_name: str,
     return True
 
 
+def _datetime_to_time64(dt) -> int:
+    """Convert a naive `datetime` (e.g. parsed via `strptime(%Y-%m-%d)`) to
+    a GnuCash time64. Matches the SWIG `gncInvoicePostToAccount` path
+    semantics so the link-based POSTED handler produces a byte-identical
+    `date_posted` / `date_due` to the PostToAccount fallback on the same
+    machine (both round-trip through Python's local-TZ `timestamp()`).
+    Pinned in a single helper so a future SWIG-side change can be matched
+    here in one place.
+    """
+    return int(dt.timestamp())
+
+
+_ATTACH_API_VERIFIED = False
+
+
+def _verify_attach_api():
+    """Probe the GnuCash SWIG surface that `_attach_existing_tx_as_posted`
+    depends on at first use. Failing fast with a named symbol is friendlier
+    than a `module has no attribute` deep in the POSTED handler, and gives
+    a clean signal if a future GnuCash version drops one of the setters.
+    Runs once per process.
+    """
+    global _ATTACH_API_VERIFIED
+    if _ATTACH_API_VERIFIED:
+        return
+
+    import gnucash.gnucash_core_c as _gc
+
+    required_swig = [
+        'gncInvoiceAttachToTxn', 'gncInvoiceAttachToLot',
+        'gncInvoiceSetPostedAcc', 'gncInvoiceSetDatePosted',
+        'xaccAccountInsertLot', 'xaccSplitSetLot',
+        # gncInvoice has no public date_due setter; due_date is stored on
+        # the posting transaction (gncInvoiceGetDateDue → xaccTransRetDateDue,
+        # gncInvoicePostToAccount → xaccTransSetDateDue). We set it the same
+        # way.
+        'xaccTransSetDateDue',
+    ]
+    missing_swig = [s for s in required_swig if not hasattr(_gc, s)]
+    if missing_swig:
+        raise RuntimeError(
+            'GnuCash SWIG bindings missing required symbols for '
+            'posted-tx linkage: ' + ', '.join(missing_swig)
+        )
+    _ATTACH_API_VERIFIED = True
+
+
+_BUSINESS_GENERATED_META = {'business_generated': 'true'}
+
+
+def _attach_existing_tx_as_posted(invoice_or_bill, existing_tx, ar_ap_account,
+                                   post_date, due_date, memo, accumulate,
+                                   book, kind: str, id_: str) -> None:
+    """Wire an already-imported transaction as the invoice/bill's posted tx,
+    bypassing `PostToAccount`. Mirrors what `gncInvoicePostToAccount` does
+    internally so the result is indistinguishable to the rest of GnuCash:
+
+      1. Create a fresh GncLot on the AR/AP account.
+      2. Override the tx description to the declared memo (matches what
+         the existing PostToAccount path does immediately after posting)
+         and mark the tx as business-generated in custom KVP.
+      3. Attach the tx's single AR/AP-side split to the lot.
+      4. gncInvoiceAttachToTxn / AttachToLot — bidirectional wiring of
+         tx ↔ invoice and lot ↔ invoice KVP backrefs PLUS the invoice's
+         posted_txn / posted_lot pointers (so explicit SetPostedTxn /
+         SetPostedLot would trip `'invoice->posted_txn == NULL'` /
+         `posted_lot == NULL` assertions and must NOT be called).
+      5. gncInvoiceSetPostedAcc / gncInvoiceSetDatePosted /
+         xaccTransSetDateDue populate the remaining posting fields.
+         `gncInvoice` has no public date_due setter — `gncInvoiceGetDateDue`
+         reads through to `xaccTransRetDateDue(posting_txn)`, so we set
+         due-date on the *transaction* the same way
+         `gncInvoicePostToAccount` does internally.
+
+    Invariants:
+      * Posting txs always have exactly ONE AR/AP-side split — GnuCash's
+        `PostToAccount` collapses AR/AP into a single split regardless of
+        the `accumulate` flag (`accumulate` only affects the income/expense
+        side: True = one income split per income/expense account, False =
+        one per entry). We assert this on the linked tx and refuse to
+        attach a malformed one rather than silently leaving extra AR/AP
+        splits orphan.
+      * `accumulate` is accepted for API parity with PostToAccount but is
+        not used here — the splits are already in the existing tx as
+        authored by the user.
+    """
+    import gnucash.gnucash_core_c as _gc
+    from gnucash import GncLot
+
+    if existing_tx is None:
+        raise ValueError(
+            f'{kind} "{id_}": cannot attach posted tx (lookup returned None)'
+        )
+
+    _verify_attach_api()
+
+    ar_ap_acct_inst = int(ar_ap_account.instance)
+    ar_ap_splits = [
+        sp for sp in existing_tx.GetSplitList()
+        if (a := sp.GetAccount()) is not None
+        and int(a.instance) == ar_ap_acct_inst
+    ]
+    if not ar_ap_splits:
+        raise ValueError(
+            f'{kind} "{id_}": linked posted tx '
+            f'{existing_tx.GetGUID().to_string()} has no split for the '
+            f'declared posting account {get_account_full_name(ar_ap_account)!r}'
+        )
+    if len(ar_ap_splits) > 1:
+        raise ValueError(
+            f'{kind} "{id_}": linked posted tx '
+            f'{existing_tx.GetGUID().to_string()} has '
+            f'{len(ar_ap_splits)} splits in {get_account_full_name(ar_ap_account)!r} '
+            f'but a posting tx must have exactly one AR/AP-side split '
+            f'(GnuCash collapses AR/AP into a single split regardless of '
+            f'the `accumulate` flag). Author the tx with one AR/AP split '
+            f'totalling the invoice/bill amount.'
+        )
+    ar_ap_split = ar_ap_splits[0]
+
+    # Step 1: fresh lot in the AR/AP account (pure SWIG — keeps ctypes
+    # ↔ SWIG bridging out of the lot lifecycle, which is sensitive on
+    # Ubuntu per docs/DEBUGGING_GNUCASH_BINDINGS.md).
+    lot = GncLot(book)
+    _gc.xaccAccountInsertLot(ar_ap_account.instance, lot.instance)
+
+    # Step 2-3: override description, plant business_generated marker in
+    # custom KVP (not Notes — Notes is a user-visible field), set
+    # due-date on the posting tx (where gncInvoiceGetDateDue reads it
+    # from), attach AR/AP split to lot. Merge — don't replace — the KVP
+    # so any user-authored custom keys on the standalone-imported tx
+    # survive: set_custom_metadata overwrites the whole `plaintext_meta`
+    # slot.
+    existing_tx.BeginEdit()
+    existing_tx.SetDescription(memo)
+    existing_custom = get_custom_metadata(existing_tx) or {}
+    existing_custom.update(_BUSINESS_GENERATED_META)
+    set_custom_metadata(existing_tx, existing_custom)
+    _gc.xaccTransSetDateDue(existing_tx.instance,
+                            _datetime_to_time64(due_date))
+    _gc.xaccSplitSetLot(ar_ap_split.instance, lot.instance)
+    existing_tx.CommitEdit()
+
+    # Step 4-5: wire invoice's posted_* properties and KVP backrefs.
+    inv_inst = invoice_or_bill.instance
+    invoice_or_bill.BeginEdit()
+    _gc.gncInvoiceAttachToLot(inv_inst, lot.instance)
+    _gc.gncInvoiceAttachToTxn(inv_inst, existing_tx.instance)
+    _gc.gncInvoiceSetPostedAcc(inv_inst, ar_ap_account.instance)
+    _gc.gncInvoiceSetDatePosted(inv_inst, _datetime_to_time64(post_date))
+    invoice_or_bill.CommitEdit()
+
+
 def _is_falsy(val: str) -> bool:
     """Return True if val is a recognised falsy string (case-insensitive)."""
     return val.strip().lower() in _FALSY_STRINGS
@@ -892,7 +1045,10 @@ def _posted_matches_directive(invoice, posted_dir: 'PlaintextDirective',
     posting_txn = invoice.GetPostedTxn()
     if posting_txn is None:
         return False
-    return posting_txn.GetDescription() == md['memo']
+    if posting_txn.GetDescription() != md['memo']:
+        return False
+    declared_posted_guid = md.get('posted_txn_guid')
+    return not (declared_posted_guid and posting_txn.GetGUID().to_string() != _normalise_guid(declared_posted_guid))
 
 
 def _lot_payment_splits(record):
@@ -2375,15 +2531,34 @@ class GnuCashImporter:
                 due_date = datetime.strptime(entry_directive.metadata['due'], "%Y-%m-%d")
                 memo = entry_directive.metadata['memo']
                 accumulate = entry_directive.metadata['accumulate'] == 'true'
-                invoice.PostToAccount(ar_account, post_date, due_date, memo, accumulate, False)
-                # Override the transaction description GnuCash set automatically,
-                # so the roundtrip preserves the memo field exactly.
-                posting_txn = invoice.GetPostedTxn()
-                if posting_txn:
-                    posting_txn.BeginEdit()
-                    posting_txn.SetDescription(memo)
-                    posting_txn.SetNotes("business_generated: true")
-                    posting_txn.CommitEdit()
+
+                # If the directive links an existing tx as the posted tx
+                # (mirrors Q-016's payment `txn_guid:` linkage), attach
+                # it instead of calling PostToAccount — PostToAccount
+                # always mints a fresh tx, so calling both would leave
+                # the standalone-imported tx orphan with no lot and the
+                # AR account double-counted.
+                declared_posted_guid = entry_directive.metadata.get('posted_txn_guid')
+                linked_tx = None
+                if declared_posted_guid:
+                    guid_norm = _normalise_guid(declared_posted_guid)
+                    linked_tx = _find_transaction_by_guid(book, guid_norm)
+                if linked_tx is not None:
+                    _attach_existing_tx_as_posted(
+                        invoice, linked_tx, ar_account,
+                        post_date, due_date, memo, accumulate,
+                        book, 'invoice', inv_id,
+                    )
+                else:
+                    invoice.PostToAccount(ar_account, post_date, due_date, memo, accumulate, False)
+                    # Override the transaction description GnuCash set automatically,
+                    # so the roundtrip preserves the memo field exactly.
+                    posting_txn = invoice.GetPostedTxn()
+                    if posting_txn:
+                        posting_txn.BeginEdit()
+                        posting_txn.SetDescription(memo)
+                        set_custom_metadata(posting_txn, _BUSINESS_GENERATED_META)
+                        posting_txn.CommitEdit()
             elif entry_directive.type == DirectiveType.PAYMENT:
                 _apply_payment_directive(invoice, entry_directive, book, is_bill=False)
 
@@ -2565,15 +2740,28 @@ class GnuCashImporter:
                 due_date = datetime.strptime(entry_directive.metadata['due'], "%Y-%m-%d")
                 memo = entry_directive.metadata['memo']
                 accumulate = entry_directive.metadata['accumulate'] == 'true'
-                bill.PostToAccount(ap_account, post_date, due_date, memo, accumulate, False)
-                # Override the transaction description GnuCash set automatically,
-                # so the roundtrip preserves the memo field exactly.
-                posting_txn = bill.GetPostedTxn()
-                if posting_txn:
-                    posting_txn.BeginEdit()
-                    posting_txn.SetDescription(memo)
-                    posting_txn.SetNotes("business_generated: true")
-                    posting_txn.CommitEdit()
+
+                declared_posted_guid = entry_directive.metadata.get('posted_txn_guid')
+                linked_tx = None
+                if declared_posted_guid:
+                    guid_norm = _normalise_guid(declared_posted_guid)
+                    linked_tx = _find_transaction_by_guid(book, guid_norm)
+                if linked_tx is not None:
+                    _attach_existing_tx_as_posted(
+                        bill, linked_tx, ap_account,
+                        post_date, due_date, memo, accumulate,
+                        book, 'bill', bill_id,
+                    )
+                else:
+                    bill.PostToAccount(ap_account, post_date, due_date, memo, accumulate, False)
+                    # Override the transaction description GnuCash set automatically,
+                    # so the roundtrip preserves the memo field exactly.
+                    posting_txn = bill.GetPostedTxn()
+                    if posting_txn:
+                        posting_txn.BeginEdit()
+                        posting_txn.SetDescription(memo)
+                        set_custom_metadata(posting_txn, _BUSINESS_GENERATED_META)
+                        posting_txn.CommitEdit()
             elif entry_directive.type == DirectiveType.PAYMENT:
                 _apply_payment_directive(bill, entry_directive, book, is_bill=True)
 

@@ -85,7 +85,8 @@ def test_business_objects_roundtrip(tmp_path):
         for line in text.splitlines():
             stripped = line.lstrip(' \t')
             if stripped.startswith(('guid:', 'customer_guid:', 'vendor_guid:',
-                                    'txn_guid:', 'txn_split_guid:')):
+                                    'txn_guid:', 'txn_split_guid:',
+                                    'posted_txn_guid:')):
                 continue
             keep.append(line)
         return '\n'.join(keep)
