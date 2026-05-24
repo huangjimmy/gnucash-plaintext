@@ -20,7 +20,11 @@ class TestTransactionMatcherBasic:
             ["Assets:Bank:Checking", "Expenses:Groceries"]
         )
 
-        assert sig == ("2024-01-15", ("Assets:Bank:Checking", "Expenses:Groceries"), None)
+        assert sig == (
+            "2024-01-15",
+            ("Assets:Bank:Checking", "Expenses:Groceries"),
+            None, None, None,
+        )
 
     def test_signature_accounts_are_sorted(self):
         """Test that accounts in signature are sorted"""
@@ -33,7 +37,7 @@ class TestTransactionMatcherBasic:
             ["Zebra:Account", "Apple:Account", "Mango:Account"]
         )
 
-        _, accounts, _ = sig1
+        _, accounts, _, _, _ = sig1
         assert accounts == ("Apple:Account", "Mango:Account", "Zebra:Account")
 
     def test_signature_order_independence(self):
@@ -168,6 +172,91 @@ class TestTransactionMatcherBasic:
         )
 
         assert sig_none != sig_set
+
+
+    def test_signature_tx_num_distinguishes(self):
+        """Two same-day same-account transactions with different `tx_num` are distinct."""
+        from services.transaction_matcher import TransactionMatcher
+
+        matcher = TransactionMatcher()
+
+        sig1 = matcher.get_signature_for_plaintext(
+            "2024-01-15",
+            ["Assets:Bank:Checking", "Expenses:Groceries"],
+            tx_num="CHK-001",
+        )
+        sig2 = matcher.get_signature_for_plaintext(
+            "2024-01-15",
+            ["Assets:Bank:Checking", "Expenses:Groceries"],
+            tx_num="CHK-002",
+        )
+        assert sig1 != sig2
+
+    def test_signature_tx_num_empty_equiv_none(self):
+        """`tx_num=""` and `tx_num=None` compare equal (GnuCash returns `""` for unset)."""
+        from services.transaction_matcher import TransactionMatcher
+
+        matcher = TransactionMatcher()
+
+        sig_none = matcher.get_signature_for_plaintext(
+            "2024-01-15",
+            ["Assets:Bank:Checking", "Expenses:Groceries"],
+            tx_num=None,
+        )
+        sig_empty = matcher.get_signature_for_plaintext(
+            "2024-01-15",
+            ["Assets:Bank:Checking", "Expenses:Groceries"],
+            tx_num="",
+        )
+        assert sig_none == sig_empty
+
+    def test_signature_owner_distinguishes(self):
+        """Same-day same-account transactions with different owners are distinct."""
+        from services.transaction_matcher import TransactionMatcher
+
+        matcher = TransactionMatcher()
+
+        sig_vendor = matcher.get_signature_for_plaintext(
+            "2024-01-15",
+            ["Assets:Bank:Checking", "Expenses:Groceries"],
+            owner="vendor:V001",
+        )
+        sig_customer = matcher.get_signature_for_plaintext(
+            "2024-01-15",
+            ["Assets:Bank:Checking", "Expenses:Groceries"],
+            owner="customer:C001",
+        )
+        sig_no_owner = matcher.get_signature_for_plaintext(
+            "2024-01-15",
+            ["Assets:Bank:Checking", "Expenses:Groceries"],
+        )
+        assert sig_vendor != sig_customer
+        assert sig_vendor != sig_no_owner
+
+    def test_signature_all_three_discriminators_combine(self):
+        """`doc_link` + `tx_num` + `owner` all participate in equality."""
+        from services.transaction_matcher import TransactionMatcher
+
+        matcher = TransactionMatcher()
+
+        base = {
+            "date_str": "2024-01-15",
+            "account_names": ["Assets:Bank:Checking", "Expenses:Groceries"],
+            "doc_link": "receipts/r.txt",
+            "tx_num": "CHK-1",
+            "owner": "vendor:V1",
+        }
+
+        sig_a = matcher.get_signature_for_plaintext(**base)
+        sig_b = matcher.get_signature_for_plaintext(**{**base, "doc_link": "receipts/other.txt"})
+        sig_c = matcher.get_signature_for_plaintext(**{**base, "tx_num": "CHK-2"})
+        sig_d = matcher.get_signature_for_plaintext(**{**base, "owner": "vendor:V2"})
+
+        assert sig_a != sig_b
+        assert sig_a != sig_c
+        assert sig_a != sig_d
+        # Identical inputs hash to the same signature.
+        assert sig_a == matcher.get_signature_for_plaintext(**base)
 
 
 if __name__ == "__main__":

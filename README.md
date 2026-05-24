@@ -1413,8 +1413,10 @@ An account from plaintext exists in GnuCash if:
 
 A transaction from plaintext exists in GnuCash if:
 - Transaction GUIDs are equal, or
-- Transaction signature matches: (date, [split account 1, ..., split account N])
+- Transaction signature matches: `(date, [split account 1, …, split account N], doc_link, tx_num, owner)` — two same-day same-account transactions that differ on any of `doc_link`, `tx_num`, or `owner` are treated as distinct, so a second grocery trip on the same day with a different receipt link or a different check number is not skipped as a duplicate.
 - If no GUID and signature doesn't match, it's considered a new transaction
+
+When a candidate transaction is skipped as a duplicate, `gnucash-plaintext import` logs a `WARNING` line spelling out the matched signature components and the GUID of the existing transaction it matched against, so you can see *why* an import was skipped without enabling verbose logging.
 
 ### Generate an income statement
 

@@ -11,7 +11,6 @@ from typing import Dict, List
 
 from gnucash import GncNumeric
 
-from infrastructure.gnucash.utils import get_account_full_name
 from repositories.gnucash_repository import GnuCashRepository
 from services.conflict_resolver import ConflictResolver, ResolutionStrategy
 from services.gnucash_importer import GnuCashImporter
@@ -323,40 +322,58 @@ class ImportTransactionsUseCase:
                                 for s in child.children
                                 if s.props.get('account')
                             )
-                            logging.info(
-                                f"Skipping duplicate (GUID match): {_date} \"{_desc}\" "
-                                f"[{_splits}] guid={guid}"
+                            logging.warning(
+                                "Skipping duplicate (GUID match): %s \"%s\" [%s]\n"
+                                "  matched existing transaction by GUID: %s",
+                                _date, _desc, _splits, guid,
                             )
                             result.skipped_count += 1
                             continue
 
-                    # Check for duplicate by date/accounts signature
+                    # Q-020: route through the matcher so the full signature
+                    # contract (date, accounts, doc_link, tx_num, owner) is
+                    # honoured. The prior inline scan compared only date and
+                    # the set of accounts, silently dropping legitimate
+                    # second same-day transactions distinguished by any of
+                    # the other three fields.
                     date_str = child.props['date']
                     split_accounts = [split.props['account'] for split in child.children]
+                    incoming_doc_link = child.metadata.get('doc_link')
+                    incoming_tx_num = child.props.get('tx_num')
+                    incoming_owner = child.metadata.get('owner')
+                    incoming_sig = self.matcher.get_signature_for_plaintext(
+                        date_str, split_accounts,
+                        doc_link=incoming_doc_link,
+                        tx_num=incoming_tx_num,
+                        owner=incoming_owner,
+                    )
 
-                    # Simple signature matching
-                    is_duplicate = False
-                    for existing_tx in existing_transactions:
-                        existing_date = existing_tx.GetDate().strftime("%Y-%m-%d")
-                        if existing_date == date_str:
-                            existing_accounts = [
-                                get_account_full_name(split.GetAccount())
-                                for split in existing_tx.GetSplitList()
-                            ]
-                            if set(existing_accounts) == set(split_accounts):
-                                is_duplicate = True
-                                break
+                    matched_existing = [
+                        tx for tx in existing_transactions
+                        if self.matcher.get_signature(tx) == incoming_sig
+                    ]
 
-                    if is_duplicate:
+                    if matched_existing:
                         _desc = child.props.get('tx_desc') or '(no description)'
                         _splits = ', '.join(
                             f"{s.props.get('account', '?')} {s.props.get('amount', '?')}"
                             for s in child.children
                             if s.props.get('account')
                         )
-                        logging.info(
-                            f"Skipping duplicate (signature match): {date_str} \"{_desc}\" "
-                            f"[{_splits}]"
+                        matched_guids = ', '.join(
+                            tx.GetGUID().to_string() for tx in matched_existing
+                        )
+                        logging.warning(
+                            "Skipping duplicate (signature match): %s \"%s\" [%s]\n"
+                            "  signature: date=%s accounts=%s doc_link=%r tx_num=%r owner=%r\n"
+                            "  matched existing transaction(s): %s",
+                            date_str, _desc, _splits,
+                            incoming_sig[0],
+                            list(incoming_sig[1]),
+                            incoming_sig[2],
+                            incoming_sig[3],
+                            incoming_sig[4],
+                            matched_guids,
                         )
                         result.skipped_count += 1
                         continue
