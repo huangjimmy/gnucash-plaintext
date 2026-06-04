@@ -71,6 +71,71 @@ class ExportResult:
         self.account_balances_after_tx: dict = {}
 
 
+def open_prepayments_for_account(account):
+    """Open prepayment credits on an AR/AP account, as (kind, owner_id,
+    owner_guid, amount) tuples — one per open, owner-attached, non-invoice lot,
+    oldest first. Shared by the exporter (the `open_prepayment:` summary) and
+    the import-time consistency check, so both see credits the same way (owner
+    resolved via the lot, which catches standalone credits)."""
+    import ctypes as _ctypes
+
+    from infrastructure.gnucash.engine import load_gnc_engine as _load
+
+    class _Num(_ctypes.Structure):
+        _fields_ = [('num', _ctypes.c_int64), ('denom', _ctypes.c_int64)]
+
+    _lib = _load()
+    try:
+        for n, r, a in [
+            ('xaccAccountGetLotList', _ctypes.c_void_p, [_ctypes.c_void_p]),
+            ('gnc_lot_get_balance', _Num, [_ctypes.c_void_p]),
+            ('gnc_lot_is_closed', _ctypes.c_int, [_ctypes.c_void_p]),
+            ('gncInvoiceGetInvoiceFromLot', _ctypes.c_void_p, [_ctypes.c_void_p]),
+            ('gncOwnerGetOwnerFromLot', _ctypes.c_int, [_ctypes.c_void_p, _ctypes.c_void_p]),
+            ('gncOwnerGetID', _ctypes.c_char_p, [_ctypes.c_void_p]),
+            ('gncOwnerGetType', _ctypes.c_int, [_ctypes.c_void_p]),
+            ('gncOwnerGetGUID', _ctypes.c_void_p, [_ctypes.c_void_p]),
+            ('guid_to_string_buff', _ctypes.c_char_p, [_ctypes.c_void_p, _ctypes.c_char_p]),
+            ('gnc_lot_get_earliest_split', _ctypes.c_void_p, [_ctypes.c_void_p]),
+            ('xaccSplitGetParent', _ctypes.c_void_p, [_ctypes.c_void_p]),
+            ('xaccTransGetDate', _ctypes.c_int64, [_ctypes.c_void_p]),
+        ]:
+            f = getattr(_lib, n)
+            f.restype = r
+            f.argtypes = a
+    except AttributeError:
+        return []
+
+    creds = []  # (when, kind, oid, guid, amount)
+    g = _lib.xaccAccountGetLotList(int(account.instance))
+    while g:
+        node = _ctypes.cast(g, _ctypes.POINTER(_ctypes.c_void_p * 3)).contents
+        lot = node[0]
+        if lot and not _lib.gnc_lot_is_closed(lot):
+            b = _lib.gnc_lot_get_balance(lot)
+            bal = b.num / b.denom if b.denom else 0.0
+            if abs(bal) > 1e-9 and not _lib.gncInvoiceGetInvoiceFromLot(lot):
+                obuf = _ctypes.create_string_buffer(256)
+                op = _ctypes.cast(obuf, _ctypes.c_void_p).value
+                if _lib.gncOwnerGetOwnerFromLot(lot, op) == 1:
+                    kind = {2: 'customer', 4: 'vendor'}.get(_lib.gncOwnerGetType(op))
+                    oid_raw = _lib.gncOwnerGetID(op)
+                    oid = oid_raw.decode('utf-8', errors='replace') if oid_raw else ''
+                    guid = ''
+                    gp = _lib.gncOwnerGetGUID(op)
+                    if gp:
+                        gbuf = _ctypes.create_string_buffer(40)
+                        _lib.guid_to_string_buff(gp, gbuf)
+                        guid = gbuf.value.decode('ascii').replace('-', '')
+                    if kind and oid:
+                        es = _lib.gnc_lot_get_earliest_split(lot)
+                        when = _lib.xaccTransGetDate(_lib.xaccSplitGetParent(es)) if es else 0
+                        creds.append((when, kind, oid, guid, abs(bal)))
+        g = node[1]
+    return [(kind, oid, guid, amount)
+            for _when, kind, oid, guid, amount in sorted(creds, key=lambda c: c[0])]
+
+
 class ExportTransactionsUseCase:
     """Use case for exporting transactions to plaintext with full metadata"""
 
@@ -431,6 +496,23 @@ class ExportTransactionsUseCase:
         custom_meta = get_custom_metadata(account)
         for k, v in sorted(custom_meta.items()):
             lines.append(f'\t{k}: {encode_value_as_string(v)}')
+
+        # Per-account open-credit summary: on AR/AP accounts, list every open
+        # owner-attached lot with no invoice (a prepayment credit). Informational
+        # and recomputed from the live lots on each export; the importer ignores
+        # it (the authoritative data is the per-split lot_owner markers).
+        if account_type in (11, 12):  # ACCT_TYPE_RECEIVABLE / PAYABLE
+            self._append_open_prepayments(account, mnemonic, lines)
+
+    def _append_open_prepayments(self, account, mnemonic, lines):
+        """Emit one `open_prepayment:` block per open credit on an AR/AP account
+        (oldest first)."""
+        for kind, oid, guid, amount in open_prepayments_for_account(account):
+            lines.append('\topen_prepayment:')
+            lines.append(f'\t\t{kind}: "{oid}"')
+            if guid and guid != '0' * 32:
+                lines.append(f'\t\t{kind}_guid: "{guid}"')
+            lines.append(f'\t\tamount: {amount:.2f} {mnemonic}')
 
     def _format_transaction(
         self,

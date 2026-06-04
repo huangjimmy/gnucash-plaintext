@@ -274,3 +274,66 @@ def test_clearing_roundtrips_into_fresh_book(tmp_path):
     assert r.exit_code == 0, r.output
     time.sleep(1)
     assert _open_nonzero(_lots(gf2, 'Assets.Accounts Receivable')) == []
+
+
+# --------------------------------------------------------------------------
+# Per-account open_prepayment summary: emitted on export (incl. export-accounts),
+# informational, ignored on re-import.
+# --------------------------------------------------------------------------
+
+def test_open_prepayment_summary_in_export_accounts(tmp_path):
+    runner = CliRunner()
+    gf = _setup_standalone_credit(runner, tmp_path)  # C001 holds a −50 credit
+    out = tmp_path / 'accounts.txt'
+    r = runner.invoke(cli, ['export-accounts', str(gf), str(out)])
+    assert r.exit_code == 0, r.output
+    text = out.read_text()
+    assert 'open_prepayment:' in text, text
+    assert 'customer: "C001"' in text, text
+    assert 'customer_guid:' in text, text
+    assert 'amount: 50.00 CAD' in text, text
+
+
+def test_open_prepayment_summary_roundtrips(tmp_path):
+    runner = CliRunner()
+    gf = _setup_standalone_credit(runner, tmp_path)
+    exported = tmp_path / 'export.txt'
+    r = runner.invoke(cli, ['export', str(gf), str(exported),
+                            '--include-business-objects'])
+    assert r.exit_code == 0, r.output
+    assert 'open_prepayment:' in exported.read_text()
+
+    # Re-import: the open_prepayment block is parsed and ignored (informational);
+    # the credit is rebuilt from the lot_owner markers, not from the summary.
+    gf2 = tmp_path / 'fresh.gnucash'
+    r = runner.invoke(cli, ['import', '--new', str(gf2), str(exported),
+                            '--include-business-objects'])
+    assert r.exit_code == 0, r.output
+    time.sleep(1)
+    assert any(not lt['closed'] and lt['balance'] == -50.0
+               for lt in _lots(gf2, 'Assets.Accounts Receivable'))
+
+
+def test_open_prepayment_mismatch_warns_but_does_not_fail(tmp_path):
+    runner = CliRunner()
+    gf = _setup_standalone_credit(runner, tmp_path)
+    exported = tmp_path / 'export.txt'
+    r = runner.invoke(cli, ['export', str(gf), str(exported),
+                            '--include-business-objects'])
+    assert r.exit_code == 0, r.output
+    text = exported.read_text()
+    assert 'amount: 50.00 CAD' in text, text
+
+    # Tamper the (informational) summary to a wrong figure, then re-import: the
+    # book's actual credit is still 50, so the import warns and still succeeds.
+    tampered = tmp_path / 'tampered.txt'
+    tampered.write_text(text.replace('amount: 50.00 CAD', 'amount: 99.00 CAD'))
+    gf2 = tmp_path / 'fresh.gnucash'
+    r = runner.invoke(cli, ['import', '--new', str(gf2), str(tampered),
+                            '--include-business-objects'])
+    assert r.exit_code == 0, r.output
+    assert 'warning' in r.output.lower() and 'open_prepayment' in r.output.lower(), r.output
+    time.sleep(1)
+    # The book reflects reality (50), not the tampered figure.
+    assert any(not lt['closed'] and lt['balance'] == -50.0
+               for lt in _lots(gf2, 'Assets.Accounts Receivable'))

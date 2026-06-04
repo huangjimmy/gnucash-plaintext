@@ -1323,7 +1323,7 @@ def _single_payment_matches(split, pd) -> bool:
     """
     md = pd.metadata
     tx = split.GetParent()
-    bank_acct_name = md['bank_account']
+    bank_acct_name = _payment_xfer_account_name(md)
     bank_split = next(
         (s for s in tx.GetSplitList()
          if (a := s.GetAccount()) is not None
@@ -1392,6 +1392,49 @@ def _emit_orphan_warning_before_unpost(record, kind: str, ident: str,
         on_orphan_warning(kind, ident, orphans)
 
 
+# Account-type categories for a payment's transfer (non-AR/AP) account.
+_ASSET_ACCT_TYPES = {0, 1, 2, 5, 6}   # BANK, CASH, ASSET, STOCK, MUTUAL
+_EXPENSE_ACCT_TYPE = 9                 # EXPENSE
+
+
+def _payment_xfer_account_name(md):
+    """The payment block's transfer account, accepting `account:` (canonical)
+    or the legacy `bank_account:` alias. Despite the legacy name the account
+    need not be a bank — an expense routes an invoice payment to a bad-debt
+    write-off. If both keys are present they must name the same account."""
+    acct = md.get('account')
+    bank = md.get('bank_account')
+    if acct and bank and acct != bank:
+        raise Exception(
+            f"payment declares both account: {acct!r} and bank_account: "
+            f"{bank!r} — they must name the same account")
+    name = acct or bank
+    if not name:
+        raise Exception("payment block has no account: (or bank_account:)")
+    return name
+
+
+def _validate_payment_account_type(account, is_bill, name):
+    """Constrain a payment's transfer account by side. An invoice payment may
+    go to an asset (cash received) or an expense (a bad-debt write-off); a bill
+    payment must go to an asset — an unpaid bill we owe is debt forgiveness (a
+    gain), which is out of scope, so an expense is rejected. Other types
+    (income on an invoice would be a credit memo; equity; AR/AP itself) are
+    never valid."""
+    t = account.GetType()
+    if t in _ASSET_ACCT_TYPES:
+        return
+    if not is_bill and t == _EXPENSE_ACCT_TYPE:
+        return  # invoice bad-debt write-off
+    if is_bill:
+        raise Exception(
+            f"a bill payment must use an asset account; {name!r} is not "
+            f"(an unpaid bill is debt forgiveness — a gain — out of scope)")
+    raise Exception(
+        f"an invoice payment must use an asset account (cash payment) or an "
+        f"expense account (bad-debt write-off); {name!r} is neither")
+
+
 def _apply_payment_directive(record, pay_dir, book, is_bill):
     """Apply one PAYMENT directive to an already-posted invoice or bill.
 
@@ -1403,11 +1446,12 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
     AP has the opposite sign convention so we pass `-amount`; see Q-014
     notes in `CLAUDE.md` for the accounting reasoning.
     """
-    bank_acct_name = pay_dir.metadata['bank_account']
+    bank_acct_name = _payment_xfer_account_name(pay_dir.metadata)
     bank_account = find_account(book.get_root_account(), bank_acct_name)
     if bank_account is None:
         kind = 'bill' if is_bill else 'invoice'
-        raise Exception(f'Bank account {bank_acct_name!r} not found when applying {kind} payment')
+        raise Exception(f'Payment account {bank_acct_name!r} not found when applying {kind} payment')
+    _validate_payment_account_type(bank_account, is_bill, bank_acct_name)
 
     # Q-016: the field carrying the bank-tx-split pointer was renamed
     # from `payment_split_guid:` to `txn_split_guid:` so the prefix

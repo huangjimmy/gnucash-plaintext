@@ -2,7 +2,7 @@
 
 **Feature branch**: `feature/credit-refund-bad-debt`
 **Created**: 2026-06-03
-**Status**: Design settled (directive, CLI/API, and cross-version engine path all probe-backed); implementation pending
+**Status**: Implemented and tested on GnuCash 5.10 (credit clearing — refund / vendor bad debt / customer forfeit / partial / standalone create+settle / round-trip; invoice & bill bad-debt validation; the `open_prepayment:` summary with import warn). Engine path probe-backed across GnuCash 3.8–5.14; the 45-test Q-014 orphan/payment-roundtrip suite still passes.
 
 ---
 
@@ -84,17 +84,16 @@ For an invoice the importer infers intent from the account *type* (asset = payme
 
 Rejected alternative: a dedicated `write_off:` block. It would duplicate the entire payment-application path for no behavioural gain, since the engine treats it as an ordinary payment; the expense-account constraint already makes the intent unambiguous.
 
-### 2. Clearing a credit reuses the `transaction:` directive — tag the AR/AP split with its owner
+### 2. Clearing a credit reuses the `transaction:` directive and the existing `lot_owner:` split marker
 
-A credit isn't attached to a document, and clearing it *is* just a normal ledger transaction (a counter account + an AR/AP split). So instead of a new top-level block, reuse the existing `transaction:` directive and add one thing: on the AR/AP split, name the owner whose prepayment it settles.
+A credit isn't attached to a document, and clearing it *is* just a normal ledger transaction (a counter account + an AR/AP split). So instead of a new top-level block or a new split field, reuse the existing `transaction:` directive and the existing per-split `lot_owner:` marker — the Q-014 orphan-lot marker — extended to carry the owner guid:
 
 ```
 2026-02-15 * "Refund of overpayment to Acme"
     currency.mnemonic: "CAD"
     Assets:Bank -50.00 CAD
     Assets:Accounts Receivable 50.00 CAD
-        customer: "C001"
-        customer_guid: "9f14a498cc894d50931f855a9a31d594"
+        lot_owner: customer:C001:9f14a498cc894d50931f855a9a31d594
 ```
 
 ```
@@ -102,22 +101,21 @@ A credit isn't attached to a document, and clearing it *is* just a normal ledger
     currency.mnemonic: "CAD"
     Expenses:Bad Debt 50.00 CAD
     Liabilities:Accounts Payable -50.00 CAD
-        vendor: "V001"
-        vendor_guid: "3f6d4a17b218c47e85d290f3e9a2b1c4"
+        lot_owner: vendor:V001:3f6d4a17b218c47e85d290f3e9a2b1c4
 ```
 
-Why this shape:
+Why reuse `lot_owner:` rather than a new `customer:`/`vendor:` split tag:
 
-- **Self-descriptive in context.** An AR split *is* the customer's receivable; an AP split *is* the vendor's payable. So `customer:` / `vendor:` on that split reads as "this AR/AP belongs to <owner>", and the counter split's account states the intent with no extra keyword: a bank account ⇒ refund, an expense ⇒ vendor bad debt, an income ⇒ customer forfeit. (The legal account-type × owner matrix from decision 1 still applies and is enforced.)
-- **Round-trip for free.** It's a transaction, so Q-016 already round-trips the transaction and its per-split GUIDs. Export just adds the owner tag, read from the lot's owner backref.
-- **Owner referenced by the documented id/guid convention.** `customer:` / `vendor:` carries the human id; `customer_guid:` / `vendor_guid:` carries the authoritative owner key (README §Identity, same as on invoices/bills). Either alone is fine hand-written; when both are present they must resolve to the same owner; export emits both. The guid is the **owner's**, never a lot guid (no lot reference — decision 3). Both ids are plain quoted strings, so any character a GnuCash id allows is fine; nothing new is forbidden.
+- **One marker, one concept.** An AR/AP split sitting in an owner's non-invoice lot already carries `lot_owner: kind:id` (Q-014, to reconstruct an orphan payment's lot). A clearing split has exactly that shape. A second field would be two mechanisms with opposite import semantics on the same split; folding them into one `lot_owner:` (with a smarter import — decision 5) avoids that. A nicer `customer:`/`vendor:` wording was weighed and judged not worth breaking the established field.
+- **`kind:id[:guid]`.** The trailing guid is the **owner's** authoritative key (never a lot guid — decision 3). Always emitted on export; optional hand-written (`lot_owner: customer:C001` still imports). When present it MUST resolve to the same owner as the id, else the import **errors** — `lot_owner:` is structural, not informational, so a guid mismatch is a hard failure, never a warning.
+- **The counter split states the intent**, no extra keyword: a bank account ⇒ refund, an expense ⇒ vendor bad debt, an income ⇒ customer forfeit. The legal account-type × owner matrix (decision 1) is enforced.
+- **Round-trip for free.** It's a transaction, so Q-016 already round-trips it and its per-split GUIDs; export re-emits `lot_owner:` from the lot's owner backref.
 
-Import semantics:
+Import semantics (decision 5 has the engine path):
 
-- A split carrying `customer:` / `customer_guid:` must be on an **AR** account; `vendor:` / `vendor_guid:` on an **AP** account. Owner type is derived from the account; a mismatch is an error (and is the owner-type check).
-- The split is attached to the owner's **open prepayment lot** (oldest, if several) via the primitive lot-split close (decision 5).
-- **Reject only when the owner has no open prepayment lot.** A closed/already-settled lot, or an owner who never had a credit, both mean there is nothing live to apply against — and a new credit is created by a fresh overpayment, never by reopening a closed lot (decision 4). We never create a lot here.
-- **No amount/balance validation.** The explicit split amounts are authoritative: partial (residual stays open), exact (lot closes), or even over-applied (the lot flips past zero — an untidy but user-intended balance) are all accepted, matching GnuCash's own permissiveness. The only thing rejected is referencing a credit that isn't there.
+- The split's account fixes the owner type: `customer` ⇒ an **AR** account, `vendor` ⇒ **AP**; a mismatch is an error.
+- **Join or create.** If the owner has an open lot this split *reduces* (opposite sign) → **join** it (a clearing). Otherwise, if the split is itself a credit/payment origin (AR-negative / AP-positive) → **create** a new lot and attach the owner (an orphan payment reconstructed, or a fresh standalone credit — closing the "standalone credit is invisible in plaintext" gap). A clearing-shaped split (opposite sign) with no credit to reduce → **error**: no phantom lot is minted.
+- **No amount/balance validation** on a join: partial (residual stays open), exact (lot closes), or over-applied are all accepted — the explicit split amounts are authoritative.
 
 ### 3. No lot id — owner tag is the only handle
 
@@ -146,7 +144,9 @@ gnc_lot_add_split(credit_lot, s_arap)        # join the offsetting split to the 
 xaccTransSetDatePostedSecs(txn, date); xaccTransCommitEdit(txn)
 ```
 
-This path is **verified on all ten supported builds** (GnuCash 3.8 through 5.14) for full refund, partial refund, and vendor bad debt — no version gate needed. It also gives precise control (we choose exactly which lot the offsetting split joins) and avoids the `Vendor.ApplyPayment` SWIG-alias gap entirely. The locating of the owner's open credit lot reuses the same `xaccAccountGetLotList` walk the project already uses in `use_cases/unpost_business_objects.py`.
+When there is no open lot to reduce, the same primitives **create** a new lot (`gnc_lot_new` + `xaccAccountInsertLot` + `gnc_lot_add_split` + `gncOwnerAttachToLot`) — the existing Q-014 orphan-reconstruction path, now also used for a fresh standalone credit. This join-or-create is implemented as `_attach_lot_owner_split` in `services/gnucash_importer.py`, replacing Q-014's former always-create `lot_owner:` handler; the owner-lot walk reuses the `xaccAccountGetLotList` pattern from `use_cases/unpost_business_objects.py`.
+
+This path is **verified on all ten supported builds** (GnuCash 3.8 through 5.14) for full refund, partial refund, vendor bad debt, forfeit, standalone-credit create-then-settle, and export → fresh re-import — no version gate needed — and the 45-test Q-014 orphan/payment-roundtrip suite still passes, so folding orphan reconstruction into the same path didn't regress it.
 
 Customer *bad debt against an invoice* (decision 1) is different — it closes the invoice's own document lot via the existing invoice `ApplyPayment` path (just with an expense transfer account), which does not invoke the buggy lot-netting and works on every version.
 
@@ -155,17 +155,15 @@ Customer *bad debt against an invoice* (decision 1) is different — it closes t
 Two cases, both lighter than they first looked because the manual lot-split (decision 5) leaves a clean, persistent topology:
 
 - **Customer bad debt** — a payment on an invoice lot whose counter-split is an expense. The existing payment exporter already walks the posted lot and emits each payment's counter-account, so it just emits `payment:` with that expense account. Local to the payment exporter.
-- **Credit clearing** (refund / vendor bad debt / forfeit) — a transaction whose AR/AP split sits in a lot that **no invoice owns** (`gncInvoiceGetInvoiceFromLot` is NULL) and that carries an owner backref. Emit it as a normal `transaction:` — Q-016 already round-trips the transaction and its per-split GUIDs — and add `customer:`/`vendor:` (+ the owner guid) to that AR/AP split, read from the lot's owner backref. No special transaction type, no sign analysis, no new block to detect. And because a cleared lot persists closed with its splits (decision 4), the detection works on cleared credits too.
+- **Credit clearing** (refund / vendor bad debt / forfeit) — a transaction whose AR/AP split sits in a lot that **no invoice owns** (`gncInvoiceGetInvoiceFromLot` is NULL) and that carries an owner backref. Emit it as a normal `transaction:` — Q-016 already round-trips the transaction and its per-split GUIDs — and emit `lot_owner: kind:id:guid` on that AR/AP split, read from the lot's owner backref. No special transaction type, no sign analysis, no new block to detect. Because a cleared lot persists closed with its splits (decision 4), this works on cleared credits too, and because the *origin* split also carries `lot_owner:`, a standalone credit's origin round-trips as well (its `lot_owner:` re-creates the lot on import — decision 2's create branch).
 
-The one wrinkle is the credit's **origin** split that shares the lot. For an **overpayment** origin it is already emitted as `prepayment:` on the invoice payment (Q-015), so export must emit the *clearing* split without re-emitting the origin. A **standalone-prepayment** origin (a credit received with no invoice) is not represented in plaintext today at all — that is a pre-existing gap, not one this feature introduces; the credits this feature targets come from overpayments, so standalone-origin representation is out of scope here.
-
-**Still to probe** (needs the importer/exporter to exist): an `import → export → import` cycle to pin the exact lot/split topology the exporter walks. Lower risk than under the old auto-apply design, but build it first during implementation.
+For an **overpayment** origin the credit is also represented as `prepayment:` on the invoice payment (Q-015); the clearing is the additional opposite-sign split in the same lot. **This is implemented and verified** by an `import → export → import` round-trip test on a standalone credit (created via `lot_owner` then cleared): the export emits `lot_owner: …:guid`, and the fresh re-import rebuilds the same settled state.
 
 ### 7. `find-prepayments` and the workflow note
 
-`find-prepayments` already surfaces every open credit and currently advises either consuming via `auto_apply_credit:` or the destructive "delete the source bank tx" refund. Update its guidance (and `README.md`) to point at the new non-destructive path — a normal transaction with the AR/AP split tagged `customer:`/`vendor:` — as the canonical way to dispose of a credit (refund, write off, or forfeit), keeping the delete path only as the standalone-payment shortcut.
+`find-prepayments` already surfaces every open credit and currently advises either consuming via `auto_apply_credit:` or the destructive "delete the source bank tx" refund. Update its guidance (and `README.md`) to point at the new non-destructive path — a normal transaction with the AR/AP split carrying `lot_owner: kind:id` — as the canonical way to dispose of a credit (refund, write off, or forfeit), keeping the delete path only as the standalone-payment shortcut.
 
-### 8. User-facing surface: discovery, the `open_prepayment:` summary, and a `clear-prepayment` CLI
+### 8. User-facing surface: discovery and the `open_prepayment:` summary
 
 Owners are identified consistently everywhere: by **guid (authoritative)** with the **id as a readable companion** — the same id/guid pairing used across the format.
 
@@ -191,27 +189,15 @@ Owners are identified consistently everywhere: by **guid (authoritative)** with 
 
   It is **derived / informational**, so its handling differs from `entry_amount`/`entry_tax`:
     - **Export** always writes the correct, recomputed balance.
-    - **Import** recomputes open prepayments from the book in a **post-import pass** (the account block is read before the transactions that create the lots, so it cannot be checked at account-creation time). The `customer_guid:`/`vendor_guid:` is the key it resolves on. On a mismatch it prints a **warning to stderr** (owner, declared vs actual) and **import still succeeds** — the book's actual lots are authoritative, and the next export self-heals the file. This is softer than `entry_amount`/`entry_tax`, which error, because those guard posted-record integrity while this is a self-correcting summary.
+    - **Import** recomputes open prepayments from the book in a **post-import pass** (the account block is read before the transactions that create the lots, so it cannot be checked at account-creation time) and compares per owner. On a mismatch it prints a **warning to stderr** (account, owner, declared vs actual) and **import still succeeds** — the book's actual lots are authoritative, and the next export self-heals the file. This is softer than `entry_amount`/`entry_tax`, which error, because those guard posted-record integrity while this is a self-correcting summary. Implemented as `_warn_open_prepayment_mismatches` in `cli/import_cmd.py`.
 
-**Action — two ways, both running the proven primitive lot-attach (decision 5):**
-
-- The `transaction:` directive with the tagged AR/AP split (power / AI-assisted / bulk editing).
-- A `clear-prepayment` convenience CLI for users who would rather not hand-write the transaction:
-
-  ```
-  gnucash-plaintext clear-prepayment book.gnucash \
-      --customer C001 --amount 50 --to "Assets:Bank" --date 2026-02-15 --memo "Refund"
-  gnucash-plaintext clear-prepayment book.gnucash \
-      --vendor V001 --amount 50 --to "Expenses:Bad Debt" --date 2026-02-15
-  ```
-
-  It resolves the owner's oldest open prepayment lot and builds the clearing transaction. `--to` is the counter account (asset ⇒ refund, expense ⇒ vendor bad debt, income ⇒ customer forfeit, validated by owner per decision 1). Rejects when the owner has no open prepayment.
+**Action: the `transaction:` directive with a `lot_owner:`-tagged AR/AP split** (decision 2) is the single way to clear a credit — power, AI-assisted, and bulk editing all use the same explicit form. A `clear-prepayment` convenience CLI was considered and **rejected**: it would have to assume the destination account's currency and would hide details (the AR/AP account, the sign) that a user writing an import file generally wants to set explicitly. The directive is the clear, explicit path; the `lot_owner:` marker carries everything needed.
 
 ---
 
 ## Linking an already-imported transaction
 
-When the actual outflow already exists in the book (e.g. imported from a bank feed with an `Imbalance` counter-split), the user should be able to turn it into the credit clearing rather than create a duplicate bank transaction. Because the clearing is just a `transaction:`, this rides the directive's existing GUID identity (Q-016): the user writes the transaction carrying the existing bank transaction's `guid:` and re-targets its counter-split to the AR/AP account with the `customer:`/`vendor:` tag. The importer matches the transaction by GUID, updates the split to AR/AP, and attaches it to the owner's open prepayment lot. No separate linkage field is needed — the transaction GUID is the link.
+When the actual outflow already exists in the book (e.g. imported from a bank feed with an `Imbalance` counter-split), the user should be able to turn it into the credit clearing rather than create a duplicate bank transaction. Because the clearing is just a `transaction:`, this rides the directive's existing GUID identity (Q-016): the user writes the transaction carrying the existing bank transaction's `guid:` and re-targets its counter-split to the AR/AP account with a `lot_owner:` marker. The importer matches the transaction by GUID, updates the split to AR/AP, and attaches it to the owner's open prepayment lot. No separate linkage field is needed — the transaction GUID is the link.
 
 ---
 
@@ -280,4 +266,4 @@ C vendor bad debt:        credit created  AP=+50 bank=-50  lot bal=+50 splits=1 
 
 (In every case the offsetting split joins the existing lot — splits 1 → 2 — and the balance moves to 0 for a full clear or to the residual for a partial.) Invoice/bill *payments* — including an invoice bad-debt write-off — are unaffected on all versions regardless, because they close the document's own lot and never net two lots.
 
-**Still not probed**: export / round-trip detection of a credit-clearing transaction (decision 6) — requires the importer/exporter to exist.
+**Round-trip verified**: a standalone credit created via `lot_owner`, cleared, exported, and re-imported into a fresh book reaches the same settled state, and the exporter emits `lot_owner: …:guid`. The `open_prepayment:` summary survives the same cycle (parsed and ignored on import; warns on a tampered value).
