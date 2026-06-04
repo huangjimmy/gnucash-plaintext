@@ -226,6 +226,16 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             click.echo(f"  Conflicts:    {len(result.conflicts)}")
             click.echo(f"  Errors:       {result.error_count}")
 
+            # Surface the actual error text, not just the count, so the user
+            # knows what failed and why — e.g. a prepayment-settlement split
+            # that found no open credit, or an owner/account mismatch. Goes to
+            # stderr so it stands out and survives piping stdout elsewhere.
+            for err in (result.errors or []):
+                props = err.get('transaction') or {}
+                label = (props.get('tx_desc') or props.get('date')
+                         or '<transaction>')
+                click.echo(f"    error: {label}: {err['error']}", err=True)
+
             # Business-objects summary (Q-009): only emit when business
             # objects were actually processed; otherwise this section is
             # noise on transaction-only imports.

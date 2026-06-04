@@ -1,0 +1,5 @@
+2026-02-15 * "Forfeit Acme overpayment to income"
+	currency.mnemonic: "CAD"
+	Income -50.00 CAD
+	Assets:Accounts Receivable 50.00 CAD
+		lot_owner: customer:C001

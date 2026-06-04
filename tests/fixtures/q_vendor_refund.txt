@@ -1,0 +1,5 @@
+2026-02-15 * "Refund received from Supplier"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Liabilities:Accounts Payable -50.00 CAD
+		lot_owner: vendor:V001

@@ -668,7 +668,7 @@ class ExportTransactionsUseCase:
             _lot_ptr = _lib.xaccSplitGetLot(int(split.instance))
             if _lot_ptr:
                 _inv = _lib.gncInvoiceGetInvoiceFromLot(_lot_ptr)
-                if not _inv:                       # orphan lot — emit marker
+                if not _inv:                       # owner lot, no invoice
                     _owner_buf = _ctypes.create_string_buffer(256)
                     _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
                     if _lib.gncOwnerGetOwnerFromLot(_lot_ptr, _owner_p) == 1:
@@ -678,7 +678,26 @@ class ExportTransactionsUseCase:
                                 if _oid_raw else '')
                         _kind = {2: 'customer', 4: 'vendor'}.get(_otype)
                         if _kind and _oid:
-                            lines.append(f'\t\tlot_owner: {_kind}:{_oid}')
+                            # Append the owner's guid (authoritative) as a third
+                            # segment: `kind:id:guid`. Guarded so a build without
+                            # the guid accessors still emits `kind:id`.
+                            _lo = f'{_kind}:{_oid}'
+                            try:
+                                _lib.gncOwnerGetGUID.argtypes = [_ctypes.c_void_p]
+                                _lib.gncOwnerGetGUID.restype = _ctypes.c_void_p
+                                _lib.guid_to_string_buff.argtypes = [
+                                    _ctypes.c_void_p, _ctypes.c_char_p]
+                                _lib.guid_to_string_buff.restype = _ctypes.c_char_p
+                                _gp = _lib.gncOwnerGetGUID(_owner_p)
+                                if _gp:
+                                    _gb = _ctypes.create_string_buffer(40)
+                                    _lib.guid_to_string_buff(_gp, _gb)
+                                    _g = _gb.value.decode('ascii').replace('-', '')
+                                    if _g and _g != '0' * 32:
+                                        _lo = f'{_kind}:{_oid}:{_g}'
+                            except AttributeError:
+                                pass
+                            lines.append(f'\t\tlot_owner: {_lo}')
         except AttributeError:
             pass
 

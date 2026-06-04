@@ -1,0 +1,5 @@
+2026-02-15 * "Write off Supplier overpayment — ceased trading"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 50.00 CAD
+	Liabilities:Accounts Payable -50.00 CAD
+		lot_owner: vendor:V001
