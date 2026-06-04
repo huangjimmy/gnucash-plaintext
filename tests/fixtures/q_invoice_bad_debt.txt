@@ -1,0 +1,27 @@
+customer "C009"
+	name: "Insolvent Co"
+	currency: CAD
+
+invoice "INV-BD"
+	customer_id: "C009"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Services rendered"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-BD"
+		accumulate: true
+	payment:
+		date: 2026-06-01
+		amount: 100
+		account: "Expenses:Supplies"
+		memo: "Write-off — customer insolvent"

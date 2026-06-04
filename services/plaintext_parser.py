@@ -143,6 +143,13 @@ class DirectiveType(Enum):
     # from the tax_table + entry fields and errors on mismatch.
     TAX_BREAKDOWN = 16
 
+    # Per-account open-credit summary — repeated child block under
+    # OPEN_ACCOUNT on AR/AP accounts that hold an open prepayment lot.
+    # Informational: the exporter recomputes and emits it from the live
+    # lots; the importer does not act on it (the authoritative data is the
+    # per-split lot_owner markers, which rebuild the lots).
+    OPEN_PREPAYMENT = 17
+
 
 
 class PlaintextDirective:
@@ -358,6 +365,11 @@ class PlaintextParser:
                     # invoice/bill entry. Each block carries account,
                     # rate, amount keys (informational).
                     obj = PlaintextDirective(DirectiveType.TAX_BREAKDOWN, line_level, line, parent_directive)
+                elif block_type == "open_prepayment":
+                    # Per-account open-credit summary under OPEN_ACCOUNT.
+                    # Informational; the importer ignores it (the exporter
+                    # recomputes it from the live lots on every export).
+                    obj = PlaintextDirective(DirectiveType.OPEN_PREPAYMENT, line_level, line, parent_directive)
                 else:
                     obj = PlaintextDirective(DirectiveType.PAYMENT, line_level, line, parent_directive)
                 parent_directive.children.append(obj)
@@ -392,7 +404,7 @@ taxtable_pattern = r'^taxtable\s+"(.*?)"\s*$'
 invoice_pattern = r'^invoice\s+"(.*?)"\s*$'
 vendor_pattern = r'^vendor\s+"(.*?)"\s*$'
 bill_pattern = r'^bill\s+"(.*?)"\s*$'
-block_pattern = r'^\s*(entry|posted|payment|breakdown):\s*$'
+block_pattern = r'^\s*(entry|posted|payment|breakdown|open_prepayment):\s*$'
 
 
 def parse_customer(line: str) -> Optional[str]:
@@ -452,6 +464,11 @@ def parse_split(split_line: str) -> Tuple[Optional[str], Optional[str], Optional
         account_name = match.group(1)
         amount = match.group(2)
         symbol = match.group(3)
+        if account_name.strip().endswith(':'):
+            # A `key: NUM SYMBOL` metadata line (e.g. `amount: 50.00 CAD`)
+            # superficially matches the split shape. A real account path
+            # never ends with a colon, so fall through to metadata parsing.
+            return None, None, None
         return account_name.strip(), amount.strip(), symbol.strip()
     else:
         match = re.match(split_pattern2, split_line)
@@ -459,6 +476,8 @@ def parse_split(split_line: str) -> Tuple[Optional[str], Optional[str], Optional
             account_name = match.group(1)
             amount = match.group(2)
             symbol = decode_value_from_string(match.group(3))
+            if account_name.strip().endswith(':'):
+                return None, None, None
             return account_name.strip(), amount.strip(), symbol.strip()
     return None, None, None
 

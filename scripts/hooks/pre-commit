@@ -3,10 +3,11 @@
 # Pre-commit hook: Run linter, tests, and independent AI review
 #
 # Flow:
-#   1. Run lint (always)
-#   2. Run tests via test-all-versions-parallel.sh (always, even if lint failed)
+#   1. Run lint on staged Python files (skipped when none are staged)
+#   2. Run tests via test-all-versions-parallel.sh — skipped for documentation-only
+#      commits (only *.md / docs/ staged), since docs cannot affect the test suite
 #   3. If lint OR tests failed → block immediately (no AI review = no wasted tokens)
-#   4. If both passed → run AI review → block on concerns
+#   4. AI review runs always (including docs-only commits) → block on concerns
 #
 
 echo "Running pre-commit checks..."
@@ -42,15 +43,26 @@ else
         fi
     fi
 
-    # 2. Run tests against all supported versions (always run, even if lint failed)
-    echo "2. Running tests (all versions)..."
-    if ! TEST_OUTPUT=$(./scripts/test-all-versions-parallel.sh 2>&1); then
-        TEST_FAILED=1
-        echo "❌ Tests failed"
+    # 2. Run tests against all supported versions — skipped for documentation-only
+    #    commits. Markdown (*.md) and anything under docs/ cannot change Python
+    #    behaviour, so the slow cross-version suite adds no signal; the AI review
+    #    (step 4) still runs. Any non-doc staged file (code, scripts, templates,
+    #    Dockerfiles, configs) keeps the full suite.
+    STAGED_NONDOC=$(git diff --staged --name-only --diff-filter=ACM | grep -vE '(\.md$|^docs/)' | tr '\n' ' ' || true)
+    if [ -z "$STAGED_NONDOC" ]; then
+        echo "2. Running tests..."
+        echo "⚠️  Documentation-only change - skipping tests (AI review still runs)"
         echo ""
     else
-        echo "✓ Tests passed"
-        echo ""
+        echo "2. Running tests (all versions)..."
+        if ! TEST_OUTPUT=$(./scripts/test-all-versions-parallel.sh 2>&1); then
+            TEST_FAILED=1
+            echo "❌ Tests failed"
+            echo ""
+        else
+            echo "✓ Tests passed"
+            echo ""
+        fi
     fi
 
     # 3. Block immediately if lint or tests failed — skip AI review to save tokens

@@ -1,0 +1,5 @@
+2026-02-01 * "Partial refund to Acme"
+	currency.mnemonic: "CAD"
+	Assets:Bank -20.00 CAD
+	Assets:Accounts Receivable 20.00 CAD
+		lot_owner: customer:C001

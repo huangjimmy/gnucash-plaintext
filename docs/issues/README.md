@@ -65,3 +65,4 @@ and in the **Status** column below.
 | [Q-018](Q-018-cash-basis-invoice-marker.md) | `cash_basis: true` invoice marker for cash-basis tax filing | low | closed |
 | [Q-019](Q-019-draft-tax-render-and-two-sided-bill-rendering.md) | Draft tax breakdown + `print-bill` + two-sided rendering with company info | medium | closed |
 | [Q-020](Q-020-num-only-roundtrip-and-import-dedup-signature.md) | Num-only roundtrip relabels Num as Description; `import_from_file` dedup ignores `doc_link` / `tx_num` / `owner` | high | open |
+| [Q-021](Q-021-return-of-credit-bad-debt-and-prepayment-clearing.md) | Return of credit (refund), bad-debt write-off, and prepayment clearing via `lot_owner` | high | closed |

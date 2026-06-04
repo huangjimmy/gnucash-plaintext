@@ -931,6 +931,27 @@ For the `txn_guid:` retarget path (Q-004), when the pre-existing bank transactio
 
 The same applies symmetrically to bills (AP, opposite signs): overpaying a $100 bill by $50 produces an open AP lot with **+$50** balance — a vendor credit you can apply against the next bill from the same supplier.
 
+#### Bad debt: writing off an uncollectable invoice via `payment:` to an expense
+
+When an invoice will never be paid, write it off instead of receiving cash by giving the `payment:` block an expense account. The transfer account is named by `account:` (the canonical key) or its alias `bank_account:` — despite the legacy name the account need not be a bank. For an **invoice** the account may be an asset (cash actually received) or an expense (the bad-debt write-off); the importer infers the intent from the account type, so no separate keyword is needed.
+
+```
+invoice "INV-2026-007"
+  ...
+  posted:
+    date: 2026-06-01
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-2026-007"
+    accumulate: true
+  payment:
+    date: 2026-06-30
+    amount: 100
+    account: "Expenses:Bad Debt"
+    memo: "Write off INV-2026-007 — uncollectable"
+```
+
+The AR lot closes (the invoice reads paid) and the $100 lands in the expense rather than a bank account. **Bills are different**: a bill payment must use an asset account. An unpaid bill *you* owe is debt forgiveness — a gain, not bad debt — which is out of scope, so an expense (or income) on a bill payment is rejected with a clear error. Bad debt only exists for money owed *to* you.
+
 #### Consuming an existing credit on the next invoice / bill: `auto_apply_credit:`
 
 When the customer (or vendor) already has an open pre-payment credit on AR/AP, the *next* invoice or bill for that owner can consume the credit automatically — add `auto_apply_credit: true` to the invoice/bill header:
@@ -1000,9 +1021,63 @@ The same shape applies to vendor credits (`AP credit`, account is `Liabilities:A
 What to do with each credit:
 
   a) **Consume** against the next invoice/bill for that owner — add `auto_apply_credit: true` to that invoice/bill (above). Non-destructive; the only safe option for credits that came from invoice overpayment.
-  b) **Refund** — only safe for standalone-payment credits (the source bank tx has just the bank-side split and the AR/AP credit split, nothing else). In that case `delete-transactions --by-guid <source-bank-tx>` drops the tx and produces a plaintext backup. For overpayment-residual credits, a clean refund is a *new* bank transaction (bank -50 / AR +50) — record it in plaintext and re-import; this closes the prepay lot without touching the original payment.
+  b) **Refund, write off, or forfeit** — record a normal `transaction:` whose AR/AP split carries a `lot_owner:` marker for the owner; the counter account decides the intent (bank ⇒ refund, expense ⇒ vendor bad debt, income ⇒ customer forfeit). This is the canonical non-destructive disposal — see [Disposing of a credit](#disposing-of-a-credit-refund-write-off-or-forfeit-lot_owner) below. It never touches the original payment, and a partial amount leaves the residual credit open.
+  c) **Delete the source bank tx** — only safe for standalone-payment credits (the source bank tx has just the bank-side split and the AR/AP credit split, nothing else). `delete-transactions --by-guid <source-bank-tx>` drops the tx and produces a plaintext backup. Not safe for overpayment-residual credits, where the source tx also carries the original invoice payment.
 
 When the book and the plaintext have diverged (the user hand-edited the `.gnucash` file in the GnuCash UI, or hand-edited the `.txt` file before re-importing, or a third-party tool modified the book), the importer's recovery behaviour per scenario is documented in [`docs/payment-manual-edit-behavior.md`](docs/payment-manual-edit-behavior.md).
+
+#### Disposing of a credit: refund, write-off, or forfeit (`lot_owner:`)
+
+A credit isn't attached to any document, so clearing one is just a normal ledger transaction: a counter account plus an AR/AP split that reduces the owner's open credit lot. Tag that AR/AP split with `lot_owner: kind:id[:guid]` and the importer joins it to the owner's oldest open credit lot. The counter account states the intent — no extra keyword:
+
+| Owner + counter account | Operation |
+|---|---|
+| customer + bank/asset | refund the overpayment |
+| customer + income | forfeit (customer abandons the credit) |
+| vendor + bank/asset | vendor returns the overpayment |
+| vendor + expense | vendor bad debt (overpayment you'll never get back) |
+
+Refund a customer's $50 credit:
+
+```
+2026-02-15 * "Refund of overpayment to Acme"
+  currency.mnemonic: "CAD"
+  Assets:Bank -50.00 CAD
+  Assets:Accounts Receivable 50.00 CAD
+    lot_owner: customer:C001:9f14a498cc894d50931f855a9a31d594
+```
+
+Write a vendor's $50 credit off as bad debt:
+
+```
+2026-02-15 * "Vendor bad debt — V001 overpayment not returned"
+  currency.mnemonic: "CAD"
+  Expenses:Bad Debt 50.00 CAD
+  Liabilities:Accounts Payable -50.00 CAD
+    lot_owner: vendor:V001:3f6d4a17b218c47e85d290f3e9a2b1c4
+```
+
+Details:
+
+- The trailing guid is the **owner's** authoritative key; it is always emitted on export and optional hand-written (`lot_owner: customer:C001` works). When present it must resolve to the same owner as the id — a mismatch is a hard error, never a warning.
+- The `lot_owner:` split's own account fixes the owner type: a `customer` marker must sit on an AR account and a `vendor` marker on an AP account, and the importer rejects that mismatch (e.g. a `customer` marker on an AP split). The counter account is not otherwise constrained on this path — it simply records which of the operations above this is.
+- **Partial** is just a smaller amount — the residual credit stays open; an exact amount closes the lot.
+- If the owner has no open credit to reduce and the split is itself credit-shaped (AR-negative / AP-positive), the importer instead **creates** a new credit lot and attaches the owner — this is how a *standalone* credit (money received with no invoice) is represented in plaintext. A clearing-shaped split with no credit to reduce is an error.
+- This is the canonical, non-destructive way to dispose of a credit and works on every supported GnuCash version (it uses a primitive lot-split close, not the owner-level auto-apply that crashes on some builds).
+
+#### Open-credit summary on AR/AP accounts: `open_prepayment:`
+
+Exported AR and AP accounts carry an `open_prepayment:` block per open credit — the owner, owner guid, and amount — so the file shows each account's outstanding prepayments at a glance:
+
+```
+2026-01-01 open Assets:Accounts Receivable
+  open_prepayment:
+    customer: "C001"
+    customer_guid: "9f14a498cc894d50931f855a9a31d594"
+    amount: 50.00 CAD
+```
+
+It is informational and derived: the importer rebuilds the credits from the per-split `lot_owner:` markers, not from this summary, so the block is parsed and otherwise ignored. If a hand-edited summary disagrees with the book's actual lots, import prints a warning to stderr and still succeeds — the next export rewrites the correct figure.
 
 ### Identity and round-trip: `guid:`, `customer_guid:`, `vendor_guid:`
 

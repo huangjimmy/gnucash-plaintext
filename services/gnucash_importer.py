@@ -629,6 +629,173 @@ def _retarget_counter_split_to_lot(lib, existing_tx, bank_acct_name: str,
     return False
 
 
+def _parse_lot_owner(value: str):
+    """Parse a `lot_owner:` value into (kind, owner_id, owner_guid).
+
+    Forms (the trailing guid is authoritative and optional in hand-written
+    files; always emitted on export):
+      - `customer:C001`                       -> ('customer', 'C001', None)
+      - `customer:C001:9f14a498…(32 hex)`     -> ('customer', 'C001', '9f14…')
+
+    The guid is recognised only when the final colon-segment is a valid GUID,
+    so an owner id containing colons is preserved as the middle segment(s).
+    """
+    if ':' not in value:
+        return None, None, None
+    kind, _, rest = value.partition(':')
+    kind = kind.strip()
+    guid = None
+    if ':' in rest:
+        head, _, tail = rest.rpartition(':')
+        try:
+            guid = _normalise_guid(tail.strip())
+            rest = head
+        except Exception:
+            guid = None
+    return kind, rest.strip(), guid
+
+
+def _attach_lot_owner_split(book, split, split_account, kind, owner_id, owner_guid):
+    """Attach an AR/AP split to its owner's business lot — the import side of
+    the per-split `lot_owner:` marker.
+
+    Join-or-create: if the owner has an open non-invoice lot on this account
+    that this split *reduces* (opposite sign), join it — that settles a credit
+    (refund / vendor bad debt / customer forfeit, decided by the counter split's
+    account). Otherwise create a new lot and attach the owner — an orphan
+    payment being reconstructed (Q-014) or a fresh credit origin.
+
+    Done with primitive engine calls, NOT `gncOwnerApplyPaymentSecs(auto_pay=)`,
+    whose lot-balancer segfaults on GnuCash 4.4/4.8.
+
+    `lot_owner:` is authoritative, not informational: if `owner_guid` is given it
+    MUST resolve to the same owner as `owner_id`, otherwise we raise — a guid
+    mismatch is a hard error, never a warning.
+    """
+    import gnucash.gnucash_core_c as _gc
+
+    from infrastructure.gnucash.engine import (
+        GncNumericC,
+        iterate_glist,
+        load_gnc_engine,
+    )
+
+    # ACCT_TYPE_RECEIVABLE = 11 (customer), ACCT_TYPE_PAYABLE = 12 (vendor).
+    if kind == 'customer':
+        ref = book.CustomerLookupByID(owner_id) if owner_id else None
+        want_type, side = 11, 'Accounts Receivable (customer)'
+    else:
+        ref = book.VendorLookupByID(owner_id) if owner_id else None
+        want_type, side = 12, 'Accounts Payable (vendor)'
+
+    if ref is None or not ref.GetID():
+        raise Exception(
+            f"lot_owner names {kind} {owner_id!r}, which does not exist in the book")
+    if owner_guid and ref.GetGUID().to_string() != owner_guid:
+        raise Exception(
+            f"lot_owner {kind} id {owner_id!r} and guid {owner_guid!r} resolve to "
+            f"different {kind}s — refusing (the guid is authoritative)")
+    if split_account.GetType() != want_type:
+        raise Exception(
+            f"a `{kind}` lot_owner split must be on an {side} account; "
+            f"{split_account.GetName()!r} is not")
+
+    resolved_id = ref.GetID()
+
+    lib = load_gnc_engine()
+    for name, restype, argtypes in [
+        ('xaccAccountGetLotList',       ctypes.c_void_p, [ctypes.c_void_p]),
+        ('gnc_lot_get_balance',         GncNumericC,     [ctypes.c_void_p]),
+        ('gnc_lot_is_closed',           ctypes.c_int,    [ctypes.c_void_p]),
+        ('gncInvoiceGetInvoiceFromLot', ctypes.c_void_p, [ctypes.c_void_p]),
+        ('gncOwnerGetOwnerFromLot',     ctypes.c_int,    [ctypes.c_void_p, ctypes.c_void_p]),
+        ('gncOwnerGetID',               ctypes.c_char_p, [ctypes.c_void_p]),
+        ('gnc_lot_get_earliest_split',  ctypes.c_void_p, [ctypes.c_void_p]),
+        ('xaccSplitGetParent',          ctypes.c_void_p, [ctypes.c_void_p]),
+        ('xaccTransGetDate',            ctypes.c_int64,  [ctypes.c_void_p]),
+        ('xaccSplitGetAmount',          GncNumericC,     [ctypes.c_void_p]),
+        ('gnc_lot_add_split',           ctypes.c_int,    [ctypes.c_void_p, ctypes.c_void_p]),
+        ('gnc_lot_new',                 ctypes.c_void_p, [ctypes.c_void_p]),
+        ('xaccAccountInsertLot',        None,            [ctypes.c_void_p, ctypes.c_void_p]),
+        ('gncOwnerAttachToLot',         None,            [ctypes.c_void_p, ctypes.c_void_p]),
+        ('gncOwnerInitCustomer',        None,            [ctypes.c_void_p, ctypes.c_void_p]),
+        ('gncOwnerInitVendor',          None,            [ctypes.c_void_p, ctypes.c_void_p]),
+    ]:
+        f = getattr(lib, name)
+        f.restype = restype
+        f.argtypes = argtypes
+
+    sa = lib.xaccSplitGetAmount(int(split.instance))
+    split_positive = (sa.num > 0)
+
+    owner_buf = ctypes.create_string_buffer(256)
+    owner_p = ctypes.cast(owner_buf, ctypes.c_void_p)
+
+    # Find the owner's oldest open non-invoice lot this split would REDUCE
+    # (opposite sign). Same-sign or none -> a new lot (origin/orphan).
+    best_lot, best_date = None, None
+    glist = lib.xaccAccountGetLotList(int(split_account.instance))
+    for lot_ptr in iterate_glist(lib, glist, lambda lib, p: p):
+        if not lot_ptr or lib.gnc_lot_is_closed(lot_ptr):
+            continue
+        bal = lib.gnc_lot_get_balance(lot_ptr)
+        bal_v = bal.num / bal.denom if bal.denom else 0.0
+        if abs(bal_v) < 1e-9 or (bal_v > 0) == split_positive:
+            continue  # closed/zero, or same sign (this split wouldn't reduce it)
+        if lib.gncInvoiceGetInvoiceFromLot(lot_ptr):
+            continue  # invoice/bill document lot, not a credit
+        if not lib.gncOwnerGetOwnerFromLot(lot_ptr, owner_p):
+            continue
+        oid_raw = lib.gncOwnerGetID(owner_p)
+        if (oid_raw.decode('utf-8', errors='replace') if oid_raw else '') != resolved_id:
+            continue
+        es = lib.gnc_lot_get_earliest_split(lot_ptr)
+        when = lib.xaccTransGetDate(lib.xaccSplitGetParent(es)) if es else 0
+        if best_lot is None or when < best_date:
+            best_lot, best_date = lot_ptr, when
+
+    if best_lot is not None:
+        # JOIN: settle (part of) an existing credit.
+        def _bal():
+            b = lib.gnc_lot_get_balance(best_lot)
+            return b.num / b.denom if b.denom else 0.0
+        before = _bal()
+        lib.gnc_lot_add_split(best_lot, int(split.instance))
+        if abs(_bal() - before) < 1e-9:
+            # gnc_lot_add_split silently refuses a membership it won't accept;
+            # surface it rather than leave a credit the user believes settled.
+            raise Exception(
+                f"failed to attach the settlement split to {kind} "
+                f"{resolved_id!r}'s lot (GnuCash refused the lot membership)")
+        # Classify as a payment so GnuCash's register/reports treat it like an
+        # ApplyPayment-created settlement (cosmetic; lot acceptance unaffected).
+        _gc.xaccTransSetTxnType(split.GetParent().instance, _gc.TXN_TYPE_PAYMENT)
+    else:
+        # No open lot for this split to reduce. Create a new lot ONLY if the
+        # split is itself a credit/payment origin — its sign matches the
+        # account's credit direction (AR credits are negative, AP credits
+        # positive). That covers an orphan payment being reconstructed (Q-014)
+        # and a fresh credit origin. A clearing-shaped split (opposite sign)
+        # with nothing to reduce is an error: we will not mint a phantom lot
+        # for a refund/write-off that has no credit to apply against.
+        origin_positive = (kind == 'vendor')
+        if split_positive != origin_positive:
+            raise Exception(
+                f"{kind} {resolved_id!r} has no open credit for this split to "
+                f"settle on {split_account.GetName()!r}; a clearing must target "
+                f"an existing open credit (none found)")
+        new_lot = lib.gnc_lot_new(int(book.instance))
+        lib.xaccAccountInsertLot(int(split_account.instance), new_lot)
+        lib.gnc_lot_add_split(new_lot, int(split.instance))
+        attach_buf = ctypes.create_string_buffer(256)
+        attach_p = ctypes.cast(attach_buf, ctypes.c_void_p)
+        if kind == 'customer':
+            lib.gncOwnerInitCustomer(attach_p, int(ref.instance))
+        else:
+            lib.gncOwnerInitVendor(attach_p, int(ref.instance))
+        lib.gncOwnerAttachToLot(attach_p, new_lot)
+
+
 def _retarget_with_prepayment_split(lib, book, existing_tx, bank_acct_name: str,
                                     post_account, invoice_lot,
                                     invoice_portion: float,
@@ -1156,7 +1323,7 @@ def _single_payment_matches(split, pd) -> bool:
     """
     md = pd.metadata
     tx = split.GetParent()
-    bank_acct_name = md['bank_account']
+    bank_acct_name = _payment_xfer_account_name(md)
     bank_split = next(
         (s for s in tx.GetSplitList()
          if (a := s.GetAccount()) is not None
@@ -1225,6 +1392,49 @@ def _emit_orphan_warning_before_unpost(record, kind: str, ident: str,
         on_orphan_warning(kind, ident, orphans)
 
 
+# Account-type categories for a payment's transfer (non-AR/AP) account.
+_ASSET_ACCT_TYPES = {0, 1, 2, 5, 6}   # BANK, CASH, ASSET, STOCK, MUTUAL
+_EXPENSE_ACCT_TYPE = 9                 # EXPENSE
+
+
+def _payment_xfer_account_name(md):
+    """The payment block's transfer account, accepting `account:` (canonical)
+    or the legacy `bank_account:` alias. Despite the legacy name the account
+    need not be a bank — an expense routes an invoice payment to a bad-debt
+    write-off. If both keys are present they must name the same account."""
+    acct = md.get('account')
+    bank = md.get('bank_account')
+    if acct and bank and acct != bank:
+        raise Exception(
+            f"payment declares both account: {acct!r} and bank_account: "
+            f"{bank!r} — they must name the same account")
+    name = acct or bank
+    if not name:
+        raise Exception("payment block has no account: (or bank_account:)")
+    return name
+
+
+def _validate_payment_account_type(account, is_bill, name):
+    """Constrain a payment's transfer account by side. An invoice payment may
+    go to an asset (cash received) or an expense (a bad-debt write-off); a bill
+    payment must go to an asset — an unpaid bill we owe is debt forgiveness (a
+    gain), which is out of scope, so an expense is rejected. Other types
+    (income on an invoice would be a credit memo; equity; AR/AP itself) are
+    never valid."""
+    t = account.GetType()
+    if t in _ASSET_ACCT_TYPES:
+        return
+    if not is_bill and t == _EXPENSE_ACCT_TYPE:
+        return  # invoice bad-debt write-off
+    if is_bill:
+        raise Exception(
+            f"a bill payment must use an asset account; {name!r} is not "
+            f"(an unpaid bill is debt forgiveness — a gain — out of scope)")
+    raise Exception(
+        f"an invoice payment must use an asset account (cash payment) or an "
+        f"expense account (bad-debt write-off); {name!r} is neither")
+
+
 def _apply_payment_directive(record, pay_dir, book, is_bill):
     """Apply one PAYMENT directive to an already-posted invoice or bill.
 
@@ -1236,11 +1446,12 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
     AP has the opposite sign convention so we pass `-amount`; see Q-014
     notes in `CLAUDE.md` for the accounting reasoning.
     """
-    bank_acct_name = pay_dir.metadata['bank_account']
+    bank_acct_name = _payment_xfer_account_name(pay_dir.metadata)
     bank_account = find_account(book.get_root_account(), bank_acct_name)
     if bank_account is None:
         kind = 'bill' if is_bill else 'invoice'
-        raise Exception(f'Bank account {bank_acct_name!r} not found when applying {kind} payment')
+        raise Exception(f'Payment account {bank_acct_name!r} not found when applying {kind} payment')
+    _validate_payment_account_type(bank_account, is_bill, bank_acct_name)
 
     # Q-016: the field carrying the bank-tx-split pointer was renamed
     # from `payment_split_guid:` to `txn_split_guid:` so the prefix
@@ -1956,57 +2167,23 @@ class GnuCashImporter:
                     _set_object_guid(book, split, 'split',
                                      split_account_str, normalised_split_guid)
 
-            # Q-014: re-create an orphan lot when the exporter marked
-            # this split as the AR/AP side of an orphan payment. The
-            # GnuCash 5.x txn-type heuristic returns 'P' for a tx whose
-            # AR/AP split's lot has either an invoice OR an owner — we
-            # take the second arm (lot with owner, no invoice) since
-            # the original orphan lot was already in that state when
-            # exported. Without this, the restored book's heuristic
-            # returns NONE and `find-orphan-payments` would fall back
-            # to the custom-KVP signal alone.
+            # Per-split owner marker `lot_owner: kind:id[:guid]`. An AR/AP split
+            # sitting in an owner's business lot (no invoice) carries it. On
+            # import we JOIN the owner's open lot this split reduces (a credit
+            # clearing — refund / vendor bad debt / customer forfeit, decided by
+            # the counter split's account) or CREATE a new lot (an orphan payment
+            # reconstructed — restoring the GnuCash txn-type heuristic's 'P' arm
+            # of "lot with owner, no invoice" — or a fresh credit origin). The
+            # trailing guid, when present, is authoritative: a mismatch is a hard
+            # error. Runs before CommitEdit; the lot only needs the split
+            # parented + valued, both already done above. See
+            # _attach_lot_owner_split / _parse_lot_owner.
             _lot_owner_str = split_directive.metadata.get('lot_owner', '')
-            if _lot_owner_str and ':' in _lot_owner_str:
-                _kind, _, _oid = _lot_owner_str.partition(':')
-                _kind = _kind.strip()
-                _oid = _oid.strip().strip('"')
-                if _kind in ('customer', 'vendor') and _oid:
-                    import ctypes as _ctypes
-
-                    from infrastructure.gnucash.engine import (
-                        load_gnc_engine as _load,
-                    )
-                    _lib = _load()
-                    try:
-                        _lib.gnc_lot_new.argtypes = [_ctypes.c_void_p]
-                        _lib.gnc_lot_new.restype = _ctypes.c_void_p
-                        _lib.xaccAccountInsertLot.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
-                        _lib.xaccAccountInsertLot.restype = None
-                        _lib.gnc_lot_add_split.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
-                        _lib.gnc_lot_add_split.restype = None
-                        _lib.gncOwnerAttachToLot.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
-                        _lib.gncOwnerAttachToLot.restype = None
-                        _lib.gncOwnerInitCustomer.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
-                        _lib.gncOwnerInitCustomer.restype = None
-                        _lib.gncOwnerInitVendor.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
-                        _lib.gncOwnerInitVendor.restype = None
-                        if _kind == 'customer':
-                            _ref = book.CustomerLookupByID(_oid)
-                        else:
-                            _ref = book.VendorLookupByID(_oid)
-                        if _ref is not None and _ref.GetID():
-                            _new_lot = _lib.gnc_lot_new(int(book.instance))
-                            _lib.xaccAccountInsertLot(int(split_account.instance), _new_lot)
-                            _lib.gnc_lot_add_split(_new_lot, int(split.instance))
-                            _owner_buf = _ctypes.create_string_buffer(256)
-                            _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
-                            if _kind == 'customer':
-                                _lib.gncOwnerInitCustomer(_owner_p, int(_ref.instance))
-                            else:
-                                _lib.gncOwnerInitVendor(_owner_p, int(_ref.instance))
-                            _lib.gncOwnerAttachToLot(_owner_p, _new_lot)
-                    except AttributeError:
-                        pass
+            if _lot_owner_str:
+                _lo_kind, _lo_id, _lo_guid = _parse_lot_owner(_lot_owner_str)
+                if _lo_kind in ('customer', 'vendor') and _lo_id:
+                    _attach_lot_owner_split(
+                        book, split, split_account, _lo_kind, _lo_id, _lo_guid)
 
             # Store any non-standard split metadata as KVP slots
             custom_split_meta = {

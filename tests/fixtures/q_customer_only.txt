@@ -1,0 +1,3 @@
+customer "C001"
+	name: "Acme"
+	currency: CAD

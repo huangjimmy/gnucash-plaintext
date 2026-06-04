@@ -1,0 +1,5 @@
+2026-01-05 * "Acme prepayment received (no invoice yet)"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
+		lot_owner: customer:C001

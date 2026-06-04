@@ -15,6 +15,67 @@ from use_cases.import_transactions import ImportTransactionsUseCase
 from use_cases.unpost_business_objects import format_orphan_warning_block
 
 
+def _warn_open_prepayment_mismatches(directives, book):
+    """Recompute open prepayment credits from the book and warn (never fail)
+    when a declared `open_prepayment:` block disagrees with reality.
+
+    The summary is informational and derived, so the book's lots are
+    authoritative; a mismatch means the file is stale (e.g. hand-edited), and
+    the next export rewrites the correct value. We only check accounts whose
+    directive actually declares `open_prepayment:` blocks — a file that omits
+    the summary is not nagged.
+    """
+    declared = {}   # (account, kind, owner_id) -> declared total
+    for d in directives:
+        if d.type != DirectiveType.OPEN_ACCOUNT:
+            continue
+        account = d.props.get('account')
+        if not account:
+            continue
+        for child in d.children:
+            if child.type != DirectiveType.OPEN_PREPAYMENT:
+                continue
+            md = child.metadata
+            kind = ('customer' if md.get('customer')
+                    else 'vendor' if md.get('vendor') else None)
+            if not kind:
+                continue
+            try:
+                amount = float(str(md.get('amount', '0')).split()[0])
+            except (ValueError, IndexError):
+                continue
+            key = (account, kind, md.get(kind))
+            declared[key] = declared.get(key, 0.0) + amount
+
+    if not declared:
+        return
+
+    # Compute the actual open credits with the SAME lot-walk the exporter uses
+    # (owner via the lot, so standalone credits are seen consistently), keyed by
+    # the same account names declared above.
+    from services.gnucash_importer import find_account
+    from use_cases.export_transactions import open_prepayments_for_account
+    root = book.get_root_account()
+    actual = {}
+    for account_name in {k[0] for k in declared}:
+        acct = find_account(root, account_name)
+        if acct is None:
+            continue
+        for kind, oid, _guid, amount in open_prepayments_for_account(acct):
+            actual[(account_name, kind, oid)] = (
+                actual.get((account_name, kind, oid), 0.0) + amount)
+
+    for key in sorted(set(declared) | set(actual)):
+        d_amt = declared.get(key, 0.0)
+        a_amt = actual.get(key, 0.0)
+        if abs(d_amt - a_amt) > 0.005:
+            account, kind, owner_id = key
+            click.echo(
+                f"  warning: open_prepayment on {account} for {kind} "
+                f"{owner_id!r} declares {d_amt:.2f} but the book holds "
+                f"{a_amt:.2f}", err=True)
+
+
 @click.command()
 @click.argument('gnucash_file', required=False, type=click.Path())
 @click.argument('input_file', required=False, type=click.Path())
@@ -147,7 +208,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 # and business-object directives).
                 for directive in parser.root_directive.children:
                     if directive.type == DirectiveType.OPEN_ACCOUNT:
-                        acct_name = directive.props.get('account_name', '?')
+                        acct_name = directive.props.get('account', '?')
                         try:
                             importer.create_account(directive, repo.book)
                         except Exception as e:
@@ -215,6 +276,14 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     for k, v in late_result.counts[kind].items():
                         biz_result.counts[kind][k] += v
 
+            # open_prepayment: the per-account summary is informational and
+            # derived, so the book is authoritative — recompute from the live
+            # lots and WARN (never fail) when a declared block disagrees. The
+            # next export self-heals the file.
+            if include_business_objects and not dry_run:
+                _warn_open_prepayment_mismatches(
+                    parser.root_directive.children, repo.book)
+
             # Display results
             click.echo("")
             click.echo("Import Summary:")
@@ -225,6 +294,16 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             click.echo(f"  Skipped:      {result.skipped_count} (duplicates)")
             click.echo(f"  Conflicts:    {len(result.conflicts)}")
             click.echo(f"  Errors:       {result.error_count}")
+
+            # Surface the actual error text, not just the count, so the user
+            # knows what failed and why — e.g. a prepayment-settlement split
+            # that found no open credit, or an owner/account mismatch. Goes to
+            # stderr so it stands out and survives piping stdout elsewhere.
+            for err in (result.errors or []):
+                props = err.get('transaction') or {}
+                label = (props.get('tx_desc') or props.get('date')
+                         or '<transaction>')
+                click.echo(f"    error: {label}: {err['error']}", err=True)
 
             # Business-objects summary (Q-009): only emit when business
             # objects were actually processed; otherwise this section is

@@ -65,4 +65,13 @@ shift || true
 TEST_PATH="${@:-tests/}"
 
 echo "Running tests in $IMAGE_NAME..."
-docker run --rm -v "$PROJECT_PATH:/workspace" "$IMAGE_NAME" /workspace/scripts/test-in-docker.sh $TEST_PATH
+# Run as the invoking host user (not root) so the __pycache__, .pytest_cache,
+# *.egg-info and editable-install artifacts written into the mounted workspace
+# stay owned by you and are removable without a privileged container. The uid
+# has no /etc/passwd entry, so point HOME at a writable /tmp dir for the
+# per-user pip install (see scripts/test-in-docker.sh).
+docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -e HOME=/tmp/home \
+    -v "$PROJECT_PATH:/workspace" \
+    "$IMAGE_NAME" /workspace/scripts/test-in-docker.sh $TEST_PATH
