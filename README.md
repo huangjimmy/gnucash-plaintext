@@ -933,7 +933,7 @@ The same applies symmetrically to bills (AP, opposite signs): overpaying a $100 
 
 #### Bad debt: writing off an uncollectable invoice via `payment:` to an expense
 
-When an invoice will never be paid, write it off instead of receiving cash by giving the `payment:` block an expense account. The transfer account is named by `account:` (the canonical key) or its alias `bank_account:` — despite the legacy name the account need not be a bank. For an **invoice** the account may be an asset (cash actually received) or an expense (the bad-debt write-off); the importer infers the intent from the account type, so no separate keyword is needed.
+When an invoice will never be paid, write it off instead of receiving cash by giving the `payment:` block an expense account. The transfer account is named by `account:` (the canonical key) or its alias `bank_account:` — despite the legacy name the account need not be a bank. For an **invoice** the account may be an asset (cash actually received), an owner's-equity deposit account ([below](#sole-proprietor-deposit-account-paying-into-owners-equity)), or an expense (the bad-debt write-off); the importer infers the intent from the account type, so no separate keyword is needed.
 
 ```
 invoice "INV-2026-007"
@@ -950,7 +950,25 @@ invoice "INV-2026-007"
     memo: "Write off INV-2026-007 — uncollectable"
 ```
 
-The AR lot closes (the invoice reads paid) and the $100 lands in the expense rather than a bank account. **Bills are different**: a bill payment must use an asset account. An unpaid bill *you* owe is debt forgiveness — a gain, not bad debt — which is out of scope, so an expense (or income) on a bill payment is rejected with a clear error. Bad debt only exists for money owed *to* you.
+The AR lot closes (the invoice reads paid) and the $100 lands in the expense rather than a bank account. **Bills are different**: a bill payment must use an asset or owner's-equity account, never an expense. An unpaid bill *you* owe is debt forgiveness — a gain, not bad debt — which is out of scope, so an expense (or income) on a bill payment is rejected with a clear error. Bad debt only exists for money owed *to* you.
+
+#### Sole-proprietor deposit account: paying into owner's equity
+
+A Canadian sole proprietor often has no separate business bank account — the business tax return reports only income and expense, and money the owner receives or spends personally is tracked in owner's equity (drawings / contributions). So a customer's payment can land directly in an owner's-equity deposit account instead of a bank:
+
+```
+invoice "INV-2026-008"
+  ...
+  posted:
+    ar_account: "Assets:Accounts Receivable"
+  payment:
+    date: 2026-02-01
+    amount: 100
+    account: "Equity:Owner equity:Owner's equity"
+    memo: "Customer paid — deposited to owner's equity"
+```
+
+A vendor bill paid out of the owner's personal funds (an owner contribution) works the same way — give the bill's `payment:` an `account:` on owner's equity. So a payment's transfer account may be an asset (bank / cash), owner's equity, or — for an invoice only — an expense (bad-debt write-off). Income is rejected (it would double-count the revenue already booked at posting), as is the AR/AP account itself. (A corporation that routes receipts through a shareholder loan models "due from director" as an *asset*, already covered by the asset case.)
 
 #### Consuming an existing credit on the next invoice / bill: `auto_apply_credit:`
 

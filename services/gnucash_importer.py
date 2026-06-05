@@ -1395,6 +1395,7 @@ def _emit_orphan_warning_before_unpost(record, kind: str, ident: str,
 # Account-type categories for a payment's transfer (non-AR/AP) account.
 _ASSET_ACCT_TYPES = {0, 1, 2, 5, 6}   # BANK, CASH, ASSET, STOCK, MUTUAL
 _EXPENSE_ACCT_TYPE = 9                 # EXPENSE
+_EQUITY_ACCT_TYPE = 10                 # EQUITY
 
 
 def _payment_xfer_account_name(md):
@@ -1415,24 +1416,39 @@ def _payment_xfer_account_name(md):
 
 
 def _validate_payment_account_type(account, is_bill, name):
-    """Constrain a payment's transfer account by side. An invoice payment may
-    go to an asset (cash received) or an expense (a bad-debt write-off); a bill
-    payment must go to an asset — an unpaid bill we owe is debt forgiveness (a
-    gain), which is out of scope, so an expense is rejected. Other types
-    (income on an invoice would be a credit memo; equity; AR/AP itself) are
-    never valid."""
+    """Constrain a payment's transfer account by side. The account where a
+    payment lands may be:
+
+    - an **asset** (bank / cash received or paid) — the ordinary payment, either
+      side;
+    - **owner's equity** — an entity-aware deposit / clearing account, either
+      side. A Canadian sole proprietor has no separate business bank: the
+      business tax return reports only income and expense, so customer receipts
+      (and bills paid from personal funds) flow through `Equity:Owner equity`
+      rather than a bank. (A corporation that routes through a shareholder loan
+      models "due from director" as an *asset*, which the asset case already
+      covers.)
+    - an **expense** — a bad-debt write-off, **invoices only**. An unpaid bill we
+      owe is debt forgiveness (a gain booked to income), out of scope, so an
+      expense on a bill is rejected.
+
+    Other types are rejected: income on an invoice double-counts the revenue
+    already recognised at posting; AR/AP itself, the root, trading, etc. are
+    never a payment counter account."""
     t = account.GetType()
-    if t in _ASSET_ACCT_TYPES:
+    if t in _ASSET_ACCT_TYPES or t == _EQUITY_ACCT_TYPE:
         return
     if not is_bill and t == _EXPENSE_ACCT_TYPE:
         return  # invoice bad-debt write-off
     if is_bill:
         raise Exception(
-            f"a bill payment must use an asset account; {name!r} is not "
-            f"(an unpaid bill is debt forgiveness — a gain — out of scope)")
+            f"a bill payment must use an asset or owner's-equity account; "
+            f"{name!r} is neither (an unpaid bill is debt forgiveness — a gain "
+            f"— so an expense is out of scope)")
     raise Exception(
-        f"an invoice payment must use an asset account (cash payment) or an "
-        f"expense account (bad-debt write-off); {name!r} is neither")
+        f"an invoice payment must use an asset account (cash received), an "
+        f"owner's-equity deposit account, or an expense account (bad-debt "
+        f"write-off); {name!r} is none of these")
 
 
 def _apply_payment_directive(record, pay_dir, book, is_bill):

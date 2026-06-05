@@ -66,3 +66,4 @@ and in the **Status** column below.
 | [Q-019](Q-019-draft-tax-render-and-two-sided-bill-rendering.md) | Draft tax breakdown + `print-bill` + two-sided rendering with company info | medium | closed |
 | [Q-020](Q-020-num-only-roundtrip-and-import-dedup-signature.md) | Num-only roundtrip relabels Num as Description; `import_from_file` dedup ignores `doc_link` / `tx_num` / `owner` | high | open |
 | [Q-021](Q-021-return-of-credit-bad-debt-and-prepayment-clearing.md) | Return of credit (refund), bad-debt write-off, and prepayment clearing via `lot_owner` | high | closed |
+| [Q-022](Q-022-payment-transfer-account-allows-owner-equity.md) | Invoice/bill payment validation rejects owner's-equity deposit accounts | medium | closed |
