@@ -21,6 +21,7 @@ refund it (drop the lot's source bank tx via
 import click
 
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from use_cases.export_transactions import find_ownerless_credit_lots
 from use_cases.unpost_business_objects import find_prepayments_in_book
 
 
@@ -65,8 +66,24 @@ def find_prepayments(gnucash_file, customer_id, vendor_id):
     try:
         credits_ = find_prepayments_in_book(
             repo.book, customer_id=customer_id, vendor_id=vendor_id)
+        ownerless = find_ownerless_credit_lots(repo.book)
     finally:
         repo.close()
+
+    # Guard: an open AR/AP credit lot with no LOT owner is a data defect — the
+    # credit belongs to no customer/vendor, so the `open_prepayment:` summary
+    # (and export-accounts) silently omit it. Every legitimate path attaches the
+    # owner, so this should never appear; surface it loudly if it ever does.
+    if ownerless:
+        click.echo('', err=True)
+        click.echo(
+            f'⚠  {len(ownerless)} open credit lot(s) have NO owner attached — '
+            f'a bug: such a credit is unattributable and is hidden from the '
+            f'open_prepayment summary / export-accounts. Please report it.',
+            err=True)
+        for acct, amount, mnem in ownerless:
+            click.echo(f'   • {acct}  {mnem} {amount:.2f}  (ownerless credit lot)',
+                       err=True)
 
     if not credits_:
         scope = ''
