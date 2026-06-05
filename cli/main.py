@@ -29,6 +29,7 @@ from cli.import_beancount_cmd import import_beancount
 from cli.import_cmd import import_transactions
 from cli.income_statement_cmd import income_statement
 from cli.invoice_print_cmd import print_invoice
+from cli.unapply_cmd import unapply_payment
 from cli.unpost_cmd import unpost_bills, unpost_invoices
 from cli.validate_cmd import validate_ledger
 
@@ -77,6 +78,7 @@ cli.add_command(archive_customers, name='archive-customers')
 cli.add_command(archive_vendors, name='archive-vendors')
 cli.add_command(unpost_invoices, name='unpost-invoices')
 cli.add_command(unpost_bills, name='unpost-bills')
+cli.add_command(unapply_payment, name='unapply-payment')
 cli.add_command(find_orphan_payments, name='find-orphan-payments')
 cli.add_command(find_prepayments, name='find-prepayments')
 
