@@ -136,6 +136,72 @@ def open_prepayments_for_account(account):
             for _when, kind, oid, guid, amount in sorted(creds, key=lambda c: c[0])]
 
 
+def _ownerless_open_credit_lots(account):
+    """Open, non-invoice credit lots on an AR/AP account whose LOT carries no
+    owner (gncOwnerGetOwnerFromLot fails) — the inverse of
+    open_prepayments_for_account. Such a lot holds a real credit balance but is
+    invisible to the `open_prepayment:` summary and unattributable to any
+    customer/vendor, so it always signals a bug in whatever created the lot
+    (every legitimate path attaches the owner). Returns absolute balances."""
+    import ctypes as _ctypes
+
+    from infrastructure.gnucash.engine import load_gnc_engine as _load
+
+    class _Num(_ctypes.Structure):
+        _fields_ = [('num', _ctypes.c_int64), ('denom', _ctypes.c_int64)]
+
+    _lib = _load()
+    try:
+        for n, r, a in [
+            ('xaccAccountGetLotList', _ctypes.c_void_p, [_ctypes.c_void_p]),
+            ('gnc_lot_get_balance', _Num, [_ctypes.c_void_p]),
+            ('gnc_lot_is_closed', _ctypes.c_int, [_ctypes.c_void_p]),
+            ('gncInvoiceGetInvoiceFromLot', _ctypes.c_void_p, [_ctypes.c_void_p]),
+            ('gncOwnerGetOwnerFromLot', _ctypes.c_int, [_ctypes.c_void_p, _ctypes.c_void_p]),
+        ]:
+            f = getattr(_lib, n)
+            f.restype = r
+            f.argtypes = a
+    except AttributeError:
+        return []
+
+    bad = []
+    g = _lib.xaccAccountGetLotList(int(account.instance))
+    while g:
+        node = _ctypes.cast(g, _ctypes.POINTER(_ctypes.c_void_p * 3)).contents
+        lot = node[0]
+        if lot and not _lib.gnc_lot_is_closed(lot):
+            b = _lib.gnc_lot_get_balance(lot)
+            bal = b.num / b.denom if b.denom else 0.0
+            if abs(bal) > 1e-9 and not _lib.gncInvoiceGetInvoiceFromLot(lot):
+                obuf = _ctypes.create_string_buffer(256)
+                op = _ctypes.cast(obuf, _ctypes.c_void_p).value
+                if _lib.gncOwnerGetOwnerFromLot(lot, op) != 1:
+                    bad.append(abs(bal))
+        g = node[1]
+    return bad
+
+
+def find_ownerless_credit_lots(book):
+    """Every open non-invoice AR/AP credit lot in the book whose lot has no
+    owner — a data defect (a credit that belongs to no customer/vendor, hidden
+    from the open_prepayment summary). Returns (account_full_name, amount,
+    mnemonic) tuples. An empty list is the healthy invariant."""
+    out = []
+
+    def walk(acct):
+        if acct.GetType() in (11, 12):  # ACCT_TYPE_RECEIVABLE / PAYABLE
+            commodity = acct.GetCommodity()
+            mnem = commodity.get_mnemonic() if commodity else ''
+            for amount in _ownerless_open_credit_lots(acct):
+                out.append((acct.get_full_name(), amount, mnem))
+        for child in acct.get_children():
+            walk(child)
+
+    walk(book.get_root_account())
+    return out
+
+
 class ExportTransactionsUseCase:
     """Use case for exporting transactions to plaintext with full metadata"""
 

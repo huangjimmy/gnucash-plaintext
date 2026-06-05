@@ -796,7 +796,38 @@ def _attach_lot_owner_split(book, split, split_account, kind, owner_id, owner_gu
         lib.gncOwnerAttachToLot(attach_p, new_lot)
 
 
-def _retarget_with_prepayment_split(lib, book, existing_tx, bank_acct_name: str,
+def _attach_record_owner_to_lot(lib, record, lot_ptr):
+    """Attach an invoice/bill record's owner (customer/vendor) to `lot_ptr`.
+
+    A residual pre-payment credit lot MUST be owner-attached: otherwise
+    gncOwnerGetOwnerFromLot can't resolve it and the `open_prepayment:` summary
+    / find-prepayments lot-walk silently omit the credit, and the owner can
+    never apply or be refunded it. An ownerless credit lot is not a valid state.
+
+    `record.GetOwner()` returns the Customer/Vendor instance (the python-gnucash
+    decorator unwraps the GncOwner), so a GncOwner is built from it via
+    gncOwnerInit* before attaching — passing the raw Customer pointer straight to
+    gncOwnerAttachToLot is a silent no-op. Mirrors the attach in
+    `_attach_lot_owner_split`.
+    """
+    lib.gncOwnerInitCustomer.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncOwnerInitCustomer.restype  = None
+    lib.gncOwnerInitVendor.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncOwnerInitVendor.restype  = None
+    lib.gncOwnerAttachToLot.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncOwnerAttachToLot.restype  = None
+    ref = record.GetOwner()
+    buf = ctypes.create_string_buffer(256)
+    owner_p = ctypes.cast(buf, ctypes.c_void_p)
+    if record.GetOwnerType() == _GNC_OWNER_VENDOR:
+        lib.gncOwnerInitVendor(owner_p, int(ref.instance))
+    else:
+        lib.gncOwnerInitCustomer(owner_p, int(ref.instance))
+    lib.gncOwnerAttachToLot(owner_p, lot_ptr)
+
+
+def _retarget_with_prepayment_split(lib, book, record, existing_tx,
+                                    bank_acct_name: str,
                                     post_account, invoice_lot,
                                     invoice_portion: float,
                                     prepayment_portion: float) -> bool:
@@ -892,6 +923,10 @@ def _retarget_with_prepayment_split(lib, book, existing_tx, bank_acct_name: str,
     new_lot_ptr = lib.gnc_lot_new(int(book.instance))
     lib.xaccAccountInsertLot(int(post_account.instance), new_lot_ptr)
     lib.gnc_lot_add_split(new_lot_ptr, int(new_split.instance))
+
+    # The residual is the record owner's credit; attach the owner so the lot is
+    # owner-attached and visible to the open_prepayment summary / find-prepayments.
+    _attach_record_owner_to_lot(lib, record, new_lot_ptr)
 
     existing_tx.CommitEdit()
     return True
@@ -1566,6 +1601,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
                 # prepay lot. Their absolute amounts must sum to the
                 # declared prepayment (defensive check).
                 loose_siblings = []
+                actual_prepay = 0.0
                 for raw_sp in existing_tx.GetSplitList():
                     if raw_sp.GetGUID().to_string().replace('-', '').lower() == target_split_guid:
                         continue
@@ -1574,11 +1610,16 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
                         continue
                     if get_account_full_name(sp_acct) != get_account_full_name(post_acct):
                         continue
-                    if raw_sp.GetLot() is not None:
-                        continue
-                    loose_siblings.append(raw_sp)
-                actual_prepay = sum(abs(sp.GetAmount().to_double())
-                                    for sp in loose_siblings)
+                    # A residual prepayment split on this tx. Count it toward the
+                    # declared prepayment whether it is still loose (a legacy
+                    # export) or already parked in its owner lot: an export that
+                    # carries `lot_owner:` on the residual has the standalone-tx
+                    # import attach it first, so by now it is no longer loose.
+                    # Park only the loose ones; already-parked siblings keep the
+                    # owner lot the lot_owner import gave them.
+                    actual_prepay += abs(raw_sp.GetAmount().to_double())
+                    if raw_sp.GetLot() is None:
+                        loose_siblings.append(raw_sp)
                 if abs(actual_prepay - declared_prepay) > 1e-6:
                     raise Exception(
                         f'declared `prepayment: {declared_prepay}` does not '
@@ -1596,6 +1637,10 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
                     new_lot_ptr = lib.gnc_lot_new(int(book.instance))
                     lib.xaccAccountInsertLot(int(post_acct.instance), new_lot_ptr)
                     lib.gnc_lot_add_split(new_lot_ptr, int(sib.instance))
+                    # The residual is the record owner's credit — attach the
+                    # owner so the parked lot is visible to the open_prepayment
+                    # summary / find-prepayments, not a silent ownerless credit.
+                    _attach_record_owner_to_lot(lib, record, new_lot_ptr)
                 existing_tx.CommitEdit()
             return
 
@@ -1643,7 +1688,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill):
                     f'{invoice_remaining_abs:.2f}).'
                 )
             if not _retarget_with_prepayment_split(
-                    lib, book, existing_tx, bank_acct_name,
+                    lib, book, record, existing_tx, bank_acct_name,
                     post_acct, lot, invoice_remaining_abs, expected_prepay):
                 raise Exception(
                     f'Could not find counter-split in tx {txn_guid!r} — '
