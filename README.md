@@ -1171,6 +1171,43 @@ Behaviour:
 
 For after-the-fact recovery — auditing a book that's already accumulated orphans from prior unpost runs — use `find-orphan-payments` (next section).
 
+#### Unapplying a payment without unposting: `unapply-payment`
+
+When a payment was applied to the wrong invoice (or a deposit turned out not to be a payment at all), you want to peel that payment off **without** touching the document — the invoice stays posted and simply returns to Outstanding. That is different from unpost (which drops the document to Draft and destroys the posting). Use `unapply-payment`:
+
+```
+# INV has ONE payment — no selector needed. That payment is detached and
+# the freed amount moved to the named liability; INV returns to Outstanding.
+gnucash-plaintext unapply-payment ledger.gnucash INV-2026-001 --to "Liabilities:Due to customer"
+
+# INV has SEVERAL payments — peel exactly one, named by its bank-tx GUID.
+# The other payments stay applied (INV becomes partially-paid). Here the
+# freed amount is routed to income (e.g. it was really interest income).
+gnucash-plaintext unapply-payment ledger.gnucash INV-2026-001 --txn <bank-tx-guid> --to "Income:Misc"
+
+# THREE payments, two of them wrong — repeat --txn to peel just those two.
+# The third payment stays applied; INV's Outstanding rises by the two amounts.
+gnucash-plaintext unapply-payment ledger.gnucash INV-2026-001 \
+    --txn <wrong-tx-1> --txn <wrong-tx-2> --to "Liabilities:Due to customer"
+
+# Peel EVERY payment — INV returns to fully Outstanding (just-posted state).
+gnucash-plaintext unapply-payment ledger.gnucash INV-2026-001 --all --to "Liabilities:Due to customer"
+
+# A vendor bill instead of a customer invoice.
+gnucash-plaintext unapply-payment ledger.gnucash BILL-2026-001 --bill --to "Liabilities:Due to vendor"
+```
+
+What it does: detaches the named payment's AR/AP split from the invoice/bill's posted lot — so the lot reopens (Outstanding, or partially-paid if other payments remain) — and moves that freed split to the account you name with `--to`. The document stays **posted**; the bank/income transaction is **never deleted** (the money still happened); only the freed split's account changes, so the transaction stays balanced.
+
+- **`--to` is required**, and accepts **any** account type. The payment's prior account was overwritten when it was applied and isn't recorded, so only you know where the freed money belongs. Money you received that is no longer applied to an invoice is, in accounting terms, a payable you may owe back — typically a liability such as `Liabilities:Due to customer` / `Due to shareholder` (which need not be a GnuCash *A/Payable*-type account); you may equally route it to income, a clearing account, or an asset carried negative. It is your call.
+- **Which payment(s)**: one payment → no selector needed; several → `--txn <bank-tx-guid>` to peel one, **repeat `--txn`** to peel a subset (two of three), or `--all` for every payment. On a multi-payment record, omitting all selectors is an error — never an implicit "all". Payments are identified by transaction GUID, so two payments of the same amount are unambiguous.
+- `--bill` targets a vendor bill; `--by-guid` resolves the id argument as an invoice/bill GUID.
+
+To find a payment's bank-tx GUID, run `find-orphan-payments` or read it from the invoice's exported `payment:` blocks (`txn_guid:`).
+
+After unapplying, the freed amount sits in your `--to` account. To re-link it to the *correct* invoice, apply it there as you would any payment (e.g. a `payment:` block with `txn_guid:` retargeting that transaction, or `auto_apply_credit:` if you routed it to an AR credit).
+
+
 Compared to the re-import path:
 
 | | Re-import (`posted: { ... }` → `posted: none`) | `unpost-invoices` / `unpost-bills` |
