@@ -1,0 +1,27 @@
+customer "C022"
+	name: "Sole Prop Customer"
+	currency: CAD
+
+invoice "INV-EQ"
+	customer_id: "C022"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Consulting"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-EQ"
+		accumulate: true
+	payment:
+		date: 2026-02-01
+		amount: 100
+		account: "Equity:Owner equity:Owner's equity"
+		memo: "Customer paid — sole prop deposits to owner's equity"
