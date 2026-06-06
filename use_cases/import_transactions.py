@@ -32,6 +32,11 @@ class ImportResult:
         self.conflicts = []
         self.errors = []
         self.new_transactions = []  # Transaction objects created during this import
+        # GUID-match skips (default strategy) whose incoming content actually
+        # DIFFERS from the existing transaction — i.e. the user edited the tx
+        # but the edit was skipped as a "duplicate". Drives a hint at
+        # --strategy update. A plain re-import of unchanged txs does not count.
+        self.guid_changed_skips = 0
 
     def get_summary(self) -> str:
         """Get summary string"""
@@ -43,6 +48,48 @@ class ImportResult:
         lines.append(f"Conflicts: {len(self.conflicts)}")
         lines.append(f"Errors: {self.error_count}")
         return "\n".join(lines)
+
+
+def _guid_match_content_differs(child, existing_tx) -> bool:
+    """True when an incoming transaction directive's content differs from the
+    existing transaction it matched by GUID — i.e. the user edited it.
+
+    Compares each split's (account path, exact amount) as a sorted multiset.
+    Amounts are compared exactly via `Fraction(num, denom)`, never float, so an
+    unchanged re-import never reports a difference and an edited amount always
+    does. Used only to decide whether to hint at `--strategy update`; it never
+    changes import behaviour."""
+    from decimal import Decimal, InvalidOperation
+    from fractions import Fraction
+
+    from infrastructure.gnucash.utils import get_account_full_name
+
+    def _incoming():
+        out = []
+        for s in child.children:
+            acct = s.props.get('account')
+            if not acct:
+                continue
+            raw = str(s.props.get('amount', '0')).replace('+', '').strip()
+            try:
+                val = str(Fraction(Decimal(raw)))
+            except (InvalidOperation, ValueError, ZeroDivisionError):
+                val = raw
+            out.append((acct, val))
+        return sorted(out)
+
+    def _existing():
+        out = []
+        for sp in existing_tx.GetSplitList():
+            a = sp.GetAccount()
+            if a is None:
+                continue
+            amt = sp.GetAmount()
+            out.append((get_account_full_name(a),
+                        str(Fraction(amt.num(), amt.denom()))))
+        return sorted(out)
+
+    return _incoming() != _existing()
 
 
 class ImportTransactionsUseCase:
@@ -322,9 +369,18 @@ class ImportTransactionsUseCase:
                                 for s in child.children
                                 if s.props.get('account')
                             )
+                            # If the incoming content actually differs from the
+                            # existing tx, the user is editing — but the default
+                            # strategy skips it. Count that so the CLI can hint
+                            # at --strategy update (it is not a true duplicate).
+                            changed = _guid_match_content_differs(
+                                child, existing_guid_map[guid])
+                            if changed:
+                                result.guid_changed_skips += 1
                             logging.warning(
-                                "Skipping duplicate (GUID match): %s \"%s\" [%s]\n"
+                                "Skipping %s (GUID match): %s \"%s\" [%s]\n"
                                 "  matched existing transaction by GUID: %s",
+                                'EDITED transaction' if changed else 'duplicate',
                                 _date, _desc, _splits, guid,
                             )
                             result.skipped_count += 1

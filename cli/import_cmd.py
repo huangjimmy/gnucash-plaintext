@@ -295,6 +295,18 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             click.echo(f"  Conflicts:    {len(result.conflicts)}")
             click.echo(f"  Errors:       {result.error_count}")
 
+            # Hint: some skipped "duplicates" actually had edited content — the
+            # default strategy matches them by GUID and skips, so the edit was
+            # dropped. Point the user at --strategy update (no behaviour change).
+            changed = getattr(result, 'guid_changed_skips', 0)
+            if changed:
+                noun = 'transaction' if changed == 1 else 'transactions'
+                click.echo(
+                    f"\n  Note: {changed} skipped {noun} matched an existing GUID "
+                    f"but had different content — looks like an edit. To apply "
+                    f"such edits in place (preserving the GUID), re-run with "
+                    f"--strategy update.", err=True)
+
             # Surface the actual error text, not just the count, so the user
             # knows what failed and why — e.g. a prepayment-settlement split
             # that found no open credit, or an owner/account mismatch. Goes to
