@@ -83,7 +83,7 @@ invoice "INV-2026-003"
 		accumulate: true
 	payment:
 		date: 2026-01-25
-		amount: 210
+		amount: 210.00
 		bank_account: "Assets:Bank"
 		memo: "Payment for INV-2026-003"
 
@@ -109,12 +109,12 @@ invoice "INV-2026-004"
 		accumulate: true
 	payment:
 		date: 2026-02-10
-		amount: 100
+		amount: 100.00
 		bank_account: "Assets:Bank"
 		memo: "Partial payment 1 for INV-2026-004"
 	payment:
 		date: 2026-02-20
-		amount: 100
+		amount: 100.00
 		bank_account: "Assets:Bank"
 		memo: "Partial payment 2 for INV-2026-004"
 
@@ -140,12 +140,12 @@ invoice "INV-2026-005"
 		accumulate: true
 	payment:
 		date: 2026-02-15
-		amount: 200
+		amount: 200.00
 		bank_account: "Assets:Bank"
 		memo: "First payment for INV-2026-005"
 	payment:
 		date: 2026-02-28
-		amount: 220
+		amount: 220.00
 		bank_account: "Assets:Bank"
 		memo: "Final payment for INV-2026-005"
 
@@ -204,7 +204,7 @@ bill "BILL-2026-003"
 		accumulate: true
 	payment:
 		date: 2026-01-25
-		amount: 200
+		amount: 200.00
 		bank_account: "Assets:Bank"
 		memo: "Payment for BILL-2026-003"
 
@@ -228,12 +228,12 @@ bill "BILL-2026-004"
 		accumulate: true
 	payment:
 		date: 2026-02-10
-		amount: 100
+		amount: 100.00
 		bank_account: "Assets:Bank"
 		memo: "Partial payment 1 for BILL-2026-004"
 	payment:
 		date: 2026-02-20
-		amount: 100
+		amount: 100.00
 		bank_account: "Assets:Bank"
 		memo: "Partial payment 2 for BILL-2026-004"
 
@@ -257,11 +257,11 @@ bill "BILL-2026-005"
 		accumulate: true
 	payment:
 		date: 2026-02-15
-		amount: 200
+		amount: 200.00
 		bank_account: "Assets:Bank"
 		memo: "First payment for BILL-2026-005"
 	payment:
 		date: 2026-02-28
-		amount: 200
+		amount: 200.00
 		bank_account: "Assets:Bank"
 		memo: "Final payment for BILL-2026-005"

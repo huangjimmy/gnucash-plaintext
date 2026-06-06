@@ -212,6 +212,24 @@ def to_string_with_decimal_point_placed(number: GncNumeric) -> str:
         return '0.' + '0' * (point_place - len(numerator)) + numerator
 
 
+def format_amount_for_commodity(number, commodity) -> str:
+    """Exact amount string at the commodity's own decimal count.
+
+    GnuCash records each commodity's smallest unit as `get_fraction()` (100 for
+    a 2-decimal currency like CAD, 1 for JPY/0-decimal, 1000 for 3-decimal). We
+    read the value exactly via num()/denom() (or numerator/denominator for a
+    Fraction) into a Decimal and quantize to that many places — never via
+    `to_double()` (precision loss) and never guessing decimals from the
+    numeric's own denominator (which may not be the commodity's SCU)."""
+    frac = commodity.get_fraction() if commodity is not None else 100
+    places = max(0, len(str(int(frac))) - 1)
+    if isinstance(number, Fraction):
+        d = Decimal(number.numerator) / Decimal(number.denominator)
+    else:
+        d = Decimal(number.num()) / Decimal(number.denom())
+    return str(d.quantize(Decimal(1).scaleb(-places)))
+
+
 def escape_string(s: str) -> str:
     """
     Escape special characters in string for plaintext format.

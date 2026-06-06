@@ -8,13 +8,18 @@ GnuCash Python SWIG bindings have const-type mismatches for these calls
 See infrastructure/gnucash/engine.py for the platform notes.
 """
 
+from fractions import Fraction
+
 import gnucash.gnucash_business as gb
 import gnucash.gnucash_core_c as gc
 from gnucash import Book, Query, Split
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
 from infrastructure.gnucash.kvp import get_custom_metadata
-from infrastructure.gnucash.utils import get_account_full_name
+from infrastructure.gnucash.utils import (
+    format_amount_for_commodity,
+    get_account_full_name,
+)
 
 
 def _fmt_rate(rate: float) -> str:
@@ -447,7 +452,6 @@ class ExportBusinessObjectsUseCase:
         # and memo. ApplyPayment stores the memo on the splits (not on
         # the transaction description, which is set to the owner name).
         bank_name = ''
-        pay_amt   = 0.0
         pay_memo  = ''
         for i in range(txn.CountSplits()):
             split = txn.GetSplit(i)
@@ -455,9 +459,19 @@ class ExportBusinessObjectsUseCase:
             atype = gc.xaccAccountGetType(acct.instance)
             if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
                 bank_name = get_account_full_name(acct)
-                pay_amt   = abs(split.GetAmount().to_double())
                 pay_memo  = split.GetMemo() or ''
                 break
+
+        # This record's payment amount is its OWN allocation — the AR/AP split
+        # in this invoice/bill's lot (`in_lot_ar_ap_split`) — NOT the bank-side
+        # total. They differ when one bank tx is split across several
+        # invoices/bills: each lot holds its portion, the bank split holds the
+        # sum. Emitting the bank total would over-report every record (a $400
+        # wire across 3 invoices would otherwise export amount: 400 on each).
+        # Format at the AR/AP commodity's own decimal count, exactly (no float).
+        ar_commodity = in_lot_ar_ap_split.GetAccount().GetCommodity()
+        pay_amt_str = format_amount_for_commodity(
+            in_lot_ar_ap_split.GetAmount().abs(), ar_commodity)
 
         # Q-015 / Q-016: prepayment residual — AR/AP splits on this tx
         # that are NOT in another invoice/bill's lot. In the Q-015
@@ -467,7 +481,7 @@ class ExportBusinessObjectsUseCase:
         # invoice's lot — those must NOT count as prepayment residual,
         # they're portions for other invoices.
         in_lot_guid = in_lot_ar_ap_split.GetGUID().to_string()
-        prepay = 0.0
+        prepay = Fraction(0)
         for i in range(txn.CountSplits()):
             s = txn.GetSplit(i)
             if s.GetGUID().to_string() == in_lot_guid:
@@ -482,7 +496,8 @@ class ExportBusinessObjectsUseCase:
             if raw_lot is not None and gc.gncInvoiceGetInvoiceFromLot(raw_lot):
                 # Belongs to another invoice/bill's lot — not residual.
                 continue
-            prepay += abs(s.GetAmount().to_double())
+            a = s.GetAmount()
+            prepay += abs(Fraction(a.num(), a.denom()))
 
         # Q-016: always emit `txn_guid:` so re-import resolves the payment
         # via the standalone-tx pass rather than via ApplyPayment (which
@@ -502,7 +517,7 @@ class ExportBusinessObjectsUseCase:
         lines = [
             '	payment:',
             f'		date: {pay_date}',
-            f'		amount: {_fmt_quantity(pay_amt)}',
+            f'		amount: {pay_amt_str}',
             f'		bank_account: "{bank_name}"',
             f'		txn_guid: "{txn_guid}"',
             f'		txn_split_guid: "{txn_split_guid}"',
@@ -511,7 +526,8 @@ class ExportBusinessObjectsUseCase:
         if pay_num:
             lines.append(f'		num: "{pay_num}"')
         if prepay > 0:
-            lines.append(f'		prepayment: {_fmt_quantity(prepay)}')
+            lines.append(
+                f'		prepayment: {format_amount_for_commodity(prepay, ar_commodity)}')
         return lines
 
     # ── Bills (vendor invoices) ───────────────────────────────────────────────

@@ -658,7 +658,10 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         inv_lines.append(f'\tnotes: "{invoice.GetNotes()}"')
 
     # Per-entry blocks with informational fields
-    from infrastructure.gnucash.utils import get_account_full_name
+    from infrastructure.gnucash.utils import (
+        format_amount_for_commodity,
+        get_account_full_name,
+    )
 
     for raw_entry, entry_amount, entry_tax, breakdown in entries_data:
         ent_ptr = int(raw_entry.instance)
@@ -734,21 +737,26 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
                 if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                     continue
                 pay_date = txn.GetDate().strftime('%Y-%m-%d')
-                # bank-side split = the non-AR side; find any
+                # bank-side split = the non-AR side; find any (for the account
+                # name + memo only)
                 bank_name = ''
-                pay_amt = 0.0
                 pay_memo = ''
                 for i in range(txn.CountSplits()):
                     sp = txn.GetSplit(i)
                     atype = gc.xaccAccountGetType(sp.GetAccount().instance)
                     if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
                         bank_name = get_account_full_name(sp.GetAccount())
-                        pay_amt = abs(sp.GetAmount().to_double())
                         pay_memo = sp.GetMemo() or ''
                         break
+                # This invoice's payment amount is its own allocation — the AR
+                # split in its lot (`s`) — not the bank-side total, which would
+                # over-report when one bank tx pays several invoices. Format
+                # exactly at the AR commodity's decimal count (no to_double).
+                pay_amt = format_amount_for_commodity(
+                    s.GetAmount().abs(), s.GetAccount().GetCommodity())
                 inv_lines.append('\tpayment:')
                 inv_lines.append(f'\t\tdate: {pay_date}')
-                inv_lines.append(f'\t\tamount: {pay_amt:g}')
+                inv_lines.append(f'\t\tamount: {pay_amt}')
                 inv_lines.append(f'\t\tbank_account: "{bank_name}"')
                 inv_lines.append(f'\t\tmemo: "{pay_memo}"')
                 had_payment = True
