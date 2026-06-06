@@ -69,3 +69,4 @@ and in the **Status** column below.
 | [Q-022](Q-022-payment-transfer-account-allows-owner-equity.md) | Invoice/bill payment validation rejects owner's-equity deposit accounts | medium | closed |
 | [Q-023](Q-023-retarget-prepayment-residual-credit-owner.md) | Retarget-with-prepayment residual credit is not owner-attached, invisible to the open_prepayment summary | medium | closed |
 | [Q-024](Q-024-unapply-payment.md) | Unapply a payment from a posted invoice/bill without unposting it | medium | closed |
+| [Q-025](Q-025-edited-guid-match-skipped-silently.md) | Editing a transaction by re-import is silently skipped as a "duplicate" | low | closed |
