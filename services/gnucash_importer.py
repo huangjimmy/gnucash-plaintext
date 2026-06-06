@@ -2080,6 +2080,17 @@ class GnuCashImporter:
         account.SetDescription(description)
         account.SetTaxRelated(tax_related)
 
+        # Preserve the account's GUID across export → import, like the
+        # transaction/split/business-object paths already do. The exporter
+        # emits `guid:` on every `open` directive for external cross-reference;
+        # without honouring it the importer would mint a fresh GUID, so account
+        # GUIDs would drift on every roundtrip. Only applies to a freshly
+        # created account (existing ones return above).
+        declared_guid = directive.metadata.get('guid')
+        if declared_guid:
+            _set_object_guid(book, account, 'account', account_fullname,
+                             _normalise_guid(declared_guid))
+
         custom_meta = {k: v for k, v in directive.metadata.items()
                        if k not in KNOWN_ACCOUNT_METADATA_KEYS and v is not None}
         if custom_meta:

@@ -70,3 +70,5 @@ and in the **Status** column below.
 | [Q-023](Q-023-retarget-prepayment-residual-credit-owner.md) | Retarget-with-prepayment residual credit is not owner-attached, invisible to the open_prepayment summary | medium | closed |
 | [Q-024](Q-024-unapply-payment.md) | Unapply a payment from a posted invoice/bill without unposting it | medium | closed |
 | [Q-025](Q-025-edited-guid-match-skipped-silently.md) | Editing a transaction by re-import is silently skipped as a "duplicate" | low | closed |
+| [Q-026](Q-026-multi-invoice-payment-amount-allocation.md) | One bank tx paying multiple invoices/bills exports the bank total as each record's payment amount | medium | closed |
+| [Q-027](Q-027-account-guid-not-preserved-on-import.md) | Account GUIDs are not preserved on import, so they drift every roundtrip | medium | closed |

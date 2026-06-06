@@ -362,7 +362,10 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         f'\tdate_opened: {date_opened}',
     ]
 
-    from infrastructure.gnucash.utils import get_account_full_name
+    from infrastructure.gnucash.utils import (
+        format_amount_for_commodity,
+        get_account_full_name,
+    )
 
     for raw_entry, entry_amount, entry_tax, breakdown in entries_data:
         ent_ptr = int(raw_entry.instance)
@@ -429,7 +432,6 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
                     continue
                 pay_date = txn.GetDate().strftime('%Y-%m-%d')
                 bank_name = ''
-                pay_amt = 0.0
                 pay_memo = ''
                 for i in range(txn.CountSplits()):
                     sp = txn.GetSplit(i)
@@ -438,12 +440,17 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
                         gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE,
                     ):
                         bank_name = get_account_full_name(sp.GetAccount())
-                        pay_amt = abs(sp.GetAmount().to_double())
                         pay_memo = sp.GetMemo() or ''
                         break
+                # This bill's payment amount is its own allocation — the AP
+                # split in its lot (`s`) — not the bank-side total, which would
+                # over-report when one bank tx pays several bills. Format exactly
+                # at the AP commodity's decimal count (no to_double).
+                pay_amt = format_amount_for_commodity(
+                    s.GetAmount().abs(), s.GetAccount().GetCommodity())
                 bill_lines.append('\tpayment:')
                 bill_lines.append(f'\t\tdate: {pay_date}')
-                bill_lines.append(f'\t\tamount: {pay_amt:g}')
+                bill_lines.append(f'\t\tamount: {pay_amt}')
                 bill_lines.append(f'\t\tbank_account: "{bank_name}"')
                 bill_lines.append(f'\t\tmemo: "{pay_memo}"')
                 had_payment = True
