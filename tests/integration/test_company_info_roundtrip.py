@@ -162,7 +162,20 @@ def test_print_invoice_plaintext_renders_gst_and_each_pst(tmp_path):
     assert 'PST: SK 9012-3456' in text, text
 
 
-def test_print_invoice_html_renders_gst_and_each_pst(tmp_path):
+def _assert_full_company_rendered(doc):
+    """Every populated company field must appear in the rendered output.
+    Requirement: if the book carries company info, the invoice/bill prints
+    all of it — name, contact, Company ID, GST, every PST number, address,
+    phone, fax, email, url."""
+    for key, want in EXPECTED.items():
+        if key == 'pst':
+            continue  # rendered as one row per number, asserted below
+        assert want in doc, f'company field {key!r} ({want!r}) missing from render:\n{doc}'
+    for pst in ('BC PST-1234-5678', 'SK 9012-3456'):
+        assert pst in doc, f'PST {pst!r} missing from render:\n{doc}'
+
+
+def test_print_invoice_html_renders_full_company_block(tmp_path):
     runner = CliRunner()
     gf = _book_with_company_and(runner, tmp_path, 'q019_unposted_cash_with_tax.txt')
     out = tmp_path / 'inv.html'
@@ -170,20 +183,33 @@ def test_print_invoice_html_renders_gst_and_each_pst(tmp_path):
                             '--format', 'html', '-o', str(out)])
     assert r.exit_code == 0, r.output
     html = out.read_text()
-    assert 'GST: 123456789RT0001' in html, html
-    assert 'BC PST-1234-5678' in html and 'SK 9012-3456' in html, html
+    assert '>From<' in html, f'missing "From" company block:\n{html}'
+    _assert_full_company_rendered(html)
+
+
+def test_print_bill_html_renders_full_company_block(tmp_path):
+    runner = CliRunner()
+    gf = _book_with_company_and(runner, tmp_path, 'q019_unposted_cash_bill.txt')
+    bill_id = _bill_id('q019_unposted_cash_bill.txt')
+    out = tmp_path / 'bill.html'
+    r = runner.invoke(cli, ['print-bill', str(gf), bill_id,
+                            '--format', 'html', '-o', str(out)])
+    assert r.exit_code == 0, r.output
+    _assert_full_company_rendered(out.read_text())
+
+
+def _bill_id(fixture_name):
+    """Discover the bill id from a fixture's `bill "..."` header."""
+    for line in (FIXTURES / fixture_name).read_text().splitlines():
+        if line.startswith('bill "'):
+            return line.split('"')[1]
+    raise AssertionError(f'no bill header in {fixture_name}')
 
 
 def test_print_bill_plaintext_renders_gst_and_each_pst(tmp_path):
     runner = CliRunner()
     gf = _book_with_company_and(runner, tmp_path, 'q019_unposted_cash_bill.txt')
-    # Discover the bill id from the fixture header.
-    bill_id = None
-    for line in (FIXTURES / 'q019_unposted_cash_bill.txt').read_text().splitlines():
-        if line.startswith('bill "'):
-            bill_id = line.split('"')[1]
-            break
-    assert bill_id, 'could not find bill id in fixture'
+    bill_id = _bill_id('q019_unposted_cash_bill.txt')
     out = tmp_path / 'bill.txt'
     r = runner.invoke(cli, ['print-bill', str(gf), bill_id,
                             '--format', 'plaintext', '-o', str(out)])
