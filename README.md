@@ -837,6 +837,46 @@ bill "BILL-2026-001"
 > field is omitted in the XML file and defaults to `true` on reload. Exported
 > bills therefore always show `taxable: true` regardless of what was imported.
 
+#### Your own company info: the `company` directive
+
+A single book-level `company` directive round-trips the seller identity that
+`print-invoice` / `print-bill` show in the "From" / "Bill To" block. These are
+GnuCash's own **File → Properties → Business** options — they were rendered
+before but never exported or imported, so a roundtrip into a fresh book used to
+lose them. The directive has no id and no date; it is master data for the whole
+book:
+
+```
+company
+  name: "Maple Leaf Widgets Inc."
+  contact: "Jane Doe"
+  id: "123456789RT0001"
+  gst: "123456789RT0001"
+  pst: "BC PST-1234-5678; SK 9012-3456"
+  addr1: "42 Example Street, Unit 5"
+  addr2: "Springfield ON A1A 1A1"
+  phone: "+1-555-0100"
+  fax: "+1-555-0199"
+  email: "billing@example.com"
+  url: "https://example.com"
+```
+
+`name`, `contact`, `id`, `phone`, `fax`, `email`, `url`, and `addr1..4` map
+directly to GnuCash's native Business fields. The address lines are stored in
+GnuCash's single multi-line `Company Address` slot.
+
+`gst` and `pst` are **registration numbers GnuCash has no field for** — there is
+only one generic `Company ID`. This tool stores them as extra Business slots
+alongside it, so you no longer have to cram a tax number into the company name
+or address. `gst` is a single number; `pst` may hold **several** numbers (e.g.
+for multiple provinces) in one value separated by `;` — each is rendered on its
+own row in the invoice/bill. All of these are additive: `id` is preserved
+unchanged.
+
+Only non-empty fields are emitted on export. On import the directive is the
+source of truth for the fields it names; it reports `created` / `updated` /
+`unchanged` like other business objects.
+
 **Invoice and bill status fields**
 
 The `posted:` and `payment:` fields are always present in exported output.

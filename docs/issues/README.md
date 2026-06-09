@@ -72,3 +72,4 @@ and in the **Status** column below.
 | [Q-025](Q-025-edited-guid-match-skipped-silently.md) | Editing a transaction by re-import is silently skipped as a "duplicate" | low | closed |
 | [Q-026](Q-026-multi-invoice-payment-amount-allocation.md) | One bank tx paying multiple invoices/bills exports the bank total as each record's payment amount | medium | closed |
 | [Q-027](Q-027-account-guid-not-preserved-on-import.md) | Account GUIDs are not preserved on import, so they drift every roundtrip | medium | closed |
+| [Q-028](Q-028-company-info-gst-pst-roundtrip.md) | Company info (incl. GST/PST registration numbers) is not round-tripped, and there is nowhere to record GST/PST | medium | closed |

@@ -38,11 +38,38 @@ from infrastructure.gnucash.kvp import (
     KNOWN_SPLIT_METADATA_KEYS,
     KNOWN_TX_METADATA_KEYS,
     KNOWN_VENDOR_METADATA_KEYS,
+    get_book_string_option,
     get_custom_metadata,
+    set_book_string_option,
     set_custom_metadata,
 )
 from infrastructure.gnucash.utils import find_account, get_account_full_name, string_to_gnc_numeric
 from services.plaintext_parser import DirectiveType, PlaintextDirective
+
+# Q-028: book-level `company` directive — plaintext key ↔ Business option slot.
+# These land at `options → Business → <slot>`, the exact slots GnuCash's own
+# File → Properties → Business dialog reads and writes (Company Name, Company
+# Contact Person, Company Phone/Fax Number, Company Email Address, Company
+# Website URL, Company ID) and that `read_book_company_info` reads for the
+# seller block. The directive routes each plaintext key to GnuCash's native
+# slot so the whole block round-trips — it does not invent storage for fields
+# GnuCash already owns. The ONLY custom additions are `Company GST Number` /
+# `Company PST Number`: GnuCash has no GST/PST field, so this tool stores them
+# as extra string slots in the same Business frame, alongside `Company ID`.
+# Address lines map to the single multi-line `Company Address` slot (joined on
+# import, split on export).
+COMPANY_FIELD_TO_SLOT = {
+    'name':    'Company Name',
+    'contact': 'Company Contact Person',
+    'id':      'Company ID',
+    'gst':     'Company GST Number',
+    'pst':     'Company PST Number',
+    'phone':   'Company Phone Number',
+    'fax':     'Company Fax Number',
+    'email':   'Company Email Address',
+    'url':     'Company Website URL',
+}
+_COMPANY_ADDR_KEYS = ('addr1', 'addr2', 'addr3', 'addr4')
 
 
 def string_to_gnc_numeric_quantity(s):
@@ -81,6 +108,7 @@ class BusinessObjectImportResult:
     model.
     """
     counts: Dict[str, Dict[str, int]] = field(default_factory=lambda: {
+        'company':  {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': 0},
         'customer': {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': 0},
         'vendor':   {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': 0},
         'taxtable': {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': 0},
@@ -2456,6 +2484,54 @@ class GnuCashImporter:
             raise
 
     @staticmethod
+    def import_company(directive: PlaintextDirective, book: Book):
+        """Q-028: write the book-level `company` directive to the Business
+        options. The directive is the source of truth for the fields it
+        names; only those slots are touched (an absent field is left as-is).
+        GST/PST land in the custom `Company GST Number` / `Company PST Number`
+        slots; `pst` may carry several numbers in one string (split for
+        rendering, stored verbatim).
+
+        Status compares each field to the book's current value so a no-op
+        re-import reports 'unchanged'. 'created' when the book had no company
+        options before, else 'updated'."""
+        if directive.type != DirectiveType.COMPANY:
+            raise ValueError(f"Expected COMPANY but got {directive.type}")
+        md = directive.metadata
+        changed = False
+        had_any = False
+
+        for key, slot in COMPANY_FIELD_TO_SLOT.items():
+            if key not in md:
+                continue
+            val = '' if md[key] is None else str(md[key])
+            current = get_book_string_option(book, 'Business', slot) or ''
+            if current:
+                had_any = True
+            if current != val:
+                set_book_string_option(book, 'Business', slot, val)
+                changed = True
+
+        # Address lines → single multi-line `Company Address` slot, the inverse
+        # of the `read_book_company_info` split-on-newline. Only rewritten when
+        # the directive names at least one address line.
+        if any(k in md for k in _COMPANY_ADDR_KEYS):
+            addr_val = '\n'.join(
+                ('' if md.get(k) is None else str(md.get(k, '')))
+                for k in _COMPANY_ADDR_KEYS
+            ).rstrip('\n')
+            current = get_book_string_option(book, 'Business', 'Company Address') or ''
+            if current:
+                had_any = True
+            if current != addr_val:
+                set_book_string_option(book, 'Business', 'Company Address', addr_val)
+                changed = True
+
+        if not changed:
+            return 'unchanged'
+        return 'updated' if had_any else 'created'
+
+    @staticmethod
     def import_customer(directive: PlaintextDirective, book: Book):
         if directive.type != DirectiveType.CUSTOMER:
             raise ValueError(f"Expected CUSTOMER but got {directive.type}")
@@ -3059,6 +3135,17 @@ class GnuCashImporter:
         """
         cb = on_directive_status or (lambda *_: None)
         result = BusinessObjectImportResult()
+
+        # Book-level company identity first — independent of everything else.
+        for directive in directives:
+            if directive.type == DirectiveType.COMPANY:
+                cname = directive.metadata.get('name', '?')
+                try:
+                    status = self.import_company(directive, book)
+                except Exception as e:
+                    raise ValueError(f'company "{cname}": {e}') from e
+                result.tally('company', status)
+                cb('company', cname, status)
 
         # Customers and vendors first (invoices/bills depend on them)
         for directive in directives:

@@ -15,8 +15,9 @@ import gnucash.gnucash_core_c as gc
 from gnucash import Book, Query, Split
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
-from infrastructure.gnucash.kvp import get_custom_metadata
+from infrastructure.gnucash.kvp import get_book_string_option, get_custom_metadata
 from infrastructure.gnucash.utils import (
+    encode_value_as_string,
     format_amount_for_commodity,
     get_account_full_name,
 )
@@ -142,15 +143,66 @@ class ExportBusinessObjectsUseCase:
     def execute(self) -> str:
         """Return the complete business-objects plaintext block."""
         parts = []
+        company   = self._export_company()
         customers = self._export_customers()
         vendors   = self._export_vendors()
         tables    = self._export_tax_tables()
         invoices  = self._export_invoices()
         bills     = self._export_bills()
-        for section in (customers, vendors, tables, invoices, bills):
+        for section in (company, customers, vendors, tables, invoices, bills):
             if section:
                 parts.append(section)
         return '\n\n'.join(parts)
+
+    # ── Company ───────────────────────────────────────────────────────────────
+
+    def _export_company(self) -> str:
+        """Q-028: emit the book-level `company` directive from the Business
+        options — GnuCash's own Company Name/Contact/Phone/Fax/Email/URL/ID
+        plus the custom GST/PST registration numbers. Returns '' when the
+        book has no company option set, so books without company info export
+        unchanged. Address is split back from the single multi-line `Company
+        Address` slot into addr1..4, the inverse of the importer's join."""
+        ordered = [
+            ('name',    'Company Name'),
+            ('contact', 'Company Contact Person'),
+            ('id',      'Company ID'),
+            ('gst',     'Company GST Number'),
+            ('pst',     'Company PST Number'),
+        ]
+        trailing = [
+            ('phone', 'Company Phone Number'),
+            ('fax',   'Company Fax Number'),
+            ('email', 'Company Email Address'),
+            ('url',   'Company Website URL'),
+        ]
+
+        def opt(slot):
+            return (get_book_string_option(self.book, 'Business', slot) or '').strip()
+
+        lines = ['company']
+        has_value = False
+        for key, slot in ordered:
+            val = opt(slot)
+            if val:
+                lines.append(f'\t{key}: {encode_value_as_string(val)}')
+                has_value = True
+
+        addr_raw = get_book_string_option(self.book, 'Business', 'Company Address') or ''
+        addr_lines = addr_raw.split('\n') if addr_raw else []
+        for i, key in enumerate(('addr1', 'addr2', 'addr3', 'addr4')):
+            val = addr_lines[i].strip() if i < len(addr_lines) else ''
+            if val:
+                lines.append(f'\t{key}: {encode_value_as_string(val)}')
+                has_value = True
+
+        for key, slot in trailing:
+            val = opt(slot)
+            if val:
+                lines.append(f'\t{key}: {encode_value_as_string(val)}')
+                has_value = True
+
+        return '\n'.join(lines) if has_value else ''
 
     # ── Customers ────────────────────────────────────────────────────────────
 

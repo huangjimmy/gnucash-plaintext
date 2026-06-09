@@ -186,9 +186,18 @@
       <div class="addr addr-from">
         <h3>From</h3>
         <p><strong><xsl:value-of select="company/name"/></strong></p>
+        <xsl:if test="string-length(company/contact) > 0">
+          <p>Attn: <xsl:value-of select="company/contact"/></p>
+        </xsl:if>
         <xsl:if test="string-length(company/id) > 0">
           <p class="co-reg">Company ID: <xsl:value-of select="company/id"/></p>
         </xsl:if>
+        <xsl:if test="string-length(company/gst) > 0">
+          <p class="co-reg">GST: <xsl:value-of select="company/gst"/></p>
+        </xsl:if>
+        <xsl:for-each select="company/pst">
+          <p class="co-reg">PST: <xsl:value-of select="."/></p>
+        </xsl:for-each>
         <xsl:if test="string-length(company/addr1) > 0">
           <p><xsl:value-of select="company/addr1"/></p>
         </xsl:if>
@@ -203,6 +212,9 @@
         </xsl:if>
         <xsl:if test="string-length(company/phone) > 0">
           <p><xsl:value-of select="company/phone"/></p>
+        </xsl:if>
+        <xsl:if test="string-length(company/fax) > 0">
+          <p>Fax: <xsl:value-of select="company/fax"/></p>
         </xsl:if>
         <xsl:if test="string-length(company/email) > 0">
           <p><xsl:value-of select="company/email"/></p>

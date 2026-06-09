@@ -448,6 +448,37 @@ def set_book_string_option(book, section: str, name: str, value: str) -> bool:
         return False
 
 
+def get_book_string_option(book, section: str, name: str) -> Optional[str]:
+    """Read a string-valued book option from the nested slot path
+    `options → <section> → <name>` — the inverse of
+    `set_book_string_option`, and the same layout `read_book_company_info`
+    walks in the saved XML. Reads straight from the live in-memory book
+    via `qof_book_get_string_option(book, opt_name)` (ctypes), so it sees
+    unsaved writes and needs no file path.
+
+    Returns the option value, or None when the slot is absent. Verified
+    on GnuCash 3.8 (Ubuntu 20) through 5.x (Debian 13): the C getter
+    resolves the slash-separated path internally, including custom slots
+    such as `Company GST Number` that GnuCash itself never writes.
+    """
+    try:
+        obj_ptr = int(book.instance)
+        lib = _load_gnc_engine()
+        lib.qof_book_get_string_option.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        lib.qof_book_get_string_option.restype = ctypes.c_char_p
+
+        opt_path = f'options/{section}/{name}'.encode()
+        raw = lib.qof_book_get_string_option(ctypes.c_void_p(obj_ptr), opt_path)
+        if raw is None:
+            return None
+        return raw.decode('utf-8')
+    except Exception as e:
+        logging.debug(
+            f"Failed to read book option options/{section}/{name}: {e}"
+        )
+        return None
+
+
 def get_custom_metadata(obj) -> dict:
     """
     Read custom metadata from a GnuCash Transaction or Split KVP slot.
