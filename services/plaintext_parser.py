@@ -150,6 +150,13 @@ class DirectiveType(Enum):
     # per-split lot_owner markers, which rebuild the lots).
     OPEN_PREPAYMENT = 17
 
+    # Q-028: book-level seller/company identity (Company Name, Company ID,
+    # GST/PST registration numbers, address, contact). A singleton header
+    # block `company` whose indented `key: value` children populate the
+    # book's Business → Company options. Round-trips the company info that
+    # `print-invoice` / `print-bill` render in the seller block.
+    COMPANY = 18
+
 
 
 class PlaintextDirective:
@@ -290,6 +297,7 @@ class PlaintextParser:
             (tx_date, tx_num, tx_desc) = parse_transaction_head(line)
             (split_account_name, split_amount, split_symbol) = parse_split(line)
             (key, value) = parse_metadata(line)
+            company_head = parse_company_head(line.strip())
             customer_id = parse_customer(line.strip())
             taxtable_name = parse_taxtable(line.strip())
             invoice_id = parse_invoice(line.strip())
@@ -323,6 +331,10 @@ class PlaintextParser:
                 obj.props['amount'] = split_amount
                 obj.props['symbol'] = split_symbol
                 obj.props['account'] = split_account_name
+                parent_directive.children.append(obj)
+                self.current_directive = obj
+            elif company_head:
+                obj = PlaintextDirective(DirectiveType.COMPANY, line_level, line, parent_directive)
                 parent_directive.children.append(obj)
                 self.current_directive = obj
             elif customer_id is not None:
@@ -404,7 +416,15 @@ taxtable_pattern = r'^taxtable\s+"(.*?)"\s*$'
 invoice_pattern = r'^invoice\s+"(.*?)"\s*$'
 vendor_pattern = r'^vendor\s+"(.*?)"\s*$'
 bill_pattern = r'^bill\s+"(.*?)"\s*$'
+company_pattern = r'^company\s*$'
 block_pattern = r'^\s*(entry|posted|payment|breakdown|open_prepayment):\s*$'
+
+
+def parse_company_head(line: str) -> bool:
+    """Match the book-level `company` header line (Q-028). The block's
+    indented `key: value` children are accumulated as metadata by the
+    generic metadata path, so this only has to recognise the header."""
+    return re.match(company_pattern, line) is not None
 
 
 def parse_customer(line: str) -> Optional[str]:

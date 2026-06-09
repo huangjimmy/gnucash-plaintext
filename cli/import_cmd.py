@@ -221,6 +221,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 # possible). Run them now so the standalone tx pass has
                 # full account + owner context.
                 biz_types_early = {
+                    DirectiveType.COMPANY,
                     DirectiveType.CUSTOMER, DirectiveType.VENDOR,
                     DirectiveType.TAXTABLE,
                 }
@@ -324,6 +325,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 click.echo("")
                 click.echo("Business Objects:")
                 labels = [
+                    ('company',  'Company'),
                     ('customer', 'Customers'),
                     ('vendor',   'Vendors'),
                     ('taxtable', 'Tax tables'),

@@ -50,8 +50,14 @@ def read_book_company_info(file_path):
 
     result = {
         'name': _str_val(biz_el, 'Company Name'),
+        'contact': _str_val(biz_el, 'Company Contact Person'),
         'id': _str_val(biz_el, 'Company ID'),
+        # Q-028: GnuCash has no GST/PST field — these are custom Business slots
+        # this tool adds. `pst` may carry several numbers separated by ';'.
+        'gst': _str_val(biz_el, 'Company GST Number'),
+        'pst': _str_val(biz_el, 'Company PST Number'),
         'phone': _str_val(biz_el, 'Company Phone Number'),
+        'fax': _str_val(biz_el, 'Company Fax Number'),
         'email': _str_val(biz_el, 'Company Email Address'),
         'url': _str_val(biz_el, 'Company Website URL'),
     }
@@ -61,6 +67,42 @@ def read_book_company_info(file_path):
         result[k] = addr_lines[i].strip() if i < len(addr_lines) else ''
 
     return result
+
+
+def split_pst_numbers(value) -> list:
+    """Q-028: split a `pst` company value into individual registration
+    numbers. A filer may hold more than one provincial PST/QST number, so
+    several are stored in the single `Company PST Number` slot separated by
+    ';' and rendered as separate rows. `gst` is always a single value."""
+    if not value:
+        return []
+    return [p.strip() for p in str(value).split(';') if p.strip()]
+
+
+def build_company_xml(root, company_info):
+    """Build the `<company>` seller block shared by invoice and bill XML.
+
+    Emits GnuCash's native Business fields plus the custom GST/PST
+    registration numbers (Q-028). GST is one `<gst>`; PST is one `<pst>`
+    element per number so the stylesheet can render multiple provincial
+    registrations as separate rows."""
+    co = company_info or {}
+    co_el = ET.SubElement(root, 'company')
+    ET.SubElement(co_el, 'name').text = co.get('name', '')
+    ET.SubElement(co_el, 'contact').text = co.get('contact', '')
+    ET.SubElement(co_el, 'id').text = co.get('id', '')
+    ET.SubElement(co_el, 'gst').text = co.get('gst', '')
+    for pst in split_pst_numbers(co.get('pst', '')):
+        ET.SubElement(co_el, 'pst').text = pst
+    ET.SubElement(co_el, 'addr1').text = co.get('addr1', '')
+    ET.SubElement(co_el, 'addr2').text = co.get('addr2', '')
+    ET.SubElement(co_el, 'addr3').text = co.get('addr3', '')
+    ET.SubElement(co_el, 'addr4').text = co.get('addr4', '')
+    ET.SubElement(co_el, 'phone').text = co.get('phone', '')
+    ET.SubElement(co_el, 'fax').text = co.get('fax', '')
+    ET.SubElement(co_el, 'email').text = co.get('email', '')
+    ET.SubElement(co_el, 'url').text = co.get('url', '')
+    return co_el
 
 
 def _read_tax_label(lib, ptr):
@@ -169,17 +211,7 @@ def invoice_to_xml(inv, book, company_info=None):
     ET.SubElement(c_el, 'addr4').text = addr4 or ''
     ET.SubElement(c_el, 'email').text = email or ''
 
-    co = company_info or {}
-    co_el = ET.SubElement(root, 'company')
-    ET.SubElement(co_el, 'name').text = co.get('name', '')
-    ET.SubElement(co_el, 'id').text = co.get('id', '')
-    ET.SubElement(co_el, 'addr1').text = co.get('addr1', '')
-    ET.SubElement(co_el, 'addr2').text = co.get('addr2', '')
-    ET.SubElement(co_el, 'addr3').text = co.get('addr3', '')
-    ET.SubElement(co_el, 'addr4').text = co.get('addr4', '')
-    ET.SubElement(co_el, 'phone').text = co.get('phone', '')
-    ET.SubElement(co_el, 'email').text = co.get('email', '')
-    ET.SubElement(co_el, 'url').text = co.get('url', '')
+    build_company_xml(root, company_info)
 
     entries_el = ET.SubElement(root, 'entries')
     # Q-019: drafts (cash-basis or accrual) now compute tax from each
@@ -585,6 +617,9 @@ def _render_seller_header(company_info) -> str:
     if not name:
         return ''
     parts = [f'Issued by: {name}']
+    contact = (company_info.get('contact') or '').strip()
+    if contact:
+        parts.append(f'Attn: {contact}')
     company_id = (company_info.get('id') or '').strip()
     if company_id:
         # Label matches GnuCash's own slot name ("Company ID") rather
@@ -593,6 +628,14 @@ def _render_seller_header(company_info) -> str:
         # corporate number, etc. here; the rendered output stays
         # neutral so the slot value reads correctly regardless.
         parts.append(f'Company ID: {company_id}')
+    # Q-028: dedicated GST/PST registration numbers, labelled so the
+    # recipient can tell them apart from the generic Company ID. GST is a
+    # single value; PST may hold several (one rendered segment each).
+    gst = (company_info.get('gst') or '').strip()
+    if gst:
+        parts.append(f'GST: {gst}')
+    for pst in split_pst_numbers(company_info.get('pst')):
+        parts.append(f'PST: {pst}')
     addr_lines = [
         (company_info.get(k) or '').strip()
         for k in ('addr1', 'addr2', 'addr3', 'addr4')
@@ -600,10 +643,11 @@ def _render_seller_header(company_info) -> str:
     addr_joined = ', '.join(line for line in addr_lines if line)
     if addr_joined:
         parts.append(addr_joined)
-    for key in ('phone', 'email', 'url'):
+    for key in ('phone', 'fax', 'email', 'url'):
         val = (company_info.get(key) or '').strip()
         if val:
-            parts.append(val)
+            label = {'fax': 'Fax: '}.get(key, '')
+            parts.append(f'{label}{val}')
     return '# ' + ' | '.join(parts)
 
 

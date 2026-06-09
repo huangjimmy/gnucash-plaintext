@@ -30,6 +30,7 @@ from services.invoice_renderer import (
     _fmt_rate,
     _render_seller_header,
     _render_taxtable_block,
+    build_company_xml,
 )
 
 
@@ -178,17 +179,7 @@ def bill_to_xml(bill, book, company_info=None):
     ET.SubElement(v_el, 'addr4').text = addr4 or ''
     ET.SubElement(v_el, 'email').text = email or ''
 
-    co = company_info or {}
-    co_el = ET.SubElement(root, 'company')
-    ET.SubElement(co_el, 'name').text = co.get('name', '')
-    ET.SubElement(co_el, 'id').text = co.get('id', '')
-    ET.SubElement(co_el, 'addr1').text = co.get('addr1', '')
-    ET.SubElement(co_el, 'addr2').text = co.get('addr2', '')
-    ET.SubElement(co_el, 'addr3').text = co.get('addr3', '')
-    ET.SubElement(co_el, 'addr4').text = co.get('addr4', '')
-    ET.SubElement(co_el, 'phone').text = co.get('phone', '')
-    ET.SubElement(co_el, 'email').text = co.get('email', '')
-    ET.SubElement(co_el, 'url').text = co.get('url', '')
+    build_company_xml(root, company_info)
 
     entries_el = ET.SubElement(root, 'entries')
     entries_subtotal = 0.0
