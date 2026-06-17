@@ -877,6 +877,27 @@ Only non-empty fields are emitted on export. On import the directive is the
 source of truth for the fields it names; it reports `created` / `updated` /
 `unchanged` like other business objects.
 
+Beyond the fields above, the `company` directive accepts **any key** — like
+`customer`, `vendor`, and account `open` directives do. Keys it doesn't
+recognise are kept as book-level data that round-trips but is **never rendered**
+on an invoice or bill (it is private to you, not the recipient):
+
+```
+company
+  name: "Acme Inc."
+  id: "123456789RT0001"
+  fiscal_year_end: "12-31"
+  province: "British Columbia"
+  entity_type: "T2 Corporation"
+  ledger_locale: "en_CA"
+```
+
+This is the place for book-level facts GnuCash itself has no field for — a
+fiscal year end, entity type, locale. (GnuCash's accounting-period dates, for
+instance, are an application preference, not stored in the file, so there is no
+native slot to map them to.) These custom keys are stored together in the book
+and re-emitted on export; they never reach the rendered seller block.
+
 **Invoice and bill status fields**
 
 The `posted:` and `payment:` fields are always present in exported output.

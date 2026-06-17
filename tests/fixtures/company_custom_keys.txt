@@ -1,0 +1,9 @@
+company
+	name: "Acme Plaintext Co."
+	id: "123456789RT0001"
+	gst: "123456789RT0001"
+	pst: "BC PST-1234-5678; SK 9012-3456"
+	fiscal_year_end: "12-31"
+	province: "British Columbia"
+	entity_type: "T2 Corporation"
+	ledger_locale: "en_CA"
