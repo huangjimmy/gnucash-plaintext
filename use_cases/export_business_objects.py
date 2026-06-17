@@ -8,6 +8,7 @@ GnuCash Python SWIG bindings have const-type mismatches for these calls
 See infrastructure/gnucash/engine.py for the platform notes.
 """
 
+import json
 from fractions import Fraction
 
 import gnucash.gnucash_business as gb
@@ -15,7 +16,12 @@ import gnucash.gnucash_core_c as gc
 from gnucash import Book, Query, Split
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
-from infrastructure.gnucash.kvp import get_book_string_option, get_custom_metadata
+from infrastructure.gnucash.kvp import (
+    COMPANY_CUSTOM_SECTION,
+    COMPANY_CUSTOM_SLOT,
+    get_book_string_option,
+    get_custom_metadata,
+)
 from infrastructure.gnucash.utils import (
     encode_value_as_string,
     format_amount_for_commodity,
@@ -200,6 +206,18 @@ class ExportBusinessObjectsUseCase:
             val = opt(slot)
             if val:
                 lines.append(f'\t{key}: {encode_value_as_string(val)}')
+                has_value = True
+
+        # Q-029: custom (non-Business) keys stored as one JSON blob — emit each
+        # back as its own `key: value` line (sorted for a stable round-trip).
+        blob = get_book_string_option(self.book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT)
+        if blob:
+            try:
+                custom = json.loads(blob)
+            except (ValueError, TypeError):
+                custom = {}
+            for key in sorted(custom):
+                lines.append(f'\t{key}: {encode_value_as_string(custom[key])}')
                 has_value = True
 
         return '\n'.join(lines) if has_value else ''

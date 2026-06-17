@@ -6,6 +6,7 @@ Converts PlaintextDirective objects from the parser into GnuCash objects
 """
 
 import ctypes
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -31,6 +32,8 @@ from gnucash.gnucash_core_c import (
 )
 
 from infrastructure.gnucash.kvp import (
+    COMPANY_CUSTOM_SECTION,
+    COMPANY_CUSTOM_SLOT,
     KNOWN_ACCOUNT_METADATA_KEYS,
     KNOWN_BILL_METADATA_KEYS,
     KNOWN_CUSTOMER_METADATA_KEYS,
@@ -70,6 +73,15 @@ COMPANY_FIELD_TO_SLOT = {
     'url':     'Company Website URL',
 }
 _COMPANY_ADDR_KEYS = ('addr1', 'addr2', 'addr3', 'addr4')
+
+# Q-029: any `company` key that is not a known Business field (above) or an
+# address line is book-level custom metadata — e.g. `fiscal_year_end`,
+# `province`, `entity_type`, `ledger_locale`. GnuCash has no slot for these
+# (accounting period is an app preference, not stored in the file), so they are
+# kept as our own book metadata under COMPANY_CUSTOM_SECTION/COMPANY_CUSTOM_SLOT
+# (one JSON blob; see kvp.py). These keys round-trip but are never rendered on
+# an invoice/bill — they are private book data (a customer has no business
+# seeing the seller's fiscal year).
 
 
 def string_to_gnc_numeric_quantity(s):
@@ -2492,6 +2504,11 @@ class GnuCashImporter:
         slots; `pst` may carry several numbers in one string (split for
         rendering, stored verbatim).
 
+        Q-029: any key that is not a known Business field or address line is
+        kept as book-level custom metadata (e.g. `fiscal_year_end`, `province`,
+        `entity_type`) — serialised together as one JSON blob in a dedicated
+        book option slot. These round-trip but are not rendered.
+
         Status compares each field to the book's current value so a no-op
         re-import reports 'unchanged'. 'created' when the book had no company
         options before, else 'updated'."""
@@ -2525,6 +2542,23 @@ class GnuCashImporter:
                 had_any = True
             if current != addr_val:
                 set_book_string_option(book, 'Business', 'Company Address', addr_val)
+                changed = True
+
+        # Q-029: collect any remaining keys as book-level custom metadata. The
+        # directive replaces the whole custom-metadata blob when it carries any
+        # custom keys (mirrors `set_custom_metadata` semantics on other
+        # objects); an absent custom key set leaves the existing blob alone.
+        known = set(COMPANY_FIELD_TO_SLOT) | set(_COMPANY_ADDR_KEYS)
+        custom = {k: v for k, v in md.items() if k not in known and v is not None}
+        if custom:
+            blob = json.dumps(custom, ensure_ascii=False, sort_keys=True)
+            current = get_book_string_option(
+                book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT) or ''
+            if current:
+                had_any = True
+            if current != blob:
+                set_book_string_option(
+                    book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT, blob)
                 changed = True
 
         if not changed:

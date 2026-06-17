@@ -27,6 +27,13 @@ from typing import Optional
 
 PT_DATA_SLOT = 'plaintext_metadata'
 
+# Q-029: book option slot that stores the `company` directive's custom
+# (non-Business) keys as one JSON blob — `fiscal_year_end`, `province`, etc.
+# A private section so it never collides with GnuCash's own Business options;
+# one fixed slot so export reads it back by path without KVP key-enumeration.
+COMPANY_CUSTOM_SECTION = 'Plaintext'
+COMPANY_CUSTOM_SLOT = 'Custom Metadata'
+
 # Transaction metadata keys that have dedicated GnuCash setters.
 # Any key NOT in this set is treated as custom metadata → KVP slot.
 KNOWN_TX_METADATA_KEYS = frozenset({
