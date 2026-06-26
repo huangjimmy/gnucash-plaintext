@@ -13,46 +13,24 @@ Because GnuCash keeps splits attached to accounts by reference, every
 transaction that touched the account follows it automatically — nothing in the
 ledger text needs editing. On the next export the account's new path is printed
 wherever it appears.
+
+Runs standalone (opens the book, renames, saves) or — when invoked by `migrate`
+with a shared `BatchSession` in the Click context — against that already-open
+book, leaving the single save to the batch owner.
 """
 
 import sys
 
 import click
 
+from cli._batch import current_batch
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from use_cases.rename_account import execute_rename
 
 
-@click.command('rename-account')
-@click.argument('gnucash_file', type=click.Path(exists=True))
-@click.option('--guid', 'account_guid', required=True,
-              help='GUID of the account to rename (stable identity, not the old name).')
-@click.option('--to', 'new_name', required=True,
-              help='New full name. Bare leaf ("Chequing") keeps the parent; full '
-                   'path ("Assets:Cash:Petty") sets a new parent and/or leaf.')
-def rename_account(gnucash_file, account_guid, new_name):
-    """Rename an account by GUID, keeping all its splits."""
-    repo = GnuCashRepository(gnucash_file)
-    repo.open(mode=SessionMode.NORMAL)
-    try:
-        result = execute_rename(repo.book, account_guid, new_name)
-        if result.status == 'renamed':
-            repo.save()
-    finally:
-        repo.close()
-
-    if result.status == 'renamed':
-        click.echo(f'renamed account {result.old_name!r} → {result.new_name!r} '
-                   f'(guid {result.guid})')
-        return
-    if result.status == 'unchanged':
-        click.echo(f'account {result.old_name!r} (guid {result.guid}) is already '
-                   f'named {new_name!r} — nothing to change')
-        return
-
-    # Failure: every message names the account, what was attempted, why it was
-    # refused, and how to fix it — and the book is left untouched.
-    msgs = {
+def _failure_message(result, account_guid, new_name):
+    """Explicit, detailed message for a non-applied rename, or None on success."""
+    return {
         'bad_guid':
             f'--guid {account_guid!r} is not a valid account GUID: {result.detail}. '
             f'Pass the 32-character hex GUID; run `export-accounts` to list each '
@@ -78,9 +56,52 @@ def rename_account(gnucash_file, account_guid, new_name):
             f'cannot rename account {result.old_name!r} to {new_name!r}: an account '
             f'named {result.detail!r} already exists under that parent. Pick a '
             f'different leaf name, or rename/remove the existing account first.',
-    }
-    raise click.ClickException(
-        msgs.get(result.status, f'rename failed ({result.status})'))
+    }.get(result.status)
+
+
+def _success_message(result, new_name):
+    if result.status == 'renamed':
+        return (f'renamed account {result.old_name!r} → {result.new_name!r} '
+                f'(guid {result.guid})')
+    return (f'account {result.old_name!r} (guid {result.guid}) is already named '
+            f'{new_name!r} — nothing to change')
+
+
+@click.command('rename-account')
+@click.argument('gnucash_file', required=False, type=click.Path(exists=True))
+@click.option('--guid', 'account_guid', required=True,
+              help='GUID of the account to rename (stable identity, not the old name).')
+@click.option('--to', 'new_name', required=True,
+              help='New full name. Bare leaf ("Chequing") keeps the parent; full '
+                   'path ("Assets:Cash:Petty") sets a new parent and/or leaf.')
+@click.pass_context
+def rename_account(ctx, gnucash_file, account_guid, new_name):
+    """Rename an account by GUID, keeping all its splits."""
+    batch = current_batch(ctx)
+
+    if batch is not None:
+        # Batch mode: operate on the shared, already-open book; the owner saves.
+        result = execute_rename(batch.book, account_guid, new_name)
+        if result.status == 'renamed':
+            batch.mark_dirty()
+        emit = batch.note
+    else:
+        if not gnucash_file:
+            raise click.UsageError("missing book: rename-account <book> --guid … --to …")
+        repo = GnuCashRepository(gnucash_file)
+        repo.open(mode=SessionMode.NORMAL)
+        try:
+            result = execute_rename(repo.book, account_guid, new_name)
+            if result.status == 'renamed':
+                repo.save()
+        finally:
+            repo.close()
+        emit = click.echo
+
+    failure = _failure_message(result, account_guid, new_name)
+    if failure is not None:
+        raise click.ClickException(failure)
+    emit(_success_message(result, new_name))
 
 
 if __name__ == '__main__':

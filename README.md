@@ -531,6 +531,55 @@ Renaming an account under itself or a descendant, a name collision under the
 target parent, or an unknown GUID/parent are all refused with an explicit message
 and leave the book untouched.
 
+### Migrations: batch operations with `migrate`
+
+Surgical commands (`rename-account`, …) each open the book, do one change, and
+save. Because a GnuCash save writes a backup whose filename has a *second*
+timestamp, two saves in the same second collide — so back-to-back operations
+must be ≥1s apart, and renaming 200 accounts takes 200+ seconds. `migrate`
+applies many operations to one open book and saves **once**.
+
+A migration is a versioned file of **operation** lines. Each line uses CLI
+syntax — an operation command and its arguments, minus the book (the book is
+`migrate`'s target) — but a migration line is *not* "any CLI command": only the
+mutating operations (`rename-account`, `set-book-key`) are allowed. Read/meta
+commands (`export`, `import`, `print-invoice`, and `migrate` itself) are refused,
+so a migration only changes the target book and **migrations cannot nest**.
+
+```
+# migrations/0002_restructure.txt
+rename-account --guid 51359958977a4ca88ec927c2958b3d8b --to "Assets:Current:Chequing"
+rename-account --guid 0409000f1f9c4374aa1651b6c42ed919 --to "Assets:Current:Savings"
+set-book-key --key schema_version --value 2
+```
+
+```bash
+gnucash-plaintext migrate mybook.gnucash migrations/
+# applied 1 migration(s) in 1 save; head: 0002_restructure
+
+gnucash-plaintext migrate mybook.gnucash migrations/ --status   # applied vs pending
+gnucash-plaintext migrate mybook.gnucash migrations/ --dry-run  # show, change nothing
+```
+
+Files apply in filename order (the zero-padded prefix is the version). Each is
+applied **atomically**: if any operation fails, `migrate` aborts before saving —
+nothing persists and nothing is recorded — and the message names the migration,
+the failing line, and that command's own error.
+
+**History is tracked in two places.** The book itself records which migrations
+were applied (in `options/Plaintext/Migrations`, the source of truth that travels
+with the file). A cheap, readable sidecar — `mybook.gnucash.migrate-state.json` —
+mirrors it and is stamped with the book's size+mtime, so a re-run with nothing
+pending answers `up to date … book not opened` **without opening the (expensive)
+GnuCash file** — safe to run on every deploy. Applied migrations are immutable:
+editing one after it ran is rejected (write a new migration instead). `--verify`
+ignores the sidecar and checks the book directly.
+
+A migration can also stamp your **own** version marker with `set-book-key`
+(e.g. `--key schema_version --value 2`), stored as book metadata that round-trips
+via the `company` directive — separate from the tool's automatic
+applied-migrations log.
+
 ### Export transactions by GUID
 
 Export one or more transactions to plaintext (useful for AI-assisted editing or review):
