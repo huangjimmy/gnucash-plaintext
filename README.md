@@ -501,6 +501,36 @@ instead:
 gnucash-plaintext export-accounts mybook.gnucash accounts.txt --as-of 2024-01-01
 ```
 
+### Rename an account
+
+Rename an account, identified by its GUID. `--to` is the account's new full
+name, so a single rename can change the leaf, the parent, or both at once:
+
+```bash
+# New leaf, same parent: Assets:Bank:Checking → Assets:Bank:Chequing
+gnucash-plaintext rename-account mybook.gnucash \
+    --guid 51359958977a4ca88ec927c2958b3d8b --to "Chequing"
+
+# New parent, same leaf → Assets:Checking
+gnucash-plaintext rename-account mybook.gnucash \
+    --guid 51359958977a4ca88ec927c2958b3d8b --to "Assets:Checking"
+
+# New parent and new leaf together → Assets:Cash:Petty
+gnucash-plaintext rename-account mybook.gnucash \
+    --guid 51359958977a4ca88ec927c2958b3d8b --to "Assets:Cash:Petty"
+```
+
+This is a targeted operation, not something the full export/edit/import cycle can
+do — every transaction names its account by full path, so renaming an account in
+the text would mean rewriting every transaction that references it. GnuCash keeps
+splits attached to accounts by reference, so renaming the account in place carries
+all its transactions with it; the next export prints the new path everywhere
+automatically. The account is found by GUID (run `export-accounts` to see each
+account's `guid:`), never by its old name. Any named parent must already exist.
+Renaming an account under itself or a descendant, a name collision under the
+target parent, or an unknown GUID/parent are all refused with an explicit message
+and leave the book untouched.
+
 ### Export transactions by GUID
 
 Export one or more transactions to plaintext (useful for AI-assisted editing or review):

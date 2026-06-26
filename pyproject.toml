@@ -53,6 +53,13 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+# Default fd-level capture is kept on purpose: it shields pytest's live output
+# from GnuCash, which churns file descriptors during a run and intermittently
+# closes one. The only fallout is that pytest's capture *teardown* then crashes
+# in `os.dup2(saved_fd, 0)` with `OSError: [Errno 9] Bad file descriptor` AFTER
+# every test has passed; that teardown is hardened in tests/conftest.py to
+# swallow the EBADF. (sys-level capture is NOT used — it routes live output to
+# the real fd, so a mid-run close internal-errors pytest, which is worse.)
 addopts = "-v --tb=short"
 
 [tool.coverage.run]
