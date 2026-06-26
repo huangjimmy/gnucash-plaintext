@@ -13,6 +13,54 @@ from datetime import date
 import pytest
 
 
+def _harden_pytest_capture_teardown():
+    """Stop a GnuCash fd-close from failing the run on a pytest teardown artifact.
+
+    GnuCash's backend churns file descriptors during a run — it opens and removes
+    a per-session `.LCK` lock file and writes per-session `.log` files for every
+    book session — and intermittently closes the fd pytest saved when it set up
+    fd-level output capture. At the end of the run, pytest's capture teardown
+    (`FDCapture.done()`) restores that fd with `os.dup2(saved_fd, 0)`, which then
+    raises `OSError: [Errno 9] Bad file descriptor` AFTER every test has already
+    passed — failing the whole run on a teardown artifact. It is a probabilistic
+    fd collision, not version-specific (seen on Ubuntu 20.04/Py3.8 and Debian
+    11/Py3.9); its odds rise with the number of session open/close cycles a suite
+    does.
+
+    Default fd-level capture is kept (it shields pytest's live output from the
+    fd churn — sys-level capture would route live output to the real fd and
+    internal-error pytest on a mid-run close, which is worse). Instead, wrap the
+    capture classes' `done()` so a closed fd is swallowed during teardown rather
+    than crashing the process. Targeted (only OSError), defensive (no-ops if the
+    pytest internals differ), and verified deterministically by closing pytest's
+    own saved stdin fd: crash without this, clean exit with it. No test uses the
+    fd-level capture fixtures (capfd/capfdbinary), so nothing depends on a
+    perfectly-restored fd at exit.
+    """
+    try:
+        from _pytest import capture as _cap
+    except Exception:
+        return
+
+    def _wrap(orig):
+        def _safe_done(self):
+            try:
+                return orig(self)
+            except OSError:
+                return None
+        return _safe_done
+
+    for name in ('FDCaptureBinary', 'FDCapture', 'SysCaptureBinary', 'SysCapture'):
+        cls = getattr(_cap, name, None)
+        if cls is None or not hasattr(cls, 'done') or getattr(cls, '_gnc_hardened', False):
+            continue
+        cls.done = _wrap(cls.done)
+        cls._gnc_hardened = True
+
+
+_harden_pytest_capture_teardown()
+
+
 def find_account(root_account, account_path):
     """
     Find account by full path (e.g., 'Assets:Bank:Checking').
