@@ -75,3 +75,4 @@ and in the **Status** column below.
 | [Q-028](Q-028-company-info-gst-pst-roundtrip.md) | Company info (incl. GST/PST registration numbers) is not round-tripped, and there is nowhere to record GST/PST | medium | closed |
 | [Q-029](Q-029-company-arbitrary-book-keys.md) | company directive only round-trips known seller-identity keys; no way to store arbitrary book-level data | medium | closed |
 | [Q-030](Q-030-rename-account.md) | No way to rename an account; the full round-trip can't express it | enhancement | closed |
+| [Q-031](Q-031-migrate-batch-operations.md) | No batch operations or migrations — every surgical command is one-op-per-save | enhancement | closed |

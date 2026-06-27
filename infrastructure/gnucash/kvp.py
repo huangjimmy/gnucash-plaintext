@@ -34,6 +34,12 @@ PT_DATA_SLOT = 'plaintext_metadata'
 COMPANY_CUSTOM_SECTION = 'Plaintext'
 COMPANY_CUSTOM_SLOT = 'Custom Metadata'
 
+# Q-031: book option slot holding the applied-migrations history (a JSON list of
+# {id, applied_at, checksum}) — the in-book source of truth for `migrate`, the
+# "schema_migrations table" equivalent that travels with the .gnucash file.
+MIGRATIONS_SECTION = 'Plaintext'
+MIGRATIONS_SLOT = 'Migrations'
+
 # Transaction metadata keys that have dedicated GnuCash setters.
 # Any key NOT in this set is treated as custom metadata → KVP slot.
 KNOWN_TX_METADATA_KEYS = frozenset({
