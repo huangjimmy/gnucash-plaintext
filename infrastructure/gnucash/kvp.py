@@ -48,6 +48,12 @@ KNOWN_TX_METADATA_KEYS = frozenset({
     'currency.mnemonic',
     'doc_link',
     'notes',
+    # Q-032: the book-closing flag (xaccTransGetIsClosingTxn). Emitted as
+    # `closing: #True` only on closing transactions and re-applied on import via
+    # xaccTransSetIsClosingTxn, so a plaintext roundtrip doesn't un-close the
+    # books (which would re-break the income statement). Handled by the importer
+    # directly, not as a custom KVP slot.
+    'closing',
     # NOTE: `txn_type` and `owner` are deliberately NOT in this set even
     # though the exporter emits them on payment-class transactions. The
     # in-memory mutators (`xaccTransSetTxnType`, `gncOwnerCopyOnTxn`) are

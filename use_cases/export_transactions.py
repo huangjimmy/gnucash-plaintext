@@ -15,6 +15,7 @@ from gnucash.gnucash_core_c import (
     GncGUID,
     string_to_guid,
     xaccAccountGetTypeStr,
+    xaccTransGetIsClosingTxn,
     xaccTransLookup,
 )
 
@@ -644,6 +645,11 @@ class ExportTransactionsUseCase:
             lines.append(f'\tdoc_link: {encode_value_as_string(tx_doc_link)}')
         if tx_notes and tx_notes.strip() != "":
             lines.append(f'\tnotes: {encode_value_as_string(tx_notes)}')
+
+        # Q-032: preserve the book-closing flag across a plaintext roundtrip
+        # (only emitted on closing transactions).
+        if xaccTransGetIsClosingTxn(transaction.instance):
+            lines.append('\tclosing: #True')
 
         # txn_type + owner: GnuCash internal classifier + customer/vendor
         # KVP backref set by the business-object machinery (txn_type='I'

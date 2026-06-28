@@ -8,6 +8,7 @@ plaintext format.
 import click
 
 from cli.account_balance_cmd import account_balance
+from cli.balance_sheet_cmd import balance_sheet
 from cli.bill_print_cmd import print_bill
 from cli.close_books_cmd import close_books
 from cli.delete_cmd import (
@@ -31,6 +32,7 @@ from cli.income_statement_cmd import income_statement
 from cli.invoice_print_cmd import print_invoice
 from cli.migrate_cmd import migrate
 from cli.rename_account_cmd import rename_account
+from cli.report_cmd import report
 from cli.set_book_key_cmd import set_book_key
 from cli.unapply_cmd import unapply_payment
 from cli.unpost_cmd import unpost_bills, unpost_invoices
@@ -69,6 +71,8 @@ cli.add_command(import_beancount, name='import-beancount')
 cli.add_command(close_books, name='close-books')
 cli.add_command(export_transaction, name='export-transaction')
 cli.add_command(income_statement, name='income-statement')
+cli.add_command(balance_sheet, name='balance-sheet')
+cli.add_command(report, name='report')
 cli.add_command(print_invoice, name='print-invoice')
 cli.add_command(print_bill, name='print-bill')
 cli.add_command(account_balance, name='account-balance')
