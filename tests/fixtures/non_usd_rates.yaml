@@ -1,0 +1,3 @@
+# An FX file that does NOT cover USD — used to prove pricing a USD-held
+# security against an incomplete rates file fails cleanly, not with a traceback.
+EUR: 1.5

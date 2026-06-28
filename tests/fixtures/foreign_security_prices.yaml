@@ -1,0 +1,3 @@
+# US-listed security: the price is in the holding's own currency (USD).
+# An --fx-rates USD rate then converts the market value to CAD.
+USTECH: 60
