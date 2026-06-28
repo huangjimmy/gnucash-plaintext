@@ -1759,6 +1759,53 @@ HKD: 0.17
 CNY: 0.19
 ```
 
+The income statement **excludes closing entries**, so it reports the true period
+result whether or not the books have been closed for the year (see "Closing the
+books" below). Close the books and re-run it — the statement is unchanged.
+
+### Generate a balance sheet
+
+Assets / Liabilities / Equity as of a date, with a **Current Year Earnings** line
+so it balances whether or not the books are closed (before closing, net income
+shows as Current Year Earnings; after closing, it sits in Equity: Retained
+Earnings):
+
+```bash
+gnucash-plaintext balance-sheet mybook.gnucash --as-of 2024-12-31
+gnucash-plaintext balance-sheet mybook.gnucash --as-of 2024-03-31 --fx-rates rates.yaml
+```
+
+### Both statements at once: `report`
+
+T2/GIFI prep needs the income statement and the balance sheet for the same
+period. `report` runs the statements you **name** against a single (expensive)
+book open, output combined — `report` being GnuCash's own term for these:
+
+```bash
+gnucash-plaintext report mybook.gnucash income-statement balance-sheet \
+    --fiscal-year-end 2024-12-31
+```
+
+You list the statements explicitly (`income-statement`, `balance-sheet`) — no
+hidden bundle. The income statement covers the fiscal period; the balance sheet
+is as of the period end (override with `--as-of`). `--fx-rates` and `--output`
+apply across both. It is read-only.
+
+### Closing the books
+
+`close-books` zeroes Income/Expense at year end into `Equity: Retained Earnings:
+{currency}`, marking each closing transaction with GnuCash's closing-transaction
+flag (so GnuCash's reports, the income statement above, and `--force` re-close
+all recognise it — not a fragile description match). The flag round-trips through
+plaintext export/import (`closing: #True`), so a roundtrip never silently
+un-closes the books.
+
+```bash
+gnucash-plaintext close-books mybook.gnucash --closing-date 2024-12-31
+gnucash-plaintext close-books mybook.gnucash --closing-date 2024-12-31 --status
+gnucash-plaintext close-books mybook.gnucash --closing-date 2024-12-31 --force   # re-close
+```
+
 ### Export account balances
 
 Output account balances as of a given date in balance directive format.

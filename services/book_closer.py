@@ -12,11 +12,28 @@ from fractions import Fraction
 from typing import Dict, List, Optional, Set, Tuple
 
 from gnucash import Account, GncNumeric, Split, Transaction
-from gnucash.gnucash_core_c import ACCT_TYPE_EQUITY, ACCT_TYPE_EXPENSE, ACCT_TYPE_INCOME
+from gnucash.gnucash_core_c import (
+    ACCT_TYPE_EQUITY,
+    ACCT_TYPE_EXPENSE,
+    ACCT_TYPE_INCOME,
+    xaccTransGetIsClosingTxn,
+    xaccTransSetIsClosingTxn,
+)
 
 from infrastructure.gnucash.utils import find_account
 
 CLOSING_DESCRIPTION_PREFIX = "Closing entry"
+
+
+def is_closing_txn(tx) -> bool:
+    """True if a transaction is a book-closing entry. GnuCash's authoritative
+    marker is the closing-transaction flag (`xaccTransGetIsClosingTxn`); the
+    legacy `"Closing entry ("` description is also accepted so closings created
+    before the flag existed are still recognised. Used both to find closings to
+    re-close and to exclude them from the income statement."""
+    if xaccTransGetIsClosingTxn(tx.instance):
+        return True
+    return tx.GetDescription().startswith(f"{CLOSING_DESCRIPTION_PREFIX} (")
 
 
 class BookCloser:
@@ -111,7 +128,9 @@ class BookCloser:
         """
         Find existing closing transactions on the given date.
 
-        Identifies by: date == closing_date AND description starts with "Closing entry ("
+        Identifies by: date == closing_date AND `is_closing_txn` (the closing
+        flag, or the legacy description). The flag also catches closings created
+        by the GnuCash GUI, which carry a different description.
         Returns unique transactions (deduped by GUID).
         """
         closing_txns = []
@@ -123,8 +142,7 @@ class BookCloser:
                 tx_date = tx.GetDate()
                 if date(tx_date.year, tx_date.month, tx_date.day) != closing_date:
                     continue
-                desc = tx.GetDescription()
-                if not desc.startswith(f"{CLOSING_DESCRIPTION_PREFIX} ("):
+                if not is_closing_txn(tx):
                     continue
                 guid = tx.GetGUID().to_string()
                 if guid not in seen_guids:
@@ -232,6 +250,11 @@ class BookCloser:
         equity_split.SetParent(tx)
         equity_split.SetAccount(equity_account)
         equity_split.SetValue(GncNumeric(equity_numerator, currency_fraction))
+
+        # Mark it as a GnuCash closing transaction so reports (and our own
+        # income-statement / re-close detection) recognise it via the
+        # authoritative flag, not just the description. Persists to the XML.
+        xaccTransSetIsClosingTxn(tx.instance, True)
 
         tx.CommitEdit()
         return tx

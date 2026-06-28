@@ -30,7 +30,7 @@ and in the **Status** column below.
 | ID | Title | Severity | Status |
 |----|-------|----------|--------|
 | [F-001](F-001-qfx-dependency-declared-but-not-implemented.md) | QFX/OFX dependency declared but feature not implemented | medium | open |
-| [F-002](F-002-balance-sheet-command-missing.md) | No balance-sheet command | enhancement | open |
+| [F-002](F-002-balance-sheet-command-missing.md) | No balance-sheet command | enhancement | closed |
 | [F-003](F-003-export-date-range-filter-missing.md) | export command has no date-range filter | enhancement | closed |
 | [F-004](F-004-no-search-find-transaction-command.md) | No search / find-transaction command | enhancement | closed |
 | [F-005](F-005-data-models-and-provider-protocol.md) | Statement import: data models and StatementProvider protocol | feature | closed |
@@ -76,3 +76,4 @@ and in the **Status** column below.
 | [Q-029](Q-029-company-arbitrary-book-keys.md) | company directive only round-trips known seller-identity keys; no way to store arbitrary book-level data | medium | closed |
 | [Q-030](Q-030-rename-account.md) | No way to rename an account; the full round-trip can't express it | enhancement | closed |
 | [Q-031](Q-031-migrate-batch-operations.md) | No batch operations or migrations — every surgical command is one-op-per-save | enhancement | closed |
+| [Q-032](Q-032-closing-entries-and-report.md) | Income statement breaks once books are closed; no balance sheet; no combined report | high | closed |

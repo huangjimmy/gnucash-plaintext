@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 from gnucash import Account
 from gnucash.gnucash_core_c import ACCT_TYPE_EXPENSE, ACCT_TYPE_INCOME
 
+from services.book_closer import is_closing_txn
 from services.fx_rates import FxRates
 
 
@@ -87,6 +88,11 @@ class IncomeStatementService:
         total = Fraction(0)
         for split in account.GetSplitList():
             tx = split.GetParent()
+            # Closing entries are equity transfers, not period activity — exclude
+            # them so the income statement reports the true result whether the
+            # books are closed or not.
+            if is_closing_txn(tx):
+                continue
             tx_date_raw = tx.GetDate()
             tx_date = date(tx_date_raw.year, tx_date_raw.month, tx_date_raw.day)
             if start_date <= tx_date <= end_date:

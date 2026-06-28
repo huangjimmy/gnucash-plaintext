@@ -28,6 +28,7 @@ from gnucash.gnucash_core_c import (
     ACCT_TYPE_RECEIVABLE,
     ACCT_TYPE_STOCK,
     gncTaxTableEntrySetAccount,
+    xaccTransSetIsClosingTxn,
 )
 
 from infrastructure.gnucash.kvp import (
@@ -2205,6 +2206,12 @@ class GnuCashImporter:
         if 'notes' in directive.metadata:
             notes = directive.metadata['notes']
             transaction.SetNotes(notes)
+
+        # Q-032: re-apply the book-closing flag so a roundtrip doesn't un-close
+        # the books (the exporter emits `closing: #True` on closing entries).
+        _closing = directive.metadata.get('closing')
+        if _closing is not None and not _is_falsy(str(_closing)):
+            xaccTransSetIsClosingTxn(transaction.instance, True)
 
         transaction.SetDateEnteredSecs(datetime.now())
         date = datetime.strptime(date_str, '%Y-%m-%d')
