@@ -1,0 +1,54 @@
+2024-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-01-01 commodity USTECH
+	mnemonic: "USTECH"
+	fullname: "US Tech Inc"
+	namespace: "NASDAQ"
+	fraction: 10000
+2024-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Assets:USD Cash
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-01-01 open Assets:Brokerage
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-01-01 open Assets:Brokerage:USTECH
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USTECH"
+2024-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2024-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2024-02-01 * "Fund USD account"
+	currency.mnemonic: "USD"
+	Assets:USD Cash 1000.00 USD
+	Equity:Opening -1000.00 USD
+2024-03-05 * "Buy USTECH"
+	currency.mnemonic: "USD"
+	Assets:Brokerage:USTECH 10 USTECH
+		account.commodity.mnemonic: "USTECH"
+		share_price: "50"
+		value: "500.00"
+	Assets:USD Cash -500.00 USD

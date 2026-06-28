@@ -19,7 +19,7 @@ import click
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.balance_sheet import BalanceSheet
 from services.balance_sheet_renderer import render_text as bs_render_text
-from services.fx_rates import FxRates
+from services.fx_rates import FxRates, MissingFxRateError
 from services.income_statement_renderer import render_text as is_render_text
 from use_cases.generate_income_statement import (
     GenerateIncomeStatementUseCase,
@@ -49,10 +49,15 @@ def _parse_date(ctx, param, value):
               help="Balance-sheet date. Defaults to the period end.")
 @click.option("--fx-rates", "fx_rates_file", default=None, type=click.Path(exists=True),
               help="YAML FX rates → CAD (for multi-currency T2 consolidation).")
+@click.option("--prices", "prices_file", default=None, type=click.Path(exists=True),
+              help="YAML security prices, per unit in each security's own trading "
+                   "currency (same shape as --fx-rates). Marks Stock/Mutual Fund "
+                   "holdings to market on the balance sheet, with an Unrealized "
+                   "Gains line; a foreign-currency holding also needs --fx-rates.")
 @click.option("--output", "output_file", default=None, type=click.Path(),
               help="Output file. Defaults to stdout.")
 def report(gnucash_file, statements, fiscal_year_end, start, end, as_of,
-           fx_rates_file, output_file):
+           fx_rates_file, prices_file, output_file):
     """Run the named statements against one open book, output combined."""
     unknown = [s for s in statements if s not in _STATEMENTS]
     if unknown:
@@ -79,6 +84,13 @@ def report(gnucash_file, statements, fiscal_year_end, start, end, as_of,
         except (FileNotFoundError, ValueError) as e:
             raise click.ClickException(str(e)) from e
 
+    prices: Optional[FxRates] = None
+    if prices_file:
+        try:
+            prices = FxRates.load(prices_file)
+        except (FileNotFoundError, ValueError) as e:
+            raise click.ClickException(str(e)) from e
+
     repo = GnuCashRepository(gnucash_file)
     repo.open(mode=SessionMode.READ_ONLY)
     parts = []
@@ -90,8 +102,9 @@ def report(gnucash_file, statements, fiscal_year_end, start, end, as_of,
                     start_date=period_start, end_date=period_end, fx_rates=fx)
                 parts.append(is_render_text(result))
             elif stmt == "balance-sheet":
-                parts.append(bs_render_text(BalanceSheet().compute(root, as_of_date, fx)))
-    except ValueError as e:
+                parts.append(bs_render_text(
+                    BalanceSheet().compute(root, as_of_date, fx, prices)))
+    except (ValueError, MissingFxRateError) as e:
         raise click.ClickException(str(e)) from e
     finally:
         repo.close()

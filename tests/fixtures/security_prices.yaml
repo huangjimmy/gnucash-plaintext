@@ -1,0 +1,4 @@
+# Security prices per unit in the security's own trading currency (CAD here, as
+# these holdings were bought in CAD). Same shape as an --fx-rates file.
+ACME: 60
+VGRO: 30

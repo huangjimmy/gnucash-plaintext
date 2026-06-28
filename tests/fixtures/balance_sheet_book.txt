@@ -1,0 +1,59 @@
+2025-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2025-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Assets:Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Liabilities:CreditCard
+	type: "Credit Card"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Expenses:Office
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2025-03-01 * "Sale Y1"
+	Assets:Bank 1000.00 CAD
+	Income:Sales -1000.00 CAD
+2025-06-01 * "Office supplies Y1"
+	Expenses:Office 400.00 CAD
+	Liabilities:CreditCard -400.00 CAD
+
+2026-03-01 * "Sale Y2"
+	Assets:Bank 500.00 CAD
+	Income:Sales -500.00 CAD
+2026-06-01 * "Office supplies Y2"
+	Expenses:Office 100.00 CAD
+	Liabilities:CreditCard -100.00 CAD

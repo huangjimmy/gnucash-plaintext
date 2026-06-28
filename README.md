@@ -1775,6 +1775,41 @@ gnucash-plaintext balance-sheet mybook.gnucash --as-of 2024-12-31
 gnucash-plaintext balance-sheet mybook.gnucash --as-of 2024-03-31 --fx-rates rates.yaml
 ```
 
+Every asset and liability account type is reported — Bank, Cash, Stock, Mutual
+Fund, Accounts Receivable on the asset side; Credit Card, Accounts Payable and
+the rest on the liability side. Foreign-currency accounts stay in their own
+currency unless you pass `--fx-rates` to consolidate to CAD.
+
+**Securities: cost by default, market with `--prices`.** A Stock or Mutual Fund
+holding is shown at its **cost basis** (what you paid, in the transaction
+currency) unless you supply current prices. Only you know the price that's
+current, so pass a `--prices` file — same shape as `--fx-rates`, one
+`MNEMONIC: price` line per security — and each holding is valued at
+**shares × price**:
+
+```yaml
+# prices.yaml — price per unit in the security's own trading currency,
+# as of the balance-sheet date
+ACME: 60     # a CAD-bought holding → priced in CAD
+USTECH: 95   # a USD-bought holding → priced in USD (needs --fx-rates, below)
+```
+
+```bash
+gnucash-plaintext balance-sheet mybook.gnucash --as-of 2024-12-31 --prices prices.yaml
+```
+
+The price is read in the **same currency the holding was bought in**: a
+CAD-purchased stock is priced in CAD, a USD-purchased one in USD. For a
+foreign-currency holding, also pass `--fx-rates` so its market value can be
+converted to CAD — otherwise the command stops and tells you exactly which rate
+to add, rather than mis-valuing the holding.
+
+The gain or loss versus cost isn't booked on any account, so the balance sheet
+adds a single **Unrealized Gains** line to Equity to absorb it — exactly as
+GnuCash's own market-value balance sheet does — and the statement still balances.
+A security with no entry in the prices file stays at cost. `--prices` works on
+`report` too.
+
 ### Both statements at once: `report`
 
 T2/GIFI prep needs the income statement and the balance sheet for the same

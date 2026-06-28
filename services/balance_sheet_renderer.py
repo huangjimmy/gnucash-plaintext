@@ -13,6 +13,9 @@ def render_text(result: BalanceSheetResult) -> str:
     out = ["=" * 60, "BALANCE SHEET", f"As of: {result.as_of_date}", "=" * 60, ""]
     if not result.fx_rates_provided:
         out.append("NOTE: No FX rates supplied. CAD totals not available.\n")
+    if result.prices_provided:
+        out.append("NOTE: Securities marked to market from supplied prices; "
+                   "Unrealized Gains reconciles to cost.\n")
     out.extend(_render_section_text(result.assets, result.fx_rates_provided))
     out.extend(_render_section_text(result.liabilities, result.fx_rates_provided))
     out.extend(_render_section_text(result.equity, result.fx_rates_provided))
