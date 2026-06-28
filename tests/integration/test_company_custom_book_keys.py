@@ -150,3 +150,53 @@ def test_custom_keys_not_rendered_on_bill(tmp_path):
                             '-o', str(out)])
     assert r.exit_code == 0, r.output
     _assert_custom_not_rendered(out.read_text())
+
+
+# ── Reopened Q-029: a partial company import is an UPSERT, not a full replace ──
+
+def test_partial_import_preserves_unmentioned_custom_keys(tmp_path):
+    """A later company directive that names only some keys must NOT delete the
+    custom keys it omits — the bug that reopened Q-029. (It used to replace the
+    whole custom blob, silently dropping absent custom keys.)"""
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    _import(runner, gf,
+            'company\n\tgst: "GST-111"\n\tprovince: "BC"\n\tentity_type: "T2 Corporation"\n',
+            tmp_path, 'c1.txt')
+    # Second import touches only province.
+    _import(runner, gf, 'company\n\tprovince: "Ontario"\n', tmp_path, 'c2.txt')
+
+    fields = _company_fields(_export(runner, gf, tmp_path))
+    assert fields.get('entity_type') == 'T2 Corporation'   # custom key preserved
+    assert fields.get('gst') == 'GST-111'                  # known field preserved
+    assert fields.get('province') == 'Ontario'             # the named key updated
+
+
+def test_null_value_removes_a_custom_key(tmp_path):
+    """`key: #None` (the format's null) removes that custom key — JSON Merge
+    Patch semantics — while leaving the others intact."""
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    _import(runner, gf,
+            'company\n\tprovince: "BC"\n\tentity_type: "T2 Corporation"\n',
+            tmp_path, 'c1.txt')
+    _import(runner, gf, 'company\n\tentity_type: #None\n', tmp_path, 'c2.txt')
+
+    fields = _company_fields(_export(runner, gf, tmp_path))
+    assert 'entity_type' not in fields                     # removed via null
+    assert fields.get('province') == 'BC'                  # the other key survives
+
+
+def test_set_book_key_does_not_disturb_other_custom_keys(tmp_path):
+    """`set-book-key` shares the merge helper, so it upserts one key without
+    dropping the others — same behaviour as the company directive."""
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    _import(runner, gf, 'company\n\tprovince: "BC"\n', tmp_path, 'c1.txt')
+    r = runner.invoke(cli, ['set-book-key', str(gf), '--key', 'schema_version',
+                            '--value', '5'])
+    assert r.exit_code == 0, r.output
+    time.sleep(1)
+    fields = _company_fields(_export(runner, gf, tmp_path))
+    assert fields.get('schema_version') == '5'
+    assert fields.get('province') == 'BC'                  # not disturbed
