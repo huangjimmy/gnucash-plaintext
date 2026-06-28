@@ -977,6 +977,20 @@ instance, are an application preference, not stored in the file, so there is no
 native slot to map them to.) These custom keys are stored together in the book
 and re-emitted on export; they never reach the rendered seller block.
 
+Importing a `company` directive is a **partial update** — for the custom keys as
+well as the known fields. Keys you list are set, keys you omit are **kept**, and
+a key given the null value `#None` is **removed** (JSON Merge Patch semantics):
+
+```
+company
+  province: "Ontario"      # set/update province
+  entity_type: #None       # remove the entity_type key
+  # any custom key not listed here is left untouched
+```
+
+So a small edit never wipes the rest of your book metadata. (`set-book-key`,
+used in migrations, upserts the same way through the same code.)
+
 **Invoice and bill status fields**
 
 The `posted:` and `payment:` fields are always present in exported output.

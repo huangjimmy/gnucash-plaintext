@@ -492,6 +492,47 @@ def get_book_string_option(book, section: str, name: str) -> Optional[str]:
         return None
 
 
+def get_book_custom_metadata(book) -> dict:
+    """Read the book's custom-metadata JSON blob (the keys the `company`
+    directive's non-Business tier and `set-book-key` share) as a dict."""
+    current = get_book_string_option(book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT)
+    if not current:
+        return {}
+    try:
+        data = json.loads(current)
+        return data if isinstance(data, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def merge_book_custom_metadata(book, updates: dict) -> bool:
+    """Upsert keys into the book's custom-metadata blob with **JSON Merge Patch**
+    semantics (RFC 7386): a key with a non-None value is set; a key whose value
+    is None is *removed*; keys not named in `updates` are left untouched. This is
+    the single, shared writer for the `company` directive's custom keys and
+    `set-book-key`, so both behave identically — a partial update never silently
+    drops keys it didn't mention. Returns True if the stored blob changed."""
+    current = get_book_string_option(book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT) or ''
+    try:
+        data = json.loads(current) if current else {}
+        if not isinstance(data, dict):
+            data = {}
+    except (ValueError, TypeError):
+        data = {}
+
+    for key, value in updates.items():
+        if value is None:
+            data.pop(key, None)
+        else:
+            data[key] = value
+
+    blob = json.dumps(data, ensure_ascii=False, sort_keys=True)
+    if blob != current:
+        set_book_string_option(book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT, blob)
+        return True
+    return False
+
+
 def get_custom_metadata(obj) -> dict:
     """
     Read custom metadata from a GnuCash Transaction or Split KVP slot.

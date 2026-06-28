@@ -6,7 +6,6 @@ Converts PlaintextDirective objects from the parser into GnuCash objects
 """
 
 import ctypes
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -32,8 +31,6 @@ from gnucash.gnucash_core_c import (
 )
 
 from infrastructure.gnucash.kvp import (
-    COMPANY_CUSTOM_SECTION,
-    COMPANY_CUSTOM_SLOT,
     KNOWN_ACCOUNT_METADATA_KEYS,
     KNOWN_BILL_METADATA_KEYS,
     KNOWN_CUSTOMER_METADATA_KEYS,
@@ -41,8 +38,10 @@ from infrastructure.gnucash.kvp import (
     KNOWN_SPLIT_METADATA_KEYS,
     KNOWN_TX_METADATA_KEYS,
     KNOWN_VENDOR_METADATA_KEYS,
+    get_book_custom_metadata,
     get_book_string_option,
     get_custom_metadata,
+    merge_book_custom_metadata,
     set_book_string_option,
     set_custom_metadata,
 )
@@ -2544,21 +2543,20 @@ class GnuCashImporter:
                 set_book_string_option(book, 'Business', 'Company Address', addr_val)
                 changed = True
 
-        # Q-029: collect any remaining keys as book-level custom metadata. The
-        # directive replaces the whole custom-metadata blob when it carries any
-        # custom keys (mirrors `set_custom_metadata` semantics on other
-        # objects); an absent custom key set leaves the existing blob alone.
+        # Q-029 (fixed): any key that is not a known Business field or an address
+        # line is book-level custom metadata. The directive is a partial UPSERT,
+        # consistent with the known-field tier above and with the documented
+        # contract that an absent field is left as-is — keys named here are set,
+        # keys NOT named are preserved, and a key given the null value (`#None`)
+        # is removed (JSON Merge Patch). It used to replace the whole blob, so a
+        # partial company directive silently deleted any custom key it didn't
+        # repeat; merge is shared with `set-book-key` so both behave the same.
         known = set(COMPANY_FIELD_TO_SLOT) | set(_COMPANY_ADDR_KEYS)
-        custom = {k: v for k, v in md.items() if k not in known and v is not None}
+        custom = {k: v for k, v in md.items() if k not in known}
         if custom:
-            blob = json.dumps(custom, ensure_ascii=False, sort_keys=True)
-            current = get_book_string_option(
-                book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT) or ''
-            if current:
+            if get_book_custom_metadata(book):
                 had_any = True
-            if current != blob:
-                set_book_string_option(
-                    book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT, blob)
+            if merge_book_custom_metadata(book, custom):
                 changed = True
 
         if not changed:
