@@ -343,10 +343,12 @@ class TestImportCLI:
             assert not os.path.exists(out_file), "output-new file should not be created when nothing is imported"
 
     def test_import_new_reports_account_creation_error(self, import_new_plaintext_invalid_account_type):
-        """--new with an unrecognised account type reports the error in the summary.
+        """--new with an unrecognised account type warns clearly in the summary.
 
-        Account creation errors are non-fatal: the file is kept and the error
-        is shown in the import summary rather than silently swallowed.
+        Account creation errors are non-fatal (the file is kept), but they must
+        NOT pass silently: the summary names the bad type and lists the supported
+        ones so the user can fix it, rather than the account landing with no type
+        and quietly dropping off reports.
         """
         runner = CliRunner()
 
@@ -361,3 +363,8 @@ class TestImportCLI:
             assert os.path.exists(new_gnucash)
             assert "Errors:" in result.output
             assert "Failed to create account" in result.output
+            # The warning must be actionable: name the offending type and point
+            # at the valid ones.
+            assert "Unknown account type" in result.output
+            assert "INVALID_ACCOUNT_TYPE" in result.output
+            assert "Supported types" in result.output

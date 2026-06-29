@@ -1132,8 +1132,10 @@ def _is_falsy(val: str) -> bool:
 
 ACCT_TYPE_MAP = {
     "Asset": ACCT_TYPE_ASSET,
+    "Other Assets": ACCT_TYPE_ASSET,         # README wording for a plain asset
     "Bank": ACCT_TYPE_BANK,
     "Expense": ACCT_TYPE_EXPENSE,
+    "Expenses": ACCT_TYPE_EXPENSE,           # natural plural
     "Income": ACCT_TYPE_INCOME,
     "Equity": ACCT_TYPE_EQUITY,
     "Credit Card": ACCT_TYPE_CREDIT,
@@ -1141,8 +1143,10 @@ ACCT_TYPE_MAP = {
     "Mutual Fund": ACCT_TYPE_MUTUAL,
     "Accounts Payable": ACCT_TYPE_PAYABLE,
     "A/Payable": ACCT_TYPE_PAYABLE,          # GnuCash internal short form
+    "Payable": ACCT_TYPE_PAYABLE,            # natural form
     "Accounts Receivable": ACCT_TYPE_RECEIVABLE,
     "A/Receivable": ACCT_TYPE_RECEIVABLE,    # GnuCash internal short form
+    "Receivable": ACCT_TYPE_RECEIVABLE,      # natural form
     "Stock": ACCT_TYPE_STOCK,
     "Cash": ACCT_TYPE_CASH,
 }
@@ -2080,6 +2084,14 @@ class GnuCashImporter:
         account = Account(book)
         account_fullname = directive.props['account']
         account_type_str = directive.metadata['type']
+        # Resolve the type up front: an unrecognised string fails clearly here,
+        # before the account is attached to the tree, instead of leaving a
+        # half-created INVALID-typed account (which silently drops off reports).
+        if account_type_str not in ACCT_TYPE_MAP:
+            raise ValueError(
+                f"Unknown account type {account_type_str!r} for {account_fullname!r}. "
+                f"Supported types: {', '.join(sorted(ACCT_TYPE_MAP))}.")
+        account_type = ACCT_TYPE_MAP[account_type_str]
         account_names = account_fullname.split(':')
         account_name = account_names[-1]
         parent_account_names = account_names[0:-1]
@@ -2114,7 +2126,7 @@ class GnuCashImporter:
 
         parent.append_child(account)
         account.SetName(account_name)
-        account.SetType(ACCT_TYPE_MAP[account_type_str])
+        account.SetType(account_type)
         account.SetPlaceholder(placeholder)
         account.SetCode(code)
         account.SetDescription(description)

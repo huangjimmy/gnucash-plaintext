@@ -132,8 +132,13 @@ like you do in beancount `2014-05-01 open Liabilities:CreditCard:CapitalOne     
 in GnuCash plaintext, but it will be interpreted as you open account `Liabilities:CreditCard:CapitalOne     USD` on
 2014-05-01.
 
-Supported values of `type` are  6 asset accounts (Cash, Bank, Stock, Mutual Fund, Accounts Receivable, and Other Assets),
-3 liability accounts (Credit Card, Accounts Payable, and Liability), 1 equity account (Equity), 1 income account (Income), and 1 expense account (Expenses).
+Supported `type` values are the GnuCash account types (case-sensitive):
+
+- Asset side: `Asset`, `Bank`, `Cash`, `Stock`, `Mutual Fund`, `Accounts Receivable`
+- Liability side: `Liability`, `Credit Card`, `Accounts Payable`
+- `Equity`, `Income`, `Expense`
+
+`Accounts Receivable` and `Accounts Payable` also accept the GnuCash short forms `A/Receivable` / `A/Payable` and the bare `Receivable` / `Payable`. An unrecognised `type` is reported in the import summary (and the account is skipped), so a typo never silently lands an account with no type.
 
 Also, you cannot declare top level accounts such as `Expenses` in beancount, but you
 need to `open` `Expenses` account first before you can open `Expenses:Groceries & Household` in GnuCash plaintext.

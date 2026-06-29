@@ -96,7 +96,7 @@ fields, producing the same text above.
 ```
 2024-01-01 open Assets:Bank:Checking
 	guid: "abc123"
-	type: "BANK"
+	type: "Bank"
 	commodity.namespace: CURRENCY
 	commodity.mnemonic: CAD
 	erp.cost_centre: "DEPT-42"

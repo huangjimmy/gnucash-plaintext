@@ -58,7 +58,34 @@ def _harden_pytest_capture_teardown():
         cls._gnc_hardened = True
 
 
+def _harden_pytest_logging_teardown():
+    """Same GnuCash fd-churn flake as `_harden_pytest_capture_teardown`, via a
+    different teardown path: pytest's logging plugin closes its `log_file_handler`
+    (a `logging.FileHandler`) in `pytest_unconfigure`. If GnuCash has meanwhile
+    closed that fd, `stream.close()` raises `OSError: [Errno 9] Bad file
+    descriptor` AFTER every test passed — failing the whole run on a teardown
+    artifact (seen on Ubuntu 20.04 / Py3.8). Swallow OSError from logging handler
+    close during teardown, mirroring the capture hardening. Targeted (only
+    OSError, only on close) and defensive."""
+    import logging as _logging
+
+    def _wrap(orig):
+        def _safe_close(self):
+            try:
+                return orig(self)
+            except OSError:
+                return None
+        return _safe_close
+
+    for cls in (_logging.FileHandler, _logging.StreamHandler):
+        if getattr(cls, '_gnc_close_hardened', False):
+            continue
+        cls.close = _wrap(cls.close)
+        cls._gnc_close_hardened = True
+
+
 _harden_pytest_capture_teardown()
+_harden_pytest_logging_teardown()
 
 
 def find_account(root_account, account_path):
