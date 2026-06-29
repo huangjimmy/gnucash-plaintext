@@ -214,13 +214,13 @@ This demonstrates the complete round-trip conversion process:
     fraction: 100
 
 2024-01-01 open Assets:Bank:Checking
-    type: "BANK"
+    type: "Bank"
     placeholder: #False
     commodity.namespace: "CURRENCY"
     commodity.mnemonic: "CNY"
 
 2024-01-01 open Expenses:Groceries
-    type: "EXPENSE"
+    type: "Expense"
     placeholder: #False
     commodity.namespace: "CURRENCY"
     commodity.mnemonic: "CNY"

@@ -303,3 +303,45 @@ def test_foreign_security_priced_with_incomplete_fx_is_a_clear_error(tmp_path):
     assert r.exit_code != 0
     assert 'Error:' in r.output
     assert 'USD' in r.output and 'fx-rates' in r.output
+
+
+def test_natural_form_receivable_payable_land_on_balance_sheet(tmp_path):
+    """Q-033: the natural `type: "Receivable"` / `type: "Payable"` spellings must
+    import as the RECEIVABLE / PAYABLE account *types* (matched by type, not name)
+    and appear on the balance sheet, balanced — not be silently dropped because
+    the importer only knew the longer 'Accounts Receivable' form.
+    """
+    from gnucash.gnucash_core_c import ACCT_TYPE_PAYABLE, ACCT_TYPE_RECEIVABLE
+    runner = CliRunner()
+    gf = _import(runner, tmp_path, 'receivable_payable_natural_form_book.txt')
+    as_of = date(2024, 12, 31)
+    bs = _balance_sheet(gf, as_of)
+
+    asset_paths = {line.path for line in bs.assets.lines}
+    liability_paths = {line.path for line in bs.liabilities.lines}
+
+    # Match by ACCOUNT TYPE: the receivable account really is RECEIVABLE-typed and
+    # the payable account PAYABLE-typed, and each lands in the right section.
+    repo = GnuCashRepository(str(gf))
+    repo.open()
+    try:
+        sheet = BalanceSheet()
+        receivable = payable = 0
+        for a in repo.book.get_root_account().get_descendants():
+            t = a.GetType()
+            if t == ACCT_TYPE_RECEIVABLE:
+                receivable += 1
+                assert sheet._full_path(a) in asset_paths
+            elif t == ACCT_TYPE_PAYABLE:
+                payable += 1
+                assert sheet._full_path(a) in liability_paths
+        assert receivable == 1 and payable == 1   # the natural forms really mapped
+    finally:
+        repo.close()
+
+    # Cash 600 + Receivable 400 = 1000 assets; Payable 250; Equity 750 → balances.
+    assert bs.assets.currency_totals.get('CAD') == Fraction(1000)
+    assert bs.liabilities.currency_totals.get('CAD') == Fraction(250)
+    assert bs.balances is True
+    assert _account_balance(gf, 'Assets:Trade receivable', as_of) == Fraction(400)
+    assert _account_balance(gf, 'Liabilities:Trade payable', as_of) == Fraction(-250)

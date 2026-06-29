@@ -1,0 +1,45 @@
+2024-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2024-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Assets:Cash
+	type: "Bank"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Assets:Trade receivable
+	type: "Receivable"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Liabilities:Trade payable
+	type: "Payable"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-01-01 open Equity:Opening balances
+	type: "Equity"
+	placeholder: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2024-02-01 * "Opening + receivable + payable"
+	Equity:Opening balances -750.00 CAD
+	Assets:Cash 600.00 CAD
+	Assets:Trade receivable 400.00 CAD
+	Liabilities:Trade payable -250.00 CAD

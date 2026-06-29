@@ -77,3 +77,4 @@ and in the **Status** column below.
 | [Q-030](Q-030-rename-account.md) | No way to rename an account; the full round-trip can't express it | enhancement | closed |
 | [Q-031](Q-031-migrate-batch-operations.md) | No batch operations or migrations — every surgical command is one-op-per-save | enhancement | closed |
 | [Q-032](Q-032-closing-entries-and-report.md) | Income statement breaks once books are closed; no balance sheet; no combined report | high | closed |
+| [Q-033](Q-033-natural-account-type-strings-rejected.md) | Natural Receivable/Payable account-type strings are rejected, silently dropping accounts | high | closed |
