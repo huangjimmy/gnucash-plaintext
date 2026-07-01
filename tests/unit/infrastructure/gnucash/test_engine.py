@@ -139,6 +139,29 @@ class TestIterateGlist:
 # ---------------------------------------------------------------------------
 
 class TestLoadGncEngineFallback:
+    def setup_method(self):
+        """Clear the lru_cache so each fallback test exercises the first-call path.
+
+        With @lru_cache(maxsize=1) the function body only executes once per
+        process.  Integration tests that open a real book call load_gnc_engine()
+        and fill the cache with the real CDLL handle, so by the time these unit
+        tests run the cached result would bypass the mocked fallback logic
+        entirely.  Clearing the cache lets the test exercise the fallback path
+        in isolation while the production code still benefits from caching.
+        """
+        load_gnc_engine.cache_clear()
+
+    def teardown_method(self):
+        """Clear the lru_cache so mocked results don't leak into other tests.
+
+        Tests in this class patch ctypes.CDLL and call load_gnc_engine(),
+        filling the cache with MagicMock handles.  Without clearing, any
+        subsequent test that calls load_gnc_engine() — directly or transitively
+        via _iter_taxtables, _find_taxtable_by_guid, etc. — gets the cached
+        MagicMock and fails with opaque ctypes errors.
+        """
+        load_gnc_engine.cache_clear()
+
     def test_runtime_error_from_verify_does_not_break_fallback_chain(self):
         """Bug #2: RuntimeError was not in the except clause.
 
@@ -175,6 +198,21 @@ class TestLoadGncEngineFallback:
                 patch("ctypes.CDLL", side_effect=OSError("not found")), \
                 pytest.raises(RuntimeError, match="Could not load"):
             load_gnc_engine()
+
+    def test_result_is_cached_on_subsequent_calls(self):
+        """@lru_cache(maxsize=1): the return value is cached; body runs once."""
+        # Fill the cache with a mock-backed call first
+        mock_lib = MagicMock()
+        with patch("infrastructure.gnucash.engine._setup_lib_restypes"), \
+                patch("ctypes.CDLL", return_value=mock_lib):
+            first = load_gnc_engine()
+
+        # Second call with different (broken) mocks — returns cached result
+        with patch("ctypes.CDLL", side_effect=OSError("should not be called")):
+            second = load_gnc_engine()
+
+        assert first is second
+        assert first is mock_lib
 
 
 # ---------------------------------------------------------------------------
