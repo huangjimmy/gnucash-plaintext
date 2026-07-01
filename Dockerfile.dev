@@ -28,7 +28,6 @@ RUN groupadd -g 999 docker || true && \
 
 # Install VS Code extensions for better development experience
 RUN code-server --install-extension ms-python.python && \
-    code-server --install-extension ms-python.vscode-pylance && \
     code-server --install-extension charliermarsh.ruff && \
     code-server --install-extension ms-azuretools.vscode-docker && \
     code-server --install-extension yzhang.markdown-all-in-one && \
