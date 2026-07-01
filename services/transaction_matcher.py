@@ -118,6 +118,7 @@ class TransactionMatcher:
 
     def __init__(self):
         """Initialize transaction matcher."""
+        self._account_name_cache = {}
         pass
 
     def find_duplicates(
@@ -181,6 +182,9 @@ class TransactionMatcher:
         Returns:
             5-tuple `(date_string, tuple_of_sorted_account_names, doc_link, tx_num, owner)`
         """
+        if hasattr(transaction, '_cached_signature'):
+            return transaction._cached_signature
+
         date_str = transaction.GetDate().strftime("%Y-%m-%d")
 
         splits = transaction.GetSplitList()
@@ -195,13 +199,16 @@ class TransactionMatcher:
         tx_num = transaction.GetNum()
         owner = _read_owner_from_transaction(transaction)
 
-        return (
+        sig = (
             date_str,
             tuple(sorted(account_names)),
             _normalise(doc_link),
             _normalise(tx_num),
             _normalise(owner),
         )
+
+        transaction._cached_signature = sig
+        return sig
 
     def get_signature_for_plaintext(
         self,
@@ -255,6 +262,9 @@ class TransactionMatcher:
 
     def _get_account_full_name(self, account) -> str:
         """Get full hierarchical name of account (e.g. `"Assets:Bank:Checking"`)."""
+        if account in self._account_name_cache:
+            return self._account_name_cache[account]
+
         names = []
         current = account
         while current is not None:
@@ -262,7 +272,10 @@ class TransactionMatcher:
             if account_name and account_name != "Root Account":
                 names.insert(0, account_name)
             current = current.get_parent()
-        return ":".join(names)
+        full_name = ":".join(names)
+
+        self._account_name_cache[account] = full_name
+        return full_name
 
     def _amounts_match(self, tx1, tx2) -> bool:
         """

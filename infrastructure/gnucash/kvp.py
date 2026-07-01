@@ -23,6 +23,7 @@ import contextlib
 import ctypes
 import json
 import logging
+from functools import lru_cache
 from typing import Optional
 
 PT_DATA_SLOT = 'plaintext_metadata'
@@ -148,7 +149,7 @@ _G_TYPE_STRING = 64  # G_TYPE_STRING on all platforms (GLib constant)
 
 _gobj: Optional[ctypes.CDLL] = None
 
-
+@lru_cache(maxsize=1)
 def _load_gobject() -> Optional[ctypes.CDLL]:
     """Load libgobject-2.0 (needed for GValue init/set/get on GnuCash 3.8)."""
     global _gobj

@@ -32,6 +32,7 @@ give wrong results on any 64-bit platform if the pointer happens to be >4 GB).
 """
 import ctypes
 import logging
+from functools import lru_cache
 
 _ENGINE_LIB_PATHS = [
     '/usr/lib/x86_64-linux-gnu/gnucash/libgnc-engine.so',            # Debian 11/12/13, Ubuntu 22/24
@@ -202,6 +203,7 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncEntryGetBillTaxTable.argtypes       = [ctypes.c_void_p]
 
 
+@lru_cache(maxsize=1)
 def load_gnc_engine() -> ctypes.CDLL:
     """Load libgnc-engine and return a correctly configured ctypes handle.
 
