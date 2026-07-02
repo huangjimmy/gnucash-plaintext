@@ -34,8 +34,8 @@ echo ""
 cleanup() {
     echo ""
     echo "Cleaning up temp directories..."
-    docker run --rm -v "$TEMP_BASE:/cleanup" alpine sh -c "rm -rf /cleanup/*" 2>/dev/null || true
-    rm -rf "$TEMP_BASE" 2>/dev/null || true
+    # docker run --rm -v "$TEMP_BASE:/cleanup" alpine sh -c "rm -rf /cleanup/*" 2>/dev/null || true
+    # rm -rf "$TEMP_BASE" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -115,6 +115,8 @@ export TEMP_BASE
 
 # Run tests in parallel using background jobs
 echo "Running tests in parallel..."
+FAILED_VERSIONS=()
+PASSED_VERSIONS=()
 PIDS=()
 for version in "${VERSIONS[@]}"; do
     echo "  Starting $version..."
@@ -123,13 +125,9 @@ for version in "${VERSIONS[@]}"; do
 done
 echo ""
 echo "All test jobs started. Waiting for completion..."
-echo "(This may take 2-3 minutes depending on your machine)"
 echo ""
 
 # Wait for all background jobs and collect exit codes
-FAILED_VERSIONS=()
-PASSED_VERSIONS=()
-
 for i in "${!VERSIONS[@]}"; do
     version="${VERSIONS[$i]}"
     pid="${PIDS[$i]}"

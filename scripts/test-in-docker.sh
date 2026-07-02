@@ -24,4 +24,4 @@ python3 -m pip install -e . weasyprint pytest-xdist --break-system-packages --us
 echo ""
 echo "Running tests: $TEST_PATH"
 echo "================================"
-PATH="$HOME/.local/bin:$PATH" python3 -m pytest "$TEST_PATH" -n auto -v --tb=short
+PATH="$HOME/.local/bin:$PATH" python3 -m pytest "$TEST_PATH" -n auto --dist=loadfile -v --tb=short
