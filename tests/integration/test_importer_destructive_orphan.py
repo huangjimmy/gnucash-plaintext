@@ -31,7 +31,6 @@ user with the same level of detail as the CLI `unpost-invoices`
 warning.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -53,7 +52,6 @@ def _setup_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
     return gf
 
 
@@ -121,7 +119,6 @@ def test_reimport_entry_modify_on_paid_invoice_warns_and_does_not_duplicate(tmp_
 
     r = _import(runner, gf, 'q015_dest_inv_entrymod_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     original_payment_guids = _bank_tx_guids(gf)
     assert len(original_payment_guids) == 1
 
@@ -130,7 +127,6 @@ def test_reimport_entry_modify_on_paid_invoice_warns_and_does_not_duplicate(tmp_
     _assert_orphan_warning(r.output, next(iter(original_payment_guids)))
     orphans_after_one = _orphan_count(runner, gf)
     assert orphans_after_one >= 1
-    time.sleep(1)
 
     # Idempotency: re-running the SAME v2 must not produce more orphans.
     r = _import(runner, gf, 'q015_dest_inv_entrymod_v2.txt', tmp_path,
@@ -150,7 +146,6 @@ def test_reimport_entry_added_on_paid_invoice_warns(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_inv_entryadd_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_inv_entryadd_v2.txt', tmp_path, alias='v2.txt')
@@ -166,7 +161,6 @@ def test_reimport_entry_removed_on_paid_invoice_warns(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_inv_entryrm_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_inv_entryrm_v2.txt', tmp_path, alias='v2.txt')
@@ -182,7 +176,6 @@ def test_reimport_posted_block_change_on_paid_invoice_warns(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_inv_postedchg_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_inv_postedchg_v2.txt', tmp_path, alias='v2.txt')
@@ -199,7 +192,6 @@ def test_reimport_posted_none_on_paid_invoice_warns(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_inv_postnone_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_inv_postnone_v2.txt', tmp_path, alias='v2.txt')
@@ -215,7 +207,6 @@ def test_reimport_payment_field_modified_on_paid_invoice_warns(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_inv_paymemo_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_inv_paymemo_v2.txt', tmp_path, alias='v2.txt')
@@ -231,7 +222,6 @@ def test_reimport_payment_removed_on_paid_invoice_warns(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_inv_payrm_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     payment_guids = _bank_tx_guids(gf)
     assert len(payment_guids) == 2
 
@@ -258,7 +248,6 @@ def test_reimport_entry_modify_on_paid_bill_warns(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_bill_entrymod_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_bill_entrymod_v2.txt', tmp_path, alias='v2.txt')
@@ -274,7 +263,6 @@ def test_reimport_posted_none_on_paid_bill_warns(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_bill_postnone_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_bill_postnone_v2.txt', tmp_path, alias='v2.txt')
@@ -292,7 +280,6 @@ def test_reimport_entry_modify_on_unpaid_invoice_does_not_warn(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_unpaid_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
 
     r = _import(runner, gf, 'q015_dest_unpaid_v2.txt', tmp_path, alias='v2.txt')
     assert r.exit_code == 0
@@ -309,7 +296,6 @@ def test_identical_reimport_does_not_warn(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_identical.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
 
     r = _import(runner, gf, 'q015_dest_identical.txt', tmp_path, alias='v1_again.txt')
     assert r.exit_code == 0
@@ -327,7 +313,6 @@ def test_add_payment_fast_path_does_not_warn(tmp_path):
 
     r = _import(runner, gf, 'q015_dest_addpay_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
 
     r = _import(runner, gf, 'q015_dest_addpay_v2.txt', tmp_path, alias='v2.txt')
     assert r.exit_code == 0

@@ -26,7 +26,6 @@ destroyed, payment txns orphaned in bank). The differences:
 """
 
 import os
-import time
 
 import pytest
 from click.testing import CliRunner
@@ -109,7 +108,6 @@ def _setup_book_with(runner, tmp_path, fixture_text):
     fix = _write(tmp_path / "in.txt", ACCOUNTS + "\n" + fixture_text)
     r = _import_new(runner, gnc, fix)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gnc
 
 
@@ -459,14 +457,12 @@ class TestQ014OrphanPaymentWarning:
                           ACCOUNTS + "\n" + _fixture('q014_invoice_posted_paid'))
         r = _import_new(runner, gnc, paid_fix)
         assert r.exit_code == 0, r.output
-        time.sleep(1)
         # Then import: also create an unpaid posted invoice (different id).
         unpaid_fix = _fixture('q010_invoice_posted').replace(
             'INV-001', 'INV-UNPAID')
         unpaid_path = _write(tmp_path / "unpaid.txt", unpaid_fix)
         r = _import(runner, gnc, unpaid_path)
         assert r.exit_code == 0, r.output
-        time.sleep(1)
 
         r = runner.invoke(cli, [
             "unpost-invoices", str(gnc),

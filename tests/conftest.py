@@ -88,6 +88,46 @@ _harden_pytest_capture_teardown()
 _harden_pytest_logging_teardown()
 
 
+# Monkey-patch gnucash.Session so every save() first deletes any backup and
+# log file that would collide on the current second's timestamp.  GnuCash
+# names backups as <path>.<YYYYMMDDHHMMSS>.gnucash; two saves in the same
+# wall-clock second hit ERR_FILEIO_BACKUP_ERROR.  By clearing both files
+# right before the real save we eliminate the collision without needing
+# time.sleep(1) between saves.  (This patch is test-only — production code
+# is not affected.)
+def _patch_session_save():
+    import glob as _glob
+    import os as _os
+    import time as _time
+
+    import gnucash as _gnucash
+
+    _orig_init = _gnucash.Session.__init__
+
+    def _patched_init(self, url, *args, **kwargs):
+        self.__gnc_url = url
+        return _orig_init(self, url, *args, **kwargs)
+
+    _gnucash.Session.__init__ = _patched_init
+
+    _orig_save = _gnucash.Session.save
+
+    def _patched_save(self):
+        if hasattr(self, '__gnc_url'):
+            path = self.__gnc_url.replace('xml://', '', 1)
+            ts = _time.strftime('%Y%m%d%H%M%S')
+            for pattern in [f'{path}.{ts}.gnucash',
+                            f'{path}.{ts}.log']:
+                for f in _glob.glob(pattern):
+                    _os.unlink(f)
+        return _orig_save(self)
+
+    _gnucash.Session.save = _patched_save
+
+
+_patch_session_save()
+
+
 def find_account(root_account, account_path):
     """
     Find account by full path (e.g., 'Assets:Bank:Checking').
@@ -396,7 +436,6 @@ def temp_gnucash_for_close_books():
             repo.close()
 
         import time
-        time.sleep(1)  # Ensure tests that save again use a different backup timestamp
 
         yield path
 

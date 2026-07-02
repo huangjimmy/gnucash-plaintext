@@ -290,7 +290,6 @@ class TestAccountBalancePricedbPersistence:
         # GnuCash backup filenames are timestamp-based (second resolution).
         # The fixture saves during setup; without this sleep the CLI save would
         # collide with the same-second backup → ERR_FILEIO_BACKUP_ERROR → no save.
-        time.sleep(1)
 
         fx = _fx_file(tmp_path)
         result = run_cli(temp_gnucash_account_balance, "--as-of", "2024-12-31",

@@ -23,7 +23,6 @@ the external tester.
 
 import os
 import re
-import time
 
 import pytest
 from click.testing import CliRunner
@@ -160,7 +159,6 @@ def _setup_book_with(runner, tmp_path, fixture_text):
     fix = _write(tmp_path / "in.txt", ACCOUNTS + "\n" + fixture_text)
     r = _import_new(runner, gnc, fix)
     assert r.exit_code == 0, f"Setup import failed:\n{r.output}"
-    time.sleep(1)  # GnuCash backup-timestamp safety
     return gnc
 
 
@@ -225,7 +223,6 @@ class TestReimportDoesNotDuplicate:
                            'customer "C001"\n\tname: "Acme"\n\tcurrency: CAD\n')
             r = _import(runner, gnc, again)
             assert r.exit_code == 0, f"Re-import must succeed:\n{r.output}"
-            time.sleep(1)
         text = _exported_biz_text(runner, tmp_path, gnc)
         assert _count_blocks(text, 'customer "C001"') == 1
 
@@ -979,7 +976,6 @@ class TestRoundtripPreservesGuid:
         gnc = tmp_path / "book.gnucash"
         r = _import_new(runner, gnc, "tests/fixtures/business_objects_with_guids.txt")
         assert r.exit_code == 0, f"Import failed:\n{r.output}"
-        time.sleep(1)
 
         text = _exported_biz_text(runner, tmp_path, gnc)
         exported_biz = extract_business_objects(text)
@@ -1051,7 +1047,6 @@ class TestGuidCollisionAcrossObjectTypes:
         )
         r = _import(runner, gnc, _write(tmp_path / "tx.txt", tx_fix))
         assert r.exit_code == 0, f"Setup tx import failed:\n{r.output}"
-        time.sleep(1)
 
         # Read the transaction's actual guid via gnucash bindings.
         tx_guid = self._read_first_guid(gnc, 'Trans')

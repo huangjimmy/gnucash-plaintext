@@ -886,7 +886,6 @@ class TestUpdateTransactionKvpMetadata:
         session.end()
 
         import time
-        time.sleep(1)
 
         # Now update with a directive that adds a new split key
         session2 = _open_session(path)

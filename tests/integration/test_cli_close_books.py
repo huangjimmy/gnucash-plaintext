@@ -589,7 +589,6 @@ class TestCloseBooksCLI:
         runner.invoke(close_books, [
             temp_gnucash_for_close_books, "--closing-date", "2024-12-31"
         ])
-        time.sleep(1)  # avoid backup timestamp collision
         result = runner.invoke(close_books, [
             temp_gnucash_for_close_books, "--closing-date", "2024-12-31", "--force"
         ])

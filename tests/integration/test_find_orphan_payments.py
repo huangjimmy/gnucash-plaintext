@@ -9,7 +9,6 @@ recovery path (the live unpost flow already warns via the
 """
 
 import os
-import time
 
 import pytest
 from click.testing import CliRunner
@@ -83,7 +82,6 @@ def _setup_book(runner, tmp_path, fixture_text):
     fix = _write(tmp_path / "in.txt", ACCOUNTS + "\n" + fixture_text)
     r = _import_new(runner, gnc, fix)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gnc
 
 
@@ -93,7 +91,6 @@ def _make_orphan_invoice(runner, tmp_path, fixture_name, record_id, cmd):
     gnc = _setup_book(runner, tmp_path, _fixture(fixture_name))
     r = runner.invoke(cli, [cmd, str(gnc), record_id])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gnc
 
 
@@ -205,7 +202,6 @@ class TestFindOrphanPayments:
         fix = _write(tmp_path / "in.txt", ACCOUNTS + manual_tx)
         r = _import_new(runner, gnc, fix)
         assert r.exit_code == 0, r.output
-        time.sleep(1)
 
         r = runner.invoke(cli, ["find-orphan-payments", str(gnc)])
         assert r.exit_code == 0, r.output
@@ -232,7 +228,6 @@ class TestFindOrphanPayments:
         r = _import(runner, gnc, _write(tmp_path / "orphan.txt",
                                         ACCOUNTS + "\n" + orphan_fixture))
         assert r.exit_code == 0, r.output
-        time.sleep(1)
 
         # Add a manual bank tx (txn_type='N').
         manual_tx = """
@@ -242,12 +237,10 @@ class TestFindOrphanPayments:
 """
         r = _import(runner, gnc, _write(tmp_path / "manual.txt", manual_tx))
         assert r.exit_code == 0, r.output
-        time.sleep(1)
 
         # Unpost INV-ORPHAN (but NOT INV-PAID).
         r = runner.invoke(cli, ["unpost-invoices", str(gnc), "INV-ORPHAN"])
         assert r.exit_code == 0, r.output
-        time.sleep(1)
 
         # The classifier must find exactly the one orphan, not 2 or 3.
         r = runner.invoke(cli, ["find-orphan-payments", str(gnc)])
@@ -318,7 +311,6 @@ class TestFindOrphanPayments:
         r = runner.invoke(cli, ["import", "--new", str(fresh), str(exported),
                                 "--include-business-objects"])
         assert r.exit_code == 0, r.output
-        time.sleep(1)
 
         # 4. The classifier must still find the orphan on the restored
         # book. Detection now reads `txn_type: P` and `owner: customer:C001`
@@ -345,12 +337,10 @@ class TestFindOrphanPayments:
         r = _import(runner, gnc, _write(tmp_path / "inv2.txt",
                                         ACCOUNTS + "\n" + fixture_002))
         assert r.exit_code == 0, r.output
-        time.sleep(1)
 
         for inv_id in ('INV-001', 'INV-002'):
             r = runner.invoke(cli, ["unpost-invoices", str(gnc), inv_id])
             assert r.exit_code == 0, r.output
-            time.sleep(1)
 
         r = runner.invoke(cli, ["find-orphan-payments", str(gnc)])
         assert r.exit_code == 0, r.output

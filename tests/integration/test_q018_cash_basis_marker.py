@@ -6,7 +6,6 @@ retarget for same-day post + pay, KVP path for arbitrary custom metadata).
 Q-018 blesses the canonical name and pins the round-trip via these tests.
 """
 import re
-import time
 from pathlib import Path
 
 import gnucash.gnucash_core_c as gc
@@ -122,13 +121,11 @@ def _build_paid_book(runner, tmp_path):
     gnc = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
 
     bank_path = tmp_path / 'bank.txt'
     bank_path.write_text(_fx('q018_cash_bank.txt'))
     r = runner.invoke(cli, ['import', str(gnc), str(bank_path)])
     assert r.exit_code == 0, f'bank: {r.output}'
-    time.sleep(1)
 
     tx_guid, ar_sg = _bank_tx_handles(gnc, 113.0)
     inv_path = tmp_path / 'invoice.txt'
@@ -140,7 +137,6 @@ def _build_paid_book(runner, tmp_path):
     r = runner.invoke(cli, ['import', str(gnc), str(inv_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'invoice: {r.output}'
-    time.sleep(1)
     return gnc
 
 
@@ -200,13 +196,11 @@ def test_cash_basis_with_partial_payment_is_allowed(tmp_path):
     gnc = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
 
     bank_path = tmp_path / 'bank.txt'
     bank_path.write_text(_fx('q018_partial_bank.txt'))
     r = runner.invoke(cli, ['import', str(gnc), str(bank_path)])
     assert r.exit_code == 0
-    time.sleep(1)
 
     tx_guid, ar_sg = _bank_tx_handles(gnc, 50.0)
     inv_path = tmp_path / 'invoice.txt'
@@ -220,7 +214,6 @@ def test_cash_basis_with_partial_payment_is_allowed(tmp_path):
     assert r.exit_code == 0, (
         f'partial-payment + cash_basis must NOT be rejected; got:\n{r.output}'
     )
-    time.sleep(1)
 
     state = _invoice_state(gnc, 'INV-Q18-PARTIAL-200')
     assert state['kvp'].get('cash_basis') == 'true'
@@ -259,12 +252,10 @@ def test_cash_basis_flag_does_not_appear_in_pdf_or_html(tmp_path):
     gnc_b = tmp_path / 'book_b.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gnc_b), ACCOUNTS])
     assert r.exit_code == 0
-    time.sleep(1)
     bank_path_b = tmp_path / 'bank_b.txt'
     bank_path_b.write_text(_fx('q018_cash_bank.txt'))
     r = runner.invoke(cli, ['import', str(gnc_b), str(bank_path_b)])
     assert r.exit_code == 0
-    time.sleep(1)
     tx_guid_b, ar_sg_b = _bank_tx_handles(gnc_b, 113.0)
     inv_path_b = tmp_path / 'invoice_b.txt'
     inv_path_b.write_text(
@@ -275,7 +266,6 @@ def test_cash_basis_flag_does_not_appear_in_pdf_or_html(tmp_path):
     r = runner.invoke(cli, ['import', str(gnc_b), str(inv_path_b),
                             '--include-business-objects'])
     assert r.exit_code == 0
-    time.sleep(1)
 
     def _render(gnc):
         from gnucash import Query
@@ -349,13 +339,11 @@ def _import_into_fresh_book(runner, tmp_path, fixture_name):
     gnc = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
     fx_path = tmp_path / fixture_name
     fx_path.write_text(_fx(fixture_name))
     r = runner.invoke(cli, ['import', str(gnc), str(fx_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'{fixture_name}: {r.output}'
-    time.sleep(1)
     return gnc
 
 

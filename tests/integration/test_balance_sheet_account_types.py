@@ -23,7 +23,6 @@ account-balance code paths:
   * the original multi-currency repro now balances with Bank balances present.
 """
 
-import time
 from datetime import date
 from fractions import Fraction
 from pathlib import Path
@@ -43,14 +42,12 @@ def _import(runner, tmp_path, fixture, name='book.gnucash'):
     gf = tmp_path / name
     r = runner.invoke(cli, ['import', '--new', str(gf), str(FIXTURES / fixture)])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
 def _close(runner, gf, closing_date):
     r = runner.invoke(cli, ['close-books', str(gf), '--closing-date', closing_date])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
 
 def _account_balance(gf, prefix, as_of):

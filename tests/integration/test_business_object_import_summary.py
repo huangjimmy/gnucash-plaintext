@@ -31,7 +31,6 @@ underlying behaviour.
 """
 
 import re
-import time
 
 import pytest
 from click.testing import CliRunner
@@ -85,7 +84,6 @@ class TestPerDirectiveOutput:
         gnc = tmp_path / "test.gnucash"
         r1 = _import_new(runner, gnc)
         assert r1.exit_code == 0
-        time.sleep(1)  # GnuCash backup-timestamp safety
 
         r2 = _reimport(runner, gnc)
         assert r2.exit_code == 0, r2.output
@@ -101,7 +99,6 @@ class TestPerDirectiveOutput:
         gnc = tmp_path / "test.gnucash"
         r1 = _import_new(runner, gnc)
         assert r1.exit_code == 0
-        time.sleep(1)
 
         r2 = _reimport(runner, gnc)
         assert r2.exit_code == 0, r2.output
@@ -147,7 +144,6 @@ class TestAggregateSummary:
         gnc = tmp_path / "test.gnucash"
         r1 = _import_new(runner, gnc)
         assert r1.exit_code == 0
-        time.sleep(1)
 
         r2 = _reimport(runner, gnc)
         assert r2.exit_code == 0, r2.output

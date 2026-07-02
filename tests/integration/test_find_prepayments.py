@@ -10,7 +10,6 @@ Read-only command, parallel to Q-014's `find-orphan-payments`:
     bank tx GUID + date, ar/ap account
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -29,7 +28,6 @@ def _setup_empty(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -39,7 +37,6 @@ def _import_biz_fixture(runner, gf, fixture_name, tmp_path, alias=None):
     r = runner.invoke(cli, ['import', str(gf), str(p),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'{fixture_name}: {r.output}'
-    time.sleep(1)
 
 
 def _credit_count(output):

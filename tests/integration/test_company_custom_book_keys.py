@@ -10,7 +10,6 @@ not stored in the file), so they live in a dedicated book option slot as one
 JSON blob.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -38,7 +37,6 @@ CUSTOM = {
 def _new_book(runner, tmp_path, name='book.gnucash'):
     gf = tmp_path / name
     assert runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS]).exit_code == 0
-    time.sleep(1)
     return gf
 
 
@@ -47,7 +45,6 @@ def _import(runner, gf, content, tmp_path, name):
     p.write_text(content)
     r = runner.invoke(cli, ['import', str(gf), str(p), '--include-business-objects'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
 
 def _export(runner, gf, tmp_path, name='exp.txt'):
@@ -105,7 +102,6 @@ def test_custom_keys_survive_double_roundtrip(tmp_path):
     assert runner.invoke(cli, ['import', '--new', str(gf_b),
                                str(tmp_path / 'e1_in.txt'),
                                '--include-business-objects']).exit_code == 0
-    time.sleep(1)
     block2 = _company_block(_export(runner, gf_b, tmp_path, 'e2.txt'))
     assert block1 == block2, f'--- e1 ---\n{block1}\n--- e2 ---\n{block2}'
 
@@ -196,7 +192,6 @@ def test_set_book_key_does_not_disturb_other_custom_keys(tmp_path):
     r = runner.invoke(cli, ['set-book-key', str(gf), '--key', 'schema_version',
                             '--value', '5'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     fields = _company_fields(_export(runner, gf, tmp_path))
     assert fields.get('schema_version') == '5'
     assert fields.get('province') == 'BC'                  # not disturbed

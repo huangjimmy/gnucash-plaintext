@@ -16,7 +16,6 @@ duplicates. They use a real GnuCash session (`gnucash.Session`) and a
 real .gnucash file on disk; nothing is mocked.
 """
 import gzip
-import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -41,7 +40,6 @@ def fresh_book(tmp_path):
     gnc = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
     return gnc
 
 
@@ -216,7 +214,6 @@ def test_second_write_replaces_first_value(fresh_book):
     first_value = _read_business_slot(fresh_book, 'Company Name')
     assert first_value == 'First Name'
 
-    time.sleep(1.1)
     assert _write_business_options(fresh_book, ('Company Name', 'Second Name'))[0]
     second_value = _read_business_slot(fresh_book, 'Company Name')
     assert second_value == 'Second Name', (
@@ -280,7 +277,6 @@ def test_setting_new_key_preserves_unrelated_slots(fresh_book):
     assert _write_business_options(
         fresh_book, ('Company Email Address', 'hi@acme.test'),
     )[0]
-    time.sleep(1.1)
     assert _write_business_options(
         fresh_book, ('Company Name', 'Acme'),
     )[0]

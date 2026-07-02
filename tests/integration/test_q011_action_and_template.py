@@ -166,7 +166,6 @@ invoice "INV-001"
         r1 = _import_new(runner, gnc, _write(tmp_path / "no_action.txt",
                                              _make_fixture('')))
         assert r1.exit_code == 0, r1.output
-        time.sleep(1)
 
         # Re-import: explicit empty action. Should be reported as 'unchanged'.
         r2 = runner.invoke(cli, [

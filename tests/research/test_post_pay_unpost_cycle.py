@@ -18,7 +18,6 @@ Run with:
 
 import os
 import shutil
-import time
 
 from click.testing import CliRunner
 
@@ -247,7 +246,6 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     r = runner.invoke(cli, ["import", "--new", str(gnc), fix_a,
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     entry_guid_trace["A"] = _read_entry_guids(str(gnc), "INV-001")
     text_a = _snapshot(runner, gnc, tmp_path, "step_A_created")
@@ -260,7 +258,6 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     r = runner.invoke(cli, ["import", str(gnc), fix_b,
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     entry_guid_trace["B"] = _read_entry_guids(str(gnc), "INV-001")
     text_b = _snapshot(runner, gnc, tmp_path, "step_B_posted")
@@ -275,7 +272,6 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     r = runner.invoke(cli, ["import", str(gnc), fix_c,
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     entry_guid_trace["C"] = _read_entry_guids(str(gnc), "INV-001")
     text_c = _snapshot(runner, gnc, tmp_path, "step_C_paid")
@@ -298,7 +294,6 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
         f"bank-side payment transaction. Got:\n{r.output}")
     assert "Assets:Bank" in r.output
     assert "CAD 100.00" in r.output
-    time.sleep(1)
 
     entry_guid_trace["D"] = _read_entry_guids(str(gnc), "INV-001")
     text_d = _snapshot(runner, gnc, tmp_path, "step_D_unposted")
@@ -314,7 +309,6 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     r = runner.invoke(cli, ["import", str(gnc), fix_e,
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     entry_guid_trace["E"] = _read_entry_guids(str(gnc), "INV-001")
     text_e = _snapshot(runner, gnc, tmp_path, "step_E_reposted")
@@ -327,7 +321,6 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     r = runner.invoke(cli, ["import", str(gnc), fix_f,
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     entry_guid_trace["F"] = _read_entry_guids(str(gnc), "INV-001")
     text_f = _snapshot(runner, gnc, tmp_path, "step_F_repaid")

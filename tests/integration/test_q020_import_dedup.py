@@ -9,7 +9,6 @@ This drives the CLI end-to-end so the wiring
 `cli/import_cmd.py → use_case.import_from_file → matcher` is exercised.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -24,7 +23,6 @@ def _import(runner, gnucash_file, fixture_name):
     # resolution; consecutive saves within the same second collide with
     # ERR_FILEIO_BACKUP_ERROR. Sleep before each invocation to keep tests
     # deterministic across distros.
-    time.sleep(1)
     return runner.invoke(import_transactions, [gnucash_file, str(FIXTURES / fixture_name)])
 
 

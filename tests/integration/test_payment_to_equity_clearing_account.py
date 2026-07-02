@@ -6,7 +6,6 @@ through `Equity:Owner equity:Owner's equity`. Both invoice and bill payments
 must accept it.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -22,7 +21,6 @@ def _new_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -55,7 +53,6 @@ def test_invoice_payment_to_owner_equity_closes_ar(tmp_path):
     gf = _new_book(runner, tmp_path)
     r = _import(runner, gf, 'q022_invoice_paid_to_equity.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     # AR cleared (invoice settled); the $100 receipt landed in owner's equity.
     assert _balance(gf, 'Assets.Accounts Receivable') == 0.0
     assert abs(_balance(gf, EQUITY)) == 100.0
@@ -66,7 +63,6 @@ def test_bill_payment_to_owner_equity_closes_ap(tmp_path):
     gf = _new_book(runner, tmp_path)
     r = _import(runner, gf, 'q022_bill_paid_to_equity.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     # AP cleared (bill settled); the $60 was paid from personal funds via equity.
     assert _balance(gf, 'Liabilities.Accounts Payable') == 0.0
     assert abs(_balance(gf, EQUITY)) == 60.0

@@ -16,7 +16,6 @@ existing payment removed, payment field modified) still falls through to
 the destructive rebuild path the test suite already covers.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -35,7 +34,6 @@ def _setup_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, f'accounts import: {r.output}'
-    time.sleep(1)
     return gf
 
 
@@ -116,7 +114,6 @@ def test_invoice_adding_partial_payment_preserves_posting_and_entry_guids(tmp_pa
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_add_inv_v1.txt', tmp_path)
     assert r.exit_code == 0, f'v1: {r.output}'
-    time.sleep(1)
     snap1 = _snapshot(gf, business_id='INV-INC-ADD-100')
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_add_inv_v2.txt', tmp_path)
@@ -141,7 +138,6 @@ def test_invoice_adding_partial_payment_does_not_orphan_existing_bank_tx(tmp_pat
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_add_inv_v1.txt', tmp_path)
     assert r.exit_code == 0, f'v1: {r.output}'
-    time.sleep(1)
     snap1 = _snapshot(gf, business_id='INV-INC-ADD-100')
     original_payment_guid = snap1['lot_payment_tx_guids'][0]
 
@@ -179,7 +175,6 @@ def test_invoice_repeated_identical_reimport_is_unchanged(tmp_path):
     r = _import_biz_fixture(runner, gf, 'q015_inc_identical.txt', tmp_path,
                             alias='v1.txt')
     assert r.exit_code == 0, f'v1: {r.output}'
-    time.sleep(1)
     snap1 = _snapshot(gf, business_id='INV-INC-IDENT-100')
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_identical.txt', tmp_path,
@@ -204,7 +199,6 @@ def test_invoice_modifying_existing_payment_memo_still_uses_destructive_rebuild(
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_memo_v1.txt', tmp_path)
     assert r.exit_code == 0, f'v1: {r.output}'
-    time.sleep(1)
     snap1 = _snapshot(gf, business_id='INV-INC-MEMO-100')
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_memo_v2.txt', tmp_path)
@@ -230,7 +224,6 @@ def test_invoice_removing_payment_via_reimport_still_uses_destructive_rebuild(tm
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_remove_v1.txt', tmp_path)
     assert r.exit_code == 0, f'v1: {r.output}'
-    time.sleep(1)
     snap1 = _snapshot(gf, business_id='INV-INC-REMOVE-100')
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_remove_v2.txt', tmp_path)
@@ -250,7 +243,6 @@ def test_bill_adding_partial_payment_preserves_posting_and_entry_guids(tmp_path)
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_add_bill_v1.txt', tmp_path)
     assert r.exit_code == 0, f'v1: {r.output}'
-    time.sleep(1)
     snap1 = _snapshot(gf, business_id='BILL-INC-ADD-100', is_bill=True)
 
     r = _import_biz_fixture(runner, gf, 'q015_inc_add_bill_v2.txt', tmp_path)

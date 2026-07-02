@@ -63,7 +63,6 @@ def import_fixture(runner, gnucash_file, fixture=FIXTURE):
     # the next save in the same test would collide with the import's backup
     # timestamp and fail silently. 1 second is enough to guarantee a new
     # timestamp on the subsequent save.
-    time.sleep(1)
 
 
 def export_biz(runner, gnucash_file):

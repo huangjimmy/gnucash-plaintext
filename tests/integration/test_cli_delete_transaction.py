@@ -11,7 +11,6 @@ Verifies:
 
 import os
 import tempfile
-import time
 
 import pytest
 from click.testing import CliRunner
@@ -274,7 +273,6 @@ class TestDeleteTransactionsCli:
             # re-import silently no-ops on disk and `imported_count`
             # comes back as 0 (false test pass otherwise). Same footgun
             # the Q-010 unpost test documents at length.
-            time.sleep(1)
 
             # Both blocks present in the concatenated backup
             with open(backup) as f:
@@ -337,7 +335,6 @@ class TestDeleteTransactionsCli:
             # See comment in test_multi_delete_backup_is_reimportable
             # above re: ERR_FILEIO_BACKUP_ERROR — same per-second
             # backup-filename collision applies here.
-            time.sleep(1)
 
             # Re-import backup
             repo = GnuCashRepository(path)

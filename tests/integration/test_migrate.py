@@ -6,7 +6,6 @@ A migration file is an ordered list of operation lines — each line is a CLI
 invocation minus the book (the book is `migrate`'s target), parsed by Click.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -19,7 +18,6 @@ BOOK = str(Path('tests/fixtures/rename_account_book.txt'))
 def _new_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     assert runner.invoke(cli, ['import', '--new', str(gf), BOOK]).exit_code == 0
-    time.sleep(1)
     return gf
 
 
@@ -65,7 +63,6 @@ def test_applies_a_batch_of_renames_in_one_run(tmp_path):
     r = runner.invoke(cli, ['migrate', str(gf), str(d)])
     assert r.exit_code == 0, r.output
     assert '1 save' in r.output
-    time.sleep(1)
 
     after = _accounts(gf)
     assert 'Assets:Bank:Chequing' in after and 'Expenses:Food' in after
@@ -185,7 +182,6 @@ def test_version_marker_is_set_and_round_trips(tmp_path):
     gf = _new_book(runner, tmp_path)
     d = _migrations(tmp_path, {'0001.txt': 'set-book-key --key schema_version --value 3\n'})
     assert runner.invoke(cli, ['migrate', str(gf), str(d)]).exit_code == 0
-    time.sleep(1)
     out = tmp_path / 'exp.txt'
     assert runner.invoke(cli, ['export', str(gf), str(out),
                                '--include-business-objects']).exit_code == 0

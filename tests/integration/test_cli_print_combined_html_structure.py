@@ -25,7 +25,6 @@ XHTML — `<meta charset>` and friends self-close HTML-style without
 the slash). Tests assert structural counts rather than XML
 well-formedness so they reflect the actual format contract.
 """
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -47,13 +46,11 @@ def _book_with_two_invoices(runner, tmp_path):
     gnc = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
     fx1 = tmp_path / 'inv1.txt'
     fx1.write_text(_fx('q019_unposted_cash_with_tax.txt'))
     r = runner.invoke(cli, ['import', str(gnc), str(fx1),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'inv1: {r.output}'
-    time.sleep(1)
     # Second invoice — rewrite IDs and customer so the importer treats
     # it as a new record rather than an update to the first.
     fx2_text = _fx('q019_unposted_cash_with_tax.txt').replace(
@@ -68,7 +65,6 @@ def _book_with_two_invoices(runner, tmp_path):
     r = runner.invoke(cli, ['import', str(gnc), str(fx2),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'inv2: {r.output}'
-    time.sleep(1)
     return gnc, 'INV-Q19-CASH-TAX-200', 'INV-Q19-CASH-TAX-201'
 
 
@@ -77,13 +73,11 @@ def _book_with_two_bills(runner, tmp_path):
     gnc = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
     fx1 = tmp_path / 'bill1.txt'
     fx1.write_text(_fx('q019_unposted_cash_bill.txt'))
     r = runner.invoke(cli, ['import', str(gnc), str(fx1),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'bill1: {r.output}'
-    time.sleep(1)
     fx2_text = _fx('q019_unposted_cash_bill.txt').replace(
         'BILL-Q19-CASH-TAX-400', 'BILL-Q19-CASH-TAX-401',
     ).replace(
@@ -96,7 +90,6 @@ def _book_with_two_bills(runner, tmp_path):
     r = runner.invoke(cli, ['import', str(gnc), str(fx2),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'bill2: {r.output}'
-    time.sleep(1)
     return gnc, 'BILL-Q19-CASH-TAX-400', 'BILL-Q19-CASH-TAX-401'
 
 

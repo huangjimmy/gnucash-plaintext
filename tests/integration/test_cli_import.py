@@ -6,7 +6,6 @@ These tests verify the CLI command works end-to-end.
 
 import os
 import tempfile
-import time
 
 from click.testing import CliRunner
 
@@ -332,7 +331,6 @@ class TestImportCLI:
             runner.invoke(import_transactions, [
                 '--new', new_gnucash, import_new_plaintext_with_transaction,
             ])
-            time.sleep(1)  # avoid backup timestamp collision on OpenSUSE
             # Second import: duplicate — nothing new should be written
             result = runner.invoke(import_transactions, [
                 new_gnucash, import_new_plaintext_with_transaction,

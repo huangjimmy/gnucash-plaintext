@@ -10,7 +10,6 @@ credit existed in the book yet was invisible to the credit-listing commands —
 no badge for downstream tools. This pins that the retarget residual is surfaced.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -29,7 +28,6 @@ def _setup_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -149,13 +147,11 @@ def _setup_retarget_overpayment(runner, tmp_path):
     r = _import_text(runner, gf, _fixture('q015_oh_retarget_over_pre_bank.txt'),
                      'pre_bank.txt', tmp_path, biz=False)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     bank_guid = _bank_tx_guid(gf, 150.0)
     assert bank_guid is not None
     biz = _fixture('q015_oh_retarget_over_biz.txt').replace('{txn_guid}', bank_guid)
     r = _import_text(runner, gf, biz, 'inv.txt', tmp_path)
     assert r.exit_code == 0, f'retarget+prepayment import failed: {r.output}'
-    time.sleep(1)
     return gf
 
 
@@ -189,13 +185,11 @@ def test_bill_retarget_overpayment_residual_credit_in_export_accounts(tmp_path):
     r = _import_text(runner, gf, _fixture('q015_oh_bill_retarget_over_pre_bank.txt'),
                      'pre_bank.txt', tmp_path, biz=False)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     bank_guid = _bank_tx_guid(gf, -150.0)
     assert bank_guid is not None
     biz = _fixture('q015_oh_bill_retarget_over_biz.txt').replace('{txn_guid}', bank_guid)
     r = _import_text(runner, gf, biz, 'bill.txt', tmp_path)
     assert r.exit_code == 0, f'bill retarget+prepayment import failed: {r.output}'
-    time.sleep(1)
 
     out = tmp_path / 'accounts.txt'
     r = runner.invoke(cli, ['export-accounts', str(gf), str(out)])
@@ -226,7 +220,6 @@ def test_find_prepayments_warns_on_ownerless_credit_lot(tmp_path):
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
     _craft_ownerless_ar_credit(gf, amount=-77.0)
-    time.sleep(1)
 
     # The guard sees the ownerless lot...
     found = _ownerless_credit_lots(gf)
