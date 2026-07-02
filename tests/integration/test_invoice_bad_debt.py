@@ -5,7 +5,6 @@ invoice payment may be an asset (cash) or an expense (write-off); a bill payment
 must be an asset (an unpaid bill is debt forgiveness — a gain — out of scope).
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -20,7 +19,6 @@ def _new_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -53,7 +51,6 @@ def test_invoice_written_off_to_expense(tmp_path):
     gf = _new_book(runner, tmp_path)
     r = _import(runner, gf, 'q_invoice_bad_debt.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     # AR cleared (invoice settled), the $100 booked to the bad-debt expense.
     assert _balance(gf, 'Assets.Accounts Receivable') == 0.0
     assert _balance(gf, 'Expenses.Supplies') == 100.0

@@ -405,7 +405,6 @@ class TestUpdateTransactionSplitStructure:
         session.end()
 
         import time
-        time.sleep(1)  # GnuCash backup filenames include a timestamp; avoid collision
 
         # Now update: remove Dining split
         session2 = _open_session(path)
@@ -702,7 +701,6 @@ class TestUpdateTransactionDuplicateAccountSplits:
         session.end()
 
         import time
-        time.sleep(1)
 
         # Now update with only 2 Dining splits — the third must be destroyed
         session2 = _open_session(path)
@@ -723,7 +721,6 @@ class TestUpdateTransactionDuplicateAccountSplits:
         session2.save()
         session2.end()
 
-        time.sleep(1)
 
         session3 = _open_session(path)
         book3 = session3.book

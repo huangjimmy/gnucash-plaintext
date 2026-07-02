@@ -4,7 +4,6 @@ named statements against one open book.
 Book (tests/fixtures/closing_book.txt): Assets 700, net income 700.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -17,7 +16,6 @@ BOOK = str(Path('tests/fixtures/closing_book.txt'))
 def _new_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     assert runner.invoke(cli, ['import', '--new', str(gf), BOOK]).exit_code == 0
-    time.sleep(1)
     return gf
 
 
@@ -30,7 +28,6 @@ def _balance_sheet(runner, gf):
 def _close(runner, gf):
     assert runner.invoke(cli, ['close-books', str(gf),
                                '--closing-date', '2026-12-31']).exit_code == 0
-    time.sleep(1)
 
 
 def test_balance_sheet_balances_before_close(tmp_path):

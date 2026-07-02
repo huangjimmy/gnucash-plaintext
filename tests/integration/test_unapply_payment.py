@@ -6,7 +6,6 @@ returns to Outstanding, or partial if other payments remain) and re-homed to
 `--to` is required and accepts any account type.
 """
 
-import time
 from fractions import Fraction
 from pathlib import Path
 
@@ -64,7 +63,6 @@ def _new_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -74,7 +72,6 @@ def _import(runner, gf, text, name, tmp_path):
     r = runner.invoke(cli, ['import', str(gf), str(p),
                             '--include-business-objects'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return r
 
 
@@ -126,7 +123,6 @@ def test_unapply_single_payment_reopens_invoice_and_rehomes(tmp_path):
                             '--to', 'Liabilities'])
     assert r.exit_code == 0, r.output
     assert 'unapplied 1 payment' in r.output, r.output
-    time.sleep(1)
 
     # AR back to full outstanding; the $40 re-homed to Liabilities; bank intact.
     assert _bal(gf, 'Assets.Accounts Receivable') == 100.0
@@ -165,7 +161,6 @@ def test_unapply_one_of_two_payments_leaves_partial(tmp_path):
     r = runner.invoke(cli, ['unapply-payment', str(gf), 'INV-2',
                             '--txn', guid30, '--to', 'Liabilities'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     # the $40 stays applied → outstanding 60 (partial); the $30 re-homed
     assert _bal(gf, 'Assets.Accounts Receivable') == 60.0
     assert abs(_bal(gf, 'Liabilities')) == 30.0
@@ -179,7 +174,6 @@ def test_unapply_all_returns_fully_outstanding(tmp_path):
     r = runner.invoke(cli, ['unapply-payment', str(gf), 'INV-2',
                             '--all', '--to', 'Liabilities'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     assert _bal(gf, 'Assets.Accounts Receivable') == 100.0   # fully outstanding
     assert abs(_bal(gf, 'Liabilities')) == 70.0              # 40 + 30 re-homed
 
@@ -294,7 +288,6 @@ def test_unapply_one_of_several_invoices_on_one_bank_tx(tmp_path):
     p.write_text(Path('tests/fixtures/q016_multi_invoice_bank.txt').read_text())
     r = runner.invoke(cli, ['import', str(gf), str(p)])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     splits = _all_splits(gf, 'Assets.Accounts Receivable')
     bank_guid = next(txg for _spg, txg, a in _all_splits(gf, 'Assets.Bank')
@@ -307,7 +300,6 @@ def test_unapply_one_of_several_invoices_on_one_bank_tx(tmp_path):
     p2.write_text(inv_text)
     r = runner.invoke(cli, ['import', str(gf), str(p2), '--include-business-objects'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     # all 3 paid → AR net 0
     assert _bal(gf, 'Assets.Accounts Receivable') == 0.0
@@ -315,7 +307,6 @@ def test_unapply_one_of_several_invoices_on_one_bank_tx(tmp_path):
     r = runner.invoke(cli, ['unapply-payment', str(gf), 'INV-Q16-B-120',
                             '--to', 'Liabilities'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     # only B reopened: AR = +400 posting − 100(A) − 180(C) = +120 (B outstanding)
     assert _bal(gf, 'Assets.Accounts Receivable') == 120.0
@@ -333,7 +324,6 @@ def test_unapply_bill_payment(tmp_path):
     r = runner.invoke(cli, ['unapply-payment', str(gf), 'BILL-1', '--bill',
                             '--to', 'Liabilities'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     # AP back to fully owed; the +40 re-homed
     assert _bal(gf, 'Liabilities.Accounts Payable') == -100.0
     assert abs(_bal(gf, 'Liabilities')) == 40.0
@@ -345,7 +335,6 @@ def test_invoice_stays_posted_after_unapply_and_roundtrips(tmp_path):
     _import(runner, gf, INV_ONE_PAYMENT, 'inv.txt', tmp_path)
     r = runner.invoke(cli, ['unapply-payment', str(gf), 'INV-1', '--to', 'Liabilities'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     out = tmp_path / 'exp.txt'
     r = runner.invoke(cli, ['export', str(gf), str(out), '--include-business-objects'])
     assert r.exit_code == 0, r.output
@@ -384,7 +373,6 @@ def test_unapply_one_of_two_same_amount_payments_by_guid(tmp_path):
     r = runner.invoke(cli, ['unapply-payment', str(gf), 'INV-SAME',
                             '--txn', forties[0], '--to', 'Liabilities'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     # one $40 remains applied → outstanding 60; exactly one $40 re-homed; both
     # bank txs still present (nothing deleted)
@@ -424,7 +412,6 @@ def test_unapply_two_of_three_payments_via_repeated_txn(tmp_path):
                             '--txn', g40, '--txn', g20, '--to', 'Liabilities'])
     assert r.exit_code == 0, r.output
     assert 'unapplied 2 payments' in r.output, r.output
-    time.sleep(1)
 
     # the $30 stays applied → outstanding 70; the $40+$20 = $60 re-homed
     assert _bal(gf, 'Assets.Accounts Receivable') == 70.0

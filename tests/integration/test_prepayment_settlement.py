@@ -11,7 +11,6 @@ error. Closed credits round-trip: the clearing exports as `lot_owner:` and a
 fresh re-import rebuilds the settlement.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -30,7 +29,6 @@ def _new_book(runner, tmp_path, name='book.gnucash'):
     gf = tmp_path / name
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -44,7 +42,6 @@ def _import_fixture(runner, gf, fixture_name, tmp_path, alias=None):
 def _import_primer(runner, gf, fixture_name, tmp_path):
     r = _import_fixture(runner, gf, fixture_name, tmp_path, alias='primer.txt')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
 
 def _setup_customer_credit(runner, tmp_path):
@@ -126,7 +123,6 @@ def test_customer_refund_closes_credit(tmp_path):
                for lt in _lots(gf, 'Assets.Accounts Receivable'))
     r = _import_fixture(runner, gf, 'q_refund_prepayment.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     assert _open_nonzero(_lots(gf, 'Assets.Accounts Receivable')) == []
 
 
@@ -135,7 +131,6 @@ def test_customer_forfeit_to_income_closes_credit(tmp_path):
     gf = _setup_customer_credit(runner, tmp_path)
     r = _import_fixture(runner, gf, 'q_customer_forfeit.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     assert _open_nonzero(_lots(gf, 'Assets.Accounts Receivable')) == []
     # The forfeited credit became income (a gain).
     assert _balances(gf)['Income'] <= -50.0
@@ -148,7 +143,6 @@ def test_vendor_refund_received_closes_credit(tmp_path):
                for lt in _lots(gf, 'Liabilities.Accounts Payable'))
     r = _import_fixture(runner, gf, 'q_vendor_refund.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     assert _open_nonzero(_lots(gf, 'Liabilities.Accounts Payable')) == []
 
 
@@ -157,7 +151,6 @@ def test_vendor_bad_debt_writes_off_credit(tmp_path):
     gf = _setup_vendor_credit(runner, tmp_path)
     r = _import_fixture(runner, gf, 'q_vendor_bad_debt.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     assert _open_nonzero(_lots(gf, 'Liabilities.Accounts Payable')) == []
     # The unrecoverable overpayment was booked as an expense (our loss):
     # +100 from the posted bill plus +50 from the write-off.
@@ -169,7 +162,6 @@ def test_partial_refund_leaves_residual_credit(tmp_path):
     gf = _setup_customer_credit(runner, tmp_path)
     r = _import_fixture(runner, gf, 'q_partial_refund.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     open_lots = _open_nonzero(_lots(gf, 'Assets.Accounts Receivable'))
     assert open_lots == [{'closed': False, 'balance': -30.0}], open_lots
 
@@ -183,7 +175,6 @@ def test_clearing_rejected_when_no_open_credit(tmp_path):
     gf = _setup_customer_credit(runner, tmp_path)
     r = _import_fixture(runner, gf, 'q_refund_prepayment.txt', tmp_path, alias='r1.txt')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     settled_lots = _lots(gf, 'Assets.Accounts Receivable')
     settled_bal = _balances(gf)
 
@@ -192,7 +183,6 @@ def test_clearing_rejected_when_no_open_credit(tmp_path):
     assert r.exit_code == 0, r.output
     assert 'Errors:       1' in r.output, r.output
     assert 'no open credit' in r.output.lower(), r.output
-    time.sleep(1)
     assert _lots(gf, 'Assets.Accounts Receivable') == settled_lots
     assert _balances(gf) == settled_bal
 
@@ -205,7 +195,6 @@ def test_customer_lot_owner_on_ap_split_is_rejected(tmp_path):
     assert r.exit_code == 0, r.output
     assert 'Errors:       1' in r.output, r.output
     assert 'receivable' in r.output.lower(), r.output
-    time.sleep(1)
     assert _balances(gf) == before
 
 
@@ -217,7 +206,6 @@ def test_lot_owner_guid_mismatch_is_rejected(tmp_path):
     assert r.exit_code == 0, r.output
     assert 'Errors:       1' in r.output, r.output
     assert 'guid' in r.output.lower(), r.output
-    time.sleep(1)
     assert _balances(gf) == before
 
 
@@ -232,10 +220,8 @@ def _setup_standalone_credit(runner, tmp_path):
     gf = _new_book(runner, tmp_path)
     r = _import_fixture(runner, gf, 'q_customer_only.txt', tmp_path, alias='cust.txt')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     r = _import_fixture(runner, gf, 'q_standalone_credit.txt', tmp_path, alias='credit.txt')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -247,7 +233,6 @@ def test_standalone_credit_created_then_settled(tmp_path):
                for lt in _lots(gf, 'Assets.Accounts Receivable'))
     r = _import_fixture(runner, gf, 'q_refund_prepayment.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     assert _open_nonzero(_lots(gf, 'Assets.Accounts Receivable')) == []
 
 
@@ -256,7 +241,6 @@ def test_clearing_roundtrips_into_fresh_book(tmp_path):
     gf = _setup_standalone_credit(runner, tmp_path)
     r = _import_fixture(runner, gf, 'q_refund_prepayment.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     assert _open_nonzero(_lots(gf, 'Assets.Accounts Receivable')) == []
 
     # Export the settled book; both the origin and the clearing carry lot_owner.
@@ -272,7 +256,6 @@ def test_clearing_roundtrips_into_fresh_book(tmp_path):
     r = runner.invoke(cli, ['import', '--new', str(gf2), str(exported),
                             '--include-business-objects'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     assert _open_nonzero(_lots(gf2, 'Assets.Accounts Receivable')) == []
 
 
@@ -309,7 +292,6 @@ def test_open_prepayment_summary_roundtrips(tmp_path):
     r = runner.invoke(cli, ['import', '--new', str(gf2), str(exported),
                             '--include-business-objects'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     assert any(not lt['closed'] and lt['balance'] == -50.0
                for lt in _lots(gf2, 'Assets.Accounts Receivable'))
 
@@ -333,7 +315,6 @@ def test_open_prepayment_mismatch_warns_but_does_not_fail(tmp_path):
                             '--include-business-objects'])
     assert r.exit_code == 0, r.output
     assert 'warning' in r.output.lower() and 'open_prepayment' in r.output.lower(), r.output
-    time.sleep(1)
     # The book reflects reality (50), not the tampered figure.
     assert any(not lt['closed'] and lt['balance'] == -50.0
                for lt in _lots(gf2, 'Assets.Accounts Receivable'))

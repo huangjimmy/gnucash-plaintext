@@ -25,7 +25,6 @@ Test coverage:
 """
 
 import os
-import time
 
 import pytest
 from click.testing import CliRunner
@@ -102,7 +101,6 @@ def _setup_book_with(runner, tmp_path, fixture_text):
     # surrounding command still exits 0), which silently drops the
     # save — leaving the in-memory delete invisible on reload. Same
     # workaround the Q-010 unpost test uses.
-    time.sleep(1)
     return gnc
 
 

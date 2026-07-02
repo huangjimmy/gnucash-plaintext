@@ -5,7 +5,6 @@ through plaintext.
 Book: Income 1000, Expenses 300 in 2026 → net income 700.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -18,7 +17,6 @@ BOOK = str(Path('tests/fixtures/closing_book.txt'))
 def _new_book(runner, tmp_path, name='book.gnucash'):
     gf = tmp_path / name
     assert runner.invoke(cli, ['import', '--new', str(gf), BOOK]).exit_code == 0
-    time.sleep(1)
     return gf
 
 
@@ -31,7 +29,6 @@ def _income_statement(runner, gf):
 def _close(runner, gf):
     r = runner.invoke(cli, ['close-books', str(gf), '--closing-date', '2026-12-31'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
 
 def _closing_flags(gf):
@@ -85,7 +82,6 @@ def test_closing_flag_survives_plaintext_roundtrip(tmp_path):
 
     gf2 = tmp_path / 'B.gnucash'
     assert runner.invoke(cli, ['import', '--new', str(gf2), str(exp)]).exit_code == 0
-    time.sleep(1)
     # The flag (not just the description) is re-applied in the fresh book…
     assert _closing_flags(gf2).get('Closing entry (CAD)') is True
     # …and the income statement is still correct after the roundtrip.
@@ -103,7 +99,6 @@ def test_reclose_finds_prior_closing_by_flag(tmp_path):
     assert r.exit_code != 0  # already closed
     r2 = runner.invoke(cli, ['close-books', str(gf), '--closing-date', '2026-12-31', '--force'])
     assert r2.exit_code == 0, r2.output
-    time.sleep(1)
     # Still exactly one flagged closing (the old one was replaced, not duplicated).
     flags = _closing_flags(gf)
     assert list(flags.values()).count(True) == 1

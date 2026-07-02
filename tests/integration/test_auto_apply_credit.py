@@ -17,7 +17,6 @@ What we assert:
   * bill counterparts behave symmetrically (AP, opposite signs).
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -36,7 +35,6 @@ def _setup(runner, tmp_path, kind='invoice'):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     primer = ('q015_aac_primer_invoice.txt' if kind == 'invoice'
               else 'q015_aac_primer_bill.txt')
     primer_path = tmp_path / 'primer.txt'
@@ -44,7 +42,6 @@ def _setup(runner, tmp_path, kind='invoice'):
     r = runner.invoke(cli, ['import', str(gf), str(primer_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -135,7 +132,6 @@ def test_invoice_auto_apply_credit_consumes_partial_credit(tmp_path):
 
     r = _import_fixture(runner, gf, 'q015_aac_inv002_partial_credit.txt', tmp_path)
     assert r.exit_code == 0, f'import: {r.output}'
-    time.sleep(1)
 
     # Expect: no new bank tx, INV-002's lot closed (credit consumed),
     # residual prepay lot open with -$20.
@@ -159,7 +155,6 @@ def test_invoice_auto_apply_credit_over_consumes_partial_pay(tmp_path):
 
     r = _import_fixture(runner, gf, 'q015_aac_inv002_over_consumes.txt', tmp_path)
     assert r.exit_code == 0, f'import: {r.output}'
-    time.sleep(1)
 
     assert _bank_tx_count(gf) == 1
     lots = _ar_lot_summary(gf)
@@ -189,7 +184,6 @@ def test_invoice_auto_apply_credit_roundtrip_emits_flag_and_idempotent(tmp_path)
 
     r = _import_fixture(runner, gf, 'q015_aac_inv002_partial_credit.txt', tmp_path)
     assert r.exit_code == 0
-    time.sleep(1)
     initial_lots = _ar_lot_summary(gf)
 
     exported = _export(runner, gf, tmp_path, 'r1.txt')
@@ -215,7 +209,6 @@ def test_invoice_auto_apply_credit_composes_with_cash_payment(tmp_path):
 
     r = _import_fixture(runner, gf, 'q015_aac_inv002_composed_cash.txt', tmp_path)
     assert r.exit_code == 0, f'import: {r.output}'
-    time.sleep(1)
 
     assert _bank_tx_count(gf) == 2, (
         f'expect 2 bank txs (original $150 + new $30). got {_bank_tx_count(gf)}'
@@ -239,7 +232,6 @@ def test_bill_auto_apply_credit_consumes_partial_credit(tmp_path):
 
     r = _import_fixture(runner, gf, 'q015_aac_bill002_partial_credit.txt', tmp_path)
     assert r.exit_code == 0, f'import: {r.output}'
-    time.sleep(1)
 
     assert _bank_tx_count(gf) == 1
     lots = _ar_lot_summary(gf, ar_account='Liabilities.Accounts Payable')
@@ -257,7 +249,6 @@ def test_bill_auto_apply_credit_roundtrip_emits_flag(tmp_path):
 
     r = _import_fixture(runner, gf, 'q015_aac_bill002_partial_credit.txt', tmp_path)
     assert r.exit_code == 0, f'import: {r.output}'
-    time.sleep(1)
 
     exported = _export(runner, gf, tmp_path, 'r1.txt')
     # The flag on BILL-002 must round-trip.
@@ -282,7 +273,6 @@ def test_invoice_no_flag_does_not_consume_credit(tmp_path):
 
     r = _import_fixture(runner, gf, 'q015_aac_inv002_no_flag.txt', tmp_path)
     assert r.exit_code == 0
-    time.sleep(1)
 
     lots = _ar_lot_summary(gf)
     open_lots = [lot for lot in lots if not lot['closed']]

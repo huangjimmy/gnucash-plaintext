@@ -9,7 +9,6 @@ holds splits by reference, not by name), so the transaction that touched the
 account simply follows it — the next export prints the new path everywhere.
 """
 
-import time
 from pathlib import Path
 
 import pytest
@@ -24,7 +23,6 @@ def _new_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), BOOK])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -69,7 +67,6 @@ def test_leaf_rename_same_parent(tmp_path):
 
     r = _rename(runner, gf, guid, 'Chequing')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     accts = _accounts(gf)
     assert 'Assets:Bank:Chequing' in accts
@@ -85,7 +82,6 @@ def test_rename_to_different_parent(tmp_path):
 
     r = _rename(runner, gf, guid, 'Assets:Checking')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     accts = _accounts(gf)
     assert 'Assets:Checking' in accts
@@ -102,7 +98,6 @@ def test_rename_changes_parent_and_leaf_together(tmp_path):
 
     r = _rename(runner, gf, guid, 'Assets:Cash:Petty')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     accts = _accounts(gf)
     assert 'Assets:Cash:Petty' in accts               # new parent + new leaf
@@ -115,7 +110,6 @@ def test_splits_follow_the_renamed_account(tmp_path):
     gf = _new_book(runner, tmp_path)
     guid = _accounts(gf)['Assets:Bank:Checking']
     assert _rename(runner, gf, guid, 'Assets:Checking').exit_code == 0
-    time.sleep(1)
 
     exported = _export(runner, gf, tmp_path)
     # The transaction split now names the new path; the old path is gone
@@ -216,13 +210,11 @@ def test_full_roundtrip_after_rename(tmp_path, new_to, new_path):
     gf = _new_book(runner, tmp_path)
     guid = _accounts(gf)['Assets:Bank:Checking']
     assert _rename(runner, gf, guid, new_to).exit_code == 0
-    time.sleep(1)
 
     e1 = tmp_path / 'e1.txt'
     assert runner.invoke(cli, ['export', str(gf), str(e1)]).exit_code == 0
     gf2 = tmp_path / 'B.gnucash'
     assert runner.invoke(cli, ['import', '--new', str(gf2), str(e1)]).exit_code == 0
-    time.sleep(1)
     e2 = tmp_path / 'e2.txt'
     assert runner.invoke(cli, ['export', str(gf2), str(e2)]).exit_code == 0
 

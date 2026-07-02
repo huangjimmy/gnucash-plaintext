@@ -8,7 +8,6 @@ These tests assert the exported amount text directly.
 """
 
 import re
-import time
 from fractions import Fraction
 from pathlib import Path
 
@@ -24,7 +23,6 @@ def _new_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -55,7 +53,6 @@ def _import_text(runner, gf, text, name, tmp_path):
     p.write_text(text)
     r = runner.invoke(cli, ['import', str(gf), str(p), '--include-business-objects'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
 
 def _export(runner, gf, tmp_path):
@@ -184,7 +181,6 @@ def test_zero_decimal_currency_payment_amount_has_no_decimals(tmp_path, mnem):
     acc = tmp_path / 'acc.txt'
     acc.write_text(_jpy_accounts(mnem))
     assert runner.invoke(cli, ['import', '--new', str(gf), str(acc)]).exit_code == 0
-    time.sleep(1)
     _import_text(runner, gf, _zero_decimal_invoice(mnem), 'inv.txt', tmp_path)
     amts = _payment_amounts(_export(runner, gf, tmp_path))
     assert amts.get(f'INV-{mnem}') == '1000', amts   # 0-decimal: no ".00"
@@ -206,7 +202,6 @@ def test_double_roundtrip_preserves_every_guid(tmp_path):
     gf_b = tmp_path / 'B.gnucash'
     assert runner.invoke(cli, ['import', '--new', str(gf_b), str(e1),
                                '--include-business-objects']).exit_code == 0
-    time.sleep(1)
     e2 = tmp_path / 'e2.txt'
     assert runner.invoke(cli, ['export', str(gf_b), str(e2),
                                '--include-business-objects']).exit_code == 0

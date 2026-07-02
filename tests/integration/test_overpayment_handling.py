@@ -24,7 +24,6 @@ payment block:
 
 Symmetric bill (AP) tests included.
 """
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -43,7 +42,6 @@ def _setup_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -163,7 +161,6 @@ def test_invoice_overpayment_export_emits_prepayment_field(tmp_path):
 
     r = _import_fixture(runner, gf, 'q015_oh_inv_export_emits.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     _, exported = _export(runner, gf, tmp_path, 'r1.txt')
     # The exported invoice block must include `prepayment: 50`.
@@ -180,7 +177,6 @@ def test_invoice_overpayment_roundtrip_preserves_prepayment_lot(tmp_path):
 
     r = _import_fixture(runner, gf, 'q015_oh_inv_roundtrip_preserves.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     initial_lots = _ar_lot_state(gf)
     initial_bank = _bank_tx_count(gf)
     assert initial_bank == 1
@@ -210,14 +206,12 @@ def test_invoice_overpayment_double_roundtrip_no_lot_accumulation(tmp_path):
     gf = _setup_book(runner, tmp_path)
     r = _import_fixture(runner, gf, 'q015_oh_inv_double_roundtrip.txt', tmp_path)
     assert r.exit_code == 0
-    time.sleep(1)
     initial = _ar_lot_state(gf)
 
     for i in (1, 2):
         _, exported = _export(runner, gf, tmp_path, f'r{i}.txt')
         r = _import_text(runner, gf, exported, f'r{i}_in.txt', tmp_path)
         assert r.exit_code == 0, f'round {i}: {r.output}'
-        time.sleep(1)
         current = _ar_lot_state(gf)
         assert current == initial, (
             f'double roundtrip drifted AR lots.\nstart: {initial}\nround{i}: {current}'
@@ -238,7 +232,6 @@ def test_retarget_overpayment_with_explicit_prepayment_succeeds(tmp_path):
     r = _import_fixture(runner, gf, 'q015_oh_retarget_over_pre_bank.txt',
                         tmp_path, biz=False, alias='pre_bank.txt')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     bank_guid = _bank_tx_guid(gf, amount=150.0)
     assert bank_guid is not None
 
@@ -246,7 +239,6 @@ def test_retarget_overpayment_with_explicit_prepayment_succeeds(tmp_path):
     biz = _fixture('q015_oh_retarget_over_biz.txt').replace('{txn_guid}', bank_guid)
     r = _import_text(runner, gf, biz, 'inv.txt', tmp_path)
     assert r.exit_code == 0, f'retarget+prepayment import failed: {r.output}'
-    time.sleep(1)
 
     assert _bank_tx_count(gf) == 1, 'no new bank tx must be created on retarget'
     assert _bank_tx_guid(gf, amount=150.0) == bank_guid, 'original bank tx GUID preserved'
@@ -271,7 +263,6 @@ def test_retarget_overpayment_without_prepayment_fails_with_clear_error(tmp_path
     r = _import_fixture(runner, gf, 'q015_oh_retarget_nopre_pre_bank.txt',
                         tmp_path, biz=False, alias='pre_bank.txt')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     bank_guid = _bank_tx_guid(gf, amount=150.0)
 
     biz = _fixture('q015_oh_retarget_nopre_biz.txt').replace('{txn_guid}', bank_guid)
@@ -297,7 +288,6 @@ def test_retarget_exact_amount_still_works(tmp_path):
     r = _import_fixture(runner, gf, 'q015_oh_retarget_exact_pre_bank.txt',
                         tmp_path, biz=False, alias='pre.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     bank_guid = _bank_tx_guid(gf, amount=100.0)
 
     biz = _fixture('q015_oh_retarget_exact_biz.txt').replace('{txn_guid}', bank_guid)
@@ -318,7 +308,6 @@ def test_retarget_underpayment_still_works(tmp_path):
     r = _import_fixture(runner, gf, 'q015_oh_retarget_under_pre_bank.txt',
                         tmp_path, biz=False, alias='pre.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     bank_guid = _bank_tx_guid(gf, amount=60.0)
 
     biz = _fixture('q015_oh_retarget_under_biz.txt').replace('{txn_guid}', bank_guid)
@@ -341,7 +330,6 @@ def test_bill_overpayment_export_emits_prepayment_field(tmp_path):
     gf = _setup_book(runner, tmp_path)
     r = _import_fixture(runner, gf, 'q015_oh_bill_export_emits.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     _, exported = _export(runner, gf, tmp_path, 'r1.txt')
     assert 'prepayment: 50' in exported, (
@@ -355,7 +343,6 @@ def test_bill_overpayment_roundtrip_preserves_prepayment_lot(tmp_path):
     gf = _setup_book(runner, tmp_path)
     r = _import_fixture(runner, gf, 'q015_oh_bill_roundtrip_preserves.txt', tmp_path)
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     initial_lots = _ar_lot_state(gf, ar_account='Liabilities.Accounts Payable')
     assert _bank_tx_count(gf) == 1
     assert len(initial_lots) == 2, (
@@ -383,14 +370,12 @@ def test_bill_retarget_overpayment_with_explicit_prepayment_succeeds(tmp_path):
     r = _import_fixture(runner, gf, 'q015_oh_bill_retarget_over_pre_bank.txt',
                         tmp_path, biz=False, alias='pre_bank.txt')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     bank_guid = _bank_tx_guid(gf, amount=-150.0)
     assert bank_guid is not None
 
     biz = _fixture('q015_oh_bill_retarget_over_biz.txt').replace('{txn_guid}', bank_guid)
     r = _import_text(runner, gf, biz, 'bill.txt', tmp_path)
     assert r.exit_code == 0, f'bill retarget+prepayment failed: {r.output}'
-    time.sleep(1)
 
     assert _bank_tx_count(gf) == 1
     lots = _ar_lot_state(gf, ar_account='Liabilities.Accounts Payable')
@@ -405,7 +390,6 @@ def test_bill_retarget_overpayment_without_prepayment_fails(tmp_path):
     r = _import_fixture(runner, gf, 'q015_oh_bill_retarget_nopre_pre_bank.txt',
                         tmp_path, biz=False, alias='pre_bank.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     bank_guid = _bank_tx_guid(gf, amount=-150.0)
 
     biz = _fixture('q015_oh_bill_retarget_nopre_biz.txt').replace('{txn_guid}', bank_guid)

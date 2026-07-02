@@ -24,7 +24,6 @@ Fixture files used:
 
 import os
 import tempfile
-import time
 
 from click.testing import CliRunner
 
@@ -164,7 +163,6 @@ def import_new(runner, gf, fixture_path, biz=False):
         args.append("--include-business-objects")
     r = runner.invoke(cli, args)
     assert r.exit_code == 0, f"import --new failed:\n{r.output}"
-    time.sleep(1)  # avoid GnuCash backup timestamp collision on subsequent save
     return r
 
 
@@ -404,7 +402,6 @@ def test_txn_guid_idempotent_reimport(tmp_path):
     assert r.exit_code == 0, f"First import failed:\n{r.output}"
     assert bank_tx_count(runner, gf, tmp_path) == 1
 
-    time.sleep(1)
 
     r = import_into(runner, gf, invoice_file)
     assert r.exit_code == 0, f"Re-import failed:\n{r.output}"

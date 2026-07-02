@@ -17,7 +17,6 @@ the first) to assert:
   collected, not turned into multiple orphans.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -39,7 +38,6 @@ def _setup_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS_PATH])
     assert r.exit_code == 0, f'accounts import: {r.output}'
-    time.sleep(1)
     return gf
 
 
@@ -117,7 +115,6 @@ def test_paid_invoice_single_roundtrip_creates_no_orphan(tmp_path):
     r = _import_biz_fixture(runner, gf, 'q015_pr_inv_full_paid.txt', tmp_path,
                             alias='v1.txt')
     assert r.exit_code == 0, f'v1 import: {r.output}'
-    time.sleep(1)
 
     bank_before = _bank_tx_state(gf)
     orphans_before = _orphan_count(runner, gf)
@@ -127,7 +124,6 @@ def test_paid_invoice_single_roundtrip_creates_no_orphan(tmp_path):
     exported = _export(runner, gf, tmp_path, 'round1.txt')
     r = _import_biz_text(runner, gf, exported, 'round1_reimport.txt', tmp_path)
     assert r.exit_code == 0, f'roundtrip 1 import: {r.output}'
-    time.sleep(1)
 
     bank_after = _bank_tx_state(gf)
     orphans_after = _orphan_count(runner, gf)
@@ -147,13 +143,11 @@ def test_paid_invoice_double_roundtrip_is_idempotent(tmp_path):
     r = _import_biz_fixture(runner, gf, 'q015_pr_inv_full_paid.txt', tmp_path,
                             alias='v1.txt')
     assert r.exit_code == 0, f'v1 import: {r.output}'
-    time.sleep(1)
     initial_bank = _bank_tx_state(gf)
 
     exported_1 = _export(runner, gf, tmp_path, 'r1.txt')
     r = _import_biz_text(runner, gf, exported_1, 'r1_in.txt', tmp_path)
     assert r.exit_code == 0
-    time.sleep(1)
     bank_r1 = _bank_tx_state(gf)
     assert bank_r1 == initial_bank, f'round 1 changed bank txs: {bank_r1} vs {initial_bank}'
 
@@ -175,7 +169,6 @@ def test_partial_paid_invoice_single_roundtrip_no_orphan(tmp_path):
     r = _import_biz_fixture(runner, gf, 'q015_pr_inv_partial_paid.txt', tmp_path,
                             alias='v1.txt')
     assert r.exit_code == 0, f'v1 import: {r.output}'
-    time.sleep(1)
     bank_before = _bank_tx_state(gf)
 
     exported = _export(runner, gf, tmp_path, 'r1.txt')
@@ -199,14 +192,12 @@ def test_partial_paid_invoice_double_roundtrip_no_orphan_accumulation(tmp_path):
     r = _import_biz_fixture(runner, gf, 'q015_pr_inv_partial_paid.txt', tmp_path,
                             alias='v1.txt')
     assert r.exit_code == 0, f'v1 import: {r.output}'
-    time.sleep(1)
     initial = _bank_tx_state(gf)
 
     for i in (1, 2):
         exported = _export(runner, gf, tmp_path, f'r{i}.txt')
         r = _import_biz_text(runner, gf, exported, f'r{i}_in.txt', tmp_path)
         assert r.exit_code == 0, f'round {i} import: {r.output}'
-        time.sleep(1)
         current = _bank_tx_state(gf)
         assert current == initial, (
             f'round {i} drifted bank state.\nstart: {initial}\nnow:  {current}'
@@ -226,12 +217,10 @@ def test_add_partial_payment_then_roundtrip_no_orphan(tmp_path):
     # Step 1: invoice + $60 partial
     r = _import_biz_fixture(runner, gf, 'q015_pr_add_partial_v1.txt', tmp_path)
     assert r.exit_code == 0
-    time.sleep(1)
 
     # Step 2: add the $40 (Q-015 fast path)
     r = _import_biz_fixture(runner, gf, 'q015_pr_add_partial_v2.txt', tmp_path)
     assert r.exit_code == 0
-    time.sleep(1)
 
     bank_after_add = _bank_tx_state(gf)
     assert len(bank_after_add) == 2, (
@@ -261,7 +250,6 @@ def test_paid_bill_single_roundtrip_creates_no_orphan(tmp_path):
     r = _import_biz_fixture(runner, gf, 'q015_pr_bill_full_paid.txt', tmp_path,
                             alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     bank_before = _bank_tx_state(gf)
     assert len(bank_before) == 1
 
@@ -285,14 +273,12 @@ def test_partial_paid_bill_double_roundtrip_no_orphan(tmp_path):
     r = _import_biz_fixture(runner, gf, 'q015_pr_bill_partial_paid.txt', tmp_path,
                             alias='v1.txt')
     assert r.exit_code == 0
-    time.sleep(1)
     initial = _bank_tx_state(gf)
 
     for i in (1, 2):
         exported = _export(runner, gf, tmp_path, f'r{i}.txt')
         r = _import_biz_text(runner, gf, exported, f'r{i}_in.txt', tmp_path)
         assert r.exit_code == 0
-        time.sleep(1)
         current = _bank_tx_state(gf)
         assert current == initial, (
             f'bill roundtrip {i} drifted.\nstart: {initial}\nnow:  {current}'
@@ -314,13 +300,11 @@ def _create_orphan_via_unpost(runner, gf, tmp_path, kind='invoice'):
     r = _import_biz_fixture(runner, gf, fixture, tmp_path,
                             alias='orphan_setup.txt')
     assert r.exit_code == 0, f'setup import: {r.output}'
-    time.sleep(1)
     bank_before_unpost = _bank_tx_state(gf)
     assert len(bank_before_unpost) == 1
     orphan_guid = bank_before_unpost[0]['guid']
     r = runner.invoke(cli, unpost_cmd)
     assert r.exit_code == 0, f'unpost: {r.output}'
-    time.sleep(1)
     assert _orphan_count(runner, gf) == 1, 'precondition: exactly 1 orphan after unpost'
     return orphan_guid
 
@@ -360,7 +344,6 @@ def test_pre_existing_invoice_orphan_survives_double_roundtrip_without_duplicati
         exported = _export(runner, gf, tmp_path, f'r{i}.txt')
         r = _import_biz_text(runner, gf, exported, f'r{i}_in.txt', tmp_path)
         assert r.exit_code == 0, f'round {i}: {r.output}'
-        time.sleep(1)
         current_bank = _bank_tx_state(gf)
         current_orphans = _orphan_count(runner, gf)
         assert current_orphans == initial_orphans, (
@@ -400,6 +383,5 @@ def test_pre_existing_bill_orphan_survives_double_roundtrip_without_duplication(
         exported = _export(runner, gf, tmp_path, f'r{i}.txt')
         r = _import_biz_text(runner, gf, exported, f'r{i}_in.txt', tmp_path)
         assert r.exit_code == 0, f'bill round {i}: {r.output}'
-        time.sleep(1)
         assert _orphan_count(runner, gf) == initial_orphans
         assert _bank_tx_state(gf) == initial_bank

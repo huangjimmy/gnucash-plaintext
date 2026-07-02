@@ -15,7 +15,6 @@ the Q-016 work:
 
 * (further tests added as the implementation lands.)
 """
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -36,13 +35,11 @@ def _setup_source_book(runner, tmp_path):
     gf = tmp_path / 'src.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
 
     bank_path = tmp_path / 'bank.txt'
     bank_path.write_text(_fx('q016_single_retarget_bank.txt'))
     r = runner.invoke(cli, ['import', str(gf), str(bank_path)])
     assert r.exit_code == 0, f'bank: {r.output}'
-    time.sleep(1)
 
     # Pin the bank tx guid for substitution into the invoice fixture
     bank_guid = _bank_tx_guid(gf, 100.0)
@@ -56,7 +53,6 @@ def _setup_source_book(runner, tmp_path):
     r = runner.invoke(cli, ['import', str(gf), str(inv_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'invoice: {r.output}'
-    time.sleep(1)
     return gf, bank_guid
 
 
@@ -180,13 +176,11 @@ def test_multi_invoice_one_payment_fresh_roundtrip(tmp_path):
     gf_src = tmp_path / 'src.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf_src), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
 
     bank_path = tmp_path / 'bank.txt'
     bank_path.write_text(_fx('q016_multi_invoice_bank.txt'))
     r = runner.invoke(cli, ['import', str(gf_src), str(bank_path)])
     assert r.exit_code == 0, f'multi bank: {r.output}'
-    time.sleep(1)
 
     bank_txn_guid, splits = _bank_tx_splits(gf_src, 400.0)
     by_acct_amt = {(acct, amt): sg for sg, amt, acct in splits}
@@ -205,7 +199,6 @@ def test_multi_invoice_one_payment_fresh_roundtrip(tmp_path):
     r = runner.invoke(cli, ['import', str(gf_src), str(inv_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'multi-invoice link: {r.output}'
-    time.sleep(1)
 
     src_state = _semantic_state(gf_src)
     src_bank_txs = src_state['bank_txs']
@@ -291,13 +284,11 @@ def test_multi_bill_one_payment_fresh_roundtrip(tmp_path):
     gf_src = tmp_path / 'src.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf_src), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
 
     bank_path = tmp_path / 'bank.txt'
     bank_path.write_text(_fx('q016_multi_bill_bank.txt'))
     r = runner.invoke(cli, ['import', str(gf_src), str(bank_path)])
     assert r.exit_code == 0, f'multi-bill bank: {r.output}'
-    time.sleep(1)
 
     bank_txn_guid, splits = _bank_tx_splits(gf_src, -360.0)
     by_acct_amt = {(acct, amt): sg for sg, amt, acct in splits}
@@ -316,7 +307,6 @@ def test_multi_bill_one_payment_fresh_roundtrip(tmp_path):
     r = runner.invoke(cli, ['import', str(gf_src), str(bills_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'bills: {r.output}'
-    time.sleep(1)
 
     src_bank = _semantic_state(gf_src)['bank_txs']
     src_ap = _ap_lot_state(gf_src)
@@ -356,13 +346,11 @@ def test_two_invoices_same_amount_disambiguated_by_split_guid(tmp_path):
     gf_src = tmp_path / 'src.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf_src), ACCOUNTS])
     assert r.exit_code == 0
-    time.sleep(1)
 
     bank_path = tmp_path / 'bank.txt'
     bank_path.write_text(_fx('q016_same_amount_bank.txt'))
     r = runner.invoke(cli, ['import', str(gf_src), str(bank_path)])
     assert r.exit_code == 0, f'same-amount bank: {r.output}'
-    time.sleep(1)
 
     bank_txn_guid, splits = _bank_tx_splits(gf_src, 400.0)
     # Both AR splits are -$200; differentiate by memo so we can pin
@@ -394,7 +382,6 @@ def test_two_invoices_same_amount_disambiguated_by_split_guid(tmp_path):
     r = runner.invoke(cli, ['import', str(gf_src), str(inv_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'same-amount invoices: {r.output}'
-    time.sleep(1)
 
     # Source: 1 bank tx, 2 closed AR lots, each with [+200 posting, -200 payment]
     src = _semantic_state(gf_src)
@@ -427,14 +414,12 @@ def test_mix_retarget_and_apply_payment_fresh_roundtrip(tmp_path):
     gf_src = tmp_path / 'src.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf_src), ACCOUNTS])
     assert r.exit_code == 0
-    time.sleep(1)
 
     # Pre-create the retarget-side bank tx.
     bank_path = tmp_path / 'bank.txt'
     bank_path.write_text(_fx('q016_mix_bank.txt'))
     r = runner.invoke(cli, ['import', str(gf_src), str(bank_path)])
     assert r.exit_code == 0, f'mix bank: {r.output}'
-    time.sleep(1)
     retarget_txn_guid, splits = _bank_tx_splits(gf_src, 90.0)
     by_acct_amt = {(acct, amt): sg for sg, amt, acct in splits}
     retarget_split_guid = by_acct_amt[('Assets.Accounts Receivable', -90.0)]
@@ -448,7 +433,6 @@ def test_mix_retarget_and_apply_payment_fresh_roundtrip(tmp_path):
     r = runner.invoke(cli, ['import', str(gf_src), str(inv_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'mix invoices: {r.output}'
-    time.sleep(1)
 
     src = _semantic_state(gf_src)
     assert len(src['bank_txs']) == 2, (
@@ -489,13 +473,11 @@ def test_overpayment_with_retarget_fresh_roundtrip(tmp_path):
     gf_src = tmp_path / 'src.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf_src), ACCOUNTS])
     assert r.exit_code == 0
-    time.sleep(1)
 
     bank_path = tmp_path / 'bank.txt'
     bank_path.write_text(_fx('q016_over_retarget_bank.txt'))
     r = runner.invoke(cli, ['import', str(gf_src), str(bank_path)])
     assert r.exit_code == 0, f'over-retarget bank: {r.output}'
-    time.sleep(1)
     retarget_txn_guid = _bank_tx_guid(gf_src, 140.0)
 
     inv_text = _fx('q016_over_retarget_invoice.txt').format(
@@ -506,7 +488,6 @@ def test_overpayment_with_retarget_fresh_roundtrip(tmp_path):
     r = runner.invoke(cli, ['import', str(gf_src), str(inv_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'over-retarget invoice: {r.output}'
-    time.sleep(1)
 
     src = _semantic_state(gf_src)
     assert len(src['bank_txs']) == 1, (
@@ -551,7 +532,6 @@ def test_backward_compat_legacy_payment_without_split_guid(tmp_path):
     gf = tmp_path / 'legacy.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS])
     assert r.exit_code == 0
-    time.sleep(1)
 
     legacy_path = tmp_path / 'legacy_biz.txt'
     legacy_path.write_text(_fx('q016_backcompat_legacy.txt'))
@@ -561,7 +541,6 @@ def test_backward_compat_legacy_payment_without_split_guid(tmp_path):
         f'legacy plaintext (no txn_guid / no txn_split_guid) must still '
         f'import via the ApplyPayment fallback. output:\n{r.output}'
     )
-    time.sleep(1)
 
     state = _semantic_state(gf)
     # ApplyPayment created the bank tx; invoice lot is closed at 0.

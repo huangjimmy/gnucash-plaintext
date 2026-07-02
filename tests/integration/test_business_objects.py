@@ -506,7 +506,6 @@ def test_business_objects_persisted_when_imported_into_existing_file(tmp_path):
     assert result.exit_code == 0, f"Setup import failed:\n{result.output}"
 
     import time
-    time.sleep(1)  # GnuCash backup filenames are timestamp-based; avoid collision
 
     # Step 2: import ONLY business objects (no `open` account directives) into
     # the already-populated file. This is the exact scenario that was broken:

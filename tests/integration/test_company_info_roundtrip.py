@@ -9,7 +9,6 @@ field — Company ID included. These tests pin that the whole block survives a
 double roundtrip, and that GST and each PST number reach the rendered output.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -41,7 +40,6 @@ def _new_book(runner, tmp_path, name='book.gnucash'):
     gf = tmp_path / name
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -50,7 +48,6 @@ def _import(runner, gf, content, tmp_path, name):
     p.write_text(content)
     r = runner.invoke(cli, ['import', str(gf), str(p), '--include-business-objects'])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
 
 def _export(runner, gf, tmp_path, name='exp.txt'):
@@ -116,7 +113,6 @@ def test_company_block_survives_double_roundtrip(tmp_path):
     assert runner.invoke(cli, ['import', '--new', str(gf_b),
                                str(tmp_path / 'e1_in.txt'),
                                '--include-business-objects']).exit_code == 0
-    time.sleep(1)
     e2 = _export(runner, gf_b, tmp_path, 'e2.txt')
     block2 = _company_block(e2)
 

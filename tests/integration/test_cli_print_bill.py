@@ -3,7 +3,6 @@
 Mirrors test_cli_print_invoice.py for the vendor-bill side: argument
 validation, error-path exit codes, error-message format.
 """
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -21,7 +20,6 @@ class TestPrintBillErrors:
         gnc = tmp_path / 'book.gnucash'
         r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
         assert r.exit_code == 0, f'accounts: {r.output}'
-        time.sleep(1)
         return gnc
 
     def test_no_selectors_exits_2(self, tmp_path):

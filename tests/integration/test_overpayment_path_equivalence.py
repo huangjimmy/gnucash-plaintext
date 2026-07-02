@@ -27,7 +27,6 @@ roundtrip, and after the 2nd roundtrip. Split GUIDs may legitimately
 differ; what must match is bank tx amounts, AR lot count, lot
 balances, and lot member amounts.
 """
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -52,7 +51,6 @@ def _import_new(runner, gf, fixture_path, tmp_path):
     args = ['import', '--new', str(gf), fixture_path]
     r = runner.invoke(cli, args)
     assert r.exit_code == 0, f'import --new: {r.output}'
-    time.sleep(1)
 
 
 def _import(runner, gf, content, name, tmp_path, biz=True):
@@ -145,7 +143,6 @@ def _roundtrip(runner, gf, tmp_path, suffix):
     content = out.read_text()
     r = _import(runner, gf, content, f'reimport_{suffix}.txt', tmp_path)
     assert r.exit_code == 0, f'reimport {suffix}: {r.output}'
-    time.sleep(1)
 
 
 def _make_book(runner, tmp_path):
@@ -161,7 +158,6 @@ def _build_via_apply(runner, tmp_path, apply_fixture: str):
     gf = _make_book(runner, tmp_path)
     r = _import(runner, gf, _fixture(apply_fixture), 'apply_biz.txt', tmp_path)
     assert r.exit_code == 0, f'{apply_fixture}: {r.output}'
-    time.sleep(1)
     return gf
 
 
@@ -175,7 +171,6 @@ def _build_via_retarget(runner, tmp_path, pre_bank_fixture: str,
     r = _import(runner, gf, _fixture(pre_bank_fixture), 'pre_bank.txt', tmp_path,
                 biz=False)
     assert r.exit_code == 0, f'{pre_bank_fixture}: {r.output}'
-    time.sleep(1)
     bank_entries = _bank_tx_guids_sorted(gf)
     biz = _fixture(retarget_fixture)
     placeholders = guid_placeholders or ['txn_guid']
@@ -183,7 +178,6 @@ def _build_via_retarget(runner, tmp_path, pre_bank_fixture: str,
         biz = biz.replace('{' + key + '}', bank_entries[i][2])
     r = _import(runner, gf, biz, 'retarget_biz.txt', tmp_path)
     assert r.exit_code == 0, f'{retarget_fixture}: {r.output}'
-    time.sleep(1)
     return gf
 
 

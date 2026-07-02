@@ -8,7 +8,6 @@ Company book options via the GnuCash KvpFrame API, then runs
 itself. No `company_info=` injection (that would skip the wiring
 between the reader and the renderer, where bugs hide).
 """
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -78,13 +77,11 @@ def _book_with_company(runner, tmp_path, fixture_name):
     gnc = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
     assert r.exit_code == 0, f'accounts: {r.output}'
-    time.sleep(1)
     fx_path = tmp_path / fixture_name
     fx_path.write_text(_fx(fixture_name))
     r = runner.invoke(cli, ['import', str(gnc), str(fx_path),
                             '--include-business-objects'])
     assert r.exit_code == 0, f'{fixture_name}: {r.output}'
-    time.sleep(1)
     _populate_company_options(gnc)
     return gnc
 
@@ -274,7 +271,6 @@ def test_rendered_plaintext_with_seller_header_reimports_cleanly(tmp_path):
     fresh_gnc = tmp_path / 'fresh.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(fresh_gnc), ACCOUNTS])
     assert r.exit_code == 0, f'fresh accounts: {r.output}'
-    time.sleep(1)
     r = runner.invoke(cli, ['import', str(fresh_gnc), str(out_txt),
                             '--include-business-objects'])
     assert r.exit_code == 0, (

@@ -20,7 +20,6 @@ Run via:
 import ctypes
 import os
 import shutil
-import time
 
 from click.testing import CliRunner
 
@@ -297,7 +296,6 @@ def test_orphan_backreference_probe(tmp_path):
     r = runner.invoke(cli, ["import", "--new", str(gnc), str(fix),
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     os.makedirs(EXPORTS_DIR, exist_ok=True)
     dump_path = os.path.join(EXPORTS_DIR, "orphan_backref_probe.txt")
@@ -323,7 +321,6 @@ def test_orphan_backreference_probe(tmp_path):
         # ── UNPOST ───────────────────────────────────────────────────────────
         r = runner.invoke(cli, ["unpost-invoices", str(gnc), "INV-001"])
         assert r.exit_code == 0, r.output
-        time.sleep(1)
 
         # ── POST-UNPOST ──────────────────────────────────────────────────────
         ses = Session(f"xml://{gnc}")
@@ -593,7 +590,6 @@ def test_orphan_backreference_probe_bill(tmp_path):
     r = runner.invoke(cli, ["import", "--new", str(gnc), str(fix),
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     os.makedirs(EXPORTS_DIR, exist_ok=True)
     bill_exports_dir = os.path.join(WORKTREE, "exports", "bill")
@@ -619,7 +615,6 @@ def test_orphan_backreference_probe_bill(tmp_path):
 
         r = runner.invoke(cli, ["unpost-bills", str(gnc), "BILL-001"])
         assert r.exit_code == 0, r.output
-        time.sleep(1)
 
         ses = Session(f"xml://{gnc}")
         try:
@@ -682,7 +677,6 @@ def test_find_orphan_payments_prototype_bill(tmp_path):
     r = runner.invoke(cli, ["import", "--new", str(gnc), str(fix),
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     from gnucash import Query, Session
     from gnucash.gnucash_business import Invoice  # bills use the same SWIG type
@@ -705,7 +699,6 @@ def test_find_orphan_payments_prototype_bill(tmp_path):
 
     r = runner.invoke(cli, ["unpost-bills", str(gnc), "BILL-001"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     ses = Session(f"xml://{gnc}")
     try:
@@ -731,7 +724,6 @@ def test_find_orphan_payments_prototype(tmp_path):
     r = runner.invoke(cli, ["import", "--new", str(gnc), str(fix),
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     # PRE-UNPOST: list the about-to-be-orphan payments from the lot.
     from gnucash import Query, Session
@@ -756,7 +748,6 @@ def test_find_orphan_payments_prototype(tmp_path):
     # Now unpost and run the post-unpost recovery path.
     r = runner.invoke(cli, ["unpost-invoices", str(gnc), "INV-001"])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
 
     ses = Session(f"xml://{gnc}")
     try:

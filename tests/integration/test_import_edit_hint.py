@@ -4,7 +4,6 @@ silently dropped — so the import now hints at `--strategy update`. This is a
 hint only: behaviour is unchanged (still skipped by default).
 """
 
-import time
 
 from click.testing import CliRunner
 
@@ -18,7 +17,6 @@ def _new_book(runner, tmp_path):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS])
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     return gf
 
 
@@ -81,7 +79,6 @@ def test_edited_guid_match_skipped_with_hint_and_unchanged(tmp_path):
     runner = CliRunner()
     gf = _new_book(runner, tmp_path)
     assert _import(runner, gf, TX, 'tx.txt', tmp_path).exit_code == 0
-    time.sleep(1)
     guid = _guid200(gf)
 
     r = _import(runner, gf, _edited(guid), 'edit.txt', tmp_path)
@@ -89,7 +86,6 @@ def test_edited_guid_match_skipped_with_hint_and_unchanged(tmp_path):
     # hint fired (content differs) and the edit was NOT applied by default
     assert 'strategy update' in r.output.lower(), r.output
     assert 'different content' in r.output.lower(), r.output
-    time.sleep(1)
     assert _bal(gf, 'Income') == -200.0                       # unchanged
     assert _bal(gf, 'Assets.Accounts Receivable') == 0.0
 
@@ -98,7 +94,6 @@ def test_unchanged_guid_match_skipped_without_hint(tmp_path):
     runner = CliRunner()
     gf = _new_book(runner, tmp_path)
     assert _import(runner, gf, TX, 'tx.txt', tmp_path).exit_code == 0
-    time.sleep(1)
     guid = _guid200(gf)
 
     r = _import(runner, gf, _unchanged(guid), 'same.txt', tmp_path)
@@ -112,13 +107,11 @@ def test_strategy_update_applies_the_edit(tmp_path):
     runner = CliRunner()
     gf = _new_book(runner, tmp_path)
     assert _import(runner, gf, TX, 'tx.txt', tmp_path).exit_code == 0
-    time.sleep(1)
     guid = _guid200(gf)
 
     r = _import(runner, gf, _edited(guid), 'edit.txt', tmp_path,
                 '--strategy', 'update')
     assert r.exit_code == 0, r.output
-    time.sleep(1)
     # edit applied in place: the Income split is now on AR
     assert _bal(gf, 'Income') == 0.0
     assert _bal(gf, 'Assets.Accounts Receivable') == -200.0

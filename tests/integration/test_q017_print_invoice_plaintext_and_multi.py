@@ -27,12 +27,10 @@ def _build_book(runner, tmp_path, *fixture_files):
     gf = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS])
     assert r.exit_code == 0, f'accounts import: {r.output}'
-    time.sleep(1)
     for fx in fixture_files:
         r = runner.invoke(cli, ['import', str(gf), fx,
                                 '--include-business-objects'])
         assert r.exit_code == 0, f'{fx} import: {r.output}'
-        time.sleep(1)
     return gf
 
 
