@@ -38,8 +38,8 @@ WORKDIR /workspace
 # Install dev dependencies at build time
 # The package itself will be installed at runtime when workspace is mounted
 # Try with --break-system-packages first (Debian 12+, Ubuntu 22+), fall back to upgrade pip (Ubuntu 20)
-RUN python3 -m pip install pytest pytest-cov pytest-xdist weasyprint --break-system-packages 2>/dev/null || \
+RUN python3 -m pip install pytest pytest-cov weasyprint --break-system-packages 2>/dev/null || \
     (python3 -m pip install --upgrade pip && \
-     python3 -m pip install pytest pytest-cov pytest-xdist weasyprint --break-system-packages)
+     python3 -m pip install pytest pytest-cov weasyprint --break-system-packages)
 
 CMD ["bash"]
