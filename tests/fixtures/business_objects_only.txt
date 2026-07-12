@@ -159,7 +159,7 @@ bill "BILL-2026-001"
 		account: "Expenses:Supplies"
 		quantity: 1
 		price: 100
-		taxable: true
+		taxable: false
 		tax_included: false
 	posted:
 		date: 2026-01-01
@@ -179,7 +179,7 @@ bill "BILL-2026-002"
 		account: "Expenses:Supplies"
 		quantity: 2
 		price: 75
-		taxable: true
+		taxable: false
 		tax_included: false
 	posted: none
 	payment: none
@@ -194,7 +194,7 @@ bill "BILL-2026-003"
 		account: "Expenses:Supplies"
 		quantity: 1
 		price: 200
-		taxable: true
+		taxable: false
 		tax_included: false
 	posted:
 		date: 2026-01-20
@@ -218,7 +218,7 @@ bill "BILL-2026-004"
 		account: "Expenses:Supplies"
 		quantity: 3
 		price: 100
-		taxable: true
+		taxable: false
 		tax_included: false
 	posted:
 		date: 2026-02-01
@@ -247,7 +247,7 @@ bill "BILL-2026-005"
 		account: "Expenses:Supplies"
 		quantity: 1
 		price: 400
-		taxable: true
+		taxable: false
 		tax_included: false
 	posted:
 		date: 2026-02-05

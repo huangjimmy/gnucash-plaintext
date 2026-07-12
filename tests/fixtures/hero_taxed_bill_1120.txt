@@ -1,0 +1,44 @@
+taxtable "GST+PST"
+	entry:
+		account: "Liabilities:Tax:GST"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax:PST"
+		rate: 7.0%
+		type: PERCENT
+
+vendor "V-HERO"
+	name: "Hero Supplier"
+	currency: CAD
+
+bill "BILL-HERO-1120"
+	vendor_id: "V-HERO"
+	currency: CAD
+	date_opened: 2026-05-10
+	entry:
+		date: 2026-05-10
+		description: "Materials (net 1000 + GST 50 + PST 70 = 1120)"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 1000
+		taxable: true
+		tax_included: false
+		tax_table: "GST+PST"
+	posted:
+		date: 2026-05-10
+		due: 2026-06-09
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-HERO-1120"
+		accumulate: true
+	payment:
+		date: 2026-05-14
+		amount: 1000
+		bank_account: "Assets:Bank"
+		memo: "Fresh payment of net 1000"
+	payment:
+		date: 2026-05-15
+		amount: 120
+		bank_account: "Assets:Bank"
+		txn_guid: "{txn_guid}"
+		memo: "Linked existing bank tx for the 120 tax portion"

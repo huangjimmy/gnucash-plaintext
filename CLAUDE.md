@@ -327,16 +327,34 @@ posting), so GnuCash puts it in a **new lot** instead of the bill's lot.
 `inv.GetPostedLot().get_split_list()` then returns only 1 split (the posting)
 and the exporter emits `payment: none` for a paid bill.
 
-### 8. GnuCash does not persist `bill_taxable = false` to XML
+### 8. Vendor-bill entries must be attached with `gncBillAddEntry`, not `Invoice.AddEntry`
 
-GnuCash 5.x only writes `entry:b-taxable` to the XML file when the value is
-`true`. When `false`, the field is omitted and defaults to `true` on reload.
-Consequently, all bill entries always read as `taxable = true` after a
-save/reload cycle, regardless of what `SetBillTaxable(False)` was called with.
+A `GncEntry` carries two owner-side field groups — customer-invoice (`i-*`) and
+vendor-bill (`b-*`) — and two owner pointers. `gncInvoiceAddEntry` (SWIG
+`Invoice.AddEntry`) sets the entry's **invoice** pointer; `gncBillAddEntry` sets
+its **bill** pointer. GnuCash's entry XML writer serialises the bill-side tax
+flags only inside `if (gncEntryGetBill(entry))`:
 
-**Impact on round-trip tests**: the reference fixture must use `taxable: true`
-for all bill entries. Do NOT compare against `taxable: false` in bill export.
+- attached via `Invoice.AddEntry` → the file gets `<entry:invoice>` plus
+  `i-taxable` / `i-taxincluded`, and **omits** `entry:b-taxable` /
+  `entry:b-taxincluded`. On reload those default (`b-taxable`→true,
+  `b-taxincluded`→false), so `taxable: false` silently flips to `true` and
+  `tax_included: true` is lost (the price is then treated as tax-exclusive and
+  the bill is over-taxed).
+- attached via `gncBillAddEntry` → the file gets `<entry:bill>` plus
+  `b-taxable` / `b-taxincluded`, and both round-trip exactly as authored.
+
+The importer attaches bill entries with `_bill_add_entry` (`gncBillAddEntry`);
+posting is unaffected because both APIs append to the same `invoice->entries`
+GList. This is symmetric to `_bill_remove_all_entries` (`gncBillRemoveEntry`),
+since `Invoice.RemoveEntry` is likewise customer-invoice-only.
+
+**Impact on round-trip tests**: bill export now reflects the source `taxable:` /
+`tax_included:` values verbatim — reference fixtures use whatever the source
+declares (e.g. `taxable: false` stays `false`). This supersedes the earlier
+belief that GnuCash could not persist `bill_taxable = false`; the real cause was
+attaching bill entries on the customer-invoice side.
 
 ---
 
-**Last Updated**: 2026-05-20
+**Last Updated**: 2026-07-11

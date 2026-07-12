@@ -1,0 +1,53 @@
+customer "C-NOTAX-INV"
+	name: "Untaxed Customer"
+	currency: CAD
+
+invoice "INV-NOTAX-OVER-100"
+	customer_id: "C-NOTAX-INV"
+	currency: CAD
+	date_opened: 2026-04-01
+	entry:
+		date: 2026-04-01
+		description: "Services (no tax, total 100)"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-04-01
+		due: 2026-05-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-NOTAX-OVER-100"
+		accumulate: true
+	payment:
+		date: 2026-04-10
+		amount: 150
+		bank_account: "Assets:Bank"
+		memo: "Customer paid 150 on a 100 invoice (overpaid 50)"
+
+invoice "INV-NOTAX-PART-100"
+	customer_id: "C-NOTAX-INV"
+	currency: CAD
+	date_opened: 2026-04-02
+	entry:
+		date: 2026-04-02
+		description: "Services (no tax, total 100)"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-04-02
+		due: 2026-05-02
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-NOTAX-PART-100"
+		accumulate: true
+	payment:
+		date: 2026-04-11
+		amount: 60
+		bank_account: "Assets:Bank"
+		memo: "Part payment (40 outstanding on a 100 invoice)"

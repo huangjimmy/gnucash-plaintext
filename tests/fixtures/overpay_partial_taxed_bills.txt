@@ -1,0 +1,63 @@
+taxtable "GST+PST"
+	entry:
+		account: "Liabilities:Tax:GST"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax:PST"
+		rate: 7.0%
+		type: PERCENT
+
+vendor "V-TAX-BILL"
+	name: "Taxed Supplier"
+	currency: CAD
+
+bill "BILL-TAX-OVER-112"
+	vendor_id: "V-TAX-BILL"
+	currency: CAD
+	date_opened: 2026-04-01
+	entry:
+		date: 2026-04-01
+		description: "Materials (net 100 + 12% tax = 112)"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "GST+PST"
+	posted:
+		date: 2026-04-01
+		due: 2026-05-01
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-TAX-OVER-112"
+		accumulate: true
+	payment:
+		date: 2026-04-10
+		amount: 150
+		bank_account: "Assets:Bank"
+		memo: "Paid 150 on a 112 bill (overpaid 38)"
+
+bill "BILL-TAX-PART-112"
+	vendor_id: "V-TAX-BILL"
+	currency: CAD
+	date_opened: 2026-04-02
+	entry:
+		date: 2026-04-02
+		description: "Materials (net 100 + 12% tax = 112)"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "GST+PST"
+	posted:
+		date: 2026-04-02
+		due: 2026-05-02
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-TAX-PART-112"
+		accumulate: true
+	payment:
+		date: 2026-04-11
+		amount: 60
+		bank_account: "Assets:Bank"
+		memo: "Part payment (52 outstanding on a 112 bill)"

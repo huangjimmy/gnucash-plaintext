@@ -98,7 +98,8 @@ Coverage expanded across services and use cases:
 ### Documentation
 
 - [docs/bank-import-workflow.md](docs/bank-import-workflow.md) — end-to-end walk-through of the statement reconciliation pipeline.
-- [docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md) — payment lifecycle, incremental edits, orphan recovery, prepayment consumption.
+- [docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md) — invoice (Accounts Receivable) payment lifecycle, incremental edits, orphan recovery, prepayment consumption.
+- [docs/bill-payment-reconciliation.md](docs/bill-payment-reconciliation.md) — vendor-bill (Accounts Payable) payments: partial payments, vendor credits, detecting paid/partial/overpaid state, and `unapply-payment` corrections.
 - [docs/payment-manual-edit-behavior.md](docs/payment-manual-edit-behavior.md) — reference for what the importer does to a payment block under each kind of diff (entry change vs. payment-only change).
 - [docs/research/2026-05-14-invoice-post-pay-unpost-cycle.md](docs/research/2026-05-14-invoice-post-pay-unpost-cycle.md) and [docs/post-mortems/2026-05-08-bill-postto-account-segfault.md](docs/post-mortems/2026-05-08-bill-postto-account-segfault.md) — research and post-mortem notes from this cycle.
 

@@ -17,6 +17,7 @@ and in the **Status** column below.
 | [T-005](T-005-multi-currency-close-books-untested.md) | Multi-currency close-books path has no test | medium | closed |
 | [T-006](T-006-fx-rates-yaml-error-paths-untested.md) | FX rates YAML error paths are untested | low | closed |
 | [T-007](T-007-plaintext-parser-edge-cases-untested.md) | Plaintext parser edge cases are not tested | medium | closed |
+| [T-008](T-008-tax-included-and-payment-reconciliation-coverage.md) | tax_included pricing untested; bill tax flags not persisted; payment/credit reconciliation gaps | high | open |
 
 ## Security
 

@@ -1,0 +1,170 @@
+vendor "V-1"
+	name: "Vendor One"
+	currency: CAD
+
+vendor "V-2"
+	name: "Vendor Two"
+	currency: CAD
+
+vendor "V-3"
+	name: "Vendor Three"
+	currency: CAD
+
+customer "C-1"
+	name: "Customer One"
+	currency: CAD
+
+customer "C-2"
+	name: "Customer Two"
+	currency: CAD
+
+customer "C-3"
+	name: "Customer Three"
+	currency: CAD
+
+bill "BILL-V1-OVER10"
+	vendor_id: "V-1"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Supplies"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-01
+		due: 2026-07-01
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-V1-OVER10"
+		accumulate: true
+	payment:
+		date: 2026-06-05
+		amount: 110
+		bank_account: "Assets:Bank"
+		memo: "Overpaid vendor 1 by 10"
+
+bill "BILL-V2-OVER20"
+	vendor_id: "V-2"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Supplies"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-01
+		due: 2026-07-01
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-V2-OVER20"
+		accumulate: true
+	payment:
+		date: 2026-06-05
+		amount: 120
+		bank_account: "Assets:Bank"
+		memo: "Overpaid vendor 2 by 20"
+
+bill "BILL-V3-OVER30"
+	vendor_id: "V-3"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Supplies"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-01
+		due: 2026-07-01
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-V3-OVER30"
+		accumulate: true
+	payment:
+		date: 2026-06-05
+		amount: 130
+		bank_account: "Assets:Bank"
+		memo: "Overpaid vendor 3 by 30"
+
+invoice "INV-C1-OVER15"
+	customer_id: "C-1"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-01
+		due: 2026-07-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-C1-OVER15"
+		accumulate: true
+	payment:
+		date: 2026-06-05
+		amount: 115
+		bank_account: "Assets:Bank"
+		memo: "Customer 1 overpaid by 15"
+
+invoice "INV-C2-OVER25"
+	customer_id: "C-2"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-01
+		due: 2026-07-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-C2-OVER25"
+		accumulate: true
+	payment:
+		date: 2026-06-05
+		amount: 125
+		bank_account: "Assets:Bank"
+		memo: "Customer 2 overpaid by 25"
+
+invoice "INV-C3-OVER35"
+	customer_id: "C-3"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-01
+		due: 2026-07-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-C3-OVER35"
+		accumulate: true
+	payment:
+		date: 2026-06-05
+		amount: 135
+		bank_account: "Assets:Bank"
+		memo: "Customer 3 overpaid by 35"

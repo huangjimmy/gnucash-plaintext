@@ -1,23 +1,22 @@
-# Invoice and Bill Payment Reconciliation
+# Invoice Payment Reconciliation
 
-Covers the scenarios where bank transactions and invoice/bill payments need
+Covers the scenarios where bank transactions and invoice payments need
 to be linked without creating duplicate bank entries, and how the GUID-based
-identity model affects re-imports.
+identity model affects re-imports. For the vendor-bill (Accounts Payable) side, see [docs/bill-payment-reconciliation.md](bill-payment-reconciliation.md).
 
 For the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, every payment shape from cash through retarget, overpayment, credit consumption, and multi-invoice shared bank tx) exported and re-imported into a fresh book with all GUIDs preserved — see [docs/comprehensive-roundtrip-example.md](comprehensive-roundtrip-example.md).
 
 ## Background
 
 When an invoice is paid in GnuCash, `ApplyPayment()` always creates a **new**
-bank+AR transaction. Similarly, when a vendor bill is paid, it creates a new
-bank+AP transaction. If a matching bank transaction was already imported from
+bank+AR transaction. If a matching bank transaction was already imported from
 a bank feed (QFX, CSV, HTML, etc.), you end up with two bank entries for the
 same cash movement — one from the feed, one from the payment.
 
 The `txn_guid:` field on a `payment:` block solves this cleanly: instead of
 creating a new transaction, the importer **modifies the existing bank
-transaction in-place**, retargeting its counter-split to AR (or AP for bills)
-and linking it to the invoice/bill lot. All original bank metadata — notes,
+transaction in-place**, retargeting its counter-split to AR
+and linking it to the invoice lot. All original bank metadata — notes,
 description, split memos, FITID — is preserved.
 
 The companion `txn_split_guid:` field names the *specific* AR/AP-side split that belongs to this invoice/bill. It's optional in hand-written plaintext (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order) but is **always** emitted on export so a round-tripped book reconstructs bit-for-bit on a fresh re-import — including the shape where one bank transaction covers several invoices or bills, each claiming one specific AR/AP-side split via its own `txn_split_guid:`.
@@ -25,7 +24,8 @@ The companion `txn_split_guid:` field names the *specific* AR/AP-side split that
 This document describes:
 
 - [Workflow: Import bank feed first, then reconcile invoices](#workflow-import-bank-feed-first-then-reconcile-invoices)
-- [Vendor bills work the same way](#vendor-bills-work-the-same-way)
+- Vendor bills (Accounts Payable) are covered in [docs/bill-payment-reconciliation.md](bill-payment-reconciliation.md)
+- [Managing a customer credit: consume, refund, or forfeit](#managing-a-customer-credit-consume-refund-or-forfeit)
 - [GUID format conventions](#guid-format-conventions)
 - [Round-trip identity: the exporter writes back what you imported](#round-trip-identity-the-exporter-writes-back-what-you-imported)
 - [Idempotency](#idempotency)
@@ -200,44 +200,42 @@ If restructuring isn't acceptable (e.g. the bank tx must stay byte-identical to 
 
 ---
 
-## Vendor bills work the same way
+## Managing a customer credit: consume, refund, or forfeit
 
-Bills use AP instead of AR. The `payment:` block in a `bill` directive is
-identical — just provide `bank_account` and `txn_guid`:
+When a customer pays more than an invoice, the excess opens a **customer credit** — money you hold that isn't yours and may owe back. GnuCash carries it as an open, **negative** (credit) AR lot attached to no invoice (the overpaying `payment:` block records the residual as `prepayment: N`). It is managed in three ways, all non-destructive (none touches the original overpayment transaction), and the **counter account states the intent**:
+
+| Disposition | How you record it | Counter account | Cash movement | What it means |
+|---|---|---|---|---|
+| **Consume** on the next invoice | `auto_apply_credit: true` on that invoice's header | — (internal lot move) | none | The customer's next invoice(s) draw the credit down |
+| **Refund** (the customer asks for it back) | `lot_owner: customer:C001` on an AR split | an **asset** (bank / cash) | **− out of the bank** | Settle the liability in cash — **not an expense** |
+| **Forfeit** (the customer never claims it) | `lot_owner: customer:C001` on an AR split | an **income** account | none | Recognise the gain — the *only* case that hits income |
+
+- **Consume it on the next invoice** — `auto_apply_credit: true` on that invoice's header: GnuCash draws the credit into the customer's next invoice(s), across several in posting order until it runs out.
+- **Refund** — the customer asks for their money back and you pay it. Record a normal transaction whose AR split carries a `lot_owner:` marker; the counter is the bank, so money leaves:
 
 ```
-vendor "VEND-001"
-	guid: "f66df24e6e75424ba08c2b0a47ec292c"
-	name: "Office Supplies Co."
-	currency: CAD
-
-bill "BILL-2026-001"
-	vendor_id: "VEND-001"
-	vendor_guid: "f66df24e6e75424ba08c2b0a47ec292c"
-	currency: CAD
-	date_opened: 2026-01-01
-	entry:
-		...
-	posted:
-		date: 2026-01-01
-		due: 2026-01-31
-		ap_account: "Liabilities:Accounts Payable"
-		memo: "Bill BILL-2026-001"
-		accumulate: true
-	payment:
-		bank_account: "Assets:Bank"
-		txn_guid: "abc123def456abc123def456abc123de"
-		txn_split_guid: "11223344556677889900aabbccddeeff"
+2026-02-01 * "Refund overpayment to Acme"
+	currency.mnemonic: "CAD"
+	Assets:Bank -50.00 CAD
+	Assets:Accounts Receivable 50.00 CAD
+		lot_owner: customer:C001
 ```
 
-Use `find-transactions` with a negative amount to find outgoing payments:
+- **Forfeit** — the customer never claims the credit and you recognise it as income (a gain). Same shape, counter = an income account:
 
-```bash
-gnucash-plaintext find-transactions ledger.gnucash \
-    --account "Assets:Bank" \
-    --date 2026-01-25 \
-    --amount 200
 ```
+2026-02-15 * "Forfeit Acme overpayment to income"
+	currency.mnemonic: "CAD"
+	Income -50.00 CAD
+	Assets:Accounts Receivable 50.00 CAD
+		lot_owner: customer:C001
+```
+
+The `lot_owner: customer:C001` marker joins the AR split to the customer's oldest open credit lot and reduces it — an exact amount closes the lot, a smaller amount leaves the residual credit open (a partial refund). A `customer:` marker must sit on an AR account (a `vendor:` marker on an AP account); the importer rejects the mismatch.
+
+**What the refund moves, and why it is not an expense.** Observed from the book (invoice $100 paid $150, then we refund $50): the $50 goes **out of the bank and clears the AR credit** — `Assets:Bank` falls by $50 and `Assets:Accounts Receivable` goes `−50 → 0`; the credit lot closes. Nothing else moves — no expense and no reduction of income. This matches the intuition that a customer overpayment is, in effect, a **liability** (money we hold that isn't ours and may owe back): GnuCash carries it as a credit (negative balance) on Accounts Receivable rather than in a separate liability account, and the refund settles it in cash. Only the **forfeit** above touches income — that's the different case where the customer never claims it and it becomes a gain.
+
+Detect open credits with `find-prepayments --customer C001` or the `open_prepayment:` blocks on AR accounts. The whole state round-trips through export via three directives — `prepayment:` (on the overpaying payment), `open_prepayment:` (the per-account credit summary), and `lot_owner:` (the disposal split) — so a credit survives export → fresh-book re-import without manual bookkeeping. This is the exact mirror of the vendor side, sign-flipped: see [docs/bill-payment-reconciliation.md § Managing a vendor credit](bill-payment-reconciliation.md#managing-a-vendor-credit-consume-refund-or-write-off) (there the refund arrives *in* the bank and the write-off goes to an expense).
 
 ---
 

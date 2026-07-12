@@ -117,13 +117,32 @@ def _balances(gf, names=('Assets.Bank', 'Assets.Accounts Receivable',
 # --------------------------------------------------------------------------
 
 def test_customer_refund_closes_credit(tmp_path):
+    """Customer overpaid (−$50 open AR credit — money we hold and owe back);
+    they ask for it and we refund. The four refund questions, all asserted:
+    (1) the credit lot closes; (2) $50 moves Bank → AR (the −50 credit
+    clears to 0); (3) it is NOT an expense and NOT a reduction of income —
+    only Bank and AR move; (4) the overpayment was in effect a liability,
+    carried as a credit ON Accounts Receivable, settled in cash."""
     runner = CliRunner()
     gf = _setup_customer_credit(runner, tmp_path)
     assert any(not lt['closed'] and lt['balance'] == -50.0
                for lt in _lots(gf, 'Assets.Accounts Receivable'))
+    accts = ('Assets.Bank', 'Assets.Accounts Receivable', 'Income.Sales',
+             'Expenses.Supplies')
+    before = _balances(gf, accts)
     r = _import_fixture(runner, gf, 'q_refund_prepayment.txt', tmp_path)
     assert r.exit_code == 0, r.output
+    after = _balances(gf, accts)
+    # (1) credit lot closed
     assert _open_nonzero(_lots(gf, 'Assets.Accounts Receivable')) == []
+    # (2) $50 out of the bank; (2)+(4) the AR credit reduced to exactly zero
+    assert round(after['Assets.Bank'] - before['Assets.Bank'], 2) == -50.0
+    assert round(after['Assets.Accounts Receivable']
+                 - before['Assets.Accounts Receivable'], 2) == 50.0
+    assert round(after['Assets.Accounts Receivable'], 2) == 0.0
+    # (3) NOT an expense and NOT income — nothing else moved
+    assert after['Expenses.Supplies'] == before['Expenses.Supplies']
+    assert after['Income.Sales'] == before['Income.Sales']
 
 
 def test_customer_forfeit_to_income_closes_credit(tmp_path):
@@ -137,13 +156,32 @@ def test_customer_forfeit_to_income_closes_credit(tmp_path):
 
 
 def test_vendor_refund_received_closes_credit(tmp_path):
+    """We overpaid a vendor (+$50 open AP credit — a receivable; the vendor
+    owes us); the vendor refunds us. (1) the credit lot closes; (2) $50
+    moves AP → Bank (the +50 credit clears to 0, cash arrives); (3) it is
+    NOT an expense — the bill's original $100 expense is untouched;
+    (4) the overpayment was in effect a receivable, carried as a credit ON
+    Accounts Payable, collected in cash."""
     runner = CliRunner()
     gf = _setup_vendor_credit(runner, tmp_path)
     assert any(not lt['closed'] and lt['balance'] == 50.0
                for lt in _lots(gf, 'Liabilities.Accounts Payable'))
+    accts = ('Assets.Bank', 'Liabilities.Accounts Payable', 'Income.Sales',
+             'Expenses.Supplies')
+    before = _balances(gf, accts)
     r = _import_fixture(runner, gf, 'q_vendor_refund.txt', tmp_path)
     assert r.exit_code == 0, r.output
+    after = _balances(gf, accts)
+    # (1) credit lot closed
     assert _open_nonzero(_lots(gf, 'Liabilities.Accounts Payable')) == []
+    # (2) $50 into the bank; (2)+(4) the AP credit reduced to exactly zero
+    assert round(after['Assets.Bank'] - before['Assets.Bank'], 2) == 50.0
+    assert round(after['Liabilities.Accounts Payable']
+                 - before['Liabilities.Accounts Payable'], 2) == -50.0
+    assert round(after['Liabilities.Accounts Payable'], 2) == 0.0
+    # (3) NOT an expense — the $100 bill expense is unchanged by the refund
+    assert after['Expenses.Supplies'] == before['Expenses.Supplies']
+    assert after['Income.Sales'] == before['Income.Sales']
 
 
 def test_vendor_bad_debt_writes_off_credit(tmp_path):

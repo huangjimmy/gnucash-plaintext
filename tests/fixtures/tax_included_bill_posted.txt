@@ -1,0 +1,34 @@
+taxtable "GST+PST"
+	entry:
+		account: "Liabilities:Tax:GST"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax:PST"
+		rate: 7.0%
+		type: PERCENT
+
+vendor "V-TAXINCL-2"
+	name: "Tax-Inclusive Vendor Posted"
+	currency: CAD
+
+bill "BILL-TAXINCL-POSTED-1120"
+	vendor_id: "V-TAXINCL-2"
+	currency: CAD
+	date_opened: 2026-05-12
+	entry:
+		date: 2026-05-12
+		description: "Tax-inclusive priced supplies, 4 x 280 gross = 1120"
+		account: "Expenses:Office Supplies"
+		quantity: 4
+		price: 280
+		taxable: true
+		tax_included: true
+		tax_table: "GST+PST"
+	posted:
+		date: 2026-05-12
+		due: 2026-06-11
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-TAXINCL-POSTED-1120"
+		accumulate: true
+	payment: none

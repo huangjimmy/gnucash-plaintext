@@ -1,0 +1,45 @@
+bill "BILL-MBC-1"
+	vendor_id: "V-MB"
+	currency: CAD
+	date_opened: 2026-06-10
+	auto_apply_credit: true
+	entry:
+		date: 2026-06-10
+		description: "First bill — settled in full from the credit"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-10
+		due: 2026-07-10
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-MBC-1"
+		accumulate: true
+	payment: none
+
+bill "BILL-MBC-2"
+	vendor_id: "V-MB"
+	currency: CAD
+	date_opened: 2026-06-11
+	auto_apply_credit: true
+	entry:
+		date: 2026-06-11
+		description: "Second bill — 50 from the remaining credit, 50 cash"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-11
+		due: 2026-07-11
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-MBC-2"
+		accumulate: true
+	payment:
+		date: 2026-06-12
+		amount: 50
+		bank_account: "Assets:Bank"
+		memo: "Cash for the rest of bill 2 after the credit ran out"
