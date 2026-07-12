@@ -19,6 +19,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 ACCOUNTS = 'tests/fixtures/payment_roundtrip_accounts.txt'
 
@@ -289,8 +290,8 @@ def _dump_posting_and_lots(gf, bill_id):
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(repo.book)
-        bill = next((gb.Invoice(instance=r) for r in q.run()
-                     if gb.Invoice(instance=r).GetID() == bill_id), None)
+        bill = next((wrap_invoice_or_bill(r) for r in q.run()
+                     if wrap_invoice_or_bill(r).GetID() == bill_id), None)
         q.destroy()
         assert bill is not None
 
@@ -354,7 +355,7 @@ def _bill_states(gf, bill_ids):
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(repo.book)
-        by_id = {gb.Invoice(instance=r).GetID(): gb.Invoice(instance=r)
+        by_id = {wrap_invoice_or_bill(r).GetID(): wrap_invoice_or_bill(r)
                  for r in q.run()}
         q.destroy()
         for bid in bill_ids:

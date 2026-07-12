@@ -19,9 +19,9 @@ from datetime import datetime
 from pathlib import Path
 
 import click
-import gnucash.gnucash_business as gb
 from gnucash import Query
 
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.bill_renderer import (
     render_to_html,
@@ -38,7 +38,7 @@ def _all_bills(book):
     q.set_book(book)
     results = []
     for r in q.run():
-        bill = gb.Invoice(instance=r)
+        bill = wrap_invoice_or_bill(r)
         # Vendor bills only (skip customer invoices).
         try:
             vendor = bill.GetOwner().GetVendor()

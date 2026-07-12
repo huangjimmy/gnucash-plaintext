@@ -11,6 +11,8 @@ import tempfile
 
 import pytest
 
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
+
 # ---------------------------------------------------------------------------
 # Session helpers (same pattern as test_kvp_metadata.py)
 # ---------------------------------------------------------------------------
@@ -209,7 +211,7 @@ def _lookup_invoices(book):
     q = Query()
     q.search_for('gncInvoice')
     q.set_book(book)
-    invoices = [gb.Invoice(instance=r) for r in q.run()]
+    invoices = [wrap_invoice_or_bill(r) for r in q.run()]
     q.destroy()
     return invoices
 

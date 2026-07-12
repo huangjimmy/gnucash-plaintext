@@ -22,6 +22,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q019_accounts.txt')
@@ -46,7 +47,7 @@ def _find(repo, obj_id):
     try:
         q.search_for('gncInvoice')
         q.set_book(repo.book)
-        return next((i for raw in q.run() for i in [gb.Invoice(instance=raw)]
+        return next((i for raw in q.run() for i in [wrap_invoice_or_bill(raw)]
                      if i.GetID() == obj_id), None)
     finally:
         q.destroy()

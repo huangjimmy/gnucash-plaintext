@@ -30,6 +30,7 @@ import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 
 def _fixture(name: str) -> str:
@@ -118,7 +119,7 @@ def _record_ids_after_reload(gnc, search_for, owner_type_int):
         q.set_book(book)
         ids = []
         for r in q.run():
-            inv = Invoice(instance=r)
+            inv = wrap_invoice_or_bill(r)
             if inv.GetOwnerType() == owner_type_int:
                 ids.append(inv.GetID())
         q.destroy()
@@ -198,7 +199,7 @@ def _invoice_guid(gnc, inv_id):
         q.set_book(book)
         guid = None
         for r in q.run():
-            inv = Invoice(instance=r)
+            inv = wrap_invoice_or_bill(r)
             if inv.GetID() == inv_id:
                 guid = _swig_invoice_guid_str(inv)
                 break

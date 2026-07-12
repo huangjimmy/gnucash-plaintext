@@ -26,6 +26,7 @@ from infrastructure.gnucash.utils import (
     encode_value_as_string,
     format_amount_for_commodity,
     get_account_full_name,
+    wrap_invoice_or_bill,
 )
 
 
@@ -339,7 +340,7 @@ class ExportBusinessObjectsUseCase:
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(self.book)
-        all_invoices = [gb.Invoice(instance=r) for r in q.run()]
+        all_invoices = [wrap_invoice_or_bill(r) for r in q.run()]
         q.destroy()
 
         # Export all customer invoices (owner is Customer, not Vendor), including unposted
@@ -612,7 +613,7 @@ class ExportBusinessObjectsUseCase:
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(self.book)
-        all_invoices = [gb.Invoice(instance=r) for r in q.run()]
+        all_invoices = [wrap_invoice_or_bill(r) for r in q.run()]
         q.destroy()
 
         # Export all vendor bills, including unposted

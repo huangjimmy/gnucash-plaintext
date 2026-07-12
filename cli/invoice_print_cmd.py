@@ -17,9 +17,9 @@ from datetime import datetime
 from pathlib import Path
 
 import click
-import gnucash.gnucash_business as gb
 from gnucash import Query
 
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.invoice_renderer import (
     read_book_company_info,
@@ -36,7 +36,7 @@ def _all_invoices(book):
     q.set_book(book)
     results = []
     for r in q.run():
-        inv = gb.Invoice(instance=r)
+        inv = wrap_invoice_or_bill(r)
         # Customer invoices only (skip vendor bills)
         try:
             cust = inv.GetOwner().GetCustomer()

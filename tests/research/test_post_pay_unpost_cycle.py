@@ -22,6 +22,7 @@ import shutil
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 # Resolve the repo root from this test file's location so the path is correct
 # both inside Docker (/workspace/tests/research/...) and on the host.
@@ -201,7 +202,7 @@ def _read_entry_guids(gnc_path, inv_id):
         q.set_book(book)
         guids = []
         for r in q.run():
-            inv = Invoice(instance=r)
+            inv = wrap_invoice_or_bill(r)
             if inv.GetID() == inv_id:
                 lib = ctypes.CDLL(None)
                 lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]

@@ -24,7 +24,7 @@ from click.testing import CliRunner
 from gnucash import Query
 
 from cli.main import cli
-from infrastructure.gnucash.utils import get_account_full_name
+from infrastructure.gnucash.utils import get_account_full_name, wrap_invoice_or_bill
 from repositories.gnucash_repository import GnuCashRepository
 
 ACCOUNTS = """\
@@ -185,7 +185,7 @@ def _snapshot(gnc_path):
             q.search_for('gncInvoice')
             q.set_book(repo.book)
             for raw in q.run():
-                inv = gb.Invoice(instance=raw)
+                inv = wrap_invoice_or_bill(raw)
                 if inv.GetPostedTxn() is None:
                     continue
                 # Key by (owner-kind, id) so the equality check still
