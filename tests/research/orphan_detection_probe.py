@@ -24,6 +24,7 @@ import shutil
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 WORKTREE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 EXPORTS_DIR = os.path.join(WORKTREE, "exports")
@@ -685,8 +686,8 @@ def test_find_orphan_payments_prototype_bill(tmp_path):
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(ses.book)
-        bill = next(Invoice(instance=res) for res in q.run()
-                    if Invoice(instance=res).GetID() == "BILL-001")
+        bill = next(wrap_invoice_or_bill(res) for res in q.run()
+                    if wrap_invoice_or_bill(res).GetID() == "BILL-001")
         pre_list = find_pre_unpost_payments(ses.book, bill)
         q.destroy()
     finally:
@@ -733,8 +734,8 @@ def test_find_orphan_payments_prototype(tmp_path):
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(ses.book)
-        inv = next(Invoice(instance=res) for res in q.run()
-                   if Invoice(instance=res).GetID() == "INV-001")
+        inv = next(wrap_invoice_or_bill(res) for res in q.run()
+                   if wrap_invoice_or_bill(res).GetID() == "INV-001")
         pre_list = find_pre_unpost_payments(ses.book, inv)
         q.destroy()
     finally:

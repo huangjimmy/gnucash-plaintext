@@ -30,6 +30,16 @@ the bill. Proven by an XML probe: an entry added via `gncBillAddEntry` writes
 This also explains — and supersedes — the earlier CLAUDE.md finding #8 belief
 that GnuCash "cannot persist `bill_taxable = false`".
 
+Root cause and fix: the importer built and looked up vendor bills with the
+**`Invoice`** class, so `bill.AddEntry` / `bill.RemoveEntry` resolved to the
+customer-invoice functions. The Python bindings do provide a `Bill(Invoice)`
+class whose `AddEntry` / `RemoveEntry` dispatch to `gncBill*`. All production
+paths now construct and wrap vendor bills as `Bill` (via `wrap_invoice_or_bill`),
+so the correct functions are used with no ctypes workarounds. Removing the
+ctypes helpers and using `Bill.RemoveEntry` also avoids the GnuCash-3.8 rebuild
+segfault the ctypes helper was originally added for — verified on Ubuntu 20.04,
+22.04 and Debian 13.
+
 ### Reconciliation coverage gaps (untested before this work)
 
 - overpayment / partial payment on a **taxed** invoice/bill (payment applied
@@ -46,8 +56,11 @@ that GnuCash "cannot persist `bill_taxable = false`".
 
 ## Affected files
 
-- `services/gnucash_importer.py` — bill entry attach (`_bill_add_entry` /
-  `gncBillAddEntry`) + `SetBillTaxIncluded`
+- `services/gnucash_importer.py` — vendor bills constructed/looked up as the
+  SWIG `Bill` class + `SetBillTaxIncluded`; `infrastructure/gnucash/utils.py`
+  `wrap_invoice_or_bill` classifies every `gncInvoice` query result
+- `use_cases/delete_business_objects.py`, `use_cases/export_business_objects.py`,
+  `cli/bill_print_cmd.py`, `cli/invoice_print_cmd.py` — bills wrapped as `Bill`
 - `services/invoice_renderer.py`, `services/bill_renderer.py` (branch under test)
 - `tests/integration/test_tax_included_pricing.py`,
   `test_overpayment_partial_payment_with_and_without_tax.py`,

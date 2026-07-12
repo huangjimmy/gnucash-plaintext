@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 
 import gnucash.gnucash_core_c as gc
 from gnucash import Account, Book, GncCommodity, GncNumeric, Split, Transaction
-from gnucash.gnucash_business import Customer, Entry, Invoice, TaxTable, TaxTableEntry, Vendor
+from gnucash.gnucash_business import Bill, Customer, Entry, Invoice, TaxTable, TaxTableEntry, Vendor
 from gnucash.gnucash_core_c import (
     ACCT_TYPE_ASSET,
     ACCT_TYPE_BANK,
@@ -46,7 +46,12 @@ from infrastructure.gnucash.kvp import (
     set_book_string_option,
     set_custom_metadata,
 )
-from infrastructure.gnucash.utils import find_account, get_account_full_name, string_to_gnc_numeric
+from infrastructure.gnucash.utils import (
+    find_account,
+    get_account_full_name,
+    string_to_gnc_numeric,
+    wrap_invoice_or_bill,
+)
 from services.plaintext_parser import DirectiveType, PlaintextDirective
 
 # Q-028: book-level `company` directive — plaintext key ↔ Business option slot.
@@ -257,13 +262,12 @@ def _find_invoices_by_id(book, id_: str):
     same lookup shape.
     """
     from gnucash import Query
-    from gnucash.gnucash_business import Invoice
     q = Query()
     q.search_for('gncInvoice')
     q.set_book(book)
     out = []
     for r in q.run():
-        inv = Invoice(instance=r)
+        inv = wrap_invoice_or_bill(r)
         if inv.GetOwnerType() == _GNC_OWNER_CUSTOMER and inv.GetID() == id_:
             out.append(inv)
     q.destroy()
@@ -273,13 +277,12 @@ def _find_invoices_by_id(book, id_: str):
 def _find_bills_by_id(book, id_: str):
     """All vendor bills with the given id."""
     from gnucash import Query
-    from gnucash.gnucash_business import Invoice
     q = Query()
     q.search_for('gncInvoice')
     q.set_book(book)
     out = []
     for r in q.run():
-        inv = Invoice(instance=r)
+        inv = wrap_invoice_or_bill(r)
         if inv.GetOwnerType() == _GNC_OWNER_VENDOR and inv.GetID() == id_:
             out.append(inv)
     q.destroy()
@@ -296,7 +299,6 @@ def _find_invoice_by_guid(book, guid_norm: str):
     import ctypes
 
     from gnucash import Query
-    from gnucash.gnucash_business import Invoice
     lib = ctypes.CDLL(None)
     lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]
     lib.qof_instance_get_guid.restype = ctypes.c_void_p
@@ -309,7 +311,7 @@ def _find_invoice_by_guid(book, guid_norm: str):
     q.set_book(book)
     found = None
     for r in q.run():
-        inv = Invoice(instance=r)
+        inv = wrap_invoice_or_bill(r)
         if inv.GetOwnerType() != _GNC_OWNER_CUSTOMER:
             continue
         guid_ptr = lib.qof_instance_get_guid(int(inv.instance))
@@ -328,7 +330,6 @@ def _find_bill_by_guid(book, guid_norm: str):
     import ctypes
 
     from gnucash import Query
-    from gnucash.gnucash_business import Invoice
     lib = ctypes.CDLL(None)
     lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]
     lib.qof_instance_get_guid.restype = ctypes.c_void_p
@@ -341,7 +342,7 @@ def _find_bill_by_guid(book, guid_norm: str):
     q.set_book(book)
     found = None
     for r in q.run():
-        inv = Invoice(instance=r)
+        inv = wrap_invoice_or_bill(r)
         if inv.GetOwnerType() != _GNC_OWNER_VENDOR:
             continue
         guid_ptr = lib.qof_instance_get_guid(int(inv.instance))
@@ -412,52 +413,6 @@ def _find_taxtable_by_guid(book, guid_norm: str):
         if _taxtable_guid_str(ptr) == guid_norm:
             return ptr
     return None
-
-
-def _bill_remove_all_entries(book, bill) -> None:
-    """Detach and destroy every entry on a vendor bill.
-
-    SWIG `Invoice.RemoveEntry(entry)` wraps `gncInvoiceRemoveEntry` which is
-    customer-invoice-specific and is a no-op (or worse) on vendor bills.
-    Use the C `gncBillRemoveEntry` directly via ctypes so the bill's entry
-    list is properly cleared before we rebuild from the directive. Without
-    this, `gncInvoicePostToAccount` later iterates a list with dangling
-    pointers from destroyed entries and segfaults on GnuCash 3.8.
-    """
-    import ctypes
-    lib = ctypes.CDLL(None)
-    lib.gncBillRemoveEntry.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    lib.gncBillRemoveEntry.restype = None
-    bill_ptr = int(bill.instance)
-    for old_entry in list(bill.GetEntries()):
-        lib.gncBillRemoveEntry(bill_ptr, int(old_entry.instance))
-        old_entry.Destroy()
-
-
-def _bill_add_entry(bill, entry) -> None:
-    """Attach an entry to a vendor bill via the C `gncBillAddEntry`.
-
-    SWIG `Invoice.AddEntry(entry)` wraps `gncInvoiceAddEntry`, which sets the
-    entry's *customer-invoice* owner pointer (`gncEntrySetInvoice`). GnuCash's
-    entry XML writer guards the bill-side tax flags behind
-    `if (gncEntryGetBill(entry))`, so a bill entry attached the customer-invoice
-    way serialises on the invoice side (`entry:invoice`, `i-taxincluded`) and
-    never persists `entry:b-taxable` / `entry:b-taxincluded`. Its
-    `tax_included: true` is silently dropped on save and reads back false after
-    reload, so the price is treated as tax-exclusive and the bill is
-    over-taxed. `gncBillAddEntry` sets the entry's *bill* owner pointer
-    (`gncEntrySetBill`) so the writer emits `entry:bill` with `b-taxable` /
-    `b-taxincluded`, and the tax-inclusive flag survives the round-trip.
-    Symmetric to `_bill_remove_all_entries` (`gncBillRemoveEntry`); both append
-    to the same `invoice->entries` GList that posting iterates, so the only
-    behavioural change is that the bill-side owner link (and its tax flags) is
-    now recorded correctly.
-    """
-    import ctypes
-    lib = ctypes.CDLL(None)
-    lib.gncBillAddEntry.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    lib.gncBillAddEntry.restype = None
-    lib.gncBillAddEntry(int(bill.instance), int(entry.instance))
 
 
 def _swig_invoice_guid_str(invoice) -> str:
@@ -3091,7 +3046,10 @@ class GnuCashImporter:
                 existing.Unpost(False)
 
         if existing is None:
-            # Bills are Invoice objects whose owner is a Vendor (no separate Bill class)
+            # A vendor bill is a gncInvoice with a Vendor owner; the SWIG
+            # `Bill` class (a subclass of Invoice) is what makes AddEntry /
+            # RemoveEntry dispatch to the gncBill* functions, so we construct
+            # it as Bill rather than Invoice.
             vendor = _resolve_cross_reference(
                 'vendor',
                 directive.metadata.get('vendor_id'),
@@ -3099,17 +3057,18 @@ class GnuCashImporter:
                 lambda i: _find_vendors_by_id(book, i),
                 lambda g: _find_vendor_by_guid(book, g),
             )
-            bill = Invoice(book, bill_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), vendor)
+            bill = Bill(book, bill_id, book.get_table().lookup("CURRENCY", directive.metadata['currency']), vendor)
             if must_set_guid is not None:
                 _set_object_guid(book, bill, 'bill', bill_id, must_set_guid)
         else:
             # Existing bill (unposted now, after the Unpost above if needed):
-            # reuse it, drop its current entries.
-            # NOTE: SWIG `Invoice.RemoveEntry` wraps `gncInvoiceRemoveEntry`
-            # which only handles customer invoices. For vendor bills we
-            # need `gncBillRemoveEntry` via ctypes — see _bill_remove_entry.
+            # reuse it, drop its current entries. `_find_bills_by_id` /
+            # `_find_bill_by_guid` return a Bill, so RemoveEntry dispatches to
+            # gncBillRemoveEntry (correctly clearing the bill's entry list).
             bill = existing
-            _bill_remove_all_entries(book, bill)
+            for old_entry in list(bill.GetEntries()):
+                bill.RemoveEntry(old_entry)
+                old_entry.Destroy()
         bill.BeginEdit()
         bill.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
 
@@ -3138,11 +3097,12 @@ class GnuCashImporter:
                     tt_ptr = gc.gncTaxTableLookupByName(book.instance, entry_directive.metadata['tax_table'])
                     if tt_ptr:
                         entry.SetBillTaxTable(TaxTable(instance=tt_ptr))
-                # Attach on the vendor-bill side (gncBillAddEntry), NOT the
-                # customer-invoice side (Invoice.AddEntry), so GnuCash persists
-                # the bill-side tax flags (b-taxable / b-taxincluded). See
-                # _bill_add_entry.
-                _bill_add_entry(bill, entry)
+                # `bill` is a Bill, so AddEntry dispatches to gncBillAddEntry,
+                # which sets the entry's bill-side owner pointer. GnuCash then
+                # persists the bill-side tax flags (b-taxable / b-taxincluded);
+                # the customer-invoice Invoice.AddEntry would drop them on save
+                # and over-tax the bill.
+                bill.AddEntry(entry)
                 entry.CommitEdit()
             elif entry_directive.type == DirectiveType.POSTED:
                 ap_acct_name = entry_directive.metadata['ap_account']

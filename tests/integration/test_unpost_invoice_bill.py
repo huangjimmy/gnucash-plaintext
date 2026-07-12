@@ -31,6 +31,7 @@ import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 
 def _fixture(name: str) -> str:
@@ -127,7 +128,7 @@ def _entry_guids_for_invoice(runner, gnc, inv_id):
         q.set_book(book)
         guids = []
         for r in q.run():
-            inv = Invoice(instance=r)
+            inv = wrap_invoice_or_bill(r)
             if inv.GetID() == inv_id:
                 # Each entry's GUID via ctypes (SWIG GetGUID is unreliable
                 # for Entry on some platforms).

@@ -1,0 +1,38 @@
+customer "C-MIX-2"
+	name: "Mixed Book Customer Two"
+	currency: CAD
+
+vendor "V-MIX-2"
+	name: "Mixed Book Vendor Two"
+	currency: CAD
+
+invoice "INV-MIX-2"
+	customer_id: "C-MIX-2"
+	currency: CAD
+	date_opened: 2026-05-12
+	entry:
+		date: 2026-05-12
+		description: "Mixed-book unposted invoice"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none
+
+bill "BILL-MIX-2"
+	vendor_id: "V-MIX-2"
+	currency: CAD
+	date_opened: 2026-05-13
+	entry:
+		date: 2026-05-13
+		description: "Mixed-book unposted bill"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none

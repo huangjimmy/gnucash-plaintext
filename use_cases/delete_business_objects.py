@@ -29,15 +29,14 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List
 
-import gnucash.gnucash_business as gb
 from gnucash import Book, Query
 
 from infrastructure.gnucash.guid_lookup import (
     find_customer_by_guid,
     find_vendor_by_guid,
 )
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 from services.gnucash_importer import (
-    _bill_remove_all_entries,
     _find_bill_by_guid,
     _find_bills_by_id,
     _find_invoice_by_guid,
@@ -119,7 +118,7 @@ def _count_invoices_for_owner(book: Book, owner_id: str, owner_type_int: int) ->
     q.destroy()
     count = 0
     for r in invoices:
-        inv = gb.Invoice(instance=r)
+        inv = wrap_invoice_or_bill(r)
         if inv.GetOwnerType() != owner_type_int:
             continue
         try:
@@ -272,20 +271,15 @@ def _resolve_invoice_or_bill(book: Book, id_or_guid: str, by_guid: bool,
     return rec, rec.GetID(), _swig_invoice_guid_str(rec)
 
 
-def _remove_all_entries(rec, kind: str, book: Book) -> None:
+def _remove_all_entries(rec) -> None:
     """Detach + destroy every entry on an unposted invoice or bill, so
     that `Invoice.Destroy()` doesn't leave dangling entry-to-parent
     references that revive the parent in the XML backend on save.
 
-    Mirrors the importer's rebuild path:
-      - customer invoice: SWIG `invoice.RemoveEntry(entry)` works.
-      - vendor bill: SWIG RemoveEntry is customer-only — we use
-        `_bill_remove_all_entries` which calls `gncBillRemoveEntry`
-        via ctypes (same finding as CLAUDE.md #8).
+    `rec` is the correctly-typed SWIG object — a `Bill` for a vendor bill,
+    an `Invoice` for a customer invoice (see the `_find_*` lookups) — so
+    `RemoveEntry` dispatches to the right `gncBill*` / `gncInvoice*` function.
     """
-    if kind == 'bill':
-        _bill_remove_all_entries(book, rec)
-        return
     for entry in list(rec.GetEntries()):
         rec.RemoveEntry(entry)
         entry.Destroy()
@@ -332,7 +326,7 @@ def _execute_delete_invoice_or_bill(book: Book, ids: List[str],
                 id=rid, guid=rguid,
                 status=DeleteInvoiceStatus.FAILED_POSTED, kind=kind))
             continue
-        _remove_all_entries(rec, kind, book)
+        _remove_all_entries(rec)
         rec.Destroy()
         results.append(DeleteInvoiceResult(
             id=rid, guid=rguid, status=DeleteInvoiceStatus.DELETED, kind=kind))

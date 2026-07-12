@@ -13,6 +13,25 @@ from typing import List, Optional, Union
 from gnucash import Account, GncCommodity, GncNumeric
 
 
+def wrap_invoice_or_bill(raw):
+    """Wrap a ``gncInvoice`` QOF query result as the correct SWIG class:
+    ``Bill`` for a vendor-owned document, ``Invoice`` for a customer-owned one.
+
+    GnuCash stores customer invoices and vendor bills in one ``gncInvoice`` QOF
+    type; only the Python class decides whether ``AddEntry`` / ``RemoveEntry``
+    dispatch to the ``gncBill*`` functions (vendor bill) or the ``gncInvoice*``
+    functions (customer invoice). A vendor bill MUST be wrapped as ``Bill`` so
+    those operations — and the bill-side tax-flag persistence they drive — are
+    correct. All read-only methods are inherited from ``Invoice``, so wrapping a
+    bill as ``Bill`` never loses anything.
+    """
+    from gnucash.gnucash_business import GNC_OWNER_VENDOR, Bill, Invoice
+    inv = Invoice(instance=raw)
+    if inv.GetOwnerType() == GNC_OWNER_VENDOR:
+        return Bill(instance=raw)
+    return inv
+
+
 def get_account_full_name(account: Account) -> str:
     """
     Get full hierarchical name of account (e.g., "Assets:Bank:Checking").

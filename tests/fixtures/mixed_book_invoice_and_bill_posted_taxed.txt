@@ -1,0 +1,60 @@
+taxtable "GST+PST"
+	entry:
+		account: "Liabilities:Tax:GST"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax:PST"
+		rate: 7.0%
+		type: PERCENT
+
+customer "C-MIX-1"
+	name: "Mixed Book Customer"
+	currency: CAD
+
+vendor "V-MIX-1"
+	name: "Mixed Book Vendor"
+	currency: CAD
+
+invoice "INV-MIX-1"
+	customer_id: "C-MIX-1"
+	currency: CAD
+	date_opened: 2026-05-10
+	entry:
+		date: 2026-05-10
+		description: "Mixed-book invoice (net 1000 + GST 50 + PST 70 = 1120)"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1000
+		taxable: true
+		tax_included: false
+		tax_table: "GST+PST"
+	posted:
+		date: 2026-05-10
+		due: 2026-06-09
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-MIX-1"
+		accumulate: true
+	payment: none
+
+bill "BILL-MIX-1"
+	vendor_id: "V-MIX-1"
+	currency: CAD
+	date_opened: 2026-05-11
+	entry:
+		date: 2026-05-11
+		description: "Mixed-book bill (net 1000 + GST 50 + PST 70 = 1120)"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 1000
+		taxable: true
+		tax_included: false
+		tax_table: "GST+PST"
+	posted:
+		date: 2026-05-11
+		due: 2026-06-10
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-MIX-1"
+		accumulate: true
+	payment: none

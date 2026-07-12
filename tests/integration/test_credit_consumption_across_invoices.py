@@ -18,6 +18,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q019_accounts.txt')
@@ -57,8 +58,8 @@ def _lot(gf, invoice_id):
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(repo.book)
-        inv = next((gb.Invoice(instance=r) for r in q.run()
-                    if gb.Invoice(instance=r).GetID() == invoice_id), None)
+        inv = next((wrap_invoice_or_bill(r) for r in q.run()
+                    if wrap_invoice_or_bill(r).GetID() == invoice_id), None)
         q.destroy()
         assert inv is not None, f'{invoice_id!r} not found'
         lot = inv.GetPostedLot()

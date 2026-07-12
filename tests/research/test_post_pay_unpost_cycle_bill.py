@@ -17,6 +17,7 @@ import shutil
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 WORKTREE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 EXPORTS_DIR = os.path.join(WORKTREE, "exports", "bill")
@@ -187,7 +188,7 @@ def _read_entry_guids(gnc_path, bill_id):
         q.set_book(book)
         guids = []
         for r in q.run():
-            inv = Invoice(instance=r)
+            inv = wrap_invoice_or_bill(r)
             if inv.GetID() == bill_id:
                 lib = ctypes.CDLL(None)
                 lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]

@@ -13,6 +13,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q019_accounts.txt')
@@ -48,7 +49,7 @@ def _render_invoice_html(gnc, invoice_id):
         q.search_for('gncInvoice')
         q.set_book(repo.book)
         inv = next(
-            (i for r in q.run() for i in [BizInvoice(instance=r)]
+            (i for r in q.run() for i in [wrap_invoice_or_bill(r)]
              if i.GetID() == invoice_id),
             None,
         )
@@ -74,7 +75,7 @@ def _render_invoice_plaintext(gnc, invoice_id):
         q.search_for('gncInvoice')
         q.set_book(repo.book)
         inv = next(
-            (i for r in q.run() for i in [BizInvoice(instance=r)]
+            (i for r in q.run() for i in [wrap_invoice_or_bill(r)]
              if i.GetID() == invoice_id),
             None,
         )

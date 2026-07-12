@@ -12,6 +12,7 @@ import gnucash.gnucash_core_c as gc
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q018_accounts.txt')
@@ -66,7 +67,7 @@ def _invoice_state(gnc, inv_id):
         q.search_for('gncInvoice')
         q.set_book(book)
         inv = next(
-            (i for r in q.run() for i in [BizInvoice(instance=r)]
+            (i for r in q.run() for i in [wrap_invoice_or_bill(r)]
              if i.GetID() == inv_id),
             None,
         )
@@ -279,7 +280,7 @@ def test_cash_basis_flag_does_not_appear_in_pdf_or_html(tmp_path):
             q.search_for('gncInvoice')
             q.set_book(repo.book)
             inv = next(
-                (i for r in q.run() for i in [BizInvoice(instance=r)]
+                (i for r in q.run() for i in [wrap_invoice_or_bill(r)]
                  if i.GetID() == 'INV-Q18-CASH-100'),
                 None,
             )
@@ -323,7 +324,7 @@ def _render_invoice(gnc, invoice_id):
         q.search_for('gncInvoice')
         q.set_book(repo.book)
         inv = next(
-            (i for r in q.run() for i in [BizInvoice(instance=r)]
+            (i for r in q.run() for i in [wrap_invoice_or_bill(r)]
              if i.GetID() == invoice_id),
             None,
         )

@@ -24,6 +24,7 @@ import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_XSLT = _REPO_ROOT / "services" / "invoice.xslt"
@@ -84,7 +85,7 @@ def _render_invoice_html(gnc_path: str, invoice_id: str) -> str:
         q.search_for('gncInvoice')
         q.set_book(book)
         inv = next(
-            (i for r in q.run() for i in [Invoice(instance=r)] if i.GetID() == invoice_id),
+            (i for r in q.run() for i in [wrap_invoice_or_bill(r)] if i.GetID() == invoice_id),
             None,
         )
         q.destroy()
