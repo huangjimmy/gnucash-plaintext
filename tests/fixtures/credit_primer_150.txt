@@ -1,0 +1,27 @@
+vendor "V-MB"
+	name: "Multi-Bill Supplier"
+	currency: CAD
+
+bill "BILL-MB-PRIMER-50"
+	vendor_id: "V-MB"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Earlier bill, overpaid to leave a 150 vendor credit"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-01
+		due: 2026-06-30
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-MB-PRIMER-50"
+		accumulate: true
+	payment:
+		date: 2026-06-02
+		amount: 200
+		bank_account: "Assets:Bank"
+		memo: "Overpaid 200 on a 50 bill → 150 vendor credit"

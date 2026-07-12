@@ -1,0 +1,30 @@
+taxtable "GST+PST"
+	entry:
+		account: "Liabilities:Tax:GST"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax:PST"
+		rate: 7.0%
+		type: PERCENT
+
+customer "C-TAXINCL-1"
+	name: "Tax-Inclusive Customer"
+	currency: CAD
+
+invoice "INV-TAXINCL-1120"
+	customer_id: "C-TAXINCL-1"
+	currency: CAD
+	date_opened: 2026-05-10
+	entry:
+		date: 2026-05-10
+		description: "Tax-inclusive priced service (gross 1120 = net 1000 + 12% tax)"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1120
+		taxable: true
+		tax_included: true
+		tax_table: "GST+PST"
+	posted: none
+	payment: none

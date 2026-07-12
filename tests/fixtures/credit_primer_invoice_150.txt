@@ -1,0 +1,28 @@
+customer "C-MB"
+	name: "Multi-Invoice Customer"
+	currency: CAD
+
+invoice "INV-MB-PRIMER-50"
+	customer_id: "C-MB"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Earlier invoice, overpaid to leave a 150 customer credit"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-01
+		due: 2026-06-30
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-MB-PRIMER-50"
+		accumulate: true
+	payment:
+		date: 2026-06-02
+		amount: 200
+		bank_account: "Assets:Bank"
+		memo: "Customer overpaid 200 on a 50 invoice → 150 credit"

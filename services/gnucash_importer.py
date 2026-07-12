@@ -434,6 +434,32 @@ def _bill_remove_all_entries(book, bill) -> None:
         old_entry.Destroy()
 
 
+def _bill_add_entry(bill, entry) -> None:
+    """Attach an entry to a vendor bill via the C `gncBillAddEntry`.
+
+    SWIG `Invoice.AddEntry(entry)` wraps `gncInvoiceAddEntry`, which sets the
+    entry's *customer-invoice* owner pointer (`gncEntrySetInvoice`). GnuCash's
+    entry XML writer guards the bill-side tax flags behind
+    `if (gncEntryGetBill(entry))`, so a bill entry attached the customer-invoice
+    way serialises on the invoice side (`entry:invoice`, `i-taxincluded`) and
+    never persists `entry:b-taxable` / `entry:b-taxincluded`. Its
+    `tax_included: true` is silently dropped on save and reads back false after
+    reload, so the price is treated as tax-exclusive and the bill is
+    over-taxed. `gncBillAddEntry` sets the entry's *bill* owner pointer
+    (`gncEntrySetBill`) so the writer emits `entry:bill` with `b-taxable` /
+    `b-taxincluded`, and the tax-inclusive flag survives the round-trip.
+    Symmetric to `_bill_remove_all_entries` (`gncBillRemoveEntry`); both append
+    to the same `invoice->entries` GList that posting iterates, so the only
+    behavioural change is that the bill-side owner link (and its tax flags) is
+    now recorded correctly.
+    """
+    import ctypes
+    lib = ctypes.CDLL(None)
+    lib.gncBillAddEntry.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncBillAddEntry.restype = None
+    lib.gncBillAddEntry(int(bill.instance), int(entry.instance))
+
+
 def _swig_invoice_guid_str(invoice) -> str:
     """Read an Invoice's GUID via ctypes (qof_instance_get_guid + guid_to_string_buff).
     SWIG `Invoice.GetGUID()` is missing on some platforms; this works everywhere
@@ -3101,11 +3127,22 @@ class GnuCashImporter:
                 entry.SetQuantity(string_to_gnc_numeric_quantity(entry_directive.metadata['quantity']))
                 entry.SetBillPrice(string_to_gnc_numeric_quantity(entry_directive.metadata['price']))
                 entry.SetBillTaxable(entry_directive.metadata['taxable'] == 'true')
+                # Mirror the invoice-side wiring (SetInvTaxIncluded): a bill
+                # entry's `tax_included: true` means the entered price already
+                # contains the tax, so GnuCash must back the net out at post
+                # time (net = gross / (1 + total_rate)). `tax_included` is
+                # optional on bill entries — default false (tax added on top).
+                entry.SetBillTaxIncluded(
+                    entry_directive.metadata.get('tax_included', 'false') == 'true')
                 if 'tax_table' in entry_directive.metadata:
                     tt_ptr = gc.gncTaxTableLookupByName(book.instance, entry_directive.metadata['tax_table'])
                     if tt_ptr:
                         entry.SetBillTaxTable(TaxTable(instance=tt_ptr))
-                bill.AddEntry(entry)
+                # Attach on the vendor-bill side (gncBillAddEntry), NOT the
+                # customer-invoice side (Invoice.AddEntry), so GnuCash persists
+                # the bill-side tax flags (b-taxable / b-taxincluded). See
+                # _bill_add_entry.
+                _bill_add_entry(bill, entry)
                 entry.CommitEdit()
             elif entry_directive.type == DirectiveType.POSTED:
                 ap_acct_name = entry_directive.metadata['ap_account']

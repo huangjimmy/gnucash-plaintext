@@ -1,0 +1,4 @@
+2026-05-15 * "Wire to vendor — tax portion 120"
+	currency.mnemonic: "CAD"
+	Assets:Bank -120.00 CAD
+	Liabilities:Accounts Payable 120.00 CAD

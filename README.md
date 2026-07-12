@@ -1046,6 +1046,33 @@ invoice "INV-2026-004"
     memo: "Second instalment"
 ```
 
+A **vendor bill** takes multiple `payment:` blocks the same way, on Accounts Payable with the signs flipped. A $100 bill paid in two instalments of $40 and $35 leaves one open AP lot for the $25 still owed:
+
+```
+bill "BILL-PARTIAL-100"
+  ...
+  posted:
+    date: 2026-02-01
+    due: 2026-03-03
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Bill BILL-PARTIAL-100"
+    accumulate: true
+  payment:
+    date: 2026-02-10
+    amount: 40
+    bank_account: "Assets:Bank"
+    memo: "First instalment"
+  payment:
+    date: 2026-02-20
+    amount: 35
+    bank_account: "Assets:Bank"
+    memo: "Second instalment"
+```
+
+That bill's AP lot holds the posting (−$100) plus both payments (+$40, +$35) and stays open at a **−$25** balance — a still-owed liability. It is the sign-inverse of a partly-paid *invoice*, whose AR lot stays open at a **positive** balance (the receivable you're still owed). Each `amount:` in a bill's `payment:` block is written positive in plaintext; the importer records it as money leaving the bank (a debit to AP, a credit to Bank), the opposite direction to an invoice payment.
+
+To find which bills are still outstanding, render a whole vendor at once with `print-bill <book> --vendor V001 --format plaintext -o -` and compare each bill's `bill_total:` to the sum of its `payment:` `amount:` lines — a shortfall is unpaid (its posted AP lot stays open at a negative balance). Overpayment credit is separate: it lives in its own AP lot attached to no bill, so surface it with `find-prepayments --vendor V001` (below), which totals a vendor's credit even when it accumulated across several bills. See **[docs/bill-payment-reconciliation.md § Detecting a vendor's bill payment state](docs/bill-payment-reconciliation.md#detecting-a-vendors-bill-payment-state-paid--partial--overpaid)** for the worked paid / partial / overpaid example.
+
 **Adding a payment via re-import is incremental.** If a posted invoice is already in the book with one `payment:` block, editing the plaintext to append a second `payment:` block and re-importing applies *only* the new payment on the still-posted invoice. Two sub-paths, both incremental:
 
 * The new payment block has no `txn_guid:` — the importer calls `ApplyPayment` to create a fresh bank-side transaction.
@@ -1088,7 +1115,33 @@ After the payment, `Assets:Accounts Receivable` shows a net **-$50** for this cu
 
 For the `txn_guid:` retarget path (Q-004), when the pre-existing bank transaction's counter-split is larger than the invoice's remaining balance, the `prepayment:` field is **required**. The importer splits the counter-split into the invoice-portion (closes the lot) and the residual (new pre-payment lot on AR/AP). Omitting `prepayment:` on an over-sized retarget is rejected with an explicit error that names the bank tx, the counter-split amount, the invoice's remaining, and the expected `prepayment` value.
 
-The same applies symmetrically to bills (AP, opposite signs): overpaying a $100 bill by $50 produces an open AP lot with **+$50** balance — a vendor credit you can apply against the next bill from the same supplier.
+**Vendor bills are the mirror image (Accounts Payable, opposite signs).** A bill posts as a *credit* to AP — a liability going up — which is the sign-inverse of an invoice's *debit* to AR (an asset going up), so every split below flips sign relative to the invoice case. Overpaying a $100 bill by $50 (one $150 payment *out* of the bank) creates one payment transaction with three splits across two accounts and two AP lots:
+
+```
+Transaction 2026-01-10 — payment on BILL-OVERPAY-100
+  Assets:Bank                    -$150.00   (the cash you sent the vendor)
+  Liabilities:Accounts Payable   +$100.00   (in bill lot — closes BILL-OVERPAY-100 at $0)
+  Liabilities:Accounts Payable    +$50.00   (in NEW pre-payment lot — vendor credit)
+```
+
+The bill lot nets to zero (posting −$100 + payment +$100) and the $50 residual opens a second AP lot whose balance is **+$50** — a positive (debit) balance on a liability, i.e. a *vendor credit*: the supplier now owes you $50 toward a future bill. That is the exact inverse of a customer overpayment, where the residual AR lot carries **−$50** (money you owe the customer). The exported bill records the two allocations separately — `amount:` is the $100 that settled the bill lot and `prepayment:` is the $50 residual, and the two together account for the full $150 that left the bank:
+
+```
+bill "BILL-OVERPAY-100"
+  ...
+  posted:
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Bill BILL-OVERPAY-100"
+    accumulate: true
+  payment:
+    date: 2026-01-10
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Paid 150 on a 100 bill (overpaid 50)"
+    prepayment: 50
+```
+
+Consume the credit on the next bill from `V001` with `auto_apply_credit: true` (below), or list it with `find-prepayments --vendor V001`.
 
 #### Bad debt: writing off an uncollectable invoice via `payment:` to an expense
 
@@ -1157,6 +1210,8 @@ invoice "INV-2026-006"
 ```
 
 On import the invoice is posted normally, then `gncInvoiceAutoApplyPayments` runs and takes from the open prepay lot(s) toward the invoice's outstanding balance. If credit ≥ invoice the lot closes via consumption; the residual stays open as a smaller credit (split in-place by GnuCash). If credit < invoice the full credit consumes; the invoice stays partially open. The flag composes with cash `payment:` blocks — cash goes first, credit auto-applies for any remainder. The exporter detects the post-auto-apply book state and emits `auto_apply_credit: true` again on round-trip; identical re-import is a no-op.
+
+A credit larger than one document is drawn down across several: mark each invoice/bill `auto_apply_credit: true` and GnuCash consumes the credit in **posting order** until it runs out. A $150 credit against two $100 documents settles the first in full and leaves the second **$50 outstanding** (its lot open at +$50 for an invoice, −$50 for a bill), with the credit at $0. Because cash applies before credit on each document, that second document can also carry a `payment: amount: 50` — the $50 cash plus the $50 of remaining credit close it. This works identically on the receivable (invoice) and payable (bill) sides, sign-flipped.
 
 #### Listing open credits: `find-prepayments`
 
@@ -1511,7 +1566,7 @@ accounts → customers/vendors/taxtables → standalone transactions → invoice
 
 Standalone transactions are created (with their declared `guid:` on both the transaction and each split) **before** any invoice or bill is processed, so the `payment:` blocks' `txn_guid:`/`txn_split_guid:` references always resolve in the same import call — no two-step import needed, even for a fresh book.
 
-See **[docs/comprehensive-roundtrip-example.md](docs/comprehensive-roundtrip-example.md)** for the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, all payment shapes: cash, retarget, overpayment with prepayment credit, credit consumption via `auto_apply_credit`, and the multi-invoice-one-bank-tx shape) exported and re-imported into a fresh book with semantic identity preserved down to per-split GUIDs. And **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)** for the bank-feed-first workflow, bill examples, error reference, and the invoice-first alternative.
+See **[docs/comprehensive-roundtrip-example.md](docs/comprehensive-roundtrip-example.md)** for the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, all payment shapes: cash, retarget, overpayment with prepayment credit, credit consumption via `auto_apply_credit`, and the multi-invoice-one-bank-tx shape) exported and re-imported into a fresh book with semantic identity preserved down to per-split GUIDs. And **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)** for the bank-feed-first workflow, error reference, and the invoice-first alternative, plus **[docs/bill-payment-reconciliation.md](docs/bill-payment-reconciliation.md)** for the vendor-bill (Accounts Payable) side — partial payments, vendor credits, detection, and `unapply-payment` corrections.
 
 #### Cash-basis sales (Q-018)
 
