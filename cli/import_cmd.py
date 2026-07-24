@@ -354,10 +354,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 click.echo("")
                 click.echo("Errors:")
                 for error in result.errors:
-                    if isinstance(error, dict):
-                        click.echo(f"  - {error.get('error', str(error))}")
-                    else:
-                        click.echo(f"  - {str(error)}")
+                    click.echo(f"  - {error['error']}")
 
             # Save if not dry run and something was imported.
             # biz_objects_imported must be included here: business objects are
