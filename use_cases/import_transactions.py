@@ -289,7 +289,10 @@ class ImportTransactionsUseCase:
         parser.parse_file(input_path)
 
         if parser.errors:
-            result.errors.extend(parser.errors)
+            # Normalise parser (syntax) errors into the same {'error': ...} shape
+            # the transaction/account failure paths use, so result.errors is
+            # always a list of dicts and every consumer can treat it uniformly.
+            result.errors.extend({'error': msg} for msg in parser.errors)
             result.error_count = len(parser.errors)
             return result
 
