@@ -1,0 +1,76 @@
+# A taxed USD invoice: two CAD splits priced at one rate.
+#
+# 33.33 USD of consulting at 10% tax, posted at 1.4 CAD/USD. The tax is
+# 3.333 USD, which the cent cannot hold, so it is 3.33; the income is 33.33.
+# Each is then valued in CAD at the one rate and rounded on its own: 46.66 and
+# 4.66. Their amount-over-value ratios are therefore close but not equal —
+# 46.66/33.33 is 1.40006, 4.66/3.33 is 1.39940 — while the transaction used a
+# single rate throughout.
+#
+# This is the ordinary shape of a taxed foreign invoice, and it is why no
+# check is made on whether a transaction's base-currency splits "agree" about
+# its rate: rounding produces the same difference as a genuine disagreement
+# would, and the rounded figures cannot tell them apart. The cost is their
+# aggregate — 51.32 CAD over 36.66 USD, which is 2566/1833 — and that is one
+# number regardless of which split is read first.
+#
+# Verified by tests/integration/test_verify_costs.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax:Sales Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+taxtable "Sales Tax"
+	entry:
+		account: "Liabilities:Tax:Sales Tax"
+		rate: 10.0%
+		type: PERCENT
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-TAXED"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 33.33
+		taxable: true
+		tax_included: false
+		tax_table: "Sales Tax"
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-TAXED"
+		accumulate: true

@@ -1,0 +1,91 @@
+# Where a fractional yen comes from: tax.
+#
+# A yen has no minor unit, so no split can hold 103.5 JPY — but the tax on this
+# invoice is exactly that. 2070 JPY at 5% is 103.5, and the figure has to reach
+# a whole yen before it can be booked or printed. Half a yen is the rounding
+# boundary, and GnuCash sends a half away from zero — so 104, not 103. Away
+# from zero is not "up": the same rule takes -103.5 to -104.
+#
+# What this fixture produces, once imported and posted:
+#
+#   Assets:Accounts Receivable JPY     2174 JPY     (2070 + 104)
+#   Liabilities:Tax:Sales Tax JPY      -104 JPY     (GnuCash's rounding of 103.5)
+#   Income:Sales JPY                  -2070 JPY
+#
+# and `print-invoice --format plaintext` writes `entry_tax: 104` /
+# `invoice_total: 2174` on the document the customer receives.
+#
+# Three things are worth seeing here. Every figure is a whole yen — nothing
+# reads 104.00, because a hundredth of a yen does not exist. The rounding is
+# GnuCash's own: the engine posts 104 for this tax split, so the tool is
+# agreeing with the ledger rather than deciding the direction itself. And the
+# printed document is computed from the entry's tax_table, independently of the
+# splits, so the two figures matching is the check that matters — an invoice
+# that says 103 while the books say 104 would be sent to a customer as such.
+#
+# Verified by tests/unit/services/test_zero_decimal_currency_amounts.py
+# (test_tax_on_a_yen_invoice_reaches_a_whole_yen).
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable JPY
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales JPY
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax:Sales Tax JPY
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+
+taxtable "Sales Tax JPY"
+	entry:
+		account: "Liabilities:Tax:Sales Tax JPY"
+		rate: 5.0%
+		type: PERCENT
+
+customer "C-JP"
+	name: "Japanese Customer"
+	currency: JPY
+
+invoice "INV-JPY-HALF"
+	customer_id: "C-JP"
+	currency: JPY
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Consulting, taxed at five percent (a half yen of tax)"
+		action: "Hours"
+		account: "Income:Sales JPY"
+		quantity: 1
+		price: 2070
+		taxable: true
+		tax_included: false
+		tax_table: "Sales Tax JPY"
+	posted:
+		date: 2026-02-01
+		due: 2026-03-01
+		ar_account: "Assets:Accounts Receivable JPY"
+		memo: "Invoice INV-JPY-HALF"
+		accumulate: true
+	payment: none

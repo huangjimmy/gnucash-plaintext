@@ -3,9 +3,11 @@ CLI command for importing plaintext transactions to GnuCash.
 """
 
 import os
+from fractions import Fraction
 
 import click
 
+from infrastructure.gnucash.utils import exact_text
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.conflict_resolver import ResolutionStrategy
 from services.gnucash_importer import GnuCashImporter
@@ -41,11 +43,11 @@ def _warn_open_prepayment_mismatches(directives, book):
             if not kind:
                 continue
             try:
-                amount = float(str(md.get('amount', '0')).split()[0])
-            except (ValueError, IndexError):
+                amount = Fraction(str(md.get('amount', '0')).split()[0])
+            except (ValueError, IndexError, ZeroDivisionError):
                 continue
             key = (account, kind, md.get(kind))
-            declared[key] = declared.get(key, 0.0) + amount
+            declared[key] = declared.get(key, Fraction(0)) + amount
 
     if not declared:
         return
@@ -63,17 +65,19 @@ def _warn_open_prepayment_mismatches(directives, book):
             continue
         for kind, oid, _guid, amount in open_prepayments_for_account(acct):
             actual[(account_name, kind, oid)] = (
-                actual.get((account_name, kind, oid), 0.0) + amount)
+                actual.get((account_name, kind, oid), Fraction(0)) + amount)
 
+    # Both sides are exact, so a declared credit either matches what the book
+    # holds or it does not — no half-cent slack to absorb a float's drift.
     for key in sorted(set(declared) | set(actual)):
-        d_amt = declared.get(key, 0.0)
-        a_amt = actual.get(key, 0.0)
-        if abs(d_amt - a_amt) > 0.005:
+        d_amt = declared.get(key, Fraction(0))
+        a_amt = actual.get(key, Fraction(0))
+        if d_amt != a_amt:
             account, kind, owner_id = key
             click.echo(
                 f"  warning: open_prepayment on {account} for {kind} "
-                f"{owner_id!r} declares {d_amt:.2f} but the book holds "
-                f"{a_amt:.2f}", err=True)
+                f"{owner_id!r} declares {exact_text(d_amt)} but the book holds "
+                f"{exact_text(a_amt)}", err=True)
 
 
 @click.command()
@@ -107,7 +111,16 @@ def _warn_open_prepayment_mismatches(directives, book):
     default=None,
     help='Write newly imported transactions (with GUIDs) to this file. Use "-" for stdout.'
 )
-def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run, create_new, include_business_objects, output_new):
+@click.option(
+    '--fx-rates',
+    'fx_rates_file',
+    type=click.Path(exists=True),
+    default=None,
+    help='YAML exchange rates, flat (USD: 1.36) or dated. Required to post a '
+         'foreign-currency invoice or bill whose income/expense account is in '
+         'another currency — that is the rate its revenue is booked at.'
+)
+def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run, create_new, include_business_objects, output_new, fx_rates_file):
     """
     Import plaintext transactions to GnuCash file.
 
@@ -170,6 +183,14 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
         out_dir = os.path.dirname(os.path.abspath(output_new))
         if not os.path.isdir(out_dir):
             raise click.UsageError(f"--output-new directory does not exist: {out_dir}")
+
+    fx_rates = None
+    if fx_rates_file:
+        from services.fx_rates import FxRates
+        try:
+            fx_rates = FxRates.load(fx_rates_file)
+        except (OSError, ValueError) as exc:
+            raise click.UsageError(f"Could not read --fx-rates file: {exc}") from exc
 
     # Map CLI strategy to ResolutionStrategy enum
     strategy_map = {
@@ -234,6 +255,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     on_directive_status=lambda kind, ident, status: click.echo(
                         f'{kind} "{ident}": {status}'
                     ),
+                    fx_rates=fx_rates,
                 )
 
                 # Defer invoice + bill processing until after the
@@ -270,6 +292,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                         format_orphan_warning_block(kind, orphans, ident=ident),
                         err=True,
                     ),
+                    fx_rates=fx_rates,
                 )
                 # Merge invoice/bill counts into the early (customer/vendor/
                 # taxtable) result for the summary output.

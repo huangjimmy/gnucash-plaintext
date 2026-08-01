@@ -1,0 +1,83 @@
+# The bill mirror of fx_invoice_usd_overpaid_into_cad_bank.txt: a 100.00 USD
+# bill booked at 1.40, overpaid with 200.00 USD costing 274.00 CAD — 1.37.
+#
+# The part that clears the bill is released at what the bill carried, 1.40, so
+# 140.00 CAD of cost leaves; the part overpaid was sent at 1.37, so the
+# prepayment is worth 137.00 CAD. Less cash extinguishing more liability is a
+# gain on this side, so the 3.00 CAD is credited.
+#
+# What this fixture produces:
+#
+#   Assets:Bank                    -274.00 CAD
+#   A/P USD   100.00 USD   value 140.00 CAD   (clears the bill)
+#   A/P USD   100.00 USD   value 137.00 CAD   (the prepayment, at 1.37)
+#   Income:FX Gain                   -3.00 CAD  ($residual$, a gain)
+#
+# and `fx-balances` listing that prepayment as 100.00 USD available. A payable
+# was judged by its credit side alone, so the prepayment — a debit on A/P —
+# had a basis's KVPs written onto it and was then not counted at all: the book
+# reported 0.00 USD available while holding 100.00 USD of vendor prepayment.
+#
+# Verified by tests/integration/test_payment_exchange_rate.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable USD
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+vendor "V-US"
+	name: "US Vendor"
+	currency: USD
+
+bill "BILL-USD-OVERCAD"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Parts"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-OVERCAD"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		account: "Assets:Bank"
+		settled_amount: 274.00
+		prepayment: 100
+		memo: "Payment for BILL-USD-OVERCAD"
+		Income:FX Gain $residual$ CAD

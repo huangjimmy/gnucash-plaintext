@@ -1,0 +1,25 @@
+invoice "INV-COARSE"
+	customer_id: "C-COARSE"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30.05
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-COARSE"
+		accumulate: true
+	payment:
+		amount: 50.00
+		from_credit: true
+		credit_dated: 2026-01-10
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

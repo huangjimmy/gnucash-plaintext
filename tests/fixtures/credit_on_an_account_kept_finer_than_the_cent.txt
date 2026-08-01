@@ -1,0 +1,38 @@
+# A receivable kept to a tenth of a cent, holding a 50.005 credit.
+#
+# Dividing that credit against a 30.00 document leaves 20.005 — a figure the
+# account can hold and the currency cannot. Rounding either half at the
+# currency's hundredth makes the two sum to 50.01, and GnuCash answers the
+# missing tenth of a cent with an Imbalance split.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-FINE"
+	name: "Fine Grained Co"
+	currency: CAD
+
+2026-01-10 * "Fine Grained pays ahead"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.005 CAD
+	Assets:Accounts Receivable -50.005 CAD
+		lot_owner: "customer:C-FINE"

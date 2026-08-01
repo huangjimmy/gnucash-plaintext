@@ -1,0 +1,70 @@
+# A sale whose residual lands on a half cent, written as an ordinary
+# transaction rather than a payment block.
+#
+# 45.00 USD carried at 1.405 CAD/USD is 63.225 CAD — half a cent — and 62.00
+# CAD is what the sale fetched, so `$residual$` is 1.225 CAD. The residual is a
+# figure this tool computes, not one the file states, so GnuCash rounds it to
+# the cent the way it rounds the cost beside it: both reach 63.23 and 1.23, and
+# the entry balances exactly.
+#
+# What this fixture produces:
+#
+#   Assets:Bank:USD    -45.00 USD   value -63.23 CAD   share_price 6323/4500
+#   Assets:Bank         62.00 CAD
+#   Income:FX Gain       1.23 CAD   ($residual$)
+#
+# and no Imbalance split, because the two rounded figures agree. Refusing the
+# residual instead — as a stated half-cent amount is refused — would blame the
+# writer for a number they never wrote, and would accept as a payment block the
+# same sale it rejects as a transaction.
+#
+# The exported rate is 6323/4500, not the 1.405 stated here, and that is not a
+# defect: the value had to reach the cent, and 63.23 over 45.00 is 6323/4500 —
+# 1.405 + 1/9000. A stated rate is what the value is computed from; it does not
+# come back verbatim, and nothing should assume it does. Import this file and
+# export it to see for yourself.
+#
+# Verified by tests/integration/test_half_cent_rounding.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "Buy 45 USD at 1.405"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 45.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.405"
+		value: "63.23"
+	Assets:Bank -63.23 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-63.23"
+
+2026-03-01 * "Sell 45 USD for 62.00 CAD"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -45.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.405"
+	Assets:Bank 62.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "62.00"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

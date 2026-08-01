@@ -1,0 +1,58 @@
+# A USD receivable, settled with the money arriving as CAD.
+#
+# The receivable opened a 100.00 USD basis at 1.40 when it was raised. The
+# customer then pays and the bank takes CAD, so the settling credit is a
+# receivable split against its normal direction with no foreign-currency split
+# beside it — which is, line for line, the shape of a prepayment that arrives
+# converted (fx_prepayment_arriving_as_cad.txt). The one difference is the
+# lot: a prepayment names its owner and belongs to a lot no document owns,
+# while these two hand-written splits belong to no lot at all.
+#
+# What this fixture produces: `fx-balances` lists one basis, the receivable's
+# own 100.00 USD at 1.40 CAD/USD. Treating every lot-less credit as a
+# prepayment would list the settlement as a second basis and offer 200.00 USD
+# from a book that holds none — the currency came in once and left once.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-15 * "Raise a 100 USD receivable at 1.40"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "140.00"
+	Income:Sales -140.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-140.00"
+
+2026-02-01 * "Customer settles, the money arriving as CAD"
+	currency.mnemonic: "CAD"
+	Assets:Bank 137.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "137.00"
+	Assets:Accounts Receivable USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "-137.00"

@@ -1,0 +1,4 @@
+2026-02-05 * "Acme — instalment for INV-RETARGET-THEN-CREDIT"
+  Assets:Bank  80.00 CAD
+    memo: "Instalment"
+  Assets:Accounts Receivable  -80.00 CAD

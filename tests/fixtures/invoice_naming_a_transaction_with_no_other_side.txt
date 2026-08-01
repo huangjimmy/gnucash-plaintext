@@ -1,0 +1,30 @@
+# An invoice naming a transaction that has no side outside the bank account to
+# retarget — every split of it is on `Assets:Bank`.
+#
+# Nothing is spoken for here; there is simply nothing there, and a message
+# about splits that already settle documents would describe a book this is not.
+invoice "INV-NO-OTHER-SIDE"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 25
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-02
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-NO-OTHER-SIDE"
+		accumulate: true
+	payment:
+		date: 2026-03-10
+		amount: 25
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		memo: "Nothing to move"

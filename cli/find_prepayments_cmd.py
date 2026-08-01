@@ -18,8 +18,11 @@ refund it (drop the lot's source bank tx via
 `delete-transactions --by-guid`).
 """
 
+from fractions import Fraction
+
 import click
 
+from infrastructure.gnucash.utils import money_text
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from use_cases.export_transactions import find_ownerless_credit_lots
 from use_cases.unpost_business_objects import find_prepayments_in_book
@@ -81,8 +84,9 @@ def find_prepayments(gnucash_file, customer_id, vendor_id):
             f'a bug: such a credit is unattributable and is hidden from the '
             f'open_prepayment summary / export-accounts. Please report it.',
             err=True)
-        for acct, amount, mnem in ownerless:
-            click.echo(f'   • {acct}  {mnem} {amount:.2f}  (ownerless credit lot)',
+        for acct, amount, mnem, unit in ownerless:
+            click.echo(f'   • {acct}  {mnem} {money_text(amount, unit)}  '
+                       f'(ownerless credit lot)',
                        err=True)
 
     if not credits_:
@@ -150,22 +154,28 @@ def find_prepayments(gnucash_file, customer_id, vendor_id):
             f'      - parent tx owner backref points at {owner_kind} {c.owner_id}.'
         )
 
-    # Per-owner totals.
+    # Per-owner totals. Exact: the credits are added as the figures they are,
+    # and written back at the same decimals they were listed with.
     by_owner: dict = {}
+    units: dict = {}
     for c in credits_:
         key = (c.owner_type, c.owner_id, c.owner_name, c.currency)
-        by_owner.setdefault(key, 0.0)
-        by_owner[key] += float(c.amount)
+        by_owner[key] = by_owner.get(key, Fraction(0)) + Fraction(c.amount)
+        units[key] = 10 ** len(c.amount.partition('.')[2])
     click.echo('')
     if len(by_owner) == 1:
-        (otype, oid, oname, ccy), total = next(iter(by_owner.items()))
+        key, total = next(iter(by_owner.items()))
+        otype, oid, oname, ccy = key
         kind = 'customer' if otype == 2 else ('vendor' if otype == 4 else 'owner')
-        click.echo(f'Total credit available: {ccy} {total:.2f} for {kind} {oid} ({oname}).')
+        click.echo(f'Total credit available: {ccy} {money_text(total, units[key])} '
+                   f'for {kind} {oid} ({oname}).')
     else:
         click.echo('Totals per owner:')
-        for (otype, oid, oname, ccy), total in sorted(by_owner.items()):
+        for key, total in sorted(by_owner.items()):
+            otype, oid, oname, ccy = key
             kind = 'customer' if otype == 2 else ('vendor' if otype == 4 else 'owner')
-            click.echo(f'  {ccy} {total:.2f} for {kind} {oid} ({oname})')
+            click.echo(f'  {ccy} {money_text(total, units[key])} '
+                       f'for {kind} {oid} ({oname})')
 
     click.echo('')
     click.echo('To consume a credit toward an upcoming invoice/bill, post the')

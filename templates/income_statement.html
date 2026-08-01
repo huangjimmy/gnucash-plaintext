@@ -35,7 +35,7 @@
 
 {% if not fx_rates_provided %}
 <div class="warning">
-  Note: No FX rates supplied — CAD totals not available.
+  Note: No FX rates supplied — {{ base_currency }} totals not available.
   Rerun with <code>--fx-rates rates.yaml</code> for CRA T2 filing.
 </div>
 {% endif %}
@@ -47,35 +47,35 @@
   <tr>
     <th>Account</th>
     <th class="amt">Amount</th>
-    {% if fx_rates_provided %}<th class="amt">CAD</th>{% endif %}
+    {% if fx_rates_provided %}<th class="amt">{{ base_currency }}</th>{% endif %}
   </tr>
   {% for row in rows %}
     {% if row.kind == 'line' %}
     <tr>
       <td style="padding-left: {{ row.depth * 16 }}px">{{ row.name }}</td>
-      <td class="amt">{{ "%.2f"|format(row.balance) }} {{ row.currency }}</td>
+      <td class="amt">{{ row.balance }} {{ row.currency }}</td>
       {% if fx_rates_provided %}
-      <td class="amt">{% if row.cad_balance is not none %}{{ "%.2f"|format(row.cad_balance) }} CAD{% endif %}</td>
+      <td class="amt">{% if row.cad_balance is not none %}{{ row.cad_balance }} {{ base_currency }}{% endif %}</td>
       {% endif %}
     </tr>
     {% elif row.kind == 'subtotal' %}
     <tr class="subtotal">
       <td style="padding-left: {{ row.depth * 16 }}px"><em>{{ row.label }}</em></td>
       <td class="amt">
-        {% for cur, total in row.native_totals %}{{ "%.2f"|format(total) }} {{ cur }}<br>{% endfor %}
+        {% for cur, total in row.native_totals %}{{ total }} {{ cur }}<br>{% endfor %}
       </td>
       {% if fx_rates_provided %}
-      <td class="amt">{% if row.cad_total is not none %}{{ "%.2f"|format(row.cad_total) }} CAD{% endif %}</td>
+      <td class="amt">{% if row.cad_total is not none %}{{ row.cad_total }} {{ base_currency }}{% endif %}</td>
       {% endif %}
     </tr>
     {% elif row.kind == 'total' %}
     <tr class="section-total">
       <td>{{ row.label }}</td>
       <td class="amt">
-        {% for cur, total in row.native_totals %}{{ "%.2f"|format(total) }} {{ cur }}<br>{% endfor %}
+        {% for cur, total in row.native_totals %}{{ total }} {{ cur }}<br>{% endfor %}
       </td>
       {% if fx_rates_provided %}
-      <td class="amt">{% if row.cad_total is not none %}{{ "%.2f"|format(row.cad_total) }} CAD{% endif %}</td>
+      <td class="amt">{% if row.cad_total is not none %}{{ row.cad_total }} {{ base_currency }}{% endif %}</td>
       {% endif %}
     </tr>
     {% endif %}
@@ -91,16 +91,16 @@
   <tr class="net-income {% if net_is_loss %}loss{% endif %}">
     <td>NET INCOME{% if net_is_loss %} (LOSS){% endif %}</td>
     <td class="amt">
-      {% for cur, total in net_currency_totals %}{{ "%.2f"|format(total) }} {{ cur }}<br>{% endfor %}
+      {% for cur, total in net_currency_totals %}{{ total }} {{ cur }}<br>{% endfor %}
     </td>
     {% if fx_rates_provided %}
-    <td class="amt">{% if net_cad_total is not none %}{{ "%.2f"|format(net_cad_total) }} CAD{% endif %}</td>
+    <td class="amt">{% if net_cad_total is not none %}{{ net_cad_total }} {{ base_currency }}{% endif %}</td>
     {% endif %}
   </tr>
 </table>
 
 {% if fx_rates_provided and fx_rate_labels %}
-<div class="fx-note">FX rates used (to CAD): {{ fx_rate_labels | join(', ') }}</div>
+<div class="fx-note">FX rates used (to {{ base_currency }}): {{ fx_rate_labels | join(', ') }}</div>
 {% endif %}
 
 </body>

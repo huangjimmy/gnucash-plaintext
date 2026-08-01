@@ -1,0 +1,43 @@
+# An account kept to a finer unit than its currency has.
+#
+# GnuCash stores a smallest unit per account, not only per commodity, and this
+# one is set to thousandths. Fuel is the everyday reason: 1.819 a litre is a
+# tenth of a cent, and a book tracking it needs the third decimal even though
+# a Canadian dollar has two.
+#
+# What this fixture produces: `commodity_scu: 1000` on the account, and the
+# amounts below round-tripping exactly —
+#
+#   Expenses:Fuel 18.190 CAD
+#   Assets:Bank  -18.190 CAD
+#
+# Validating or writing those against the *currency's* hundredths instead
+# would refuse 18.190 as an amount CAD cannot hold, and round it away on
+# export — on an account that holds it perfectly well.
+#
+# Verified by tests/integration/test_account_scu.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fuel
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+
+2026-02-01 * "10 litres at 1.819"
+	currency.mnemonic: "CAD"
+	Expenses:Fuel 18.190 CAD
+		account.commodity.mnemonic: "CAD"
+	Assets:Bank -18.190 CAD
+		account.commodity.mnemonic: "CAD"

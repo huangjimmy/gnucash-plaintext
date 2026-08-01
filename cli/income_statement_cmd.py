@@ -10,7 +10,9 @@ from typing import Optional
 
 import click
 
+from infrastructure.gnucash.utils import exact_text
 from repositories.gnucash_repository import GnuCashRepository
+from services.foreign_currency import BASE_CURRENCY
 from services.fx_rates import FxRates, MissingFxRateError
 from use_cases.generate_income_statement import GenerateIncomeStatementUseCase, fiscal_year_start
 
@@ -138,9 +140,9 @@ def income_statement(
         try:
             fx_rates = FxRates.load(fx_rates_file)
             fx_rate_labels = [
-                f"{c}: {fx_rates.get_rate(c)}"
+                f"{c}: {exact_text(fx_rates.rate_fraction(c))}"
                 for c in sorted(fx_rates.available_currencies)
-                if c != "CAD"
+                if c != BASE_CURRENCY
             ]
         except (FileNotFoundError, ValueError) as e:
             raise click.ClickException(str(e)) from e

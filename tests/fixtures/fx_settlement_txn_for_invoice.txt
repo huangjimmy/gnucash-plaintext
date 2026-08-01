@@ -1,0 +1,21 @@
+# The settlement of a USD invoice into a CAD bank, written out as an ordinary
+# transaction: both amounts stated, the A/R side valued at the invoice's cost
+# basis, and $residual$ booking the 3.00 CAD realized loss. The invoice picks it
+# up with `txn_guid:` / `txn_split_guid:`, so no payment-block rate is involved
+# at all. {basis_guid} is the invoice's A/R split.
+2026-02-25 * "Acme pays INV-USD-001"
+	guid: "5a1d9e77c0f04a6cbc3b0d1f2e4a6b8c"
+	currency.mnemonic: "CAD"
+	Assets:Bank 137.00 CAD
+		guid: "1b2c3d4e5f60718293a4b5c6d7e8f901"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "137.00"
+	Assets:Accounts Receivable USD -100.00 USD
+		guid: "9f8e7d6c5b4a39281706f5e4d3c2b1a0"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "-140.00"
+		cost_basis_split_guid: "{basis_guid}"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

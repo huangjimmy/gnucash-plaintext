@@ -1,0 +1,39 @@
+# A 40.00 invoice naming the deposit an unpost left loose, and declaring the
+# 60.00 it does not take.
+#
+# The money is not the customer's credit — a bank paid it, and it is waiting to
+# be put back — so what is left over after this invoice takes its 40.00 is
+# still that. Dividing it must leave the remaining 60.00 marked as the
+# settlement it is, and must not open a cost basis for it: the basis of the
+# document that deposit settled sits on that document's posting split, and
+# pricing the residue at *this* invoice's rate would report a gain the
+# customer's money never made.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-SMALLER"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Small job"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 40
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-SMALLER"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		bank_account: "Assets:Bank:USD"
+		txn_guid: "TXN_GUID"
+		prepayment: 60
+		memo: "Part of the deposit"

@@ -3,9 +3,10 @@
 **Date:** 2026-05-14
 **Author:** research run on `feature/research-invoice-post-pay-unpost-cycle`
 **Harness:** `tests/research/test_post_pay_unpost_cycle.py`
-**Snapshots:** `exports/step_A_created.txt` … `exports/step_F_repaid.txt`
-**Diffs:** `exports/diff_A_to_B.patch` … `exports/diff_E_to_F.patch`
-**Entry-GUID trace:** `exports/entry_guid_trace.json`
+**Snapshots:** `exports/invoice_created.txt`, `invoice_posted.txt`, `invoice_paid.txt`, `invoice_unposted.txt`, `invoice_reposted.txt`, `invoice_repaid.txt`
+**Diffs:** `exports/diff_created_to_posted.patch` … `exports/diff_reposted_to_repaid.patch`
+**Entry-GUID trace:** `exports/invoice_entry_guid_trace.json`
+**Refreshing them:** `GNC_WRITE_EXPORTS=1 ./scripts/test.sh latest tests/research/` — an ordinary test run writes its snapshots to a scratch directory, since each run stamps a fresh date and fresh GUIDs and would otherwise leave these files permanently modified.
 
 ## TL;DR
 
@@ -220,7 +221,7 @@ Date/memo/amount on the new posting are *byte-identical* to the original — the
 
 The second payment block creates a **brand-new** bank transaction (`27dd6e0d…`) dated 2026-02-15. It does *not* merge with the orphan bank-side split from step C (`63210942…`, dated 2026-01-15) — the orphan is in no lot, has no `txn_guid` link to the directive, and GnuCash's idempotency check (Q-004) keys on date+amount+account, so a different-dated payment is always treated as new.
 
-Compared to step C, the bank account at step F has **two** entries of +100 instead of one. Quote from `step_F_repaid.txt`:
+Compared to the paid state, the bank account after re-paying has **two** entries of +100 instead of one. Quote from `invoice_repaid.txt`:
 
 ```
 2026-01-15 * "Acme"
@@ -247,7 +248,7 @@ In short: **the re-pay-after-unpost cycle is non-idempotent and plaintext round-
 
 ### 6. Entry GUIDs across the cycle
 
-Recorded by reading the book directly at each step (the plaintext export doesn't emit entry GUIDs). Full trace in `exports/entry_guid_trace.json`:
+Recorded by reading the book directly at each step (the plaintext export doesn't emit entry GUIDs). Full trace in `exports/invoice_entry_guid_trace.json`:
 
 | Step | Entry GUID for INV-001's single entry |
 |---|---|
@@ -281,7 +282,7 @@ These are candidate issues, not commitments — flagged for review.
    - A new `--cleanup-payments` flag on `unpost-invoices` that deletes the bank-side splits along with the AR posting.
    - A new top-level `cleanup-orphan-payments <book> <invoice-id>` command.
 
-2. **Plaintext export loses orphan-payment provenance.** The exporter writes the orphan bank tx into `transactions:` with no marker that it *used to be* an invoice payment. The receiving importer has no way to reattach it on round-trip. Options:
+2. **Plaintext export loses orphan-payment provenance.** The exporter writes the orphan bank tx into `transactions:` with nothing recording that it *used to be* an invoice payment. The receiving importer has no way to reattach it on round-trip. Options:
    - On export, include the orphan tx's original posted-lot-pre-unpost association (e.g. as a `notes:` entry `originally_paid: "INV-001"` or via a KVP slot).
    - Surface orphan payments under the invoice's `payment:` block with a `orphan: true` flag so the user at least *sees* it in plaintext and can decide to re-link with `txn_guid:` on re-import.
    - Document the limitation in `docs/invoice-payment-reconciliation.md`.
@@ -317,7 +318,7 @@ Snapshots and diffs are checked in alongside this doc for review.
 
 **Headline:** Yes — the orphan is reliably identifiable as "a payment transaction from customer C001", but **not** as "the payment for INV-001 specifically". The lot → invoice association is destroyed by unpost, but the transaction's KVP-backed owner reference (`gncOwnerGetOwnerFromTxn`) and the lot's owner reference (`gncOwnerGetOwnerFromLot`) both survive. The strong fix is to list the soon-to-be-orphans *before* the unpost completes — at that point the lot still points at the invoice and the result has zero false positives.
 
-Probe code: `tests/research/orphan_detection_probe.py`. Full backref dump: `exports/orphan_backref_probe.txt`. Both prototypes are exercised by the `test_find_orphan_payments_prototype` test in the same file and pass against the fixture.
+Probe code: `tests/research/test_orphan_detection_probe.py`. Full backref dump: `exports/orphan_backref_probe.txt`. Both prototypes are exercised by the `test_find_orphan_payments_prototype` test in the same file and pass against the fixture.
 
 ### 1. Backreferences on the orphan bank tx (pre-unpost)
 
@@ -425,7 +426,7 @@ def find_orphan_payments_post_unpost(book, invoice_id=None, customer_id=None):
     return out
 ```
 
-The working implementation (with the ctypes plumbing) is at `tests/research/orphan_detection_probe.py:find_pre_unpost_payments` and `find_orphan_payments_post_unpost`. The accompanying `test_find_orphan_payments_prototype` confirms both paths agree on the single orphan (`tx_guid`) in the step-C/step-D fixture, and that the post-unpost path correctly identifies the customer.
+The working implementation (with the ctypes plumbing) is at `tests/research/test_orphan_detection_probe.py:find_pre_unpost_payments` and `find_orphan_payments_post_unpost`. The accompanying `test_find_orphan_payments_prototype` confirms both paths agree on the single orphan (`tx_guid`) in the step-C/step-D fixture, and that the post-unpost path correctly identifies the customer.
 
 Criteria ordered by strength + false-positive risk for the post-unpost path:
 
@@ -549,7 +550,7 @@ The post-unpost recovery helper is still worth lifting into `use_cases/` later, 
 
 **Headline:** Bill behaviour is **fully symmetric** to invoice behaviour. Same orphan, same lifecycle, same backref signals, same duplicate-on-re-pay trap. The two prototype helpers (`find_pre_unpost_payments` and `find_orphan_payments_post_unpost`) work **as-is** for bills with no code changes — the AR/AP type check is already `(11, 12)`, and `gncOwnerGetOwnerFromTxn` returns whichever owner the tx has (customer type 2 or vendor type 4) without the caller needing to distinguish. The only sensible API change when lifting these to production is renaming the helper's `customer_id` parameter to `owner_id` (or `payer_id`) so callers don't think it's invoice-side-only.
 
-Snapshots: `exports/bill/step_A_created.txt` … `exports/bill/step_F_repaid.txt`. Diffs: `exports/bill/diff_*_to_*.patch`. Bill backref dump: `exports/bill/orphan_backref_probe.txt`. Bill cycle test: `tests/research/test_post_pay_unpost_cycle_bill.py`. Bill probe tests: `test_orphan_backreference_probe_bill` and `test_find_orphan_payments_prototype_bill` in `tests/research/orphan_detection_probe.py`.
+Snapshots: `exports/bill/bill_created.txt` … `exports/bill/bill_repaid.txt`. Diffs: `exports/bill/diff_*_to_*.patch`. Bill backref dump: `exports/bill/orphan_backref_probe.txt`. Bill cycle test: `tests/research/test_post_pay_unpost_cycle_bill.py`. Bill probe tests: `test_orphan_backreference_probe_bill` and `test_find_orphan_payments_prototype_bill` in `tests/research/test_orphan_detection_probe.py`.
 
 ### Side-by-side comparison
 
@@ -578,7 +579,7 @@ Snapshots: `exports/bill/step_A_created.txt` … `exports/bill/step_F_repaid.txt
 
 ### Diff evidence — step C → step D for the bill
 
-The bill's `diff_C_to_D.patch` is structurally identical to the invoice's: posting tx destroyed, posted/payment blocks revert to `none`, bank tx survives untouched. Key snippet from the bill diff:
+The bill's `diff_paid_to_unposted.patch` is structurally identical to the invoice's: posting tx destroyed, posted/payment blocks revert to `none`, bank tx survives untouched. Key snippet from the bill diff:
 
 ```
 -2026-01-01 * "BILL-001" "Bill BILL-001"
@@ -603,7 +604,7 @@ The bill's `diff_C_to_D.patch` is structurally identical to the invoice's: posti
 
 — the bank payment tx survives with both splits intact. Same GUID (`a7707891…`) before and after the unpost. The split sign pattern is mirrored vs invoices: bank is `-100` (money sent out) instead of `+100` (received), AP is `+100` (debt reduced) instead of AR `-100` (receivable reduced).
 
-The step-F diff for the bill (`exports/bill/diff_E_to_F.patch`) confirms the duplicate: re-importing with a second `payment:` block creates a brand-new bank tx (`cfb75461…`, dated 2026-02-15) alongside the surviving orphan (`a7707891…`, dated 2026-01-15). Bank balance at step F: −200 (paid the vendor twice), AP balance: −100 (vendor owes us money — wrong direction), Expenses: +100. Same shape as the invoice cycle, signs flipped.
+The re-pay diff for the bill (`exports/bill/diff_reposted_to_repaid.patch`) confirms the duplicate: re-importing with a second `payment:` block creates a brand-new bank tx (`cfb75461…`, dated 2026-02-15) alongside the surviving orphan (`a7707891…`, dated 2026-01-15). Bank balance at step F: −200 (paid the vendor twice), AP balance: −100 (vendor owes us money — wrong direction), Expenses: +100. Same shape as the invoice cycle, signs flipped.
 
 ### Backref probe — bill side
 

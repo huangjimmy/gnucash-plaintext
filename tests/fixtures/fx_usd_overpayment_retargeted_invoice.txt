@@ -1,0 +1,26 @@
+invoice "INV-USD-RETARGET"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-RETARGET"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		bank_account: "Assets:Bank:USD"
+		txn_guid: "TXN_GUID"
+		prepayment: 100
+		memo: "Payment for INV-USD-RETARGET"

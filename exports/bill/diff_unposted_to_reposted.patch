@@ -1,0 +1,32 @@
+--- exports/bill/bill_unposted.txt
++++ exports/bill/bill_reposted.txt
+@@ -81,9 +81,28 @@
+ 		price: 100
+ 		taxable: true
+ 		tax_included: false
+-	posted: none
++	posted:
++		date: 2026-01-01
++		due: 2026-01-31
++		ap_account: "Liabilities:Accounts Payable"
++		memo: "Bill BILL-001"
++		posted_txn_guid: "ca31096761cf452b822289948dae08db"
++		accumulate: true
+ 	payment: none
+ 
++2026-01-01 * "BILL-001" "Bill BILL-001"
++	guid: "ca31096761cf452b822289948dae08db"
++	txn_type: I
++	owner: vendor:V001
++	business_generated: "true"
++	Expenses:Supplies 100.00 CAD
++		guid: "4340ae860c084565ace94ce9879c3e30"
++		action: "Bill"
++		memo:"Bill BILL-001"
++	Liabilities:Accounts Payable -100.00 CAD
++		guid: "dc51f323b3d740b0b11695c4359d8f7c"
++		action: "Bill"
++		memo:"Bill BILL-001"
+ 2026-01-15 * "Supplier"
+ 	guid: "f044a50fc8be4dac95079836ae7c1800"
+ 	txn_type: P

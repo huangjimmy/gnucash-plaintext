@@ -61,7 +61,7 @@ This document tracks daily progress, decisions, and blockers during the migratio
 
 2. **QFX Workflow Fix**: Removed "Import QFX directly into GnuCash" feature
    - Rationale: Real-world workflow requires manual review to adjust expense categories
-   - Correct workflow: QFX → Plaintext (with TODO markers) → Manual edit → GnuCash
+   - Correct workflow: QFX → Plaintext (with TODO notes) → Manual edit → GnuCash
    - User needs to fix categories, split transactions, add notes before importing
 
 3. **Architecture Simplification**: Don't duplicate GnuCash domain models
@@ -487,7 +487,7 @@ category_mapping = {
 **Why Critical**:
 - User has 50+ merchant patterns across 11 categories
 - Reduces manual review work significantly
-- Unknown merchants can be flagged with TODO marker
+- Unknown merchants can be flagged with a TODO note
 - User can add new patterns over time
 
 **Requirements for Category Mapping**:

@@ -1,0 +1,78 @@
+# A 100.00 USD invoice booked at 1.40, overpaid with 200.00 USD which the
+# customer's bank converted into 274.00 CAD — a rate of 1.37.
+#
+# Two things are settled at once and they are not settled at the same rate.
+# The 100.00 USD that clears the invoice is released at what the invoice
+# carried, 1.40, so 140.00 CAD of cost leaves; the 100.00 USD overpaid was
+# received at 1.37, so the credit is worth 137.00 CAD. What the bank actually
+# received, 274.00, less those two is the 3.00 CAD the invoice lost by being
+# paid at a weaker rate than it was booked at.
+#
+# What this fixture produces:
+#
+#   Assets:Bank                     274.00 CAD
+#   A/R USD  -100.00 USD   value -140.00 CAD   (settles the invoice)
+#   A/R USD  -100.00 USD   value -137.00 CAD   (the credit, at 1.37)
+#   Income:FX Gain                    3.00 CAD  ($residual$, a loss)
+#
+# and no Imbalance split. Valuing the credit at the invoice's 1.40 instead, or
+# leaving it out of the arithmetic, put 137.00 CAD into an imbalance and
+# reported the loss as 134.00.
+#
+# Verified by tests/integration/test_payment_exchange_rate.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-OVERCAD"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-OVERCAD"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		account: "Assets:Bank"
+		settled_amount: 274.00
+		prepayment: 100
+		memo: "Payment for INV-USD-OVERCAD"
+		Income:FX Gain $residual$ CAD

@@ -1,0 +1,9 @@
+2026-02-05 * "Acme — first payment for INV-PAST-ZERO"
+  Assets:Bank  50.00 CAD
+    memo: "First"
+  Assets:Accounts Receivable  -50.00 CAD
+
+2026-02-12 * "Acme — second payment for INV-PAST-ZERO"
+  Assets:Bank  50.00 CAD
+    memo: "Second"
+  Assets:Accounts Receivable  -50.00 CAD

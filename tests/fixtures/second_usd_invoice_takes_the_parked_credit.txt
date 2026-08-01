@@ -1,0 +1,43 @@
+# A second invoice for the same customer, settled by the credit the first one
+# parked — named the short way, with `txn_guid:` and nothing else.
+#
+# The transaction it names is the 200.00 USD deposit already divided by
+# INV-USD-RETARGET: 100.00 settled that invoice, and 100.00 stayed as the
+# customer's credit, in a lot of its own with a cost basis on it. This invoice
+# is for exactly that 100.00, so the whole of the credit split moves into its
+# lot.
+#
+# What the file does not say is that the money comes out of credit — a
+# `from_credit:` block would, and this is the same physical move reached the
+# short way. The import has to work that out from where the split is sitting,
+# because the accounting differs: currency that has been spent carries no
+# basis, and a split left holding one has the book offering USD it no longer
+# has.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-SECOND"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "More consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-SECOND"
+		accumulate: true
+	payment:
+		date: 2026-03-01
+		amount: 100
+		bank_account: "Assets:Bank:USD"
+		txn_guid: "TXN_GUID"
+		memo: "Settled from the credit on account"

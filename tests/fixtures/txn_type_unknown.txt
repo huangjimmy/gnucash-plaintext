@@ -1,0 +1,32 @@
+# A transaction claiming a type GnuCash does not have.
+#
+# GnuCash knows three: `I` (an invoice or bill posting), `P` (a payment) and
+# `L` (a link). Anything else written here would land in the engine's own
+# type field and export straight back out, so a typo would become permanent
+# book state rather than staying inert.
+#
+# What this fixture produces: the import is refused, naming the type.
+#
+# Verified by tests/integration/test_txn_type_restore.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Misc
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-01 * "Typed with a letter GnuCash does not know"
+	currency.mnemonic: "CAD"
+	txn_type: Z
+	Expenses:Misc 10.00 CAD
+	Assets:Bank -10.00 CAD

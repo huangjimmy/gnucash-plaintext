@@ -1,0 +1,14 @@
+# A cost stated on a share purchase, in a transaction with no CAD figure in
+# it. Shares are counted and priced rather than converted, so a security has
+# no cost basis here and nothing would ever read this — and with the whole
+# transaction in USD there is no derived cost for anything to notice the
+# stored one by. Refused at the door instead, on the same terms as a stated
+# balance on the same split.
+2024-03-06 * "Buy USTECH with a cost stated on it"
+	currency.mnemonic: "USD"
+	Assets:Brokerage:USTECH 10 USTECH
+		account.commodity.mnemonic: "USTECH"
+		share_price: "50"
+		value: "500.00"
+		cost_basis_cost: "50 CAD/USTECH"
+	Assets:USD Cash -500.00 USD

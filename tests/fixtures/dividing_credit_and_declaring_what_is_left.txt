@@ -1,0 +1,42 @@
+# A 30.00 invoice settled from the customer's 50.00 credit, and the account
+# summary that says what the customer is left holding — both in one file, the
+# way an export writes them.
+#
+# The division leaves 20.00, and that is what the summary states. Checked
+# against a lot's own balance the answer is 50.00: moving a split with
+# `xaccSplitSetLot` does not take it out of the lot it came from as far as
+# `gnc_lot_get_balance` is concerned, until the book is written and read back.
+# So a file stating the truth was warned about for stating it.
+invoice "INV-DECLARES-WHAT-IS-LEFT"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-DECLARES-WHAT-IS-LEFT"
+		accumulate: true
+	payment:
+		amount: 50.00
+		from_credit: true
+		credit_dated: 2026-01-10
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"
+
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	open_prepayment:
+		customer: "C001"
+		amount: 20.00 CAD

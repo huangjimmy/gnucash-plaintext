@@ -1,0 +1,13 @@
+# The same key stated a level up, on the update path — a transaction named by
+# `guid:` and re-imported under `--strategy update`.
+#
+# The update arm merges what a file states into what the transaction already
+# carries, so a key refused on the splits and not on the transaction lands in
+# the book by the shorter route: no split has to state anything at all.
+2026-05-15 * "Deposit covering Alpha and Beta"
+	guid: "TXN_GUID"
+	currency.mnemonic: "CAD"
+	orphaned_by_unpost: "0123456789abcdef0123456789abcdef"
+	Assets:Bank 220.00 CAD
+	Assets:Accounts Receivable -100.00 CAD
+	Assets:Accounts Receivable -120.00 CAD

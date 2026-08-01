@@ -26,7 +26,7 @@ own market-value balance sheet does, keeping Assets = Liabilities + Equity.
 Securities without a supplied price stay at cost.
 """
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from fractions import Fraction
 from typing import Dict, List, Optional
 
@@ -38,6 +38,7 @@ from gnucash.gnucash_core_c import (
     ACCT_TYPE_INCOME,
 )
 
+from infrastructure.gnucash.utils import numeric_to_fraction
 from services.fx_rates import FxRates
 
 
@@ -99,25 +100,41 @@ class BalanceSheetResult:
     fx_rates_provided: bool
     balances: bool                    # Assets == Liabilities + Equity (in CAD when FX given)
     prices_provided: bool = False     # securities marked to market from a supplied price table
+    # How finely each currency on the sheet divides, per GnuCash's commodity:
+    # {"CAD": 100, "JPY": 1}. Amounts are written at their own currency's
+    # decimals rather than at an assumed two.
+    currency_units: Dict[str, int] = field(default_factory=dict)
 
 
 class BalanceSheet:
     def value_by_currency(self, account: Account,
                           as_of_date: date) -> Dict[str, Fraction]:
-        """Cost-basis value of `account` from inception through `as_of_date`
-        (inclusive), bucketed by the currency each split's value is denominated
-        in — i.e. the split's *transaction* currency, which is what
-        `xaccSplitGetValue` returns.
+        """What `account` holds from inception through `as_of_date`
+        (inclusive), as one total per currency.
 
-        For an ordinary currency account every split is already in that account's
-        own currency, so this collapses to a single entry. For a commodity /
-        security account (Stock, Mutual Fund) the value is the **cost** paid in
-        the transaction currency (e.g. CAD), not the share count — so the holding
-        lands under the report currency and the sheet balances. Market value
-        (shares × supplied price) is layered on top in `compute` when a `prices`
-        table is given.
+        A **currency** account gives one total: how much of its own currency it
+        holds, which is the amount on each of its splits. A split's *value* is
+        stated in whatever currency its transaction was in, so adding values
+        instead would report what the currency cost while labelling it as the
+        currency itself — 200 USD bought and borrowed for 265.00 CAD would read
+        as 265 USD.
+
+        A security account is unchanged: its splits are counted in shares, so
+        the engine's balance would be a share count rather than money, and what
+        the sheet needs is what the shares cost.
 
         Includes closing entries — see the module docstring."""
+        commodity = account.GetCommodity()
+        if commodity is not None and commodity.get_namespace() == 'CURRENCY':
+            # GnuCash keeps this balance itself, in the account's own currency.
+            # `GetBalanceAsOfDate` stops before the day it is given, and this
+            # sheet includes what happened on `as_of_date`.
+            return {commodity.get_mnemonic(): numeric_to_fraction(
+                account.GetBalanceAsOfDate(as_of_date + timedelta(days=1)))}
+
+        # A security's splits are counted in shares, so the engine's balance is
+        # a share count, not money. What the sheet needs is what those shares
+        # cost, which is the value each transaction put on them.
         totals: Dict[str, Fraction] = {}
         for split in account.GetSplitList():
             tx = split.GetParent()
@@ -171,6 +188,7 @@ class BalanceSheet:
         liabilities = BSSection("LIABILITIES")
         equity = BSSection("EQUITY")
         earnings_by_ccy: Dict[str, Fraction] = {}
+        currency_units: Dict[str, int] = {}
         unrealized_cad = Fraction(0)    # market − cost of revalued securities
 
         for account in root.get_descendants():
@@ -206,6 +224,7 @@ class BalanceSheet:
             # balances. Currency accounts and unpriced securities fall through to
             # cost basis.
             mnemonic = commodity.get_mnemonic()
+            currency_units[mnemonic] = commodity.get_fraction()
             if (prices is not None and commodity.get_namespace() != 'CURRENCY'
                     and atype not in _TRADING_TYPES and prices.has_rate(mnemonic)):
                 cost_cad = self._cost_in_cad(value_by_ccy, fx_rates)
@@ -263,7 +282,7 @@ class BalanceSheet:
         return BalanceSheetResult(
             as_of_date=as_of_date, assets=assets, liabilities=liabilities,
             equity=equity, fx_rates_provided=fx_rates is not None, balances=balances,
-            prices_provided=prices is not None)
+            prices_provided=prices is not None, currency_units=currency_units)
 
     def _finalise(self, assets, liabilities, equity, fx_rates) -> bool:
         if fx_rates is None:

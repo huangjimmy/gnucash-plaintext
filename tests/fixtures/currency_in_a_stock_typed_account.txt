@@ -1,0 +1,36 @@
+# 100 USD bought into an account typed Stock but denominated in USD.
+#
+# The account type is a classification; what decides whether a split holds
+# foreign currency is its commodity, and this one's is USD in the CURRENCY
+# namespace. A book can be laid out this way, and the currency in it is held,
+# sellable and taxable like any other.
+#
+# What this fixture produces: `fx-balances` lists 100.00 USD at 1.35 CAD/USD.
+# Judging by account type instead — dropping Stock and Mutual Fund from the
+# debit-side types because a securities account "cannot" hold a currency —
+# leaves this book reporting no cost basis at all.
+#
+# Verified by tests/integration/test_securities_are_not_currency.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Held
+	type: Stock
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-10 * "Buy 100 USD at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:USD Held 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "135.00"
+	Assets:Bank -135.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-135.00"

@@ -310,7 +310,7 @@ def test_user_kvp_on_posting_tx_survives_attach(tmp_path):
     """A user-authored custom KVP key on the standalone posting-tx block
     must survive the linked-attach path. Regression for the
     `set_custom_metadata` non-merge bug: the attach helper plants the
-    `business_generated` marker into the tx's KVP slot, and if it
+    `business_generated` KVP into the tx's slot, and if it
     overwrites (vs merges) the slot the user's key gets nuked.
 
     Drives a hand-authored fixture (no source-book intermediary needed)
@@ -385,7 +385,7 @@ invoice "INV-001"
         assert posting_tx is not None, "no posting tx found after import"
         meta = get_custom_metadata(posting_tx)
         assert meta.get('business_generated') == 'true', (
-            f"`business_generated` marker missing — attach helper didn't "
+            f"`business_generated` KVP missing — attach helper didn't "
             f"plant the KVP: {meta!r}")
         assert meta.get('audit_note') == 'verified by auditor on 2026-01-02', (
             f"REGRESSION: user-authored `audit_note` KVP on the standalone "

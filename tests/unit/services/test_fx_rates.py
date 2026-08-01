@@ -235,25 +235,28 @@ class TestToCad:
 # get_rate
 # ---------------------------------------------------------------------------
 
-class TestGetRate:
+class TestRateFraction:
+    """A rate is the figure the user wrote, exactly — 0.172, not the double
+    nearest it. Every balance converted with it inherits whatever the rate is,
+    so the rate is where exactness has to start."""
 
-    def test_returns_float(self):
+    def test_returns_the_exact_rate(self):
         from services.fx_rates import FxRates
         fx = FxRates({'HKD': 0.172})
-        rate = fx.get_rate('HKD')
-        assert isinstance(rate, float)
-        assert abs(rate - 0.172) < 1e-6
+        rate = fx.rate_fraction('HKD')
+        assert isinstance(rate, Fraction)
+        assert rate == Fraction(172, 1000)
 
     def test_cad_rate_is_one(self):
         from services.fx_rates import FxRates
         fx = FxRates({})
-        assert fx.get_rate('CAD') == 1.0
+        assert fx.rate_fraction('CAD') == Fraction(1)
 
     def test_missing_currency_raises(self):
         from services.fx_rates import FxRates, MissingFxRateError
         fx = FxRates({})
         with pytest.raises(MissingFxRateError):
-            fx.get_rate('USD')
+            fx.rate_fraction('USD')
 
 
 # ---------------------------------------------------------------------------

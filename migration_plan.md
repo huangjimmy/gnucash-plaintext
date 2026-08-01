@@ -751,7 +751,7 @@ class AccountCategorizer:
     """Categorize QFX transactions to GnuCash accounts"""
 
     def categorize(self, qfx_tx, amount: Decimal) -> str:
-        """Return best-guess account name with TODO marker if uncertain"""
+        """Return best-guess account name with a TODO note if uncertain"""
         # Heuristics based on payee, memo, amount
         if amount > 0:  # Income
             return "Income:Uncategorized  # TODO: Review"
@@ -765,7 +765,7 @@ class AccountCategorizer:
         pass
 ```
 - [ ] Implement basic heuristics for categorization
-- [ ] Add TODO markers for uncertain categories
+- [ ] Add TODO notes for uncertain categories
 - [ ] Optional: Add support for rules file
 - [ ] Write tests
 - [ ] Test in Docker
@@ -1045,7 +1045,7 @@ class QFXToPlaintextUseCase:
         # Parse QFX
         statement = self.qfx_parser.parse_file(qfx_path)
 
-        # Categorize with TODO markers
+        # Categorize with TODO notes
         for tx in statement.transactions:
             tx.target_account = self.categorizer.categorize(tx)
 
@@ -1058,7 +1058,7 @@ class QFXToPlaintextUseCase:
             f.write(plaintext)
 ```
 - [ ] Implement `QFXToPlaintextUseCase` (replaces `convert_qfx.py`)
-- [ ] Add TODO markers for categories needing review
+- [ ] Add TODO notes for categories needing review
 - [ ] Write tests in Docker
 
 **Deliverables**:
@@ -2177,7 +2177,7 @@ gnucash-plaintext update -i new_tx.txt -g ledger.gnucash
 gnucash-plaintext qfx -i statement.qfx -a "Assets:Bank:Checking" -o review.txt
 
 # Step 2: Manually edit review.txt in your favorite editor
-#   - Fix expense categories (TODO markers indicate uncertain categories)
+#   - Fix expense categories (TODO notes indicate uncertain categories)
 #   - Split combined transactions
 #   - Add notes
 #   - Merge duplicates

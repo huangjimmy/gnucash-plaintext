@@ -10,6 +10,7 @@ credit existed in the book yet was invisible to the credit-listing commands —
 no badge for downstream tools. This pins that the retarget residual is surfaced.
 """
 
+from fractions import Fraction
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -75,9 +76,15 @@ def _ownerless_credit_lots(gf):
         repo.close()
 
 
-def _craft_ownerless_ar_credit(gf, amount=-77.0):
+def _craft_ownerless_ar_credit(gf, amount=Fraction(-77)):
     """Directly park an AR credit split in a lot with NO owner attached — the
-    exact defect the guard must catch (what a buggy import path would leave)."""
+    exact defect the guard must catch (what a buggy import path would leave).
+
+    `amount` is an exact Fraction and is written at the unit its account is
+    kept to, so a book kept finer than the cent can hold what it is given:
+    through a float and `round`, −20.005 became −20.00 and the test asking
+    about a tenth of a cent could not state one.
+    """
     import ctypes
 
     from gnucash import GncNumeric, Split, Transaction
@@ -108,17 +115,21 @@ def _craft_ownerless_ar_credit(gf, amount=-77.0):
         trans.BeginEdit()
         trans.SetCurrency(comm)
         trans.SetDate(1, 1, 2026)
-        cents = int(round(amount * 100))
+        unit = ar.GetCommoditySCU() or comm.get_fraction()
+        units = Fraction(amount) * unit
+        assert units.denominator == 1, (
+            f'{amount} is finer than the unit {ar.get_full_name()} is kept to')
+        units = int(units)
         s_ar = Split(book)
         s_ar.SetParent(trans)
         s_ar.SetAccount(ar)
-        s_ar.SetValue(GncNumeric(cents, 100))
-        s_ar.SetAmount(GncNumeric(cents, 100))
+        s_ar.SetValue(GncNumeric(units, unit))
+        s_ar.SetAmount(GncNumeric(units, unit))
         s_bk = Split(book)
         s_bk.SetParent(trans)
         s_bk.SetAccount(bank)
-        s_bk.SetValue(GncNumeric(-cents, 100))
-        s_bk.SetAmount(GncNumeric(-cents, 100))
+        s_bk.SetValue(GncNumeric(-units, unit))
+        s_bk.SetAmount(GncNumeric(-units, unit))
         trans.CommitEdit()
 
         lib = load_gnc_engine()
@@ -219,11 +230,12 @@ def test_find_prepayments_warns_on_ownerless_credit_lot(tmp_path):
     must surface it loudly rather than let it hide. Crafts the defect directly."""
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
-    _craft_ownerless_ar_credit(gf, amount=-77.0)
+    _craft_ownerless_ar_credit(gf, amount=Fraction(-77))
 
     # The guard sees the ownerless lot...
     found = _ownerless_credit_lots(gf)
-    assert len(found) == 1 and abs(found[0][1] - 77.0) < 0.01, found
+    # The amount comes back exact, so it is 77 — not 77 within a hundredth.
+    assert len(found) == 1 and found[0][1] == Fraction(77), found
 
     # ...and find-prepayments warns about it.
     r = runner.invoke(cli, ['find-prepayments', str(gf)])
@@ -231,3 +243,30 @@ def test_find_prepayments_warns_on_ownerless_credit_lot(tmp_path):
     out = r.output.lower()
     assert 'no owner' in out or 'ownerless' in out, r.output
     assert '77' in r.output, r.output
+
+
+def test_an_ownerless_credit_is_warned_about_at_its_accounts_unit(tmp_path):
+    """The warning states the figure the book holds, to the place it holds it.
+
+    An account may be kept finer than its currency — `commodity_scu: 1000`, a
+    tenth of a cent — and every other figure this tool writes about a credit
+    follows that: the payment block's `amount:`, the `prepayment:` residual,
+    the `open_prepayment:` summary, and what `find-prepayments` prints for an
+    owned credit. This one line did not, so a 20.005 credit was reported as
+    20.01 — money nobody has, in the warning whose whole job is to be believed.
+    """
+    runner = CliRunner()
+    gf = tmp_path / 'book.gnucash'
+    assert runner.invoke(cli, ['import', '--new', str(gf),
+                               'tests/fixtures/credit_on_an_account_kept_finer_than_the_cent.txt',
+                               '--include-business-objects']).exit_code == 0
+    _craft_ownerless_ar_credit(gf, amount=Fraction(-4001, 200))   # −20.005
+
+    found = _ownerless_credit_lots(gf)
+    assert len(found) == 1, found
+    assert found[0][1] == Fraction(4001, 200), found      # 20.005 exactly
+
+    r = runner.invoke(cli, ['find-prepayments', str(gf)])
+    assert r.exit_code == 0, r.output
+    assert '20.005' in r.output, r.output
+    assert '20.01' not in r.output, r.output

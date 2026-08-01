@@ -325,7 +325,7 @@ def test_open_prepayment_summary_roundtrips(tmp_path):
     assert 'open_prepayment:' in exported.read_text()
 
     # Re-import: the open_prepayment block is parsed and ignored (informational);
-    # the credit is rebuilt from the lot_owner markers, not from the summary.
+    # the credit is rebuilt from the lot_owner KVPs, not from the summary.
     gf2 = tmp_path / 'fresh.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf2), str(exported),
                             '--include-business-objects'])

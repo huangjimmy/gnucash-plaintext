@@ -1,0 +1,40 @@
+# Paying down a USD payable from a CAD bank, written by hand.
+#
+# The A/P split is a debit — it reduces what is owed — and that is money the
+# book has sent, not currency it holds. A prepayment to a vendor is a debit on
+# the same account and *is* currency the book has a claim on, so direction
+# alone cannot tell them apart: what does is the lot. A settlement belongs to
+# the bill it settles; a prepayment belongs to nothing yet.
+#
+# What this fixture produces: `fx-balances` finds no cost basis at all. A rule
+# that counted either direction on a payable opened a 100.00 USD basis here,
+# offering currency that had already left the book.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable USD
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-02-01 * "Pay down the USD payable"
+	currency.mnemonic: "CAD"
+	Liabilities:Accounts Payable USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "140.00"
+	Assets:Bank -140.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-140.00"

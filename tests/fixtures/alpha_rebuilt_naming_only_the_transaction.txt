@@ -1,0 +1,40 @@
+# Alpha's invoice again, edited — the entry description differs, so the import
+# unposts and rebuilds it — and this time naming only the transaction.
+#
+# That transaction now carries two splits the mover could weigh: the 100.00
+# Alpha's own unpost has just orphaned, and Beta's 120.00, still loose because
+# Beta's invoice has not been imported. Only one of them was ever Alpha's, and
+# only the mark says so — loose means unclaimed, not "belongs to whoever asks".
+#
+# Taking Beta's would settle this invoice out of the other customer's money and
+# abandon its own settlement, with nothing ambiguous to refuse because only one
+# split is loose. It would also be an overpayment of a 100.00 invoice by
+# 120.00, so what a reader sees is a demand for a `prepayment:` on a payment
+# they never made.
+#
+# Verified by tests/integration/test_credit_payment_block_is_checked.py.
+invoice "INV-TWO-A"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service A, revised"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWO-A"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		memo: "Portion for Alpha"

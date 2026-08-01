@@ -63,10 +63,28 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short"
 
 [tool.coverage.run]
-source = ["cli", "services", "infrastructure", "use_cases"]
+# Every layer CLAUDE.md names, including `repositories/` — a package left out
+# of `source` is not reported as uncovered, it is not reported at all, so a
+# gate at 100% would go green over it.
+source = ["cli", "services", "infrastructure", "use_cases", "repositories"]
 omit = ["tests/*", "*/tests/*"]
+# Branches as well as lines: an `if` whose false side never runs is a line
+# nothing tests, and the line count alone calls it covered.
+branch = true
+# Each distribution's run is named after the distribution — `COVERAGE_FILE=/cov/
+# .coverage.ubuntu20` — so ten of them write into one shared directory at once
+# without overwriting each other, and `coverage combine` adds them up. Not
+# `parallel = true`: pytest-cov combines a run's own data files into the
+# canonical name before it exits, which would leave every container writing
+# `/cov/.coverage` over the last one to finish.
+# The sweep copies the workspace to a temp directory per distribution, so the
+# same module is at a different absolute path in every run. Recorded relative
+# to the workspace root, they are the same file and combine into one figure.
+relative_files = true
 
 [tool.coverage.report]
+show_missing = true
+skip_covered = true
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

@@ -1,0 +1,18 @@
+# The same note, stated a level up. Unposting writes it on a split and only
+# there, so a file carrying one on a transaction is hand-written either way —
+# and refused on the split alone, it was stored as ordinary metadata and
+# written back out, making the next export of that book a file this tool says
+# no file may write. The export drops it from a transaction for the same
+# reason, so a book that already carries one still has a way back in.
+2026-04-03 * "A transaction carrying a note no file may write"
+  orphaned_by_unpost: "0123456789abcdef0123456789abcdef"
+  Assets:Bank  7.00 CAD
+  Income:Sales  -7.00 CAD
+
+# An ordinary transaction beside it, so the import has something to land and
+# saves — which is what puts anything the refusal left behind on disk. Named
+# distinctly from every other transaction in the book, because the test seeds
+# this one by description to make a book that carries the key already.
+2026-04-04 * "A transaction beside the refused one"
+  Assets:Bank  6.00 CAD
+  Income:Sales  -6.00 CAD

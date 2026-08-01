@@ -10,10 +10,11 @@ and the owner block compared to invoices.
 Tax handling mirrors the invoice renderer: posted bills read tax from
 the posting transaction's AP splits; unposted bills compute tax from
 each entry's bill-side tax_table via compute_bill_entry_informational
-and the rendered output carries a `draft-tax-notice` marker so the
+and the rendered output carries a `draft-tax-notice` class so the
 viewer knows the figures are provisional.
 """
 import xml.etree.ElementTree as ET
+from fractions import Fraction
 
 import gnucash.gnucash_core_c as gc
 from gnucash import Split
@@ -24,6 +25,7 @@ from infrastructure.gnucash.engine import (
     safe_ctypes_string,
 )
 from infrastructure.gnucash.kvp import get_custom_metadata
+from infrastructure.gnucash.utils import exact_text, money_text, numeric_to_fraction
 from services.invoice_renderer import (
     _ctypes_account_full_name,
     _fmt_money,
@@ -52,9 +54,9 @@ def _read_bill_tax_label(lib, ptr):
     def process_tax_table_entry(_lib, tte_ptr):
         acct_ptr = _lib.gncTaxTableEntryGetAccount(tte_ptr)
         amt_c = _lib.gncTaxTableEntryGetAmount(tte_ptr)
-        rate = amt_c.num / amt_c.denom if amt_c.denom else 0.0
+        rate = numeric_to_fraction(amt_c) if amt_c.denom else Fraction(0)
         name = safe_ctypes_string(_lib.xaccAccountGetName, acct_ptr, default='?')
-        rate_str = f"{rate:g}%"
+        rate_str = f'{exact_text(rate)}%'
         return name if rate_str in name else f"{name} {rate_str}"
 
     rate_parts = iterate_glist(lib, glist_ptr, process_tax_table_entry)
@@ -76,8 +78,10 @@ def _bill_tax_table_entries(lib, tt_ptr):
     def _one(_lib, tte_ptr):
         acct_ptr = _lib.gncTaxTableEntryGetAccount(tte_ptr)
         amt_c = _lib.gncTaxTableEntryGetAmount(tte_ptr)
-        rate_pct = amt_c.num / amt_c.denom if amt_c.denom else 0.0
-        rate = rate_pct / 100.0
+        # Exact, for the reason the invoice side is: a rate that no float says
+        # exactly carries its error straight into the tax dollars.
+        rate_pct = numeric_to_fraction(amt_c) if amt_c.denom else Fraction(0)
+        rate = rate_pct / 100
         acct_name = _ctypes_account_full_name(_lib, acct_ptr) if acct_ptr else '?'
         return (acct_name, rate)
 
@@ -94,8 +98,8 @@ def compute_bill_entry_informational(lib, entry_ptr):
     bill-side tax_table and tax_included flag."""
     qty_c = lib.gncEntryGetQuantity(entry_ptr)
     pri_c = lib.gncEntryGetBillPrice(entry_ptr)
-    qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
-    price = pri_c.num / pri_c.denom if pri_c.denom else 0.0
+    qty = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
+    price = numeric_to_fraction(pri_c) if pri_c.denom else Fraction(0)
     gross_or_net = qty * price
 
     taxable = bool(lib.gncEntryGetBillTaxable(entry_ptr))
@@ -103,13 +107,13 @@ def compute_bill_entry_informational(lib, entry_ptr):
     tt_ptr = lib.gncEntryGetBillTaxTable(entry_ptr) if taxable else None
 
     if not taxable or not tt_ptr:
-        return (gross_or_net, 0.0, [])
+        return (gross_or_net, Fraction(0), [])
 
     tt_entries = _bill_tax_table_entries(lib, tt_ptr)
-    total_rate = sum(rate for _, rate in tt_entries)
-    net = gross_or_net / (1.0 + total_rate) if tax_included else gross_or_net
+    total_rate = sum((rate for _, rate in tt_entries), Fraction(0))
+    net = gross_or_net / (1 + total_rate) if tax_included else gross_or_net
     breakdown = [(acct, rate, net * rate) for acct, rate in tt_entries]
-    entry_tax = sum(amount for _, _, amount in breakdown)
+    entry_tax = sum((amount for _, _, amount in breakdown), Fraction(0))
     return (net, entry_tax, breakdown)
 
 
@@ -182,7 +186,10 @@ def bill_to_xml(bill, book, company_info=None):
     build_company_xml(root, company_info)
 
     entries_el = ET.SubElement(root, 'entries')
-    entries_subtotal = 0.0
+    # Every figure stays exact until it is written, at the bill currency's own
+    # smallest unit.
+    unit = bill.GetCurrency().get_fraction()
+    entries_subtotal = Fraction(0)
     tax_account_totals = {}
     for raw_entry in bill.GetEntries():
         ptr = int(raw_entry.instance)
@@ -190,15 +197,15 @@ def bill_to_xml(bill, book, company_info=None):
         # Bills don't have an `action` field (see _format_bill_entry).
         qty_c = lib.gncEntryGetQuantity(ptr)
         price_c = lib.gncEntryGetBillPrice(ptr)
-        qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
-        price = price_c.num / price_c.denom if price_c.denom else 0.0
+        qty = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
+        price = numeric_to_fraction(price_c) if price_c.denom else Fraction(0)
         net_amount, _entry_tax, breakdown = compute_bill_entry_informational(
             lib, ptr,
         )
         entries_subtotal += net_amount
         for bd_acct_name, _bd_rate, bd_amount in breakdown:
             tax_account_totals[bd_acct_name] = (
-                tax_account_totals.get(bd_acct_name, 0.0) + bd_amount
+                tax_account_totals.get(bd_acct_name, Fraction(0)) + bd_amount
             )
 
         tax_label, tax_type = _read_bill_tax_label(lib, ptr)
@@ -206,11 +213,9 @@ def bill_to_xml(bill, book, company_info=None):
         e_el = ET.SubElement(entries_el, 'entry')
         ET.SubElement(e_el, 'description').text = desc
         ET.SubElement(e_el, 'action').text = ''
-        ET.SubElement(e_el, 'quantity').text = (
-            f"{qty:.4f}".rstrip('0').rstrip('.')
-        )
-        ET.SubElement(e_el, 'unit-price').text = f"{price:.2f}"
-        ET.SubElement(e_el, 'amount').text = f"{net_amount:.2f}"
+        ET.SubElement(e_el, 'quantity').text = exact_text(qty)
+        ET.SubElement(e_el, 'unit-price').text = money_text(price, unit)
+        ET.SubElement(e_el, 'amount').text = money_text(net_amount, unit)
         ET.SubElement(e_el, 'tax-label', type=tax_type).text = tax_label
 
     tax_lines_el = ET.SubElement(root, 'tax-lines')
@@ -220,10 +225,11 @@ def bill_to_xml(bill, book, company_info=None):
         for acct_name, dollars in tax_account_totals.items():
             tl = ET.SubElement(tax_lines_el, 'tax-line')
             ET.SubElement(tl, 'name').text = acct_name.rsplit(':', 1)[-1]
-            ET.SubElement(tl, 'amount').text = f"{dollars:.2f}"
-        grand_total = entries_subtotal + sum(tax_account_totals.values())
-        ET.SubElement(root, 'subtotal').text = f"{entries_subtotal:.2f}"
-        ET.SubElement(root, 'total').text = f"{grand_total:.2f}"
+            ET.SubElement(tl, 'amount').text = money_text(dollars, unit)
+        grand_total = entries_subtotal + sum(
+            tax_account_totals.values(), Fraction(0))
+        ET.SubElement(root, 'subtotal').text = money_text(entries_subtotal, unit)
+        ET.SubElement(root, 'total').text = money_text(grand_total, unit)
         ET.SubElement(root, 'draft-tax-notice')
         return ET.ElementTree(root)
 
@@ -233,27 +239,27 @@ def bill_to_xml(bill, book, company_info=None):
     # accrual (LIABILITY for accrued payable tax, ASSET for a
     # recoverable input-tax-credit account, etc.).
     posted_ap_acct = bill.GetPostedAcc()
-    subtotal_total = 0.0
+    subtotal_total = Fraction(0)
+    tax_total = Fraction(0)
     for i in range(posting_txn.CountSplits()):
         s = posting_txn.GetSplit(i)
         acct = s.GetAccount()
         atype = gc.xaccAccountGetType(acct.instance)
-        amt = s.GetAmount().to_double()
+        amt = abs(numeric_to_fraction(s.GetAmount()))
         if (posted_ap_acct is not None
                 and acct.instance == posted_ap_acct.instance):
             continue
         if atype == gc.ACCT_TYPE_EXPENSE:
-            subtotal_total += abs(amt)
+            subtotal_total += amt
         else:
+            tax_total += amt
             tl = ET.SubElement(tax_lines_el, 'tax-line')
             ET.SubElement(tl, 'name').text = acct.GetName()
-            ET.SubElement(tl, 'amount').text = f"{abs(amt):.2f}"
+            ET.SubElement(tl, 'amount').text = money_text(amt, unit)
 
-    grand_total = subtotal_total + sum(
-        float(tl.find('amount').text) for tl in tax_lines_el
-    )
-    ET.SubElement(root, 'subtotal').text = f"{subtotal_total:.2f}"
-    ET.SubElement(root, 'total').text = f"{grand_total:.2f}"
+    grand_total = subtotal_total + tax_total
+    ET.SubElement(root, 'subtotal').text = money_text(subtotal_total, unit)
+    ET.SubElement(root, 'total').text = money_text(grand_total, unit)
 
     lot = bill.GetPostedLot()
     for raw_split in lot.get_split_list():
@@ -266,15 +272,15 @@ def bill_to_xml(bill, book, company_info=None):
         pay_date = txn.GetDate().strftime("%Y-%m-%d")
         pay_memo = txn.GetDescription() or ''
         pay_num = txn.GetNum() or ''
-        pay_amt = abs(s.GetAmount().to_double())
+        pay_amt = abs(numeric_to_fraction(s.GetAmount()))
         p_el = ET.SubElement(payments_el, 'payment')
         ET.SubElement(p_el, 'date').text = pay_date
         ET.SubElement(p_el, 'memo').text = pay_memo
         ET.SubElement(p_el, 'num').text = pay_num
-        ET.SubElement(p_el, 'amount').text = f"{pay_amt:.2f}"
+        ET.SubElement(p_el, 'amount').text = money_text(pay_amt, unit)
 
-    remaining = lot.get_balance().to_double()
-    ET.SubElement(root, 'amount-remaining').text = f"{abs(remaining):.2f}"
+    remaining = abs(numeric_to_fraction(lot.get_balance()))
+    ET.SubElement(root, 'amount-remaining').text = money_text(remaining, unit)
 
     return ET.ElementTree(root)
 
@@ -326,6 +332,7 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
     posting_txn = bill.GetPostedTxn()
     is_draft = posting_txn is None
     currency = bill.GetCurrency().get_mnemonic()
+    unit = bill.GetCurrency().get_fraction()
     date_opened = bill.GetDateOpened().strftime('%Y-%m-%d')
 
     seen_tt = {}
@@ -363,8 +370,8 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         desc = safe_ctypes_string(lib.gncEntryGetDescription, ent_ptr)
         qty_c = lib.gncEntryGetQuantity(ent_ptr)
         pri_c = lib.gncEntryGetBillPrice(ent_ptr)
-        qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
-        price = pri_c.num / pri_c.denom if pri_c.denom else 0.0
+        qty = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
+        price = numeric_to_fraction(pri_c) if pri_c.denom else Fraction(0)
         taxable = bool(lib.gncEntryGetBillTaxable(ent_ptr))
         tax_included = bool(lib.gncEntryGetBillTaxIncluded(ent_ptr))
         acct_name = get_account_full_name(raw_entry.GetBillAccount())
@@ -374,8 +381,8 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         bill_lines.append(f'\t\tdate: {date_str}')
         bill_lines.append(f'\t\tdescription: "{desc}"')
         bill_lines.append(f'\t\taccount: "{acct_name}"')
-        bill_lines.append(f'\t\tquantity: {qty:g}')
-        bill_lines.append(f'\t\tprice: {price:g}')
+        bill_lines.append(f'\t\tquantity: {exact_text(qty)}')
+        bill_lines.append(f'\t\tprice: {exact_text(price)}')
         bill_lines.append(f'\t\ttaxable: {"true" if taxable else "false"}')
         bill_lines.append(
             f'\t\ttax_included: {"true" if tax_included else "false"}'
@@ -387,13 +394,13 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
             if tt_name:
                 bill_lines.append(f'\t\ttax_table: "{tt_name}"')
 
-        bill_lines.append(f'\t\tentry_amount: {_fmt_money(entry_amount)}')
-        bill_lines.append(f'\t\tentry_tax: {_fmt_money(entry_tax)}')
+        bill_lines.append(f'\t\tentry_amount: {_fmt_money(entry_amount, unit)}')
+        bill_lines.append(f'\t\tentry_tax: {_fmt_money(entry_tax, unit)}')
         for bd_acct_name, bd_rate, bd_amount in breakdown:
             bill_lines.append('\t\tbreakdown:')
             bill_lines.append(f'\t\t\taccount: "{bd_acct_name}"')
             bill_lines.append(f'\t\t\trate: {_fmt_rate(bd_rate)}')
-            bill_lines.append(f'\t\t\tamount: {_fmt_money(bd_amount)}')
+            bill_lines.append(f'\t\t\tamount: {_fmt_money(bd_amount, unit)}')
 
     if is_draft:
         bill_lines.append('\tposted: none')
@@ -448,11 +455,11 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         if not had_payment:
             bill_lines.append('\tpayment: none')
 
-    subtotal = sum(e[1] for e in entries_data)
-    tax_total = sum(e[2] for e in entries_data)
-    bill_lines.append(f'\tbill_subtotal: {_fmt_money(subtotal)}')
-    bill_lines.append(f'\tbill_tax_total: {_fmt_money(tax_total)}')
-    bill_lines.append(f'\tbill_total: {_fmt_money(subtotal + tax_total)}')
+    subtotal = sum((e[1] for e in entries_data), Fraction(0))
+    tax_total = sum((e[2] for e in entries_data), Fraction(0))
+    bill_lines.append(f'\tbill_subtotal: {_fmt_money(subtotal, unit)}')
+    bill_lines.append(f'\tbill_tax_total: {_fmt_money(tax_total, unit)}')
+    bill_lines.append(f'\tbill_total: {_fmt_money(subtotal + tax_total, unit)}')
 
     # Q-019: bill-scoped caveats — vendor name line and (drafts only)
     # provisional-tax notice. Both prepend to the bill block; the

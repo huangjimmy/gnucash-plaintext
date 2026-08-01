@@ -1,0 +1,26 @@
+# The shape a divided credit exports to, imported into a fresh book: one
+# transaction holding the bank side, the part that settled a document — which
+# carries no `lot_owner:`, because it belongs to a document's lot and the
+# export derives that line from live lot state — and the credit left over,
+# which does carry one.
+#
+# Reading the loose split's lot, nothing says whose it is. The split itself
+# says it came out of a credit — `applied_from_credit`, which the import writes
+# on every split it moves out of one, and which an export carries back — and
+# the credit beside it says whose: both halves came out of one credit, and that
+# credit is Alpha's.
+customer "C-TWO-A"
+	name: "Alpha"
+	currency: CAD
+
+customer "C-TWO-B"
+	name: "Beta"
+	currency: CAD
+
+2026-05-15 * "Alpha pays ahead"
+	currency.mnemonic: "CAD"
+	Assets:Bank 100.00 CAD
+	Assets:Accounts Receivable -40.00 CAD
+		applied_from_credit: "true"
+	Assets:Accounts Receivable -60.00 CAD
+		lot_owner: "customer:C-TWO-A"

@@ -1,0 +1,17 @@
+# Two deposits to retarget and a standing credit for the same customer, so one
+# document's lot can end up holding splits from three transactions.
+2026-07-05 * "Alpha pays ahead"
+	currency.mnemonic: "CAD"
+	Assets:Bank 30.00 CAD
+	Assets:Accounts Receivable -30.00 CAD
+		lot_owner: customer:C-TWO-A
+
+2026-07-10 * "Alpha first cash"
+	currency.mnemonic: "CAD"
+	Assets:Bank 40.00 CAD
+	Assets:Accounts Receivable -40.00 CAD
+
+2026-07-11 * "Alpha second cash"
+	currency.mnemonic: "CAD"
+	Assets:Bank 30.00 CAD
+	Assets:Accounts Receivable -30.00 CAD

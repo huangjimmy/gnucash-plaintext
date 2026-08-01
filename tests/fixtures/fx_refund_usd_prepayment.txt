@@ -1,0 +1,63 @@
+# A customer's USD prepayment, then its refund.
+#
+# The prepayment arrives as USD in the bank against a credit on the
+# receivable, joined to the customer's own lot. The refund sends it back: a
+# debit on that same receivable, which is the *normal* direction for a
+# receivable and yet is money leaving the book.
+#
+# What this fixture produces: one basis, the bank's 100.00 USD at 1.37. The
+# prepayment is one lump of money written as two splits — the bank holds it,
+# the credit says it is owed back — and only the bank side is currency that
+# can be sold, so listing the credit as well offers 200.00 USD against 100.00
+# held. The refund adds nothing either: counting its debit because debits are
+# the normal direction on a receivable offers a further 100.00 that has
+# already gone out the door.
+#
+# What separates a refund from an invoice posting: a posting sits in the lot
+# its invoice owns, a refund settles an owner lot that no document owns.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+2026-01-15 * "Customer prepays 100 USD"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "137.00"
+	Assets:Accounts Receivable USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "-137.00"
+		lot_owner: "customer:C-US"
+
+2026-02-01 * "Refund the customer's USD prepayment"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "137.00"
+		lot_owner: "customer:C-US"
+	Assets:Bank:USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "-137.00"

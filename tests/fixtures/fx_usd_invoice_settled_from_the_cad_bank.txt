@@ -1,0 +1,26 @@
+# The invoice, attached to the CAD payment that settles it.
+invoice "INV-FX-CAD-BANK"
+	customer_id: "C-FX"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-FX-CAD-BANK"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		memo: "Payment for INV-FX-CAD-BANK"

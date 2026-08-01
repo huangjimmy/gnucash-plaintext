@@ -1,0 +1,73 @@
+# A 100.00 USD invoice booked at 1.405 CAD/USD — 140.50 CAD of revenue — with
+# 45.00 USD of it settled into a CAD bank for 62.00 CAD.
+#
+# The USD settled cost 45 x 1.405 = 63.225 CAD exactly: a half-cent. Money
+# rounds away from zero, so that is 63.23 CAD, and the loss realized is
+# 63.23 - 62.00 = 1.23 CAD.
+#
+# What this fixture produces, visible in the exported payment transaction:
+#
+#   value: "-63.23"              what the 45.00 USD cost
+#   Income:FX Gain 1.23 CAD      the loss realized on settling it
+#
+# Python's `round` is banker's rounding and sends an exact half to the nearest
+# even cent — 63.22, and a 1.22 loss. One cent, in the books and in the gain
+# reported for the year, on a figure a filer has to stand behind. This is why
+# the arithmetic is handed to GnuCash rather than done in Python.
+#
+# Verified by tests/integration/test_half_cent_rounding.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-HALFCENT"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-HALFCENT"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 45
+		account: "Assets:Bank"
+		settled_amount: 62.00
+		memo: "Part payment for INV-USD-HALFCENT"
+		Income:FX Gain $residual$ CAD

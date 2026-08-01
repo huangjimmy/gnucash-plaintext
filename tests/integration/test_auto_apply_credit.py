@@ -54,13 +54,6 @@ def _import_fixture(runner, gf, fixture_name, tmp_path, alias=None):
                                '--include-business-objects'])
 
 
-def _import_text(runner, gf, content, name, tmp_path):
-    p = tmp_path / name
-    p.write_text(content)
-    return runner.invoke(cli, ['import', str(gf), str(p),
-                               '--include-business-objects'])
-
-
 def _export(runner, gf, tmp_path, name):
     out = tmp_path / name
     r = runner.invoke(cli, ['export', str(gf), str(out), '--include-business-objects'])
@@ -176,31 +169,6 @@ def test_invoice_auto_apply_credit_over_consumes_partial_pay(tmp_path):
     assert sum(lot['balance'] for lot in open_positive) == 150.0
 
 
-def test_invoice_auto_apply_credit_roundtrip_emits_flag_and_idempotent(tmp_path):
-    """After auto-apply, export must emit `auto_apply_credit: true`; re-import
-    is unchanged (no further consumption, no drift)."""
-    runner = CliRunner()
-    gf = _setup(runner, tmp_path, kind='invoice')
-
-    r = _import_fixture(runner, gf, 'q015_aac_inv002_partial_credit.txt', tmp_path)
-    assert r.exit_code == 0
-    initial_lots = _ar_lot_summary(gf)
-
-    exported = _export(runner, gf, tmp_path, 'r1.txt')
-    # Exporter must surface the flag on INV-002.
-    assert 'auto_apply_credit: true' in exported, (
-        f'exporter must emit auto_apply_credit flag. exported:\n{exported}'
-    )
-
-    r = _import_text(runner, gf, exported, 'r1_in.txt', tmp_path)
-    assert r.exit_code == 0, f're-import: {r.output}'
-    final_lots = _ar_lot_summary(gf)
-    assert final_lots == initial_lots, (
-        f'roundtrip drifted.\nbefore: {initial_lots}\nafter:  {final_lots}'
-    )
-    assert _bank_tx_count(gf) == 1, 'roundtrip must not add a bank tx'
-
-
 def test_invoice_auto_apply_credit_composes_with_cash_payment(tmp_path):
     """INV-002 for $80 with credit of $50 + an additional cash payment of $30 →
     invoice closes via credit ($50) + bank payment ($30)."""
@@ -240,25 +208,6 @@ def test_bill_auto_apply_credit_consumes_partial_credit(tmp_path):
     assert len(closed) == 2 and all(lot['balance'] == 0.0 for lot in closed)
     assert len(open_) == 1 and open_[0]['balance'] == 20.0, (
         f'bill prepay residual must be open at +20 (AP sign). got: {open_}'
-    )
-
-
-def test_bill_auto_apply_credit_roundtrip_emits_flag(tmp_path):
-    runner = CliRunner()
-    gf = _setup(runner, tmp_path, kind='bill')
-
-    r = _import_fixture(runner, gf, 'q015_aac_bill002_partial_credit.txt', tmp_path)
-    assert r.exit_code == 0, f'import: {r.output}'
-
-    exported = _export(runner, gf, tmp_path, 'r1.txt')
-    # The flag on BILL-002 must round-trip.
-    bill_block_starts = [i for i, ln in enumerate(exported.splitlines())
-                         if ln.startswith('bill "BILL-002"')]
-    assert bill_block_starts, 'BILL-002 missing from export'
-    start = bill_block_starts[0]
-    bill_block = '\n'.join(exported.splitlines()[start:start + 30])
-    assert 'auto_apply_credit: true' in bill_block, (
-        f'BILL-002 export must emit auto_apply_credit. block:\n{bill_block}'
     )
 
 

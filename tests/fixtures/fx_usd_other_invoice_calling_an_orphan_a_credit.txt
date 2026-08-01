@@ -1,0 +1,37 @@
+# A different invoice for the same customer, spending — as a credit — the
+# settlement another document's unpost left loose.
+#
+# Nothing here is this invoice's own orphan: the mark on that split names the
+# other document. Whose orphan it is decides nothing, though. A bank paid that
+# money and the split never said otherwise, so it is a settlement waiting to be
+# put back rather than the customer's credit, and calling it one takes the
+# basis off currency the bank still holds.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-OTHER"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Another job"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-OTHER"
+		accumulate: true
+	payment:
+		amount: 100
+		from_credit: true
+		credit_dated: 2026-02-25
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"
+		memo: "Settled from the credit on account"

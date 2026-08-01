@@ -1,0 +1,39 @@
+# The overpaid invoice again, edited — the entry description differs, so the
+# import unposts and rebuilds it — with the same payment block it came in on.
+#
+# This is the shape the marked-orphan tier exists for. Unposting leaves the
+# transaction carrying two splits a retarget could place: the settlement just
+# orphaned, and the 100.00 residue this same invoice parked as the customer's
+# credit. Both are live and hold no document, so counted together they read as
+# ambiguous and an ordinary edit of an overpaid invoice becomes unimportable —
+# with the remedy reachable only by re-exporting. Only one of the two was ever
+# this invoice's settlement, and only the mark says which.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-RETARGET"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting, revised"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-RETARGET"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		bank_account: "Assets:Bank:USD"
+		txn_guid: "TXN_GUID"
+		prepayment: 100
+		memo: "Payment for INV-USD-RETARGET"

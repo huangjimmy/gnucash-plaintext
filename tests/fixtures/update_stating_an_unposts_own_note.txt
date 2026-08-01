@@ -1,0 +1,14 @@
+# The same key a file may not state, on the update path — a transaction named
+# by `guid:` and re-imported under `--strategy update`.
+#
+# This is the half where a late refusal costs something: the edit destroys and
+# rewrites splits, and a `lot_owner:` beside the bad key opens an owner lot
+# that the transaction's rollback does not undo. Refused before any of that
+# happens, the book is exactly as it was.
+2026-04-01 * "Deposit carrying a note no file may write"
+	guid: "TXN_GUID"
+	currency.mnemonic: "CAD"
+	Assets:Bank 60.00 CAD
+	Assets:Accounts Receivable -60.00 CAD
+		lot_owner: customer:C-TWO-A
+		orphaned_by_unpost: "0123456789abcdef0123456789abcdef"

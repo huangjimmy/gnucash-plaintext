@@ -1,0 +1,71 @@
+# A split line on a payment that settles in the record's own currency.
+#
+# The splits a payment block carries are consumed by the cross-currency
+# settlement, which is what has a realized difference for them to take. This
+# invoice is CAD and is paid from a CAD bank, so that path never runs — and a
+# bank fee written here has nothing to place it.
+#
+# What this fixture produces: the import is refused, naming the fee split and
+# saying why it cannot be honoured. Accepting the file and dropping the fee
+# would be the failure Q-035 was filed against — an import that exits 0, prints
+# a success summary, and leaves the book missing what the file stated.
+#
+# Verified by tests/integration/test_payment_split_must_be_consumed.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank Fees
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-CAD"
+	name: "Domestic Customer"
+	currency: CAD
+
+invoice "INV-CAD-FEE"
+	customer_id: "C-CAD"
+	currency: CAD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-CAD-FEE"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank"
+		memo: "Payment for INV-CAD-FEE"
+		Expenses:Bank Fees 2.00 CAD

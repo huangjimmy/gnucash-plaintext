@@ -163,6 +163,77 @@ class TestKvpRoundtrip:
             if os.path.exists(lock):
                 os.unlink(lock)
 
+    def test_writing_back_an_emptied_dict_leaves_no_metadata(self):
+        """Dropping the last key stores nothing, not what was there before.
+
+        Code that takes a split's metadata, removes a key and writes the rest
+        back is how a key is deleted. When the removed key was the only one,
+        the write is an empty dict — and an empty dict has to reach the slot,
+        or the object goes on carrying the very key that was dropped.
+        """
+        from gnucash import GncNumeric, Query, Split, Transaction
+
+        from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
+
+        session, book, path = _make_book()
+        try:
+            cad = book.get_table().lookup('CURRENCY', 'CAD')
+            root = book.get_root_account()
+            checking = root.lookup_by_name('Assets').lookup_by_name('Bank').lookup_by_name('Checking')
+            dining = root.lookup_by_name('Expenses').lookup_by_name('Dining')
+
+            tx = Transaction(book)
+            tx.BeginEdit()
+            tx.SetCurrency(cad)
+            tx.SetDate(1, 1, 2024)
+            tx.SetDescription('Test tx')
+
+            s1 = Split(book)
+            s1.SetParent(tx)
+            s1.SetAccount(dining)
+            s1.SetValue(GncNumeric(2000, 100))
+
+            s2 = Split(book)
+            s2.SetParent(tx)
+            s2.SetAccount(checking)
+            s2.SetValue(GncNumeric(-2000, 100))
+
+            set_custom_metadata(s1, {'cost_basis_available': '100.00'})
+            tx.CommitEdit()
+            session.save()
+            session.end()
+
+            session2 = _open_session(path)
+            q = Query()
+            q.search_for('Trans')
+            q.set_book(session2.book)
+            reopened = [Transaction(instance=t) for t in q.run()][0]
+            split = [s for s in reopened.GetSplitList()
+                     if get_custom_metadata(s)][0]
+
+            reopened.BeginEdit()
+            kept = {key: value for key, value in get_custom_metadata(split).items()
+                    if key != 'cost_basis_available'}
+            set_custom_metadata(split, kept)
+            reopened.CommitEdit()
+            session2.save()
+            session2.end()
+
+            session3 = _open_session(path)
+            q3 = Query()
+            q3.search_for('Trans')
+            q3.set_book(session3.book)
+            final = [Transaction(instance=t) for t in q3.run()][0]
+            assert all(get_custom_metadata(s) == {} for s in final.GetSplitList())
+            session3.end()
+
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+            lock = path + '.LCK'
+            if os.path.exists(lock):
+                os.unlink(lock)
+
     def test_get_custom_metadata_returns_empty_when_no_slot(self):
         """get_custom_metadata returns {} when no KVP slot has been set."""
         from gnucash import GncNumeric, Split, Transaction

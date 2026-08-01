@@ -1,0 +1,37 @@
+# A cost stated on a CAD split, which can never hold foreign currency.
+#
+# `cost_basis_cost:` says what a unit of a split's currency cost in the book's
+# currency. On a CAD split in a CAD book there is nothing for it to say, and
+# nothing will ever read it: the split establishes no cost basis, so the cost
+# is never consulted. Almost always it is on the wrong line of the two.
+#
+# What this fixture produces: the import is refused, naming the split and the
+# reason. Both ways in answer the same — a fresh import and `--strategy
+# update` — because a file that means nothing on one path cannot mean
+# something on the other.
+#
+# Verified by tests/integration/test_update_strategy_respects_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-10 * "Buy 100 USD at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "135.00"
+	Assets:Bank -135.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-135.00"
+		cost_basis_cost: "1.4 CAD/USD"

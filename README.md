@@ -270,6 +270,61 @@ Formula `value` = `share_price` * Split_Amount, e.g., 3.68 = 368/2170 * 21.70
 		value: "-3.68"
 ```
 
+### Foreign currency
+
+The book reports in CAD. Currency in any other denomination is held at a **cost basis**: so many units, at what they cost in CAD. Every split that brings foreign currency in establishes one — an invoice's A/R split, a bill's A/P split, currency bought or borrowed — and selling that currency is measured against the bases it came from.
+
+**Invoicing in USD.** An invoice posts only to an A/R account in its own currency (the rule GnuCash's own post dialog enforces); posting a USD invoice to a CAD A/R is refused, because the engine takes no exchange rate and would write an A/R split of zero whose lot closes on its own posting date. The revenue is still recognised in CAD, at the invoice's posting-date rate, which is what a CRA filing needs:
+
+```
+2026-01-05 * "INV-USD-001" "Invoice INV-USD-001"
+	currency.mnemonic: "USD"
+	Assets:Accounts Receivable USD 100.00 USD
+		cost_basis_available: "100.00"
+	Income:Sales -140.00 CAD
+		share_price: "10000/14000"
+		value: "-100.00"
+```
+
+That rate comes from `--fx-rates` on `import`, and importing a foreign-currency invoice or bill without one is an error rather than a posting the engine silently abandons. Bills work the same way in mirror: a USD bill posts to a USD A/P account and books its expense in CAD.
+
+**Paying across a currency boundary.** A payment states its `amount:` in the record's own currency, so when the money lands in another currency something must say what that side received. Write what your bank statement shows:
+
+```
+	payment:
+		date: 2026-02-25
+		amount: 100                         # 100.00 USD off the invoice
+		account: "Assets:Bank"
+		settled_amount: 137.00              # what actually landed in the CAD bank
+		memo: "Payment for INV-USD-001"
+		Income:FX Gain $residual$ CAD       # where the 3.00 CAD realized loss lands
+```
+
+`share_price: "1.37"` states the same thing as a rate, meaning what it means on any split — one unit of the record's currency in units of the account's. Either one is required when the two currencies differ, both are rejected when they match, and giving both is fine only if they agree. Nothing is looked up: a payment records what actually happened, and only the payer knows what their money converted at.
+
+Settling at a rate other than the one the record was booked at **realizes a gain or loss**: revenue recognised at 1.40 against 137.00 CAD received is a 3.00 CAD loss on the settlement date. The A/R side of the payment is valued at the cost basis it settles, so the entry balances only once that difference is placed — which the block does with an ordinary **split line**, the same syntax a transaction uses, and `$residual$` works there exactly as it does anywhere else. No key names an account and nothing is configured. That line is the only one a payment block may carry: the realized difference is the one figure in the entry that moved no money, and anything that did — a wire fee is a bank debit — is imported as its own transaction, so it cannot quietly change the rate the settlement converted at. `$residual$` must post to an income or expense account, since a realized difference is a gain or a loss; anywhere else absorbs it into the balance sheet. A settlement that realizes something without a split to take it is refused. The basis it settles drops to zero available — that currency has been converted and cannot be sold again. Settling in the record's own currency realizes nothing, and split lines belong to the cross-currency settlement alone: a payment that settles in its own currency, or one attached to an existing transaction with `txn_guid:`, is refused if it carries them rather than accepting the file and dropping them. Write that payment as an ordinary transaction, where any number of splits is ordinary, and attach it. On a transaction, where a split line does state an amount, one its currency cannot hold — `2.005 CAD`, half a cent — is refused rather than rounded on your behalf: a figure the file states is honoured or refused, which is the opposite side of the same rule that has GnuCash round a *computed* figure like 45.00 USD at 1.405 to the cent.
+
+**Selling foreign currency.** The sale names the cost basis it is measured against, on its own foreign-currency split, and values what it sells at that basis's cost. What the sale fetched is on the other splits, and `$residual$` takes the difference — the realized gain or loss:
+
+```
+2026-03-01 * "Sell 100 USD"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -100.00 USD
+		share_price: "1.40"                        # the cost the basis carries
+		value: "-140.00"
+		cost_basis_split_guid: "c4ccb16d7be34e15a112d903319c5267"
+	Assets:Bank 139.00 CAD                         # what the sale fetched
+	Income:FX Gain and Loss $residual$ CAD         # the 1.00 CAD loss falls out
+```
+
+A sale measured against two bases carries two foreign-currency splits, one naming each, and each split's amount is how much of that basis it uses — 200 USD can be taken entirely from one basis, 100 from each of two, or 50 and 150. Selling more than a basis has available is refused on import, and so is selling against an **unpaid invoice**: an A/R split states what a customer owes, not currency the book holds, so it must be collected first (or carry `cost_basis_force: true`). Deleting a sale gives its currency straight back to the bases it measured against, and a record whose basis is in use cannot be unposted until those sales are removed.
+
+`cost_basis_available:` on a split is how much of *that basis* has not yet been sold; it is not the balance of an account. One bank account can hold currency from several bases at different costs, and a paid invoice's basis keeps its balance after the money has moved to the bank. The KVP is the record of that balance: it opens at everything the split brought in, each sale lowers it, and deleting a sale raises it again. A file that states a balance is stating it net of that file's own sales, so re-importing an export never counts a sale twice. A basis carrying no such KVP — one written in the GnuCash GUI, or predating this — reads as `untracked` rather than as its full amount, because how much of it was already sold is unknown. Writing `cost_basis_available:` on that split in an import file is how it gets a balance — checked as it lands, since nothing after that questions it: it must be on a split that holds foreign currency, and then a number, not negative, no finer than the unit its own account is held to, and no more than that split brought in.
+
+**`$residual$`** is available on any transaction, not only a currency sale: one split may write it in place of an amount and take what the others leave over, the way GnuCash's editor fills an Imbalance line once an account is chosen. It is a token rather than an omitted amount, so a truncated line cannot silently become a residual split. At most one per transaction; asking for one where the splits already balance is an error, and so is asking for one on an account whose commodity differs from the transaction currency — the residual is a transaction-currency figure, and writing it as an amount in another currency would invent a 1:1 rate.
+
+See **[Listing foreign-currency cost bases](#listing-foreign-currency-cost-bases-fx-balances)** for the command that shows every basis with its cost and available balance, and **[docs/multi-currency.md](docs/multi-currency.md)** for the full reference — invoicing and billing side by side, buying, borrowing and selling, every error with what it means, and how the reports treat foreign currency.
+
 ### Custom Metadata
 
 GnuCash supports arbitrary key-value pairs (KVP slots) on all its object types.
@@ -580,7 +635,7 @@ GnuCash file** — safe to run on every deploy. Applied migrations are immutable
 editing one after it ran is rejected (write a new migration instead). `--verify`
 ignores the sidecar and checks the book directly.
 
-A migration can also stamp your **own** version marker with `set-book-key`
+A migration can also stamp your **own** version key with `set-book-key`
 (e.g. `--key schema_version --value 2`), stored as book metadata that round-trips
 via the `company` directive — separate from the tool's automatic
 applied-migrations log.
@@ -775,7 +830,23 @@ gnucash-plaintext import --new mybook.gnucash ledger.txt --include-business-obje
 
 # Export everything — accounts, business objects, then transactions
 gnucash-plaintext export mybook.gnucash ledger.txt --include-business-objects
+
+# A foreign-currency invoice or bill needs the rate its revenue is booked at
+gnucash-plaintext import mybook.gnucash ledger.txt --include-business-objects --fx-rates rates.yaml
 ```
+
+An export carrying business objects emits the book's whole chart of accounts, so it is always re-importable: an invoice reaches accounts no transaction split touches — its entries' income accounts, its `posted:` block's A/R account, a tax table's tax account — and an unposted one has no posting transaction to drag them in.
+
+`--fx-rates` takes the same file every reporting command takes, in either form — flat, or a rate per day:
+
+```yaml
+HKD: 0.172                  # 1 HKD = 0.172 CAD, undated
+USD/CAD:
+  2026-01-05: 1.35          # 1 USD = 1.35 CAD from that day
+  2026-02-20: 1.37
+```
+
+A dated lookup takes the most recent quote on or before the date asked for; a date earlier than every quote is an error rather than an extrapolation. Rates are held as exact fractions, never rounded to a float.
 
 The importer prints a per-directive status line as each business object
 is processed, plus an aggregate summary at the end:
@@ -1209,7 +1280,37 @@ invoice "INV-2026-006"
     accumulate: true
 ```
 
-On import the invoice is posted normally, then `gncInvoiceAutoApplyPayments` runs and takes from the open prepay lot(s) toward the invoice's outstanding balance. If credit ≥ invoice the lot closes via consumption; the residual stays open as a smaller credit (split in-place by GnuCash). If credit < invoice the full credit consumes; the invoice stays partially open. The flag composes with cash `payment:` blocks — cash goes first, credit auto-applies for any remainder. The exporter detects the post-auto-apply book state and emits `auto_apply_credit: true` again on round-trip; identical re-import is a no-op.
+On import the invoice is posted normally, then `gncInvoiceAutoApplyPayments` runs and takes from the open prepay lot(s) toward the invoice's outstanding balance. If credit ≥ invoice the lot closes via consumption; the residual stays open as a smaller credit (split in-place by GnuCash). If credit < invoice the full credit consumes; the invoice stays partially open. The flag composes with cash `payment:` blocks — cash goes first, credit auto-applies for any remainder.
+
+##### What the export says a credit settled: `from_credit:`
+
+**You do not write this block.** `auto_apply_credit: true` on the header, above, is the whole of what a file needs to spend an owner's credit — nothing below names a guid, a split or a date. What follows is what comes back **out** of an export, so read it when you are reading an exported book (or re-importing one), not when you are writing an invoice.
+
+`auto_apply_credit:` is a request — apply whatever credit this owner has — and what the book holds afterwards is an outcome: this much, out of that split. The export records the outcome, as a payment block carrying `from_credit: true`:
+
+```
+  payment:
+    amount: 30.00
+    from_credit: true
+    credit_dated: 2026-01-10
+    memo: "Overpaid"
+    txn_guid: "5ce645159f594b1cb9017df94fd8fd94"
+    txn_split_guid: "f792882e159c4cb0b6bab44ec1479f51"
+```
+
+Which of a document's payments is a credit is **recorded when the credit is applied**, as `applied_from_credit: "true"` on the split the application moves into the document's lot (visible on that split in the transaction section of an export). It cannot be worked out afterwards: a consumed credit's split sits in the lot exactly as a bank payment's split does, GnuCash keeps no record of the lot it came from, one payment commonly settles the invoice it was made against *and*, months later, a second invoice that took what it left over — and when a deposit is taken and an invoice raised against it the same day, even the dates agree. A split with nothing recorded on it, such as one written in the GnuCash GUI, reads as a payment. The invoice the bank really paid keeps its `bank_account:`, `date:` and `prepayment:` lines.
+
+`prepayment:` on that bank-paid invoice is what the payment left over **when it was made**, not what is left today: a 150.00 payment against a 100.00 invoice writes `prepayment: 50.00` even after a later invoice has taken 30.00 of it, because a rebuild reaches that payment before the later invoice exists. It is decided by the same recorded fact, so the two cannot disagree.
+
+A credit block names no account, because no bank moved anything: the currency was already in the book, on the split `txn_split_guid:` names. It has no date of its own either — GnuCash records none for applying a credit, writing no transaction for it — so `credit_dated:` gives the date of the transaction the credit arrived in, which on a bill is the day the money was sent to the vendor. `amount:` is this document's own slice, not the credit's full size.
+
+Importing one attaches that split to this document's lot, which is what settles it. A credit smaller than the document is an ordinary part-payment and leaves the rest owing. One larger is divided: attaching it whole would take the lot past zero — measured, a 50.00 credit named against a 30.00 invoice leaves the lot at −20.00 with `IsPaid` false and the customer's 20.00 gone from `find-prepayments`, which lists only lots no document owns — so the block divides it, from the figures it names. This is the same thing that happens to a bank transfer bigger than the invoice it pays, and it is done the same way: the named split settles the document with 30.00, and 20.00 is parked as the customer's credit in a lot of its own. The export says `amount: 30.00`, which is what that split took. The engine is not asked to do it: `AutoApplyPayments` takes the owner's open credits in its own order — so a file naming one of two could have the other carved — and divides differently by version, carving the split on GnuCash 5.10 and moving it whole into the document's lot on 4.13 and 3.8.
+
+A credit **in no lot** can be attached whole but not divided, and the refusal names `lot_owner:` as the remedy: parking what is left over means opening a credit in somebody's name, and a lot is the only thing that records whose a split is — a deposit paying several owners cannot be asked. Attaching such a split whole opens no new credit and stays ordinary. A block on a document that **owes nothing** — cash has already settled it in full — is refused for the same reason it cannot be attached: the lot would go past zero.
+
+**Whose money it is is checked** too, and what is asked depends on what the file names. Where a block names a split, that split's **lot** must belong to this document's owner — one customer's credit cannot settle another's invoice. Where it names only `txn_guid:`, the retarget moves whichever counter split the transaction carries, so the **transaction's** owner is asked instead. The two are deliberately not combined: one deposit can settle documents of several owners at once, each block naming its own portion, and the transaction reports whichever owner GnuCash recorded on it — asking it there would refuse the second document for the first one's owner. A split in no lot has no owner of its own; its transaction answers for it where that transaction carries a single receivable or payable split — a payment GnuCash wrote for one owner — and where it carries several, nothing is refused, because none of them can be shown to be the one. Nor is a transaction off a bank feed, which records no owner and is what the retarget workflow exists to attach.
+
+Nothing is re-decided: re-running the original request against a book that has moved on could apply a different credit, and re-applying an already-applied one leaves every document of that owner with a lot GnuCash discards on load (`invoice_postlot_handler: assertion 'lot' failed`), so a rebuilt book came back with nothing paid. Everything the block states is checked — the split must be on the named transaction and on this document's own posted account, carry the amount claimed with the sign a credit has on that side, and still be the owner's to spend — and a block that cannot be honoured is refused rather than half-applied. Writing `from_credit: true` beside a `bank_account:` or a `date:` is refused too, naming the key to drop.
 
 A credit larger than one document is drawn down across several: mark each invoice/bill `auto_apply_credit: true` and GnuCash consumes the credit in **posting order** until it runs out. A $150 credit against two $100 documents settles the first in full and leaves the second **$50 outstanding** (its lot open at +$50 for an invoice, −$50 for a bill), with the credit at $0. Because cash applies before credit on each document, that second document can also carry a `payment: amount: 50` — the $50 cash plus the $50 of remaining credit close it. This works identically on the receivable (invoice) and payable (bill) sides, sign-flipped.
 
@@ -1253,10 +1354,53 @@ The same shape applies to vendor credits (`AP credit`, account is `Liabilities:A
 What to do with each credit:
 
   a) **Consume** against the next invoice/bill for that owner — add `auto_apply_credit: true` to that invoice/bill (above). Non-destructive; the only safe option for credits that came from invoice overpayment.
-  b) **Refund, write off, or forfeit** — record a normal `transaction:` whose AR/AP split carries a `lot_owner:` marker for the owner; the counter account decides the intent (bank ⇒ refund, expense ⇒ vendor bad debt, income ⇒ customer forfeit). This is the canonical non-destructive disposal — see [Disposing of a credit](#disposing-of-a-credit-refund-write-off-or-forfeit-lot_owner) below. It never touches the original payment, and a partial amount leaves the residual credit open.
+  b) **Refund, write off, or forfeit** — record a normal `transaction:` whose AR/AP split carries a `lot_owner:` KVP for the owner; the counter account decides the intent (bank ⇒ refund, expense ⇒ vendor bad debt, income ⇒ customer forfeit). This is the canonical non-destructive disposal — see [Disposing of a credit](#disposing-of-a-credit-refund-write-off-or-forfeit-lot_owner) below. It never touches the original payment, and a partial amount leaves the residual credit open.
   c) **Delete the source bank tx** — only safe for standalone-payment credits (the source bank tx has just the bank-side split and the AR/AP credit split, nothing else). `delete-transactions --by-guid <source-bank-tx>` drops the tx and produces a plaintext backup. Not safe for overpayment-residual credits, where the source tx also carries the original invoice payment.
 
 When the book and the plaintext have diverged (the user hand-edited the `.gnucash` file in the GnuCash UI, or hand-edited the `.txt` file before re-importing, or a third-party tool modified the book), the importer's recovery behaviour per scenario is documented in [`docs/payment-manual-edit-behavior.md`](docs/payment-manual-edit-behavior.md).
+
+#### Listing foreign-currency cost bases: `fx-balances`
+
+Every split that brought foreign currency into the book, with what one unit cost in CAD and how much of that basis is still available to sell. The split guid is what a sale names in `cost_basis_split_guid:` (see [Foreign currency](#foreign-currency)).
+
+```bash
+gnucash-plaintext fx-balances ledger.gnucash
+gnucash-plaintext fx-balances ledger.gnucash --currency USD
+gnucash-plaintext fx-balances ledger.gnucash --available-only
+gnucash-plaintext fx-balances ledger.gnucash --verify-costs
+```
+
+```
+DATE         SPLIT GUID                         ACCOUNT                                      COST       ACQUIRED      AVAILABLE
+-------------------------------------------------------------------------------------------------------------------------------
+2026-01-05   c4ccb16d7be34e15a112d903319c5267   Assets:Accounts Receivable USD        1.4 CAD/USD     100.00 USD     100.00 USD
+             Invoice INV-USD-001
+2026-01-10   a0941ac334c44a31ba0120a0493c931c   Assets:Bank:USD                      1.35 CAD/USD     100.00 USD      60.00 USD
+             Buy 100 USD at 1.35
+
+Available USD: 160.00 USD
+```
+
+Read-only. The cost is stated with its direction — CAD per unit of the currency held — and the available balance shown is the basis's own, not any account's balance.
+
+`--verify-costs` re-checks every cost against the ledger it is derived from: that no available balance is above what its basis brought in or below zero, and that any stored `cost_basis_cost` parses and agrees with the transaction. It runs the whole book, prints each basis that disagrees with the full computation behind it — both guids, the amount and value, every factor multiplied, and both answers with the one used — and exits 1 at the end if anything did. A basis whose figures cannot be read is reported with its traceback rather than ending the run. Rates are not checked, because rates run forward only: a file states one, the amount is multiplied by it and rounded, and the effective rate the ledger then carries — 45.00 USD at 1.405 books 63.23 CAD, a ratio of 6323/4500 — is that rounding rather than a discrepancy. Reading a figure back to ask which rate produced it has no answer. (Nor is a split's `share_price` checked against its value: GnuCash computes the rate *as* value over amount, so the comparison is one number against itself.)
+
+```
+Checked 2 cost basis(es); 1 disagree with their own figures:
+
+2026-01-10  Assets:Bank:USD
+    Buy 100 USD at 1.35
+    split guid       31438b24314e495384989e74d13caa7f
+    tx guid          9c0c4ce246794670856347aaf44cb69f
+    amount           100.00 USD
+    value            135.00 CAD   (the transaction's currency)
+    available        100.00 USD
+    value / amount   1.35
+    computed cost    1.35 CAD/USD
+    stored cost      9.99 CAD/USD
+    used             1.35 CAD/USD
+    - cost_basis_cost says 9.99 CAD/USD, but the transaction says 1.35 — the transaction is what is used
+```
 
 #### Disposing of a credit: refund, write-off, or forfeit (`lot_owner:`)
 
@@ -1292,7 +1436,7 @@ Write a vendor's $50 credit off as bad debt:
 Details:
 
 - The trailing guid is the **owner's** authoritative key; it is always emitted on export and optional hand-written (`lot_owner: customer:C001` works). When present it must resolve to the same owner as the id — a mismatch is a hard error, never a warning.
-- The `lot_owner:` split's own account fixes the owner type: a `customer` marker must sit on an AR account and a `vendor` marker on an AP account, and the importer rejects that mismatch (e.g. a `customer` marker on an AP split). The counter account is not otherwise constrained on this path — it simply records which of the operations above this is.
+- The `lot_owner:` split's own account fixes the owner type: a `customer` KVP must sit on an AR account and a `vendor` KVP on an AP account, and the importer rejects that mismatch (e.g. a `customer` KVP on an AP split). The counter account is not otherwise constrained on this path — it simply records which of the operations above this is.
 - **Partial** is just a smaller amount — the residual credit stays open; an exact amount closes the lot.
 - If the owner has no open credit to reduce and the split is itself credit-shaped (AR-negative / AP-positive), the importer instead **creates** a new credit lot and attaches the owner — this is how a *standalone* credit (money received with no invoice) is represented in plaintext. A clearing-shaped split with no credit to reduce is an error.
 - This is the canonical, non-destructive way to dispose of a credit and works on every supported GnuCash version (it uses a primitive lot-split close, not the owner-level auto-apply that crashes on some builds).
@@ -1309,7 +1453,7 @@ Exported AR and AP accounts carry an `open_prepayment:` block per open credit �
     amount: 50.00 CAD
 ```
 
-It is informational and derived: the importer rebuilds the credits from the per-split `lot_owner:` markers, not from this summary, so the block is parsed and otherwise ignored. If a hand-edited summary disagrees with the book's actual lots, import prints a warning to stderr and still succeeds — the next export rewrites the correct figure.
+It is informational and derived: the importer rebuilds the credits from the per-split `lot_owner:` KVPs, not from this summary, so the block is parsed and otherwise ignored. If a hand-edited summary disagrees with the book's actual lots, import prints a warning to stderr and still succeeds — the next export rewrites the correct figure.
 
 ### Identity and round-trip: `guid:`, `customer_guid:`, `vendor_guid:`
 
@@ -1434,13 +1578,15 @@ Compared to the re-import path:
 
 After a series of unposts, the book may have payment-class bank transactions whose AR/AP-side split's lot is no longer attached to any invoice or bill — orphans. The live `unpost-invoices` / `unpost-bills` flow warns about each orphan it's about to create, but if those messages were missed (a prior session, an inherited book, etc.) the orphans accumulate silently and cause the re-pay-after-unpost duplicate-bank-balance trap.
 
-`find-orphan-payments` scans the book and lists every orphan with its GUID, date, bank account, amount, currency, the customer/vendor it was originally paying, and the bank-side split memo. Per-bank-account totals at the end. Read-only — the command never deletes or modifies anything; the user picks the cleanup path per orphan.
+`find-orphan-payments` scans the book and lists every orphan with its GUID, date, amount, currency, the customer/vendor it was originally paying, and the split memo. One row per orphaned payment, not per transaction: a deposit whose portions settled two documents, both since unposted, carries two orphans and each is its own row, with its own owner read from its own split. The figure is named against the account it is *of* — on a USD document settled out of a CAD bank that is the receivable, and the bank it was paid through is named on the line below. Totals per account at the end. Read-only — the command never deletes or modifies anything; the user picks the cleanup path per orphan.
+
+Each row also prints the evidence it was classified on, and prints only what actually held: the engine's `xaccTransGetTxnType(tx) == 'P'`, the `txn_type: P` a previous export wrote, the `orphaned_by_unpost` note this tool writes on the split, and where the owner came from — the split's own lot, `gncOwnerGetOwnerFromTxn`, the exported `owner:` line, or a sibling orphan's lot on the same transaction.
 
 ```bash
 # Whole-book sweep:
 gnucash-plaintext find-orphan-payments ledger.gnucash
 
-# Scope to a single customer (orphan must carry that customer's KVP backref):
+# Scope to a single customer (matched on the owner resolved for each row):
 gnucash-plaintext find-orphan-payments ledger.gnucash --customer C001
 
 # Scope to a single vendor (bill-side orphans):
@@ -1454,7 +1600,13 @@ Cleanup options the command points at, per orphan:
   a) `gnucash-plaintext delete-transactions <book> --by-guid <guid>` — drop the orphan (with a plaintext backup written), then re-import the invoice/bill with a fresh `payment:` block.
   b) Re-import the invoice/bill with a `payment:` block carrying `txn_guid: "<orphan-guid>"` — retargets the existing bank tx into the new posted lot (Q-004).
 
-Detection criteria (so the user can trust the result): payment-class transactions (`txn_type == 'P'`) whose KVP customer/vendor backref is intact and whose AR/AP-side split's lot has no invoice attached. The KVP backref survives unpost authoritatively (set by `gncOwnerApplyPayment` when the payment was first recorded), so each orphan can be pinned to a specific customer/vendor — though not to a specific invoice, since the lot → invoice link is destroyed by unpost.
+Option (a) is withdrawn for a GUID that carries money beyond the row naming it — another orphan on the same transaction, or a portion nobody has claimed yet — because deleting is by transaction and would take that with it. Those GUIDs are named at the end; where *every* GUID in the listing is one, the option is not offered at all. Option (b) moves a single split and is always available.
+
+Detection criteria (so the user can trust the result). A transaction is examined when **either** reading answers: it is payment-class — `xaccTransGetTxnType(tx) == 'P'`, or the `txn_type: P` a previous export wrote — **or** one of its splits carries the `orphaned_by_unpost` note this tool writes on every split it is about to orphan. Either alone is enough, and the second is what finds a settlement attached by retargeting an existing bank transaction (`txn_guid:`), which is not payment-class and carries no owner backref: before the note existed such a settlement was listed by nothing at all. The note is needed because nothing in the book itself distinguishes the two shapes — unposting leaves the lot on the account, live and owner-attached, exactly like an owner's parked credit (CLAUDE.md finding 10).
+
+Within an examined transaction, every marked split is reported as its own row. Where none is marked — a payment-class transaction on a book unposted by a version of this tool that predates the note — the row is the first AR/AP-side split whose lot has no invoice or bill attached. So a pre-note book lists what it always did; what it cannot do is separate a bank-paid orphan from an owner's credit on the same transaction, and unposting such a document again marks it.
+
+Each orphan is pinned to a specific customer/vendor, though not to a specific invoice, since the lot → invoice link is destroyed by unpost.
 
 #### Deleting unposted invoices/bills: `delete-invoices` / `delete-bills`
 
@@ -1570,7 +1722,7 @@ See **[docs/comprehensive-roundtrip-example.md](docs/comprehensive-roundtrip-exa
 
 #### Cash-basis sales (Q-018)
 
-For cash-basis tax filers who want each sale's posted date to match the cash-receipt date, the workflow is the bank-feed-first pattern with three constraints: `posted.date == payment.date == bank-tx.date`, a single `payment:` block carrying `txn_guid:` + `txn_split_guid:` to retarget the existing bank tx, and an optional `cash_basis: true` line on the invoice header as a tax-method marker. The flag is descriptive (purely a label for the issuer's tax filing — partial / installment payments are still allowed alongside it) and does not expose the tax-method classification in customer-facing rendering. For invoices that are issued but not yet paid, setting `cash_basis: true` on an unposted invoice renders an **UNPAID** badge instead of DRAFT, and an optional `due_date: YYYY-MM-DD` header field supplies the customer-facing due date. See **[docs/invoice-payment-reconciliation.md § Cash-basis sales](docs/invoice-payment-reconciliation.md#cash-basis-sales-q-018-same-day-post--pay)** for the worked example.
+For cash-basis tax filers who want each sale's posted date to match the cash-receipt date, the workflow is the bank-feed-first pattern with three constraints: `posted.date == payment.date == bank-tx.date`, a single `payment:` block carrying `txn_guid:` + `txn_split_guid:` to retarget the existing bank tx, and an optional `cash_basis: true` line on the invoice header as a tax-method KVP. The flag is descriptive (purely a label for the issuer's tax filing — partial / installment payments are still allowed alongside it) and does not expose the tax-method classification in customer-facing rendering. For invoices that are issued but not yet paid, setting `cash_basis: true` on an unposted invoice renders an **UNPAID** badge instead of DRAFT, and an optional `due_date: YYYY-MM-DD` header field supplies the customer-facing due date. See **[docs/invoice-payment-reconciliation.md § Cash-basis sales](docs/invoice-payment-reconciliation.md#cash-basis-sales-q-018-same-day-post--pay)** for the worked example.
 
 ### Retiring customers and vendors (archive)
 

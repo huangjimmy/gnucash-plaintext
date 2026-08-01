@@ -1,0 +1,35 @@
+# The invoice, attached to the CAD payment that overpays it, declaring the
+# 100.00 USD it leaves the customer.
+#
+# Every figure here is the document's own money: the split the retarget moves
+# is the −200.00 USD receivable side, 274.00 being its CAD *value* rather than
+# its amount. So `amount: 200` and `prepayment: 100` are both USD, and the
+# fall-short check compares like with like. (The mixed-currency case, where it
+# declines to compare at all, needs a transaction whose other side is in
+# neither currency — pinned directly in `test_what_a_payment_can_take.py`.)
+invoice "INV-FX-CAD-BANK"
+	customer_id: "C-FX"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-FX-CAD-BANK"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		prepayment: 100
+		memo: "Payment for INV-FX-CAD-BANK"

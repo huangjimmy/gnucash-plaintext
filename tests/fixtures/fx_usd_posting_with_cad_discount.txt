@@ -1,0 +1,52 @@
+# A USD-denominated sale whose base-currency side has splits both ways: 140.00
+# CAD of revenue less a 14.00 CAD discount, against 90.00 USD receivable. The
+# CAD booked is 126.00, so the cost of that USD is 126/90 = 1.40 CAD/USD — the
+# same rate every split is valued at (share_price 10000/14000).
+#
+# What this fixture produces: one cost basis, listed by `fx-balances` at
+# 1.4 CAD/USD for 90.00 USD.
+#
+# Contrast it with fx_buy_usd_with_bank_fee.txt, where a 2.70 CAD fee is NOT
+# part of what the currency cost. The difference is what the base-currency
+# split is: a discount reduces the revenue the receivable was raised for, so it
+# belongs in the cost; a fee is a separate expense the bank charged, so it does
+# not. Both directions matter — counting the fee overstates the basis, ignoring
+# the discount understates it, and either way every gain later measured against
+# that basis is wrong by the same amount.
+#
+# Verified by tests/unit/services/test_cost_of_split.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Discounts
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-05 * "USD sale with a CAD discount"
+	currency.mnemonic: "USD"
+	Assets:Accounts Receivable USD 90.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1"
+		value: "90.00"
+	Income:Sales -140.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "10000/14000"
+		value: "-100.00"
+	Income:Discounts 14.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "10000/14000"
+		value: "10.00"

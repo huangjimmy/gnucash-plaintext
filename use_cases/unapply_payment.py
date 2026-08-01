@@ -31,11 +31,13 @@ gate): `gnc_lot_remove_split(lot, ar_ap_split)` then
 import ctypes
 from dataclasses import dataclass, field
 from decimal import Decimal
+from fractions import Fraction
 from typing import List, Optional
 
 from gnucash.gnucash_core import Book
 
 from infrastructure.gnucash.engine import GncNumericC, load_gnc_engine
+from infrastructure.gnucash.utils import money_text
 from services.gnucash_importer import (
     _find_bill_by_guid,
     _find_bills_by_id,
@@ -56,6 +58,9 @@ class UnapplyResult:
     # one (tx_guid, amount_str, currency) per payment peeled off
     unapplied: List[tuple] = field(default_factory=list)
     remaining_balance: Decimal = Decimal('0')  # lot's outstanding after unapply
+    # How finely the record's currency divides (GnuCash's commodity fraction):
+    # 100 where there are hundredths, 1 for a currency with no minor unit.
+    unit: int = 100
     detail: str = ''               # human note for error statuses
 
     # status values:
@@ -86,8 +91,10 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
     """Peel payment(s) off `record`'s posted lot and re-home the freed AR/AP
     split(s) to `to_account` (a SWIG Account). Mutates the book in place; the
     caller is responsible for saving."""
+    currency = record.GetCurrency()
     res = UnapplyResult(id=report_id or record.GetID(), guid=report_guid,
-                        kind=kind, to_account=to_account.get_full_name())
+                        kind=kind, to_account=to_account.get_full_name(),
+                        unit=currency.get_fraction() if currency else 100)
 
     lot = record.GetPostedLot()
     if lot is None:
@@ -189,8 +196,11 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
             lib.gnc_lot_remove_split(int(lot.instance), sp)   # reopen the lot
             lib.xaccSplitSetAccount(sp, to_ptr)               # re-home off AR/AP
             lib.xaccTransCommitEdit(tx)
-        amt = payments[tg]['amount'].quantize(Decimal('0.01'))
-        res.unapplied.append((tg, str(amt), payments[tg]['currency']))
+        # Written at the record currency's own decimals — quantizing every
+        # amount to hundredths invents a minor unit that a yen does not have.
+        res.unapplied.append((tg,
+                              money_text(Fraction(payments[tg]['amount']), res.unit),
+                              payments[tg]['currency']))
 
     res.remaining_balance = _amount(lib.gnc_lot_get_balance(int(lot.instance)))
     res.status = 'unapplied'

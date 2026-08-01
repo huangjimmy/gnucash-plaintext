@@ -14,7 +14,8 @@ from infrastructure.gnucash.utils import (
     get_account_full_name,
     get_commodity_ticker,
     get_parent_accounts_and_self,
-    to_string_with_decimal_point_placed,
+    money_text,
+    numeric_to_fraction,
 )
 from repositories.gnucash_repository import GnuCashRepository
 from services.beancount_converter import BeancountConverter
@@ -261,7 +262,10 @@ class ExportBeancountUseCase:
             get_commodity_ticker(split_currency)
         )
 
-        formatted_amount = to_string_with_decimal_point_placed(split.GetAmount())
+        # At the account commodity's own decimals — the amount is in that
+        # commodity, and it is what says how many a currency has.
+        formatted_amount = money_text(numeric_to_fraction(split.GetAmount()),
+                                      split_currency.get_fraction())
 
         # For cross-currency splits emit `@ price tx_commodity` so beancount
         # tools know the exchange rate used for this posting.

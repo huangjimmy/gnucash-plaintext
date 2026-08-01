@@ -1,0 +1,33 @@
+--- exports/invoice_reposted.txt
++++ exports/invoice_repaid.txt
+@@ -80,7 +80,13 @@
+ 		memo: "Invoice INV-001"
+ 		posted_txn_guid: "7b5c7417400e48d6a2830b7bef68dcfa"
+ 		accumulate: true
+-	payment: none
++	payment:
++		date: 2026-02-15
++		amount: 100.00
++		bank_account: "Assets:Bank"
++		txn_guid: "3368d7ed0e814e6993ad06acb5a88a45"
++		txn_split_guid: "4a56cb2205d84b0f8684861ce0d85c46"
++		memo: "Payment INV-001 (second, after re-post)"
+ 
+ 2026-01-01 * "INV-001" "Invoice INV-001"
+ 	guid: "7b5c7417400e48d6a2830b7bef68dcfa"
+@@ -108,3 +114,15 @@
+ 		action: "Payment"
+ 		memo:"Payment INV-001 (first)"
+ 		lot_owner: customer:C001:1b2e08a278fc49f6a7c37fc83d3bd5ce
++2026-02-15 * "Acme"
++	guid: "3368d7ed0e814e6993ad06acb5a88a45"
++	txn_type: P
++	owner: customer:C001
++	Assets:Bank 100.00 CAD
++		guid: "bd43bbd0ca2b419784754e6390fead9e"
++		action: "Payment"
++		memo:"Payment INV-001 (second, after re-post)"
++	Assets:Accounts Receivable -100.00 CAD
++		guid: "4a56cb2205d84b0f8684861ce0d85c46"
++		action: "Payment"
++		memo:"Payment INV-001 (second, after re-post)"

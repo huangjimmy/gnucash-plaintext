@@ -1,0 +1,42 @@
+# 40 USD moved from a USD bank to a USD cash box.
+#
+# Both splits are USD and the transaction is stated in USD, so nothing in it
+# carries a base-currency figure and no cost can be derived from either side.
+# The split moving the money *out* establishes no cost basis whatever is
+# written on it — it is a spend — and the one moving it in has no cost to be
+# read.
+#
+# The test that uses this writes a `cost_basis_cost` that does not parse onto
+# the outgoing split, which is what a hand edit or an older tool can leave in
+# a book; the importer refuses such a line at the door.
+#
+# Verified by tests/integration/test_verify_costs.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Cash
+	type: Cash
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Cash:USD
+	type: Cash
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-02-01 * "Move 40 USD from the bank to the cash box"
+	currency.mnemonic: "USD"
+	Assets:Cash:USD 40.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "40.00"
+	Assets:Bank:USD -40.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "-40.00"

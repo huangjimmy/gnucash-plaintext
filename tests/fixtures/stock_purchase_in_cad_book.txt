@@ -1,0 +1,44 @@
+# Shares bought in a single-currency book. No foreign currency anywhere.
+#
+# A share is not foreign currency: it is counted in units, priced rather than
+# converted, and a book holding it has no FX question to answer. Testing only
+# "not the book's currency" swept these in — the purchase grew a cost-basis
+# KVP, `fx-balances` listed it as `50 CAD/USTECH`, and correcting the share
+# count with `--strategy update` was refused as touching a cost basis.
+#
+# What this fixture produces: `fx-balances` finds no cost bases at all, and
+# the transaction stays editable.
+#
+# Verified by tests/integration/test_securities_are_not_currency.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 commodity USTECH
+	mnemonic: "USTECH"
+	fullname: "US Tech Fund"
+	namespace: "FUND"
+	fraction: 10000
+2026-01-01 open Assets:Investments
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Investments:USTECH
+	type: Stock
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "USTECH"
+
+2026-01-10 * "Buy 10 units at 50.00"
+	currency.mnemonic: "CAD"
+	Assets:Investments:USTECH 10 USTECH
+		account.commodity.mnemonic: "USTECH"
+		share_price: "50"
+		value: "500.00"
+	Assets:Bank -500.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-500.00"

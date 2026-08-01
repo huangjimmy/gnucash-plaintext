@@ -1,0 +1,44 @@
+# A customer prepays 100 USD and the money arrives converted, as CAD.
+#
+# The book now owes 100 USD and holds no USD anywhere: the bank took CAD. The
+# credit on the receivable is the only record of the currency, so it is the
+# one that carries the cost basis — 1.37 CAD/USD, the rate the obligation was
+# taken on. What a basis totals and what an account holds need not agree.
+#
+# `lot_owner:` is what makes this a prepayment rather than a settlement. The
+# two are otherwise the same three lines (see fx_settlement_arriving_as_cad.txt),
+# and a hand-written split that names no owner belongs to no lot, which is how
+# a settlement looks.
+#
+# What this fixture produces: `fx-balances` lists the receivable credit,
+# 100.00 USD at 1.37 CAD/USD, available in full.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+2026-02-01 * "Customer prepaid 100 USD, arriving as CAD"
+	currency.mnemonic: "CAD"
+	Assets:Bank 137.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "137.00"
+	Assets:Accounts Receivable USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "-137.00"
+		lot_owner: "customer:C-US"

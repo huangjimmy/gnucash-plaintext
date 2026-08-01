@@ -1,0 +1,80 @@
+# A payment split stating an amount its currency cannot hold.
+#
+# 2.005 CAD is half a cent, and no CAD split can carry it. Writing it into the
+# entry costs the file its balance twice over: the split is booked as some
+# whole number of cents, and the residual is computed against the 2.005 the
+# file stated, so the two disagree and GnuCash scrubs in an Imbalance split.
+#
+# What this fixture produces: the import is refused, naming the amount and the
+# currency that cannot state it. It is refused rather than rounded, and that is
+# not in tension with the rounding this tool does elsewhere — the two cases are
+# different in kind. A computed figure has to reach the cent: 45.00 USD at
+# 1.405 CAD/USD simply is 63.225, and GnuCash rounds it. A stated figure is the
+# user's assertion of what happened, so 2.005 is either honoured or refused;
+# quietly booking 2.01 would put a number in their books they never wrote.
+#
+# Verified by tests/integration/test_payment_split_must_be_consumed.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank Fees
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-SUBCENT"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-SUBCENT"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank"
+		settled_amount: 137.00
+		memo: "Payment for INV-USD-SUBCENT"
+		Expenses:Bank Fees 2.005 CAD
+		Income:FX Gain $residual$ CAD

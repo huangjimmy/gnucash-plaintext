@@ -1,0 +1,15 @@
+# One deposit covering two customers' invoices — the Q-016 shape, with the
+# portions belonging to different owners.
+customer "C-TWO-A"
+	name: "Alpha"
+	currency: CAD
+
+customer "C-TWO-B"
+	name: "Beta"
+	currency: CAD
+
+2026-05-15 * "Deposit covering Alpha and Beta"
+	currency.mnemonic: "CAD"
+	Assets:Bank 220.00 CAD
+	Assets:Accounts Receivable -100.00 CAD
+	Assets:Accounts Receivable -120.00 CAD

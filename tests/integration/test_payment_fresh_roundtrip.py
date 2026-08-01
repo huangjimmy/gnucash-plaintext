@@ -594,3 +594,78 @@ def test_single_invoice_txn_guid_fresh_roundtrip(tmp_path):
         f'  source: {src_state["ar_lots"]}\n'
         f'  fresh:  {dst_state["ar_lots"]}'
     )
+
+
+def test_retargeting_onto_a_document_that_owes_nothing_says_so(tmp_path):
+    """A second block claiming a whole bank tx as prepayment is refused.
+
+    The invoice is settled in full by the block above it, so by the time the
+    retarget is read there is nothing for it to settle: what it would apply is
+    zero, and writing a 0.00 split into the document's lot tagged as its
+    payment is the state this whole area exists to avoid.
+
+    The refusal has to name the cause. Zero applied is also what a residue
+    smaller than the account's smallest unit produces — 0.05 owed on an
+    account kept to the tenth — and that one is answered by giving the account
+    a finer `commodity_scu:`. Told to do that here, the reader would change
+    their account for a reason that has nothing to do with what is wrong: the
+    document owes nothing at all.
+    """
+    runner = CliRunner()
+    gf = tmp_path / 'src.gnucash'
+    assert runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS]).exit_code == 0
+
+    bank_path = tmp_path / 'bank.txt'
+    bank_path.write_text(_fx('q016_over_retarget_bank.txt'))
+    assert runner.invoke(cli, ['import', str(gf), str(bank_path)]).exit_code == 0
+    retarget_txn_guid = _bank_tx_guid(gf, 140.0)
+
+    inv_path = tmp_path / 'invoice.txt'
+    inv_path.write_text(_fx('retarget_onto_a_document_owing_nothing.txt').format(
+        retarget_txn_guid=retarget_txn_guid))
+    result = runner.invoke(cli, ['import', str(gf), str(inv_path),
+                                 '--include-business-objects'])
+
+    assert result.exit_code != 0, result.output
+    assert 'owes nothing' in result.output, result.output
+    assert 'commodity_scu' not in result.output, result.output
+
+
+def test_two_payments_of_the_same_shape_are_paired_the_only_way_that_works(tmp_path):
+    """One block names its transaction, the other describes the same shape.
+
+    Both payments are 50.00 on the same day with the same memo, so the block
+    that describes a payment by its fields matches either of them, while the
+    block naming a transaction by guid matches only the one it names. There is
+    exactly one pairing that works, and taking each split's first match does
+    not find it: the described block is claimed by the wrong split, the named
+    block is left with a split it cannot match, and a file that made this book
+    reads as a change to it.
+
+    What follows a false "changed" is the expensive part — the document is
+    unposted and rebuilt, its payments orphaned and re-made, and on a
+    foreign-currency invoice whose basis something measures against, refused
+    outright.
+    """
+    runner = CliRunner()
+    gf = tmp_path / 'src.gnucash'
+    assert runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS]).exit_code == 0
+
+    bank_path = tmp_path / 'bank.txt'
+    bank_path.write_text(_fx('two_payments_one_named_one_described_bank.txt'))
+    assert runner.invoke(cli, ['import', str(gf), str(bank_path)]).exit_code == 0
+    retarget_txn_guid = _bank_tx_guid(gf, 50.0)
+
+    text = _fx('two_payments_one_named_one_described.txt').format(
+        retarget_txn_guid=retarget_txn_guid)
+    inv_path = tmp_path / 'invoice.txt'
+    inv_path.write_text(text)
+    first = runner.invoke(cli, ['import', str(gf), str(inv_path),
+                                '--include-business-objects'])
+    assert first.exit_code == 0, first.output
+
+    # The same file again describes the book exactly, so nothing is touched.
+    again = runner.invoke(cli, ['import', str(gf), str(inv_path),
+                                '--include-business-objects'])
+    assert again.exit_code == 0, again.output
+    assert 'orphaned' not in again.output, again.output

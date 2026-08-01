@@ -1,0 +1,8 @@
+# A deposit for exactly what the invoice is owed — the shape a bank feed
+# leaves when the customer pays to the cent. Retargeting it settles the invoice
+# with nothing left over, so the transaction ends up carrying one receivable
+# split and no parked credit beside it.
+2026-02-25 * "US Customer — payment for INV-USD-RETARGET"
+  Assets:Bank:USD  100.00 USD
+    memo: "Payment for INV-USD-RETARGET"
+  Assets:Accounts Receivable USD  -100.00 USD

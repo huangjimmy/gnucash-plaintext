@@ -6,14 +6,14 @@ with optional FX conversion to CAD for CRA T2 filing.
 """
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from fractions import Fraction
 from typing import Dict, List, Optional
 
 from gnucash import Account
 from gnucash.gnucash_core_c import ACCT_TYPE_EXPENSE, ACCT_TYPE_INCOME
 
-from services.book_closer import is_closing_txn
+from infrastructure.gnucash.utils import numeric_to_fraction
 from services.fx_rates import FxRates
 
 
@@ -61,6 +61,10 @@ class IncomeStatementResult:
     net_currency_totals: Dict[str, Fraction] = field(default_factory=dict)
     net_cad_total: Optional[Fraction] = None  # None if no FX rates
     fx_rates_provided: bool = False
+    # How finely each currency on the statement divides, as GnuCash records it
+    # on the commodity: {"CAD": 100, "JPY": 1}. Amounts are written at their
+    # own currency's decimals rather than at an assumed two.
+    currency_units: Dict[str, int] = field(default_factory=dict)
 
 
 class IncomeStatementService:
@@ -85,20 +89,19 @@ class IncomeStatementService:
         For Income accounts: negative means credit (revenue) in GnuCash convention.
         We negate Income balances before displaying so they appear as positive revenue.
         """
-        total = Fraction(0)
-        for split in account.GetSplitList():
-            tx = split.GetParent()
-            # Closing entries are equity transfers, not period activity — exclude
-            # them so the income statement reports the true result whether the
-            # books are closed or not.
-            if is_closing_txn(tx):
-                continue
-            tx_date_raw = tx.GetDate()
-            tx_date = date(tx_date_raw.year, tx_date_raw.month, tx_date_raw.day)
-            if start_date <= tx_date <= end_date:
-                value = split.GetValue()
-                total += Fraction(value.num(), value.denom())
-        return total
+        # GnuCash computes this itself, in the account's own currency and with
+        # closing entries left out — which is exactly what the statement wants,
+        # since a closing entry is an equity transfer rather than activity in
+        # the period. Asking the engine also avoids adding split *values*,
+        # which are stated in each transaction's currency: a CAD income account
+        # credited by a USD invoice holds a split whose amount is the CAD
+        # revenue and whose value is the USD invoice total.
+        # The engine's period runs from the start of `start_date` to the start
+        # of the end argument, so a transaction dated `end_date` falls outside
+        # it. This report's range includes both ends, hence the day added.
+        return numeric_to_fraction(
+            account.GetNoclosingBalanceChangeForPeriod(
+                start_date, end_date + timedelta(days=1), False))
 
     def _account_full_path(self, account: Account) -> str:
         """Build full colon-separated path for an account, excluding root."""
@@ -141,6 +144,7 @@ class IncomeStatementService:
         """
         income_lines: List[AccountLine] = []
         expense_lines: List[AccountLine] = []
+        currency_units: Dict[str, int] = {}
 
         for account in root.get_descendants():
             acct_type = account.GetType()
@@ -152,6 +156,7 @@ class IncomeStatementService:
                 continue
 
             currency = commodity.get_mnemonic()
+            currency_units[currency] = commodity.get_fraction()
             raw_balance = self.get_balance_in_range(account, start_date, end_date)
 
             if raw_balance == Fraction(0):
@@ -208,6 +213,7 @@ class IncomeStatementService:
             net_currency_totals=net_currency_totals,
             net_cad_total=net_cad_total,
             fx_rates_provided=fx_rates is not None,
+            currency_units=currency_units,
         )
 
     def _build_section(

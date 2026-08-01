@@ -84,9 +84,9 @@ For an invoice the importer infers intent from the account *type* (asset = payme
 
 Rejected alternative: a dedicated `write_off:` block. It would duplicate the entire payment-application path for no behavioural gain, since the engine treats it as an ordinary payment; the expense-account constraint already makes the intent unambiguous.
 
-### 2. Clearing a credit reuses the `transaction:` directive and the existing `lot_owner:` split marker
+### 2. Clearing a credit reuses the `transaction:` directive and the existing `lot_owner:` split KVP
 
-A credit isn't attached to a document, and clearing it *is* just a normal ledger transaction (a counter account + an AR/AP split). So instead of a new top-level block or a new split field, reuse the existing `transaction:` directive and the existing per-split `lot_owner:` marker — the Q-014 orphan-lot marker — extended to carry the owner guid:
+A credit isn't attached to a document, and clearing it *is* just a normal ledger transaction (a counter account + an AR/AP split). So instead of a new top-level block or a new split field, reuse the existing `transaction:` directive and the existing per-split `lot_owner:` KVP — the Q-014 orphan-lot KVP — extended to carry the owner guid:
 
 ```
 2026-02-15 * "Refund of overpayment to Acme"
@@ -106,7 +106,7 @@ A credit isn't attached to a document, and clearing it *is* just a normal ledger
 
 Why reuse `lot_owner:` rather than a new `customer:`/`vendor:` split tag:
 
-- **One marker, one concept.** An AR/AP split sitting in an owner's non-invoice lot already carries `lot_owner: kind:id` (Q-014, to reconstruct an orphan payment's lot). A clearing split has exactly that shape. A second field would be two mechanisms with opposite import semantics on the same split; folding them into one `lot_owner:` (with a smarter import — decision 5) avoids that. A nicer `customer:`/`vendor:` wording was weighed and judged not worth breaking the established field.
+- **One KVP, one concept.** An AR/AP split sitting in an owner's non-invoice lot already carries `lot_owner: kind:id` (Q-014, to reconstruct an orphan payment's lot). A clearing split has exactly that shape. A second field would be two mechanisms with opposite import semantics on the same split; folding them into one `lot_owner:` (with a smarter import — decision 5) avoids that. A nicer `customer:`/`vendor:` wording was weighed and judged not worth breaking the established field.
 - **`kind:id[:guid]`.** The trailing guid is the **owner's** authoritative key (never a lot guid — decision 3). Always emitted on export; optional hand-written (`lot_owner: customer:C001` still imports). When present it MUST resolve to the same owner as the id, else the import **errors** — `lot_owner:` is structural, not informational, so a guid mismatch is a hard failure, never a warning.
 - **The counter split states the intent**, no extra keyword: a bank account ⇒ refund, an expense ⇒ vendor bad debt, an income ⇒ customer forfeit. The legal account-type × owner matrix (decision 1) is enforced.
 - **Round-trip for free.** It's a transaction, so Q-016 already round-trips it and its per-split GUIDs; export re-emits `lot_owner:` from the lot's owner backref.
@@ -191,13 +191,13 @@ Owners are identified consistently everywhere: by **guid (authoritative)** with 
     - **Export** always writes the correct, recomputed balance.
     - **Import** recomputes open prepayments from the book in a **post-import pass** (the account block is read before the transactions that create the lots, so it cannot be checked at account-creation time) and compares per owner. On a mismatch it prints a **warning to stderr** (account, owner, declared vs actual) and **import still succeeds** — the book's actual lots are authoritative, and the next export self-heals the file. This is softer than `entry_amount`/`entry_tax`, which error, because those guard posted-record integrity while this is a self-correcting summary. Implemented as `_warn_open_prepayment_mismatches` in `cli/import_cmd.py`.
 
-**Action: the `transaction:` directive with a `lot_owner:`-tagged AR/AP split** (decision 2) is the single way to clear a credit — power, AI-assisted, and bulk editing all use the same explicit form. A `clear-prepayment` convenience CLI was considered and **rejected**: it would have to assume the destination account's currency and would hide details (the AR/AP account, the sign) that a user writing an import file generally wants to set explicitly. The directive is the clear, explicit path; the `lot_owner:` marker carries everything needed.
+**Action: the `transaction:` directive with a `lot_owner:`-tagged AR/AP split** (decision 2) is the single way to clear a credit — power, AI-assisted, and bulk editing all use the same explicit form. A `clear-prepayment` convenience CLI was considered and **rejected**: it would have to assume the destination account's currency and would hide details (the AR/AP account, the sign) that a user writing an import file generally wants to set explicitly. The directive is the clear, explicit path; the `lot_owner:` KVP carries everything needed.
 
 ---
 
 ## Linking an already-imported transaction
 
-When the actual outflow already exists in the book (e.g. imported from a bank feed with an `Imbalance` counter-split), the user should be able to turn it into the credit clearing rather than create a duplicate bank transaction. Because the clearing is just a `transaction:`, this rides the directive's existing GUID identity (Q-016): the user writes the transaction carrying the existing bank transaction's `guid:` and re-targets its counter-split to the AR/AP account with a `lot_owner:` marker. The importer matches the transaction by GUID, updates the split to AR/AP, and attaches it to the owner's open prepayment lot. No separate linkage field is needed — the transaction GUID is the link.
+When the actual outflow already exists in the book (e.g. imported from a bank feed with an `Imbalance` counter-split), the user should be able to turn it into the credit clearing rather than create a duplicate bank transaction. Because the clearing is just a `transaction:`, this rides the directive's existing GUID identity (Q-016): the user writes the transaction carrying the existing bank transaction's `guid:` and re-targets its counter-split to the AR/AP account with a `lot_owner:` KVP. The importer matches the transaction by GUID, updates the split to AR/AP, and attaches it to the owner's open prepayment lot. No separate linkage field is needed — the transaction GUID is the link.
 
 ---
 

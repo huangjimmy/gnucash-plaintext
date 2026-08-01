@@ -1,0 +1,30 @@
+bill "BILL-CREDIT-FIRST"
+	vendor_id: "V001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "M"
+		action: "Material"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-CREDIT-FIRST"
+		accumulate: true
+	payment:
+		amount: 50.00
+		from_credit: true
+		credit_dated: 2026-01-10
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"
+	payment:
+		date: 2026-02-05
+		amount: 20
+		bank_account: "Assets:Bank"
+		memo: "Cash on account"

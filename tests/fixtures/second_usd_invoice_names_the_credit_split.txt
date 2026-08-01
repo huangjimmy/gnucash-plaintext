@@ -1,0 +1,40 @@
+# The third spelling of one settlement: the split named outright.
+#
+# Same physical move as `second_usd_invoice_takes_the_parked_credit.txt` — the
+# customer's parked 100.00 USD settles this invoice — but reached by naming the
+# split rather than letting the transaction be searched. A guid says *which*
+# split, not where it came from, so this spends the credit exactly as the
+# shorter spelling does and gets the same accounting.
+#
+# This is the route the ambiguity refusal sends readers down by name, so it is
+# the one a transaction carrying two of an owner's credits has to be settled
+# through.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-NAMED"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "More consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-NAMED"
+		accumulate: true
+	payment:
+		date: 2026-03-01
+		amount: 100
+		bank_account: "Assets:Bank:USD"
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"
+		memo: "Settled from the credit on account"

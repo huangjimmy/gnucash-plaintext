@@ -1,0 +1,33 @@
+--- exports/bill/bill_posted.txt
++++ exports/bill/bill_paid.txt
+@@ -84,7 +84,13 @@
+ 		memo: "Bill BILL-001"
+ 		posted_txn_guid: "6e59313a91de4a86a1b1676bcbba5228"
+ 		accumulate: true
+-	payment: none
++	payment:
++		date: 2026-01-15
++		amount: 100.00
++		bank_account: "Assets:Bank"
++		txn_guid: "f044a50fc8be4dac95079836ae7c1800"
++		txn_split_guid: "3b632a85f3c440968a6a591a4811ad5b"
++		memo: "Payment BILL-001 (first)"
+ 
+ 2026-01-01 * "BILL-001" "Bill BILL-001"
+ 	guid: "6e59313a91de4a86a1b1676bcbba5228"
+@@ -99,3 +105,15 @@
+ 		guid: "c45d4dd3f37f412e94d3ad2786041563"
+ 		action: "Bill"
+ 		memo:"Bill BILL-001"
++2026-01-15 * "Supplier"
++	guid: "f044a50fc8be4dac95079836ae7c1800"
++	txn_type: P
++	owner: vendor:V001
++	Liabilities:Accounts Payable 100.00 CAD
++		guid: "3b632a85f3c440968a6a591a4811ad5b"
++		action: "Payment"
++		memo:"Payment BILL-001 (first)"
++	Assets:Bank -100.00 CAD
++		guid: "fab34a5601284fb5acec237bc23870b5"
++		action: "Payment"
++		memo:"Payment BILL-001 (first)"

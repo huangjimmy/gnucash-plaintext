@@ -1,0 +1,23 @@
+invoice "INV-CREDIT-VAGUE"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-CREDIT-VAGUE"
+		accumulate: true
+	payment:
+		amount: 30.00
+		from_credit: true
+		credit_dated: 2026-01-10

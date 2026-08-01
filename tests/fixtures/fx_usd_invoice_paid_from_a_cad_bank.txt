@@ -1,0 +1,53 @@
+# A USD receivable settled out of a CAD bank, so the transaction's currency is
+# not the currency of the split that settles it.
+#
+# The bank side is 137.00 CAD and the receivable side is −100.00 USD. Reported
+# under the transaction's currency, the receivable's figure reads "100.00 CAD"
+# — the wrong money, and at CAD's number of decimals. A split's amount is in
+# its account's commodity, and this is the shape where the two part company.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-FX"
+	name: "FX Customer"
+	currency: USD
+
+invoice "INV-FX-CAD-BANK"
+	customer_id: "C-FX"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-FX-CAD-BANK"
+		accumulate: true

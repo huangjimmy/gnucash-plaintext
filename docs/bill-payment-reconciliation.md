@@ -233,7 +233,7 @@ A vendor credit is money the supplier owes you back (you overpaid them) — GnuC
 | **Write off** (you'll never recover it) | `lot_owner: vendor:V001` on an AP split | an **expense** | none | Recognise the loss — the *only* case that hits an expense |
 
 - **Consume it on the next bill** — `auto_apply_credit: true` (above). The usual path: GnuCash draws the credit into the vendor's next bill(s).
-- **Refund** — the vendor returns the money. Record a normal transaction whose AP split carries a `lot_owner:` marker; the counter account is the bank:
+- **Refund** — the vendor returns the money. Record a normal transaction whose AP split carries a `lot_owner:` KVP; the counter account is the bank:
 
 ```
 2026-02-15 * "Refund received from Supplier"
@@ -253,7 +253,7 @@ A vendor credit is money the supplier owes you back (you overpaid them) — GnuC
 		lot_owner: vendor:V001
 ```
 
-The `lot_owner: vendor:V001` marker joins the AP split to the vendor's oldest open credit lot and reduces it — an exact amount closes the lot, a smaller amount leaves the residual credit open (a partial refund). A `vendor:` marker must sit on an AP account (a `customer:` marker on an AR account); the importer rejects the mismatch.
+The `lot_owner: vendor:V001` KVP joins the AP split to the vendor's oldest open credit lot and reduces it — an exact amount closes the lot, a smaller amount leaves the residual credit open (a partial refund). A `vendor:` KVP must sit on an AP account (a `customer:` KVP on an AR account); the importer rejects the mismatch.
 
 **What the refund moves, and why it is not an expense.** Observed from the book (bill $100 paid $150, then the vendor refunds $50): the $50 comes **out of the AP credit and into the bank** — `Liabilities:Accounts Payable` goes `+50 → 0` (the amount the vendor owed us is collected) and `Assets:Bank` rises by $50; the credit lot closes. Nothing else moves — the bill's original $100 expense is untouched. This matches the intuition that overpaying a vendor is, in effect, a **receivable** (the vendor owes you your money back): GnuCash carries it as a positive (debit) balance on Accounts Payable rather than in a separate asset account, and the refund collects it in cash. Only the **write-off** above hits an expense — that's the different case where the money is *gone*, not returned.
 
@@ -262,7 +262,7 @@ The `lot_owner: vendor:V001` marker joins the AP split to the vendor's oldest op
 You never have to re-derive an overpayment by hand: the credit state is carried by three exported directives, so it survives export → fresh-book re-import intact:
 
 - **`prepayment: N`** on a bill's `payment:` block — the overpayment residual that opened the credit (see [Bill overpayment](#bill-overpayment-vendor-credit)).
-- **`open_prepayment:`** block on each AP account — the owner, owner guid, and amount of every open credit (see [Detecting…](#detecting-a-vendors-bill-payment-state-paid--partial--overpaid)). It is informational: the importer rebuilds credits from the `lot_owner:` markers, not from this block, so a hand-edited summary that disagrees only prints a warning and is overwritten on the next export.
+- **`open_prepayment:`** block on each AP account — the owner, owner guid, and amount of every open credit (see [Detecting…](#detecting-a-vendors-bill-payment-state-paid--partial--overpaid)). It is informational: the importer rebuilds credits from the `lot_owner:` KVPs, not from this block, so a hand-edited summary that disagrees only prints a warning and is overwritten on the next export.
 - **`lot_owner: vendor:ID[:guid]`** on the AP split of a disposal transaction — the durable link between a clearing / refund / write-off split and the vendor's credit lot. The trailing owner guid is emitted on export and optional by hand.
 
 So the whole lifecycle lives in plaintext: `find-prepayments --vendor` (or the `open_prepayment:` blocks) to see credits, `auto_apply_credit:` to consume, or a `lot_owner:` transaction to refund / write off.

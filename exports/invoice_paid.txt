@@ -1,0 +1,111 @@
+2026-08-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-08-01 open Assets
+	guid: "7afd6f40a81f4eb9afdb20257982b00a"
+	type: "Asset"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-08-01 open Assets:Accounts Receivable
+	guid: "cc95f315fd07489889f615133194b50c"
+	type: "A/Receivable"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-08-01 open Assets:Bank
+	guid: "420335fa852e46d6a338afb78ae19115"
+	type: "Bank"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-08-01 open Income
+	guid: "47744f6070ea4313be6dd99c688a859d"
+	type: "Income"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-08-01 open Income:Sales
+	guid: "f9b2621f5e3d49df8f1704f625351843"
+	type: "Income"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C001"
+	guid: "1b2e08a278fc49f6a7c37fc83d3bd5ce"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-001"
+	guid: "0892eebf2661434d86700e1eb9a2c5e8"
+	customer_id: "C001"
+	customer_guid: "1b2e08a278fc49f6a7c37fc83d3bd5ce"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-001"
+		posted_txn_guid: "218dba3ee72e4822b4b44e9c24ad5aba"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100.00
+		bank_account: "Assets:Bank"
+		txn_guid: "e9f4cd71a1654c3892617378208b0a5d"
+		txn_split_guid: "5e357283d8064644a943511fca0ce2d7"
+		memo: "Payment INV-001 (first)"
+
+2026-01-01 * "INV-001" "Invoice INV-001"
+	guid: "218dba3ee72e4822b4b44e9c24ad5aba"
+	txn_type: I
+	owner: customer:C001
+	business_generated: "true"
+	Assets:Accounts Receivable 100.00 CAD
+		guid: "6ddbbb8950f04b018606c5f309c04410"
+		action: "Invoice"
+		memo:"Invoice INV-001"
+	Income:Sales -100.00 CAD
+		guid: "8bd274d1cfff4ea0bf7efd16462da6b9"
+		action: "Invoice"
+		memo:"Invoice INV-001"
+2026-01-15 * "Acme"
+	guid: "e9f4cd71a1654c3892617378208b0a5d"
+	txn_type: P
+	owner: customer:C001
+	Assets:Bank 100.00 CAD
+		guid: "26d04919208b4dcaa14172bfbcd19177"
+		action: "Payment"
+		memo:"Payment INV-001 (first)"
+	Assets:Accounts Receivable -100.00 CAD
+		guid: "5e357283d8064644a943511fca0ce2d7"
+		action: "Payment"
+		memo:"Payment INV-001 (first)"

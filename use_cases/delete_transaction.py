@@ -11,6 +11,11 @@ Only transactions can be deleted — not accounts or commodities.
 from dataclasses import dataclass
 
 from repositories.gnucash_repository import GnuCashRepository
+from services.foreign_currency import (
+    amounts_by_cost_basis,
+    give_back_to_cost_bases,
+    require_no_cost_basis_dependents,
+)
 from use_cases.export_transactions import ExportTransactionsUseCase
 
 
@@ -62,7 +67,19 @@ class DeleteTransactionUseCase:
         export_result = exporter.execute_by_guid(guid)
         plaintext = exporter.format_as_plaintext(export_result)
 
+        # Q-035: a transaction that establishes a cost basis cannot go while
+        # anything still measures against it — that split *is* the basis.
+        require_no_cost_basis_dependents(
+            self.repository.book, target, f'{date} {description!r}')
+
+        # And read what this transaction takes from each cost basis before it
+        # goes, so those amounts can be given back — deleting a sale returns
+        # its currency to the basis it was measured against.
+        taken = amounts_by_cost_basis(target)
+
         self.repository.delete_transaction(target)
+
+        give_back_to_cost_bases(self.repository.book, taken)
 
         return DeleteTransactionResult(
             guid=guid,

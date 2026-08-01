@@ -1,0 +1,36 @@
+# A USD purchase entered with the signs the wrong way round.
+#
+# As written, the USD split is negative — currency leaving an account that
+# never held it — so it establishes no cost basis, and the transaction is
+# editable. Correcting the signs makes it a purchase, and the correction
+# reuses the same splits rather than creating new ones: splits are matched by
+# account, so the guid does not change.
+#
+# What the corrected version must produce: a tracked basis for the 100.00 USD
+# that has now arrived. Skipping any split that existed before the edit left
+# it `untracked`, over a message saying this tool never wrote it.
+#
+# Verified by tests/integration/test_update_strategy_respects_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-10 * "Buy 100 USD at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "-135.00"
+	Assets:Bank 135.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "135.00"

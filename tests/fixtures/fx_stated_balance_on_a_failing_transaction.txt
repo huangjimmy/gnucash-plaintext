@@ -1,0 +1,64 @@
+# A cost basis that states its available balance on a transaction that fails,
+# and a sale further down the same file that names it.
+#
+# "This basis's balance came from the file" is module state that no rollback
+# undoes, which is why it is noted only once the transaction commits. This
+# fixture asks what a file can do with a note taken too early: state a balance
+# on a basis, lose the transaction, and still have a sale below skip lowering
+# it.
+#
+# What this fixture produces: two errors and no transactions, only the
+# accounts. `txn_type: Z` is refused, so the buy is rolled back and its split
+# — guid and all — is never written; the sale below then names a cost basis
+# the book does not have and is told so. A balance stated on a transaction
+# that did not survive has nothing left to be authoritative about.
+#
+# Verified by tests/integration/test_update_strategy_respects_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "Buy 100 USD at 1.35"
+	txn_type: Z
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		guid: "9f1c4b2ae7d54c8fa03b6d18e25c7a41"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "135.00"
+		cost_basis_available: "100.00"
+	Assets:Bank -135.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-135.00"
+
+2026-02-01 * "Sell 40 USD"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -40.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "-54.00"
+		cost_basis_split_guid: "9f1c4b2ae7d54c8fa03b6d18e25c7a41"
+	Assets:Bank 55.60 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "55.60"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

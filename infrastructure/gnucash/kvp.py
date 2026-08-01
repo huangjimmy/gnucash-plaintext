@@ -56,13 +56,25 @@ KNOWN_TX_METADATA_KEYS = frozenset({
     # directly, not as a custom KVP slot.
     'closing',
     # NOTE: `txn_type` and `owner` are deliberately NOT in this set even
-    # though the exporter emits them on payment-class transactions. The
-    # in-memory mutators (`xaccTransSetTxnType`, `gncOwnerCopyOnTxn`) are
-    # no-ops from Python in GnuCash 5.x (both ctypes and SWIG paths
-    # silently fail to mutate). Letting them fall into the custom-KVP
-    # path makes the values round-trip-preserved as plain KVP slots —
-    # `find-orphan-payments` reads either the C field (in-book) or the
-    # KVP (after a plaintext roundtrip).
+    # though the exporter emits them on payment-class transactions, so both
+    # are preserved as plain KVP slots — `find-orphan-payments` reads either
+    # the C field (in-book) or the KVP (after a plaintext roundtrip).
+    #
+    # `xaccTransSetTxnType` writes the `trans-txn-type` slot on every version,
+    # and what changed is the reader: on 3.8 and 4.4 `xaccTransGetTxnType`
+    # reads that slot, so a stated type takes; from 4.13 it derives the type
+    # from the transaction's splits and lots instead and never consults the
+    # slot at all (`Transaction.h`: "It does not query the transaction kvp
+    # slots" — the setter's own doc calls the slot a backward-compatibility
+    # measure "for previous GnuCash versions whose xaccTransGetTxnType reads
+    # from the kvp slots"). The importer calls the setter everywhere — it is
+    # what makes the type take on the older engines — while the KVP is what
+    # carries `txn_type` across a roundtrip everywhere, which is why the
+    # exporter falls back to this slot when the C field reads unset. Measured
+    # with an export → import → export of a plain transaction stating
+    # `txn_type: P`, which survives on 3.8 and 4.4 through the reader and on
+    # 4.13/5.10 through this slot. (`gncOwnerCopyOnTxn` remains unused from
+    # Python; the owner survives as the KVP alone.)
 })
 
 # Split metadata keys that have dedicated GnuCash setters.
@@ -387,7 +399,10 @@ def set_custom_metadata(obj, metadata: dict) -> None:
     Store custom metadata on a GnuCash Transaction or Split as a KVP slot.
 
     Serializes metadata as JSON in the 'plaintext_metadata' slot.
-    Any existing custom metadata in that slot is replaced.
+    Any existing custom metadata in that slot is replaced — including by
+    nothing: an empty dict empties the slot, so a caller that reads the
+    metadata, drops the last key and writes the rest back leaves the object
+    carrying none, rather than carrying what it had before the read.
 
     Note on merge workflows: callers that read existing metadata with
     `get_custom_metadata`, update it, and then call this function must only
@@ -405,8 +420,6 @@ def set_custom_metadata(obj, metadata: dict) -> None:
     Raises:
         ValueError: If any key in *metadata* contains a colon.
     """
-    if not metadata:
-        return
     _validate_custom_keys(metadata)
     try:
         json_str = json.dumps(metadata, ensure_ascii=False, sort_keys=True)

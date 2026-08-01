@@ -1,0 +1,42 @@
+# The invoice again, re-posted with a `from_credit:` block naming the split its
+# own unpost left loose.
+#
+# This is what a reader is led to write. Unposting leaves the money in a lot of
+# the customer's, so `find-prepayments` lists it and the export writes an
+# `open_prepayment:` block for it — both saying, correctly, that the money is
+# the customer's and unattached. Spending an owner's credit is what a
+# `from_credit:` block is for.
+#
+# But a bank paid this one, and the split says so by not saying otherwise: a
+# settlement that really came out of credit carries `applied_from_credit`, and
+# this one does not. Believed, the block would write `from_credit: true` onto a
+# bank payment and take the account and date it arrived by out of the export.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-RETARGET"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-RETARGET"
+		accumulate: true
+	payment:
+		amount: 100
+		from_credit: true
+		credit_dated: 2026-02-25
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"
+		memo: "Payment for INV-USD-RETARGET"

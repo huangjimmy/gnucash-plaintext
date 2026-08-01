@@ -1,0 +1,30 @@
+# One bank entry that both takes Alpha's advance in and sends a vendor's
+# prepayment out, netting 50.00 through the bank. Alpha's advance has already
+# been divided: 40.00 of it settled a document — so that half arrives loose,
+# the export writing no `lot_owner:` for a split in a document's lot — and
+# 60.00 is left as credit.
+#
+# Two credit lots sit beside the loose half, on two different accounts, naming
+# two different owners. Neither can be said to be the credit the loose half
+# came out of, so the book cannot say whose that half is and does not guess.
+customer "C-TWO-A"
+	name: "Alpha"
+	currency: CAD
+
+customer "C-TWO-B"
+	name: "Beta"
+	currency: CAD
+
+vendor "V-TWO"
+	name: "Gamma Supply"
+	currency: CAD
+
+2026-05-15 * "Alpha pays ahead, the vendor is prepaid"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -40.00 CAD
+		applied_from_credit: "true"
+	Assets:Accounts Receivable -60.00 CAD
+		lot_owner: "customer:C-TWO-A"
+	Liabilities:Accounts Payable 50.00 CAD
+		lot_owner: "vendor:V-TWO"

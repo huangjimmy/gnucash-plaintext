@@ -56,7 +56,7 @@ Each operation command now checks the Click context for a `BatchSession` (`cli/_
 |---|---|
 | `cli/_batch.py` | `BatchSession` + `current_batch(ctx)` — shared open book + change log for batched ops. |
 | `cli/rename_account_cmd.py` | Batch-aware: optional book, operates on `ctx.obj.book` under a batch, else standalone. |
-| `cli/set_book_key_cmd.py`, `use_cases/set_book_key.py` | New `set-book-key` op (custom book key / version marker). |
+| `cli/set_book_key_cmd.py`, `use_cases/set_book_key.py` | New `set-book-key` op (custom book key / version key). |
 | `use_cases/migrate.py` | Discovery, checksums, in-book history, sidecar read/write + freshness. |
 | `cli/migrate_cmd.py` | The `migrate` command — fast path, authoritative apply with one save, atomicity, immutability, dry-run/status. |
 | `infrastructure/gnucash/kvp.py` | `MIGRATIONS_SECTION` / `MIGRATIONS_SLOT` for the in-book history. |
@@ -64,7 +64,7 @@ Each operation command now checks the Click context for a `BatchSession` (`cli/_
 
 ## Tests
 
-`tests/integration/test_migrate.py`: a batch of renames + a version stamp applied in one run (`1 save`); a re-run is a no-op that doesn't open the book (sidecar fast path); an operation failure aborts atomically with the book unchanged and nothing recorded; an edited applied migration is rejected as immutable; `--dry-run` changes nothing; an unknown operation is rejected; the `schema_version` marker round-trips through export. Passing on GnuCash 3.8 and 5.10; the Q-030 `rename-account` standalone tests still pass (the refactor is backward-compatible).
+`tests/integration/test_migrate.py`: a batch of renames + a version stamp applied in one run (`1 save`); a re-run is a no-op that doesn't open the book (sidecar fast path); an operation failure aborts atomically with the book unchanged and nothing recorded; an edited applied migration is rejected as immutable; `--dry-run` changes nothing; an unknown operation is rejected; the `schema_version` key round-trips through export. Passing on GnuCash 3.8 and 5.10; the Q-030 `rename-account` standalone tests still pass (the refactor is backward-compatible).
 
 ## Related issues
 

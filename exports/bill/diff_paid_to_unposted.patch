@@ -1,0 +1,58 @@
+--- exports/bill/bill_paid.txt
++++ exports/bill/bill_unposted.txt
+@@ -39,6 +39,10 @@
+ 	tax_related: #False
+ 	commodity.namespace: "CURRENCY"
+ 	commodity.mnemonic: "CAD"
++	open_prepayment:
++		vendor: "V001"
++		vendor_guid: "02d455d798cd4213a045d9773f0b3a6e"
++		amount: 100.00 CAD
+ 2026-08-01 open Expenses
+ 	guid: "3dd49658690f46608a37e78dabaeac4c"
+ 	type: "Expense"
+@@ -77,34 +81,9 @@
+ 		price: 100
+ 		taxable: true
+ 		tax_included: false
+-	posted:
+-		date: 2026-01-01
+-		due: 2026-01-31
+-		ap_account: "Liabilities:Accounts Payable"
+-		memo: "Bill BILL-001"
+-		posted_txn_guid: "6e59313a91de4a86a1b1676bcbba5228"
+-		accumulate: true
+-	payment:
+-		date: 2026-01-15
+-		amount: 100.00
+-		bank_account: "Assets:Bank"
+-		txn_guid: "f044a50fc8be4dac95079836ae7c1800"
+-		txn_split_guid: "3b632a85f3c440968a6a591a4811ad5b"
+-		memo: "Payment BILL-001 (first)"
++	posted: none
++	payment: none
+ 
+-2026-01-01 * "BILL-001" "Bill BILL-001"
+-	guid: "6e59313a91de4a86a1b1676bcbba5228"
+-	txn_type: I
+-	owner: vendor:V001
+-	business_generated: "true"
+-	Expenses:Supplies 100.00 CAD
+-		guid: "b5d026010f0944e8a0e6494f20574492"
+-		action: "Bill"
+-		memo:"Bill BILL-001"
+-	Liabilities:Accounts Payable -100.00 CAD
+-		guid: "c45d4dd3f37f412e94d3ad2786041563"
+-		action: "Bill"
+-		memo:"Bill BILL-001"
+ 2026-01-15 * "Supplier"
+ 	guid: "f044a50fc8be4dac95079836ae7c1800"
+ 	txn_type: P
+@@ -113,6 +92,7 @@
+ 		guid: "3b632a85f3c440968a6a591a4811ad5b"
+ 		action: "Payment"
+ 		memo:"Payment BILL-001 (first)"
++		lot_owner: vendor:V001:02d455d798cd4213a045d9773f0b3a6e
+ 	Assets:Bank -100.00 CAD
+ 		guid: "fab34a5601284fb5acec237bc23870b5"
+ 		action: "Payment"

@@ -1,0 +1,9 @@
+# A transaction whose every split is on the account a payment block would call
+# the bank — money moved within one account and nowhere else. There is no other
+# side to retarget, which is a different mistake from naming a transaction
+# whose other sides are all spoken for, and gets a different remedy.
+2026-03-10 * "Bank correction, both sides in one account"
+  Assets:Bank  25.00 CAD
+    memo: "In"
+  Assets:Bank  -25.00 CAD
+    memo: "Out"

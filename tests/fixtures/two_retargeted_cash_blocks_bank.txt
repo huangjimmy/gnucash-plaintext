@@ -1,0 +1,9 @@
+2026-02-05 * "Acme — first instalment for INV-TWO-RETARGETS"
+  Assets:Bank  80.00 CAD
+    memo: "First instalment"
+  Assets:Accounts Receivable  -80.00 CAD
+
+2026-02-12 * "Acme — second instalment for INV-TWO-RETARGETS"
+  Assets:Bank  50.00 CAD
+    memo: "Second instalment"
+  Assets:Accounts Receivable  -50.00 CAD

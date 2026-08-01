@@ -1,0 +1,29 @@
+# The same invoice as fx_usd_invoice_cad_income.txt, now claiming the
+# hand-written settlement transaction as its payment. The payment block carries
+# no rate: the transaction it points at already states both amounts.
+invoice "INV-USD-001"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-001"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank"
+		txn_guid: "5a1d9e77c0f04a6cbc3b0d1f2e4a6b8c"
+		txn_split_guid: "9f8e7d6c5b4a39281706f5e4d3c2b1a0"
+		memo: "Payment for INV-USD-001"

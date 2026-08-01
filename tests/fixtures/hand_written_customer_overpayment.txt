@@ -1,0 +1,42 @@
+# A customer overpayment recorded as an ordinary transaction.
+#
+# Not through a `payment:` block, so nothing puts it in a lot: the credit on
+# the receivable is simply a split someone wrote. The money itself went into
+# the USD bank, and that is the split that carries the cost basis — one lump
+# of currency, listed once, sellable from where it is held. The credit facing
+# it records the obligation to give it back.
+#
+# What this fixture produces: `fx-balances` lists 100.00 USD at 1.4 CAD/USD on
+# Assets:Bank:USD, and nothing on the receivable. The same answer the lotted
+# prepayment in fx_refund_usd_prepayment.txt gets, which is the point:
+# `lot_owner:` says which side of a receivable a split is, not how much
+# currency the book holds.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-02-01 * "Customer overpaid, recorded by hand"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "140.00"
+	Assets:Accounts Receivable USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "-140.00"

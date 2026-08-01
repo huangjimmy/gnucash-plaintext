@@ -1,0 +1,35 @@
+customer "C-Q16-OVER"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-ALREADY-SETTLED"
+	customer_id: "C-Q16-OVER"
+	currency: CAD
+	date_opened: 2026-10-01
+	entry:
+		date: 2026-10-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-10-02
+		due: 2026-11-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-ALREADY-SETTLED"
+		accumulate: true
+	payment:
+		date: 2026-10-10
+		amount: 100
+		bank_account: "Assets:Bank"
+		memo: "Paid in full"
+	payment:
+		date: 2026-10-15
+		amount: 140
+		bank_account: "Assets:Bank"
+		txn_guid: "{retarget_txn_guid}"
+		prepayment: 140
+		memo: "Nothing left for this to settle"

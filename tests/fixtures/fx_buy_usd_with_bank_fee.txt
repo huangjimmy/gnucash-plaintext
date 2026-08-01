@@ -1,0 +1,51 @@
+# 40.00 USD bought at 1.35 CAD/USD with a 2.70 CAD fee charged alongside,
+# recorded in USD:
+#
+#   54.00 CAD -> 40.00 USD          cost 1.35 CAD/USD
+#    2.70 CAD -> bank fee           an expense, not part of what the USD cost
+#
+# Both CAD amounts are valued at the one rate the transaction was entered at
+# (56.70 CAD is 42.00 USD, 2.70 CAD is 2.00 USD), so the entry balances in its
+# own currency: -42.00 + 40.00 + 2.00 = 0.
+#
+# What this fixture produces: one cost basis, and `fx-balances` shows it at
+# 1.35 CAD/USD for 40.00 USD — not 1.4175. The fee is an expense the bank
+# charged, not part of what the currency cost; sweeping it into the basis would
+# overstate the cost of every later sale measured against it.
+#
+# Verified by tests/unit/services/test_cost_of_split.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank Fees
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-05 * "Buy 40 USD at 1.35 with a 2.70 CAD fee"
+	currency.mnemonic: "USD"
+	Assets:Bank -56.70 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "4200/5670"
+		value: "-42.00"
+	Assets:Bank:USD 40.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1"
+		value: "40.00"
+	Expenses:Bank Fees 2.70 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "200/270"
+		value: "2.00"

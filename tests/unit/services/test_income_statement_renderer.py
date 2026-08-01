@@ -204,7 +204,8 @@ class TestRenderSectionText:
             currency_totals={},
             cad_total=None,
         )
-        lines = _render_section_text(section, fx_rates_provided=False)
+        lines = _render_section_text(section, fx_rates_provided=False,
+                                     units={"CAD": 100})
         assert any("INCOME" in row for row in lines)
 
     def test_section_with_single_line(self):
@@ -213,7 +214,8 @@ class TestRenderSectionText:
         section = _make_result(
             income_lines=[_line("Income:Salary", 3000)],
         ).income
-        lines = _render_section_text(section, fx_rates_provided=False)
+        lines = _render_section_text(section, fx_rates_provided=False,
+                                     units={"CAD": 100})
         assert any("Salary" in row for row in lines)
         assert any("3,000.00" in row for row in lines)
 
@@ -224,7 +226,8 @@ class TestRenderSectionText:
             income_lines=[_line("Income:Salary", 3000, cad_balance=3000)],
             fx_rates_provided=False,
         ).income
-        lines = _render_section_text(section, fx_rates_provided=False)
+        lines = _render_section_text(section, fx_rates_provided=False,
+                                     units={"CAD": 100})
         # CAD column should not appear when fx_rates_provided=False
         combined = "\n".join(lines)
         # The native amount is CAD, the second column would be duplicate —
@@ -284,7 +287,7 @@ class TestBuildRows:
         section = _make_result(
             income_lines=[_line("Income:Salary", 3000)],
         ).income
-        rows = _build_rows(section, fx_rates_provided=False)
+        rows = _build_rows(section, fx_rates_provided=False, units={"CAD": 100})
         line_rows = [r for r in rows if r["kind"] == "line"]
         assert len(line_rows) == 1
         assert line_rows[0]["name"] == "Salary"
@@ -295,7 +298,7 @@ class TestBuildRows:
         section = _make_result(
             income_lines=[_line("Income:Salary", 3000)],
         ).income
-        rows = _build_rows(section, fx_rates_provided=False)
+        rows = _build_rows(section, fx_rates_provided=False, units={"CAD": 100})
         total_rows = [r for r in rows if r["kind"] == "total"]
         assert len(total_rows) == 1
 
@@ -309,6 +312,6 @@ class TestBuildRows:
                 _line("Income:Salary:Bonus", 1000),
             ],
         ).income
-        rows = _build_rows(section, fx_rates_provided=False)
+        rows = _build_rows(section, fx_rates_provided=False, units={"CAD": 100})
         subtotals = [r for r in rows if r["kind"] == "subtotal"]
         assert len(subtotals) >= 1

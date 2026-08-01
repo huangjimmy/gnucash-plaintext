@@ -1,0 +1,79 @@
+# A taxed HKD invoice: the same shape as the USD one, in a currency worth far
+# less than a Canadian dollar.
+#
+# 333.33 HKD of consulting at 10% tax, posted at 0.1754 CAD/HKD. The CAD
+# figures come from the HKD ones — 333.33 × 0.1754 is 58.4661, which the cent
+# holds as 58.47, and 33.33 × 0.1754 is 5.846, held as 5.85 — so each carries
+# up to half a cent of CAD rounding.
+#
+# Half a CAD cent is a fifth of a HKD cent going the other way: divide 58.47
+# back by the rate and it says 333.35 HKD, not the 333.33 the ledger carries.
+# A check that reads a rate backwards out of the figures it produced calls
+# every one of these books wrong — the smaller the currency, the more
+# certainly — which is one of the reasons no such check is made. Rates run
+# forward: the file states one, the figure follows, and the effective rate the
+# ledger carries afterwards is the rounding, not a discrepancy.
+#
+# What this fixture produces: one basis, at the aggregate of the two CAD
+# lines, and a clean `--verify-costs`.
+#
+# Verified by tests/integration/test_verify_costs.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable HKD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax:Sales Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+taxtable "Sales Tax"
+	entry:
+		account: "Liabilities:Tax:Sales Tax"
+		rate: 10.0%
+		type: PERCENT
+
+customer "C-HK"
+	name: "HK Customer"
+	currency: HKD
+
+invoice "INV-HKD-TAXED"
+	customer_id: "C-HK"
+	currency: HKD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 333.33
+		taxable: true
+		tax_included: false
+		tax_table: "Sales Tax"
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable HKD"
+		memo: "Invoice INV-HKD-TAXED"
+		accumulate: true

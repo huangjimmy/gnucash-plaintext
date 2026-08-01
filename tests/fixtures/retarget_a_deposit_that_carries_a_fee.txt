@@ -1,0 +1,25 @@
+invoice "INV-WITH-FEE"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-WITH-FEE"
+		accumulate: true
+	payment:
+		date: 2026-02-05
+		amount: 95
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		memo: "Payment"

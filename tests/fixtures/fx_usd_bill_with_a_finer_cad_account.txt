@@ -1,0 +1,48 @@
+# A US vendor's bill for one litre of fuel, expensed to an account kept to
+# thousandths.
+#
+# Fuel is priced to a tenth of a cent — 1.819 a litre — so the expense account
+# is denominated at 1/1000 rather than at the cent, which GnuCash keeps per
+# account and this tool round-trips as `commodity_scu:`. One litre is 1.819
+# CAD: an amount the currency cannot hold and the account can, which is the
+# whole reason such accounts exist (see account_with_finer_scu.txt). On an
+# ordinary CAD account the same figure is refused.
+#
+# The bill is in USD, so the payable credit is a cost basis priced through
+# that CAD split. Applying the transaction's rate back to it has to round the
+# way the split itself is held — to the thousandth — or the implied figure is
+# 1.82 against a carried 1.819 and a correct book reads as converted at two
+# rates, over a difference smaller than the cent the message would print both
+# figures at.
+#
+# Verified by tests/integration/test_verify_costs.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fuel
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable USD
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-10 * "One litre of fuel from a US vendor, at 1.399 CAD/USD"
+	currency.mnemonic: "USD"
+	Expenses:Fuel 1.819 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "1.30"
+	Liabilities:Accounts Payable USD -1.30 USD
+		account.commodity.mnemonic: "USD"
+		value: "-1.30"

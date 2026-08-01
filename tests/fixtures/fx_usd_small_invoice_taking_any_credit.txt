@@ -1,0 +1,34 @@
+# A smaller invoice for the same customer, asking for whatever credit they
+# have. Imported while an earlier invoice sits unposted, the credit GnuCash
+# finds is that invoice's orphaned settlement: it applies 40.00 of the 100.00
+# and carves the remaining 60.00 into a new split.
+#
+# Rebuilding a payment's splits, GnuCash copies the source split's whole slot
+# frame onto every split it makes — so the 60.00 remainder arrives carrying the
+# first invoice's `orphaned_by_unpost` mark, describing a split it merely came
+# from. Left on, the first invoice's rebuild would prefer that remainder, take
+# the customer's real credit as its own settlement, and keep a cost basis for
+# currency it no longer holds.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-SMALL"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	auto_apply_credit: true
+	entry:
+		date: 2026-03-01
+		description: "Small job"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 40
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-SMALL"
+		accumulate: true

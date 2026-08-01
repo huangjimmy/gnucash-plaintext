@@ -1,0 +1,10 @@
+# The money arriving: 137.00 CAD into the bank, closing 100.00 USD of
+# receivable. The transaction's currency is CAD; the receivable split's is USD.
+2026-02-25 * "FX Customer — payment for INV-FX-CAD-BANK"
+	currency.mnemonic: "CAD"
+	Assets:Bank 137.00 CAD
+		memo: "Payment for INV-FX-CAD-BANK"
+	Assets:Accounts Receivable USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "-137.00"

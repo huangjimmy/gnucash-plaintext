@@ -82,12 +82,12 @@ The exact spec is in the research doc, [section "4. CLI mockup"](../research/202
 
 | File | Change |
 |---|---|
-| `use_cases/unpost_business_objects.py` | New helper `find_lot_payment_transactions(rec)` returning a list of `(tx_guid, date, account_full_name, amount, currency, memo, description, kind)` records. Lifted from `tests/research/orphan_detection_probe.py:find_pre_unpost_payments` |
+| `use_cases/unpost_business_objects.py` | New helper `find_lot_payment_transactions(rec)` returning a list of `(tx_guid, date, account_full_name, amount, currency, memo, description, kind)` records. Lifted from `tests/research/test_orphan_detection_probe.py:find_pre_unpost_payments` |
 | `cli/unpost_cmd.py` | Call the helper **before** `rec.Unpost(False)`, accumulate orphans per record, emit the warning block(s) after the per-record `unposted` line. Same callsite logic for both `unpost-invoices` and `unpost-bills` |
 | Help text | Promote the orphan-payment caveat from a footnote to a first-class behavioural note. Cross-reference Q-004 and `delete-transactions --by-guid` |
 | `tests/integration/test_unpost_invoice_bill.py` | New test cases: zero orphans (no warning), one orphan (warning printed, exact GUID + bank account + amount in output), multiple orphans (partial payments), bill-side equivalent of each, multi-invoice call surfaces orphans per record |
 
-The research probe at `tests/research/orphan_detection_probe.py:find_pre_unpost_payments` is the working prototype. Lift directly; the four passing probe tests (`test_orphan_backreference_probe`, `test_orphan_backreference_probe_bill`, `test_find_orphan_payments_prototype`, `test_find_orphan_payments_prototype_bill`) cover both customer and vendor sides.
+The research probe at `tests/research/test_orphan_detection_probe.py:find_pre_unpost_payments` is the working prototype. Lift directly; the four passing probe tests (`test_orphan_backreference_probe`, `test_orphan_backreference_probe_bill`, `test_find_orphan_payments_prototype`, `test_find_orphan_payments_prototype_bill`) cover both customer and vendor sides.
 
 ## Also in scope: `find-orphan-payments` (retrospective discovery)
 
@@ -114,7 +114,7 @@ Two follow-ups remain for future Q tickets:
 
 1. **Auto-cleanup CLI** — `unpost-invoices --cleanup-payments` flag or a dedicated `cleanup-orphan-payments <book> <invoice-id>` command that automatically deletes the orphan(s) as part of the unpost flow. Skipped from Q-014 because real-money bank-tx deletion needs more guardrails than the unpost path provides: refuse-if-reconciled (or `--force`), per-orphan plaintext backup, and an explicit confirmation prompt. Without those, a single missed flag could silently drop bank entries that the user wanted to keep (e.g. they unposted to fix the invoice date and the payment was correct). The current PR's warning-only approach leaves the destructive decision with the user.
 
-2. **Plaintext orphan-flagging** — exporting orphan bank txs with a marker (e.g. `orphan: true` under the invoice's `payment:` block, or a `notes:` annotation) so export → import is lossless across an unpost cycle. Bigger design question for the plaintext format. Current behaviour is to emit orphans only in the free-form `transactions:` section; the importer cannot reconstruct the orphan ↔ original-invoice association on re-import.
+2. **Plaintext orphan-flagging** — exporting orphan bank txs with a KVP (e.g. `orphan: true` under the invoice's `payment:` block, or a `notes:` annotation) so export → import is lossless across an unpost cycle. Bigger design question for the plaintext format. Current behaviour is to emit orphans only in the free-form `transactions:` section; the importer cannot reconstruct the orphan ↔ original-invoice association on re-import.
 
 ## Related issues
 

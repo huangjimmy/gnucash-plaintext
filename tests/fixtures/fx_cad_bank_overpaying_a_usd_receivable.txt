@@ -1,0 +1,16 @@
+# 274.00 CAD out of the bank against a 100.00 USD invoice — 200.00 USD of
+# receivable closed, so 100.00 USD more than the document is owed.
+#
+# The transaction's currency is CAD and the receivable's is USD, so the residue
+# this leaves is a USD credit parked on a USD account under a CAD transaction:
+# the shape where labelling a credit with its transaction's currency calls
+# 100.00 USD "CAD 100.00", and the per-owner totals then add it to that
+# customer's real CAD credits.
+2026-02-25 * "FX Customer — overpayment for INV-FX-CAD-BANK"
+	currency.mnemonic: "CAD"
+	Assets:Bank 274.00 CAD
+		memo: "Payment for INV-FX-CAD-BANK"
+	Assets:Accounts Receivable USD -200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "-274.00"

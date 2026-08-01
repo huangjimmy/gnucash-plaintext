@@ -1,0 +1,61 @@
+# A 100.00 USD invoice, and a 200.00 USD bank transaction sitting loose in the
+# book — the shape a bank feed leaves behind, before anything says which
+# document it pays.
+#
+# Attaching it with `txn_guid:` + `prepayment: 100` is the retarget path, which
+# reaches the overpayment mechanic by a different route than the
+# `account:`/`settled_amount:` payment block does: no money is moved, an
+# existing transaction is divided in place. The residue is a credit of 100.00
+# USD the book holds and owes back, and it has to open a basis like any other
+# — priced at what the invoice was carried at, since a USD payment into a USD
+# bank states no CAD figure anywhere.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-RETARGET"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-RETARGET"
+		accumulate: true

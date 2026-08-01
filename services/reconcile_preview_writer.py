@@ -63,4 +63,12 @@ def _write_tx(f, tx: StandardTransaction, doc_link_base: str) -> None:
 
 
 def _format_amount(amount: Decimal) -> str:
-    return f"{amount:.2f}"
+    """The amount exactly as the statement stated it.
+
+    A statement line is already written in its own currency's decimals — two
+    for a dollar, none for a yen — and the parsed Decimal carries that scale.
+    Forcing two here would invent hundredths for currencies that have none and
+    silently restate the figure; `f` prints the Decimal plainly, without
+    exponent notation and without changing its scale.
+    """
+    return format(amount, 'f')

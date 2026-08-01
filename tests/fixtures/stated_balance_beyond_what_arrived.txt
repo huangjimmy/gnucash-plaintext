@@ -1,0 +1,38 @@
+# A basis told it has more available than it ever brought in.
+#
+# 100.00 USD is bought, and the file states 150.00 available on it. A stated
+# balance is authoritative — it is how a book records sales this tool never
+# saw — but it is a statement about what is left of *this* split, and no
+# sequence of sales leaves more than arrived.
+#
+# Unchecked, the 50.00 USD that never existed is sellable: a later sale draws
+# on it, is valued at the basis cost, and books a gain on currency the book
+# never held.
+#
+# What this fixture produces: one error, naming both figures.
+#
+# Verified by tests/integration/test_stated_balance_is_checked.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-10 * "Buy 100 USD at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "135.00"
+		cost_basis_available: "150.00"
+	Assets:Bank -135.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-135.00"

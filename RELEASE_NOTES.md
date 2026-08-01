@@ -54,9 +54,9 @@ gnucash-plaintext print-invoice mybook.gnucash \
 
 Also: `print-invoice` no longer crashes on unposted invoices — they render as a draft watermark. ([Q-012](docs/issues/Q-012-print-invoice-on-unposted-invoice-crashes.md))
 
-### Cash-basis invoice marker
+### Cash-basis invoice KVP
 
-Invoices can be tagged `cash_basis: true` to identify revenue that should be reported on the payment date rather than the invoice date — for cash-basis tax filers (Canadian small business below the CRA threshold, US Schedule C, single-entity service consultancies). The flag is descriptive metadata stored as a KVP slot; it round-trips and does not change accounting behaviour. ([Q-018](docs/issues/Q-018-cash-basis-invoice-marker.md))
+Invoices can be tagged `cash_basis: true` to identify revenue that should be reported on the payment date rather than the invoice date — for cash-basis tax filers (Canadian small business below the CRA threshold, US Schedule C, single-entity service consultancies). The flag is descriptive metadata stored as a KVP slot; it round-trips and does not change accounting behaviour. ([Q-018](docs/issues/Q-018-cash-basis-invoice-kvp.md))
 
 ### Business-object round-trip correctness
 
