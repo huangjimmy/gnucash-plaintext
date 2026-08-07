@@ -13,6 +13,29 @@ from datetime import date
 import pytest
 
 
+def swallow_oserror(func, fallback=None):
+    """`func` with an OSError treated as "the fd is already gone".
+
+    Used for the pytest teardown paths that restore or read a file descriptor
+    GnuCash may have closed under them. Only OSError is swallowed: anything
+    else is a real fault and still propagates.
+
+    `fallback` is what the call returns instead. None suits the restoring
+    methods, which are called for their effect; a method whose result is used
+    needs an empty value of the right type, or the failure moves one frame
+    along instead of being handled.
+    """
+    def _safe(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except OSError:
+            return fallback
+    # Readable from outside, so a test can check which fallback a method was
+    # given without reaching into pytest's internals to provoke the failure.
+    _safe._gnc_fallback = fallback
+    return _safe
+
+
 def _harden_pytest_capture_teardown():
     """Stop a GnuCash fd-close from failing the run on a pytest teardown artifact.
 
@@ -30,31 +53,49 @@ def _harden_pytest_capture_teardown():
     Default fd-level capture is kept (it shields pytest's live output from the
     fd churn — sys-level capture would route live output to the real fd and
     internal-error pytest on a mid-run close, which is worse). Instead, wrap the
-    capture classes' `done()` so a closed fd is swallowed during teardown rather
-    than crashing the process. Targeted (only OSError), defensive (no-ops if the
-    pytest internals differ), and verified deterministically by closing pytest's
-    own saved stdin fd: crash without this, clean exit with it. No test uses the
-    fd-level capture fixtures (capfd/capfdbinary), so nothing depends on a
-    perfectly-restored fd at exit.
+    capture classes' fd-restoring methods so a closed fd is swallowed during
+    teardown rather than crashing the process. Targeted (only OSError),
+    defensive (no-ops if the pytest internals differ), and verified
+    deterministically by closing pytest's own saved stdin fd: crash without
+    this, clean exit with it. No test uses the fd-level capture fixtures
+    (capfd/capfdbinary), so nothing depends on a perfectly-restored fd at exit.
+
+    `done()` is the end-of-run path. `suspend()`/`resume()` are the per-test
+    ones: `CaptureManager.item_capture` is a generator context manager that
+    calls `suspend_global_capture` in its `finally`, so a saved fd GnuCash has
+    closed surfaces as `contextlib.py __exit__ -> next(self.gen) -> OSError`
+    and fails a test whose assertions all passed.
+
+    `snap()` is the third, and it is the one that reads rather than restores:
+    the same generator calls `read_global_capture()` after that `finally`, and
+    the end of the run calls it again through `pop_outerr_to_orig`. It reads
+    the capture temp file, so a closed descriptor raises there with the same
+    `contextlib` frame — the shape seen on Ubuntu 20.04 / Py3.8, where 2807
+    tests errored behind one closed fd. Its result is used, so it falls back to
+    an empty capture of the right type rather than None: `bytes` for the binary
+    classes, `str` for the rest. What is lost is the captured output of a test
+    pytest is about to report on, which is empty far more often than not and
+    never the reason a run is being read.
+
+    Both shapes are the ten distro containers running at once, where the fd
+    churn is heaviest; the same suite passes on its own.
     """
     try:
         from _pytest import capture as _cap
     except Exception:
         return
 
-    def _wrap(orig):
-        def _safe_done(self):
-            try:
-                return orig(self)
-            except OSError:
-                return None
-        return _safe_done
-
     for name in ('FDCaptureBinary', 'FDCapture', 'SysCaptureBinary', 'SysCapture'):
         cls = getattr(_cap, name, None)
-        if cls is None or not hasattr(cls, 'done') or getattr(cls, '_gnc_hardened', False):
+        if cls is None or getattr(cls, '_gnc_hardened', False):
             continue
-        cls.done = _wrap(cls.done)
+        for method in ('done', 'suspend', 'resume'):
+            original = getattr(cls, method, None)
+            if original is not None:
+                setattr(cls, method, swallow_oserror(original))
+        snap = getattr(cls, 'snap', None)
+        if snap is not None:
+            cls.snap = swallow_oserror(snap, b'' if name.endswith('Binary') else '')
         cls._gnc_hardened = True
 
 
@@ -69,18 +110,10 @@ def _harden_pytest_logging_teardown():
     OSError, only on close) and defensive."""
     import logging as _logging
 
-    def _wrap(orig):
-        def _safe_close(self):
-            try:
-                return orig(self)
-            except OSError:
-                return None
-        return _safe_close
-
     for cls in (_logging.FileHandler, _logging.StreamHandler):
         if getattr(cls, '_gnc_close_hardened', False):
             continue
-        cls.close = _wrap(cls.close)
+        cls.close = swallow_oserror(cls.close)
         cls._gnc_close_hardened = True
 
 

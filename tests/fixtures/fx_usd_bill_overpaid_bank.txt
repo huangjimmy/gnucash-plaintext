@@ -1,0 +1,6 @@
+# 200.00 USD sent to a vendor owed 100.00 — the payable side of an
+# overpayment, before anything says which bill it pays.
+2026-02-25 * "US Vendor — overpayment for BILL-USD-RETARGET"
+  Assets:Bank:USD  -200.00 USD
+    memo: "Payment for BILL-USD-RETARGET"
+  Liabilities:Accounts Payable USD  200.00 USD

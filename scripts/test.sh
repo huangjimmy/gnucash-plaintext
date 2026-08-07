@@ -70,8 +70,24 @@ echo "Running tests in $IMAGE_NAME..."
 # stay owned by you and are removable without a privileged container. The uid
 # has no /etc/passwd entry, so point HOME at a writable /tmp dir for the
 # per-user pip install (see scripts/test-in-docker.sh).
+# GNC_WRITE_EXPORTS is forwarded so the research harnesses can refresh the
+# committed snapshots in exports/ on request. Without it they write to a
+# scratch directory, leaving the worktree clean — every run stamps a fresh date
+# and fresh GUIDs, so writing on each one would keep those files permanently
+# modified.
+# GNC_COVERAGE, and the directory the data lands in, are forwarded for
+# scripts/coverage.sh, which adds up one run per supported distribution.
+COV_MOUNT=()
+if [ -n "$GNC_COVERAGE" ]; then
+    mkdir -p "${GNC_COVERAGE_DIR:=$PROJECT_PATH/.coverage-data}"
+    COV_MOUNT=(-v "$GNC_COVERAGE_DIR:/cov" -e "COVERAGE_FILE=/cov/.coverage.$TAG")
+fi
+
 docker run --rm \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp/home \
+    -e GNC_WRITE_EXPORTS="${GNC_WRITE_EXPORTS:-}" \
+    -e GNC_COVERAGE="${GNC_COVERAGE:-}" \
+    "${COV_MOUNT[@]}" \
     -v "$PROJECT_PATH:/workspace" \
     "$IMAGE_NAME" /workspace/scripts/test-in-docker.sh $TEST_PATH

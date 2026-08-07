@@ -1,0 +1,13 @@
+# The shape a bank feed leaves: the money is in, the other side is Imbalance,
+# and no document owns it yet. 50.05 is a figure the receivable it will be
+# moved onto cannot hold — that account is kept to the tenth.
+2026-01-01 open Imbalance-CAD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-05 * "Coarse Co overpays, off the bank feed"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.05 CAD
+		memo: "Deposit"
+	Imbalance-CAD -50.05 CAD

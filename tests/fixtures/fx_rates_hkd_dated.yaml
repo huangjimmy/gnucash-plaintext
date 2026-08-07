@@ -1,0 +1,5 @@
+# Dated HKD → CAD rates: 1 HKD = N CAD on that day. A currency worth well
+# under one Canadian dollar, which is where the rounding of a converted figure
+# is largest relative to the currency it converts into.
+HKD/CAD:
+  2026-01-05: 0.1754

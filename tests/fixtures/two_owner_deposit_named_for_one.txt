@@ -1,0 +1,22 @@
+# The same two-owner deposit, but written as a payment GnuCash made for Alpha:
+# `txn_type: P` with `owner:` puts Alpha on the *transaction*, while both
+# receivable splits are in no lot and so name nobody themselves.
+#
+# Whichever of the two a bare `txn_guid:` block moves is not decided by
+# anything here, so Beta's invoice naming this transaction must not be refused
+# on the strength of the owner written across the whole of it.
+customer "C-TWO-A"
+	name: "Alpha"
+	currency: CAD
+
+customer "C-TWO-B"
+	name: "Beta"
+	currency: CAD
+
+2026-05-15 * "Deposit covering Alpha and Beta"
+	currency.mnemonic: "CAD"
+	txn_type: P
+	owner: customer:C-TWO-A
+	Assets:Bank 220.00 CAD
+	Assets:Accounts Receivable -100.00 CAD
+	Assets:Accounts Receivable -120.00 CAD

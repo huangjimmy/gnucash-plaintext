@@ -29,10 +29,12 @@ Selecting which payment(s):
 """
 
 import sys
+from fractions import Fraction
 
 import click
 
 from infrastructure.gnucash.guid_lookup import normalise_guid
+from infrastructure.gnucash.utils import money_text
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.gnucash_importer import find_account
 from use_cases.unapply_payment import execute_unapply
@@ -89,7 +91,8 @@ def unapply_payment(gnucash_file, record_id, to_account_name, txn_guids,
         for tx_guid, amount, currency in result.unapplied:
             click.echo(f'   • {currency} {amount}  (was payment tx {tx_guid})')
         state = 'Outstanding' if result.remaining_balance != 0 else 'fully paid'
-        click.echo(f'   {kind} lot balance now {abs(result.remaining_balance):.2f} '
+        click.echo(f'   {kind} lot balance now '
+                   f'{money_text(Fraction(abs(result.remaining_balance)), result.unit)} '
                    f'({state}); document still posted.')
         return
 

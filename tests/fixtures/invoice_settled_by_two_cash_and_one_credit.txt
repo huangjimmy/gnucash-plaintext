@@ -1,0 +1,49 @@
+# A 100.00 invoice settled three ways, so its lot's splits span three
+# transactions: 40.00 retargeted off one deposit, 30.00 off another, and 30.00
+# out of the customer's standing credit.
+#
+# Unposted, all three are marked — but only two were paid by a bank; the third
+# was credit and stays credit. A listing that reads the mark off one
+# transaction's splits sees only the first, picks the second, and reports the
+# credit's remaining 30.00 against a bank payment's date and account — a guid
+# that a `from_credit:` block is then refused for naming.
+#
+# Verified by tests/integration/test_credit_payment_block_is_checked.py.
+invoice "INV-THREE-WAYS"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-07-01
+	entry:
+		date: 2026-07-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-02
+		due: 2026-08-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-THREE-WAYS"
+		accumulate: true
+	payment:
+		date: 2026-07-10
+		amount: 40
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_ONE"
+		memo: "First cash"
+	payment:
+		date: 2026-07-11
+		amount: 30
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_TWO"
+		memo: "Second cash"
+	payment:
+		amount: 30
+		from_credit: true
+		credit_dated: 2026-07-05
+		txn_guid: "TXN_CREDIT"
+		txn_split_guid: "SPLIT_CREDIT"
+		memo: "And the rest from credit"

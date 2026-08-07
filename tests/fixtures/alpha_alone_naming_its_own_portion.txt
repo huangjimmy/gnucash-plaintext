@@ -1,0 +1,29 @@
+# Alpha's invoice alone, settled by its own portion of the shared deposit.
+# Beta's portion is left loose: their invoice has not been imported yet, which
+# is the ordinary half-done state of a deposit covering two customers.
+invoice "INV-TWO-A"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service A"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWO-A"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_A"
+		memo: "Portion for Alpha"

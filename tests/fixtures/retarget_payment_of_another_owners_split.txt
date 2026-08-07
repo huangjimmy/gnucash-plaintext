@@ -1,0 +1,30 @@
+customer "C003"
+	name: "Gamma"
+	currency: CAD
+
+invoice "INV-RETARGET-STOLEN"
+	customer_id: "C003"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-RETARGET-STOLEN"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 50.00
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"
+		memo: "Overpaid"

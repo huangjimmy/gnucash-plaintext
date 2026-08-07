@@ -1,0 +1,46 @@
+# A refund written by hand, naming no owner lot.
+#
+# The debit on the receivable belongs to no lot, and that is how raising a
+# receivable by hand looks too (fx_settlement_arriving_as_cad.txt raises one
+# exactly this way). The two are the same three lines, so the debit is read as
+# the receivable it resembles and establishes a basis: 100.00 USD the customer
+# owes. Nothing in the file says otherwise.
+#
+# `lot_owner:` is what says otherwise. With it the debit settles the owner lot
+# no document owns — a refund — and establishes nothing
+# (fx_refund_usd_prepayment.txt). It is the same rule the credit side already
+# runs on, and it runs in both directions or neither.
+#
+# What this fixture produces: `fx-balances` lists 100.00 USD at 1.37 CAD/USD
+# on the receivable, for money that has left the bank. Read as a receivable
+# that is what it should say; read as a refund it is wrong, and the file has
+# to say which it is.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-02-01 * "Refund the customer, naming no lot"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "137.00"
+	Assets:Bank:USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "-137.00"

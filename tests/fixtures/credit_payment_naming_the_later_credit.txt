@@ -1,0 +1,25 @@
+invoice "INV-PICKS-A-CREDIT"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-03-05
+	entry:
+		date: 2026-03-05
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-05
+		due: 2026-04-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-PICKS-A-CREDIT"
+		accumulate: true
+	payment:
+		amount: 50.00
+		from_credit: true
+		credit_dated: 2026-03-01
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

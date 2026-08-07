@@ -1,0 +1,40 @@
+# A transaction split stating an amount its currency cannot hold.
+#
+# 2.005 CAD is half a cent. The same rule that governs a payment block's split
+# lines governs this one: a figure the file states is honoured or refused,
+# never adjusted, because rounding it to 2.01 would put a number in the books
+# that nobody wrote. (A figure this tool *computes* is different — 45.00 USD at
+# 1.405 CAD/USD simply is 63.225, and GnuCash takes it to the cent.)
+#
+# What this fixture produces: the import is refused, naming the amount and the
+# currency that cannot state it. Booking it instead costs the entry twice over
+# — the split lands as 2.00, and `$residual$`, which takes what the others
+# leave, absorbs the missing half cent as 8.00 rather than 7.995.
+#
+# Verified by tests/integration/test_payment_split_must_be_consumed.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank Fees
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Other
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-01 * "Fee stated in half cents"
+	currency.mnemonic: "CAD"
+	Assets:Bank -10.00 CAD
+	Expenses:Bank Fees 2.005 CAD
+	Expenses:Other $residual$ CAD

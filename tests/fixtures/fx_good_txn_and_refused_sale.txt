@@ -1,0 +1,27 @@
+# A file mixing a transaction that must land with a sale that must not: the
+# sale takes 150 USD from a basis holding 100. Importing the file keeps the
+# good transaction and leaves nothing of the refused sale in the book.
+2026-02-05 * "Buy 25 more USD at 1.36"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 25.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.36"
+		value: "34.00"
+	Assets:Bank -34.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-34.00"
+
+2026-03-01 * "Sell 150 USD against a 100 USD basis"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -150.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "-202.50"
+		cost_basis_split_guid: "{basis_a}"
+	Assets:Bank 208.50 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "208.50"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

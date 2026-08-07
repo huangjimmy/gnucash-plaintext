@@ -29,6 +29,7 @@ import ctypes
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum, auto
+from fractions import Fraction
 from typing import List
 
 from gnucash import Book
@@ -39,13 +40,23 @@ from infrastructure.gnucash.engine import (
     load_gnc_engine,
     safe_ctypes_string,
 )
+from infrastructure.gnucash.utils import money_text, numeric_to_fraction
+from services.foreign_currency import require_cost_basis_unused
 from services.gnucash_importer import (
     _find_bill_by_guid,
     _find_bills_by_id,
     _find_invoice_by_guid,
     _find_invoices_by_id,
     _swig_invoice_guid_str,
+    mark_splits_orphaned_by_unpost,
 )
+
+
+def _commodity_unit(lib, commodity_ptr) -> int:
+    """The commodity's smallest unit, or 100 when it cannot be read."""
+    if not commodity_ptr:
+        return 100
+    return lib.gnc_commodity_get_fraction(commodity_ptr) or 100
 
 
 class UnpostStatus(Enum):
@@ -88,6 +99,41 @@ class OrphanPayment:
                              # e.g. "Assets:Accounts Receivable" — populated by
                              # the post-unpost helper so the CLI explanation can
                              # name the exact account the lot detached from.
+    marked_by_unpost: bool = False  # The split carries the note an unpost
+                                    # leaves. Often true alongside the type
+                                    # reading below; the only evidence there is
+                                    # for a settlement attached by retarget,
+                                    # whose transaction has neither slot set.
+    shares_its_transaction: bool = False  # Another orphan sits on the same
+                                          # transaction, so deleting the guid
+                                          # takes that one too. Recorded before
+                                          # any owner filter, or narrowing to
+                                          # one customer would hide the warning
+                                          # on exactly the path a reader
+                                          # cleaning up follows.
+    owner_source: str = ''  # Where whose-money-this-is came from, so the CLI
+                            # can name the reading rather than guess at it:
+                            # 'lot' (this row's own split's lot), 'txn'
+                            # (`gncOwnerGetOwnerFromTxn`), 'kvp' (the
+                            # exporter's `owner:` line, which is what answers
+                            # on a round-tripped book), or 'another_lot' (a
+                            # sibling orphan's lot, when this row's cannot
+                            # say). A boolean collapsed the last three, and the
+                            # block claimed a backref "set at payment time"
+                            # for an owner the exporter had written.
+    typed_by_engine: bool = False   # `xaccTransGetTxnType` returned 'P'.
+    typed_by_kvp: bool = False      # The exporter's `txn_type:` line did.
+                                    # Different evidence: on a round-tripped
+                                    # book the engine says 'N' and only the
+                                    # KVP answers, so they are reported apart.
+    amount_account: str = ''  # The account `amount`/`currency` are of. Empty
+                              # means the bank account, which is where the
+                              # figure came from before an orphan's own split
+                              # could be the one reported: on a foreign
+                              # document settled from a base-currency bank the
+                              # two are different money, and naming the bank
+                              # beside a USD figure describes an account that
+                              # never held it.
 
 
 @dataclass
@@ -175,19 +221,28 @@ def format_orphan_warning_block(kind: str, orphans: List['OrphanPayment'],
         lines.append(f'     guid: {_hyphenate(o.tx_guid)}')
 
     if n > 1:
+        # Exact throughout: each amount is already text at its own currency's
+        # decimals, so the total adds those figures rather than their nearest
+        # doubles, and is written back the same way.
         by_acct: dict = {}
+        units: dict = {}
         for o in orphans:
-            by_acct.setdefault((o.bank_account, o.currency), 0.0)
-            by_acct[(o.bank_account, o.currency)] += float(o.amount)
+            key = (o.bank_account, o.currency)
+            by_acct[key] = by_acct.get(key, Fraction(0)) + Fraction(o.amount)
+            # The amounts are already written at their currency's decimals, so
+            # the total keeps the same ones: 200.00 CAD, 206 JPY.
+            units[key] = 10 ** len(o.amount.partition('.')[2])
         if len(by_acct) == 1:
             (acct, ccy), total = next(iter(by_acct.items()))
             lines.append('')
-            lines.append(f'   Total orphaned: {ccy} {total:.2f} in {acct}.')
+            lines.append(f'   Total orphaned: {ccy} '
+                         f'{money_text(total, units[(acct, ccy)])} in {acct}.')
         else:
             lines.append('')
             lines.append('   Total orphaned per bank account:')
             for (acct, ccy), total in sorted(by_acct.items()):
-                lines.append(f'     {ccy} {total:.2f} in {acct}')
+                lines.append(f'     {ccy} {money_text(total, units[(acct, ccy)])} '
+                             f'in {acct}')
 
     lines.append('')
     lines.append(f'   If you intend to re-pay this {record_word}, either:')
@@ -262,6 +317,7 @@ def find_lot_payment_transactions(rec) -> List[OrphanPayment]:
         ('xaccSplitGetMemo',           ctypes.c_char_p, [ctypes.c_void_p]),
         ('xaccAccountGetType',         ctypes.c_int,    [ctypes.c_void_p]),
         ('gnc_commodity_get_mnemonic', ctypes.c_char_p, [ctypes.c_void_p]),
+        ('gnc_commodity_get_fraction', ctypes.c_int,    [ctypes.c_void_p]),
         ('qof_instance_get_guid',      ctypes.c_void_p, [ctypes.c_void_p]),
         ('guid_to_string_buff',        ctypes.c_char_p, [ctypes.c_void_p, ctypes.c_char_p]),
         ('xaccAccountGetName',         ctypes.c_char_p, [ctypes.c_void_p]),
@@ -319,7 +375,7 @@ def find_lot_payment_transactions(rec) -> List[OrphanPayment]:
         # Find the bank-side split: any split NOT on an AR/AP account.
         bank_acct_name = ''
         bank_memo = ''
-        bank_amount = 0.0
+        bank_amount = Fraction(0)
         nsplits = lib.xaccTransCountSplits(tx_ptr)
         for j in range(nsplits):
             s_ptr = lib.xaccTransGetSplit(tx_ptr, j)
@@ -332,7 +388,7 @@ def find_lot_payment_transactions(rec) -> List[OrphanPayment]:
             bank_memo = (bank_memo_raw.decode('utf-8', errors='replace')
                          if bank_memo_raw else '')
             amt = lib.xaccSplitGetAmount(s_ptr)
-            bank_amount = abs(amt.num / amt.denom) if amt.denom else 0.0
+            bank_amount = abs(numeric_to_fraction(amt)) if amt.denom else Fraction(0)
             break
 
         # Tx-level fields, all via ctypes.
@@ -358,12 +414,140 @@ def find_lot_payment_transactions(rec) -> List[OrphanPayment]:
             tx_guid=tx_guid,
             date=date_str,
             bank_account=bank_acct_name,
-            amount=f'{bank_amount:.2f}',
+            amount=money_text(bank_amount, _commodity_unit(lib, commodity_ptr)),
             currency=currency,
             description=description,
             memo=bank_memo,
         ))
     return results
+
+
+def _commodity_of(lib, split_ptr) -> str:
+    """The mnemonic of the account this split sits on, or ''."""
+    commodity = lib.xaccAccountGetCommodity(lib.xaccSplitGetAccount(split_ptr))
+    if not commodity:
+        return ''
+    raw = lib.gnc_commodity_get_mnemonic(commodity)
+    return raw.decode('ascii', errors='replace') if raw else ''
+
+
+def _owner_of_one_split(lib, split_ptr, book):
+    """(type, id, name) of the owner recorded on this split's own lot.
+
+    One transaction can carry two owners' money — a deposit covering two
+    customers — and the owner GnuCash records on the transaction is whichever
+    of them it happened to record. The lot is where a *portion* is attributed,
+    so a listing that reports per split has to ask per split.
+    """
+    lot_ptr = lib.xaccSplitGetLot(split_ptr)
+    if not lot_ptr:
+        return 0, '', ''
+    owner_buf = ctypes.create_string_buffer(256)
+    owner_p = ctypes.cast(owner_buf, ctypes.c_void_p)
+    if lib.gncOwnerGetOwnerFromLot(ctypes.c_void_p(int(lot_ptr)), owner_p) != 1:
+        return 0, '', ''
+    kind = lib.gncOwnerGetType(owner_p)
+    oid_raw = lib.gncOwnerGetID(owner_p)
+    oid = oid_raw.decode('utf-8', errors='replace') if oid_raw else ''
+    if not oid:
+        return 0, '', ''
+    if kind == 2:
+        found = book.CustomerLookupByID(oid)
+    elif kind == 4:
+        found = book.VendorLookupByID(oid)
+    else:
+        return 0, '', ''
+    if found is None or not found.GetID():
+        return 0, '', ''
+    return kind, oid, (found.GetName() or '')
+
+
+def _owner_from_an_orphans_lot(lib, transaction, book):
+    """(type, id, name) of the owner whose lot holds this transaction's
+    orphaned settlement, or (0, '', '').
+
+    Only for a split an unpost marked, so this cannot answer for an ordinary
+    deposit whose lot happens to name somebody — the lot on a shared deposit
+    belongs to one of several owners, and reading it for the wrong split is
+    the misattribution `_recorded_owner_of` is careful about.
+    """
+    from services.gnucash_importer import is_a_bank_paid_orphan
+
+    owner_buf = ctypes.create_string_buffer(256)
+    owner_p = ctypes.cast(owner_buf, ctypes.c_void_p)
+    for split in transaction.GetSplitList():
+        if not is_a_bank_paid_orphan(split):
+            continue
+        lot = split.GetLot()
+        if lot is None:
+            continue
+        raw = ctypes.c_void_p(int(getattr(lot, 'instance', lot)))
+        if lib.gncOwnerGetOwnerFromLot(raw, owner_p) != 1:
+            continue
+        kind = lib.gncOwnerGetType(owner_p)
+        oid_raw = lib.gncOwnerGetID(owner_p)
+        oid = oid_raw.decode('utf-8', errors='replace') if oid_raw else ''
+        if not oid:
+            continue
+        if kind == 2:
+            found = book.CustomerLookupByID(oid)
+        elif kind == 4:
+            found = book.VendorLookupByID(oid)
+        else:
+            continue
+        if found is not None and found.GetID():
+            return kind, oid, (found.GetName() or '')
+    return 0, '', ''
+
+
+def _marked_orphan_split_ptrs(transaction) -> set:
+    """Raw pointers of the splits an unpost left loose on this transaction.
+
+    One transaction can carry several — a deposit covering two documents, both
+    since unposted — and it can carry one among splits that still settle other
+    documents, which is why the shape checks below have to be told which split
+    the row is about rather than taking whichever came last.
+    """
+    from services.gnucash_importer import is_a_bank_paid_orphan
+
+    return {int(split.instance) for split in transaction.GetSplitList()
+            if is_a_bank_paid_orphan(split)}
+
+
+def _holds_a_marked_orphan(transaction, lib) -> bool:
+    """Whether an unpost left one of this transaction's splits loose.
+
+    Read off the split, where the unpost wrote it, so it answers the same on
+    every supported engine — unlike `xaccTransGetTxnType`, whose 5.x heuristic
+    wants a lot-and-owner backref a retargeted settlement never had, and unlike
+    the `txn_type:` KVP, which only exists once a book has been through an
+    export.
+
+    A split that came out of credit is not one of these: it was the owner's
+    money and still is, loose again rather than orphaned.
+
+    Which split is on a receivable or payable is settled in `lib` before any
+    wrapper is built, and only those are wrapped. This is asked of every
+    transaction a book-wide sweep does not otherwise recognise — on a real
+    ledger, nearly every transaction in it, none of which touches a business
+    account at all — and the whole cost of answering "no" for one is a handful
+    of pointer reads. Wrapping first and filtering after put a fresh Python
+    object on every split of every grocery bill in the book, to read an
+    account type off it that ctypes had already been asked for.
+    """
+    from services.gnucash_importer import is_a_bank_paid_orphan
+
+    tx_ptr = int(transaction.instance)
+    for index in range(lib.xaccTransCountSplits(tx_ptr)):
+        account = lib.xaccSplitGetAccount(lib.xaccTransGetSplit(tx_ptr, index))
+        if not account or lib.xaccAccountGetType(account) not in (11, 12):
+            continue
+        # By index into the same list `lib` just walked — `xaccTransGetSplit`
+        # is what the binding calls, so the two agree — rather than by handing
+        # a pointer ctypes returned to a SWIG constructor.
+        if is_a_bank_paid_orphan(transaction.GetSplit(index)):
+            return True
+    return False
 
 
 def find_prepayments_in_book(book: Book,
@@ -416,14 +600,14 @@ def find_prepayments_in_book(book: Book,
         ('xaccTransGetDescription',    ctypes.c_char_p, [ctypes.c_void_p]),
         ('xaccTransGetCurrency',       ctypes.c_void_p, [ctypes.c_void_p]),
         ('gnc_commodity_get_mnemonic', ctypes.c_char_p, [ctypes.c_void_p]),
+        ('gnc_commodity_get_fraction', ctypes.c_int,    [ctypes.c_void_p]),
         ('qof_instance_get_guid',      ctypes.c_void_p, [ctypes.c_void_p]),
         ('guid_to_string_buff',        ctypes.c_char_p, [ctypes.c_void_p, ctypes.c_char_p]),
         ('xaccAccountGetName',         ctypes.c_char_p, [ctypes.c_void_p]),
         ('gnc_account_get_parent',     ctypes.c_void_p, [ctypes.c_void_p]),
-        ('gncOwnerGetOwnerFromTxn',    ctypes.c_int,    [ctypes.c_void_p, ctypes.c_void_p]),
-        ('gncOwnerGetID',              ctypes.c_char_p, [ctypes.c_void_p]),
+        # gncOwnerGetOwnerFromLot/FromTxn/GetID/GetType are set in
+        # `_setup_lib_restypes`, on the same cached handle, for every caller.
         ('gncOwnerGetName',            ctypes.c_char_p, [ctypes.c_void_p]),
-        ('gncOwnerGetType',            ctypes.c_int,    [ctypes.c_void_p]),
     ]:
         try:
             f = getattr(lib, name)
@@ -456,31 +640,109 @@ def find_prepayments_in_book(book: Book,
 
     from infrastructure.gnucash.kvp import get_custom_metadata
     from infrastructure.gnucash.utils import get_account_full_name
+    from services.gnucash_importer import is_a_bank_paid_orphan
+    from use_cases.export_transactions import (
+        bank_paid_orphan_share_of,
+        lot_holdings_of,
+    )
 
     results: List[OrphanPayment] = []
 
     def walk(acct):
         atype = lib.xaccAccountGetType(int(acct.instance))
         if atype in (11, 12):  # AR, AP
+            # Once per account, not once per lot: it reads every split on the
+            # account, and a receivable carries the whole history of the
+            # business.
+            orphan_share = bank_paid_orphan_share_of(acct)
+            held = lot_holdings_of(acct)
             for raw_lot in acct.GetLotList():
                 lot = GncLot(instance=raw_lot)
                 # Criterion 2: no invoice attached.
                 if _gc.gncInvoiceGetInvoiceFromLot(raw_lot):
                     continue
-                # Criterion 3: nonzero balance (unconsumed credit).
-                balance = lot.get_balance().to_double()
-                if abs(balance) < 1e-6:
+                # Q-035: what an unpost loosened and a bank had paid comes off
+                # first. Such a lot is live, holds no document and names an
+                # owner — every test here passes — but that money is a
+                # settlement waiting to be put back, not the owner's to spend,
+                # and all three settlement spellings refuse it as credit.
+                # Subtracted rather than disqualifying the lot, since one lot
+                # can hold a bank-settled split and a credit-settled one both.
+                #
+                # `getattr(..., 'instance', ...)`: `GetLotList` yields raw
+                # pointers on some GnuCash versions and `GncLot` wrappers on
+                # others — measured, 5.10 gives pointers and 5.15, 4.4 and 3.8
+                # give wrappers, which `int()` refuses outright.
+                lot_key = int(getattr(raw_lot, 'instance', raw_lot))
+
+                # Criterion 3: nonzero balance (unconsumed credit). The balance
+                # is an exact rational, so "nonzero" is exactly that — no
+                # epsilon standing in for a float's inability to hit zero.
+                #
+                # Both halves read from the account's splits, as the sibling
+                # listing does. `gnc_lot_get_balance` sums the lot's own list,
+                # which does not include a split attached with
+                # `xaccSplitSetLot` in this session (finding 9), while the
+                # share subtracted from it is derived from the account — so on
+                # a book this process has just written, the subtraction could
+                # take off more than the balance it was taken from. This
+                # command opens a fresh book so the two agree today; matching
+                # them removes the question.
+                balance = (held.get(lot_key, (Fraction(0), None))[0]
+                           - orphan_share.get(lot_key, Fraction(0)))
+                if balance == 0:
                     continue
 
-                # Identify owner via the parent tx of the first split.
+                # Identify the credit by a split that is *part of* it. The
+                # first in the lot is the ordinary answer, but a lot can hold a
+                # bank-settled split beside a credit-settled one — a document
+                # paid part in cash and part out of credit, then unposted — and
+                # `_cash_before_credit` puts the cash in first. Reporting that
+                # one names the credit's remaining balance against the bank
+                # payment's transaction, date and account, and a `from_credit:`
+                # block written from that guid is refused as a bank payment.
                 members = list(lot.get_split_list())
                 if not members:
                     continue
-                first = Split(instance=members[0])
+                # Asked of each split directly. A lot's splits span
+                # transactions, so a set built from one of their parents knows
+                # nothing about the rest: with cash on two transactions and the
+                # credit on a third, the filter saw only the first and picked
+                # the second — a bank-paid orphan — reporting the credit's
+                # balance against that payment's date and account, and a
+                # `from_credit:` block written from its guid is then refused.
+                #
+                # `test_a_credit_in_a_lot_spanning_three_transactions_is_named_
+                # by_its_own_split` builds that lot but does not pin the order:
+                # GnuCash lists the credit split first there, so it passes
+                # either way. What is fixed is the dependence on an order no
+                # test can choose — the same reason the receivable walk below
+                # asks each split rather than the first one's siblings.
+                candidates = [Split(instance=m) for m in members]
+                first = next((split for split in candidates
+                              if not is_a_bank_paid_orphan(split)),
+                             candidates[0])
                 tx = first.GetParent()
                 tx_ptr = int(tx.instance)
 
-                got = lib.gncOwnerGetOwnerFromTxn(tx_ptr, owner_ptr)
+                # The lot first, because the lot is where an owner is recorded
+                # when a credit is given one — `lot_owner:` attaches the owner
+                # to the lot, not to the transaction. Asking the transaction
+                # alone dropped such a credit from the listing entirely on
+                # GnuCash 4.13 and 3.8, where `gncOwnerGetOwnerFromTxn` wants
+                # a transaction whose type reads `TXN_TYPE_PAYMENT` and that
+                # type is read from a slot rather than derived: a book holding
+                # two open credits reported one, and the customer's money was
+                # visible nowhere.
+                # The address, however this binding hands the lot over:
+                # `GetLotList` yields raw pointers on most builds and wrapped
+                # `GncLot`s on others (Arch), where `int()` on the wrapper
+                # raises rather than converting. The same idiom the rest of
+                # the tree uses for this.
+                got = lib.gncOwnerGetOwnerFromLot(
+                    int(getattr(raw_lot, 'instance', raw_lot)), owner_ptr)
+                if got != 1:
+                    got = lib.gncOwnerGetOwnerFromTxn(tx_ptr, owner_ptr)
                 owner_id = ''
                 owner_type = 0
                 owner_name = ''
@@ -531,7 +793,17 @@ def find_prepayments_in_book(book: Book,
 
                 date_str = tx.GetDate().strftime('%Y-%m-%d')
                 description = tx.GetDescription() or ''
-                commodity_ptr = lib.xaccTransGetCurrency(tx_ptr)
+                # Of the account the balance is on, not of the transaction.
+                # The figure comes from the lot on the receivable and is
+                # already formatted at that account's unit; labelling it with
+                # the transaction's currency called a 100.00 USD credit
+                # "CAD 100.00" whenever the money arrived through a CAD bank,
+                # and the per-owner totals then added it to that customer's
+                # real CAD credits. The same correction as the orphan listing
+                # below.
+                commodity_ptr = lib.xaccAccountGetCommodity(int(acct.instance))
+                if not commodity_ptr:
+                    commodity_ptr = lib.xaccTransGetCurrency(tx_ptr)
                 mnemonic_raw = (lib.gnc_commodity_get_mnemonic(commodity_ptr)
                                 if commodity_ptr else None)
                 currency = (mnemonic_raw.decode('ascii', errors='replace')
@@ -541,11 +813,17 @@ def find_prepayments_in_book(book: Book,
                 lib.guid_to_string_buff(guid_ptr, buf)
                 tx_guid = buf.value.decode('ascii').replace('-', '')
 
+                # The balance is a lot on this account, so it is held to the
+                # account's own unit — a receivable kept to a tenth of a cent
+                # holds 20.005, and reporting the commodity's two places says
+                # 20.01 for money nobody has.
+                lot_unit = (acct.GetCommoditySCU()
+                            or _commodity_unit(lib, commodity_ptr))
                 results.append(OrphanPayment(
                     tx_guid=tx_guid,
                     date=date_str,
                     bank_account=bank_acct_name,
-                    amount=f'{abs(balance):.2f}',
+                    amount=money_text(abs(balance), lot_unit),
                     currency=currency,
                     description=description,
                     memo=bank_memo,
@@ -612,6 +890,7 @@ def find_orphan_payments_in_book(book: Book,
         ('xaccSplitGetLot',            ctypes.c_void_p, [ctypes.c_void_p]),
         ('xaccAccountGetType',         ctypes.c_int,    [ctypes.c_void_p]),
         ('gnc_commodity_get_mnemonic', ctypes.c_char_p, [ctypes.c_void_p]),
+        ('gnc_commodity_get_fraction', ctypes.c_int,    [ctypes.c_void_p]),
         ('gncInvoiceGetInvoiceFromLot', ctypes.c_void_p, [ctypes.c_void_p]),
         ('gncOwnerGetOwnerFromTxn',    ctypes.c_int,    [ctypes.c_void_p, ctypes.c_void_p]),
         ('gncOwnerGetID',              ctypes.c_char_p, [ctypes.c_void_p]),
@@ -676,7 +955,26 @@ def find_orphan_payments_in_book(book: Book,
                 t = t.decode('ascii', errors='replace')
             tx_kvp = get_custom_metadata(tx) or {}
             tx_kvp_type = tx_kvp.get('txn_type', '')
-            if t != 'P' and tx_kvp_type != 'P':
+            # Q-035: or this tool wrote down that an unpost orphaned one of its
+            # splits, which says the same thing and says it on every version.
+            # The two readings above both miss a settlement attached by
+            # retarget rather than by `gncOwnerApplyPayment`: the heuristic
+            # wants a lot-and-owner backref it never got, and the KVP is
+            # written by the exporter, so a book that has not been through a
+            # round-trip has neither. On GnuCash 4.4 and 3.8 that left an
+            # orphaned settlement listed by no command at all, while every
+            # refusal about it tells the reader to name its transaction with
+            # `txn_guid:` — a guid they had nowhere to get.
+            # Kept apart, because they are different evidence and the reader is
+            # shown which one answered. On a round-tripped book the engine says
+            # 'N' — its heuristic wants a lot-and-owner backref the restored
+            # loose split has not got — and the 'P' comes from the `txn_type:`
+            # line the exporter wrote; saying `xaccTransGetTxnType(tx) == 'P'`
+            # there describes a call that returned something else.
+            typed_by_engine = (t == 'P')
+            typed_by_kvp = (tx_kvp_type == 'P')
+            typed_as_payment = typed_by_engine or typed_by_kvp
+            if not typed_as_payment and not _holds_a_marked_orphan(tx, lib):
                 continue
 
             # Criterion 2: customer/vendor backref. Same story —
@@ -691,7 +989,9 @@ def find_orphan_payments_in_book(book: Book,
             this_owner_id = ''
             this_owner_type = 0
             this_owner_name = ''
+            tx_owner_source = ''
             if got == 1:
+                tx_owner_source = 'txn'
                 owner_id_raw = lib.gncOwnerGetID(owner_ptr)
                 this_owner_id = (owner_id_raw.decode('utf-8', errors='replace')
                                  if owner_id_raw else '')
@@ -720,15 +1020,54 @@ def find_orphan_payments_in_book(book: Book,
                             this_owner_type = 4
                             this_owner_id = oid
                             this_owner_name = vend.GetName() or ''
-            if not this_owner_id:
-                continue
-            if customer_id and not (this_owner_type == 2 and this_owner_id == customer_id):
-                continue
-            if vendor_id and not (this_owner_type == 4 and this_owner_id == vendor_id):
-                continue
+                if this_owner_id:
+                    tx_owner_source = 'kvp'
+                if not this_owner_id:
+                    # Q-035: and the lot, for a settlement an unpost orphaned.
+                    # Neither reading above can answer for one: the transaction
+                    # gets its owner slot from `gncOwnerApplyPayment`, which
+                    # never touched a retargeted deposit, and the KVP is the
+                    # exporter's, so a book that has not been round-tripped has
+                    # no owner on the transaction at all. The lot the unpost
+                    # left it in does have one — that is half of why it looks
+                    # like a credit — and on GnuCash 4.4 and 3.8 it is the only
+                    # thing that can say whose the money is.
+                    this_owner_type, this_owner_id, this_owner_name = (
+                        _owner_from_an_orphans_lot(lib, tx, book))
+                    if this_owner_id:
+                        tx_owner_source = 'another_lot'
+            # Not filtered here. One transaction can hold two owners' orphans
+            # — a deposit covering two customers, both documents since
+            # unposted — and the answer above is the transaction's, which is
+            # one of them at best. Each row asks its own split below; filtering
+            # on the transaction's answer hid the second owner's money
+            # entirely and reported it under the first owner's name.
+            tx_owner = (this_owner_type, this_owner_id, this_owner_name)
 
             # Criterion 3: payment shape — one AR/AP split, one elsewhere.
-            ar_s = None
+            #
+            # Q-035: a deposit covering two documents has several AR splits,
+            # and taking whichever came last could report the wrong one — the
+            # split still settling the *other* document, whose lot holds an
+            # invoice, so criterion 4 below skips the transaction and the
+            # orphan is listed nowhere. Where the unpost marked one, that is
+            # the split this row is about, whatever order they come in.
+            #
+            # The test for this shape (`test_a_rebuild_takes_its_own_orphan_
+            # over_a_loose_sibling`) does not pin the ordering: GnuCash hands
+            # the marked split over first there, so it passes either way. What
+            # is fixed here is the dependence on that order, which no test can
+            # choose.
+            #
+            # And one row per orphan, not per transaction: a deposit whose
+            # portions settled two documents, both since unposted, carries two
+            # marked splits and is two orphans. Reported once it named the
+            # last of them, and the other document's money was listed nowhere
+            # while every refusal about it asked for a guid — the same "listed
+            # by no command" hole, one split further in. It is why the mark
+            # stores a document guid rather than `true`.
+            marked = _marked_orphan_split_ptrs(tx)
+            ar_candidates = []
             bank_s = None
             nsplits = lib.xaccTransCountSplits(tx_ptr)
             for j in range(nsplits):
@@ -736,60 +1075,164 @@ def find_orphan_payments_in_book(book: Book,
                 a_ptr = lib.xaccSplitGetAccount(s_ptr)
                 a_type = lib.xaccAccountGetType(a_ptr)
                 if a_type in (11, 12):
-                    ar_s = s_ptr
+                    ar_candidates.append(s_ptr)
                 else:
                     bank_s = s_ptr
-            if not (ar_s and bank_s):
+            if not (ar_candidates and bank_s):
                 continue
+            # Every marked split is its own row; with none marked the
+            # transaction is a roundtripped orphan and answers as one row from
+            # whichever receivable split it has.
+            def _in_a_documentless_lot(split_ptr):
+                lot = lib.xaccSplitGetLot(split_ptr)
+                return bool(lot) and not lib.gncInvoiceGetInvoiceFromLot(lot)
 
-            # Criterion 4: AR/AP-side lot has no invoice attached → orphan.
-            # Three states are accepted:
-            #   - lot exists and has NO invoice → unposted-in-file orphan
-            #   - no lot at all → roundtripped orphan (plaintext doesn't
-            #     carry lots, so the importer recreates the tx with
-            #     loose splits)
-            # Lot exists AND has invoice → still attached, skip.
-            lot_ptr = lib.xaccSplitGetLot(ar_s)
-            if lot_ptr and lib.gncInvoiceGetInvoiceFromLot(lot_ptr):
-                continue                       # still attached to a posted record
+            # Where anything is marked, the marked splits are the rows and
+            # nothing else is. Merging in the unmarked-but-documentless ones
+            # looked like it closed a gap and re-opened the one the mark exists
+            # for: an owner's parked credit is documentless too — that is
+            # finding 10 entire — so a deposit that settled a document and
+            # parked a credit listed the credit as an orphan as well, at the
+            # bank's whole figure, and the same money was offered by
+            # `find-prepayments` to spend and by this to clean up.
+            #
+            # The cost is a legacy shape: a deposit settling two documents,
+            # one unposted by an earlier version and one under this, lists
+            # only the newer. Under-reporting a book that cannot be marked is
+            # the lesser of the two, and unposting the older document again
+            # under this version gives it a mark.
+            reported_splits = [s for s in ar_candidates if int(s) in marked]
+            if not reported_splits:
+                # The first that is *orphaned*, not simply the first. Criterion
+                # 4 below drops a split whose lot still holds a document, so
+                # taking the first outright made the whole transaction vanish
+                # whenever that one came first — hiding a genuine orphan
+                # beside it. Reachable without a mark: a book unposted by an
+                # earlier version, where a payment settled two invoices and
+                # only one was unposted.
+                reported_splits = [
+                    s for s in ar_candidates
+                    if _in_a_documentless_lot(s) or not lib.xaccSplitGetLot(s)
+                ][:1]
 
-            ar_ap_a_ptr = lib.xaccSplitGetAccount(ar_s)
-            ar_ap_acct_name = _acct_full_name(ar_ap_a_ptr)
-            bank_a_ptr = lib.xaccSplitGetAccount(bank_s)
-            bank_acct_name = _acct_full_name(bank_a_ptr)
-            memo_raw = lib.xaccSplitGetMemo(bank_s)
-            memo = memo_raw.decode('utf-8', errors='replace') if memo_raw else ''
-            amt = lib.xaccSplitGetAmount(bank_s)
-            amount = abs(amt.num / amt.denom) if amt.denom else 0.0
+            for ar_s in reported_splits:
+                # Whose this one is, asked of this one. The lot a split sits in
+                # is where an owner is recorded, so a deposit covering two
+                # customers answers twice — and the transaction's own answer,
+                # which names whichever GnuCash put on it, is the fallback for
+                # a split whose lot cannot say.
+                own_type, own_id, own_name = _owner_of_one_split(lib, ar_s, book)
+                owner_source = 'lot' if own_id else tx_owner_source
+                if not own_id:
+                    own_type, own_id, own_name = tx_owner
+                if not own_id:
+                    continue
+                if customer_id and not (own_type == 2 and own_id == customer_id):
+                    continue
+                if vendor_id and not (own_type == 4 and own_id == vendor_id):
+                    continue
 
-            epoch = lib.xaccTransGetDate(tx_ptr)
-            date_str = datetime.fromtimestamp(epoch, tz=timezone.utc).strftime('%Y-%m-%d')
-            desc_raw = lib.xaccTransGetDescription(tx_ptr)
-            description = desc_raw.decode('utf-8', errors='replace') if desc_raw else ''
-            commodity_ptr = lib.xaccTransGetCurrency(tx_ptr)
-            mnemonic_raw = (lib.gnc_commodity_get_mnemonic(commodity_ptr)
-                            if commodity_ptr else None)
-            currency = (mnemonic_raw.decode('ascii', errors='replace')
-                        if mnemonic_raw else '')
+                # Criterion 4: AR/AP-side lot has no invoice attached → orphan.
+                # Three states are accepted:
+                #   - lot exists and has NO invoice → unposted-in-file orphan
+                #   - no lot at all → roundtripped orphan (plaintext doesn't
+                #     carry lots, so the importer recreates the tx with
+                #     loose splits)
+                # Lot exists AND has invoice → still attached, skip.
+                lot_ptr = lib.xaccSplitGetLot(ar_s)
+                if lot_ptr and lib.gncInvoiceGetInvoiceFromLot(lot_ptr):
+                    continue                   # still attached to a posted record
 
-            guid_ptr = lib.qof_instance_get_guid(tx_ptr)
-            buf = ctypes.create_string_buffer(40)
-            lib.guid_to_string_buff(guid_ptr, buf)
-            tx_guid = buf.value.decode('ascii').replace('-', '')
+                ar_ap_a_ptr = lib.xaccSplitGetAccount(ar_s)
+                ar_ap_acct_name = _acct_full_name(ar_ap_a_ptr)
+                bank_a_ptr = lib.xaccSplitGetAccount(bank_s)
+                bank_acct_name = _acct_full_name(bank_a_ptr)
+                memo_raw = lib.xaccSplitGetMemo(bank_s)
+                memo = memo_raw.decode('utf-8', errors='replace') if memo_raw else ''
+                # The orphaned split's own figure where the unpost named one:
+                # on a deposit covering two documents the bank side is the
+                # whole 220, and reporting that for one document's orphaned
+                # 100 names money the rest of which settles the other.
+                reported_s = ar_s if int(ar_s) in marked else bank_s
+                amt = lib.xaccSplitGetAmount(reported_s)
+                amount = abs(numeric_to_fraction(amt)) if amt.denom else Fraction(0)
 
-            results.append(OrphanPayment(
-                tx_guid=tx_guid,
-                date=date_str,
-                bank_account=bank_acct_name,
-                amount=f'{amount:.2f}',
-                currency=currency,
-                description=description,
-                memo=memo,
-                owner_type=this_owner_type,
-                owner_id=this_owner_id,
-                owner_name=this_owner_name,
-                ar_ap_account=ar_ap_acct_name,
-            ))
+                epoch = lib.xaccTransGetDate(tx_ptr)
+                date_str = datetime.fromtimestamp(
+                    epoch, tz=timezone.utc).strftime('%Y-%m-%d')
+                desc_raw = lib.xaccTransGetDescription(tx_ptr)
+                description = (desc_raw.decode('utf-8', errors='replace')
+                               if desc_raw else '')
+                # Of the account the reported figure is *on*, not of the
+                # transaction. A split's amount is in its account's commodity,
+                # and the two part company on a foreign document settled from a
+                # base-currency bank: a USD receivable paid out of a CAD bank
+                # has a CAD transaction, so a −100.00 USD orphan read out under
+                # the transaction's currency reported "100.00 CAD" — the wrong
+                # money, at the wrong number of decimals. They agreed while
+                # this always reported the bank split, which is what changed.
+                commodity_ptr = lib.xaccAccountGetCommodity(
+                    lib.xaccSplitGetAccount(reported_s))
+                if not commodity_ptr:
+                    commodity_ptr = lib.xaccTransGetCurrency(tx_ptr)
+                mnemonic_raw = (lib.gnc_commodity_get_mnemonic(commodity_ptr)
+                                if commodity_ptr else None)
+                currency = (mnemonic_raw.decode('ascii', errors='replace')
+                            if mnemonic_raw else '')
+
+                guid_ptr = lib.qof_instance_get_guid(tx_ptr)
+                buf = ctypes.create_string_buffer(40)
+                lib.guid_to_string_buff(guid_ptr, buf)
+                tx_guid = buf.value.decode('ascii').replace('-', '')
+
+                # At the unit the account is kept to, not the currency's. A
+                # receivable held to a tenth of a cent holds 20.005, and the
+                # commodity's two places say 20.01 for money nobody has — the
+                # same correction the sibling listing above carries. It matters
+                # here now because the figure reported moved from the bank side
+                # to the account side.
+                reported_unit = (lib.xaccAccountGetCommoditySCU(
+                    lib.xaccSplitGetAccount(reported_s))
+                    or _commodity_unit(lib, commodity_ptr))
+
+                results.append(OrphanPayment(
+                    tx_guid=tx_guid,
+                    date=date_str,
+                    bank_account=bank_acct_name,
+                    amount=money_text(amount, reported_unit),
+                    currency=currency,
+                    description=description,
+                    memo=memo,
+                    owner_type=own_type,
+                    owner_id=own_id,
+                    owner_name=own_name,
+                    ar_ap_account=ar_ap_acct_name,
+                    marked_by_unpost=int(ar_s) in marked,
+                    typed_by_engine=typed_by_engine,
+                    typed_by_kvp=typed_by_kvp,
+                    owner_source=owner_source,
+                    # Any other receivable or payable split on the transaction,
+                    # not just another orphan row. What the warning guards is
+                    # "deleting this guid destroys money that is not this
+                    # row's", and a portion nobody has claimed yet counts:
+                    # deleting a deposit covering Alpha and Beta while only
+                    # Alpha's document exists takes Beta's money out of the
+                    # bank, and re-importing Alpha puts back less than it took.
+                    shares_its_transaction=len(ar_candidates) > 1,
+                    # Only where naming the bank would be wrong about the
+                    # money. This is a bank-side listing and says so; the
+                    # figure is the orphan's own, which on an ordinary book is
+                    # the bank's currency too. It parts company on a foreign
+                    # document settled from a base-currency bank, and there
+                    # "USD 100.00 in Assets:Bank" names an account that never
+                    # held a dollar of it.
+                    amount_account=(
+                        ar_ap_acct_name
+                        if (int(ar_s) in marked
+                            and _commodity_of(lib, ar_s)
+                            != _commodity_of(lib, bank_s))
+                        else ''),
+                ))
         return results
     finally:
         q.destroy()
@@ -839,6 +1282,17 @@ def _execute_unpost(book: Book, ids: List[str], by_guid: bool,
                 id=rid, guid=rguid, status=UnpostStatus.NOT_POSTED, kind=kind))
             continue
         orphans = find_lot_payment_transactions(rec)
+        # Q-035: a foreign-currency record's A/R or A/P split *is* a cost
+        # basis. Unposting destroys it, so anything measured against it is
+        # refused loudly rather than left naming a split the book no longer
+        # holds.
+        require_cost_basis_unused(book, rec, kind, rid)
+        # Q-035: the lot survives the unpost holding whatever settled the
+        # document, and a lot holding no document is what an owner's credit
+        # looks like. Written down here, or a later import re-attaching the
+        # orphan reads it as credit being spent and takes the cost basis off
+        # currency the bank really paid.
+        mark_splits_orphaned_by_unpost(rec)
         rec.Unpost(False)
         results.append(UnpostResult(
             id=rid, guid=rguid, status=UnpostStatus.UNPOSTED,

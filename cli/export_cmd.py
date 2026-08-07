@@ -19,7 +19,7 @@ from use_cases.export_transactions import ExportTransactionsUseCase
 @click.option('--start-date', '-s', help='Start date (YYYY-MM-DD)')
 @click.option('--end-date', '-e', help='End date (YYYY-MM-DD)')
 @click.option('--account', '-a', help='Filter by account path')
-@click.option('--all-accounts', 'all_accounts', is_flag=True, help='Export all accounts even if they have no transactions')
+@click.option('--all-accounts', 'all_accounts', is_flag=True, help='Export all accounts even if they have no transactions (implied by --include-business-objects)')
 @click.option('--include-business-objects', is_flag=True, help='Include business objects (customers, invoices, etc.)')
 @click.option('--with-balance', 'with_balance', is_flag=True,
               help='Append running account balance after each split (useful for bank reconciliation)')
@@ -76,13 +76,18 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
             # Create use case
             use_case = ExportTransactionsUseCase(repo)
 
-            # Export
+            # Export. Business objects reach accounts no split touches — an
+            # entry's income/expense account, a posted: block's A/R account, a
+            # tax-table entry's tax account — so an export that carries them
+            # emits the full chart of accounts. Collecting accounts from
+            # transaction splits alone left a book of unposted invoices with
+            # zero `open` directives and no way to re-import it.
             click.echo(f"Exporting transactions from {gnucash_file}...")
             result = use_case.execute(
                 start_date=start_date,
                 end_date=end_date,
                 account_filter=account,
-                all_accounts=all_accounts,
+                all_accounts=all_accounts or include_business_objects,
                 with_balance=with_balance,
             )
             count = len(result.transactions)

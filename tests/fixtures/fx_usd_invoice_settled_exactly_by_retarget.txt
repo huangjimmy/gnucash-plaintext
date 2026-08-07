@@ -1,0 +1,38 @@
+# The invoice of `fx_usd_overpayment_retargeted_setup.txt`, settled by naming
+# the deposit that pays it exactly. No `prepayment:`, because nothing is left
+# over: the whole receivable split moves into the invoice's lot.
+#
+# What that leaves is the one shape where an unpost's mark is the only thing
+# standing between a settlement and being read as an owner's credit. Unposted,
+# the transaction carries the bank side and one receivable split in a lot that
+# now names no document — and with no second candidate beside it, the ambiguity
+# guard has nothing to say. The next import either knows an unpost put it there
+# or takes it for credit and strips the cost basis off currency the bank paid.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-RETARGET"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-RETARGET"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		bank_account: "Assets:Bank:USD"
+		txn_guid: "TXN_GUID"
+		memo: "Payment for INV-USD-RETARGET"

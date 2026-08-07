@@ -1,0 +1,55 @@
+--- exports/invoice_paid.txt
++++ exports/invoice_unposted.txt
+@@ -21,6 +21,10 @@
+ 	tax_related: #False
+ 	commodity.namespace: "CURRENCY"
+ 	commodity.mnemonic: "CAD"
++	open_prepayment:
++		customer: "C001"
++		customer_guid: "1b2e08a278fc49f6a7c37fc83d3bd5ce"
++		amount: 100.00 CAD
+ 2026-08-01 open Assets:Bank
+ 	guid: "420335fa852e46d6a338afb78ae19115"
+ 	type: "Bank"
+@@ -69,34 +73,9 @@
+ 		price: 100
+ 		taxable: false
+ 		tax_included: false
+-	posted:
+-		date: 2026-01-01
+-		due: 2026-01-31
+-		ar_account: "Assets:Accounts Receivable"
+-		memo: "Invoice INV-001"
+-		posted_txn_guid: "218dba3ee72e4822b4b44e9c24ad5aba"
+-		accumulate: true
+-	payment:
+-		date: 2026-01-15
+-		amount: 100.00
+-		bank_account: "Assets:Bank"
+-		txn_guid: "e9f4cd71a1654c3892617378208b0a5d"
+-		txn_split_guid: "5e357283d8064644a943511fca0ce2d7"
+-		memo: "Payment INV-001 (first)"
++	posted: none
++	payment: none
+ 
+-2026-01-01 * "INV-001" "Invoice INV-001"
+-	guid: "218dba3ee72e4822b4b44e9c24ad5aba"
+-	txn_type: I
+-	owner: customer:C001
+-	business_generated: "true"
+-	Assets:Accounts Receivable 100.00 CAD
+-		guid: "6ddbbb8950f04b018606c5f309c04410"
+-		action: "Invoice"
+-		memo:"Invoice INV-001"
+-	Income:Sales -100.00 CAD
+-		guid: "8bd274d1cfff4ea0bf7efd16462da6b9"
+-		action: "Invoice"
+-		memo:"Invoice INV-001"
+ 2026-01-15 * "Acme"
+ 	guid: "e9f4cd71a1654c3892617378208b0a5d"
+ 	txn_type: P
+@@ -109,3 +88,4 @@
+ 		guid: "5e357283d8064644a943511fca0ce2d7"
+ 		action: "Payment"
+ 		memo:"Payment INV-001 (first)"
++		lot_owner: customer:C001:1b2e08a278fc49f6a7c37fc83d3bd5ce

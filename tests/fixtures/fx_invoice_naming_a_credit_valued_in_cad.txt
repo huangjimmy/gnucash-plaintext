@@ -1,0 +1,25 @@
+invoice "INV-USD-SPLITS-A-CREDIT"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "More consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 40
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-SPLITS-A-CREDIT"
+		accumulate: true
+	payment:
+		amount: 100.00
+		from_credit: true
+		credit_dated: 2026-02-25
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

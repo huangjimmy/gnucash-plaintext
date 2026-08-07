@@ -26,6 +26,17 @@ echo ""
 # Create temp directory for workspace copies
 TEMP_BASE=$(mktemp -d -t gnucash-test-XXXXXX)
 echo "Temp workspace: $TEMP_BASE"
+
+# With GNC_COVERAGE set, every container writes its coverage data into one
+# shared directory, under a name of its own, so ten of them can write side by
+# side and `coverage combine` adds them up afterwards. The union is the only
+# figure worth gating on: version-specific paths run on the distributions that
+# have those versions and nowhere else.
+if [ -n "$GNC_COVERAGE" ]; then
+    : "${GNC_COVERAGE_DIR:=$TEMP_BASE/cov}"
+    mkdir -p "$GNC_COVERAGE_DIR"
+    echo "Coverage data: $GNC_COVERAGE_DIR"
+fi
 echo ""
 
 # Cleanup function
@@ -94,12 +105,19 @@ run_test() {
 
     echo "[$version] Starting tests..." > "$log_file"
 
+    local cov_mount=() cov_args=""
+    if [ -n "$GNC_COVERAGE" ]; then
+        cov_mount=(-v "$GNC_COVERAGE_DIR:/cov" -e "COVERAGE_FILE=/cov/.coverage.$version")
+        cov_args=" --cov --cov-report= --cov-fail-under=0"
+    fi
+
     if docker run --rm \
         --user "$(id -u):$(id -g)" \
         -e HOME=/tmp/home \
+        "${cov_mount[@]}" \
         -v "$workspace:/workspace" \
         gnucash-dev:$version \
-        sh -c "mkdir -p /tmp/home/.local && cd /workspace && python3 -m pip install -e '.[dev]' -q --break-system-packages --user && PATH=/tmp/home/.local/bin:\$PATH pytest tests/ -v --tb=short" \
+        sh -c "mkdir -p /tmp/home/.local && cd /workspace && python3 -m pip install -e '.[dev]' -q --break-system-packages --user && PATH=/tmp/home/.local/bin:\$PATH pytest tests/ -v --tb=short$cov_args" \
         >> "$log_file" 2>&1; then
         echo "[$version] ✓ PASSED" >> "$log_file"
         return 0
@@ -111,7 +129,7 @@ run_test() {
 
 # Export function for parallel execution
 export -f run_test
-export TEMP_BASE
+export TEMP_BASE GNC_COVERAGE GNC_COVERAGE_DIR
 
 # Run tests in parallel using background jobs
 echo "Running tests in parallel..."

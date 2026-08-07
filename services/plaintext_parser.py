@@ -147,7 +147,7 @@ class DirectiveType(Enum):
     # OPEN_ACCOUNT on AR/AP accounts that hold an open prepayment lot.
     # Informational: the exporter recomputes and emits it from the live
     # lots; the importer does not act on it (the authoritative data is the
-    # per-split lot_owner markers, which rebuild the lots).
+    # per-split lot_owner KVPs, which rebuild the lots).
     OPEN_PREPAYMENT = 17
 
     # Q-028: book-level seller/company identity (Company Name, Company ID,
@@ -405,8 +405,15 @@ class PlaintextParser:
 # Regex patterns for parsing different line types
 transaction_pattern1 = r'^(\d{4}-\d{2}-\d{2})\s+\*\s*$'
 transaction_pattern2 = r'^(\d{4}-\d{2}-\d{2})\s+\*\s+("(?:\\.|[^"])*?"|\{.*?\})(?:\s("(?:\\.|[^"])*?"|\{.*?\}))?\s*$'
-split_pattern = r'^\s*([^"]*?)\s+([+|-]*\d+(?:\.\d+)?)\s+([^ ]+)\s*$'
-split_pattern2 = r'^\s*([^"]*?)\s+([+|-]*\d+(?:\.\d+)?)\s+("[^"]+")\s*$'
+# A split's amount is a number, or the literal `$residual$` — a request for
+# whatever the other splits of the transaction leave over (Q-035). It is a
+# token rather than an omitted amount so that a truncated line can never
+# silently become a residual split, and sigil-delimited so `residual` stays
+# usable as an account name or a commodity.
+RESIDUAL_AMOUNT = '$residual$'
+_amount_re = r'(?:[+|-]*\d+(?:\.\d+)?|\$residual\$)'
+split_pattern = r'^\s*([^"]*?)\s+(' + _amount_re + r')\s+([^ ]+)\s*$'
+split_pattern2 = r'^\s*([^"]*?)\s+(' + _amount_re + r')\s+("[^"]+")\s*$'
 metadata_pattern = r'^\s*([a-z_][a-zA-Z0-9_\-.]*)\s*:\s*(.*?)\s*$'
 commodity_pattern = r'^\s*(\d{4}-\d{2}-\d{2})\s+(commodity)\s+([^"\']*)\s*$'
 open_account_pattern = r'^\s*(\d{4}-\d{2}-\d{2})\s+(open)\s+([^"]*)\s*([^"\']*)\s*$'

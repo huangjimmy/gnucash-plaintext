@@ -1,0 +1,41 @@
+# A plain CAD receipt, a customer, and a USD receivable waiting beside it.
+#
+# The test that uses this rewrites the receipt into the customer's USD
+# prepayment — the money arrived as CAD, so the receivable credit is the only
+# record of the currency owed — and re-imports it with `--strategy update`.
+# The credit is a prepayment because it sits in an owner lot no document owns,
+# and `lot_owner:` is what puts it there, so an update that drops that line
+# leaves a split the same file would have made a cost basis through `--new`.
+#
+# Verified by tests/integration/test_update_strategy_respects_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+2026-02-01 * "To be corrected into a customer prepayment"
+	currency.mnemonic: "CAD"
+	Assets:Bank 137.00 CAD
+		account.commodity.mnemonic: "CAD"
+	Income:Sales -137.00 CAD
+		account.commodity.mnemonic: "CAD"

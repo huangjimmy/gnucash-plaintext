@@ -27,6 +27,7 @@ from typing import Optional
 
 import click
 
+from infrastructure.gnucash.utils import money_text
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.fx_rates import FxRates, MissingFxRateError
 from use_cases.account_balance import AccountBalanceUseCase
@@ -41,9 +42,13 @@ def _parse_date(ctx, param, value: Optional[str]) -> Optional[date]:
         raise click.BadParameter(f"Date must be in YYYY-MM-DD format, got: {value}") from e
 
 
-def _format_amount(amount) -> str:
-    """Format a Fraction as a decimal string with 2 decimal places."""
-    return f"{float(amount):.2f}"
+def _format_amount(amount, unit: int) -> str:
+    """A balance at its own currency's decimals — 1200.00 CAD, 103 JPY.
+
+    Exact: the figure reaches that unit through GnuCash's rounding, never a
+    float whose nearest double sits a cent below the half.
+    """
+    return money_text(amount, unit)
 
 
 @click.command("account-balance")
@@ -180,7 +185,7 @@ def account_balance(
     date_str = as_of.strftime("%Y-%m-%d")
     lines.append(f"{date_str} balance")
     for bal in result.balances:
-        amount_str = _format_amount(bal.amount)
+        amount_str = _format_amount(bal.amount, bal.unit)
         lines.append(f"\t{bal.account_path}  {amount_str} {bal.currency}")
         if bal.share_price is not None and bal.original_amount is not None:
             # Show exchange rate and original amount, matching the transaction plaintext format
@@ -188,7 +193,9 @@ def account_balance(
                 f"\t\tshare_price: \"{bal.share_price.numerator}/{bal.share_price.denominator}\""
             )
             lines.append(
-                f"\t\toriginal: \"{_format_amount(bal.original_amount)} {bal.original_currency}\""
+                f"\t\toriginal: \""
+                f"{_format_amount(bal.original_amount, bal.original_unit)} "
+                f"{bal.original_currency}\""
             )
 
     output = "\n".join(lines) + "\n"

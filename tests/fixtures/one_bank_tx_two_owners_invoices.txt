@@ -1,0 +1,53 @@
+invoice "INV-TWO-A"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service A"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWO-A"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_A"
+		memo: "Portion for Alpha"
+
+invoice "INV-TWO-B"
+	customer_id: "C-TWO-B"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 120
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWO-B"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: 120
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_B"
+		memo: "Portion for Beta"

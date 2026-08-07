@@ -1,0 +1,36 @@
+# A receivable kept only to the tenth, and a document owed a figure finer
+# than that. Rounding what the credit takes to the nearest tenth rounds it
+# up — 30.05 owed becomes 30.10 taken — and the lot lands past zero, which is
+# the state dividing a credit exists to avoid. Taking the tenth below leaves
+# the document open for the difference, which is what it is owed.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 10
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-COARSE"
+	name: "Coarse Co"
+	currency: CAD
+
+2026-01-10 * "Coarse Co pays ahead"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
+		lot_owner: "customer:C-COARSE"

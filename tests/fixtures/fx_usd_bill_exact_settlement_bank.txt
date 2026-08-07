@@ -1,0 +1,7 @@
+# The payment already in the book, for exactly what the bill is owed. Money
+# leaves the USD bank and lands on the payable, which on this side is a debit —
+# the opposite of the receivable case, and the whole reason this pair exists.
+2026-02-25 * "US Vendor — payment for BILL-USD-RETARGET"
+  Assets:Bank:USD  -100.00 USD
+    memo: "Payment for BILL-USD-RETARGET"
+  Liabilities:Accounts Payable USD  100.00 USD

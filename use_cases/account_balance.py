@@ -22,10 +22,11 @@ With --fx-rates: pricedb is updated for changed rates before balances are comput
 """
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from fractions import Fraction
 from typing import List, Optional
 
+from infrastructure.gnucash.utils import numeric_to_fraction
 from repositories.gnucash_repository import GnuCashRepository
 from services.fx_rates import FxRates, MissingFxRateError
 
@@ -36,9 +37,14 @@ class AccountBalance:
     account_path: str
     amount: Fraction
     currency: str
+    # How finely `currency` divides, as GnuCash records it on the commodity:
+    # 100 where there are hundredths, 1 for a currency with no minor unit. The
+    # balance is rendered at this, not at an assumed two decimals.
+    unit: int = 100
     # Set when FX conversion was applied on a non-CAD leaf account
     original_amount: Optional[Fraction] = None
     original_currency: Optional[str] = None
+    original_unit: int = 100
     share_price: Optional[Fraction] = None  # rate: 1 original_currency = share_price CAD
 
 
@@ -55,6 +61,13 @@ class AccountBalanceResult:
 # ---------------------------------------------------------------------------
 # Account tree helpers
 # ---------------------------------------------------------------------------
+
+def _currency_unit(root, mnemonic: str) -> int:
+    """How finely a currency divides, per GnuCash's commodity table."""
+    table = root.get_book().get_table()
+    commodity = table.lookup("CURRENCY", mnemonic)
+    return commodity.get_fraction() if commodity is not None else 100
+
 
 def _get_account_path(account) -> str:
     """Build full colon-separated path for an account."""
@@ -133,16 +146,16 @@ def _get_all_currencies(account) -> set:
 
 
 def _get_direct_balance(account, as_of: date) -> Fraction:
-    """Sum splits directly in this account (not children) up to and including as_of."""
-    balance = Fraction(0)
-    for split in account.GetSplitList():
-        tx = split.GetParent()
-        tx_date_raw = tx.GetDate()
-        tx_date_obj = date(tx_date_raw.year, tx_date_raw.month, tx_date_raw.day)
-        if tx_date_obj <= as_of:
-            value = split.GetValue()
-            balance += Fraction(value.num(), value.denom())
-    return balance
+    """This account's own balance (not its children's) through `as_of`.
+
+    GnuCash keeps it, in the account's own commodity — asking the engine
+    avoids a second implementation of the same arithmetic, and with it the
+    mistake of adding split *values*, which are stated in each transaction's
+    currency rather than the account's.
+    """
+    # The engine's balance stops before the day it is given; `as_of` includes it.
+    return numeric_to_fraction(
+        account.GetBalanceAsOfDate(as_of + timedelta(days=1)))
 
 
 def _get_recursive_balance_cad(account, as_of: date, get_rate) -> Fraction:
@@ -275,7 +288,11 @@ class AccountBalanceUseCase:
         explicit_rate_fn = None
         if fx_rates is not None:
             def explicit_rate_fn(currency: str) -> Fraction:
-                return Fraction(fx_rates.get_rate(currency)).limit_denominator(1_000_000)
+                # The rate the user wrote, exactly. Going through a float and
+                # back — `Fraction(float).limit_denominator(...)` — turns 1.35
+                # into whatever rational happens to be nearest the double, and
+                # every balance converted with it inherits that.
+                return fx_rates.rate_fraction(currency)
 
         # Pricedb rate function, built lazily on first multi-currency account encountered
         pricedb_rate_fn = None
@@ -284,8 +301,11 @@ class AccountBalanceUseCase:
         first_account_cad: Optional[Fraction] = None   # with prefix: matched account balance
         top_level_cad = Fraction(0)                     # no prefix: sum of root children
 
+        cad_unit = _currency_unit(root, "CAD")
+
         for account in accounts:
             currency = account.GetCommodity().get_mnemonic()
+            unit = account.GetCommodity().get_fraction()
             all_currencies = _get_all_currencies(account)
             needs_fx = len(all_currencies) > 1
 
@@ -307,8 +327,10 @@ class AccountBalanceUseCase:
                         account_path=_get_account_path(account),
                         amount=cad_balance,
                         currency="CAD",
+                        unit=cad_unit,
                         original_amount=direct,
                         original_currency=currency,
+                        original_unit=unit,
                         share_price=rate,
                     ))
                 else:
@@ -316,6 +338,7 @@ class AccountBalanceUseCase:
                         account_path=_get_account_path(account),
                         amount=cad_balance,
                         currency="CAD",
+                        unit=cad_unit,
                     ))
 
             elif needs_fx:
@@ -327,6 +350,7 @@ class AccountBalanceUseCase:
                     account_path=_get_account_path(account),
                     amount=cad_balance,
                     currency="CAD",
+                    unit=cad_unit,
                 ))
 
             else:
@@ -336,6 +360,7 @@ class AccountBalanceUseCase:
                     account_path=_get_account_path(account),
                     amount=balance,
                     currency=currency,
+                    unit=unit,
                 ))
 
         # consolidated_cad: balance of the top-level shown account(s) in CAD.
@@ -409,23 +434,23 @@ class AccountBalanceUseCase:
             if commodity is None:
                 continue
 
-            new_rate = fx_rates.get_rate(currency_code)
+            new_rate = fx_rates.rate_fraction(currency_code)
 
-            # Compare against existing latest price to avoid duplicate entries
+            # Compare against existing latest price to avoid duplicate entries.
+            # Both sides are exact rationals, so "already this rate" is an
+            # equality, not a comparison against an epsilon.
             existing = gnc_pricedb_lookup_latest(
                 pricedb, commodity.instance, cad_commodity.instance
             )
             needs_update = True
             if existing is not None:
                 existing_val = lib.gnc_price_get_value(int(existing))
-                if existing_val.denom != 0:
-                    existing_rate = existing_val.num / existing_val.denom
-                    if abs(existing_rate - new_rate) < 1e-9:
-                        needs_update = False
+                if (existing_val.denom != 0
+                        and numeric_to_fraction(existing_val) == new_rate):
+                    needs_update = False
 
             if needs_update:
-                frac = Fraction(new_rate).limit_denominator(1_000_000)
-                gnc_val = GncNumeric(frac.numerator, frac.denominator)
+                gnc_val = GncNumeric(new_rate.numerator, new_rate.denominator)
 
                 price = gnc_price_create(book_instance)
                 # commodity/currency/value require raw SwigPyObject (.instance)

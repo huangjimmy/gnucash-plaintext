@@ -130,6 +130,10 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncTaxTableEntryGetAccount',
             'gncTaxTableEntryGetAmount',
             'xaccAccountGetName',
+            'xaccAccountGetCommodity',
+            'xaccAccountGetCommoditySCU',
+            'xaccSplitGetAccount',
+            'xaccAccountGetType',
             'gnc_account_get_parent',
             'gncEntryGetDescription',
             'gncEntryGetAction',
@@ -139,6 +143,29 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncEntryGetBillTaxable',
             'gncEntryGetBillTaxIncluded',
             'gncEntryGetBillTaxTable',
+            # Whose money a payment split is. A payment block reaches a split
+            # by guid, and without these there is no way to tell one owner's
+            # money from another's — so a book would import with the check
+            # that stops a customer's credit settling somebody else's invoice
+            # quietly doing nothing. Failing here, before a book is opened,
+            # is the whole point: the alternative is a file that imports
+            # clean and reads as though it had been checked.
+            'gncOwnerGetOwnerFromLot',
+            'gncOwnerGetOwnerFromTxn',
+            'gncOwnerGetID',
+            'gncOwnerGetType',
+            'gncOwnerGetGUID',
+            'guid_to_string_buff',
+            # Dividing a payment bigger than the document it settles. Absent,
+            # an overpayment would take the document's own lot past zero and
+            # leave the owner's money where nothing can spend it.
+            'xaccSplitSetAccount',
+            'gnc_lot_new',
+            'xaccAccountInsertLot',
+            'gnc_lot_add_split',
+            'gncOwnerInitCustomer',
+            'gncOwnerInitVendor',
+            'gncOwnerAttachToLot',
         ]
 
     missing = [f for f in required_functions if not hasattr(lib, f)]
@@ -170,6 +197,33 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncTaxTableEntryGetType.argtypes       = [ctypes.c_void_p]
     lib.gncTaxTableEntryGetAmount.restype      = GncNumericC
     lib.gncTaxTableEntryGetAmount.argtypes     = [ctypes.c_void_p]
+    # ── Owner ────────────────────────────────────────────────────────────────
+    # Whose money a lot or a payment transaction holds. Set here with every
+    # other signature rather than at each call: an argtypes line that lives
+    # beside its caller is one a second caller does without, and a pointer
+    # passed without argtypes is truncated to 32 bits on x86_64.
+    lib.gncOwnerGetOwnerFromLot.restype        = ctypes.c_int
+    lib.gncOwnerGetOwnerFromLot.argtypes       = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncOwnerGetOwnerFromTxn.restype        = ctypes.c_int
+    lib.gncOwnerGetOwnerFromTxn.argtypes       = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncOwnerGetID.restype                  = ctypes.c_char_p
+    lib.gncOwnerGetID.argtypes                 = [ctypes.c_void_p]
+    lib.gncOwnerGetType.restype                = ctypes.c_int
+    lib.gncOwnerGetType.argtypes               = [ctypes.c_void_p]
+    lib.gncOwnerGetGUID.restype                = ctypes.c_void_p
+    lib.gncOwnerGetGUID.argtypes               = [ctypes.c_void_p]
+    lib.guid_to_string_buff.restype            = ctypes.c_char_p
+    lib.guid_to_string_buff.argtypes           = [ctypes.c_void_p, ctypes.c_char_p]
+    # Putting an owner on a lot: a credit's lot is where the book records whose
+    # money it is, and a lot without one is money nothing can apply or refund.
+    # A GncOwner has to be built from the Customer/Vendor first — handing the
+    # raw pointer to gncOwnerAttachToLot is a silent no-op.
+    lib.gncOwnerInitCustomer.restype           = None
+    lib.gncOwnerInitCustomer.argtypes          = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncOwnerInitVendor.restype             = None
+    lib.gncOwnerInitVendor.argtypes            = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncOwnerAttachToLot.restype            = None
+    lib.gncOwnerAttachToLot.argtypes           = [ctypes.c_void_p, ctypes.c_void_p]
     # ── Account ──────────────────────────────────────────────────────────────
     lib.xaccAccountGetName.restype             = ctypes.c_char_p
     lib.xaccAccountGetName.argtypes            = [ctypes.c_void_p]
@@ -201,6 +255,60 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncEntryGetBillTaxIncluded.argtypes    = [ctypes.c_void_p]
     lib.gncEntryGetBillTaxTable.restype        = ctypes.c_void_p
     lib.gncEntryGetBillTaxTable.argtypes       = [ctypes.c_void_p]
+    # ── Split, transaction and lot ───────────────────────────────────────────
+    # Lots are how this project reads and writes ownership of money: a credit
+    # sits in a lot of the owner's, a settlement in one the document owns, and
+    # dividing a payment that covers more than its document owes moves one into
+    # the other. Declared here for the reason the owner lookups above are — a
+    # signature that lives beside its caller is one the next caller does
+    # without, and a pointer passed with no argtypes is truncated to 32 bits on
+    # x86_64, which segfaults rather than failing.
+    #
+    # Declared once, so two callers cannot disagree about the same symbol: the
+    # handle is cached process-wide, so a second, different declaration is not
+    # a local choice — it rewrites what every earlier caller is holding.
+    lib.xaccSplitSetAccount.restype            = None
+    lib.xaccSplitSetAccount.argtypes           = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.xaccSplitGetParent.restype             = ctypes.c_void_p
+    lib.xaccSplitGetParent.argtypes            = [ctypes.c_void_p]
+    lib.xaccSplitGetAmount.restype             = GncNumericC
+    lib.xaccSplitGetAmount.argtypes            = [ctypes.c_void_p]
+    lib.xaccTransGetDate.restype               = ctypes.c_int64
+    lib.xaccTransGetDate.argtypes              = [ctypes.c_void_p]
+    lib.gnc_lot_new.restype                    = ctypes.c_void_p
+    lib.gnc_lot_new.argtypes                   = [ctypes.c_void_p]
+    # Read by nobody, so `None` is right whether the C function returns void or
+    # a gboolean — where declaring an int for a void function reads whatever
+    # the return register happened to hold.
+    lib.gnc_lot_add_split.restype              = None
+    lib.gnc_lot_add_split.argtypes             = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gnc_lot_get_balance.restype            = GncNumericC
+    lib.gnc_lot_get_balance.argtypes           = [ctypes.c_void_p]
+    lib.gnc_lot_is_closed.restype              = ctypes.c_int
+    lib.gnc_lot_is_closed.argtypes             = [ctypes.c_void_p]
+    lib.gnc_lot_get_earliest_split.restype     = ctypes.c_void_p
+    lib.gnc_lot_get_earliest_split.argtypes    = [ctypes.c_void_p]
+    lib.xaccAccountInsertLot.restype           = None
+    lib.xaccAccountInsertLot.argtypes          = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.xaccAccountGetLotList.restype          = ctypes.c_void_p
+    lib.xaccAccountGetLotList.argtypes         = [ctypes.c_void_p]
+    # A split's amount is in its *account's* commodity, which is not the
+    # transaction's on a foreign document settled from a base-currency bank.
+    lib.xaccAccountGetCommodity.restype        = ctypes.c_void_p
+    lib.xaccAccountGetCommodity.argtypes       = [ctypes.c_void_p]
+    # And the unit that account is kept to, which is not the commodity's
+    # fraction wherever `commodity_scu:` says otherwise.
+    lib.xaccAccountGetCommoditySCU.restype     = ctypes.c_int
+    lib.xaccAccountGetCommoditySCU.argtypes    = [ctypes.c_void_p]
+    # Which account a split is on, and what kind it is — asked of every split
+    # of every transaction on the way out, to find the few on a receivable or
+    # payable before anything more expensive is read off them.
+    lib.xaccSplitGetAccount.restype            = ctypes.c_void_p
+    lib.xaccSplitGetAccount.argtypes           = [ctypes.c_void_p]
+    lib.xaccAccountGetType.restype             = ctypes.c_int
+    lib.xaccAccountGetType.argtypes            = [ctypes.c_void_p]
+    lib.gncInvoiceGetInvoiceFromLot.restype    = ctypes.c_void_p
+    lib.gncInvoiceGetInvoiceFromLot.argtypes   = [ctypes.c_void_p]
 
 
 @lru_cache(maxsize=1)

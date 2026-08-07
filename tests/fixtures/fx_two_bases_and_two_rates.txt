@@ -1,0 +1,65 @@
+# One transaction bringing USD into two accounts, priced through two CAD
+# splits whose own ratios differ.
+#
+# The rate belongs to the transaction, not to either basis: both USD splits
+# are priced through the same CAD lines, so both cost the same, and that cost
+# is the aggregate of those lines rather than whichever is read first.
+#
+# What this fixture produces: two cost bases, both at 150.00 CAD over 108.00
+# USD.
+#
+# Verified by tests/integration/test_verify_costs.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Cash
+	type: Cash
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Cash:USD
+	type: Cash
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank Fees
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "100 USD into two accounts, with a CAD fee at another rate"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 60.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "60.00"
+	Assets:Cash:USD 40.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "40.00"
+	Assets:Bank:USD -8.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "-8.00"
+	Income:Sales -140.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "-100.00"
+	Expenses:Bank Fees 10.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "8.00"

@@ -1,0 +1,61 @@
+# One USD transaction whose two CAD splits were entered at different rates.
+#
+# A transaction stated in a foreign currency is priced through its splits on
+# base-currency accounts: their CAD over the foreign currency they are worth.
+# Here the revenue says 140.00 CAD for 100.00 USD — 1.4 — and the fee says
+# 10.00 CAD for 8.00 USD, which is 1.25.
+#
+# What this fixture produces: the book imports — it is balanced and
+# well-formed, and refusing it would be refusing a book GnuCash holds happily
+# — and the basis costs 150.00 over 108.00, the aggregate, whichever CAD
+# split is read first. No verdict is passed on the two figures: the same
+# shape arises from rounding alone (see fx_usd_invoice_with_tax.txt), and
+# nothing in the rounded amounts separates the two cases. Rates run forward
+# into figures; the figures do not run back into rates.
+#
+# Verified by tests/integration/test_verify_costs.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank Fees
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "100 USD in, with a CAD fee converted at another rate"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1"
+		value: "100.00"
+	Assets:Bank:USD -8.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1"
+		value: "-8.00"
+	Income:Sales -140.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "-100.00"
+	Expenses:Bank Fees 10.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "8.00"

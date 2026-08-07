@@ -1,0 +1,34 @@
+# A third invoice naming, by guid, the split that already settles Alpha's.
+#
+# This is the advice the refusals give — "name it outright with
+# `txn_split_guid:` and unpick what it is settling now" — followed without
+# doing the unpicking. Taken, this invoice reads as paid and Alpha's reads as
+# unpaid, with every figure in the book still balancing, which is the harm the
+# bare spelling is guarded against; naming the split cannot be the way round
+# that guard.
+invoice "INV-TWO-A-THIRD"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Service A once more"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-02
+		due: 2026-07-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWO-A-THIRD"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_A"
+		memo: "Portion for Alpha"

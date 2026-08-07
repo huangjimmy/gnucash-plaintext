@@ -1,0 +1,17 @@
+# Sell 100 USD held at 1.40 for 139.00 CAD: a 1.00 CAD loss.
+# The USD split is valued at the cost of the basis it picks (140.00 CAD), the
+# CAD split states what the sale fetched (139.00), and $residual$ takes the
+# difference. {basis_guid} is filled in from `fx-balances`.
+2026-03-01 * "Sell 100 USD"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "-140.00"
+		cost_basis_split_guid: "{basis_guid}"
+	Assets:Bank 139.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "139.00"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

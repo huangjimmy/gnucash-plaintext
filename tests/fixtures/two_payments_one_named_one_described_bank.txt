@@ -1,0 +1,4 @@
+2026-10-15 * "Acme — instalment for INV-TWO-ALIKE"
+  Assets:Bank  50.00 CAD
+    memo: "Instalment"
+  Assets:Accounts Receivable  -50.00 CAD

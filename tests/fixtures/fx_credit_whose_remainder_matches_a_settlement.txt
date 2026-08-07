@@ -1,0 +1,70 @@
+# A 100.00 USD invoice paid with 250.00 USD out of a USD bank, leaving the
+# customer 150.00 of credit.
+#
+# The shape this exists for: when a later 50.00 invoice takes 50.00 of that
+# credit, the carved remainder is 100.00 — the same size as the split that
+# settled this invoice, sitting in the same transaction. Anything picking the
+# remainder by size alone can reach the settlement first and hand it the
+# credit's balance and cost, leaving the customer's real remaining credit with
+# no balance at all: 150.00 USD reported against 250.00 held, and the credit
+# refused as a basis for having no tracked balance.
+#
+# Verified by tests/integration/test_applied_credit_carries_its_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-BIG-OVER"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-BIG-OVER"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 250
+		account: "Assets:Bank:USD"
+		prepayment: 150
+		memo: "Payment for INV-USD-BIG-OVER"

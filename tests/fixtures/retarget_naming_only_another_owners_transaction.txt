@@ -1,0 +1,29 @@
+customer "C-OTHER"
+	name: "Somebody Else"
+	currency: CAD
+
+invoice "INV-RETARGET-TXN-ONLY"
+	customer_id: "C-OTHER"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-RETARGET-TXN-ONLY"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 100.00
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		memo: "Paid in full"

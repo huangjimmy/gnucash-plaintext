@@ -390,7 +390,7 @@ it is auto-generated and not a source file.
 contains section headers and status comments (`;; ===== RESOLVED =====`,
 `[UNRESOLVED]`, etc.) that the existing `PlaintextParser` does not handle.
 Phase 2 reads `_reconcile.txt` with a dedicated `ReconcilePreviewReader` that
-strips comments and section markers before passing transactions to
+strips comments and section headers before passing transactions to
 `GnuCashFuzzyMatcher`. This reader is part of the new public repo components.
 
 Structure:

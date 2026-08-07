@@ -1,0 +1,32 @@
+--- exports/invoice_unposted.txt
++++ exports/invoice_reposted.txt
+@@ -73,9 +73,28 @@
+ 		price: 100
+ 		taxable: false
+ 		tax_included: false
+-	posted: none
++	posted:
++		date: 2026-01-01
++		due: 2026-01-31
++		ar_account: "Assets:Accounts Receivable"
++		memo: "Invoice INV-001"
++		posted_txn_guid: "7b5c7417400e48d6a2830b7bef68dcfa"
++		accumulate: true
+ 	payment: none
+ 
++2026-01-01 * "INV-001" "Invoice INV-001"
++	guid: "7b5c7417400e48d6a2830b7bef68dcfa"
++	txn_type: I
++	owner: customer:C001
++	business_generated: "true"
++	Assets:Accounts Receivable 100.00 CAD
++		guid: "52af1a5462d84ef889ccfa813ba122ac"
++		action: "Invoice"
++		memo:"Invoice INV-001"
++	Income:Sales -100.00 CAD
++		guid: "0e54026c1cf245ae9986198fba63e3fc"
++		action: "Invoice"
++		memo:"Invoice INV-001"
+ 2026-01-15 * "Acme"
+ 	guid: "e9f4cd71a1654c3892617378208b0a5d"
+ 	txn_type: P

@@ -1,0 +1,31 @@
+# A different invoice for the same customer, asking for whatever credit they
+# have, while another document's settlement sits loose from an unpost.
+#
+# `AutoApplyPayments` searches for open, documentless, owner-attached lots and
+# will take this one as readily as the rebuilt document's own — both name the
+# same customer. What it must not do is have a bank's payment written down as
+# a credit applied, which would take the account and the date it arrived by out
+# of the export and the basis off currency the bank still holds.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-GRABBER"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	auto_apply_credit: true
+	entry:
+		date: 2026-03-01
+		description: "Whatever is going"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-GRABBER"
+		accumulate: true

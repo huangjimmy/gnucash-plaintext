@@ -1,0 +1,32 @@
+# The bill, settled by naming the payment that pays it exactly. The payable
+# mirror of `fx_usd_invoice_settled_exactly_by_retarget.txt`, and the shape
+# where an unpost's mark is the only thing keeping the orphaned settlement from
+# reading as the vendor's credit.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+bill "BILL-USD-RETARGET"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Expenses:Consulting"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-RETARGET"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		bank_account: "Assets:Bank:USD"
+		txn_guid: "TXN_GUID"
+		memo: "Payment for BILL-USD-RETARGET"

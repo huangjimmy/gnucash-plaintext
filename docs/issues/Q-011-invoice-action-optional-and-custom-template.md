@@ -115,7 +115,7 @@ mostly a CLI-surface change.
 - Test re-import roundtrip: empty action → no action: line → empty
   action.
 - Test `--template <path>` overrides the embedded XSLT (use a stub
-  XSLT that emits a known marker).
+  XSLT that emits a known sentinel).
 
 ## Out of scope
 

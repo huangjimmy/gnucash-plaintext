@@ -18,6 +18,7 @@ and in the **Status** column below.
 | [T-006](T-006-fx-rates-yaml-error-paths-untested.md) | FX rates YAML error paths are untested | low | closed |
 | [T-007](T-007-plaintext-parser-edge-cases-untested.md) | Plaintext parser edge cases are not tested | medium | closed |
 | [T-008](T-008-tax-included-and-payment-reconciliation-coverage.md) | tax_included pricing untested; bill tax flags not persisted; payment/credit reconciliation gaps | high | open |
+| [T-009](T-009-line-and-branch-coverage-is-not-measured-or-gated.md) | Coverage is measured by nothing, so unreachable code is found by review; ctypes signatures declared per-caller | high | open |
 
 ## Security
 
@@ -34,11 +35,11 @@ and in the **Status** column below.
 | [F-002](F-002-balance-sheet-command-missing.md) | No balance-sheet command | enhancement | closed |
 | [F-003](F-003-export-date-range-filter-missing.md) | export command has no date-range filter | enhancement | closed |
 | [F-004](F-004-no-search-find-transaction-command.md) | No search / find-transaction command | enhancement | closed |
-| [F-005](F-005-data-models-and-provider-protocol.md) | Statement import: data models and StatementProvider protocol | feature | closed |
-| [F-006](F-006-statement-reconciler.md) | Statement import: StatementReconciler (depends on F-005) | feature | closed |
-| [F-007](F-007-writer-and-preview-reader.md) | Statement import: ReconcilePreviewWriter and ReconcilePreviewReader (depends on F-006) | feature | closed |
-| [F-008](F-008-gnucash-fuzzy-matcher.md) | Statement import: GnuCashFuzzyMatcher (depends on F-007) | feature | closed |
-| [F-009](F-009-ready-to-import-writer.md) | Statement import: ReadyToImportWriter and end-to-end test (depends on F-008) | feature | closed |
+| [F-005](F-005-data-models-and-provider-protocol.md) | Statement import: data models and StatementProvider protocol | high | closed |
+| [F-006](F-006-statement-reconciler.md) | Statement import: StatementReconciler (depends on F-005) | high | closed |
+| [F-007](F-007-writer-and-preview-reader.md) | Statement import: ReconcilePreviewWriter and ReconcilePreviewReader (depends on F-006) | high | closed |
+| [F-008](F-008-gnucash-fuzzy-matcher.md) | Statement import: GnuCashFuzzyMatcher (depends on F-007) | high | closed |
+| [F-009](F-009-ready-to-import-writer.md) | Statement import: ReadyToImportWriter and end-to-end test (depends on F-008) | high | closed |
 | [F-010](F-010-kvp-metadata-all-object-types.md) | KVP custom metadata for all GnuCash object types | high | closed |
 | [F-011](F-011-customer-active-delete.md) | Customer/vendor active flag round-trip and safe deletion | high | closed |
 
@@ -63,7 +64,7 @@ and in the **Status** column below.
 | [Q-015](Q-015-incremental-payment-reimport-rebuilds-destructively.md) | Incremental + overpayment + credit-consumption payment workflows on re-import | high | closed |
 | [Q-016](Q-016-full-guid-emission-and-import-order-for-payment-roundtrip.md) | Full GUID emission and import-order swap for clean payment roundtrip | high | closed |
 | [Q-017](Q-017-print-invoice-plaintext-format-and-multi-invoice.md) | `print-invoice` plaintext format with tax totals; multi-invoice selection | low | closed |
-| [Q-018](Q-018-cash-basis-invoice-marker.md) | `cash_basis: true` invoice marker for cash-basis tax filing | low | closed |
+| [Q-018](Q-018-cash-basis-invoice-kvp.md) | `cash_basis: true` invoice KVP for cash-basis tax filing | low | closed |
 | [Q-019](Q-019-draft-tax-render-and-two-sided-bill-rendering.md) | Draft tax breakdown + `print-bill` + two-sided rendering with company info | medium | closed |
 | [Q-020](Q-020-num-only-roundtrip-and-import-dedup-signature.md) | Num-only roundtrip relabels Num as Description; `import_from_file` dedup ignores `doc_link` / `tx_num` / `owner` | high | open |
 | [Q-021](Q-021-return-of-credit-bad-debt-and-prepayment-clearing.md) | Return of credit (refund), bad-debt write-off, and prepayment clearing via `lot_owner` | high | closed |
@@ -79,3 +80,5 @@ and in the **Status** column below.
 | [Q-031](Q-031-migrate-batch-operations.md) | No batch operations or migrations — every surgical command is one-op-per-save | enhancement | closed |
 | [Q-032](Q-032-closing-entries-and-report.md) | Income statement breaks once books are closed; no balance sheet; no combined report | high | closed |
 | [Q-033](Q-033-natural-account-type-strings-rejected.md) | Natural Receivable/Payable account-type strings are rejected, silently dropping accounts | high | closed |
+| [Q-034](Q-034-uncached-ctypes-library-loads-degrade-import-performance.md) | Uncached ctypes library loads and account-name walks degrade import performance linearly with transaction count | medium | closed |
+| [Q-035](Q-035-usd-multi-currency-invoices-and-bills-unsupported.md) | No multi-currency support — foreign-currency invoices, bills, payments and conversions are written wrong, silently | high | closed |

@@ -27,7 +27,7 @@ from gnucash.gnucash_core_c import (
 
 from services.balance_sheet import _ASSET_TYPES, _LIABILITY_TYPES
 
-# Structural / non-posting markers — accounts never carry these in a real book.
+# Structural / non-posting types — accounts never carry these in a real book.
 _NON_POSTING_NAMES = {
     'ACCT_TYPE_INVALID', 'ACCT_TYPE_NONE', 'ACCT_TYPE_ROOT', 'ACCT_TYPE_LAST',
 }
@@ -38,7 +38,7 @@ _EARNINGS_TYPES = frozenset({ACCT_TYPE_INCOME, ACCT_TYPE_EXPENSE})
 
 def _all_posting_types():
     """Every ACCT_TYPE_* posting constant exposed by this gnucash build, as a
-    {name: value} map (structural markers excluded)."""
+    {name: value} map (structural types excluded)."""
     out = {}
     for name in dir(gc):
         if not name.startswith('ACCT_TYPE_') or name in _NON_POSTING_NAMES:

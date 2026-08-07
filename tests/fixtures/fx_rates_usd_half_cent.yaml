@@ -1,0 +1,5 @@
+# A rate whose products land on an exact half-cent: 45.00 USD at 1.405 is
+# 63.225 CAD. Used by fx_invoice_partial_settlement_half_cent.txt, whose header
+# shows what the half-cent becomes.
+USD/CAD:
+  2026-01-05: 1.405

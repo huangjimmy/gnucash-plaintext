@@ -1,0 +1,31 @@
+# A bare `txn_guid:` block whose `amount:` is not a number.
+#
+# Nothing parses that figure earlier on this spelling — the block names its
+# transaction and lets the importer find the split — so the first thing to read
+# it is the check that compares it against what the split carries. It says so
+# rather than failing somewhere further in with a figure nobody stated.
+invoice "INV-NOT-A-NUMBER"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-NOT-A-NUMBER"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: "one hundred"
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		memo: "Portion for Alpha"

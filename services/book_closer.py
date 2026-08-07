@@ -27,7 +27,7 @@ CLOSING_DESCRIPTION_PREFIX = "Closing entry"
 
 def is_closing_txn(tx) -> bool:
     """True if a transaction is a book-closing entry. GnuCash's authoritative
-    marker is the closing-transaction flag (`xaccTransGetIsClosingTxn`); the
+    signal is the closing-transaction flag (`xaccTransGetIsClosingTxn`); the
     legacy `"Closing entry ("` description is also accepted so closings created
     before the flag existed are still recognised. Used both to find closings to
     re-close and to exclude them from the income statement."""
@@ -63,8 +63,12 @@ class BookCloser:
             if date(tx_date.year, tx_date.month, tx_date.day) <= closing_date:
                 if exclude_guids and tx.GetGUID().to_string() in exclude_guids:
                     continue
-                value = split.GetValue()
-                total += Fraction(value.num(), value.denom())
+                # In the account's own currency — `GetAmount`, not `GetValue`,
+                # which states the split in the transaction's currency. A CAD
+                # income account credited by a USD invoice would otherwise
+                # close out the USD figure against a CAD equity account.
+                amount = split.GetAmount()
+                total += Fraction(amount.num(), amount.denom())
         return total
 
     def is_closed(self, root: Account, closing_date: date) -> bool:

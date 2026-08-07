@@ -9,11 +9,10 @@ and transactions.
 import logging
 from typing import Dict, List
 
-from gnucash import GncNumeric
-
 from repositories.gnucash_repository import GnuCashRepository
 from services.conflict_resolver import ConflictResolver, ResolutionStrategy
-from services.gnucash_importer import GnuCashImporter
+from services.foreign_currency import begin_import_run
+from services.gnucash_importer import GnuCashImporter, begin_lot_attachments
 from services.ledger_validator import LedgerValidator
 from services.plaintext_parser import DirectiveType, PlaintextParser
 from services.transaction_matcher import TransactionMatcher
@@ -237,19 +236,19 @@ class ImportTransactionsUseCase:
                 tx.Destroy()
                 raise ValueError(f"Account not found: {account_path}")
 
-            # Convert amount to GncNumeric
+            # Convert amount to GncNumeric. A number reaches the currency's
+            # smallest unit through GnuCash's own rounding: multiplying a float
+            # by 100 and truncating turns 0.07 into 6.999... and books 0.06,
+            # and truncation loses the half-cent that rounding would keep.
             amount = split_data['amount']
             if isinstance(amount, str):
                 from infrastructure.gnucash.utils import string_to_gnc_numeric
                 gnc_amount = string_to_gnc_numeric(amount, currency)
             else:
-                # Assume it's already a number, convert to GncNumeric
-                from decimal import Decimal
-                if isinstance(amount, Decimal):
-                    numerator = int(amount * currency.get_fraction())
-                else:
-                    numerator = int(float(amount) * currency.get_fraction())
-                gnc_amount = GncNumeric(numerator, currency.get_fraction())
+                from fractions import Fraction
+
+                from infrastructure.gnucash.utils import to_money
+                gnc_amount = to_money(Fraction(str(amount)), currency.get_fraction())
 
             split = Split(self.repository.book)
             split.SetParent(tx)
@@ -283,6 +282,14 @@ class ImportTransactionsUseCase:
             ImportResult with summary
         """
         result = ImportResult()
+
+        # Q-035: a cost basis whose available balance this file states is
+        # stating it net of the file's own sales; forget what the last file
+        # stated before reading this one.
+        begin_import_run()
+        # And which lots the last file attached splits to, which is what tells
+        # this one when a lot's own split list can be trusted.
+        begin_lot_attachments()
 
         # Parse the plaintext file using the new parser
         parser = PlaintextParser()

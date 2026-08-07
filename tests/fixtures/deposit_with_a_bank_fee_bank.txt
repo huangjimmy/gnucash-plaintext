@@ -1,0 +1,15 @@
+# A deposit that arrives net of a bank fee: 95.00 reaches the account, 5.00 is
+# charged, and the customer is credited with the full 100.00. Two splits are
+# not the bank's side, and only one of them is the payment.
+2026-01-01 open Expenses:Bank Fees
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-05 * "Acme — payment less the wire fee"
+	currency.mnemonic: "CAD"
+	Assets:Bank 95.00 CAD
+		memo: "Payment"
+	Expenses:Bank Fees 5.00 CAD
+		memo: "Wire fee"
+	Assets:Accounts Receivable -100.00 CAD

@@ -26,4 +26,4 @@ invoice "INV-RT-NOPRE-100"
 		amount: 150
 		bank_account: "Assets:Bank"
 		txn_guid: "{txn_guid}"
-		memo: "Trying to retarget oversize tx without prepayment marker"
+		memo: "Trying to retarget oversize tx without the prepayment field"

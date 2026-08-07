@@ -10,7 +10,7 @@ status: closed
 
 **1. Draft invoices lost their tax breakdown.** A cash-basis invoice (Q-018) doesn't post until cash arrives — and an accrual draft hasn't been posted yet either. Both render through the "is_draft" path, which historically (Q-012) emitted subtotal-only with no `<tax-lines>` and no grand total. For a Canadian small-business filer issuing a cash-basis invoice with GST/HST, this means the rendered PDF shows the wrong amount — line items only, no tax — exactly the case where tax detail matters most.
 
-**2. The plaintext renderer silently dropped seller info.** `render_to_plaintext(invoice, book, company_info=None)` accepted a `company_info=` parameter but never referenced it in its body — every rendered plaintext invoice came out with only the customer block, no "issued by" header. Customers receiving a plaintext invoice had no way to tell who sent it. The HTML/PDF path was correct (the XSLT renders a "From" block when book options carry Company Name), but the plaintext leg quietly bypassed it.
+**2. The plaintext renderer silently dropped seller info.** `render_to_plaintext(invoice, book, company_info=None)` accepted a `company_info=` parameter but never referenced it in its body — every rendered plaintext invoice came out with only the customer block, no "issued by" header. Customers receiving a plaintext invoice had no way to tell who sent it. The HTML/PDF path was correct (the XSLT renders a "From" block when book options carry Company Name), but the plaintext path quietly bypassed it.
 
 **3. Vendor bills had no renderer at all.** `cli/invoice_print_cmd.py:39` explicitly filters out vendor bills ("Customer invoices only — skip vendor bills"). There was no `print-bill` CLI command, no `bill.xslt`, no `bill_renderer.py`. Cash-basis bill audit-print — useful for reviewing what you've recorded against what the vendor sent — was simply not supported.
 
@@ -74,7 +74,7 @@ The generic GST 5% + PST 7% and single 10% Sales Tax tables (rather than Ontario
 | `tests/fixtures/q019_unposted_cash_bill.txt` | Cash-basis unposted bill, GST+PST combined tax. |
 | `tests/integration/test_q019_draft_tax_render.py` | Draft tax breakdown + re-import smoke. |
 | `tests/integration/test_q019_two_sided_render.py` | Two-sided HTML + plaintext seller header for invoice and bill, end-to-end through the CLI with real book options. |
-| `docs/issues/Q-018-cash-basis-invoice-marker.md` | Note that informational fields now ride along on every unposted invoice (cash-basis OR accrual draft). |
+| `docs/issues/Q-018-cash-basis-invoice-kvp.md` | Note that informational fields now ride along on every unposted invoice (cash-basis OR accrual draft). |
 | `docs/issues/Q-012-print-invoice-on-unposted-invoice-crashes.md` | Strike the "no per-tax breakdown" known limitation; note `print-bill` shipped. |
 
 ## Out of scope

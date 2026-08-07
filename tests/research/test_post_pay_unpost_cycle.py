@@ -1,9 +1,14 @@
 """
 Research harness for the invoice post → pay → unpost → re-post → re-pay cycle.
 
-Walks one invoice through six lifecycle states (A–F) and snapshots the full
-plaintext export after each, dropping the snapshots into the worktree's
-`exports/` directory for direct human inspection.
+Walks one invoice through its lifecycle — created, posted, paid, unposted,
+reposted, repaid — and snapshots the full plaintext export after each. Each
+snapshot is named for the state it captures, so a file says what it holds
+without a key.
+
+The snapshots the repo keeps for inspection live in `exports/`, and are
+rewritten only when asked for (see `exports_dir` below); an ordinary run puts
+them in a scratch directory.
 
 The test is *not* a behavioural specification — it intentionally exercises a
 scenario (re-pay after unpost) whose current behaviour may be surprising or
@@ -14,6 +19,12 @@ this run.
 Run with:
 
     ./scripts/test.sh latest tests/research/test_post_pay_unpost_cycle.py
+
+To refresh every committed snapshot, diff and dump under `exports/` — this
+harness, the bill one, and the orphan probe — run the whole directory with the
+writing switch on:
+
+    GNC_WRITE_EXPORTS=1 ./scripts/test.sh latest tests/research/
 """
 
 import os
@@ -27,7 +38,26 @@ from infrastructure.gnucash.utils import wrap_invoice_or_bill
 # Resolve the repo root from this test file's location so the path is correct
 # both inside Docker (/workspace/tests/research/...) and on the host.
 WORKTREE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-EXPORTS_DIR = os.path.join(WORKTREE, "exports")
+
+# Snapshots are committed, and refreshing them is deliberate: every run stamps
+# a fresh date and fresh GUIDs, so writing on each one would leave `exports/`
+# permanently modified and make a dirty worktree mean nothing. An ordinary test
+# run writes to a scratch directory instead; the docstring above gives the
+# command that updates what the repo holds.
+# `GNC_WRITE_EXPORTS=0` means don't, so the value is read rather than merely
+# tested for presence — `bool("0")` is True, and `scripts/test.sh` forwards
+# whatever the caller exported.
+WRITE_EXPORTS = os.environ.get("GNC_WRITE_EXPORTS", "").strip().lower() \
+    not in ("", "0", "false", "no")
+
+
+def exports_dir(scratch, *parts) -> str:
+    """Where this run's snapshots belong: the repo's `exports/` when asked for,
+    a scratch directory otherwise."""
+    target = (os.path.join(WORKTREE, "exports", *parts) if WRITE_EXPORTS
+              else os.path.join(str(scratch), "exports", *parts))
+    os.makedirs(target, exist_ok=True)
+    return target
 
 
 ACCOUNTS = """\
@@ -221,9 +251,34 @@ def _read_entry_guids(gnc_path, inv_id):
         ses.end()
 
 
-def _snapshot(runner, gnc, tmp_path, label):
-    """Export the full book (accounts + business objects + transactions)
-    and copy the resulting file into the worktree's exports/ directory.
+def _write_diffs(dest_dir, rel_dir, snapshots):
+    """Write the unified diff between each consecutive pair of snapshots.
+
+    `snapshots` is [(label, text), …] in lifecycle order; each diff lands as
+    `diff_<from state>_to_<to state>.patch`, naming the two states it spans.
+    `rel_dir` is where the snapshots live as a reader sees it, so the patch
+    headers name paths that exist.
+    """
+    import difflib
+
+    def state(label):
+        return label.split("_", 1)[1]          # invoice_posted → posted
+
+    for (from_label, from_text), (to_label, to_text) in zip(snapshots, snapshots[1:]):
+        patch = "".join(difflib.unified_diff(
+            from_text.splitlines(keepends=True),
+            to_text.splitlines(keepends=True),
+            fromfile=f"{rel_dir}/{from_label}.txt",
+            tofile=f"{rel_dir}/{to_label}.txt",
+        ))
+        name = f"diff_{state(from_label)}_to_{state(to_label)}.patch"
+        with open(os.path.join(dest_dir, name), "w") as handle:
+            handle.write(patch)
+
+
+def _snapshot(runner, gnc, tmp_path, dest_dir, label):
+    """Export the full book (accounts + business objects + transactions) and
+    keep the result as `<label>.txt` under `dest_dir`.
 
     Returns the snapshot text so the caller can assert on it.
     """
@@ -231,9 +286,7 @@ def _snapshot(runner, gnc, tmp_path, label):
     r = runner.invoke(cli, ["export", str(gnc), str(out),
                             "--include-business-objects"])
     assert r.exit_code == 0, f"export failed at {label}:\n{r.output}"
-    dest = os.path.join(EXPORTS_DIR, f"{label}.txt")
-    os.makedirs(EXPORTS_DIR, exist_ok=True)
-    shutil.copy(str(out), dest)
+    shutil.copy(str(out), os.path.join(dest_dir, f"{label}.txt"))
     return out.read_text()
 
 
@@ -241,6 +294,7 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     runner = CliRunner()
     gnc = tmp_path / "book.gnucash"
     entry_guid_trace = {}
+    snapshots = exports_dir(tmp_path)
 
     # ── Step A: create the unposted invoice ──────────────────────────────────
     fix_a = _write(tmp_path / "a.txt", ACCOUNTS + "\n" + INV_UNPOSTED)
@@ -249,7 +303,7 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     assert r.exit_code == 0, r.output
 
     entry_guid_trace["A"] = _read_entry_guids(str(gnc), "INV-001")
-    text_a = _snapshot(runner, gnc, tmp_path, "step_A_created")
+    text_a = _snapshot(runner, gnc, tmp_path, snapshots, "invoice_created")
     assert 'invoice "INV-001"' in text_a
     assert "posted: none" in text_a
     assert "payment: none" in text_a
@@ -261,7 +315,7 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     assert r.exit_code == 0, r.output
 
     entry_guid_trace["B"] = _read_entry_guids(str(gnc), "INV-001")
-    text_b = _snapshot(runner, gnc, tmp_path, "step_B_posted")
+    text_b = _snapshot(runner, gnc, tmp_path, snapshots, "invoice_posted")
     assert "posted:" in text_b and "posted: none" not in text_b
     # Posting creates the AR/Income transaction.
     assert "Assets:Accounts Receivable" in text_b
@@ -275,7 +329,7 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     assert r.exit_code == 0, r.output
 
     entry_guid_trace["C"] = _read_entry_guids(str(gnc), "INV-001")
-    text_c = _snapshot(runner, gnc, tmp_path, "step_C_paid")
+    text_c = _snapshot(runner, gnc, tmp_path, snapshots, "invoice_paid")
     # The payment tx hits Bank with -100 and AR with +100 (or symmetric).
     assert "Assets:Bank" in text_c
     # Both the posting and payment transactions live in the book; quick sanity:
@@ -297,7 +351,7 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     assert "CAD 100.00" in r.output
 
     entry_guid_trace["D"] = _read_entry_guids(str(gnc), "INV-001")
-    text_d = _snapshot(runner, gnc, tmp_path, "step_D_unposted")
+    text_d = _snapshot(runner, gnc, tmp_path, snapshots, "invoice_unposted")
     assert "posted: none" in text_d, (
         "Invoice must be in `posted: none` state after unpost-invoices.\n"
         f"Got:\n{text_d}"
@@ -312,7 +366,7 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     assert r.exit_code == 0, r.output
 
     entry_guid_trace["E"] = _read_entry_guids(str(gnc), "INV-001")
-    text_e = _snapshot(runner, gnc, tmp_path, "step_E_reposted")
+    text_e = _snapshot(runner, gnc, tmp_path, snapshots, "invoice_reposted")
     assert "posted:" in text_e and "posted: none" not in text_e
     # The re-posted invoice should once again have an AR posting transaction.
     assert "Invoice INV-001" in text_e
@@ -324,12 +378,24 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     assert r.exit_code == 0, r.output
 
     entry_guid_trace["F"] = _read_entry_guids(str(gnc), "INV-001")
-    text_f = _snapshot(runner, gnc, tmp_path, "step_F_repaid")
+    text_f = _snapshot(runner, gnc, tmp_path, snapshots, "invoice_repaid")
     # The crucial question: does the orphan bank split from step C survive,
     # giving two bank-side -100 entries (Jan 15 and Feb 15)?
     assert "2026-01-15" in text_f or "2026-02-15" in text_f
 
     # Drop the entry-GUID trace into exports/ so the research doc can quote it.
     import json
-    with open(os.path.join(EXPORTS_DIR, "entry_guid_trace.json"), "w") as f:
+    with open(os.path.join(snapshots, "invoice_entry_guid_trace.json"), "w") as f:
         json.dump(entry_guid_trace, f, indent=2)
+
+    # And the diff between each consecutive pair, which is what the research
+    # doc actually quotes. Written here rather than by hand so they are
+    # regenerated with the snapshots they describe and cannot drift from them.
+    _write_diffs(snapshots, "exports", [
+        ("invoice_created", text_a),
+        ("invoice_posted", text_b),
+        ("invoice_paid", text_c),
+        ("invoice_unposted", text_d),
+        ("invoice_reposted", text_e),
+        ("invoice_repaid", text_f),
+    ])

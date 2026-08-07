@@ -272,3 +272,24 @@ class TestVerifyCtypesFunctions:
         lib = MagicMock(spec=[])  # spec=[] means no attributes at all
         with pytest.raises(RuntimeError, match="missing required functions"):
             verify_ctypes_functions(lib, ["gncTaxTableGetTables"])
+
+    def test_the_engine_this_is_running_on_can_say_whose_money_a_split_is(self):
+        """The owner lookups are checked at load, not when a payment needs them.
+
+        A payment block reaches a split by guid, and the check that stops one
+        owner's credit settling another owner's document rests entirely on
+        these four. An engine without them has to fail before a book is
+        opened: failing later would mean books that imported clean and read
+        as though they had been checked.
+        """
+        owner_functions = ['gncOwnerGetOwnerFromLot', 'gncOwnerGetOwnerFromTxn',
+                           'gncOwnerGetID', 'gncOwnerGetType']
+
+        # In the default list, so `load_gnc_engine` verifies them itself.
+        import inspect
+        source = inspect.getsource(verify_ctypes_functions)
+        for name in owner_functions:
+            assert f"'{name}'" in source, f'{name} is not verified at load'
+
+        # And present on the engine this test is running against.
+        verify_ctypes_functions(load_gnc_engine(), owner_functions)

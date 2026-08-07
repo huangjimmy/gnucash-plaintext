@@ -1,0 +1,29 @@
+customer "C005"
+	name: "Epsilon"
+	currency: CAD
+
+invoice "INV-RETARGET-LOT-OWNED"
+	customer_id: "C005"
+	currency: CAD
+	date_opened: 2026-03-05
+	entry:
+		date: 2026-03-05
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-05
+		due: 2026-04-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-RETARGET-LOT-OWNED"
+		accumulate: true
+	payment:
+		date: 2026-03-01
+		amount: 50.00
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		memo: "Acme pays ahead again"

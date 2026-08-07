@@ -1,0 +1,25 @@
+# A file stating the note unposting writes for itself. No export produces this
+# — the key is of the book, not of the file — so it can only be hand-written or
+# copied from a book edited elsewhere.
+#
+# Believed, it says a split is not the owner's credit when it is, and it names
+# a document, which is how a rebuild picks its own orphan out of a transaction
+# carrying several. A file could steer which of an owner's credits a document
+# spends, past the guard that exists to stop split order deciding that.
+# The `lot_owner:` sits on the split *before* the bad one on purpose. Acting on
+# it opens a lot — `gnc_lot_new` + `xaccAccountInsertLot` — which the
+# transaction's rollback does not undo, so a refusal that waited its turn would
+# leave an empty owner lot behind on a file that landed nothing.
+2026-04-01 * "Deposit carrying a note no file may write"
+  Assets:Accounts Receivable  -40.00 CAD
+    lot_owner: customer:C-TWO-A
+  Assets:Bank  100.00 CAD
+  Assets:Accounts Receivable  -60.00 CAD
+    orphaned_by_unpost: "0123456789abcdef0123456789abcdef"
+
+# A second, ordinary transaction, so the import has something to land and
+# saves. Without it the run ends "nothing to import" and never writes, which
+# would hide anything the refused transaction had opened along the way.
+2026-04-02 * "An ordinary transaction that does land"
+  Assets:Bank  5.00 CAD
+  Income:Sales  -5.00 CAD

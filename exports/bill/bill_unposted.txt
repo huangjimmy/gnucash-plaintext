@@ -1,0 +1,99 @@
+2026-08-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-08-01 open Assets
+	guid: "c2ffe0848b7d4e8a9b0f829759ea0065"
+	type: "Asset"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-08-01 open Assets:Bank
+	guid: "0875e87ec97d44cf8007fe6dbaab84ec"
+	type: "Bank"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-08-01 open Liabilities
+	guid: "712e8e5dfeb64965827612284901bd67"
+	type: "Liability"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-08-01 open Liabilities:Accounts Payable
+	guid: "e1cf8e9abe9649a2900c36d09ea205e4"
+	type: "A/Payable"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	open_prepayment:
+		vendor: "V001"
+		vendor_guid: "02d455d798cd4213a045d9773f0b3a6e"
+		amount: 100.00 CAD
+2026-08-01 open Expenses
+	guid: "3dd49658690f46608a37e78dabaeac4c"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-08-01 open Expenses:Supplies
+	guid: "ba528767173d4730af48ce3e751b1e09"
+	type: "Expense"
+	placeholder: #False
+	code: ""
+	description: ""
+	tax_related: #False
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+vendor "V001"
+	guid: "02d455d798cd4213a045d9773f0b3a6e"
+	name: "Supplier"
+	currency: CAD
+
+bill "BILL-001"
+	guid: "04fdd784be114ca98b80405fae458c9b"
+	vendor_id: "V001"
+	vendor_guid: "02d455d798cd4213a045d9773f0b3a6e"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Supplies"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+	posted: none
+	payment: none
+
+2026-01-15 * "Supplier"
+	guid: "f044a50fc8be4dac95079836ae7c1800"
+	txn_type: P
+	owner: vendor:V001
+	Liabilities:Accounts Payable 100.00 CAD
+		guid: "3b632a85f3c440968a6a591a4811ad5b"
+		action: "Payment"
+		memo:"Payment BILL-001 (first)"
+		lot_owner: vendor:V001:02d455d798cd4213a045d9773f0b3a6e
+	Assets:Bank -100.00 CAD
+		guid: "fab34a5601284fb5acec237bc23870b5"
+		action: "Payment"
+		memo:"Payment BILL-001 (first)"

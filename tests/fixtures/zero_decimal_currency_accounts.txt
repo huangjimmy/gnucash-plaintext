@@ -1,0 +1,57 @@
+# Accounts in a currency with no minor unit. A yen is not divided into
+# hundredths, so GnuCash gives JPY a smallest unit of 1 and 103 yen is written
+# 103, never 103.00.
+#
+# The amounts here are deliberately odd (103, 1030) rather than round hundreds:
+# a figure like 100 survives a wrong two-decimal denominator looking plausible,
+# whereas 103 does not.
+#
+# What this fixture produces: the JPY commodity comes back with fraction 1 and
+# the CAD one with 100, and exporting the book writes
+#
+#   Assets:Bank:JPY 103 JPY
+#
+# — never 103.00. The KRW account is here for the version-dependent case:
+# GnuCash's own table carries the won with hundredths through 5.14 and
+# normalises it to 1 from 5.15, so the test reads the won's decimals off the
+# commodity instead of asserting a number that changes with the engine.
+#
+# Verified by tests/unit/services/test_zero_decimal_currency_amounts.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:JPY
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+2026-01-01 open Assets:Bank:KRW
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "KRW"
+
+2026-01-10 * "Buy 103 JPY at 0.01 CAD/JPY"
+	currency.mnemonic: "CAD"
+	Assets:Bank:JPY 103 JPY
+		account.commodity.mnemonic: "JPY"
+		share_price: "1/100"
+		value: "1.03"
+	Assets:Bank -1.03 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-1.03"
+
+2026-01-11 * "Buy 1030 KRW at 0.001 CAD/KRW"
+	currency.mnemonic: "CAD"
+	Assets:Bank:KRW 1030 KRW
+		account.commodity.mnemonic: "KRW"
+		share_price: "1/1000"
+		value: "1.03"
+	Assets:Bank -1.03 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-1.03"

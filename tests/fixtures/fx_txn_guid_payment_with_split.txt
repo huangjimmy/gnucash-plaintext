@@ -1,0 +1,39 @@
+# The retarget payment of fx_invoice_usd_retarget_payment.txt, with a split
+# line added to the payment block.
+#
+# `txn_guid:` claims a transaction that already exists and already carries the
+# splits it was written with — including its FX gain. There is no entry here
+# for a further split line to join, so the fee below would be placed nowhere.
+#
+# What this fixture produces: the import is refused, naming the fee and telling
+# the writer to put it in the transaction they are attaching. Accepting the
+# file and dropping the line would leave the book holding less than it states.
+#
+# Verified by tests/integration/test_payment_split_must_be_consumed.py.
+invoice "INV-USD-001"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-001"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank"
+		txn_guid: "5a1d9e77c0f04a6cbc3b0d1f2e4a6b8c"
+		txn_split_guid: "9f8e7d6c5b4a39281706f5e4d3c2b1a0"
+		memo: "Payment for INV-USD-001"
+		Expenses:Bank Fees 2.00 CAD

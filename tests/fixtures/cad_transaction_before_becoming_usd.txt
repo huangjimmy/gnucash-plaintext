@@ -1,0 +1,36 @@
+# A plain CAD transaction, and a USD account waiting beside it.
+#
+# The test that uses this rewrites the transaction into a USD purchase and
+# re-imports it with `--strategy update`, which is how currency can arrive in a
+# book through an edit rather than a fresh transaction. That currency needs a
+# cost basis exactly like any other; without one it lists as `untracked`, over
+# a message saying this tool never wrote the split — which it just did.
+#
+# Verified by tests/integration/test_update_strategy_respects_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Misc
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "To be corrected into a USD purchase"
+	currency.mnemonic: "CAD"
+	Expenses:Misc 135.00 CAD
+		account.commodity.mnemonic: "CAD"
+	Assets:Bank -135.00 CAD
+		account.commodity.mnemonic: "CAD"

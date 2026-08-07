@@ -1,0 +1,29 @@
+# A plain transaction that states it is a payment.
+#
+# `txn_type: P` is what marks a payment to GnuCash. It has to survive
+# export -> import -> export, or a re-imported book loses the classification
+# that `find-orphan-payments` depends on.
+#
+# Verified by tests/integration/test_txn_type_restore.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Misc
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-01 * "Stated as a payment"
+	currency.mnemonic: "CAD"
+	txn_type: P
+	Expenses:Misc 10.00 CAD
+	Assets:Bank -10.00 CAD

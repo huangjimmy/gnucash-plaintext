@@ -1,0 +1,115 @@
+"""Q-035: an unpaid receivable holds no currency to sell.
+
+An invoice's A/R split states what a customer owes, not what the book has.
+Measuring a sale against it before the invoice is paid is selling money that has
+not arrived, so it is refused by default — this tool keeps books, it does not
+support trading a position it does not hold. `cost_basis_force: true` overrides
+it for the case where the money is in hand and the record simply has not been
+marked paid.
+
+A payable is not restricted: its lot is open precisely until the bill is paid,
+and settling it with foreign cash is the ordinary way that happens (covered in
+test_residual_split.py and test_unpost_foreign_currency.py).
+"""
+
+import re
+import time
+from pathlib import Path
+
+from click.testing import CliRunner
+
+from cli.main import cli
+
+RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
+
+
+def _run(runner, *args):
+    time.sleep(1.1)
+    return runner.invoke(cli, list(args))
+
+
+def _balances(runner, book):
+    result = runner.invoke(cli, ['fx-balances', str(book)])
+    assert result.exit_code == 0, result.output
+    return result.output
+
+
+def _sale_against(tmp_path, basis, forced=False, name='sale.txt'):
+    text = (Path('tests/fixtures/fx_sell_usd_partial.txt').read_text()
+            .replace('{basis_a}', basis)
+            .replace('share_price: "1.35"', 'share_price: "1.40"')
+            .replace('value: "-54.00"', 'value: "-56.00"'))
+    if forced:
+        text = text.replace(f'cost_basis_split_guid: "{basis}"',
+                            f'cost_basis_split_guid: "{basis}"\n'
+                            f'\t\tcost_basis_force: true')
+    path = tmp_path / name
+    path.write_text(text)
+    return str(path)
+
+
+def _unpaid_invoice_book(runner, tmp_path):
+    book = tmp_path / 'book.gnucash'
+    assert _run(runner, 'import', '--new', str(book),
+                'tests/fixtures/fx_usd_invoice_cad_income.txt',
+                '--include-business-objects', '--fx-rates', RATES).exit_code == 0
+    basis = re.search(r'\b([0-9a-f]{32})\b', _balances(runner, book)).group(1)
+    return book, basis
+
+
+def test_selling_against_an_uncollected_receivable_is_refused(tmp_path):
+    runner = CliRunner()
+    book, basis = _unpaid_invoice_book(runner, tmp_path)
+
+    result = _run(runner, 'import', str(book), _sale_against(tmp_path, basis))
+    message = result.output + str(result.exception)
+    assert 'unpaid receivable' in message, message
+    assert 'has not been collected' in message, message
+
+    # Nothing was recorded against it.
+    assert 'Available USD: 100.00 USD' in _balances(runner, book)
+
+
+def test_the_refusal_can_be_forced(tmp_path):
+    runner = CliRunner()
+    book, basis = _unpaid_invoice_book(runner, tmp_path)
+
+    result = _run(runner, 'import', str(book),
+                  _sale_against(tmp_path, basis, forced=True, name='forced.txt'))
+    assert result.exit_code == 0, result.output
+    assert 'error:' not in result.output, result.output
+    assert 'Available USD: 60.00 USD' in _balances(runner, book)
+
+
+def test_selling_is_allowed_once_the_invoice_is_paid(tmp_path):
+    """Paid into a USD bank: the money is in hand, the lot is closed, and the
+    basis is sellable with no override."""
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    assert _run(runner, 'import', '--new', str(book),
+                'tests/fixtures/fx_invoice_usd_paid_from_usd_bank.txt',
+                '--include-business-objects', '--fx-rates', RATES).exit_code == 0
+    basis = re.search(r'\b([0-9a-f]{32})\b', _balances(runner, book)).group(1)
+
+    result = _run(runner, 'import', str(book), _sale_against(tmp_path, basis))
+    assert result.exit_code == 0, result.output
+    assert 'error:' not in result.output, result.output
+    assert 'Available USD: 60.00 USD' in _balances(runner, book)
+
+
+def test_currency_bought_outright_needs_no_override(tmp_path):
+    """A purchase is not a receivable — the money is already in the account."""
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    assert _run(runner, 'import', '--new', str(book),
+                'tests/fixtures/fx_buy_and_borrow_usd.txt',
+                '--include-business-objects').exit_code == 0
+    basis = re.search(r'\b([0-9a-f]{32})\b', _balances(runner, book)).group(1)
+
+    sale = tmp_path / 'buy_sale.txt'
+    sale.write_text(Path('tests/fixtures/fx_sell_usd_partial.txt').read_text()
+                    .replace('{basis_a}', basis))
+    result = _run(runner, 'import', str(book), str(sale))
+    assert result.exit_code == 0, result.output
+    assert 'error:' not in result.output, result.output
+    assert 'Available USD: 160.00 USD' in _balances(runner, book)

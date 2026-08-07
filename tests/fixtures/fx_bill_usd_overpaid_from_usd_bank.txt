@@ -1,0 +1,81 @@
+# A 100.00 USD bill overpaid with 200.00 USD out of a USD bank.
+#
+# The vendor now holds 100.00 USD of the book's money, which is a claim on
+# them: currency the book still owns, at what it cost to send. GnuCash leaves
+# two splits on the payable — the one that settles the bill, and the
+# overpayment, a debit balance on A/P.
+#
+# Every split of the payment is USD, so no base-currency figure prices it and
+# the claim's cost is written down as `cost_basis_cost` instead. What this
+# fixture produces in `fx-balances`:
+#
+#   Liabilities:Accounts Payable USD   1.4 CAD/USD   100.00 USD   (overpaid)
+#
+# Used by the bill side of the applied-credit tests: a later bill spends part
+# of that claim, and the basis has to follow what is left of it.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable USD
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+vendor "V-US"
+	name: "US Supplier"
+	currency: USD
+
+bill "BILL-USD-OVER"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Parts"
+		action: "Material"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-OVER"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		account: "Assets:Bank:USD"
+		prepayment: 100
+		memo: "Payment for BILL-USD-OVER"

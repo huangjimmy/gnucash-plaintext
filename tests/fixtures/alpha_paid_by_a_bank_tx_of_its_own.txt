@@ -1,0 +1,27 @@
+# A third invoice, paid the ordinary way: its own bank transaction, carrying
+# nothing but this payment. Unposted, its orphan is a guid a reader can delete
+# outright — which is what makes a listing holding both kinds tell them apart.
+invoice "INV-TWO-C"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service C"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWO-C"
+		accumulate: true
+	payment:
+		date: 2026-05-20
+		amount: 30
+		bank_account: "Assets:Bank"
+		memo: "Cheque for INV-TWO-C"

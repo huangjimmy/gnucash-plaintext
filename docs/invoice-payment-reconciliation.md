@@ -137,7 +137,7 @@ invoice "INV-CASH-001"
     customer_id: "C001"
     currency: CAD
     date_opened: 2026-04-15
-    cash_basis: true                     # Q-018 blessed KVP marker
+    cash_basis: true                     # Q-018 blessed KVP key
     entry:
         date: 2026-04-15
         description: "One-day consulting"
@@ -192,11 +192,11 @@ The Q-012 draft path is preserved for invoices that do NOT carry the `cash_basis
 
 ### Not supported: bank tx with the income/tax breakdown baked in
 
-If your bank tx is already a "complete" cash-sale entry — `Bank +N`, `Income −x`, `Tax −y` with NO `Accounts Receivable` split at all — Q-018 cannot link it to an invoice via the paid-on-receipt workflow. The Q-016 retarget mechanism needs an AR-side split on the bank tx to move into the invoice's posted lot, and a bank tx without an AR leg has nothing to retarget.
+If your bank tx is already a "complete" cash-sale entry — `Bank +N`, `Income −x`, `Tax −y` with NO `Accounts Receivable` split at all — Q-018 cannot link it to an invoice via the paid-on-receipt workflow. The Q-016 retarget mechanism needs an AR-side split on the bank tx to move into the invoice's posted lot, and a bank tx without an AR split has nothing to retarget.
 
 The fix is in the bank tx, not the invoice: restructure it to `Bank: +N` / `Accounts Receivable: −N` (no Income or Tax splits on the bank tx). Then the standard Q-018 paid-on-receipt workflow above creates the Income and Tax splits via the invoice's posting tx, and the two same-day transactions net to a clean cash-basis P&L.
 
-If restructuring isn't acceptable (e.g. the bank tx must stay byte-identical to a QFX import for bank reconciliation), the only fallback is to leave the invoice unposted with `cash_basis: true` (renders UNPAID) and treat the link between the invoice and the bank tx as documentary only — via memo / billing-id matching by eye, not via GnuCash's posting machinery. See **[docs/issues/Q-018-cash-basis-invoice-marker.md § Intentionally not supported](issues/Q-018-cash-basis-invoice-marker.md#intentionally-not-supported-bank-tx-that-already-has-the-incometax-breakdown)** for the full rationale on why this isn't built as a first-class feature.
+If restructuring isn't acceptable (e.g. the bank tx must stay byte-identical to a QFX import for bank reconciliation), the only fallback is to leave the invoice unposted with `cash_basis: true` (renders UNPAID) and treat the link between the invoice and the bank tx as documentary only — via memo / billing-id matching by eye, not via GnuCash's posting machinery. See **[docs/issues/Q-018-cash-basis-invoice-kvp.md § Intentionally not supported](issues/Q-018-cash-basis-invoice-kvp.md#intentionally-not-supported-bank-tx-that-already-has-the-incometax-breakdown)** for the full rationale on why this isn't built as a first-class feature.
 
 ---
 
@@ -211,7 +211,7 @@ When a customer pays more than an invoice, the excess opens a **customer credit*
 | **Forfeit** (the customer never claims it) | `lot_owner: customer:C001` on an AR split | an **income** account | none | Recognise the gain — the *only* case that hits income |
 
 - **Consume it on the next invoice** — `auto_apply_credit: true` on that invoice's header: GnuCash draws the credit into the customer's next invoice(s), across several in posting order until it runs out.
-- **Refund** — the customer asks for their money back and you pay it. Record a normal transaction whose AR split carries a `lot_owner:` marker; the counter is the bank, so money leaves:
+- **Refund** — the customer asks for their money back and you pay it. Record a normal transaction whose AR split carries a `lot_owner:` KVP; the counter is the bank, so money leaves:
 
 ```
 2026-02-01 * "Refund overpayment to Acme"
@@ -231,7 +231,7 @@ When a customer pays more than an invoice, the excess opens a **customer credit*
 		lot_owner: customer:C001
 ```
 
-The `lot_owner: customer:C001` marker joins the AR split to the customer's oldest open credit lot and reduces it — an exact amount closes the lot, a smaller amount leaves the residual credit open (a partial refund). A `customer:` marker must sit on an AR account (a `vendor:` marker on an AP account); the importer rejects the mismatch.
+The `lot_owner: customer:C001` KVP joins the AR split to the customer's oldest open credit lot and reduces it — an exact amount closes the lot, a smaller amount leaves the residual credit open (a partial refund). A `customer:` KVP must sit on an AR account (a `vendor:` KVP on an AP account); the importer rejects the mismatch.
 
 **What the refund moves, and why it is not an expense.** Observed from the book (invoice $100 paid $150, then we refund $50): the $50 goes **out of the bank and clears the AR credit** — `Assets:Bank` falls by $50 and `Assets:Accounts Receivable` goes `−50 → 0`; the credit lot closes. Nothing else moves — no expense and no reduction of income. This matches the intuition that a customer overpayment is, in effect, a **liability** (money we hold that isn't ours and may owe back): GnuCash carries it as a credit (negative balance) on Accounts Receivable rather than in a separate liability account, and the refund settles it in cash. Only the **forfeit** above touches income — that's the different case where the customer never claims it and it becomes a gain.
 
@@ -363,7 +363,16 @@ thing. Common cases:
 | `txn_guid` is unquoted and all-digit | `guid must be a quoted string (got int …)` |
 | Invoice has `posted: none` with a `payment:` block | `invoice "X": cannot have payment: blocks on an unposted invoice` |
 | Invoice was created but not posted (no posted: block) | `invoice "X": has no posted lot — must be posted before payment` |
-| `bank_account` doesn't match any split in the transaction | `invoice "X": Could not find counter-split in tx '…'` |
+| The transaction has no split outside `bank_account` | `invoice "X": tx '…' has no split outside 'Assets:Bank' to settle it with` |
+| Every split outside `bank_account` already settles a document | `invoice "X": every split of tx '…' outside 'Assets:Bank' already settles a document — retargeting one would leave that document unpaid with no figure disagreeing` |
+| Several splits could settle it and the block names only `txn_guid:` | `invoice "X": tx '…' carries 2 splits that are not 'Assets:Bank' and could each settle this invoice` |
+| `bank_account` names an account no split is on | as the row above: with no split matching the name, every split counts as "not the bank", so a two-split deposit reads as ambiguous. Check `bank_account:` for a typo before adding `txn_split_guid:` |
+| `from_credit:` names a split an unpost left loose that a bank had paid — any document's, not only this one's | `invoice "X": the split txn_split_guid names is a settlement a bank paid, left loose when the document it settled was unposted — no credit was spent on it` |
+| A split states `orphaned_by_unpost:` | `the split on 'Assets:…': \`orphaned_by_unpost:\` is not a key a file may state on a transaction or a split` |
+| A transaction states `orphaned_by_unpost:` (on either arm — a new transaction, or one named by `guid:` under `--strategy update`) | `the transaction dated 2026-04-03: \`orphaned_by_unpost:\` is not a key a file may state on a transaction or a split` |
+| A bare `txn_guid:` block's `amount:` covers neither what the split carries nor what the document owes | `invoice "X": this block says 100.00 arrived, but the split it would move on tx '…' carries 60.00 and the invoice is owed 100.00 — so taking it would leave the invoice part-paid out of money this file does not describe` |
+| A bare `txn_guid:` block's `amount:` is not a number | `invoice "X": payment amount must be a number, got 'one hundred'` |
+| `txn_split_guid:` names a split that already settles another document | `invoice "X": the split txn_split_guid '…' names is in another document's lot — it settles that one, and moving it here would leave that document unpaid` |
 
 ### Cross-reference errors
 

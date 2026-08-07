@@ -1,0 +1,42 @@
+# A 30.00 invoice with a 50.00 split attached by `txn_split_guid:`, which
+# names a split outright and does not compare it to what is owed — so the lot
+# is 20.00 past zero before the second block is read.
+#
+# The second block retargets another 50.00 transaction. There is nothing left
+# for it to settle, and that is what the refusal has to say: subtracting a
+# negative outstanding from the transaction's amount reports a residual of
+# 70.00 and quotes "−20.00 this payment can take", which is arithmetic about a
+# state nobody can act on.
+invoice "INV-PAST-ZERO"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-PAST-ZERO"
+		accumulate: true
+	payment:
+		date: 2026-02-05
+		amount: 50
+		bank_account: "Assets:Bank"
+		txn_guid: "FIRST_TXN_GUID"
+		txn_split_guid: "FIRST_SPLIT_GUID"
+		memo: "First"
+	payment:
+		date: 2026-02-12
+		amount: 50
+		bank_account: "Assets:Bank"
+		txn_guid: "SECOND_TXN_GUID"
+		prepayment: 20
+		memo: "Second"

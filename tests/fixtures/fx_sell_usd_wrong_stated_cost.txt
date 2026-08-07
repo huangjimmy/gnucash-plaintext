@@ -1,0 +1,16 @@
+# Sell 100 USD from a basis that cost 1.35, but value it at 1.20. Refused:
+# valuing what is sold at anything other than the basis's cost misstates the
+# residual, which is the realized gain or loss.
+2026-03-01 * "Sell 100 USD at the wrong cost"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.20"
+		value: "-120.00"
+		cost_basis_split_guid: "{basis_a}"
+	Assets:Bank 139.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "139.00"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

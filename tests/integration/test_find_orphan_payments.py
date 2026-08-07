@@ -133,7 +133,10 @@ class TestFindOrphanPayments:
         # Criterion 1: txn-type is 'P'.
         assert "xaccTransGetTxnType(tx) == 'P'" in r.output, r.output
         # Criterion 2: KVP owner backref names this specific customer.
-        assert 'gncOwnerGetOwnerFromTxn(tx) returned customer C001 (Acme)' in r.output, r.output
+        # Whose it is, and where that was read from — the lot the split sits
+        # in, which is what answers per portion where a transaction answers
+        # once for all of them.
+        assert 'names customer C001 (Acme)' in r.output, r.output
         # Criterion 3 + 4: AR-side on the AR account, lot detached.
         assert 'AR-side split is on Assets:Accounts Receivable' in r.output, r.output
         assert 'gncInvoiceGetInvoiceFromLot' in r.output, r.output
@@ -157,7 +160,7 @@ class TestFindOrphanPayments:
         assert 'Found 1 orphan bank-side payment transaction' in r.output, r.output
         assert 'CAD 50.00' in r.output
         # Bill side: vendor backref + AP-side wording.
-        assert 'gncOwnerGetOwnerFromTxn(tx) returned vendor V001 (Supplier)' in r.output, r.output
+        assert 'names vendor V001 (Supplier)' in r.output, r.output
         assert 'AP-side split is on Liabilities:Accounts Payable' in r.output, r.output
         assert 'bill was unposted' in r.output, r.output
 
@@ -313,11 +316,12 @@ class TestFindOrphanPayments:
         assert r.exit_code == 0, r.output
 
         # 4. The classifier must still find the orphan on the restored
-        # book. Detection now reads `txn_type: P` and `owner: customer:C001`
-        # from the custom-KVP slots the importer preserved (since
-        # `xaccTransSetTxnType` and `gncOwnerCopyOnTxn` are no-ops from
-        # Python on GnuCash 4.9+/5.x — the type is a heuristic derived
-        # from splits + lots, neither of which round-trip).
+        # book. Detection reads `txn_type: P` and `owner: customer:C001`
+        # from the custom-KVP slots the importer preserved. The importer also
+        # sets `txn_type` on the transaction itself, which takes on GnuCash
+        # 3.8/4.4 and not on 4.13+, so the KVP is what carries it everywhere.
+        # (`gncOwnerCopyOnTxn` remains unused from Python — the owner
+        # survives as the KVP alone.)
         r = runner.invoke(cli, ["find-orphan-payments", str(fresh)])
         assert r.exit_code == 0, r.output
         assert 'Found 1 orphan bank-side payment transaction' in r.output, (

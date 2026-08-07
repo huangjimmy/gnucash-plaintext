@@ -1,0 +1,56 @@
+# A transaction that names a basis for 40 USD and is then refused.
+#
+# The split below the sale states a cost that cannot be read. Every stated
+# cost is parsed before the transaction is created — ahead of the pick, and
+# ahead of any balance moving — so the refusal comes first and the basis is
+# never touched.
+#
+# The second transaction is here because the CLI only saves a file when
+# something was imported. Without it the refusal is the whole file, nothing is
+# written, and the book on disk could not show a loss even if there were one.
+#
+# What this fixture produces: one error, one imported transaction, and both
+# bases still reading their full 100.00 USD.
+#
+# Undoing a drawdown that has already happened is a different guarantee and is
+# tested directly, in tests/unit/services/test_cost_basis_drawdown_is_reversible.py:
+# no file can be refused between the drawdown and the end of the import, so a
+# fixture claiming to reach that would assert nothing.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Misc
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-03-01 * "Sell 40 USD beside a split whose cost cannot be read"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -40.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "-54.00"
+		cost_basis_split_guid: "{basis_a}"
+	Assets:Bank:USD 10.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "13.50"
+		cost_basis_cost: "oops"
+	Assets:Bank 40.50 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "40.50"
+
+2026-03-02 * "An ordinary CAD transaction, so the import saves"
+	currency.mnemonic: "CAD"
+	Assets:Bank -20.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-20.00"
+	Expenses:Misc 20.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "20.00"

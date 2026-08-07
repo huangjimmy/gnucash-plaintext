@@ -1,0 +1,35 @@
+# A stated cost on a split that states no value of its own.
+#
+# The transaction is in CAD, so its splits are valued in CAD whether the file
+# says so or not: a USD split with no `value:` is valued at its own amount,
+# 100.00 CAD for 100.00 USD, and the transaction has therefore priced it — at
+# 1, which is nonsense for USD, but priced all the same.
+#
+# The `cost_basis_cost:` beside it is refused for the same reason a cost
+# stated next to an explicit value is: the transaction says what the currency
+# cost, and a second answer can only disagree with it. Reading which keys the
+# file happened to type, rather than whether the transaction prices the split,
+# let this one through — the KVP was written, and then ignored, leaving the
+# book stating one cost and using another.
+#
+# Verified by tests/integration/test_update_strategy_respects_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-10 * "Buy 100 USD, stating a cost and no value"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		cost_basis_cost: "1.4 CAD/USD"
+	Assets:Bank -100.00 CAD
+		account.commodity.mnemonic: "CAD"

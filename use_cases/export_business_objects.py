@@ -24,71 +24,77 @@ from infrastructure.gnucash.kvp import (
 )
 from infrastructure.gnucash.utils import (
     encode_value_as_string,
+    exact_text,
     format_amount_for_commodity,
     get_account_full_name,
+    money_text,
+    numeric_to_fraction,
     wrap_invoice_or_bill,
 )
+from services.gnucash_importer import is_a_bank_paid_orphan
 
 
-def _fmt_rate(rate: float) -> str:
-    """Format a tax rate: always show at least one decimal (e.g. 5.0%, 9.975%)."""
-    s = f'{rate:g}'
+def _fmt_rate(rate: Fraction) -> str:
+    """Format a tax rate: always show at least one decimal (e.g. 5.0%, 9.975%).
+
+    Exact — the rate is written as the figure GnuCash stores, not as the
+    shortest float that prints close to it.
+    """
+    s = exact_text(rate)
     if '.' not in s:
         s += '.0'
     return s + '%'
 
 
-def _fmt_quantity(val: float) -> str:
+def _fmt_quantity(val: Fraction) -> str:
     """Format quantity/price: strip trailing zeros and unnecessary decimal point."""
-    return f'{val:g}'
+    return exact_text(val)
 
 
-def _payment_is_credit_consumption(txn, this_lot_id: int) -> bool:
-    """Q-015 / Q-016: True iff this payment tx was an
-    `gncInvoiceAutoApplyPayments` credit consumption — distinct from a
-    Q-016 multi-invoice shared bank tx.
+def _payment_amount_text(split) -> str:
+    """A payment's amount, at the unit its own account is kept to.
 
-    Credit consumption produces a tx with splits in:
-      * THIS invoice's lot, AND
-      * a PREPAY lot (open AR/AP lot with NO invoice attached — the
-        residual that the auto-apply consumed against this invoice).
-
-    A Q-016 multi-invoice shared tx produces splits in MULTIPLE invoice
-    lots but NO prepay lot — every other AR/AP-side split is in a
-    different invoice's lot, all closed via posting + payment portion.
-
-    We differentiate by looking for the prepay-lot signature: an
-    AR/AP-side split on this tx whose lot has no invoice attached.
-    Without that signature, the tx is a Q-016 multi-invoice payment and
-    the exporter should emit a regular `payment:` block with
-    `txn_guid:` + `txn_split_guid:` for each invoice's slice.
+    An amount is held to its account's smallest unit, not its currency's: a
+    receivable kept to a tenth of a cent holds 50.005, and `commodity_scu:`
+    round-trips that. Written at the currency's two places, a block states a
+    figure the split does not hold — and the importer compares the two
+    exactly, so the book could not read back its own export.
     """
-    has_other_invoice_lot = False
-    has_prepay_lot = False
-    for i in range(txn.CountSplits()):
-        sp = txn.GetSplit(i)
-        acct = sp.GetAccount()
-        if acct is None:
-            continue
-        atype = gc.xaccAccountGetType(acct.instance)
-        if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
-            continue
-        raw_lot = sp.GetLot()
-        if raw_lot is None:
-            continue
-        if int(raw_lot) == this_lot_id:
-            continue
-        if gc.gncInvoiceGetInvoiceFromLot(raw_lot):
-            has_other_invoice_lot = True
-        else:
-            has_prepay_lot = True
-    # Auto-apply consumption signature: tx has splits in BOTH another
-    # invoice lot (the original-closure lot) AND a prepay lot (the
-    # residual). Q-015 overpayment has only the prepay lot (no other
-    # invoice involved); Q-016 multi-invoice payments have only other
-    # invoice lots (no prepay residual). Both must NOT trigger the
-    # auto_apply_credit emission.
-    return has_other_invoice_lot and has_prepay_lot
+    account = split.GetAccount()
+    scu = account.GetCommoditySCU() if account is not None else None
+    if not scu:
+        return format_amount_for_commodity(
+            split.GetAmount().abs(),
+            account.GetCommodity() if account is not None else None)
+    return money_text(abs(numeric_to_fraction(split.GetAmount())), scu)
+
+
+def _split_was_applied_from_credit(split) -> bool:
+    """Q-015: True iff this split settled its document out of the owner's
+    credit rather than being paid to it.
+
+    The split says so itself, because the import that applied the credit
+    wrote it there. Nothing else in the book can answer it: once applied, a
+    consumed credit's split sits in the document's lot exactly as a bank
+    payment's split does, GnuCash keeps no record of the lot it came from,
+    and on the day a deposit is taken and an invoice raised against it even
+    the dates are the same.
+
+    Two things were tried before this and both misread ordinary books. Asking
+    the *transaction* whether it still touches a leftover credit lot gives one
+    answer for every document that transaction settles — so the invoice a bank
+    transfer paid claimed a credit had paid it — and says no for a credit
+    consumed to the last cent, which leaves no residual behind. Asking whether
+    the transaction predates the document's posting is right for every case
+    but the same-day one, where a genuine payment cannot be told from an
+    application by any figure in the book.
+
+    A split with nothing written on it — a book from the GnuCash GUI, or one
+    written before this — reads as a payment, which is what it was before this
+    tool had anything to say about it.
+    """
+    return str(get_custom_metadata(split).get('applied_from_credit', '')
+               ).strip().lower() == 'true'
 
 
 class ExportBusinessObjectsUseCase:
@@ -313,7 +319,7 @@ class ExportBusinessObjectsUseCase:
                 """Process single tax table entry pointer."""
                 acct_ptr = lib.gncTaxTableEntryGetAccount(tte_ptr)
                 amt_c = lib.gncTaxTableEntryGetAmount(tte_ptr)
-                rate = amt_c.num / amt_c.denom if amt_c.denom else 0.0
+                rate = numeric_to_fraction(amt_c) if amt_c.denom else Fraction(0)
                 acct_name = self._account_full_name(acct_ptr) if acct_ptr else '?'
                 return (acct_name, rate)
 
@@ -395,15 +401,13 @@ class ExportBusinessObjectsUseCase:
                 lines.append('	posted: none')
 
             # payment blocks — always emitted; "none" sentinel when no payments exist.
-            # Q-015: payment-txs that are also attached to a different invoice's
-            # lot were applied via gncInvoiceAutoApplyPayments (credit consumption).
-            # They are NOT this invoice's payment; instead we set the
-            # `auto_apply_credit: true` flag on the invoice header.
+            # Q-015: a payment tx that also has a split in a prepay lot settled
+            # this invoice out of the owner's credit. That is a payment like any
+            # other and says so, with `from_credit: true` in place of the bank
+            # account no money came from.
             lot = inv.GetPostedLot()
             has_payments = False
-            uses_auto_apply = False
             if lot:
-                this_lot_id = int(lot.instance)
                 for raw_split in lot.get_split_list():
                     s   = Split(instance=raw_split)
                     txn = s.GetParent()
@@ -412,17 +416,13 @@ class ExportBusinessObjectsUseCase:
                     # Skip the posting transaction itself
                     if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                         continue
-                    if _payment_is_credit_consumption(txn, this_lot_id):
-                        uses_auto_apply = True
-                        continue
-                    lines += self._format_payment(txn, s)
+                    if _split_was_applied_from_credit(s):
+                        lines += self._format_credit_payment(txn, s)
+                    else:
+                        lines += self._format_payment(txn, s)
                     has_payments = True
             if not has_payments:
                 lines.append('	payment: none')
-            if uses_auto_apply:
-                # Insert the flag after date_opened (slot 5 in `lines`),
-                # before any billing_id / notes / custom_meta / entries.
-                lines.insert(6, '	auto_apply_credit: true')
 
             invoice_strings.append('\n'.join(lines))
         return '\n\n'.join(invoice_strings)
@@ -434,8 +434,8 @@ class ExportBusinessObjectsUseCase:
         action = safe_ctypes_string(lib.gncEntryGetAction, ptr)
         qty_c  = lib.gncEntryGetQuantity(ptr)
         pri_c  = lib.gncEntryGetInvPrice(ptr)
-        qty    = qty_c.num / qty_c.denom if qty_c.denom else 0.0
-        price  = pri_c.num / pri_c.denom if pri_c.denom else 0.0
+        qty    = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
+        price  = numeric_to_fraction(pri_c) if pri_c.denom else Fraction(0)
 
         taxable     = bool(lib.gncEntryGetInvTaxable(ptr))
         tax_incl    = bool(lib.gncEntryGetInvTaxIncluded(ptr))
@@ -479,8 +479,8 @@ class ExportBusinessObjectsUseCase:
         desc  = safe_ctypes_string(lib.gncEntryGetDescription, ptr)
         qty_c = lib.gncEntryGetQuantity(ptr)
         pri_c = lib.gncEntryGetBillPrice(ptr)
-        qty   = qty_c.num / qty_c.denom if qty_c.denom else 0.0
-        price = pri_c.num / pri_c.denom if pri_c.denom else 0.0
+        qty   = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
+        price = numeric_to_fraction(pri_c) if pri_c.denom else Fraction(0)
 
         taxable  = bool(lib.gncEntryGetBillTaxable(ptr))
         tax_incl = bool(lib.gncEntryGetBillTaxIncluded(ptr))
@@ -506,6 +506,33 @@ class ExportBusinessObjectsUseCase:
                 lines.append(f'		tax_table: "{tt_name}"')
 
         return lines
+
+    def _format_credit_payment(self, txn, in_lot_ar_ap_split) -> list:
+        """Format the slice of an owner's credit that settled this document.
+
+        A credit is applied by moving currency the book already has: GnuCash
+        writes no transaction for it, reduces the split the credit sits on to
+        the part being spent, and carves the rest into a new split of the same
+        transaction. There is no bank account, because no bank moved anything,
+        and no date for the application, because the book records none — what
+        it holds is the transaction the credit arrived in, which is what
+        `credit_dated:` names.
+
+        The block records the outcome rather than the request. Re-importing it
+        attaches this exact split to this document's lot, where re-running the
+        `auto_apply_credit:` that produced it would apply whatever credit the
+        book has at the time, which is not necessarily this one.
+        """
+        amount = _payment_amount_text(in_lot_ar_ap_split)
+        return [
+            '	payment:',
+            f'		amount: {amount}',
+            '		from_credit: true',
+            f'		credit_dated: {txn.GetDate().strftime("%Y-%m-%d")}',
+            f'		memo: "{in_lot_ar_ap_split.GetMemo() or ""}"',
+            f'		txn_guid: "{txn.GetGUID().to_string()}"',
+            f'		txn_split_guid: "{in_lot_ar_ap_split.GetGUID().to_string()}"',
+        ]
 
     def _format_payment(self, txn, in_lot_ar_ap_split) -> list:
         """Format one payment transaction as `payment:` lines.
@@ -539,18 +566,24 @@ class ExportBusinessObjectsUseCase:
         # invoices/bills: each lot holds its portion, the bank split holds the
         # sum. Emitting the bank total would over-report every record (a $400
         # wire across 3 invoices would otherwise export amount: 400 on each).
-        # Format at the AR/AP commodity's own decimal count, exactly (no float).
+        # Format at the AR/AP account's own smallest unit, exactly (no float).
         ar_commodity = in_lot_ar_ap_split.GetAccount().GetCommodity()
-        pay_amt_str = format_amount_for_commodity(
-            in_lot_ar_ap_split.GetAmount().abs(), ar_commodity)
+        pay_amt_str = _payment_amount_text(in_lot_ar_ap_split)
 
-        # Q-015 / Q-016: prepayment residual — AR/AP splits on this tx
-        # that are NOT in another invoice/bill's lot. In the Q-015
-        # overpayment case the residual lives in a fresh prepay lot
-        # (open lot, no invoice attached) or is loose (no lot). In the
-        # Q-016 multi-invoice case, sibling AR splits ARE in another
-        # invoice's lot — those must NOT count as prepayment residual,
-        # they're portions for other invoices.
+        # Q-015 / Q-016: prepayment residual — what this payment left over
+        # when it was made. In the Q-015 overpayment case that residual lives
+        # in a fresh prepay lot (open lot, no invoice attached) or is loose
+        # (no lot). In the Q-016 multi-invoice case, sibling AR splits are in
+        # other invoices' lots — those are portions for those invoices and
+        # were never residual.
+        #
+        # A document *posted after this payment* is the third case, and it
+        # counts: its slice was the customer's credit on the day the money
+        # arrived, and only later did it settle anything. Reading the book as
+        # it stands today would say a 150.00 payment against a 100.00 invoice
+        # left 20.00, because a later invoice has since taken 30.00 of it —
+        # while a rebuild reaches this payment before that invoice exists and
+        # finds 50.00 sitting loose, which is what the payment really left.
         in_lot_guid = in_lot_ar_ap_split.GetGUID().to_string()
         prepay = Fraction(0)
         for i in range(txn.CountSplits()):
@@ -564,8 +597,23 @@ class ExportBusinessObjectsUseCase:
             if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
                 continue
             raw_lot = s.GetLot()
-            if raw_lot is not None and gc.gncInvoiceGetInvoiceFromLot(raw_lot):
-                # Belongs to another invoice/bill's lot — not residual.
+            if (raw_lot is not None
+                    and gc.gncInvoiceGetInvoiceFromLot(raw_lot)
+                    and not _split_was_applied_from_credit(s)):
+                # A portion for a document this payment was made against —
+                # never residual. A sibling that settled a document out of
+                # credit *is* residual: it was the owner's money on the day
+                # this payment landed, and a rebuild reaches this block
+                # before anything has taken it.
+                continue
+            if is_a_bank_paid_orphan(s):
+                # Q-035: nor is what an unpost left loose. `prepayment:` says
+                # "park this much as the owner's credit", and restoring a file
+                # that says it does exactly that — so a divided orphan's
+                # residue came back an ordinary spendable credit, which is the
+                # harm omitting `lot_owner:` on the same split is for. The
+                # money is a settlement waiting to be put back, and a file
+                # that does not claim otherwise leaves it loose.
                 continue
             a = s.GetAmount()
             prepay += abs(Fraction(a.num(), a.denom()))
@@ -597,8 +645,14 @@ class ExportBusinessObjectsUseCase:
         if pay_num:
             lines.append(f'		num: "{pay_num}"')
         if prepay > 0:
-            lines.append(
-                f'		prepayment: {format_amount_for_commodity(prepay, ar_commodity)}')
+            # At the account's unit, like the `amount:` seven lines above it:
+            # both are compared exactly on the way back in, and a residual of
+            # 20.005 written as 20.00 makes a file its own book cannot read —
+            # failing on the rebuild, after the document has been unposted.
+            ar_account = in_lot_ar_ap_split.GetAccount()
+            prepay_unit = ((ar_account.GetCommoditySCU() if ar_account else None)
+                           or ar_commodity.get_fraction())
+            lines.append(f'		prepayment: {money_text(prepay, prepay_unit)}')
         return lines
 
     # ── Bills (vendor invoices) ───────────────────────────────────────────────
@@ -659,12 +713,11 @@ class ExportBusinessObjectsUseCase:
             else:
                 lines.append('	posted: none')
 
-            # payment blocks — same Q-015 auto-apply logic as the invoice side.
+            # payment blocks — same Q-015 credit logic as the invoice side,
+            # where the credit is money the book sent this vendor.
             lot = inv.GetPostedLot()
             has_payments = False
-            uses_auto_apply = False
             if lot:
-                this_lot_id = int(lot.instance)
                 for raw_split in lot.get_split_list():
                     s   = Split(instance=raw_split)
                     txn = s.GetParent()
@@ -672,16 +725,13 @@ class ExportBusinessObjectsUseCase:
                         continue
                     if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                         continue
-                    if _payment_is_credit_consumption(txn, this_lot_id):
-                        uses_auto_apply = True
-                        continue
-                    lines += self._format_payment(txn, s)
+                    if _split_was_applied_from_credit(s):
+                        lines += self._format_credit_payment(txn, s)
+                    else:
+                        lines += self._format_payment(txn, s)
                     has_payments = True
             if not has_payments:
                 lines.append('	payment: none')
-            if uses_auto_apply:
-                # Insert after date_opened (slot 5 — bills have no billing_id).
-                lines.insert(6, '	auto_apply_credit: true')
 
             bill_strings.append('\n'.join(lines))
         return '\n\n'.join(bill_strings)

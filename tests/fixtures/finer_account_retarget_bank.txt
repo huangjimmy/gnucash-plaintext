@@ -1,0 +1,7 @@
+# A 50.005 deposit on a receivable kept to a tenth of a cent, loose and waiting
+# for a document to name it.
+2026-02-05 * "Fine Grained overpays"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.005 CAD
+		memo: "Overpayment"
+	Assets:Accounts Receivable -50.005 CAD

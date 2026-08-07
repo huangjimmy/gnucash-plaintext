@@ -1,0 +1,7 @@
+# A second, later credit for the same customer, so a file naming one of two
+# can be told from a file naming either.
+2026-03-01 * "Acme pays ahead again"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
+		lot_owner: "customer:C001"

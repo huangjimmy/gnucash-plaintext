@@ -3,12 +3,14 @@
 Service for rendering GnuCash invoices to PDF.
 """
 import xml.etree.ElementTree as ET
+from fractions import Fraction
 
 import gnucash.gnucash_core_c as gc
 from gnucash import Split
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
 from infrastructure.gnucash.kvp import get_custom_metadata
+from infrastructure.gnucash.utils import exact_text, money_text, numeric_to_fraction
 
 
 def read_book_company_info(file_path):
@@ -123,9 +125,9 @@ def _read_tax_label(lib, ptr):
         """Process single tax table entry pointer."""
         acct_ptr = lib.gncTaxTableEntryGetAccount(tte_ptr)
         amt_c = lib.gncTaxTableEntryGetAmount(tte_ptr)
-        rate = amt_c.num / amt_c.denom if amt_c.denom else 0.0
+        rate = numeric_to_fraction(amt_c) if amt_c.denom else Fraction(0)
         name = safe_ctypes_string(lib.xaccAccountGetName, acct_ptr, default='?')
-        rate_str = f"{rate:g}%"
+        rate_str = f'{exact_text(rate)}%'
         # If rate already appears in account name (e.g., "GST 5%"), use just the name
         return name if rate_str in name else f"{name} {rate_str}"
 
@@ -219,7 +221,10 @@ def invoice_to_xml(inv, book, company_info=None):
     # (qty × price adjusted for tax_included) is the per-entry subtotal,
     # and per-tax-account dollars are aggregated into tax_account_totals
     # for the <tax-lines> block below.
-    entries_subtotal = 0.0
+    # Every figure on the document is exact until it is written, and it is
+    # written at the invoice currency's own smallest unit.
+    unit = inv.GetCurrency().get_fraction()
+    entries_subtotal = Fraction(0)
     tax_account_totals = {}
     for raw_entry in inv.GetEntries():
         ptr = int(raw_entry.instance)
@@ -227,15 +232,15 @@ def invoice_to_xml(inv, book, company_info=None):
         action = safe_ctypes_string(lib.gncEntryGetAction, ptr)
         qty_c = lib.gncEntryGetQuantity(ptr)
         price_c = lib.gncEntryGetInvPrice(ptr)
-        qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
-        price = price_c.num / price_c.denom if price_c.denom else 0.0
+        qty = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
+        price = numeric_to_fraction(price_c) if price_c.denom else Fraction(0)
         net_amount, _entry_tax, breakdown = compute_entry_informational(
             lib, ptr,
         )
         entries_subtotal += net_amount
         for bd_acct_name, _bd_rate, bd_amount in breakdown:
             tax_account_totals[bd_acct_name] = (
-                tax_account_totals.get(bd_acct_name, 0.0) + bd_amount
+                tax_account_totals.get(bd_acct_name, Fraction(0)) + bd_amount
             )
 
         tax_label, tax_type = _read_tax_label(lib, ptr)
@@ -243,9 +248,9 @@ def invoice_to_xml(inv, book, company_info=None):
         e_el = ET.SubElement(entries_el, 'entry')
         ET.SubElement(e_el, 'description').text = desc
         ET.SubElement(e_el, 'action').text = action
-        ET.SubElement(e_el, 'quantity').text = f"{qty:.4f}".rstrip('0').rstrip('.')
-        ET.SubElement(e_el, 'unit-price').text = f"{price:.2f}"
-        ET.SubElement(e_el, 'amount').text = f"{net_amount:.2f}"
+        ET.SubElement(e_el, 'quantity').text = exact_text(qty)
+        ET.SubElement(e_el, 'unit-price').text = money_text(price, unit)
+        ET.SubElement(e_el, 'amount').text = money_text(net_amount, unit)
         ET.SubElement(e_el, 'tax-label', type=tax_type).text = tax_label
 
     tax_lines_el = ET.SubElement(root, 'tax-lines')
@@ -266,32 +271,33 @@ def invoice_to_xml(inv, book, company_info=None):
             # ("Liabilities:Tax:GST"). Take the leaf so a draft tax-line
             # row reads identically to the same row on a posted invoice.
             ET.SubElement(tl, 'name').text = acct_name.rsplit(':', 1)[-1]
-            ET.SubElement(tl, 'amount').text = f"{dollars:.2f}"
-        grand_total = entries_subtotal + sum(tax_account_totals.values())
-        ET.SubElement(root, 'subtotal').text = f"{entries_subtotal:.2f}"
-        ET.SubElement(root, 'total').text = f"{grand_total:.2f}"
+            ET.SubElement(tl, 'amount').text = money_text(dollars, unit)
+        grand_total = entries_subtotal + sum(
+            tax_account_totals.values(), Fraction(0))
+        ET.SubElement(root, 'subtotal').text = money_text(entries_subtotal, unit)
+        ET.SubElement(root, 'total').text = money_text(grand_total, unit)
         ET.SubElement(root, 'draft-tax-notice')
         return ET.ElementTree(root)
 
     # Posted: derive tax lines + subtotal from the posting transaction's splits.
-    subtotal_total = 0.0
+    subtotal_total = Fraction(0)
+    tax_total = Fraction(0)
     for i in range(posting_txn.CountSplits()):
         s = posting_txn.GetSplit(i)
         acct = s.GetAccount()
         atype = gc.xaccAccountGetType(acct.instance)
-        amt = s.GetAmount().to_double()
+        amt = abs(numeric_to_fraction(s.GetAmount()))
         if atype == gc.ACCT_TYPE_INCOME:
-            subtotal_total += abs(amt)
+            subtotal_total += amt
         elif atype in (gc.ACCT_TYPE_LIABILITY, gc.ACCT_TYPE_PAYABLE):
+            tax_total += amt
             tl = ET.SubElement(tax_lines_el, 'tax-line')
             ET.SubElement(tl, 'name').text = acct.GetName()
-            ET.SubElement(tl, 'amount').text = f"{abs(amt):.2f}"
+            ET.SubElement(tl, 'amount').text = money_text(amt, unit)
 
-    grand_total = subtotal_total + sum(
-        float(tl.find('amount').text) for tl in tax_lines_el
-    )
-    ET.SubElement(root, 'subtotal').text = f"{subtotal_total:.2f}"
-    ET.SubElement(root, 'total').text = f"{grand_total:.2f}"
+    grand_total = subtotal_total + tax_total
+    ET.SubElement(root, 'subtotal').text = money_text(subtotal_total, unit)
+    ET.SubElement(root, 'total').text = money_text(grand_total, unit)
 
     lot = inv.GetPostedLot()
     for raw_split in lot.get_split_list():
@@ -304,15 +310,15 @@ def invoice_to_xml(inv, book, company_info=None):
         pay_date = txn.GetDate().strftime("%Y-%m-%d")
         pay_memo = txn.GetDescription() or ''
         pay_num = txn.GetNum() or ''
-        pay_amt = abs(s.GetAmount().to_double())
+        pay_amt = abs(numeric_to_fraction(s.GetAmount()))
         p_el = ET.SubElement(payments_el, 'payment')
         ET.SubElement(p_el, 'date').text = pay_date
         ET.SubElement(p_el, 'memo').text = pay_memo
         ET.SubElement(p_el, 'num').text = pay_num
-        ET.SubElement(p_el, 'amount').text = f"{pay_amt:.2f}"
+        ET.SubElement(p_el, 'amount').text = money_text(pay_amt, unit)
 
-    remaining = lot.get_balance().to_double()
-    ET.SubElement(root, 'amount-remaining').text = f"{abs(remaining):.2f}"
+    remaining = abs(numeric_to_fraction(lot.get_balance()))
+    ET.SubElement(root, 'amount-remaining').text = money_text(remaining, unit)
 
     return ET.ElementTree(root)
 
@@ -353,15 +359,16 @@ def render_to_pdf(invoice, book, xslt_path, pdf_path, company_info=None):
 # docs/issues/Q-017-print-invoice-plaintext-format-and-multi-invoice.md.
 
 
-def _fmt_money(value: float) -> str:
-    """Format an amount with 2 decimals, matching the importer's tolerance."""
-    return f'{value:.2f}'
+def _fmt_money(value: Fraction, unit: int) -> str:
+    """An amount at its own currency's decimals, exactly as the engine rounds
+    it — the same figure the importer recomputes and checks against."""
+    return money_text(value, unit)
 
 
-def _fmt_rate(rate_decimal: float) -> str:
+def _fmt_rate(rate_decimal: Fraction) -> str:
     """Format a tax rate as it appears in the plaintext: percentage with the
     smallest representation (e.g. `5.0`, `9.975`)."""
-    s = f'{rate_decimal * 100:g}'
+    s = exact_text(Fraction(rate_decimal) * 100)
     if '.' not in s:
         s += '.0'
     return s
@@ -390,6 +397,24 @@ def _ctypes_account_full_name(lib, acct_ptr) -> str:
     return ':'.join(parts)
 
 
+def _close(a, b, tol=Fraction(1, 100)) -> bool:
+    """Whether two figures agree to within `tol` — compared as the exact
+    rationals they are, so "a cent apart" means a cent, not a cent plus
+    whatever the nearest double happened to be."""
+    return abs(Fraction(a) - Fraction(b)) <= tol
+
+
+def _declared_number(raw, label: str, field: str) -> Fraction:
+    """A number the user wrote, read exactly. `0.07` is 7/100, not the double
+    nearest to it, so comparing it against a recomputed figure is a comparison
+    of the two figures rather than of two approximations."""
+    try:
+        return Fraction(str(raw).strip())
+    except (ValueError, ZeroDivisionError) as exc:
+        raise ValueError(
+            f'{label}: {field} must be a number, got {raw!r}') from exc
+
+
 def _tax_table_entries(lib, tt_ptr):
     """Return [(account_name, rate_as_decimal)] for one tax-table pointer,
     in declaration order (GST before PST, etc.)."""
@@ -397,11 +422,13 @@ def _tax_table_entries(lib, tt_ptr):
     def _one(_lib, tte_ptr):
         acct_ptr = _lib.gncTaxTableEntryGetAccount(tte_ptr)
         amt_c = _lib.gncTaxTableEntryGetAmount(tte_ptr)
-        rate_pct = amt_c.num / amt_c.denom if amt_c.denom else 0.0
+        rate_pct = numeric_to_fraction(amt_c) if amt_c.denom else Fraction(0)
         # GnuCash stores tax-table amounts as percentages (e.g. 13.0
         # for HST). Internally we want the decimal fraction (0.13) so
-        # `entry_amount × rate` gives the tax dollars directly.
-        rate = rate_pct / 100.0
+        # `entry_amount × rate` gives the tax dollars directly. Kept as an
+        # exact fraction: a rate like 1/3 % has no float that says it, and
+        # the error rides straight into the tax dollars.
+        rate = rate_pct / 100
         acct_name = _ctypes_account_full_name(_lib, acct_ptr) if acct_ptr else '?'
         return (acct_name, rate)
 
@@ -428,8 +455,8 @@ def compute_entry_informational(lib, entry_ptr):
     """
     qty_c = lib.gncEntryGetQuantity(entry_ptr)
     pri_c = lib.gncEntryGetInvPrice(entry_ptr)
-    qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
-    price = pri_c.num / pri_c.denom if pri_c.denom else 0.0
+    qty = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
+    price = numeric_to_fraction(pri_c) if pri_c.denom else Fraction(0)
     gross_or_net = qty * price
 
     taxable = bool(lib.gncEntryGetInvTaxable(entry_ptr))
@@ -437,15 +464,18 @@ def compute_entry_informational(lib, entry_ptr):
     tt_ptr = lib.gncEntryGetInvTaxTable(entry_ptr) if taxable else None
 
     if not taxable or not tt_ptr:
-        return (gross_or_net, 0.0, [])
+        return (gross_or_net, Fraction(0), [])
 
     tt_entries = _tax_table_entries(lib, tt_ptr)
-    total_rate = sum(rate for _, rate in tt_entries)
+    total_rate = sum((rate for _, rate in tt_entries), Fraction(0))
 
-    net = gross_or_net / (1.0 + total_rate) if tax_included else gross_or_net
+    # Backing tax out of a tax-included price is a division, which is where a
+    # float stops being able to say the answer: 113.00 / 1.13 is 100 exactly
+    # as a fraction and 99.99999999999999 as a double.
+    net = gross_or_net / (1 + total_rate) if tax_included else gross_or_net
 
     breakdown = [(acct_name, rate, net * rate) for acct_name, rate in tt_entries]
-    entry_tax = sum(amount for _, _, amount in breakdown)
+    entry_tax = sum((amount for _, _, amount in breakdown), Fraction(0))
     return (net, entry_tax, breakdown)
 
 
@@ -475,24 +505,23 @@ def validate_entry_informational(lib, entry_ptr, declared, breakdown_declared,
         compute_entry_informational(lib, entry_ptr)
     )
 
-    def _close(a, b, tol=0.01):
-        return abs(float(a) - float(b)) <= tol
-
     if 'entry_amount' in declared:
-        declared_amount = float(declared['entry_amount'])
+        declared_amount = _declared_number(
+            declared['entry_amount'], entry_label, 'entry_amount')
         if not _close(declared_amount, computed_amount):
             raise ValueError(
-                f'{entry_label}: declared entry_amount {declared_amount:.2f} '
-                f'does not match recomputed {computed_amount:.2f} '
+                f'{entry_label}: declared entry_amount {exact_text(declared_amount)} '
+                f'does not match recomputed {exact_text(computed_amount)} '
                 f'(from quantity × price, adjusted for tax_included)'
             )
 
     if 'entry_tax' in declared:
-        declared_tax = float(declared['entry_tax'])
+        declared_tax = _declared_number(
+            declared['entry_tax'], entry_label, 'entry_tax')
         if not _close(declared_tax, computed_tax):
             raise ValueError(
-                f'{entry_label}: declared entry_tax {declared_tax:.2f} does '
-                f'not match recomputed {computed_tax:.2f} (from tax_table '
+                f'{entry_label}: declared entry_tax {exact_text(declared_tax)} does '
+                f'not match recomputed {exact_text(computed_tax)} (from tax_table '
                 f'entries × entry_amount)'
             )
 
@@ -519,27 +548,27 @@ def validate_entry_informational(lib, entry_ptr, declared, breakdown_declared,
                 )
             comp_rate, comp_amount = computed_by_acct[acct]
             try:
-                decl_rate = float(decl['rate'])
-                decl_amount = float(decl['amount'])
-            except (KeyError, ValueError) as exc:
+                decl_rate = Fraction(str(decl['rate']))
+                decl_amount = Fraction(str(decl['amount']))
+            except (KeyError, ValueError, ZeroDivisionError) as exc:
                 raise ValueError(
                     f'{entry_label}: breakdown for {acct!r} must declare '
                     f'numeric rate and amount; got {decl!r}'
                 ) from exc
             # `rate` is stored as decimal fraction internally (0.13) but
             # serialised as percent (13.0); accept either form.
-            if not (_close(decl_rate, comp_rate * 100, tol=0.001)
-                    or _close(decl_rate, comp_rate, tol=0.00001)):
+            if not (_close(decl_rate, comp_rate * 100, tol=Fraction(1, 1000))
+                    or _close(decl_rate, comp_rate, tol=Fraction(1, 100000))):
                 raise ValueError(
                     f'{entry_label}: breakdown for {acct!r} declares '
-                    f'rate {decl_rate} but tax_table stores '
-                    f'{comp_rate * 100:.4f}%'
+                    f'rate {exact_text(decl_rate)} but tax_table stores '
+                    f'{exact_text(comp_rate * 100)}%'
                 )
             if not _close(decl_amount, comp_amount):
                 raise ValueError(
                     f'{entry_label}: breakdown for {acct!r} declares '
-                    f'amount {decl_amount:.2f} but recomputed value is '
-                    f'{comp_amount:.2f} (entry_amount × rate)'
+                    f'amount {exact_text(decl_amount)} but recomputed value is '
+                    f'{exact_text(comp_amount)} (entry_amount × rate)'
                 )
 
 
@@ -549,9 +578,6 @@ def validate_invoice_informational(declared, computed_subtotal,
     keys invoice_subtotal/invoice_tax_total/invoice_total (or the bill_*
     analogues — caller passes whichever set). Raises ValueError on any
     mismatch."""
-    def _close(a, b, tol=0.01):
-        return abs(float(a) - float(b)) <= tol
-
     pairs = [
         ('invoice_subtotal', computed_subtotal),
         ('bill_subtotal',    computed_subtotal),
@@ -562,17 +588,11 @@ def validate_invoice_informational(declared, computed_subtotal,
     ]
     for field, computed in pairs:
         if field in declared:
-            try:
-                decl = float(declared[field])
-            except ValueError as exc:
-                raise ValueError(
-                    f'{invoice_label}: {field} must be a number, got '
-                    f'{declared[field]!r}'
-                ) from exc
+            decl = _declared_number(declared[field], invoice_label, field)
             if not _close(decl, computed):
                 raise ValueError(
-                    f'{invoice_label}: declared {field} {decl:.2f} does '
-                    f'not match recomputed {computed:.2f} (sum of entries)'
+                    f'{invoice_label}: declared {field} {exact_text(decl)} does '
+                    f'not match recomputed {exact_text(computed)} (sum of entries)'
                 )
 
 
@@ -668,6 +688,7 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
     posting_txn = invoice.GetPostedTxn()
     is_draft = posting_txn is None
     currency = invoice.GetCurrency().get_mnemonic()
+    unit = invoice.GetCurrency().get_fraction()
     date_opened = invoice.GetDateOpened().strftime('%Y-%m-%d')
 
     # Collect referenced tax tables (de-dup by pointer).
@@ -713,8 +734,8 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         action = safe_ctypes_string(lib.gncEntryGetAction, ent_ptr)
         qty_c = lib.gncEntryGetQuantity(ent_ptr)
         pri_c = lib.gncEntryGetInvPrice(ent_ptr)
-        qty = qty_c.num / qty_c.denom if qty_c.denom else 0.0
-        price = pri_c.num / pri_c.denom if pri_c.denom else 0.0
+        qty = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
+        price = numeric_to_fraction(pri_c) if pri_c.denom else Fraction(0)
         taxable = bool(lib.gncEntryGetInvTaxable(ent_ptr))
         tax_included = bool(lib.gncEntryGetInvTaxIncluded(ent_ptr))
         acct_name = get_account_full_name(raw_entry.GetInvAccount())
@@ -725,8 +746,8 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         inv_lines.append(f'\t\tdescription: "{desc}"')
         inv_lines.append(f'\t\taction: "{action}"')
         inv_lines.append(f'\t\taccount: "{acct_name}"')
-        inv_lines.append(f'\t\tquantity: {qty:g}')
-        inv_lines.append(f'\t\tprice: {price:g}')
+        inv_lines.append(f'\t\tquantity: {exact_text(qty)}')
+        inv_lines.append(f'\t\tprice: {exact_text(price)}')
         inv_lines.append(f'\t\ttaxable: {"true" if taxable else "false"}')
         inv_lines.append(f'\t\ttax_included: {"true" if tax_included else "false"}')
 
@@ -744,13 +765,13 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         # `# Tax figures are provisional` comment on the invoice block
         # (added below) tells the recipient these numbers will be
         # recomputed at post time.
-        inv_lines.append(f'\t\tentry_amount: {_fmt_money(entry_amount)}')
-        inv_lines.append(f'\t\tentry_tax: {_fmt_money(entry_tax)}')
+        inv_lines.append(f'\t\tentry_amount: {_fmt_money(entry_amount, unit)}')
+        inv_lines.append(f'\t\tentry_tax: {_fmt_money(entry_tax, unit)}')
         for bd_acct_name, bd_rate, bd_amount in breakdown:
             inv_lines.append('\t\tbreakdown:')
             inv_lines.append(f'\t\t\taccount: "{bd_acct_name}"')
             inv_lines.append(f'\t\t\trate: {_fmt_rate(bd_rate)}')
-            inv_lines.append(f'\t\t\tamount: {_fmt_money(bd_amount)}')
+            inv_lines.append(f'\t\t\tamount: {_fmt_money(bd_amount, unit)}')
 
     # Posted / payment blocks (mirror canonical export sentinel form)
     if is_draft:
@@ -808,13 +829,13 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
             inv_lines.append('\tpayment: none')
 
     # Invoice-level informational totals
-    subtotal = sum(e[1] for e in entries_data)
-    tax_total = sum(e[2] for e in entries_data)
-    inv_lines.append(f'\tinvoice_subtotal: {_fmt_money(subtotal)}')
+    subtotal = sum((e[1] for e in entries_data), Fraction(0))
+    tax_total = sum((e[2] for e in entries_data), Fraction(0))
+    inv_lines.append(f'\tinvoice_subtotal: {_fmt_money(subtotal, unit)}')
     # Q-019: tax_total and grand total are now emitted for drafts too,
     # computed from each entry's tax_table.
-    inv_lines.append(f'\tinvoice_tax_total: {_fmt_money(tax_total)}')
-    inv_lines.append(f'\tinvoice_total: {_fmt_money(subtotal + tax_total)}')
+    inv_lines.append(f'\tinvoice_tax_total: {_fmt_money(tax_total, unit)}')
+    inv_lines.append(f'\tinvoice_total: {_fmt_money(subtotal + tax_total, unit)}')
 
     # Q-019: provisional-tax caveat — invoice-scoped (drafts only),
     # prepended inside the invoice block. The seller `# Issued by:`

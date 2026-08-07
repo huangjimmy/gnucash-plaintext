@@ -1,0 +1,36 @@
+# A second bill from the same vendor, settled by the claim the first one parked
+# — named the short way, with `txn_guid:` and nothing else.
+#
+# The payable mirror of `second_usd_invoice_takes_the_parked_credit.txt`: the
+# book overpaid the vendor, so what is left over is money the vendor holds and
+# owes back, and spending it on this bill is a credit being spent whether or
+# not the file says so. The signs run the other way here, which is where a
+# wrong one goes unnoticed.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+bill "BILL-USD-SECOND"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "More consulting"
+		action: "Hours"
+		account: "Expenses:Consulting"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-SECOND"
+		accumulate: true
+	payment:
+		date: 2026-03-01
+		amount: 100
+		bank_account: "Assets:Bank:USD"
+		txn_guid: "TXN_GUID"
+		memo: "Settled from the claim on the vendor"

@@ -11,6 +11,7 @@ from cli.account_balance_cmd import account_balance
 from cli.balance_sheet_cmd import balance_sheet
 from cli.bill_print_cmd import print_bill
 from cli.close_books_cmd import close_books
+from cli.cost_basis_cmd import fx_balances
 from cli.delete_cmd import (
     archive_customers,
     archive_vendors,
@@ -91,6 +92,7 @@ cli.add_command(set_book_key, name='set-book-key')
 cli.add_command(migrate, name='migrate')
 cli.add_command(find_orphan_payments, name='find-orphan-payments')
 cli.add_command(find_prepayments, name='find-prepayments')
+cli.add_command(fx_balances, name='fx-balances')
 
 
 if __name__ == '__main__':

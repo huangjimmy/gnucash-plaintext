@@ -1,0 +1,32 @@
+invoice "INV-TWO-RETARGETS"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWO-RETARGETS"
+		accumulate: true
+	payment:
+		date: 2026-02-05
+		amount: 80
+		bank_account: "Assets:Bank"
+		txn_guid: "FIRST_TXN_GUID"
+		memo: "First instalment"
+	payment:
+		date: 2026-02-12
+		amount: 50
+		bank_account: "Assets:Bank"
+		txn_guid: "SECOND_TXN_GUID"
+		prepayment: 30
+		memo: "Second instalment"

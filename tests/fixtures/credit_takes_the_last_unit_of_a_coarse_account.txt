@@ -1,0 +1,37 @@
+# A receivable kept to the tenth, and a document that totals a whole number of
+# those tenths: 30.10 posts exactly, so nothing is rounded anywhere. A 30.00
+# cash payment leaves 0.10 owed — one whole unit of this account — and a credit
+# takes it.
+#
+# The account's unit is not the objection; a total landing between two of them
+# is, and that is refused at posting rather than rounded into one.
+invoice "INV-LAST-UNIT"
+	customer_id: "C-COARSE"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30.10
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-LAST-UNIT"
+		accumulate: true
+	payment:
+		date: 2026-02-05
+		amount: 30.00
+		bank_account: "Assets:Bank"
+		memo: "Nearly all of it, in cash"
+	payment:
+		amount: 50.00
+		from_credit: true
+		credit_dated: 2026-01-10
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

@@ -137,4 +137,8 @@ def _write_partial_match(f, result: MatchResult, doc_link_base: str) -> None:
 
 
 def _fmt(amount: Decimal) -> str:
-    return f"{amount:.2f}"
+    """The amount exactly as the statement stated it — see
+    `reconcile_preview_writer._format_amount`: the parsed Decimal already
+    carries its currency's scale, and forcing two decimals would invent
+    hundredths for a currency that has none."""
+    return format(amount, 'f')

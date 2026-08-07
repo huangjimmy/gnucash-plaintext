@@ -250,7 +250,7 @@ if not matched:
 - ✅ First match wins (order matters)
 - ✅ Hierarchical categories (using `:` separator)
 - ✅ Special handling for credits (positive amounts)
-- ⚠️ Default unknown expenses to "Dining" (no TODO marker)
+- ⚠️ Default unknown expenses to "Dining" (no TODO note)
 
 **Receipt Link Generation**:
 ```python
@@ -413,7 +413,7 @@ def find_transactions_by_sig(self, date_str: str, splits_sig: [str]) -> [Transac
 |---------|----------|--------|----------------|
 | **CLI interface** | ⭐⭐⭐ Must-have | High | Phase 4 - click framework |
 | **Configurable category mappings** | ⭐⭐⭐ Must-have | High | YAML config file |
-| **TODO markers for uncertain categories** | ⭐⭐⭐ Must-have | Medium | Update categorizer logic |
+| **TODO notes for uncertain categories** | ⭐⭐⭐ Must-have | Medium | Update categorizer logic |
 | **Case-insensitive pattern matching** | ⭐⭐ Important | Medium | Add option flag |
 | **Regex pattern support** | ⭐⭐ Important | Medium | Extend pattern matching |
 | **Conflict resolution strategies** | ⭐⭐ Important | Medium | Skip/overwrite/error options |
@@ -466,7 +466,7 @@ if not matched:
     else:
         print(f'\tExpenses-CAN:Dining {-transaction.amount} CAD')  # Arbitrary choice!
 ```
-- ⚠️ Unknown expenses → "Dining" (why not TODO marker?)
+- ⚠️ Unknown expenses → "Dining" (why not a TODO note?)
 - ⚠️ Positive amounts assume checking account (might be wrong)
 - ⚠️ No user review flag
 

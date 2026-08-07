@@ -11,6 +11,7 @@ from fractions import Fraction
 from typing import List, Optional, Union
 
 from gnucash import Account, GncCommodity, GncNumeric
+from gnucash.gnucash_core_c import GNC_HOW_RND_ROUND_HALF_UP
 
 
 def wrap_invoice_or_bill(raw):
@@ -161,8 +162,18 @@ def to_string_in_fraction_format(number: GncNumeric) -> str:
 
 
 def string_to_gnc_numeric(s, currency: GncCommodity) -> GncNumeric:
-    """
-    Convert string to GncNumeric using currency fraction.
+    """A number the file states, as a GncNumeric, exactly.
+
+    Denominated in the currency's smallest unit when the figure fits it, which
+    is how GnuCash stores an ordinary amount (12.34 CAD as 1234/100). A figure
+    that does not fit keeps its own denominator rather than being cut down to
+    one: `int(Decimal(s) * fraction)` truncates toward zero, so a rate of 1.405
+    became 1.40 and a yen rate of 0.0093 became 0.00, and the split values
+    derived from them were wrong by whatever was thrown away.
+
+    Callers that know they are handling money reject a figure the currency
+    cannot hold instead (`_stated_money` in the importer) — but nothing that
+    passes through here silently loses precision.
 
     Args:
         s: String representation of number (e.g., '123.45', '50/3')
@@ -173,12 +184,105 @@ def string_to_gnc_numeric(s, currency: GncCommodity) -> GncNumeric:
     """
     s = str(s)
     if '/' in s:
-        amount = GncNumeric(s)
-    else:
-        amount_numerator = int(Decimal(s.replace(',', '.')) * currency.get_fraction())
-        amount_denominator = currency.get_fraction()
-        amount = GncNumeric(amount_numerator, amount_denominator)
-    return amount
+        return GncNumeric(s)
+
+    exact = Fraction(Decimal(s.replace(',', '.')))
+    fraction = currency.get_fraction()
+    scaled = exact * fraction
+    if scaled.denominator == 1:
+        return GncNumeric(scaled.numerator, fraction)
+    return GncNumeric(exact.numerator, exact.denominator)
+
+
+def to_money(value: Fraction, scu: int) -> GncNumeric:
+    """`value` as a GnuCash amount in units of `scu` — cents for an ordinary
+    currency — rounded the way money rounds.
+
+    The rounding is GnuCash's own: `GNC_HOW_RND_ROUND_HALF_UP` sends an exact
+    half away from zero, so 63.225 becomes 63.23. Python's `round` is banker's
+    rounding and answers 63.22, a cent adrift — which is why the arithmetic is
+    handed to the engine rather than done here.
+
+    """
+    exact = GncNumeric(Fraction(value).numerator, Fraction(value).denominator)
+    return exact.convert(scu, GNC_HOW_RND_ROUND_HALF_UP)
+
+
+def money_text(value: Fraction, scu: int) -> str:
+    """An amount as text at its own currency's decimals — 63.23 CAD, 103 JPY.
+
+    Every amount this tool writes goes through here, and every caller passes
+    the smallest unit from the commodity that owns the amount — 100 where
+    there are hundredths, 1 for a yen. The commodity is the only authority for
+    how many decimals a currency has; the denominator a particular numeric
+    happens to carry is not.
+
+    The engine still decides the value: `to_money` rounds to that unit with
+    `gnc_numeric_convert`, which answers identically on all seven supported
+    distros. Writing it out is the part GnuCash does not lend us — its own
+    amount printer (`xaccPrintAmount`, `gnc_commodity_print_info`) is absent
+    from the Python bindings on every one of them — so the point is placed
+    from the scu here.
+
+    Inferring it from the numeric instead is what broke: `gnc_numeric_to_decimal`
+    on GnuCash 3.8 (Ubuntu 20.04) reduces 0/100 to 0/1 where every later
+    version keeps 0/100, so a zero wrote itself `0` on that one distro and
+    `0.00` on the rest, in exports and on printed invoices alike. Probed on
+    Debian 11/12/13 and Ubuntu 20.04/22.04/24.04/26.04: only 3.8 reduces, and
+    only for zero.
+    """
+    minor = numeric_to_fraction(to_money(value, scu)) * scu
+    if not is_power_of_ten(scu) or minor.denominator != 1:
+        # A commodity whose fraction is not tenths, hundredths, … has no
+        # decimal form at all; the amount is written as the fraction it is.
+        return exact_text(value)
+
+    places = len(str(scu)) - 1
+    sign = '-' if minor < 0 else ''
+    digits = str(abs(minor.numerator)).rjust(places + 1, '0')
+    if places == 0:
+        return sign + digits
+    return f'{sign}{digits[:-places]}.{digits[-places:]}'
+
+
+def is_power_of_ten(unit: int) -> bool:
+    """Whether a commodity's smallest unit has a decimal form at all — tenths,
+    hundredths, thousandths. Every ISO currency does; an exotic fraction does
+    not, and an amount in one is written as the fraction it is."""
+    return unit > 0 and str(unit) == '1' + '0' * (len(str(unit)) - 1)
+
+
+def exact_text(value: Fraction) -> str:
+    """A figure as text that says exactly what it is — 1.35, 103, or 4/3.
+
+    For something that is not money and so has no smallest unit of its own — a
+    rate, a quantity, a recomputed figure in an error message — written at
+    however many decimals it actually needs, and as the fraction it is when no
+    decimal says it exactly.
+    """
+    value = Fraction(value)
+    unit = 1
+    while unit <= 10 ** 9:
+        if (value * unit).denominator == 1:
+            return money_text(value, unit)
+        unit *= 10
+    return str(value)
+
+
+def numeric_to_fraction(number) -> Fraction:
+    """A GnuCash numeric as an exact Fraction, however it arrives.
+
+    Most bindings hand back a wrapped `GncNumeric`, whose `num()`/`denom()` are
+    methods. A few — `xaccAccountGetNoclosingBalanceChangeForPeriod` among them
+    — hand back the bare `_gnc_numeric` struct, where the same two are plain
+    integer attributes. Calling one on the other raises
+    `TypeError: 'int' object is not callable`.
+    """
+    raw_num = number.num
+    raw_denom = number.denom
+    numerator = raw_num() if callable(raw_num) else raw_num
+    denominator = raw_denom() if callable(raw_denom) else raw_denom
+    return Fraction(int(numerator), int(denominator))
 
 
 def gnc_numeric_to_fraction_or_decimal(number: GncNumeric) -> Union[Fraction, Decimal]:
@@ -206,9 +310,14 @@ def gnc_numeric_to_fraction_or_decimal(number: GncNumeric) -> Union[Fraction, De
 
 
 def to_string_with_decimal_point_placed(number: GncNumeric) -> str:
-    """
-    Convert a GncNumeric to a string with decimal point placed if permissible.
-    Otherwise returns its fractional representation.
+    """A figure whose own denominator says how many decimals it has — a rate or
+    a quantity — as text, or as the fraction it is when it has no decimal form.
+
+    Not for money. An amount's decimals come from the commodity that owns it,
+    never from the numeric it happens to be carried in: that is `money_text`,
+    which takes the smallest unit and is what every amount this tool writes
+    goes through. GnuCash 3.8 reduces 0/100 to 0/1 here, so an amount written
+    this way loses its decimals on that engine and keeps them on every other.
 
     Args:
         number: GnuCash numeric value

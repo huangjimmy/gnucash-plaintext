@@ -1,0 +1,35 @@
+# The invoice totals 30.10, which the receivable holds exactly, so it posts.
+# What cannot be done is dividing the 50.05 deposit against it: 30.10 would
+# settle the invoice and 19.95 would be left, and 19.95 is not a figure this
+# account holds — the deposit's own amount is not a whole number of its units.
+#
+# The two halves have to sum to the 50.05 that was there. Rounded to fit,
+# 30.10 and 20.00 sum to 50.10, GnuCash answers the missing 0.05 with an
+# Imbalance split, and the credit parked is not the figure this file asserts.
+invoice "INV-COARSE-IMBALANCE"
+	customer_id: "C-COARSE"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30.10
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-COARSE-IMBALANCE"
+		accumulate: true
+	payment:
+		date: 2026-02-05
+		amount: 50.05
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		prepayment: 19.95
+		# 50.05 − 30.10, and not a figure this account can hold.
+		memo: "Deposit"

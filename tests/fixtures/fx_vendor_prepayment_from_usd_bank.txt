@@ -1,0 +1,25 @@
+# Prepaying a US vendor 100 USD out of the USD the book already holds.
+#
+# The mirror of a customer's overpayment: the money leaves the bank and the
+# book gains a claim on the vendor for the same 100 USD, which is what the
+# debit on the payable records. The claim is the currency now — the bank no
+# longer has it — so the payable split establishes the basis.
+#
+# The outgoing bank split is a spend like any other and names the basis it
+# spends, so that basis is drawn down to zero and the 100 USD stays counted
+# once. Currency leaving without naming what it spends is not guessed at, here
+# or anywhere else: the listing would keep offering it.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-02-01 * "Prepay the vendor 100 USD"
+	currency.mnemonic: "CAD"
+	Liabilities:Accounts Payable USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "135.00"
+		lot_owner: "vendor:V-US"
+	Assets:Bank:USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "-135.00"
+		cost_basis_split_guid: "{basis_a}"

@@ -1,0 +1,49 @@
+# A vendor prepaid 100 USD drawn straight from a USD credit line.
+#
+# The money never sits in an account of its own: the draw funds the payment in
+# one transaction. So one lump of currency is written twice — the credit line
+# raises the obligation it came from, and the payable debit records the claim
+# on the vendor it went to.
+#
+# Currency arriving in a liability arrives as a *credit*: the account's
+# balance rises as the amount goes negative. A test for "arrived elsewhere"
+# that looks for a positive amount sees nothing here, so the payable debit
+# opens a second basis and `fx-balances` offers 200.00 USD for one 100.00 USD
+# draw.
+#
+# What this fixture produces: one basis, on the credit line, where the
+# currency entered the book.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:USD Credit Line
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Accounts Payable USD
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+vendor "V-US"
+	name: "US Vendor"
+	currency: USD
+
+2026-02-01 * "Prepay the vendor 100 USD, drawn on the USD credit line"
+	currency.mnemonic: "CAD"
+	Liabilities:Accounts Payable USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "135.00"
+		lot_owner: "vendor:V-US"
+	Liabilities:USD Credit Line -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "-135.00"

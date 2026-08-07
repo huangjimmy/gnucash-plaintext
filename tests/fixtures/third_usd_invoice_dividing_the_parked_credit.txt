@@ -1,0 +1,40 @@
+# A smaller invoice than the credit it names, settled the short way — the
+# transaction named and nothing else, with the leftover declared.
+#
+# The customer's parked 100.00 USD covers this 40.00 invoice and leaves 60.00,
+# so the credit is divided rather than attached whole. Dividing a credit is
+# what a `from_credit:` block does; reached through a bare `txn_guid:` the same
+# division has to do the same accounting, and the part left over has to keep
+# the cost the credit was acquired at — 1.4 CAD/USD, the rate the first invoice
+# was booked at — not a fresh rate for the day this invoice happens to be
+# raised on. Priced at this invoice's own date it would be 1.37, and the book
+# would report a gain the customer's money never made.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+
+invoice "INV-USD-THIRD"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Short job"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 40
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-THIRD"
+		accumulate: true
+	payment:
+		date: 2026-03-01
+		amount: 100
+		bank_account: "Assets:Bank:USD"
+		txn_guid: "TXN_GUID"
+		prepayment: 60
+		memo: "Part of the credit on account"

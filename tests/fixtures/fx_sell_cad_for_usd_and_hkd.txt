@@ -1,0 +1,56 @@
+# 99.90 CAD sold for USD and HKD in one transaction, at 1.35 CAD/USD and
+# 5.7 HKD/CAD, recorded in USD:
+#
+#   54.00 CAD -> 40.00 USD          cost 1.35 CAD/USD
+#   45.90 CAD -> 261.63 HKD         cost 1/5.7 CAD/HKD
+#
+# The CAD leaving is worth 74.00 USD, so the entry balances in its own
+# currency: -74.00 + 40.00 + 34.00 = 0.
+#
+# What this fixture produces: two cost bases, each priced by what that split
+# alone cost. `fx-balances` on the imported book lists them —
+#
+#   Assets:Bank:USD     1.35 CAD/USD      40.00 USD    40.00 USD available
+#   Assets:Bank:HKD    10/57 CAD/HKD     261.63 HKD   261.63 HKD available
+#
+# The HKD cost is listed as the fraction it is: 1/5.7 has no exact decimal, and
+# a rounded one would not reproduce the amounts it priced.
+#
+# The point of the three currencies is that neither cost can be had by dividing
+# the transaction's CAD by one split's amount: charging the whole 99.90 against
+# the USD gives 2.4975, and a rule that only understands the book's currency
+# and the split's answers nothing at all for the HKD, since this transaction is
+# recorded in USD — a third currency. Both were real defects.
+#
+# Verified by tests/unit/services/test_cost_of_split.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank:HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+
+2026-01-05 * "Sell 99.90 CAD for USD and HKD"
+	currency.mnemonic: "USD"
+	Assets:Bank -99.90 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "7400/9990"
+		value: "-74.00"
+	Assets:Bank:USD 40.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1"
+		value: "40.00"
+	Assets:Bank:HKD 261.63 HKD
+		account.commodity.mnemonic: "HKD"
+		share_price: "3400/26163"
+		value: "34.00"

@@ -1,0 +1,22 @@
+# One deposit, two customers, and one of the portions is a prepayment: Alpha
+# is paying ahead (so their portion carries `lot_owner:` and sits in a credit
+# lot of their own), while Beta's portion is there to settle Beta's invoice
+# and is still loose.
+#
+# Nothing about Alpha's credit says anything about the split beside it. A
+# credit lot on a shared deposit is not evidence about its neighbour — only
+# the other half of a *divided* credit is, and that half says so on itself.
+customer "C-TWO-A"
+	name: "Alpha"
+	currency: CAD
+
+customer "C-TWO-B"
+	name: "Beta"
+	currency: CAD
+
+2026-05-15 * "Deposit from Alpha and Beta"
+	currency.mnemonic: "CAD"
+	Assets:Bank 220.00 CAD
+	Assets:Accounts Receivable -120.00 CAD
+	Assets:Accounts Receivable -100.00 CAD
+		lot_owner: "customer:C-TWO-A"

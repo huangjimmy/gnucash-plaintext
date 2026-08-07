@@ -1,0 +1,25 @@
+invoice "INV-LOOSE-CREDIT"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 60
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-01
+		due: 2026-06-30
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-LOOSE-CREDIT"
+		accumulate: true
+	payment:
+		amount: 100.00
+		from_credit: true
+		credit_dated: 2026-05-15
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

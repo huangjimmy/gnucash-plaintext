@@ -261,7 +261,7 @@ invoice "INV-001"
 class TestPrintInvoiceCustomTemplate:
     """`print-invoice --template <path>` uses the supplied XSLT instead
     of the embedded one. Verified by passing a stub XSLT that emits a
-    sentinel marker in the output PDF."""
+    sentinel string in the output PDF."""
 
     @pytest.fixture
     def gnc_with_invoice(self, tmp_path):
@@ -301,7 +301,7 @@ invoice "INV-001"
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 <xsl:output method="html" encoding="UTF-8"/>
 <xsl:template match="/invoice">
-<html><body><p>Q011-CUSTOM-TEMPLATE-MARKER</p>
+<html><body><p>Q011-CUSTOM-TEMPLATE-SENTINEL</p>
 <p>id: <xsl:value-of select="id"/></p></body></html>
 </xsl:template>
 </xsl:stylesheet>"""
@@ -309,21 +309,21 @@ invoice "INV-001"
     def test_custom_template_threads_through_to_html(self, gnc_with_invoice, tmp_path):
         """Verify the --template path actually feeds the XSLT pipeline:
         render directly to HTML using the stub XSLT and check for the
-        marker. This exercises the same render_to_html call that
+        sentinel. This exercises the same render_to_html call that
         `print-invoice` uses internally — if this passes, the CLI just
         wraps it with weasyprint."""
         stub_xslt = tmp_path / "stub.xslt"
         stub_xslt.write_text(self._STUB_XSLT)
         html = _render_invoice_html(gnc_with_invoice, "INV-001", str(stub_xslt))
-        assert 'Q011-CUSTOM-TEMPLATE-MARKER' in html, (
-            f"Stub XSLT marker missing — XSLT path threading is broken.\n"
+        assert 'Q011-CUSTOM-TEMPLATE-SENTINEL' in html, (
+            f"Stub XSLT sentinel missing — XSLT path threading is broken.\n"
             f"HTML:\n{html}"
         )
 
     def test_cli_template_flag_succeeds_with_custom_xslt(self, gnc_with_invoice, tmp_path):
         """End-to-end CLI test: --template <stub.xslt> produces a PDF.
         We can't easily extract text from the PDF in the test env, so
-        the marker check lives in test_custom_template_threads_through_to_html;
+        the sentinel check lives in test_custom_template_threads_through_to_html;
         here we only verify the CLI argument plumbing."""
         stub_xslt = tmp_path / "stub.xslt"
         stub_xslt.write_text(self._STUB_XSLT)
@@ -344,7 +344,7 @@ invoice "INV-001"
         through the same render_to_html with the embedded path and
         checking that:
           - the default template's signature ('Tax Applied' header) is present,
-          - and the stub template's marker is absent (proves no stub leak
+          - and the stub template's sentinel is absent (proves no stub leak
             from a previous test run / global state).
         """
         html = _render_invoice_html(gnc_with_invoice, "INV-001", str(_DEFAULT_XSLT))
@@ -352,9 +352,9 @@ invoice "INV-001"
             f"Default template was not applied — 'Tax Applied' header "
             f"missing.\nHTML:\n{html}"
         )
-        assert 'Q011-CUSTOM-TEMPLATE-MARKER' not in html, (
+        assert 'Q011-CUSTOM-TEMPLATE-SENTINEL' not in html, (
             f"Default-template render must NOT contain the custom-template "
-            f"stub marker; if this fires, the XSLT path was not properly "
+            f"stub sentinel; if this fires, the XSLT path was not properly "
             f"isolated.\nHTML:\n{html}"
         )
 

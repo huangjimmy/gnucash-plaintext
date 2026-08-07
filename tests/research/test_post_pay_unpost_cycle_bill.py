@@ -1,14 +1,19 @@
 """
 Bill-side mirror of `test_post_pay_unpost_cycle.py`.
 
-Same six-step lifecycle (create → post → pay → unpost → re-post → re-pay)
-but for a vendor bill instead of a customer invoice. The point is to
-check whether the orphan-bank-tx behaviour established for invoices is
-symmetric on the AP side.
+Same lifecycle (create → post → pay → unpost → re-post → re-pay) but for a
+vendor bill instead of a customer invoice, with each snapshot named for the
+state it captures. The point is to check whether the orphan-bank-tx behaviour
+established for invoices is symmetric on the AP side.
+
+Snapshots land under `exports/bill/` only when the writing switch is on, as in
+the invoice harness.
 
 Run with:
 
     ./scripts/test.sh latest tests/research/test_post_pay_unpost_cycle_bill.py
+
+    GNC_WRITE_EXPORTS=1 ./scripts/test.sh latest tests/research/   # and refresh
 """
 
 import os
@@ -18,10 +23,7 @@ from click.testing import CliRunner
 
 from cli.main import cli
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
-
-WORKTREE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-EXPORTS_DIR = os.path.join(WORKTREE, "exports", "bill")
-
+from tests.research.test_post_pay_unpost_cycle import _write_diffs, exports_dir
 
 ACCOUNTS = """\
 2026-01-01 open Assets
@@ -207,14 +209,12 @@ def _read_entry_guids(gnc_path, bill_id):
         ses.end()
 
 
-def _snapshot(runner, gnc, tmp_path, label):
+def _snapshot(runner, gnc, tmp_path, dest_dir, label):
     out = tmp_path / f"{label}.txt"
     r = runner.invoke(cli, ["export", str(gnc), str(out),
                             "--include-business-objects"])
     assert r.exit_code == 0, f"export failed at {label}:\n{r.output}"
-    dest = os.path.join(EXPORTS_DIR, f"{label}.txt")
-    os.makedirs(EXPORTS_DIR, exist_ok=True)
-    shutil.copy(str(out), dest)
+    shutil.copy(str(out), os.path.join(dest_dir, f"{label}.txt"))
     return out.read_text()
 
 
@@ -222,6 +222,7 @@ def test_bill_post_pay_unpost_cycle(tmp_path):
     runner = CliRunner()
     gnc = tmp_path / "book.gnucash"
     entry_guid_trace = {}
+    snapshots = exports_dir(tmp_path, "bill")
 
     # ── A: create unposted bill ──────────────────────────────────────────────
     fix_a = _write(tmp_path / "a.txt", ACCOUNTS + "\n" + BILL_UNPOSTED)
@@ -229,7 +230,7 @@ def test_bill_post_pay_unpost_cycle(tmp_path):
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
     entry_guid_trace["A"] = _read_entry_guids(str(gnc), "BILL-001")
-    text_a = _snapshot(runner, gnc, tmp_path, "step_A_created")
+    text_a = _snapshot(runner, gnc, tmp_path, snapshots, "bill_created")
     assert 'bill "BILL-001"' in text_a
     assert "posted: none" in text_a
 
@@ -239,7 +240,7 @@ def test_bill_post_pay_unpost_cycle(tmp_path):
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
     entry_guid_trace["B"] = _read_entry_guids(str(gnc), "BILL-001")
-    text_b = _snapshot(runner, gnc, tmp_path, "step_B_posted")
+    text_b = _snapshot(runner, gnc, tmp_path, snapshots, "bill_posted")
     assert "posted:" in text_b and "posted: none" not in text_b
     assert "Liabilities:Accounts Payable" in text_b
     assert "Expenses:Supplies" in text_b
@@ -252,7 +253,7 @@ def test_bill_post_pay_unpost_cycle(tmp_path):
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
     entry_guid_trace["C"] = _read_entry_guids(str(gnc), "BILL-001")
-    text_c = _snapshot(runner, gnc, tmp_path, "step_C_paid")
+    text_c = _snapshot(runner, gnc, tmp_path, snapshots, "bill_paid")
     assert "Assets:Bank" in text_c
     # Should have both posting (touching AP) and payment (touching Bank+AP).
     assert text_c.count("Liabilities:Accounts Payable") >= 2
@@ -270,7 +271,7 @@ def test_bill_post_pay_unpost_cycle(tmp_path):
     assert "sent from" in r.output
     assert "CAD 100.00" in r.output
     entry_guid_trace["D"] = _read_entry_guids(str(gnc), "BILL-001")
-    text_d = _snapshot(runner, gnc, tmp_path, "step_D_unposted")
+    text_d = _snapshot(runner, gnc, tmp_path, snapshots, "bill_unposted")
     assert "posted: none" in text_d
     # The bank-side orphan should still be there; we'll assert on it below.
     assert "Assets:Bank" in text_d
@@ -281,7 +282,7 @@ def test_bill_post_pay_unpost_cycle(tmp_path):
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
     entry_guid_trace["E"] = _read_entry_guids(str(gnc), "BILL-001")
-    text_e = _snapshot(runner, gnc, tmp_path, "step_E_reposted")
+    text_e = _snapshot(runner, gnc, tmp_path, snapshots, "bill_reposted")
     assert "posted:" in text_e and "posted: none" not in text_e
 
     # ── F: re-pay with a second payment, different date ──────────────────────
@@ -290,10 +291,21 @@ def test_bill_post_pay_unpost_cycle(tmp_path):
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
     entry_guid_trace["F"] = _read_entry_guids(str(gnc), "BILL-001")
-    text_f = _snapshot(runner, gnc, tmp_path, "step_F_repaid")
+    text_f = _snapshot(runner, gnc, tmp_path, snapshots, "bill_repaid")
     # Either the orphaned Jan 15 payment or the new Feb 15 one must show up.
     assert "2026-01-15" in text_f or "2026-02-15" in text_f
 
     import json
-    with open(os.path.join(EXPORTS_DIR, "entry_guid_trace.json"), "w") as f:
+    with open(os.path.join(snapshots, "bill_entry_guid_trace.json"), "w") as f:
         json.dump(entry_guid_trace, f, indent=2)
+
+    # The diffs the research doc quotes, regenerated with the snapshots they
+    # describe so they cannot drift from them.
+    _write_diffs(snapshots, "exports/bill", [
+        ("bill_created", text_a),
+        ("bill_posted", text_b),
+        ("bill_paid", text_c),
+        ("bill_unposted", text_d),
+        ("bill_reposted", text_e),
+        ("bill_repaid", text_f),
+    ])

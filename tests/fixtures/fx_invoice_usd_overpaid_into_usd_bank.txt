@@ -1,0 +1,77 @@
+# A 100.00 USD invoice overpaid with 200.00 USD into a USD bank.
+#
+# The bank now holds 200.00 USD and the customer is owed 100.00 back. GnuCash
+# leaves two splits on the receivable: the one that settles the invoice, and
+# the overpayment, a credit balance on A/R.
+#
+# Both are currency the book holds, at the cost the invoice was booked at, so
+# both are cost bases — the overpayment is a borrowing in the shape of the A/P
+# side, the same as `fx_buy_and_borrow_usd.txt`'s loan. What this fixture
+# produces in `fx-balances`:
+#
+#   Assets:Accounts Receivable USD   1.4 CAD/USD   100.00 USD   (the invoice)
+#   Assets:Accounts Receivable USD   1.4 CAD/USD   100.00 USD   (overpaid)
+#   Available USD: 200.00 USD
+#
+# Counting only the first left the book claiming 100.00 USD sellable while its
+# bank held 200.00, so selling what it actually had was refused.
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-OVER"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-OVER"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		account: "Assets:Bank:USD"
+		prepayment: 100
+		memo: "Payment for INV-USD-OVER"

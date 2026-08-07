@@ -1,0 +1,39 @@
+# A basis balance written on the wrong line of the two.
+#
+# 100.00 USD is bought for 135.00 CAD, and the balance meant for the USD split
+# is stated on the CAD one. It passes every test that reads the figure alone —
+# 60.00 is a number, is not negative, fits the cent, and is less than the
+# 135.00 that line carries — while saying nothing at all: a CAD split in a CAD
+# book holds no foreign currency, so no cost basis lives on it and nothing
+# will ever read the balance.
+#
+# Meanwhile the USD split, which is the basis, was never given one, so it
+# opens at its full 100.00. The file asked for 60.00 available and the book
+# holds 100.00, with no error — the same 40 USD back from the dead that a
+# mistyped balance used to produce, reached by putting the line one row up.
+#
+# Verified by tests/integration/test_stated_balance_is_checked.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-10 * "Buy 100 USD at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "135.00"
+	Assets:Bank -135.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-135.00"
+		cost_basis_available: "60.00"
