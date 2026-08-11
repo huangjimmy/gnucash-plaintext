@@ -1,0 +1,9 @@
+# Rates chosen so a settlement realizes exactly nothing: 100.00 USD at 1.40
+# is 140.00 CAD, and the 1000.00 HKD paid for it is 140.00 CAD at 0.14.
+#
+# A separate file from fx_rates_usd_and_hkd.yaml on purpose — adding a
+# 2026-02-25 HKD rate there would change what the other tests settle at.
+USD/CAD:
+  2026-01-05: 1.40
+HKD/CAD:
+  2026-02-25: 0.14

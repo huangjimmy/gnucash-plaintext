@@ -19,19 +19,31 @@ from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_c
 from infrastructure.gnucash.kvp import (
     COMPANY_CUSTOM_SECTION,
     COMPANY_CUSTOM_SLOT,
+    KNOWN_BILL_METADATA_KEYS,
+    KNOWN_CUSTOMER_METADATA_KEYS,
+    KNOWN_INVOICE_METADATA_KEYS,
+    KNOWN_VENDOR_METADATA_KEYS,
     get_book_string_option,
     get_custom_metadata,
 )
 from infrastructure.gnucash.utils import (
     encode_value_as_string,
     exact_text,
-    format_amount_for_commodity,
     get_account_full_name,
-    money_text,
     numeric_to_fraction,
     wrap_invoice_or_bill,
 )
-from services.gnucash_importer import is_a_bank_paid_orphan
+from services.plaintext_blocks import (
+    document_text_lines,
+    owner_block_lines,
+    payment_amount_text,
+    payment_residue,
+    payment_residue_text,
+    split_was_applied_from_credit,
+)
+from use_cases.export_transactions import (
+    UnwritableFigureError,
+)
 
 
 def _fmt_rate(rate: Fraction) -> str:
@@ -51,7 +63,7 @@ def _fmt_quantity(val: Fraction) -> str:
     return exact_text(val)
 
 
-def _payment_amount_text(split) -> str:
+def _payment_amount_text(split, where='') -> str:
     """A payment's amount, at the unit its own account is kept to.
 
     An amount is held to its account's smallest unit, not its currency's: a
@@ -59,14 +71,13 @@ def _payment_amount_text(split) -> str:
     round-trips that. Written at the currency's two places, a block states a
     figure the split does not hold — and the importer compares the two
     exactly, so the book could not read back its own export.
+
+    The same function the printed block uses. Two implementations of it
+    disagreed: this one refused a figure the currency cannot hold while the
+    renderers rounded it, so one book answered two ways depending on which
+    command was asked.
     """
-    account = split.GetAccount()
-    scu = account.GetCommoditySCU() if account is not None else None
-    if not scu:
-        return format_amount_for_commodity(
-            split.GetAmount().abs(),
-            account.GetCommodity() if account is not None else None)
-    return money_text(abs(numeric_to_fraction(split.GetAmount())), scu)
+    return payment_amount_text(split, where)
 
 
 def _split_was_applied_from_credit(split) -> bool:
@@ -89,18 +100,30 @@ def _split_was_applied_from_credit(split) -> bool:
     but the same-day one, where a genuine payment cannot be told from an
     application by any figure in the book.
 
-    A split with nothing written on it — a book from the GnuCash GUI, or one
-    written before this — reads as a payment, which is what it was before this
-    tool had anything to say about it.
+    Lives in `services.plaintext_blocks` now, with the block writers whose
+    choice it is: the renderers need the same answer, and asked only here they
+    printed a credit-settled document as paid from the bank the credit had
+    arrived through.
     """
-    return str(get_custom_metadata(split).get('applied_from_credit', '')
-               ).strip().lower() == 'true'
+    return split_was_applied_from_credit(split)
 
 
 class ExportBusinessObjectsUseCase:
     def __init__(self, book: Book):
         self.book = book
         self._lib = load_gnc_engine()
+        # Which document's figures are being written, for a refusal to name.
+        # Without it the message had only the account, and a book with many
+        # payments gave the reader nothing to find the offender by.
+        self._document_being_written = ''
+        # Every document the format cannot write, not just the first. The
+        # transaction export and the beancount export both gather them and
+        # refuse once, on the reasoning that a book of thousands should not be
+        # fixed one run at a time; this raised on the first, so a book with
+        # several unwritable payment amounts took one run per payment — and
+        # since the business objects are written before the transactions
+        # section, its offenders were never reached at all.
+        self._refusals: list = []
 
     def _guid_for_ptr_factory(self):
         """Return a function (qof_ptr -> 32-char hex guid) for use with ctypes pointers.
@@ -154,7 +177,15 @@ class ExportBusinessObjectsUseCase:
         return ':'.join(parts)
 
     def execute(self) -> str:
-        """Return the complete business-objects plaintext block."""
+        """Return the complete business-objects plaintext block.
+
+        Refuses once, naming every document the format cannot write, rather
+        than on the first — the rule the transaction and beancount exports
+        already keep, and for the reason they give: a book of thousands should
+        not be fixed one run at a time. Invoices and bills are gathered
+        together, so a book with an offender on each side reports both.
+        """
+        self._refusals = []
         parts = []
         company   = self._export_company()
         customers = self._export_customers()
@@ -162,6 +193,11 @@ class ExportBusinessObjectsUseCase:
         tables    = self._export_tax_tables()
         invoices  = self._export_invoices()
         bills     = self._export_bills()
+        if self._refusals:
+            raise UnwritableFigureError(
+                f'{len(self._refusals)} business object(s) hold figures this '
+                f'format cannot write, and nothing was exported:\n  - '
+                + '\n  - '.join(self._refusals))
         for section in (company, customers, vendors, tables, invoices, bills):
             if section:
                 parts.append(section)
@@ -240,29 +276,9 @@ class ExportBusinessObjectsUseCase:
 
         lines_list = []
         for cust in customers:
-            addr  = cust.GetAddr()
-            lines = [
-                f'customer "{cust.GetID()}"',
-                f'\tguid: "{cust.GetGUID().to_string()}"',
-                f'\tname: "{cust.GetName()}"',
-                f'\tcurrency: {cust.GetCurrency().get_mnemonic()}',
-            ]
-            if not cust.GetActive():
-                lines.append('	active: false')
-            # Only emit optional address/contact fields when non-empty
-            for field, val in [
-                ('addr1', addr.GetAddr1()),
-                ('addr2', addr.GetAddr2()),
-                ('addr3', addr.GetAddr3()),
-                ('addr4', addr.GetAddr4()),
-                ('email', addr.GetEmail()),
-            ]:
-                if val:
-                    lines.append(f'	{field}: "{val}"')
-            custom_meta = get_custom_metadata(cust)
-            for k, v in sorted(custom_meta.items()):
-                lines.append(f'	{k}: "{v}"')
-            lines_list.append('\n'.join(lines))
+            lines_list.append('\n'.join(owner_block_lines(
+                'customer', cust, KNOWN_CUSTOMER_METADATA_KEYS,
+                with_guid=True, with_custom_keys=True)))
         return '\n\n'.join(lines_list)
 
     # ── Vendors ──────────────────────────────────────────────────────────────
@@ -276,18 +292,9 @@ class ExportBusinessObjectsUseCase:
 
         lines_list = []
         for v in vendors:
-            lines = [
-                f'vendor "{v.GetID()}"',
-                f'\tguid: "{v.GetGUID().to_string()}"',
-                f'	name: "{v.GetName()}"',
-                f'	currency: {v.GetCurrency().get_mnemonic()}',
-            ]
-            if not v.GetActive():
-                lines.append('	active: false')
-            custom_meta = get_custom_metadata(v)
-            for k, v_val in sorted(custom_meta.items()):
-                lines.append(f'	{k}: "{v_val}"')
-            lines_list.append('\n'.join(lines))
+            lines_list.append('\n'.join(owner_block_lines(
+                'vendor', v, KNOWN_VENDOR_METADATA_KEYS,
+                with_guid=True, with_custom_keys=True)))
         return '\n\n'.join(lines_list)
 
     # ── Tax tables ───────────────────────────────────────────────────────────
@@ -352,80 +359,98 @@ class ExportBusinessObjectsUseCase:
         # Export all customer invoices (owner is Customer, not Vendor), including unposted
         invoices = []
         for inv in all_invoices:
-            try:
-                cust = inv.GetOwner().GetCustomer()
-                if cust is not None:
-                    invoices.append((inv, cust))
-            except Exception:
-                pass
+            # No `except` around it, like its bill-side twin: `GetCustomer()`
+            # answers None for a vendor bill rather than raising, on all ten
+            # supported builds — measured. The guard that used to be here held
+            # the `append` inside the `try`, so had it ever fired it would
+            # have dropped a customer invoice from the exported ledger without
+            # a word, which is worse than the failure it was there for.
+            cust = inv.GetOwner().GetCustomer()
+            if cust is not None:
+                invoices.append((inv, cust))
 
         invoice_strings = []
         for inv, cust in invoices:
-            lines = [
-                f'invoice "{inv.GetID()}"',
-                f'\tguid: "{guid_for_ptr(int(inv.instance))}"',
-                f'	customer_id: "{cust.GetID()}"',
-                f'\tcustomer_guid: "{cust.GetGUID().to_string()}"',
-                f'	currency: {inv.GetCurrency().get_mnemonic()}',
-                f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
-            ]
-            if inv.GetBillingID():
-                lines.append(f'	billing_id: "{inv.GetBillingID()}"')
-            if inv.GetNotes():
-                lines.append(f'	notes: "{inv.GetNotes()}"')
-
-            custom_meta = get_custom_metadata(inv)
-            for k, v in sorted(custom_meta.items()):
-                lines.append(f'	{k}: "{v}"')
-
-            for raw_entry in inv.GetEntries():
-                lines += self._format_inv_entry(lib, raw_entry)
-
-            # posted block — always emitted; "none" sentinel when not posted
-            posted_txn = inv.GetPostedTxn()
-            if posted_txn:
-                ar_name = get_account_full_name(inv.GetPostedAcc())
-                lines.append('	posted:')
-                lines.append(f'		date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
-                lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
-                lines.append(f'		ar_account: "{ar_name}"')
-                lines.append(f'		memo: "{posted_txn.GetDescription()}"')
-                # Always emit posted_txn_guid (symmetric with Q-016's
-                # always-emit payment txn_guid). On re-import, the importer
-                # links this existing tx instead of calling PostToAccount,
-                # which would otherwise mint a duplicate alongside the
-                # standalone-imported one and orphan the original.
-                lines.append(f'		posted_txn_guid: "{posted_txn.GetGUID().to_string()}"')
-                lines.append('		accumulate: true')
-            else:
-                lines.append('	posted: none')
-
-            # payment blocks — always emitted; "none" sentinel when no payments exist.
-            # Q-015: a payment tx that also has a split in a prepay lot settled
-            # this invoice out of the owner's credit. That is a payment like any
-            # other and says so, with `from_credit: true` in place of the bank
-            # account no money came from.
-            lot = inv.GetPostedLot()
-            has_payments = False
-            if lot:
-                for raw_split in lot.get_split_list():
-                    s   = Split(instance=raw_split)
-                    txn = s.GetParent()
-                    if txn is None:
-                        continue
-                    # Skip the posting transaction itself
-                    if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
-                        continue
-                    if _split_was_applied_from_credit(s):
-                        lines += self._format_credit_payment(txn, s)
-                    else:
-                        lines += self._format_payment(txn, s)
-                    has_payments = True
-            if not has_payments:
-                lines.append('	payment: none')
-
-            invoice_strings.append('\n'.join(lines))
+            # Which document the figures below belong to, for the refusal to
+            # name. The message otherwise had only the account, and a book
+            # with many payments gave the reader nothing to find it by.
+            self._document_being_written = f'invoice "{inv.GetID()}"'
+            try:
+                invoice_strings.append('\n'.join(
+                    self._invoice_lines(inv, cust, guid_for_ptr, lib)))
+            except UnwritableFigureError as exc:
+                # Collected, and this document written nowhere: a partial
+                # document would re-import as an edit that silently drops
+                # whatever could not be written.
+                self._refusals.append(str(exc))
         return '\n\n'.join(invoice_strings)
+
+    def _invoice_lines(self, inv, cust, guid_for_ptr, lib) -> list:
+        """One invoice block, or `UnwritableFigureError` if the format cannot
+        state one of its figures."""
+        lines = [
+            f'invoice "{inv.GetID()}"',
+            f'\tguid: "{guid_for_ptr(int(inv.instance))}"',
+            f'	customer_id: "{cust.GetID()}"',
+            f'\tcustomer_guid: "{cust.GetGUID().to_string()}"',
+            f'	currency: {inv.GetCurrency().get_mnemonic()}',
+            f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
+        ]
+        lines += document_text_lines(inv)
+
+        custom_meta = {k: v for k, v
+                       in (get_custom_metadata(inv) or {}).items()
+                       if k not in KNOWN_INVOICE_METADATA_KEYS}
+        for k, v in sorted(custom_meta.items()):
+            lines.append(f'	{k}: "{v}"')
+
+        for raw_entry in inv.GetEntries():
+            lines += self._format_inv_entry(lib, raw_entry)
+
+        # posted block — always emitted; "none" sentinel when not posted
+        posted_txn = inv.GetPostedTxn()
+        if posted_txn:
+            ar_name = get_account_full_name(inv.GetPostedAcc())
+            lines.append('	posted:')
+            lines.append(f'		date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
+            lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
+            lines.append(f'		ar_account: "{ar_name}"')
+            lines.append(f'		memo: "{posted_txn.GetDescription()}"')
+            # Always emit posted_txn_guid (symmetric with Q-016's
+            # always-emit payment txn_guid). On re-import, the importer
+            # links this existing tx instead of calling PostToAccount,
+            # which would otherwise mint a duplicate alongside the
+            # standalone-imported one and orphan the original.
+            lines.append(f'		posted_txn_guid: "{posted_txn.GetGUID().to_string()}"')
+            lines.append('		accumulate: true')
+        else:
+            lines.append('	posted: none')
+
+        # payment blocks — always emitted; "none" sentinel when no payments exist.
+        # Q-015: a payment tx that also has a split in a prepay lot settled
+        # this invoice out of the owner's credit. That is a payment like any
+        # other and says so, with `from_credit: true` in place of the bank
+        # account no money came from.
+        lot = inv.GetPostedLot()
+        has_payments = False
+        if lot:
+            for raw_split in lot.get_split_list():
+                s   = Split(instance=raw_split)
+                txn = s.GetParent()
+                if txn is None:
+                    continue
+                # Skip the posting transaction itself
+                if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
+                    continue
+                if _split_was_applied_from_credit(s):
+                    lines += self._format_credit_payment(txn, s)
+                else:
+                    lines += self._format_payment(txn, s)
+                has_payments = True
+        if not has_payments:
+            lines.append('	payment: none')
+
+        return lines
 
     def _format_inv_entry(self, lib, raw_entry) -> list:
         ptr = int(raw_entry.instance)
@@ -523,7 +548,8 @@ class ExportBusinessObjectsUseCase:
         `auto_apply_credit:` that produced it would apply whatever credit the
         book has at the time, which is not necessarily this one.
         """
-        amount = _payment_amount_text(in_lot_ar_ap_split)
+        amount = _payment_amount_text(in_lot_ar_ap_split,
+                                      self._document_being_written)
         return [
             '	payment:',
             f'		amount: {amount}',
@@ -567,56 +593,17 @@ class ExportBusinessObjectsUseCase:
         # sum. Emitting the bank total would over-report every record (a $400
         # wire across 3 invoices would otherwise export amount: 400 on each).
         # Format at the AR/AP account's own smallest unit, exactly (no float).
-        ar_commodity = in_lot_ar_ap_split.GetAccount().GetCommodity()
-        pay_amt_str = _payment_amount_text(in_lot_ar_ap_split)
+        in_lot_ar_ap_split.GetAccount().GetCommodity()
+        pay_amt_str = _payment_amount_text(in_lot_ar_ap_split,
+                                          self._document_being_written)
 
         # Q-015 / Q-016: prepayment residual — what this payment left over
-        # when it was made. In the Q-015 overpayment case that residual lives
-        # in a fresh prepay lot (open lot, no invoice attached) or is loose
-        # (no lot). In the Q-016 multi-invoice case, sibling AR splits are in
-        # other invoices' lots — those are portions for those invoices and
-        # were never residual.
-        #
-        # A document *posted after this payment* is the third case, and it
-        # counts: its slice was the customer's credit on the day the money
-        # arrived, and only later did it settle anything. Reading the book as
-        # it stands today would say a 150.00 payment against a 100.00 invoice
-        # left 20.00, because a later invoice has since taken 30.00 of it —
-        # while a rebuild reaches this payment before that invoice exists and
-        # finds 50.00 sitting loose, which is what the payment really left.
-        in_lot_guid = in_lot_ar_ap_split.GetGUID().to_string()
-        prepay = Fraction(0)
-        for i in range(txn.CountSplits()):
-            s = txn.GetSplit(i)
-            if s.GetGUID().to_string() == in_lot_guid:
-                continue
-            acct = s.GetAccount()
-            if acct is None:
-                continue
-            atype = gc.xaccAccountGetType(acct.instance)
-            if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
-                continue
-            raw_lot = s.GetLot()
-            if (raw_lot is not None
-                    and gc.gncInvoiceGetInvoiceFromLot(raw_lot)
-                    and not _split_was_applied_from_credit(s)):
-                # A portion for a document this payment was made against —
-                # never residual. A sibling that settled a document out of
-                # credit *is* residual: it was the owner's money on the day
-                # this payment landed, and a rebuild reaches this block
-                # before anything has taken it.
-                continue
-            if is_a_bank_paid_orphan(s):
-                # Q-035: nor is what an unpost left loose. `prepayment:` says
-                # "park this much as the owner's credit", and restoring a file
-                # that says it does exactly that — so a divided orphan's
-                # residue came back an ordinary spendable credit, which is the
-                # harm omitting `lot_owner:` on the same split is for. The
-                # money is a settlement waiting to be put back, and a file
-                # that does not claim otherwise leaves it loose.
-                continue
-            a = s.GetAmount()
-            prepay += abs(Fraction(a.num(), a.denom()))
+        # when it was made. Worked out by `payment_residue`, which the printed
+        # block writer reads too: computed here alone, a printed overpayment
+        # stated its own slice and nothing about the residue, so read into a
+        # book that never held the deposit it entered a 100.00 bank movement
+        # for money that moved 250.00.
+        prepay = payment_residue(txn, in_lot_ar_ap_split)
 
         # Q-016: always emit `txn_guid:` so re-import resolves the payment
         # via the standalone-tx pass rather than via ApplyPayment (which
@@ -645,14 +632,9 @@ class ExportBusinessObjectsUseCase:
         if pay_num:
             lines.append(f'		num: "{pay_num}"')
         if prepay > 0:
-            # At the account's unit, like the `amount:` seven lines above it:
-            # both are compared exactly on the way back in, and a residual of
-            # 20.005 written as 20.00 makes a file its own book cannot read —
-            # failing on the rebuild, after the document has been unposted.
-            ar_account = in_lot_ar_ap_split.GetAccount()
-            prepay_unit = ((ar_account.GetCommoditySCU() if ar_account else None)
-                           or ar_commodity.get_fraction())
-            lines.append(f'		prepayment: {money_text(prepay, prepay_unit)}')
+            lines.append(
+                f'		prepayment: '
+                f'{payment_residue_text(prepay, in_lot_ar_ap_split, self._document_being_written)}')
         return lines
 
     # ── Bills (vendor invoices) ───────────────────────────────────────────────
@@ -670,68 +652,92 @@ class ExportBusinessObjectsUseCase:
         all_invoices = [wrap_invoice_or_bill(r) for r in q.run()]
         q.destroy()
 
-        # Export all vendor bills, including unposted
+        # Export all vendor bills, including unposted. Asked of every document
+        # in the book, customer invoices included: `GetVendor()` answers None
+        # for one rather than raising, on all ten supported builds — measured,
+        # and the same reason the two print commands carry no guard here.
+        #
+        # The `except Exception` that used to wrap this held the append inside
+        # it, so had it ever fired it would have dropped a vendor bill from
+        # the exported ledger without a word — a worse failure than the one it
+        # was there for, on a path nothing could reach.
         bills = []
         for inv in all_invoices:
-            try:
-                vendor = inv.GetOwner().GetVendor()
-                if vendor is not None:
-                    bills.append((inv, vendor))
-            except Exception:
-                pass
+            vendor = inv.GetOwner().GetVendor()
+            if vendor is not None:
+                bills.append((inv, vendor))
 
         guid_for_ptr = self._guid_for_ptr_factory()
         bill_strings = []
         for inv, vendor in bills:
-            lines = [
-                f'bill "{inv.GetID()}"',
-                f'\tguid: "{guid_for_ptr(int(inv.instance))}"',
-                f'	vendor_id: "{vendor.GetID()}"',
-                f'\tvendor_guid: "{vendor.GetGUID().to_string()}"',
-                f'	currency: {inv.GetCurrency().get_mnemonic()}',
-                f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
-            ]
-
-            custom_meta = get_custom_metadata(inv)
-            for k, v in sorted(custom_meta.items()):
-                lines.append(f'	{k}: "{v}"')
-
-            for raw_entry in inv.GetEntries():
-                lines += self._format_bill_entry(lib, raw_entry)
-
-            # posted block — always emitted; "none" sentinel when not posted
-            posted_txn = inv.GetPostedTxn()
-            if posted_txn:
-                ap_name = get_account_full_name(inv.GetPostedAcc())
-                lines.append('	posted:')
-                lines.append(f'		date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
-                lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
-                lines.append(f'		ap_account: "{ap_name}"')
-                lines.append(f'		memo: "{posted_txn.GetDescription()}"')
-                lines.append(f'		posted_txn_guid: "{posted_txn.GetGUID().to_string()}"')
-                lines.append('		accumulate: true')
-            else:
-                lines.append('	posted: none')
-
-            # payment blocks — same Q-015 credit logic as the invoice side,
-            # where the credit is money the book sent this vendor.
-            lot = inv.GetPostedLot()
-            has_payments = False
-            if lot:
-                for raw_split in lot.get_split_list():
-                    s   = Split(instance=raw_split)
-                    txn = s.GetParent()
-                    if txn is None:
-                        continue
-                    if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
-                        continue
-                    if _split_was_applied_from_credit(s):
-                        lines += self._format_credit_payment(txn, s)
-                    else:
-                        lines += self._format_payment(txn, s)
-                    has_payments = True
-            if not has_payments:
-                lines.append('	payment: none')
-
-            bill_strings.append('\n'.join(lines))
+            self._document_being_written = f'bill "{inv.GetID()}"'
+            try:
+                bill_strings.append('\n'.join(
+                    self._bill_lines(inv, vendor, guid_for_ptr, lib)))
+            except UnwritableFigureError as exc:
+                # As the invoice side collects them, and for the same reason.
+                self._refusals.append(str(exc))
         return '\n\n'.join(bill_strings)
+
+    def _bill_lines(self, inv, vendor, guid_for_ptr, lib) -> list:
+        """One bill block, or `UnwritableFigureError` if the format cannot
+        state one of its figures."""
+        lines = [
+            f'bill "{inv.GetID()}"',
+            f'\tguid: "{guid_for_ptr(int(inv.instance))}"',
+            f'	vendor_id: "{vendor.GetID()}"',
+            f'\tvendor_guid: "{vendor.GetGUID().to_string()}"',
+            f'	currency: {inv.GetCurrency().get_mnemonic()}',
+            f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
+        ]
+        # As the invoice block writes them: a bill has both, the bill
+        # comparison reads `GetNotes()`, and an export that did not carry
+        # them could not be read back into the same bill.
+        lines += document_text_lines(inv)
+
+        # Filtered, as the owner blocks are: a key that has since become a
+        # field of its own is still in the slot of a book written before.
+        custom_meta = {k: v for k, v
+                       in (get_custom_metadata(inv) or {}).items()
+                       if k not in KNOWN_BILL_METADATA_KEYS}
+        for k, v in sorted(custom_meta.items()):
+            lines.append(f'	{k}: "{v}"')
+
+        for raw_entry in inv.GetEntries():
+            lines += self._format_bill_entry(lib, raw_entry)
+
+        # posted block — always emitted; "none" sentinel when not posted
+        posted_txn = inv.GetPostedTxn()
+        if posted_txn:
+            ap_name = get_account_full_name(inv.GetPostedAcc())
+            lines.append('	posted:')
+            lines.append(f'		date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
+            lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
+            lines.append(f'		ap_account: "{ap_name}"')
+            lines.append(f'		memo: "{posted_txn.GetDescription()}"')
+            lines.append(f'		posted_txn_guid: "{posted_txn.GetGUID().to_string()}"')
+            lines.append('		accumulate: true')
+        else:
+            lines.append('	posted: none')
+
+        # payment blocks — same Q-015 credit logic as the invoice side,
+        # where the credit is money the book sent this vendor.
+        lot = inv.GetPostedLot()
+        has_payments = False
+        if lot:
+            for raw_split in lot.get_split_list():
+                s   = Split(instance=raw_split)
+                txn = s.GetParent()
+                if txn is None:
+                    continue
+                if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
+                    continue
+                if _split_was_applied_from_credit(s):
+                    lines += self._format_credit_payment(txn, s)
+                else:
+                    lines += self._format_payment(txn, s)
+                has_payments = True
+        if not has_payments:
+            lines.append('	payment: none')
+
+        return lines

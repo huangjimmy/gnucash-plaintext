@@ -1,4 +1,4 @@
-"""A stated `cost_basis_available:` is checked before it becomes book state.
+"""A stated `cost_basis_balance:` is checked before it becomes book state.
 
 The key is authoritative — it is how a book carries sales this tool never saw,
 and how an export's own sales avoid being applied twice — so nothing downstream
@@ -34,7 +34,7 @@ def test_a_balance_the_split_cannot_have_is_refused(tmp_path, stated, expected):
     edited.write_text(source.replace('"150.00"', f'"{stated}"'))
 
     result = _import(runner, tmp_path / f'book_{stated}.gnucash', edited)
-    assert 'cost_basis_available' in result.output, result.output
+    assert 'cost_basis_balance' in result.output, result.output
     assert expected in result.output, result.output
     assert 'Errors:       1' in result.output, result.output
 
@@ -42,7 +42,7 @@ def test_a_balance_the_split_cannot_have_is_refused(tmp_path, stated, expected):
 def test_a_mistyped_balance_does_not_open_the_basis_in_full(tmp_path):
     """The quiet one: a comma for a point, and 40 sold USD comes back.
 
-    An export carries `cost_basis_available: "60.00"` on a basis whose 40.00
+    An export carries `cost_basis_balance: "60.00"` on a basis whose 40.00
     was sold. Mistyped as `60,00` it does not parse — and unchecked, the split
     was still noted as having stated a balance, so the sale below it was
     skipped as already accounted for, while the basis itself, having no
@@ -57,10 +57,10 @@ def test_a_mistyped_balance_does_not_open_the_basis_in_full(tmp_path):
 
     book = tmp_path / 'book.gnucash'
     result = _import(runner, book, edited)
-    assert 'cost_basis_available' in result.output, result.output
+    assert 'cost_basis_balance' in result.output, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Available USD' not in listing, listing
+    assert 'Total USD basis balance' not in listing, listing
 
 
 def test_a_balance_on_a_split_that_holds_no_foreign_currency_is_refused(tmp_path):
@@ -79,6 +79,6 @@ def test_a_balance_on_a_split_that_holds_no_foreign_currency_is_refused(tmp_path
     result = _import(runner, tmp_path / 'book.gnucash',
                      'tests/fixtures/stated_balance_on_a_base_currency_split.txt')
 
-    assert 'cost_basis_available' in result.output, result.output
+    assert 'cost_basis_balance' in result.output, result.output
     assert 'CAD split' in result.output, result.output
     assert 'Errors:       1' in result.output, result.output

@@ -1,0 +1,143 @@
+# Four invoices, each paid once, so that one edit can be made to each field
+# of a payment.
+#
+# The comparison that answers "does the book already say this?" reads a
+# payment block field by field — the date, the amount, the memo, the number on
+# the bank transaction, and how much of it was left over as a prepayment. A
+# field left out of it is one a person can correct in the ledger, import, and
+# see reported `unchanged`: the payment in the book keeps the old figure, and
+# nothing says so.
+#
+# One payment per invoice, because the comparison pairs a document's payments
+# off against its blocks and stops at the first that does not match.
+#
+# invoice_payments_after_an_edit.txt is this file with one field changed in
+# each.
+#
+# What this fixture produces: four posted invoices, each paid in full.
+#
+# Verified by tests/integration/test_an_edited_payment_lands.py.
+2026-01-01 open Income
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+  type: Bank
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+  type: Accounts Receivable
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+
+customer "C-PAY"
+  name: "Paying Customer"
+  currency: CAD
+
+invoice "PAY-DATE"
+  customer_id: "C-PAY"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-01
+    due: 2026-01-31
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice PAY-DATE"
+    accumulate: true
+  payment:
+    date: 2026-01-15
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Paid PAY-DATE"
+    num: "CHQ-1"
+
+invoice "PAY-AMOUNT"
+  customer_id: "C-PAY"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-01
+    due: 2026-01-31
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice PAY-AMOUNT"
+    accumulate: true
+  payment:
+    date: 2026-01-15
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Paid PAY-AMOUNT"
+    num: "CHQ-1"
+
+invoice "PAY-MEMO"
+  customer_id: "C-PAY"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-01
+    due: 2026-01-31
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice PAY-MEMO"
+    accumulate: true
+  payment:
+    date: 2026-01-15
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Paid PAY-MEMO"
+    num: "CHQ-1"
+
+invoice "PAY-NUM"
+  customer_id: "C-PAY"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-01
+    due: 2026-01-31
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice PAY-NUM"
+    accumulate: true
+  payment:
+    date: 2026-01-15
+    amount: 100
+    bank_account: "Assets:Bank"
+    memo: "Paid PAY-NUM"
+    num: "CHQ-1"

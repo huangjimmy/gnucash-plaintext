@@ -1,9 +1,9 @@
-# Arch Linux — GnuCash 5.14+ (rolling/always latest), Python 3.14+
-# Supported distributions (verified 2026-03-17):
+# Arch Linux — GnuCash 5.15 (rolling/always latest), Python 3.14+
+# Supported distributions (`pacman -Q gnucash`, 2026-08-11):
 # ┌──────────────────┬─────────────────┬────────────────────────────────┐
 # │ Distribution     │ GnuCash Version │ Status                         │
 # ├──────────────────┼─────────────────┼────────────────────────────────┤
-# │ archlinux:latest │ 5.14+ (rolling) │ ✅ Verified (canary for latest) │
+# │ archlinux:latest │ 5.15 (rolling)  │ ✅ Verified (canary for latest) │
 # └──────────────────┴─────────────────┴────────────────────────────────┘
 #
 # Notes:

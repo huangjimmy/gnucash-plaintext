@@ -6,29 +6,20 @@ Assets / Liabilities / Equity as of the date, with a Current Year Earnings line
 so it balances whether or not the books are closed.
 """
 import sys
-from datetime import datetime
 from typing import Optional
 
 import click
 
+from cli._dates import parse_date
 from repositories.gnucash_repository import GnuCashRepository
 from services.balance_sheet import BalanceSheet
 from services.balance_sheet_renderer import render_text
 from services.fx_rates import FxRates, MissingFxRateError
 
 
-def _parse_date(ctx, param, value):
-    if value is None:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError as e:
-        raise click.BadParameter(f"Date must be YYYY-MM-DD, got: {value}") from e
-
-
 @click.command("balance-sheet")
 @click.argument("gnucash_file", type=click.Path(exists=True))
-@click.option("--as-of", "as_of", required=True, callback=_parse_date,
+@click.option("--as-of", "as_of", required=True, callback=parse_date,
               help="Balance-sheet date (YYYY-MM-DD).")
 @click.option("--fx-rates", "fx_rates_file", default=None, type=click.Path(exists=True),
               help="YAML FX rates → CAD (for multi-currency T2 consolidation).")

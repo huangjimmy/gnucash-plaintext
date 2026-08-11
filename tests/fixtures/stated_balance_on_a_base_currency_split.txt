@@ -36,4 +36,4 @@
 		account.commodity.mnemonic: "CAD"
 		share_price: "1"
 		value: "-135.00"
-		cost_basis_available: "60.00"
+		cost_basis_balance: "60.00"

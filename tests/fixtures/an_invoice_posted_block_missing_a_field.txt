@@ -1,0 +1,54 @@
+# A `posted:` block with no `due:` line.
+#
+# Every key in a posted block is required — the writer and the comparison both
+# read them outright — and a hand-written block is where one goes missing. Read
+# outright, the missing key surfaced as its own name and nothing else:
+# `Error: invoice "INV-NODUE": 'due'`. That says neither that the field is
+# required, nor which block wanted it, nor what to write.
+#
+# What this fixture produces: a refusal naming the field and the block.
+#
+# Verified by tests/integration/test_a_missing_required_field_is_named.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-NODUE"
+	name: "No Due Customer"
+	currency: CAD
+
+invoice "INV-NODUE"
+	customer_id: "C-NODUE"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-NODUE"
+		accumulate: true

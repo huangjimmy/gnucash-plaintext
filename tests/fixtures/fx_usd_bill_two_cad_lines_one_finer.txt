@@ -1,17 +1,22 @@
 # Two CAD expense lines on one USD bill, one of them on an account held to
 # thousandths.
 #
-# The fuel line carries 1.819 CAD for 1.30 USD and the parts line 5.00 for
+# The fuel line carries 1.82 CAD for 1.30 USD and the parts line 5.00 for
 # 3.57. Their ratios differ in the third decimal because each was rounded to
-# its own unit — a rate of 1.3992 produces both exactly — which is why the
-# tool pools them rather than judging them against each other: 6.819 CAD over
-# 4.87 USD is the cost of the USD this bill brought in, whichever order the
-# splits are read in.
+# its own unit — which is why the tool pools them rather than judging them
+# against each other: 6.82 CAD over 4.87 USD is the cost of the USD this bill
+# brought in, whichever order the splits are read in.
 #
 # What this fixture produces: one cost basis, and figures printed at the unit
-# each split is held to. Shown at the cent the fuel line reads 1.82, which is
-# not what the ledger holds, and nothing tells a reader that account apart
-# from an ordinary CAD one.
+# each split is held to. The fuel account is kept to thousandths, so its line
+# reads 1.820 and the report names the unit — nothing else tells a reader that
+# account apart from an ordinary CAD one.
+#
+# The figure stated is a whole number of cents, because that is all a file may
+# state: a booked amount is judged against the currency however fine the
+# account is. 1.819 stood here before, and an amount finer than the currency
+# was stored at the account's unit while its value was rounded to the
+# currency's — two figures for one sum on the same split.
 #
 # Verified by tests/integration/test_verify_costs.py.
 2026-01-01 open Assets
@@ -42,7 +47,7 @@
 
 2026-01-10 * "A US bill whose two CAD lines were converted differently"
 	currency.mnemonic: "USD"
-	Expenses:Fuel 1.819 CAD
+	Expenses:Fuel 1.82 CAD
 		account.commodity.mnemonic: "CAD"
 		value: "1.30"
 	Expenses:Parts 5.00 CAD

@@ -135,4 +135,4 @@ def test_settling_a_usd_bill_with_usd_cash_realizes_the_difference(tmp_path):
     assert 'Income:FX Gain -5.00 CAD' in exported, exported
 
     after = runner.invoke(cli, ['fx-balances', str(book)])
-    assert 'Available USD: 0.00' in after.output, after.output
+    assert 'Total USD basis balance: 0.00' in after.output, after.output

@@ -1,0 +1,39 @@
+# A stated `cost_basis_balance:` finer than the currency, behind a widened
+# `fraction:`.
+#
+# The amount is a whole number of cents, so the rule on `amount:` passes. The
+# balance is not — and the rule on *it* read the commodity this file had just
+# restated, so 60.001 USD was accepted and written.
+#
+# Reopened, USD is a hundredth again and the book holds a basis balance it
+# cannot express. Nothing looks at it: `fx-balances` renders it at the
+# currency's own places so it displays 60.00, and `--verify-costs` only asks
+# whether the balance is between zero and what arrived. The export writes
+# `cost_basis_balance: "60.001"` back out, and importing that file without the
+# fraction line is refused — a book this tool cannot get out and back in.
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 1000
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	commodity_scu: 1000
+
+2026-01-10 * "Buy 100 USD at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		share_price: "1.35"
+		value: "135.00"
+		cost_basis_balance: "60.001"
+	Assets:Bank -135.00 CAD

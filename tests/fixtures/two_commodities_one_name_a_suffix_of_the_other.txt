@@ -1,0 +1,33 @@
+# Two commodities whose codes share an ending, both refused, and an account
+# kept in one of them.
+#
+# Neither `ZZ` nor `XZZ` is an ISO 4217 code, so both are refused in the
+# CURRENCY namespace. The account is kept in `XZZ`, so its own failure names
+# `(CURRENCY, XZZ)` — and `ZZ` is the tail of that.
+#
+# The cause carried into the tax table's refusal has to be the commodity the
+# account actually names. `ZZ` explains nothing about it.
+2026-01-01 commodity ZZ
+	mnemonic: "ZZ"
+	fullname: "Not A Currency"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity XZZ
+	mnemonic: "XZZ"
+	fullname: "Also Not A Currency"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank XZZ
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "XZZ"
+
+taxtable "GST"
+	entry:
+		account: "Assets:Bank XZZ"
+		amount: 5.0
+		type: percentage

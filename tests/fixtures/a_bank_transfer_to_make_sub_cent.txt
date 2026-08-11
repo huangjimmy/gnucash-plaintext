@@ -1,0 +1,9 @@
+# An ordinary transaction on the bank, imported in whole cents and afterwards
+# moved to 40.005 through GnuCash — the way a book comes to hold a figure this
+# format cannot write. It has nothing to do with any document, which is the
+# point: it is an offender for the transactions half of the export while a
+# payment amount is one for the documents half.
+2026-06-01 * "Interest received"
+	currency.mnemonic: "CAD"
+	Assets:Bank 40.00 CAD
+	Income:Sales -40.00 CAD

@@ -1,0 +1,25 @@
+# 100.00 USD bought for 135.00 CAD, which gives the USD bank a cost basis.
+#
+# What it is for: an account whose bases still have a balance. A payment block
+# cannot spend one, because its bank split is written by `ApplyPayment` and so
+# has nowhere
+# to name the basis it draws from — and the account has to have a basis for
+# that refusal to have anything to refuse.
+#
+# Bought at 1.35 rather than the 1.40 the bill beside it was booked at, so
+# settling that bill from this cash realizes something and the figures are
+# told apart by their value rather than by their sign.
+#
+# Uses the accounts from fx_usd_bill_cad_expense.txt.
+#
+# Verified by tests/integration/test_spending_what_a_settlement_brought_in.py.
+2026-02-01 * "Buy 100 USD at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "135.00"
+	Assets:Bank -135.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-135.00"

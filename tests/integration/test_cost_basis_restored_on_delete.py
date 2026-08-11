@@ -1,7 +1,7 @@
 """Q-035: deleting a sale returns what it took to the cost basis.
 
 Undoing a sale is how a user corrects one — and how anyone trying the feature
-out gets back to a clean state. The available balance follows: it is derived
+out gets back to a clean state. The basis balance follows: it is derived
 from what the book actually holds, so the moment the sale is gone the basis has
 its currency back, and the stored KVP is rewritten to match.
 """
@@ -44,7 +44,7 @@ def test_deleting_a_sale_gives_the_currency_back(tmp_path):
     sale.write_text(Path('tests/fixtures/fx_sell_usd_partial.txt').read_text()
                     .replace('{basis_a}', basis))
     assert _run(runner, 'import', str(book), str(sale)).exit_code == 0
-    assert 'Available USD: 160.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 160.00 USD' in _balances(runner, book)
 
     exported = _export(runner, book, tmp_path / 'before.txt')
     sale_guid = re.search(
@@ -57,11 +57,11 @@ def test_deleting_a_sale_gives_the_currency_back(tmp_path):
 
     # The basis has its 40 USD back, in the listing and in the stored KVP.
     listing = _balances(runner, book)
-    assert 'Available USD: 200.00 USD' in listing, listing
+    assert 'Total USD basis balance: 200.00 USD' in listing, listing
     assert '60.00 USD' not in listing, listing
 
     after = _export(runner, book, tmp_path / 'after.txt')
-    assert 'cost_basis_available: "100.00"' in after, after
+    assert 'cost_basis_balance: "100.00"' in after, after
     assert 'Sell 40 USD' not in after, after
 
 
@@ -94,4 +94,4 @@ def test_the_basis_is_sellable_again_after_the_delete(tmp_path):
     result = _run(runner, 'import', str(book), str(full))
     assert result.exit_code == 0, result.output
     assert 'error:' not in result.output, result.output
-    assert 'Available USD: 100.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 100.00 USD' in _balances(runner, book)

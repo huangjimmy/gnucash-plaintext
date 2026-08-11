@@ -335,20 +335,27 @@ def find_lot_payment_transactions(rec) -> List[OrphanPayment]:
         plaintext convention. Avoids `gnc_account_get_full_name` because that
         function uses the book's configured separator (defaults to `.`),
         which doesn't match the plaintext format. Same parent-walk pattern as
-        `services/gnucash_importer.py:_acct_name`."""
+        `services/gnucash_importer.py:_acct_name`.
+
+        The condition is "this account has a parent", asked once: having one
+        is what distinguishes an account from the root, and the root is where
+        the walk stops. Written as a walk that broke out of itself, three of
+        its branches could not be taken — an account with no name, an account
+        with no parent at all, and the loop ending any way other than by
+        breaking — and an unreachable branch is a claim about the book that
+        nothing can check.
+        """
+        # Every segment, including an empty one. An account may have no name —
+        # `beancount_account_name_ending_in_a_separator.beancount` measures a
+        # child with none under `Assets:Bank` — and dropping those made this
+        # walk answer `Assets:Bank` for it while `get_account_full_name`, which
+        # every other reader uses, answers `Assets:Bank:`. Two names for one
+        # account is worse than an odd-looking one.
         parts = []
         ptr = acct_ptr
-        while ptr:
-            name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
-            if name:
-                parts.append(name)
-            parent = lib.gnc_account_get_parent(ptr)
-            if not parent:
-                break
-            # Stop at the root account (which has no parent of its own).
-            if not lib.gnc_account_get_parent(parent):
-                break
-            ptr = parent
+        while lib.gnc_account_get_parent(ptr):
+            parts.append(safe_ctypes_string(lib.xaccAccountGetName, ptr))
+            ptr = lib.gnc_account_get_parent(ptr)
         parts.reverse()
         return ':'.join(parts)
 
@@ -366,10 +373,10 @@ def find_lot_payment_transactions(rec) -> List[OrphanPayment]:
 
         # Filter to payment-class transactions only. The lot also contains
         # the invoice's own posting tx (txn_type 'I') — we don't want that.
-        tx_type = lib.xaccTransGetTxnType(tx_ptr)
-        if isinstance(tx_type, bytes):
-            tx_type = tx_type.decode('ascii', errors='replace')
-        if tx_type != 'P':
+        # Compared as the byte it is: the declaration above asks for
+        # `c_char`, so ctypes hands back a one-byte `bytes` and never a `str`,
+        # and the decode that guarded against one could only ever run.
+        if lib.xaccTransGetTxnType(tx_ptr) != b'P':
             continue
 
         # Find the bank-side split: any split NOT on an AR/AP account.
@@ -603,8 +610,6 @@ def find_prepayments_in_book(book: Book,
         ('gnc_commodity_get_fraction', ctypes.c_int,    [ctypes.c_void_p]),
         ('qof_instance_get_guid',      ctypes.c_void_p, [ctypes.c_void_p]),
         ('guid_to_string_buff',        ctypes.c_char_p, [ctypes.c_void_p, ctypes.c_char_p]),
-        ('xaccAccountGetName',         ctypes.c_char_p, [ctypes.c_void_p]),
-        ('gnc_account_get_parent',     ctypes.c_void_p, [ctypes.c_void_p]),
         # gncOwnerGetOwnerFromLot/FromTxn/GetID/GetType are set in
         # `_setup_lib_restypes`, on the same cached handle, for every caller.
         ('gncOwnerGetName',            ctypes.c_char_p, [ctypes.c_void_p]),
@@ -615,20 +620,6 @@ def find_prepayments_in_book(book: Book,
             f.argtypes = argtypes
         except AttributeError:
             pass
-
-    def _acct_full_name(acct_ptr) -> str:
-        parts = []
-        ptr = acct_ptr
-        while ptr:
-            name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
-            if name:
-                parts.append(name)
-            parent = lib.gnc_account_get_parent(ptr)
-            if not parent or not lib.gnc_account_get_parent(parent):
-                break
-            ptr = parent
-        parts.reverse()
-        return ':'.join(parts)
 
     owner_buf = ctypes.create_string_buffer(256)
     owner_ptr = ctypes.cast(owner_buf, ctypes.c_void_p).value
@@ -779,11 +770,14 @@ def find_prepayments_in_book(book: Book,
                 # credit came from).
                 bank_acct_name = ''
                 bank_memo = ''
+                # No null-account check: a split with none cannot be here to
+                # be skipped. Handed a book edited to remove one, GnuCash 5.x
+                # drops the whole transaction while loading and 4.x and
+                # earlier segfault before this code runs at all (CLAUDE.md
+                # §12), so on every supported version each split has one.
                 for i in range(tx.CountSplits()):
                     sp = tx.GetSplit(i)
                     sp_acct = sp.GetAccount()
-                    if sp_acct is None:
-                        continue
                     sp_atype = sp_acct.GetType()
                     if sp_atype in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
                         continue
@@ -909,16 +903,20 @@ def find_orphan_payments_in_book(book: Book,
             pass
 
     def _acct_full_name(acct_ptr) -> str:
+        """As `find_lot_payment_transactions` builds it, and for the reason
+        given there: the walk stops at the root, and "has a parent" is what
+        says an account is not it."""
+        # Every segment, including an empty one. An account may have no name —
+        # `beancount_account_name_ending_in_a_separator.beancount` measures a
+        # child with none under `Assets:Bank` — and dropping those made this
+        # walk answer `Assets:Bank` for it while `get_account_full_name`, which
+        # every other reader uses, answers `Assets:Bank:`. Two names for one
+        # account is worse than an odd-looking one.
         parts = []
         ptr = acct_ptr
-        while ptr:
-            name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
-            if name:
-                parts.append(name)
-            parent = lib.gnc_account_get_parent(ptr)
-            if not parent or not lib.gnc_account_get_parent(parent):
-                break
-            ptr = parent
+        while lib.gnc_account_get_parent(ptr):
+            parts.append(safe_ctypes_string(lib.xaccAccountGetName, ptr))
+            ptr = lib.gnc_account_get_parent(ptr)
         parts.reverse()
         return ':'.join(parts)
 

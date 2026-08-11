@@ -1,0 +1,19 @@
+# A customer clearing one line of its address, and saying so.
+#
+# An absent key says nothing about the field; an empty one says to empty it.
+# The two have to be tellable apart, or a field can be set and never unset.
+#
+# What this fixture produces: C-ADDR with its first address line emptied and
+# the rest of the address as the book had it.
+#
+# Verified by tests/integration/test_an_absent_key_is_not_an_instruction.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+
+customer "C-ADDR"
+	name: "Acme Supplies"
+	currency: CAD
+	addr1: ""

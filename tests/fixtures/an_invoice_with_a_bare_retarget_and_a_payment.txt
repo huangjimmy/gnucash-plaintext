@@ -1,0 +1,39 @@
+# An invoice settled twice: once by naming a deposit the book already holds,
+# with nothing but the account and the guid, and once by an ordinary payment
+# that states its own date and amount.
+#
+# The two block shapes are what this fixture is for. A retarget names a
+# movement the book has, so the block does not restate it; an ordinary payment
+# describes one to be made, so it must. Comparing a retarget block as though it
+# were an ordinary one reads fields it was never required to carry.
+customer "C-BARE"
+	name: "Acme Bare"
+	currency: CAD
+
+invoice "INV-BARE"
+	customer_id: "C-BARE"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-02
+		due: 2026-03-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-BARE"
+		accumulate: true
+	payment:
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+	payment:
+		date: 2026-02-20
+		amount: 60
+		bank_account: "Assets:Bank"
+		memo: "The rest of it"

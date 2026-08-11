@@ -1,0 +1,39 @@
+# An `open` claiming a guid the book has given to another account.
+#
+# The exporter writes `guid:` on every `open` so an account keeps its identity
+# across a round trip, and the importer refuses a guid another object already
+# holds — otherwise two accounts would answer to one name in every file that
+# refers to either. Re-importing an export taken before an account was renamed
+# in GnuCash is exactly that: the file says `open Assets:Bank` with the guid
+# the book now has on `Assets:Chequing`.
+#
+# The refusal comes after the account is attached to the tree, and the
+# business-objects pre-pass swallowed it: the account stayed, without the
+# identity it was refused, and the pass that would have reported the failure
+# found the account already there and said nothing. `Errors: 0`, exit 0, and a
+# second account answering to a freshly minted guid.
+#
+# What this fixture produces: a refusal naming the guid, and no account by
+# that name.
+#
+# Verified by tests/integration/test_an_open_that_fails_after_it_is_attached.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0001"
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Chequing
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0002"
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0002"
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"

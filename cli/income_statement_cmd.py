@@ -5,11 +5,11 @@ Supports CRA T2 fiscal year periods with optional FX conversion to CAD.
 Output formats: text (stdout), HTML, PDF.
 """
 
-from datetime import date, datetime
 from typing import Optional
 
 import click
 
+from cli._dates import parse_date
 from infrastructure.gnucash.utils import exact_text
 from repositories.gnucash_repository import GnuCashRepository
 from services.foreign_currency import BASE_CURRENCY
@@ -17,21 +17,12 @@ from services.fx_rates import FxRates, MissingFxRateError
 from use_cases.generate_income_statement import GenerateIncomeStatementUseCase, fiscal_year_start
 
 
-def _parse_date(ctx, param, value: Optional[str]) -> Optional[date]:
-    if value is None:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError as e:
-        raise click.BadParameter(f"Date must be in YYYY-MM-DD format, got: {value}") from e
-
-
 @click.command("income-statement")
 @click.argument("gnucash_file", type=click.Path(exists=True))
 @click.option(
     "--fiscal-year-end",
     default=None,
-    callback=_parse_date,
+    callback=parse_date,
     is_eager=True,
     expose_value=True,
     help="Fiscal year end date (YYYY-MM-DD). Start is auto-computed as end − 1 year + 1 day.",
@@ -39,7 +30,7 @@ def _parse_date(ctx, param, value: Optional[str]) -> Optional[date]:
 @click.option(
     "--start",
     default=None,
-    callback=_parse_date,
+    callback=parse_date,
     is_eager=True,
     expose_value=True,
     help="Period start date (YYYY-MM-DD). Use with --end for explicit range.",
@@ -47,7 +38,7 @@ def _parse_date(ctx, param, value: Optional[str]) -> Optional[date]:
 @click.option(
     "--end",
     default=None,
-    callback=_parse_date,
+    callback=parse_date,
     is_eager=True,
     expose_value=True,
     help="Period end date (YYYY-MM-DD). Use with --start for explicit range.",

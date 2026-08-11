@@ -1,0 +1,44 @@
+; A currency stated at a fraction the book does not have for it.
+;
+; GnuCash seeds the CURRENCY namespace from its own ISO 4217 table, and the
+; two do not always agree — the yen it ships is kept to whole units, and
+; GnuCash itself changed the won from 1/100 to whole units at 5.15, so a file
+; written on one supported version and read on another states a fraction the
+; reader disagrees with. The commodity is updated to what the file says, which
+; is the only reading that keeps a book moved between two machines the book it
+; was.
+;
+; What this fixture produces: one commodity updated and none created — CAD is
+; already there and unchanged, JPY is already there and restated.
+;
+; Verified by tests/integration/test_beancount_reads_what_a_person_writes.py.
+2024-01-01 commodity CAD
+    gnucash-mnemonic: "CAD"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "Canadian Dollar"
+    gnucash-fraction: "100"
+2024-01-01 commodity JPY
+    gnucash-mnemonic: "JPY"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "Japanese Yen"
+    gnucash-fraction: "100"
+2024-01-01 open Assets CAD
+    gnucash-name: "Assets"
+    gnucash-guid: "1111111111111111111111111111111a"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Bank CAD
+    gnucash-name: "Assets:Bank"
+    gnucash-guid: "1111111111111111111111111111111b"
+    gnucash-type: "Bank"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Bank:JPY JPY
+    gnucash-name: "Assets:Bank:JPY"
+    gnucash-guid: "1111111111111111111111111111111c"
+    gnucash-type: "Bank"
+    gnucash-placeholder: "False"
+
+2024-02-01 * "Broker" "Buy yen"
+    gnucash-guid: "2222222222222222222222222222222a"
+  Assets:Bank:JPY 20000.00 JPY @ 0.0091 CAD
+  Assets:Bank -182.00 CAD

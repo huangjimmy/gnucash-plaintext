@@ -1,0 +1,74 @@
+# An invoice settled by two payments, each from a different bank account.
+#
+# Unposting it orphans both, and the warning has to say where each one's money
+# is. Totalled as a single figure, two payments made from two accounts read as
+# one sum sitting in whichever account the first orphan named — so a reader
+# reconciling the book looked for 100.00 in a chequing account that holds 60.00
+# of it, and never heard about the 40.00 in the other one.
+#
+# What this fixture produces: one invoice for 100.00, posted, paid 60.00 out of
+# Assets:Bank and 40.00 out of Assets:Second Bank.
+#
+# Verified by tests/integration/test_orphans_are_totalled_per_bank_account.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Second Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-TWOBANK"
+	name: "Two Bank Customer"
+	currency: CAD
+
+invoice "INV-TWOBANK"
+	customer_id: "C-TWOBANK"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-TWOBANK"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 60
+		bank_account: "Assets:Bank"
+		memo: "From the chequing account"
+	payment:
+		date: 2026-01-25
+		amount: 40
+		bank_account: "Assets:Second Bank"
+		memo: "From the other one"

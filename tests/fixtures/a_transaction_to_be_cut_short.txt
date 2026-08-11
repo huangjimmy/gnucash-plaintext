@@ -1,0 +1,31 @@
+# One transaction with two splits, for the truncated-block case.
+#
+# What this fixture produces: `Lunch`, 50.00 CAD, two splits, with a guid so
+# `--strategy update` can find it again.
+#
+# Verified by tests/integration/test_a_transaction_block_with_no_splits.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-01 * "Lunch"
+	guid: "cccccccccccccccccccccccccccc0001"
+	currency.mnemonic: "CAD"
+	Expenses 50.00 CAD
+		account.commodity.mnemonic: "CAD"
+	Assets:Bank -50.00 CAD
+		account.commodity.mnemonic: "CAD"

@@ -1,0 +1,6 @@
+# A 40.00 deposit sitting loose, for an invoice's payment block to name with a
+# bare `txn_guid:` — no date, no amount, which is all a retarget block needs.
+2026-02-10 * "Part payment from Acme"
+	currency.mnemonic: "CAD"
+	Assets:Bank 40.00 CAD
+	Assets:Accounts Receivable -40.00 CAD

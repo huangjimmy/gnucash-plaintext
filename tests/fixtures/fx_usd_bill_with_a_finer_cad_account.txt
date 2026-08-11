@@ -1,19 +1,21 @@
 # A US vendor's bill for one litre of fuel, expensed to an account kept to
 # thousandths.
 #
-# Fuel is priced to a tenth of a cent — 1.819 a litre — so the expense account
-# is denominated at 1/1000 rather than at the cent, which GnuCash keeps per
-# account and this tool round-trips as `commodity_scu:`. One litre is 1.819
-# CAD: an amount the currency cannot hold and the account can, which is the
-# whole reason such accounts exist (see account_with_finer_scu.txt). On an
-# ordinary CAD account the same figure is refused.
+# Fuel is priced to a tenth of a cent, so the expense account is denominated
+# at 1/1000 rather than at the cent — GnuCash keeps that per account and this
+# tool round-trips it as `commodity_scu:` (see account_with_finer_scu.txt).
 #
-# The bill is in USD, so the payable credit is a cost basis priced through
-# that CAD split. Applying the transaction's rate back to it has to round the
-# way the split itself is held — to the thousandth — or the implied figure is
-# 1.82 against a carried 1.819 and a correct book reads as converted at two
-# rates, over a difference smaller than the cent the message would print both
-# figures at.
+# The figure *stated* is a whole number of cents, because that is all a file
+# may state: a booked amount is judged against the currency however fine the
+# account is. This read 1.819 before, and what a sub-cent booked amount bought
+# was a split whose amount sat at the account's unit while its value was
+# rounded to the currency's — one split carrying two figures for one sum.
+#
+# The account's unit still matters here, which is the point of the fixture:
+# the bill is in USD, so the payable credit is a cost basis priced through
+# this CAD split, and applying the transaction's rate back to it has to round
+# the way the split is held — to the thousandth — or a correct book reads as
+# converted at two rates over a difference smaller than a cent.
 #
 # Verified by tests/integration/test_verify_costs.py.
 2026-01-01 open Assets
@@ -38,9 +40,9 @@
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
 
-2026-01-10 * "One litre of fuel from a US vendor, at 1.399 CAD/USD"
+2026-01-10 * "One litre of fuel from a US vendor, at 1.4 CAD/USD"
 	currency.mnemonic: "USD"
-	Expenses:Fuel 1.819 CAD
+	Expenses:Fuel 1.82 CAD
 		account.commodity.mnemonic: "CAD"
 		value: "1.30"
 	Liabilities:Accounts Payable USD -1.30 USD

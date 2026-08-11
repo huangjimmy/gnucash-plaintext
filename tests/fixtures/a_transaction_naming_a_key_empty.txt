@@ -1,0 +1,49 @@
+# A transaction and a split each naming a custom key empty.
+#
+# `key: ""` clears, and removing a custom key is what clearing one means —
+# the rule README states under "What a key says, and what leaving it out
+# says", which holds for reserved fields and custom metadata alike, on every
+# block.
+#
+# Read only as "not None", an empty value was stored as an empty key on a
+# transaction the book did not yet have. The export then wrote `department: ""`
+# back, so the file grew a line nobody typed; and because the same file
+# imported into a book that already held the transaction removes the key
+# instead, the same ledger produced two different books depending on which
+# book it met. A create → export → re-import cycle did not settle.
+#
+# Owners, invoices and bills have never had this: they merge through one
+# function that pops an empty value on both paths.
+#
+# What this fixture produces: one transaction carrying `region: "west"` and
+# `department: ""`, whose bank split carries `project: ""`.
+#
+# Verified by tests/integration/test_an_empty_key_is_not_stored_empty.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Sundry
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-01 * "Kept some keys, cleared others"
+	region: "west"
+	department: ""
+	Assets:Bank -20.00 CAD
+		project: ""
+	Expenses:Sundry 20.00 CAD

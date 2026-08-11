@@ -1,0 +1,72 @@
+# A transaction that fails for one reason and an invoice that fails for
+# another, with nothing in common between them.
+#
+# The split states a figure finer than its currency; the invoice names a tax
+# table the book has not got. Neither is about an account that could not be
+# made, and neither explains the other — which is what the refusal has to not
+# claim when it gathers up what else the run reported.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fuel
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-01 * "Fuel"
+	currency.mnemonic: "CAD"
+	Expenses:Fuel 18.191 CAD
+	Assets:Bank -18.191 CAD
+
+customer "C-TWO"
+	name: "Two Failures"
+	currency: CAD
+
+invoice "INV-TWO"
+	customer_id: "C-TWO"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "No Such Table"
+	posted:
+		date: 2026-02-02
+		due: 2026-03-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWO"
+		accumulate: true

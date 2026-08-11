@@ -40,6 +40,7 @@ import sys
 
 import click
 
+from cli._saving import save_or_report
 from infrastructure.gnucash.guid_lookup import normalise_guid
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from use_cases.unpost_business_objects import (
@@ -90,11 +91,7 @@ def _run_unpost(gnucash_file, ids, use_case_cls, by_guid=False):
                 all_ok = False
 
         if any(r.status == UnpostStatus.UNPOSTED for r in results):
-            try:
-                repo.save()
-            except Exception as e:
-                if 'ERR_FILEIO_BACKUP_ERROR' not in str(e):
-                    raise click.ClickException(f'Failed to save: {e}') from e
+            save_or_report(repo)
 
         if not all_ok:
             sys.exit(1)

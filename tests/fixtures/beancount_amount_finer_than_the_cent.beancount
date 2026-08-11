@@ -1,0 +1,43 @@
+; A currency posting finer than the cent.
+;
+; The account is kept at the cent and so is CAD, so this fails both halves of
+; the rule at once — and which half the message speaks for matters. Written
+; afresh for this path it had only the account branch, so `50.001 CAD` was
+; told to give the account a finer unit; the same file then failed the
+; currency check, which is a dead end for money. It goes through the same
+; judge the plaintext importer uses now, and that one branches.
+;
+; What this fixture produces: a refusal saying the figure is not money this
+; book can record, without advising a finer unit.
+;
+; Verified by tests/integration/test_beancount_reads_what_a_person_writes.py.
+2024-01-01 commodity CAD
+    gnucash-mnemonic: "CAD"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "Canadian Dollar"
+    gnucash-fraction: "100"
+2024-01-01 commodity USD
+    gnucash-mnemonic: "USD"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "US Dollar"
+    gnucash-fraction: "100"
+2024-01-01 open Assets CAD
+    gnucash-name: "Assets"
+    gnucash-guid: "1111111111111111111111111111111a"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Bank CAD
+    gnucash-name: "Assets:Bank"
+    gnucash-guid: "1111111111111111111111111111111b"
+    gnucash-type: "Bank"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Bank:USD USD
+    gnucash-name: "Assets:Bank:USD"
+    gnucash-guid: "1111111111111111111111111111111c"
+    gnucash-type: "Bank"
+    gnucash-placeholder: "False"
+
+2024-02-01 * "Payee" "A tenth of a cent"
+    gnucash-guid: "2222222222222222222222222222222a"
+  Assets:Bank -50.001 CAD
+  Assets:Bank:USD 50.001 CAD

@@ -19,7 +19,7 @@ invoice "INV-FINE-OVER"
 		accumulate: true
 	payment:
 		date: 2026-02-05
-		amount: 50.005
+		amount: 50.00
 		bank_account: "Assets:Bank"
 		memo: "Overpaid, to the thousandth"
-		prepayment: 20.005
+		prepayment: 20.00

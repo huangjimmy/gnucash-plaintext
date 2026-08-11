@@ -140,7 +140,7 @@ def test_cost_of_the_hkd_split_is_what_that_split_cost(tmp_path):
 
     The transaction is in USD, which is neither the book's currency nor this
     split's, so a rule that only handles those two answers None and the HKD
-    goes untracked.
+    gets no balance.
     """
     repo = _book_with_three_currency_sale(tmp_path)
     try:

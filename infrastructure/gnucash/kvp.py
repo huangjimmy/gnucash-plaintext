@@ -6,18 +6,21 @@ slot to avoid KvpFrame key-enumeration complexity across GnuCash versions.
 
 ## Cross-version compatibility
 
-GnuCash 4.x+  (Debian 11/12/13, Ubuntu 22/24):
-    Uses SWIG KvpFrame.set_slot_path / get_slot_path with KvpValue.
-    Transaction and Split objects expose .GetSlots() → KvpFrame.
+There is one path, on every supported version: ctypes
+`qof_instance_set_kvp` / `qof_instance_get_kvp` with a GLib GValue (from
+libgobject-2.0). Those functions live in libgncmod-engine.so, not
+libgnc-engine.so.
 
-GnuCash 3.8   (Ubuntu 20.04):
-    Transaction and Split do NOT expose .GetSlots(). The KVP API changed
-    between 3.x and 4.x. Falls back to ctypes qof_instance_set_kvp /
-    qof_instance_get_kvp with a GLib GValue (from libgobject-2.0).
-    These functions are in libgncmod-engine.so (not libgnc-engine.so).
+This module used to describe two — a SWIG path for "GnuCash 4.x+" using
+`KvpFrame.set_slot_path` / `get_slot_path` with `KvpValue`, and the ctypes
+one above as a fallback for GnuCash 3.8 on Ubuntu 20.04. Neither half of that
+was true. Measured on GnuCash 5.10, 5.15 and 3.8: `from gnucash import
+KvpValue` raises ImportError, and `Transaction` carries no `GetSlots`
+attribute at all. So the "4.x+ path" could only ever raise, and the branch
+labelled as one distribution's fallback was doing the work everywhere.
 
-Both paths use the flat slot name 'plaintext_metadata' (no slashes) to
-avoid the difference between flat-key and nested-path semantics.
+The slot name is flat — 'plaintext_metadata', no slashes — to avoid the
+difference between flat-key and nested-path semantics.
 """
 import contextlib
 import ctypes
@@ -108,9 +111,13 @@ KNOWN_CUSTOMER_METADATA_KEYS = frozenset({
     'guid', 'name', 'currency', 'addr1', 'addr2', 'addr3', 'addr4', 'email', 'active',
 })
 
-# Vendor metadata keys that have dedicated GnuCash setters.
+# Vendor metadata keys that have dedicated GnuCash setters. The address keys
+# belong here for the same reason they do above: a vendor has an address, the
+# bill renderer prints it, and without a setter behind them these keys were
+# filed as custom metadata — a slot named `addr1` rather than the address.
 KNOWN_VENDOR_METADATA_KEYS = frozenset({
-    'guid', 'name', 'currency', 'active',
+    'guid', 'name', 'currency', 'addr1', 'addr2', 'addr3', 'addr4', 'email',
+    'active',
 })
 
 # Invoice metadata keys that have dedicated GnuCash setters.
@@ -127,6 +134,12 @@ KNOWN_INVOICE_METADATA_KEYS = frozenset({
 # Bill metadata keys that have dedicated GnuCash setters.
 KNOWN_BILL_METADATA_KEYS = frozenset({
     'guid', 'vendor_id', 'vendor_guid', 'currency', 'date_opened',
+    # `notes` and `billing_id` as the invoice set has them: the bill
+    # comparison reads `GetNotes()`, so leaving them out of this set sent
+    # `notes:` to the slot, left `GetNotes()` empty, and made the comparison
+    # unanswerable — every re-import of an unchanged ledger unposted the bill
+    # and built it again.
+    'billing_id', 'notes',
     'posted', 'payment',
     'auto_apply_credit',  # Q-015: triggers gncInvoiceAutoApplyPayments after posting
     # Q-017: bill analogues of the invoice informational totals.
@@ -141,8 +154,36 @@ KNOWN_ACCOUNT_METADATA_KEYS = frozenset({
 })
 
 
+def held_value(obj, current: str, key: str, held: dict = None) -> str:
+    """What an object holds for a key, wherever the value is kept.
+
+    `held` is the object's slot contents where the caller already has them.
+    Every KVP read is a ctypes call and a JSON parse, and the export asks this
+    five times per owner for the address keys alone — each one re-reading the
+    same slot it had already read to build its own block.
+
+    A key that has since become a field of its own still sits in the slot of
+    every book written before it was one — a vendor's address, a bill's notes
+    — because back then it had no setter and went where anything without one
+    goes. Every reader has to know that, not just the one someone happened to
+    fix: read from the field alone, an export carried no address at all, a
+    rebuilt book lost the note, and a rendered bill printed the line blank.
+
+    The field wins when it has anything, so a value the book or the file has
+    actually stated is never overridden by a stale copy. The slot copy is
+    dropped on the next import that states the key (see
+    `_merge_custom_metadata`), so this is a migration rather than a permanent
+    second home.
+    """
+    if current:
+        return current
+    if held is None:
+        held = get_custom_metadata(obj) or {}
+    return held.get(key, '')
+
+
 # ---------------------------------------------------------------------------
-# GLib GValue helper (used for GnuCash 3.8 ctypes path)
+# GLib GValue helper: every KVP read and write goes through one of these.
 # ---------------------------------------------------------------------------
 
 class _GValue(ctypes.Structure):
@@ -159,18 +200,27 @@ class _GValue(ctypes.Structure):
 
 _G_TYPE_STRING = 64  # G_TYPE_STRING on all platforms (GLib constant)
 
-_gobj: Optional[ctypes.CDLL] = None
 
 @lru_cache(maxsize=1)
 def _load_gobject() -> Optional[ctypes.CDLL]:
-    """Load libgobject-2.0 (needed for GValue init/set/get on GnuCash 3.8)."""
-    global _gobj
-    if _gobj is not None:
-        return _gobj
+    """Load libgobject-2.0, which builds the GValue every KVP call passes.
+
+    Cached by `lru_cache` and by nothing else. A module-global holding the
+    same handle sat under a `if _gobj is not None: return _gobj` guard that
+    the cache above makes unreachable — the body runs once, and on that one
+    run the global is still None.
+
+    None where the library is absent, which is a broken install rather than a
+    version difference: every supported build has it. Both callers report and
+    carry on rather than raising, so an import meeting it does not abort
+    part-way through a book.
+
+    That None is the implicit one the suppressed `OSError` falls out to. An
+    explicit `return None` under the `with` says the same thing in a line no
+    supported build can execute.
+    """
     with contextlib.suppress(OSError):
-        _gobj = ctypes.CDLL('libgobject-2.0.so.0')
-        return _gobj
-    return None
+        return ctypes.CDLL('libgobject-2.0.so.0')
 
 
 def _load_gnc_engine() -> ctypes.CDLL:
@@ -181,7 +231,7 @@ def _load_gnc_engine() -> ctypes.CDLL:
     to RTLD_GLOBAL before CDLL(None) so ctypes and the Python bindings share
     the same in-memory instance.
 
-    GnuCash 3.8: qof_instance_set_kvp / qof_instance_get_kvp live in
+    qof_instance_set_kvp / qof_instance_get_kvp live in
     libgncmod-engine.so (not libgnc-engine.so).  Promote both paths.
     """
     for path in (
@@ -194,15 +244,15 @@ def _load_gnc_engine() -> ctypes.CDLL:
 
 
 # ---------------------------------------------------------------------------
-# GnuCash 3.8 ctypes path: qof_instance_set/get_kvp + GValue
+# The KVP path, on every supported version: qof_instance_set/get_kvp + GValue
 # ---------------------------------------------------------------------------
 
 def _set_via_qof_instance(obj_ptr: int, slot_name: str, value: str) -> bool:
     """
-    GnuCash 3.8: qof_instance_set_kvp(QofInstance*, GValue*, unsigned, ...).
+    qof_instance_set_kvp(QofInstance*, GValue*, unsigned, ...).
 
     Sets a single string KVP slot on a QofInstance (Transaction or Split).
-    Available in libgncmod-engine.so from GnuCash 3.8 / Ubuntu 20.
+    Lives in libgncmod-engine.so, not libgnc-engine.so.
     """
     try:
         gobj = _load_gobject()
@@ -242,7 +292,7 @@ def _set_via_qof_instance(obj_ptr: int, slot_name: str, value: str) -> bool:
 
 def _get_via_qof_instance(obj_ptr: int, slot_name: str) -> Optional[str]:
     """
-    GnuCash 3.8: qof_instance_get_kvp(QofInstance*, GValue*, unsigned, ...).
+    qof_instance_get_kvp(QofInstance*, GValue*, unsigned, ...).
     """
     try:
         gobj = _load_gobject()
@@ -281,7 +331,7 @@ def _get_via_qof_instance(obj_ptr: int, slot_name: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# Unified set / get (tries SWIG first, falls back to ctypes for 3.8)
+# Set / get a string slot — one route, through the qof_instance calls above
 # ---------------------------------------------------------------------------
 
 def _mark_instance_dirty(obj_ptr: int) -> None:
@@ -301,29 +351,20 @@ def _mark_instance_dirty(obj_ptr: int) -> None:
 
 
 def _set_string_slot(obj, slot_name: str, value: str) -> bool:
-    """Set a string KVP slot on a GnuCash object. Returns True on success."""
-    # --- SWIG path (GnuCash 4.x+: Transaction/Split have .GetSlots()) ---
-    try:
-        from gnucash import KvpValue
-        frame = obj.GetSlots()
-        frame.set_slot_path([slot_name], KvpValue(value))
-        # Verify round-trip (catches silent 3.8 failures if GetSlots existed)
-        kv = frame.get_slot_path([slot_name])
-        if kv is not None:
-            # Mark dirty so the XML backend re-serialises this object on save.
-            _mark_instance_dirty(int(obj.instance))
-            return True
-        logging.debug(
-            f"SWIG set_slot_path for {slot_name!r} appeared to succeed but "
-            f"get_slot_path returned None; trying ctypes fallback."
-        )
-    except AttributeError:
-        # GetSlots() missing → GnuCash 3.8; fall through to ctypes below
-        pass
-    except Exception as e:
-        logging.debug(f"SWIG KvpFrame set failed for {slot_name!r}: {e}")
+    """Set a string KVP slot on a GnuCash object. Returns True on success.
 
-    # --- ctypes path (GnuCash 3.8 / Ubuntu 20) ---
+    Through `qof_instance` in ctypes, on every supported version — not as a
+    fallback for one of them. The SWIG spelling this tried first, `from
+    gnucash import KvpValue` plus `obj.GetSlots()`, exists on none of the ten:
+    measured on GnuCash 5.10, 5.15 and 3.8, the import raises `ImportError`
+    and `Transaction` carries no `GetSlots` attribute at all. So the branch
+    labelled "GnuCash 4.x+" could only ever raise, and the one labelled
+    "GnuCash 3.8 / Ubuntu 20" was doing the work everywhere, under a comment
+    saying it was for one distribution.
+
+    Marking the instance dirty is what makes the XML backend re-serialise the
+    object on save; a slot written without it is lost on the way to disk.
+    """
     try:
         obj_ptr = int(obj.instance)
         if _set_via_qof_instance(obj_ptr, slot_name, value):
@@ -335,32 +376,12 @@ def _set_string_slot(obj, slot_name: str, value: str) -> bool:
 
 
 def _get_string_slot(obj, slot_name: str) -> Optional[str]:
-    """Get a string KVP slot from a GnuCash object. Returns None if not found."""
-    # --- SWIG path (GnuCash 4.x+) ---
-    try:
-        frame = obj.GetSlots()
-        if frame is not None:
-            try:
-                kv = frame.get_slot_path([slot_name])
-                if kv is not None:
-                    for method in ('get', 'to_string'):
-                        with contextlib.suppress(Exception):
-                            result = getattr(kv, method)()
-                            if isinstance(result, str):
-                                return result
-                    result = str(kv)
-                    if result and result != 'None':
-                        return result
-            except Exception as e:
-                logging.debug(f"SWIG get_slot_path failed for {slot_name!r}: {e}")
-            return None
-    except AttributeError:
-        # GetSlots() missing → GnuCash 3.8; fall through to ctypes below
-        pass
-    except Exception as e:
-        logging.debug(f"Failed to get KVP slot {slot_name!r}: {e}")
+    """Get a string KVP slot from a GnuCash object. Returns None if not found.
 
-    # --- ctypes path (GnuCash 3.8 / Ubuntu 20) ---
+    Through `qof_instance` in ctypes, for the reason its writing counterpart
+    gives: `obj.GetSlots()` raises `AttributeError` on every supported build,
+    so the SWIG reader that stood above this could never return a value.
+    """
     try:
         obj_ptr = int(obj.instance)
         return _get_via_qof_instance(obj_ptr, slot_name)

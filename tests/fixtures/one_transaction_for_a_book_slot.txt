@@ -1,0 +1,14 @@
+# One ordinary transaction, for tests about what else is in the book.
+#
+# Its subject is the book-level metadata slot, not the entry: the slot is
+# filled with something another tool wrote and the question is what this one
+# then does with it. A transaction has to be there so the export has something
+# to write beneath the metadata, and this one is deliberately unremarkable —
+# two splits, one currency, no rate, nothing to round.
+#
+# Uses the accounts from q019_accounts.txt.
+#
+# Verified by tests/integration/test_metadata_written_by_another_tool.py.
+2026-01-05 * "Coffee"
+	Assets:Bank -4.00 CAD
+	Expenses:Office Supplies 4.00 CAD

@@ -1,0 +1,13 @@
+# A transaction carrying both a cheque number and a description.
+#
+# The beancount export writes `* "payee" "narration"`, and the two come from
+# different GnuCash fields — the number and the description. A transaction with
+# only one of them takes a different branch, so this is the half that pins the
+# pair as a pair: `* "CHK-1002" "Paid the printer"`.
+#
+# Uses the accounts from beancount_export_edge_shapes' own ledger.
+#
+# Verified by tests/integration/test_beancount_export_edge_shapes.py.
+2024-03-01 * "CHK-1002" "Paid the printer"
+	Assets:Bank -5.00 XCD
+	Expenses:Sundry 5.00 XCD

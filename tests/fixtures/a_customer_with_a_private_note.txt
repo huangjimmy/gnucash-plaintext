@@ -1,0 +1,54 @@
+# A customer carrying a key the format has no setter for, and one nobody would
+# hand the customer: what the book's owner writes about them.
+#
+# Custom keys round-trip, so the export has to carry them. `print-invoice` is
+# the other thing that renders an owner — and that document goes to the
+# customer.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-PRIVATE"
+	name: "Private Note Customer"
+	currency: CAD
+	addr1: "1 Any Street"
+	email: "billing@example.com"
+	credit_rating: "poor - chase early"
+
+invoice "INV-PRIVATE"
+	customer_id: "C-PRIVATE"
+	currency: CAD
+	date_opened: 2026-04-01
+	entry:
+		date: 2026-04-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-04-02
+		due: 2026-05-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-PRIVATE"
+		accumulate: true

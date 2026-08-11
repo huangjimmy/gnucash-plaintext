@@ -1,0 +1,25 @@
+# A customer in CAD with one posted invoice, for the refusals that fire on a
+# re-import of an edited block: dropping the lines, and changing the currency.
+customer "C-EDIT"
+	name: "Edit Test"
+	currency: CAD
+
+invoice "INV-EDIT"
+	customer_id: "C-EDIT"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-EDIT"
+		accumulate: true

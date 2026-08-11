@@ -70,6 +70,10 @@ def test_dict_shaped_transaction_error_still_renders(tmp_path):
     # A dict error must still render with its transaction label and message,
     # so fixing the string case does not regress the original dict path.
     r = _run_import(tmp_path, UNKNOWN_ACCOUNT_TX)
-    assert r.exception is None, r.exception
+    # `SystemExit(1)`, because a run that reported errors exits non-zero —
+    # what is checked here is that the summary still renders the dict-shaped
+    # error on the way out, not that the run was a success.
+    assert isinstance(r.exception, SystemExit), r.exception
+    assert r.exit_code == 1, r.output
     assert 'error: Mystery:' in r.output, r.output
     assert 'not found' in r.output, r.output

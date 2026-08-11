@@ -5,7 +5,9 @@ Validates transactions, accounts, and overall ledger integrity.
 Detects common errors and inconsistencies in GnuCash data.
 """
 
+import re
 from datetime import datetime
+from fractions import Fraction
 from typing import Dict, List, Optional
 
 from gnucash import Account, Split, Transaction
@@ -159,7 +161,13 @@ class LedgerValidator:
                 }
             )
 
-        # Check if transaction is balanced
+        # Check if transaction is balanced.
+        #
+        # This is the backstop, not the working check: GnuCash balances every
+        # transaction it stores, so splits that do not sum to zero can only
+        # come from a file something else wrote. What a *GnuCash* book holds
+        # instead is the split below — the engine parks the difference in an
+        # `Imbalance-<currency>` account rather than leaving the entry short.
         if len(splits) > 0 and not self._is_transaction_balanced(splits):
             result.add_error(
                 "UNBALANCED",
@@ -170,19 +178,83 @@ class LedgerValidator:
                 }
             )
 
-        # Check for splits without accounts
+        # A split GnuCash added because the entry did not add up. Every
+        # transaction in a GnuCash book balances — that is the engine's doing,
+        # not the ledger's — so "did the splits sum to zero" can never report
+        # anything, and the money that failed to balance is sitting in
+        # `Imbalance-CAD` where nothing was looking for it.
+        #
+        # Measured on a book this tool wrote: a cross-currency settlement
+        # valuing 780.00 HKD as 780.00 CAD left `Imbalance-CAD 645.84`, and
+        # the ledger validated clean.
+        # A warning, not an error, because the state is ordinary as well as
+        # accidental: a bank feed lands the money and puts the other side in
+        # Imbalance until someone classifies it, which this repo's own
+        # fixtures call "the shape a bank feed leaves". A book mid-
+        # reconciliation is not a broken book. `SINGLE_SPLIT` above is the
+        # same category — a human should look, nothing is provably wrong.
+        #
+        # Both accounts GnuCash's scrub invents, not just one. `Imbalance-`
+        # takes the money an entry did not account for; `Orphan-` takes a
+        # split whose account has gone missing — a partial merge, a damaged
+        # file, or a run of Actions → Check & Repair. Same construction, same
+        # reason, and `SPLIT_NO_ACCOUNT` cannot cover the second because after
+        # the scrub the split does have an account.
+        #
+        # Matched on the shape rather than a bare prefix: the name, a hyphen,
+        # and a mnemonic. `startswith('Imbalance')` swept up a user's own
+        # `Imbalance Reserve`; requiring the hyphen keeps that spelling out,
+        # though not one their owner wrote as `Imbalance-Reserve`. This is a
+        # warning rather than an error, so the cost of that is a line to read
+        # past.
+        #
+        # The mnemonic is not three letters. GnuCash names the account after
+        # whatever commodity failed to balance, so a fund leaves
+        # `Imbalance-FUNDX` and a stock `Imbalance-USTECH` — and those are the
+        # ones this round kept turning up, from beancount round trips that
+        # valued a security posting in its own units. `[A-Z]{3}` matched only
+        # the currency case and called such a book clean.
+        #
+        # A localised build names both differently again (`Ausgleich-EUR`),
+        # which this does not cover and should not pretend to.
+        # Once per transaction, however many such splits it carries, like
+        # every other check here. A transaction GnuCash scrubbed on both sides
+        # — or one holding an `Imbalance-` and an `Orphan-` — is one entry to
+        # go and look at, and reported twice it reads as two.
+        # And each account once, which is the same reasoning one step down: a
+        # transaction with two splits in `Imbalance-CAD` is one account to go
+        # and look at, and naming it twice reads as two. `dict.fromkeys` rather
+        # than a set, so the order is the order the transaction carries them
+        # in and the message does not vary between runs.
+        scrubbed = []
         for split in splits:
-            account = split.GetAccount()
-            if account is None:
-                result.add_error(
-                    "SPLIT_NO_ACCOUNT",
-                    "Split has no account",
-                    {
-                        'transaction_guid': transaction.GetGUID().to_string(),
-                        'description': desc
-                    }
-                )
+            name = split.GetAccount().GetName() or ''
+            if re.fullmatch(r'(?:Imbalance|Orphan)-\S+', name):
+                scrubbed.append(name)
+        scrubbed = list(dict.fromkeys(scrubbed))
+        if scrubbed:
+            result.add_warning(
+                "IMBALANCE_SPLIT",
+                f"Transaction has a split in {', '.join(scrubbed)}, which "
+                f"GnuCash adds when an entry does not balance or a split's "
+                f"account has gone missing",
+                {
+                    'guid': transaction.GetGUID().to_string(),
+                    'description': desc,
+                    'account': ', '.join(scrubbed),
+                }
+            )
 
+        # No check for a split without an account. There is no such split in a
+        # book this can be asked about: handed one edited to remove a
+        # `<split:account>`, GnuCash 5.x drops the whole transaction while
+        # loading and 4.x and earlier segfault inside `qof_session_load`,
+        # before this tool is given control (CLAUDE.md §12). So the error it
+        # reported was one no book could earn, while the state it was named
+        # for — a split whose account has gone missing — reaches a reader
+        # through `IMBALANCE_SPLIT` above, because GnuCash's own scrub has by
+        # then given the split an `Orphan-` account to sit in.
+        #
         # Check currency
         currency = transaction.GetCurrency()
         if currency is None:
@@ -210,12 +282,18 @@ class LedgerValidator:
         if not splits:
             return True
 
-        total_num = 0
+        # Summed as fractions, not as bare numerators. Adding `value.num()`
+        # is right only while every split's value shares a denominator, which
+        # GnuCash guarantees for a book it wrote — it normalises value to the
+        # transaction currency's fraction. This check exists for the one input
+        # class where that guarantee does not hold: a file something else
+        # wrote. On those, 1/2 and -1/4 would have summed to zero.
+        total = Fraction(0)
         for split in splits:
             value = split.GetValue()
-            total_num += value.num()
+            total += Fraction(value.num(), value.denom())
 
-        return total_num == 0
+        return total == 0
 
     def validate_account(self, account: Account) -> ValidationResult:
         """

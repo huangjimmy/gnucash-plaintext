@@ -1,0 +1,17 @@
+# The same transaction with its splits cut off.
+#
+# A transaction block needs only its date, flag and description to parse, so a
+# file cut short by a failed write still reads as a transaction — and under
+# `--strategy update` the block is the source of truth for the splits, which
+# is what lets a person remove one by removing a line.
+#
+# Nothing told that apart from a file that stops here, so the transaction was
+# left with no splits: a transaction with no money in it.
+#
+# What this fixture produces: a refusal naming the transaction, with its
+# splits left alone.
+#
+# Verified by tests/integration/test_a_transaction_block_with_no_splits.py.
+2026-02-01 * "Lunch"
+	guid: "cccccccccccccccccccccccccccc0001"
+	currency.mnemonic: "CAD"

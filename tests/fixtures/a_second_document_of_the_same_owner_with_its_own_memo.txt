@@ -1,0 +1,36 @@
+# The same customer's second invoice, paid the same day, for the same figure,
+# into the same account — and saying on its bank line which payment it is.
+#
+# Everything else agrees with a_second_document_of_the_same_owner.txt, which
+# copies the first invoice's memo as well and is refused for it. A memo is what
+# a payment block carries to name the movement it is about, so stating a
+# different one is the file saying these are two movements, and it is read that
+# way.
+customer "C-SPELL"
+	name: "Spelling Customer"
+	currency: CAD
+
+invoice "INV-SPELL-2"
+	customer_id: "C-SPELL"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-SPELL-2"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		account: "Assets:Bank"
+		memo: "Paid the second"
+		txn_guid: "0ff1ce0ff1ce0ff1ce0ff1ce0ff1ce00"

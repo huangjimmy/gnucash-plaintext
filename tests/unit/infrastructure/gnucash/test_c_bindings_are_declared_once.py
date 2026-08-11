@@ -52,10 +52,6 @@ SEARCHED = ['cli', 'services', 'use_cases', 'infrastructure', 'repositories']
 # mechanical: add the signature to `_setup_lib_restypes`, add the name to
 # `verify_ctypes_functions`, delete the local block, and strike the entry here.
 KNOWN = {
-    'cli/find_transactions_cmd.py': {
-        'lib.xaccSplitGetAccount',
-        'lib.xaccSplitGetAmount',
-    },
     'infrastructure/gnucash/kvp.py': {
         # A second engine loader with its own RTLD_GLOBAL promotion, plus a
         # GObject handle the shared loader knows nothing about.

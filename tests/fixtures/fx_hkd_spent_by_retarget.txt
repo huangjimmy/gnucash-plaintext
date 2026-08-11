@@ -1,0 +1,61 @@
+# Spending the HKD a settlement brought in, the way a payment block cannot.
+#
+# The bill is settled by an ordinary transaction that names both bases — the
+# payable's, and the HKD cash's — and the payment block then claims that
+# transaction with `txn_guid:` instead of raising one of its own. This is what
+# the refusal in fx_hkd_settled_in_then_spent_out.txt points the reader at.
+#
+# The arithmetic: 200.00 USD of payable booked at 1.40 is 280.00 CAD of cost to
+# relieve; the 1,560.00 HKD paid for it cost 0.172, so 268.32 CAD of cash goes.
+# The bill cost 11.68 CAD more than the currency spent on it, and that is the
+# gain — measured against what the HKD *cost*, not against the payment day's
+# rate, which is the whole reason the basis has to be named.
+#
+# What this fixture produces: 0.00 HKD available afterwards, an HKD account
+# holding neither currency nor value, and `Income:FX Gain -11.68 CAD`.
+#
+# Verified by tests/integration/test_spending_what_a_settlement_brought_in.py.
+2026-02-26 * "Pay US vendor out of the HKD account"
+	currency.mnemonic: "CAD"
+	Liabilities:Accounts Payable USD 200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "280.00"
+		cost_basis_split_guid: "{bill_basis}"
+	Assets:Bank:HKD -1560.00 HKD
+		account.commodity.mnemonic: "HKD"
+		share_price: "0.172"
+		value: "-268.32"
+		cost_basis_split_guid: "{hkd_basis}"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"
+
+bill "BILL-HKD-OUT"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Parts"
+		action: "Materials"
+		account: "Expenses:Supplies"
+		quantity: 2
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-HKD-OUT"
+		accumulate: true
+	payment:
+		date: 2026-02-26
+		amount: 200
+		bank_account: "Assets:Bank:HKD"
+		txn_guid: "TXN_GUID"
+		# The transaction carries two splits that are not the bank — the
+		# payable and the realized gain — so which one settles the bill has
+		# to be said rather than left to the order they happen to be in.
+		txn_split_guid: "SPLIT_GUID"
+		memo: "Payment for BILL-HKD-OUT"

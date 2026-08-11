@@ -1,13 +1,13 @@
-"""Q-035: a cost basis with no recorded balance is untracked, not full.
+"""Q-035: a cost basis with no recorded balance has none, not a full one.
 
 A split written in the GnuCash GUI, or by an import that predates this feature,
-carries no `cost_basis_available` KVP. Reading its amount as its available
-balance would re-open currency that may already have been sold, so it reads as
-`untracked`, is refused as a sale's basis, and is opened only when the user
-says so.
+carries no `cost_basis_balance` KVP. Reading its amount as its balance would
+re-open currency that may already have been sold, so it reads as `none
+recorded`, is refused as a sale's basis, and is given a balance only when the
+user says so.
 
-The untracked split is produced by clearing the KVP on a real book — the state
-a GUI-made book is in — rather than by mocking anything.
+The split with no recorded balance is produced by clearing the KVP on a real
+book — the state a GUI-made book is in — rather than by mocking anything.
 """
 
 import re
@@ -19,7 +19,7 @@ from click.testing import CliRunner
 from cli.main import cli
 from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
-from services.foreign_currency import COST_BASIS_AVAILABLE_KEY, iter_splits
+from services.foreign_currency import COST_BASIS_BALANCE_KEY, iter_splits
 
 
 def _run(runner, *args):
@@ -41,9 +41,9 @@ def _forget_recorded_balances(book_path):
     try:
         for split in iter_splits(repo.book):
             metadata = dict(get_custom_metadata(split))
-            if COST_BASIS_AVAILABLE_KEY not in metadata:
+            if COST_BASIS_BALANCE_KEY not in metadata:
                 continue
-            del metadata[COST_BASIS_AVAILABLE_KEY]
+            del metadata[COST_BASIS_BALANCE_KEY]
             transaction = split.GetParent()
             transaction.BeginEdit()
             set_custom_metadata(split, metadata or {'plaintext': 'cleared'})
@@ -53,7 +53,7 @@ def _forget_recorded_balances(book_path):
         repo.close()
 
 
-def _untracked_book(runner, tmp_path):
+def _book_with_no_recorded_balance(runner, tmp_path):
     book = tmp_path / 'book.gnucash'
     assert _run(runner, 'import', '--new', str(book),
                 'tests/fixtures/fx_buy_and_borrow_usd.txt',
@@ -70,32 +70,32 @@ def _sale_against(tmp_path, basis, name='sale.txt'):
     return str(path)
 
 
-def test_an_untracked_basis_reads_as_untracked(tmp_path):
+def test_a_basis_with_no_recorded_balance_says_so(tmp_path):
     runner = CliRunner()
-    book = _untracked_book(runner, tmp_path)
+    book = _book_with_no_recorded_balance(runner, tmp_path)
 
     listing = _balances(runner, book)
-    assert 'untracked' in listing, listing
-    assert 'Available USD' not in listing, listing
-    assert 'cost_basis_available' in listing, listing
+    assert 'none recorded' in listing, listing
+    assert 'Total USD basis balance' not in listing, listing
+    assert 'cost_basis_balance' in listing, listing
 
 
-def test_selling_against_an_untracked_basis_is_refused(tmp_path):
+def test_selling_against_a_basis_with_no_recorded_balance_is_refused(tmp_path):
     runner = CliRunner()
-    book = _untracked_book(runner, tmp_path)
+    book = _book_with_no_recorded_balance(runner, tmp_path)
     basis = re.search(r'\b([0-9a-f]{32})\b', _balances(runner, book)).group(1)
 
     result = _run(runner, 'import', str(book), _sale_against(tmp_path, basis))
     message = result.output + str(result.exception)
-    assert 'no tracked available balance' in message, message
-    assert 'cost_basis_available' in message, message
+    assert 'no balance recorded' in message, message
+    assert 'cost_basis_balance' in message, message
 
 
 def test_stating_the_balance_in_a_file_gives_the_basis_one(tmp_path):
     """The mechanism that already exists: a balance written on the split in an
     import file is authoritative, and the basis is sellable from then on."""
     runner = CliRunner()
-    book = _untracked_book(runner, tmp_path)
+    book = _book_with_no_recorded_balance(runner, tmp_path)
     basis = re.search(r'\b([0-9a-f]{32})\b', _balances(runner, book)).group(1)
 
     # `--strategy update` matches the transaction by its own guid, so take that
@@ -116,7 +116,7 @@ def test_stating_the_balance_in_a_file_gives_the_basis_one(tmp_path):
         '\t\taccount.commodity.mnemonic: "USD"\n'
         '\t\tshare_price: "1.35"\n'
         '\t\tvalue: "135.00"\n'
-        '\t\tcost_basis_available: "100.00"\n'
+        '\t\tcost_basis_balance: "100.00"\n'
         '\tAssets:Bank -135.00 CAD\n'
         '\t\taccount.commodity.mnemonic: "CAD"\n'
         '\t\tshare_price: "1"\n'
@@ -126,19 +126,19 @@ def test_stating_the_balance_in_a_file_gives_the_basis_one(tmp_path):
 
     listing = _balances(runner, book)
     basis_row = next(line for line in listing.splitlines() if basis in line)
-    assert 'untracked' not in basis_row, listing
+    assert 'none recorded' not in basis_row, listing
     assert '100.00 USD     100.00 USD' in basis_row, listing
     # The basis nothing stated a balance for is untouched.
-    assert 'untracked' in listing, listing
+    assert 'none recorded' in listing, listing
 
 
-def test_an_update_does_not_quietly_track_an_untracked_basis(tmp_path):
+def test_an_update_does_not_quietly_write_a_balance(tmp_path):
     """Editing a description must not decide how much of a basis is left.
 
-    An untracked basis is one this tool never wrote a balance for — made in
-    the GUI, or predating the feature — so how much of its currency has
-    already been sold is unknown. Opening it at its full amount would offer
-    currency that may be long gone, which is the whole reason `untracked`
+    A basis with no recorded balance is one this tool never wrote one for —
+    made in the GUI, or predating the feature — so how much of its currency
+    has already been sold is not known. Opening it at its full amount would
+    offer currency that may be long gone, which is the whole reason the state
     exists rather than a default of "all of it".
 
     Re-importing that book with a corrected description passes the edit guard,
@@ -146,8 +146,8 @@ def test_an_update_does_not_quietly_track_an_untracked_basis(tmp_path):
     write a balance on the way past.
     """
     runner = CliRunner()
-    book = _untracked_book(runner, tmp_path)
-    assert 'untracked' in _balances(runner, book)
+    book = _book_with_no_recorded_balance(runner, tmp_path)
+    assert 'none recorded' in _balances(runner, book)
 
     exported = tmp_path / 'out.txt'
     assert _run(runner, 'export', str(book), str(exported)).exit_code == 0
@@ -160,6 +160,6 @@ def test_an_update_does_not_quietly_track_an_untracked_basis(tmp_path):
                 '--strategy', 'update').exit_code == 0
 
     listing = _balances(runner, book)
-    assert 'untracked' in listing, (
+    assert 'none recorded' in listing, (
         'an edit that cannot change what a basis holds gave it a balance '
         f'anyway:\n{listing}')

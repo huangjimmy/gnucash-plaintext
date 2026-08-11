@@ -1,0 +1,6 @@
+# An ordinary two-split transaction, for the `--strategy update` refusal that
+# fires when a re-imported block states no splits at all.
+2026-05-20 * "Office supplies"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 40.00 CAD
+	Assets:Bank -40.00 CAD

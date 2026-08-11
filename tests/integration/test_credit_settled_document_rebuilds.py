@@ -94,7 +94,7 @@ def test_invoice_settled_from_credit_comes_back_settled(tmp_path):
     assert result.exit_code == 0, result.output
 
     assert _settled(rebuilt) == before, (
-        f'rebuild lost payment tracking.\nbefore: {before}\n'
+        f'rebuild lost which payments settled it.\nbefore: {before}\n'
         f'after:  {_settled(rebuilt)}')
 
     # And the rebuilt book exports to the same file it was built from, so a
@@ -116,7 +116,7 @@ def test_bill_settled_from_credit_comes_back_settled(tmp_path):
     assert result.exit_code == 0, result.output
 
     assert _settled(rebuilt) == before, (
-        f'rebuild lost payment tracking.\nbefore: {before}\n'
+        f'rebuild lost which payments settled it.\nbefore: {before}\n'
         f'after:  {_settled(rebuilt)}')
     again = _export(runner, rebuilt, tmp_path, 'out2.txt')
     assert again.read_text() == exported.read_text()

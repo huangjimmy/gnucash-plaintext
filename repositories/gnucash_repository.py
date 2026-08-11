@@ -9,9 +9,46 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 from gnucash import Account, Query, Session, Split, Transaction
+from gnucash.gnucash_core import GnuCashBackendException
+
+from infrastructure.gnucash.utils import transaction_under_construction
 
 if TYPE_CHECKING:
     from services.ledger_validator import ValidationResult
+
+
+class BookUnavailableError(RuntimeError):
+    """The book could not be opened, said in words rather than a backend code.
+
+    GnuCash answers every one of these the same way — `call to begin resulted
+    in the following errors, ERR_BACKEND_LOCKED` — and nothing translated it,
+    so a book open in GnuCash, which is the commonest situation there is, met
+    every command in this tool as a traceback with no message at all.
+    """
+
+
+def _what_gnucash_meant(error: Exception) -> str:
+    """A backend refusal, as the sentence that says which state the book is in."""
+    text = str(error)
+    if 'ERR_BACKEND_LOCKED' in text:
+        return (
+            'The book is locked, which means GnuCash has it open — or a run '
+            'that did not finish left the lock behind. Close it in GnuCash, '
+            'or delete the `.LCK` and `.LNK` files beside the book, and try '
+            'again.')
+    if 'ERR_BACKEND_READONLY' in text:
+        return (
+            'The book is somewhere this command cannot write. GnuCash locks a '
+            'book by creating files beside it, so a read-only directory '
+            'refuses even a command that only reads. Copy the book somewhere '
+            'writable, or give yourself write access to the directory it is '
+            'in.')
+    if 'ERR_BACKEND_NO_HANDLER' in text:
+        return (
+            'That is not a GnuCash book this tool can read. It reads the XML '
+            'file GnuCash writes by default; a directory, a plaintext ledger '
+            'or a book kept in a database is not one.')
+    return f'GnuCash could not open the book: {text}'
 
 
 class SessionMode:
@@ -47,26 +84,33 @@ class GnuCashRepository:
 
         uri = f"xml://{self.file_path}"
 
-        # Use version-specific session API (try new API first)
+        # Use version-specific session API (try new API first). A refusal is
+        # translated here rather than at each of the thirty commands: some
+        # wrap this call and print `str(e)`, some do not wrap it at all, and
+        # the reader met either the backend's own `ERR_BACKEND_LOCKED` or a
+        # traceback, depending on which command they had run.
         try:
-            from gnucash import SessionOpenMode
+            try:
+                from gnucash import SessionOpenMode
 
-            if mode == SessionMode.READ_ONLY:
-                session_mode = SessionOpenMode.SESSION_READ_ONLY
-            elif mode == SessionMode.NEW:
-                session_mode = SessionOpenMode.SESSION_NEW_STORE
-            else:
-                session_mode = SessionOpenMode.SESSION_NORMAL_OPEN
+                if mode == SessionMode.READ_ONLY:
+                    session_mode = SessionOpenMode.SESSION_READ_ONLY
+                elif mode == SessionMode.NEW:
+                    session_mode = SessionOpenMode.SESSION_NEW_STORE
+                else:
+                    session_mode = SessionOpenMode.SESSION_NORMAL_OPEN
 
-            self.session = Session(uri, session_mode)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            if mode == SessionMode.READ_ONLY:
-                self.session = Session(uri, ignore_lock=True)
-            elif mode == SessionMode.NEW:
-                self.session = Session(uri, is_new=True)
-            else:
-                self.session = Session(uri)
+                self.session = Session(uri, session_mode)
+            except ImportError:
+                # Fall back to older GnuCash API (< 4.0)
+                if mode == SessionMode.READ_ONLY:
+                    self.session = Session(uri, ignore_lock=True)
+                elif mode == SessionMode.NEW:
+                    self.session = Session(uri, is_new=True)
+                else:
+                    self.session = Session(uri)
+        except GnuCashBackendException as e:
+            raise BookUnavailableError(_what_gnucash_meant(e)) from e
 
         self._book = self.session.book
 
@@ -289,29 +333,28 @@ class GnuCashRepository:
         commod_table = self.book.get_table()
         currency = commod_table.lookup('CURRENCY', currency_code)
 
-        # Create transaction
-        tx = Transaction(self.book)
-        tx.BeginEdit()
-        tx.SetCurrency(currency)
-        tx.SetDate(*date_tuple)
-        tx.SetDescription(description)
+        # Everything from the moment the transaction exists is inside the
+        # guard: a failure part-way through takes it with it, rather than
+        # leaving the entry in the book carrying whatever splits were already
+        # attached, on top of an edit nothing will close.
+        with transaction_under_construction(self.book) as tx:
+            tx.SetCurrency(currency)
+            tx.SetDate(*date_tuple)
+            tx.SetDescription(description)
 
-        # Create splits
-        for split_data in splits_data:
-            account_path = split_data['account_path']
-            value = split_data['value']
+            for split_data in splits_data:
+                account_path = split_data['account_path']
+                value = split_data['value']
 
-            account = self.get_account(account_path)
-            if account is None:
-                tx.Destroy()
-                raise ValueError(f"Account not found: {account_path}")
+                account = self.get_account(account_path)
+                if account is None:
+                    raise ValueError(f"Account not found: {account_path}")
 
-            split = Split(self.book)
-            split.SetParent(tx)
-            split.SetAccount(account)
-            split.SetValue(value)
+                split = Split(self.book)
+                split.SetParent(tx)
+                split.SetAccount(account)
+                split.SetValue(value)
 
-        tx.CommitEdit()
         return tx
 
     def delete_transaction(self, transaction: Transaction):

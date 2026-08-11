@@ -42,13 +42,18 @@ desc = safe_ctypes_string(lib.gncEntryGetDescription, entry_ptr)
 ```
 
 ### Step 4: Platform Testing Checklist
-You MUST test on all supported platforms:
-- [ ] Debian 11 (GnuCash 4.4)
-- [ ] Debian 12 (GnuCash 4.13)
-- [ ] Debian 13 (GnuCash 5.10)
+You MUST test on all supported platforms — all ten, which is what
+`./scripts/test-all-versions-parallel.sh` runs in one go:
 - [ ] Ubuntu 20.04 (GnuCash 3.8) - minimum version
+- [ ] Debian 11 (GnuCash 4.4)
 - [ ] Ubuntu 22.04 (GnuCash 4.8)
-- [ ] Ubuntu 24.04 (GnuCash 4.9)
+- [ ] Debian 12 (GnuCash 4.13)
+- [ ] Ubuntu 24.04 (GnuCash 5.5)
+- [ ] Debian 13 (GnuCash 5.10)
+- [ ] Fedora 41 (GnuCash 5.13)
+- [ ] Ubuntu 26.04 (GnuCash 5.14)
+- [ ] Arch Linux (GnuCash 5.15)
+- [ ] openSUSE Tumbleweed (GnuCash 5.16)
 
 **Common pattern**: Works on Debian, segfaults on Ubuntu → RTLD_LOCAL issue.
 
@@ -258,7 +263,7 @@ generally null-safe, but GnuCash 3.8 on ubuntu20 is not.
 |---|---|---|---|
 | Debian 11–13 (GnuCash 4.4–5.10) | ✅ | ✅ | ✅ |
 | Ubuntu 20.04 (GnuCash 3.8) | ✅ | ✅ | ✅ required |
-| Ubuntu 22/24 (GnuCash 4.8–4.9) | ✅ | ✅ | ✅ |
+| Ubuntu 22 (GnuCash 4.8), 24 (5.5) | ✅ | ✅ | ✅ |
 | OpenSUSE / Fedora | ✅ | ✅ (txn.GetDescription ❌) | ✅ |
 
 ## Business-Object ID and GUID — Hard-Won Findings (Q-006, 2026-05-07)

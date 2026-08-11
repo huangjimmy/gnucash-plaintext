@@ -102,9 +102,12 @@ Build a Docker image for a specific distribution.
 ./scripts/build.sh debian:12    # Debian 12, GnuCash 4.13
 ./scripts/build.sh debian:11    # Debian 11, GnuCash 4.4
 ./scripts/build.sh ubuntu:26.04 # Ubuntu 26.04, GnuCash 5.14
-./scripts/build.sh ubuntu:24.04 # Ubuntu 24.04, GnuCash 4.9
+./scripts/build.sh ubuntu:24.04 # Ubuntu 24.04, GnuCash 5.5
 ./scripts/build.sh ubuntu:22.04 # Ubuntu 22.04, GnuCash 4.8
 ./scripts/build.sh ubuntu:20.04 # Ubuntu 20.04, GnuCash 3.8
+./scripts/build.sh fedora:41    # Fedora 41, GnuCash 5.13
+./scripts/build.sh arch         # Arch Linux, GnuCash 5.15
+./scripts/build.sh opensuse     # openSUSE Tumbleweed, GnuCash 5.16
 ```
 
 ### `shell` - Interactive Development Shell
@@ -161,9 +164,14 @@ The scripts use these image tags:
 | `debian12` | debian:12 | 4.13 |
 | `debian11` | debian:11 | 4.4 |
 | `ubuntu26` | ubuntu:26.04 | 5.14 |
-| `ubuntu24` | ubuntu:24.04 | 4.9 |
+| `ubuntu24` | ubuntu:24.04 | 5.5 |
 | `ubuntu22` | ubuntu:22.04 | 4.8 |
 | `ubuntu20` | ubuntu:20.04 | 3.8 |
+| `fedora41` | fedora:41 | 5.13 |
+| `arch` | archlinux | 5.15 |
+| `opensuse` | opensuse/tumbleweed | 5.16 |
+
+Each figure is what that image's own package database reports (`dpkg-query -W gnucash`, `rpm -q gnucash`, `pacman -Q gnucash`), read on 2026-08-11. `build.sh` prints it on every build, so a stale one is read as fact — three were a release or more out.
 
 ## Features
 

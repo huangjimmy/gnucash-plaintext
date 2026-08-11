@@ -22,24 +22,17 @@ With --fx-rates:
     shown accounts consolidated to CAD.
 """
 
-from datetime import date, datetime
+from datetime import date
 from typing import Optional
 
 import click
 
+from cli._dates import parse_date
+from cli._saving import save_or_report
 from infrastructure.gnucash.utils import money_text
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.fx_rates import FxRates, MissingFxRateError
 from use_cases.account_balance import AccountBalanceUseCase
-
-
-def _parse_date(ctx, param, value: Optional[str]) -> Optional[date]:
-    if value is None:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError as e:
-        raise click.BadParameter(f"Date must be in YYYY-MM-DD format, got: {value}") from e
 
 
 def _format_amount(amount, unit: int) -> str:
@@ -58,7 +51,7 @@ def _format_amount(amount, unit: int) -> str:
     "--as-of",
     "as_of_str",
     default=None,
-    callback=_parse_date,
+    callback=parse_date,
     is_eager=True,
     expose_value=True,
     help="Balance date (YYYY-MM-DD). Defaults to today.",
@@ -167,15 +160,8 @@ def account_balance(
             raise click.ClickException(str(e)) from e
 
         # Save if we wrote to pricedb.
-        # GnuCash raises GnuCashBackendException when the backup file already
-        # exists (e.g. same-second saves in tests). The XML data is still
-        # written; ignore backup-only failures.
         if fx_rates is not None:
-            try:
-                repo.save()
-            except Exception as e:
-                if "ERR_FILEIO_BACKUP_ERROR" not in str(e):
-                    raise click.ClickException(f"Failed to save: {e}") from e
+            save_or_report(repo)
 
     finally:
         repo.close()

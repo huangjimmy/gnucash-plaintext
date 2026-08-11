@@ -7,7 +7,7 @@ ARG BASE_IMAGE=debian:13
 # │ debian:12        │ 4.13            │ ✅ Stable              │
 # │ debian:11        │ 4.4             │ ✅ LTS                 │
 # │ ubuntu:26.04     │ 5.14            │ ✅ LTS                 │
-# │ ubuntu:24.04     │ 4.9             │ ✅ LTS                 │
+# │ ubuntu:24.04     │ 5.5             │ ✅ LTS                 │
 # │ ubuntu:22.04     │ 4.8             │ ✅ LTS                 │
 # │ ubuntu:20.04     │ 3.8             │ ✅ Minimum (GnuCash 3) │
 # └──────────────────┴─────────────────┴────────────────────────┘
@@ -17,7 +17,7 @@ ARG BASE_IMAGE=debian:13
 #   docker build --build-arg BASE_IMAGE=debian:12 -t gnucash-dev .    # Debian 12 (GnuCash 4.13)
 #   docker build --build-arg BASE_IMAGE=debian:11 -t gnucash-dev .    # Debian 11 (GnuCash 4.4)
 #   docker build --build-arg BASE_IMAGE=ubuntu:26.04 -t gnucash-dev . # Ubuntu 26.04 (GnuCash 5.14)
-#   docker build --build-arg BASE_IMAGE=ubuntu:24.04 -t gnucash-dev . # Ubuntu 24.04 (GnuCash 4.9)
+#   docker build --build-arg BASE_IMAGE=ubuntu:24.04 -t gnucash-dev . # Ubuntu 24.04 (GnuCash 5.5)
 #   docker build --build-arg BASE_IMAGE=ubuntu:22.04 -t gnucash-dev . # Ubuntu 22.04 (GnuCash 4.8)
 #   docker build --build-arg BASE_IMAGE=ubuntu:20.04 -t gnucash-dev . # Ubuntu 20.04 (GnuCash 3.8)
 

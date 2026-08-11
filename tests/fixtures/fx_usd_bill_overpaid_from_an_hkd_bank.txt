@@ -1,0 +1,88 @@
+# The payable side of fx_usd_invoice_overpaid_into_an_hkd_bank.txt: a 100.00
+# USD bill overpaid out of an HKD bank, in a CAD-base book.
+#
+# Every sign inverts — a payable is settled by a debit and the cash goes out —
+# and the rate the overpayment was acquired at is measured the same way: the
+# bank's whole figure over everything it paid for. 1,560.00 HKD at 0.172 is
+# 268.32 CAD for 200.00 USD, so 1.3416, and the 100.00 USD of vendor prepayment
+# left over stands at 134.16 CAD. Less cash extinguishing more liability is a
+# gain on this side.
+#
+# What this fixture produces:
+#
+#   Assets:Bank:HKD             -1,560.00 HKD   value -268.32 CAD
+#   A/P USD     100.00 USD                      value  140.00 CAD  (the bill)
+#   A/P USD     100.00 USD                      value  134.16 CAD  (prepaid)
+#   Income:FX Gain                                     -5.84 CAD   ($residual$)
+#
+# and `fx-balances` listing the prepayment as 100.00 USD available at 1.3416.
+#
+# Verified by tests/integration/test_settling_into_a_third_currency.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable USD
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+vendor "V-US"
+	name: "US Vendor"
+	currency: USD
+
+bill "BILL-USD-OVER-HKD"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Parts"
+		action: "Materials"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-OVER-HKD"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		account: "Assets:Bank:HKD"
+		settled_amount: 1560.00
+		prepayment: 100
+		memo: "Payment for BILL-USD-OVER-HKD"
+		Income:FX Gain $residual$ CAD

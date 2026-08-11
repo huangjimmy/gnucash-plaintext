@@ -6,12 +6,54 @@ Extracted from legacy utils.py and placed in new architecture.
 """
 
 import copy
+from contextlib import contextmanager, suppress
 from decimal import Decimal
 from fractions import Fraction
 from typing import List, Optional, Union
 
-from gnucash import Account, GncCommodity, GncNumeric
+from gnucash import Account, GncCommodity, GncNumeric, Transaction
 from gnucash.gnucash_core_c import GNC_HOW_RND_ROUND_HALF_UP
+
+
+@contextmanager
+def transaction_under_construction(book):
+    """A new transaction, open for editing, destroyed if the build refuses.
+
+    Splits are attached one at a time and each figure is judged as it is
+    reached, so a refusal on the second line lands with the first already
+    attached. Left alone, that entry stays in the book: `Destroy` only marks
+    a transaction, and the commit is what carries the mark out, so an
+    abandoned build leaves both a half-written entry and an edit nothing
+    closes.
+
+    GnuCash does not write a transaction whose edit was never committed, so
+    the saved file looks clean and the wreckage is invisible there. It is not
+    invisible to the rest of the same run: duplicate matching, balances and
+    cost bases all read the open book, and a phantom carrying one split is
+    something for them to find. Measured — the entry is in the session's
+    query results and absent from the file it saves.
+
+    Written as a flag and a `finally` rather than `except Exception`, so a
+    Ctrl-C part-way through takes the transaction with it too. A long import
+    is the run most likely to be interrupted, and an open edit on an
+    allocated transaction is exactly the state this exists to prevent.
+    """
+    transaction = Transaction(book)
+    transaction.BeginEdit()
+    finished = False
+    try:
+        yield transaction
+        transaction.CommitEdit()
+        finished = True
+    finally:
+        if not finished:
+            # Suppressed, because this runs while the original exception is
+            # in flight and that is the one the caller has to see. A destroy
+            # that itself fails would otherwise replace the refusal that
+            # explains what the reader has to fix.
+            with suppress(Exception):
+                transaction.Destroy()
+                transaction.CommitEdit()
 
 
 def wrap_invoice_or_bill(raw):
@@ -70,27 +112,6 @@ def get_parent_accounts_and_self(account: Account) -> List[Account]:
     return accounts
 
 
-def get_all_sub_accounts(account: Account, names=None):
-    """
-    Iterate over all sub accounts of a given account.
-
-    Args:
-        account: GnuCash Account object
-        names: Internal parameter for recursion
-
-    Yields:
-        Tuple of (child_account, full_name)
-    """
-    if names is None:
-        names = []
-
-    for child in account.get_children_sorted():
-        child_names = names.copy()
-        child_names.append(child.GetName())
-        yield child, '::'.join(child_names)
-        yield from get_all_sub_accounts(child, child_names)
-
-
 def find_account(account: Account, name: str) -> Optional[Account]:
     """
     Find account by full path (e.g., 'Assets:Bank:Checking').
@@ -140,40 +161,22 @@ def get_commodity_ticker(commodity: GncCommodity) -> str:
     return f'{namespace}.{mnemonic}'
 
 
-def to_string_in_fraction_format(number: GncNumeric) -> str:
-    """
-    Convert a GncNumeric to a string in num/denom format.
-
-    Args:
-        number: GnuCash numeric value
-
-    Returns:
-        String representation (e.g., '100', '50/3', '1')
-    """
-    number = copy.copy(number)
-    numerator = number.num()
-    denominator = number.denom()
-
-    if numerator == denominator:
-        return '1'
-    if denominator == 1 or numerator == 0:
-        return f'{numerator}'
-    return f'{numerator}/{denominator}'
-
-
 def string_to_gnc_numeric(s, currency: GncCommodity) -> GncNumeric:
     """A number the file states, as a GncNumeric, exactly.
 
     Denominated in the currency's smallest unit when the figure fits it, which
-    is how GnuCash stores an ordinary amount (12.34 CAD as 1234/100). A figure
-    that does not fit keeps its own denominator rather than being cut down to
-    one: `int(Decimal(s) * fraction)` truncates toward zero, so a rate of 1.405
-    became 1.40 and a yen rate of 0.0093 became 0.00, and the split values
-    derived from them were wrong by whatever was thrown away.
+    is how GnuCash stores an ordinary amount (12.34 CAD as 1234/100). Nothing
+    that passes through here silently loses precision: `int(Decimal(s) *
+    fraction)` truncates toward zero, so a rate of 1.405 became 1.40 and a yen
+    rate of 0.0093 became 0.00, and the split values derived from them were
+    wrong by whatever was thrown away.
 
-    Callers that know they are handling money reject a figure the currency
-    cannot hold instead (`_stated_money` in the importer) — but nothing that
-    passes through here silently loses precision.
+    A figure finer than its commodity is answered two ways, by what the
+    commodity *is*. Money is refused: a booked amount is a whole number of the
+    currency's own units, and one that is not is not an amount this book can
+    record. A security is not money — fund units are quoted to three decimals
+    and more — so a quantity keeps its own denominator rather than being cut
+    down to one.
 
     Args:
         s: String representation of number (e.g., '123.45', '50/3')
@@ -189,9 +192,45 @@ def string_to_gnc_numeric(s, currency: GncCommodity) -> GncNumeric:
     exact = Fraction(Decimal(s.replace(',', '.')))
     fraction = currency.get_fraction()
     scaled = exact * fraction
-    if scaled.denominator == 1:
-        return GncNumeric(scaled.numerator, fraction)
-    return GncNumeric(exact.numerator, exact.denominator)
+    # Only money is held to a currency's unit. This is called with whatever
+    # commodity the account is in, and for a securities account that is a
+    # stock or a fund — units of which are commonly quoted to three decimals
+    # or more. Refusing those would refuse an ordinary holding, and break the
+    # beancount round trip besides: the export writes the quantity the book
+    # holds, and the re-import would reject what it had just written. The
+    # codebase draws this line already — shares are counted and priced, not
+    # converted.
+    is_currency = (currency.get_namespace() or '').upper() == 'CURRENCY'
+    if is_currency and scaled.denominator != 1:
+        # A booked amount is a whole number of the currency's own units.
+        # `18.190` passes — it is `18.19` with a trailing zero, and scales to
+        # 1819 hundredths exactly. `18.191` does not, and is refused rather
+        # than stored.
+        #
+        # GnuCash itself would store it, because it keeps a smallest unit per
+        # *account* as well as per commodity. This tool does not follow it
+        # there, and the reason is what happened when it did: the amount kept
+        # the account's finer unit while the value was rounded to the
+        # currency's, so a split in the transaction's own currency came out
+        # with an amount of 18.191 and a value of 18.190 — an invented
+        # exchange rate of 1819000/1819100 between CAD and CAD, and the books
+        # saying two different things about one figure. Nothing caught it:
+        # both splits were wrong by the same factor in opposite directions, so
+        # the values still summed to zero, and the value sum is the only thing
+        # anything checks. Measured on GnuCash 5.10, the import reported
+        # `Errors: 0` and saved.
+        raise ValueError(
+            f'amount {s} is finer than {currency.get_mnemonic()} can hold: '
+            f'the smallest unit is 1/{fraction}, and this needs a smaller '
+            f'one. A trailing zero is fine — 18.190 is 18.19 — but a figure '
+            f'that really needs the extra digit is not an amount of money '
+            f'this book can record. Round it, or split it across entries.')
+    if scaled.denominator != 1:
+        # A security quantity finer than its commodity's fraction, kept as the
+        # ratio it is. Scaling and taking the numerator would drop the rest of
+        # it — 12.3456 units of a fund whose fraction is 100 would become 1234.
+        return GncNumeric(exact.numerator, exact.denominator)
+    return GncNumeric(scaled.numerator, fraction)
 
 
 def to_money(value: Fraction, scu: int) -> GncNumeric:

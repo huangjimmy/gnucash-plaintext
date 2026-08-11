@@ -1,0 +1,36 @@
+# An ordinary transaction that imports cleanly, followed by an invoice that is
+# refused — here for naming a tax table the book does not hold.
+#
+# The two are in one file, and `--include-business-objects` saves the book once
+# at the end, so the refusal takes the transaction with it. What this fixture
+# is for is that the loss is a stated behaviour rather than an accident nobody
+# looked at.
+2026-06-05 * "Stationery"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 25.00 CAD
+	Assets:Bank -25.00 CAD
+
+customer "C-LATE"
+	name: "Late Customer"
+	currency: CAD
+
+invoice "INV-LATE"
+	customer_id: "C-LATE"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "A Table This Book Has Never Heard Of"
+	posted:
+		date: 2026-06-02
+		due: 2026-07-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-LATE"
+		accumulate: true

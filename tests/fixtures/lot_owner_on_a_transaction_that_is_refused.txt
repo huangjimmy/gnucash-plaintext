@@ -1,0 +1,54 @@
+# A `lot_owner:` split on a transaction that is refused a line later.
+#
+# Attaching a lot owner makes a lot, and it makes it while the transaction is
+# still being built. The build then hits a figure the currency cannot hold and
+# the transaction is destroyed — so the question is whether the lot goes with
+# it, or stays behind empty and owner-attached, which per this repo's own
+# findings is indistinguishable from a parked credit.
+#
+# A second, ordinary transaction is here on purpose: without one the run has
+# nothing to save and the question never reaches the file.
+#
+# What this fixture produces: one error naming 18.191, one transaction
+# imported, and `find-prepayments` reporting no open credit.
+#
+# Verified by tests/integration/test_a_refused_figure_leaves_no_wreckage.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-LOT"
+	name: "Lot Customer"
+	currency: CAD
+
+2026-02-01 * "An ordinary sale"
+	currency.mnemonic: "CAD"
+	Assets:Bank 40.00 CAD
+		account.commodity.mnemonic: "CAD"
+	Income:Sales -40.00 CAD
+		account.commodity.mnemonic: "CAD"
+
+2026-02-02 * "A deposit whose second line will not do"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable -25.00 CAD
+		account.commodity.mnemonic: "CAD"
+		lot_owner: "customer:C-LOT"
+	Assets:Bank 25.001 CAD
+		account.commodity.mnemonic: "CAD"

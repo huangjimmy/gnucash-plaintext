@@ -116,7 +116,7 @@ def test_a_stored_cost_that_drifted_from_the_transaction_is_reported(tmp_path):
 
     # And the listing is still printed — the check reports at the end rather
     # than exiting on the first thing it finds.
-    assert 'Available USD: 200.00' in checked.output, checked.output
+    assert 'Total USD basis balance: 200.00' in checked.output, checked.output
     assert '1.35 CAD/USD' in checked.output, checked.output
 
 
@@ -166,8 +166,10 @@ def test_the_cost_pools_every_base_split_rather_than_judging_them(tmp_path):
 
     Three criteria for such a verdict were tried and each reported correct
     books: the ratios against each other (every taxed foreign invoice), each
-    against the pooled rate (a bill of 1.819 CAD for 1.30 USD beside 5.00 for
-    3.57, which 1.3992 produces exactly), and the windows the rounding leaves.
+    against the pooled rate (a bill of 1.82 CAD for 1.30 USD beside 5.00 for
+    3.57 — two lines rounded to their own units, whose ratios differ in the
+    third decimal without either being wrong), and the windows the rounding
+    leaves.
     A rate in this tool is an exact figure a file states; inferring one back
     out of rounded amounts and then testing it is a guess with a tax figure
     resting on it.
@@ -255,7 +257,7 @@ def test_a_balance_above_what_arrived_or_below_zero_is_reported(tmp_path):
             transaction = split.GetParent()
             transaction.BeginEdit()
             metadata = dict(get_custom_metadata(split))
-            metadata['cost_basis_available'] = stated
+            metadata['cost_basis_balance'] = stated
             set_custom_metadata(split, metadata)
             transaction.CommitEdit()
             repo.save()
@@ -264,7 +266,7 @@ def test_a_balance_above_what_arrived_or_below_zero_is_reported(tmp_path):
 
         checked = _verify(runner, book)
         assert checked.exit_code == 1, checked.output
-        assert 'available balance is' in checked.output, checked.output
+        assert 'basis balance is' in checked.output, checked.output
         assert expected in checked.output, checked.output
 
 
@@ -311,7 +313,7 @@ def test_a_basis_that_cannot_be_read_is_reported_not_crashed_on(tmp_path):
     # Without the flag: the listing still comes out, and says where to look.
     listing = runner.invoke(cli, ['fx-balances', str(book)])
     assert listing.exit_code == 0, listing.output
-    assert 'unreadable' in listing.output, listing.output
+    assert 'malformed' in listing.output, listing.output
     assert '--verify-costs' in listing.output, listing.output
     assert '1.4 CAD/USD' in listing.output, listing.output      # the invoice's
 
@@ -352,7 +354,7 @@ def test_the_count_is_what_was_checked_not_what_the_listing_shows(tmp_path):
         transaction = split.GetParent()
         transaction.BeginEdit()
         metadata = dict(get_custom_metadata(split))
-        metadata['cost_basis_available'] = '150.00'
+        metadata['cost_basis_balance'] = '150.00'
         set_custom_metadata(split, metadata)
         transaction.CommitEdit()
         repo.save()
@@ -395,7 +397,7 @@ def test_the_one_stored_cost_survives_a_round_trip(tmp_path):
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(second)]).output
-    assert 'Available USD: 200.00' in listing, listing
+    assert 'Total USD basis balance: 200.00' in listing, listing
     assert '1.4 CAD/USD' in listing, listing
     assert _verify(runner, second).exit_code == 0, _verify(runner, second).output
 
@@ -426,7 +428,7 @@ def test_a_currency_worth_less_than_a_dollar_is_not_read_as_two_rates(tmp_path):
     checked = _verify(runner, book)
     assert checked.exit_code == 0, checked.output
     assert 'every cost agrees' in checked.output, checked.output
-    assert 'Available HKD: 366.66' in checked.output, checked.output
+    assert 'Total HKD basis balance: 366.66' in checked.output, checked.output
 
 
 def test_a_spending_split_is_not_a_basis_however_its_cost_reads(tmp_path):
@@ -575,14 +577,18 @@ def test_a_split_held_finer_than_the_cent_is_measured_at_its_own_unit(tmp_path):
     """An account can be kept finer than its currency, and its splits with it.
 
     Fuel is priced to a tenth of a cent, so its expense account is denominated
-    at 1/1000 and one litre lands on 1.819 CAD — an amount the currency cannot
-    hold and the account can, which is the whole reason `commodity_scu:`
-    exists. On an ordinary CAD account the same figure is refused.
+    at 1/1000 and its splits are held there. Applying the transaction's rate
+    back to such a split has to round the way the split is held; rounded to
+    the cent instead, a correct book was reported as converted at two rates,
+    and the message printed both figures at the cent — "1.82 and it carries
+    1.82", a difference it had rounded away.
 
-    Applying the transaction's rate back to such a split has to round the way
-    the split is held. Rounded to the cent instead, 1.819 was measured against
-    an implied 1.82, a correct book reported as converted at two rates — and
-    the message, rounding both for display, printed "1.82 and it carries 1.82".
+    The import is asserted on its error count and the verify on the number of
+    bases it found, not on exit codes: a failed transaction does not set a
+    non-zero exit, and `verify-costs` over a book with no bases at all reports
+    that every cost agrees. Between them, this test passed for a while over an
+    empty book — the fixture stated a sub-cent amount that had since become
+    refusable, so nothing was imported and nothing was checked.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -590,9 +596,11 @@ def test_a_split_held_finer_than_the_cent_is_measured_at_its_own_unit(tmp_path):
         cli, ['import', '--new', str(book),
               'tests/fixtures/fx_usd_bill_with_a_finer_cad_account.txt'])
     assert result.exit_code == 0, result.output
+    assert 'Errors:       0' in result.output, result.output
 
     checked = _verify(runner, book)
     assert checked.exit_code == 0, checked.output
+    assert 'Checked 1 cost basis' in checked.output, checked.output
     assert 'every cost agrees' in checked.output, checked.output
 
 
@@ -601,9 +609,9 @@ def test_a_reported_basis_shows_its_figures_at_the_unit_they_are_held_to(tmp_pat
 
     A basis reported for anything at all prints the base-currency splits its
     cost was pooled from. One of these is on an account kept to thousandths,
-    where the ledger holds 1.819 CAD: printed at the cent it reads 1.82, a
-    figure the book does not contain, and nothing tells a reader that account
-    apart from an ordinary CAD one — so the unit is named.
+    where the ledger holds 1.820 CAD: printed at the cent it reads 1.82, which
+    says nothing about the unit the figure is kept to, and nothing else tells a
+    reader that account apart from an ordinary CAD one — so the unit is named.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -631,7 +639,7 @@ def test_a_reported_basis_shows_its_figures_at_the_unit_they_are_held_to(tmp_pat
 
     checked = _verify(runner, book)
     assert checked.exit_code == 1, checked.output
-    assert 'Expenses:Fuel: 1.819 CAD for 1.30 USD' in checked.output, checked.output
+    assert 'Expenses:Fuel: 1.820 CAD for 1.30 USD' in checked.output, checked.output
     assert 'account held to 0.001' in checked.output, checked.output
     assert 'Expenses:Parts: 5.00 CAD for 3.57 USD' in checked.output, checked.output
 
@@ -730,11 +738,11 @@ def test_a_book_with_a_drifted_cost_can_still_be_exported_and_reimported(tmp_pat
     assert _verify(runner, fresh).exit_code == 0
 
 
-def test_a_balance_that_will_not_parse_is_reported_not_read_as_untracked(tmp_path):
+def test_a_balance_that_will_not_parse_is_reported_not_read_as_absent(tmp_path):
     """The one balance-side corruption the check could not see.
 
-    A `cost_basis_available` that is not a number reads as no balance at all,
-    so the basis lists as `untracked` — over a message saying this tool never
+    A `cost_basis_balance` that is not a number reads as no balance at all,
+    so the basis lists as `none recorded` — over a message saying this tool never
     wrote a balance for it, about a split whose balance it wrote and something
     has since broken. Nothing could be sold against it and nothing said why.
 
@@ -755,20 +763,20 @@ def test_a_balance_that_will_not_parse_is_reported_not_read_as_untracked(tmp_pat
         transaction = split.GetParent()
         transaction.BeginEdit()
         metadata = dict(get_custom_metadata(split))
-        metadata['cost_basis_available'] = '60.00.00'
+        metadata['cost_basis_balance'] = '60.00.00'
         set_custom_metadata(split, metadata)
         transaction.CommitEdit()
         repo.save()
     finally:
         repo.close()
 
-    # It still reads as untracked, because it is: nothing can be sold against
+    # It still reads as having no balance, because it has none: nothing can be sold against
     # a balance that cannot be read.
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'untracked' in listing, listing
+    assert 'none recorded' in listing, listing
 
     checked = _verify(runner, book)
     assert checked.exit_code == 1, checked.output
-    assert 'cost_basis_available' in checked.output, checked.output
+    assert 'cost_basis_balance' in checked.output, checked.output
     assert "'60.00.00'" in checked.output, checked.output
     assert 'not a number' in checked.output, checked.output

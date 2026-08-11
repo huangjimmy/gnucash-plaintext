@@ -1,0 +1,40 @@
+# The same customer's second invoice, paid the same day, for the same figure,
+# into the same account, with the same memo — and its own guid, naming a
+# transaction this book does not hold.
+#
+# One customer settling two invoices with two payments that agree on every
+# field a block carries is ordinary: same size, same day, same account, and
+# whatever memo the bank line was given. Printed from the book they were made
+# in, each block names its own transaction, and read into any other book both
+# guids resolve to nothing.
+#
+# Companion to a_second_document_paid_the_same_day.txt, which is the two-owner
+# version of the same shape.
+customer "C-SPELL"
+	name: "Spelling Customer"
+	currency: CAD
+
+invoice "INV-SPELL-2"
+	customer_id: "C-SPELL"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-SPELL-2"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		account: "Assets:Bank"
+		memo: "Paid"
+		txn_guid: "0ff1ce0ff1ce0ff1ce0ff1ce0ff1ce00"

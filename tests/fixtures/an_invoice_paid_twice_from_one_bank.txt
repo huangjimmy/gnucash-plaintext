@@ -1,0 +1,66 @@
+# One invoice settled by two payments of different sizes out of one account.
+#
+# Printed and read into another book, both blocks carry guids that name
+# nothing there, so both payments are recorded from their blocks. Editing the
+# document and reading it again rebuilds it, and the rebuild's unpost marks
+# *both* settlements with the same document guid — so finding "the settlement
+# this record orphaned" has two answers, and each block has to be paired with
+# its own.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-TWICE"
+	name: "Twice Paying Customer"
+	currency: CAD
+
+invoice "INV-TWICE"
+	customer_id: "C-TWICE"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-TWICE"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 60
+		account: "Assets:Bank"
+		memo: "First instalment"
+	payment:
+		date: 2026-02-15
+		amount: 40
+		account: "Assets:Bank"
+		memo: "Second instalment"

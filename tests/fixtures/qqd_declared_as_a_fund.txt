@@ -1,0 +1,15 @@
+# QQD declared the way the refusal says to declare it.
+#
+# `QQD` is not an ISO 4217 code, so GnuCash has no such currency: declared in
+# the CURRENCY namespace it writes a commodity with no name and no fraction,
+# saves, and will not reload. The refusal for that says the unit belongs in a
+# stock or fund namespace instead — and this fixture is that sentence taken
+# literally, so the route the reader is sent down is known to work rather than
+# merely recommended.
+#
+# Verified by tests/integration/test_currency_must_be_one_gnucash_knows.py.
+2024-01-01 commodity QQD
+	mnemonic: "QQD"
+	fullname: "Q Fund"
+	namespace: "FUND"
+	fraction: 100

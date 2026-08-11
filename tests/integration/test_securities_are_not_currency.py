@@ -73,5 +73,5 @@ def test_a_currency_in_a_securities_typed_account_is_still_currency(tmp_path):
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Available USD: 100.00' in listing, listing
+    assert 'Total USD basis balance: 100.00' in listing, listing
     assert '1.35 CAD/USD' in listing, listing

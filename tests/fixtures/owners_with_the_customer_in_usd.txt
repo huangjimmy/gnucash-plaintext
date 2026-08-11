@@ -1,0 +1,68 @@
+# A customer, a vendor and an invoice, all in CAD.
+#
+# `currency:` is required on each of these blocks and written back by every
+# export, so it reads as a field like any other — and on an object the book
+# already holds it was neither compared nor applied. Editing it reported
+# `unchanged`, the book kept the currency it was created with, and the next
+# export wrote that currency back over the edit: the ledger and the book
+# disagreeing for good, with the ledger losing and nothing said.
+#
+# Applying it is not a small edit either — an owner's currency is what their
+# documents are raised in, and a posted invoice's is what its AR splits are
+# denominated in — so it is refused rather than absorbed.
+#
+# owners_and_an_invoice_in_cad.txt is this file before the change. The
+# customer is the only object moved here, because the import stops at the
+# first one it refuses.
+#
+# What this fixture produces: a refusal naming the customer and both
+# currencies.
+#
+# Verified by tests/integration/test_changing_an_objects_currency_is_refused.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-CCY"
+	name: "Acme Supplies"
+	currency: USD
+
+vendor "V-CCY"
+	name: "Beta Printing"
+	currency: CAD
+
+invoice "INV-CCY"
+	customer_id: "C-CCY"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false

@@ -1,0 +1,43 @@
+# The refused figure is on the *second* split, not the first.
+#
+# By the time it is judged, the bank split has already been attached to the
+# transaction under construction — so what the book is left holding when the
+# refusal lands is a different question from the one a first-split refusal
+# asks, where nothing had been attached yet and there was nothing to see.
+#
+# What this fixture produces: one error naming 18.191, and a book with no
+# trace of the transaction — not an entry carrying the bank split alone, and
+# not an edit left open on one. The good transaction beside it still lands,
+# which is why the failure is collected rather than raised.
+#
+# Verified by tests/integration/test_a_refused_figure_leaves_no_wreckage.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fuel
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-01 * "An ordinary lunch"
+	currency.mnemonic: "CAD"
+	Expenses:Fuel 18.19 CAD
+		account.commodity.mnemonic: "CAD"
+	Assets:Bank -18.19 CAD
+		account.commodity.mnemonic: "CAD"
+
+2026-02-02 * "A tenth of a cent, on the second line"
+	currency.mnemonic: "CAD"
+	Expenses:Fuel 18.19 CAD
+		account.commodity.mnemonic: "CAD"
+	Assets:Bank -18.191 CAD
+		account.commodity.mnemonic: "CAD"

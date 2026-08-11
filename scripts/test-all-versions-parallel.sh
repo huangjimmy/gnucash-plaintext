@@ -71,28 +71,18 @@ for version in "${VERSIONS[@]}"; do
 done
 echo ""
 
-# Map version tag to build.sh argument
-build_input_for() {
-    case "$1" in
-        latest)   echo "debian:13" ;;
-        debian12) echo "debian:12" ;;
-        debian11) echo "debian:11" ;;
-        ubuntu20) echo "ubuntu:20.04" ;;
-        ubuntu22) echo "ubuntu:22.04" ;;
-        ubuntu24) echo "ubuntu:24.04" ;;
-        ubuntu26) echo "ubuntu:26.04" ;;
-        fedora41) echo "fedora:41" ;;
-        arch)     echo "arch" ;;
-        opensuse) echo "opensuse" ;;
-    esac
-}
-
 # Build images if needed (sequential - Docker build has internal locking)
+#
+# By tag, which `build.sh` takes. A local table turning the tag into a base
+# image lived here too, with no arm for an unknown one — so a typo in VERSIONS
+# above produced an empty argument, `build.sh` read that as "no argument
+# given", and the sweep quietly rebuilt debian:13 over `gnucash-dev:latest`
+# before failing later on the tag that does not exist.
 echo "Building Docker images..."
 for version in "${VERSIONS[@]}"; do
     if ! docker image inspect gnucash-dev:$version > /dev/null 2>&1; then
         echo "  Building gnucash-dev:$version..."
-        ./scripts/build.sh "$(build_input_for "$version")"
+        "$PROJECT_ROOT/scripts/build.sh" "$version"
     fi
 done
 echo ""
@@ -105,19 +95,19 @@ run_test() {
 
     echo "[$version] Starting tests..." > "$log_file"
 
-    local cov_mount=() cov_args=""
-    if [ -n "$GNC_COVERAGE" ]; then
-        cov_mount=(-v "$GNC_COVERAGE_DIR:/cov" -e "COVERAGE_FILE=/cov/.coverage.$version")
-        cov_args=" --cov --cov-report= --cov-fail-under=0"
-    fi
-
-    if docker run --rm \
-        --user "$(id -u):$(id -g)" \
-        -e HOME=/tmp/home \
-        "${cov_mount[@]}" \
-        -v "$workspace:/workspace" \
-        gnucash-dev:$version \
-        sh -c "mkdir -p /tmp/home/.local && cd /workspace && python3 -m pip install -e '.[dev]' -q --break-system-packages --user && PATH=/tmp/home/.local/bin:\$PATH pytest tests/ -v --tb=short$cov_args" \
+    # Through `scripts/test.sh`, which is the one place that decides how the
+    # suite is run — the user, the mount, HOME, the coverage file. Spelled out
+    # here it was a third copy of that recipe beside `test-in-docker.sh` and
+    # CI's own, agreeing only by hand: CI's copy had no `--user` and so ran as
+    # root, where a test that takes write permission off a directory cannot
+    # fail, and the gate reported green on every version while CI reported red
+    # on every version.
+    #
+    # `HOST_PROJECT_PATH` is what `test.sh` mounts, which is how the per-version
+    # copy of the workspace this function makes reaches the container.
+    if HOST_PROJECT_PATH="$workspace" GNC_COVERAGE="$GNC_COVERAGE" \
+        GNC_COVERAGE_DIR="$GNC_COVERAGE_DIR" \
+        "$PROJECT_ROOT/scripts/test.sh" "$version" \
         >> "$log_file" 2>&1; then
         echo "[$version] ✓ PASSED" >> "$log_file"
         return 0
@@ -129,7 +119,7 @@ run_test() {
 
 # Export function for parallel execution
 export -f run_test
-export TEMP_BASE GNC_COVERAGE GNC_COVERAGE_DIR
+export TEMP_BASE GNC_COVERAGE GNC_COVERAGE_DIR PROJECT_ROOT
 
 # Run tests in parallel using background jobs
 echo "Running tests in parallel..."

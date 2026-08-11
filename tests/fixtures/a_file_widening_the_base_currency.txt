@@ -1,0 +1,39 @@
+# A file declaring CAD to a thousandth, then booking a figure only that
+# widened unit can hold.
+#
+# GnuCash keeps a commodity's fraction from the ISO table and does not save a
+# changed one, so the widening lives for this session only. If the amount rule
+# reads the session commodity, 1.819 CAD is accepted here and the book saved —
+# and on the next open CAD is a hundredth again, the split is sub-cent, and
+# `export` refuses the whole book with no way to write it out.
+#
+# What this fixture produces: a refusal. A currency's smallest unit is not
+# something a file may widen its way past.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 1000
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fuel
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+
+2026-02-01 * "Fuel"
+	currency.mnemonic: "CAD"
+	Expenses:Fuel 1.819 CAD
+	Assets:Bank -1.819 CAD

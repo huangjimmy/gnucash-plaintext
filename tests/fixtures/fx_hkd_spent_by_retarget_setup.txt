@@ -1,0 +1,107 @@
+# The book the retarget route starts from: HKD settled in, and a bill left
+# unpaid for tests/fixtures/fx_hkd_spent_by_retarget.txt to settle.
+#
+# A USD invoice is settled into `Assets:Bank:HKD`, putting 1,560.00 HKD in the
+# book at 0.172 with an available balance to match, and a 200.00 USD bill is
+# posted against it and left open.
+#
+# Verified by tests/integration/test_spending_what_a_settlement_brought_in.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable USD
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+vendor "V-US"
+	name: "US Vendor"
+	currency: USD
+
+invoice "INV-HKD-IN"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 2
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-HKD-IN"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		account: "Assets:Bank:HKD"
+		settled_amount: 1560.00
+		memo: "Payment for INV-HKD-IN"
+		Income:FX Gain $residual$ CAD
+
+bill "BILL-HKD-OUT"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Parts"
+		action: "Materials"
+		account: "Expenses:Supplies"
+		quantity: 2
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-HKD-OUT"
+		accumulate: true

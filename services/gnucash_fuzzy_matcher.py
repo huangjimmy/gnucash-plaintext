@@ -62,18 +62,21 @@ class GnuCashFuzzyMatcher:
         if self._built:
             return
 
+        # Not guarded: this runs with a book already open, several frames below
+        # a repository that imported `gnucash` to open it. An install where the
+        # import fails is one where nothing above got this far, and the empty
+        # set the guard fell back to would have made every account look like
+        # neither an asset nor a liability — turning every partial match into a
+        # duplicate, silently, on an install that cannot work anyway.
+        import gnucash as gc
+
         from infrastructure.gnucash.utils import gnc_numeric_to_fraction_or_decimal
         from repositories.gnucash_repository import SessionMode
-
-        try:
-            import gnucash as gc
-            _al_types = {
-                gc.ACCT_TYPE_ASSET, gc.ACCT_TYPE_BANK, gc.ACCT_TYPE_CASH,
-                gc.ACCT_TYPE_CREDIT, gc.ACCT_TYPE_EQUITY, gc.ACCT_TYPE_LIABILITY,
-                gc.ACCT_TYPE_MUTUAL,
-            }
-        except Exception:
-            _al_types = set()
+        _al_types = {
+            gc.ACCT_TYPE_ASSET, gc.ACCT_TYPE_BANK, gc.ACCT_TYPE_CASH,
+            gc.ACCT_TYPE_CREDIT, gc.ACCT_TYPE_EQUITY, gc.ACCT_TYPE_LIABILITY,
+            gc.ACCT_TYPE_MUTUAL,
+        }
 
         self._repo.open(mode=SessionMode.READ_ONLY)
         try:
@@ -87,11 +90,12 @@ class GnuCashFuzzyMatcher:
                     name = _full_name(acct)
                     amount = Decimal(gnc_numeric_to_fraction_or_decimal(sp.GetAmount()))
                     splits_data.append((name, amount))
-                    try:
-                        if acct.GetType() in _al_types:
-                            al_accounts.add(name)
-                    except Exception:
-                        pass
+                    # `GetAccount()` a line above answered, so asking its type
+                    # is not a thing that fails. A split with no account cannot
+                    # be here at all: GnuCash 5.x drops the transaction while
+                    # loading and 4.x segfaults (CLAUDE.md §12).
+                    if acct.GetType() in _al_types:
+                        al_accounts.add(name)
 
                 positive = sum(a for _, a in splits_data if a > 0)
                 if positive <= Decimal(0):
@@ -160,12 +164,17 @@ class GnuCashFuzzyMatcher:
 
 
 def _full_name(acct) -> str:
+    """The account's path, root excluded.
+
+    One condition rather than a loop that breaks out of itself: the walk always
+    stops at the root, so "ran out of accounts" was a way out that nothing
+    could take, and a branch nothing can take is a claim about the book that
+    nothing can check. The `a is not None` half stays — it is what makes the
+    stop safe, not a second way to reach it.
+    """
     parts = []
     a = acct
-    while a is not None:
-        name = a.GetName()
-        if not name or name == "Root Account":
-            break
+    while a is not None and (name := a.GetName()) and name != "Root Account":
         parts.append(name)
         a = a.get_parent()
     return ":".join(reversed(parts))

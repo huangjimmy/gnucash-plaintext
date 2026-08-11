@@ -1,0 +1,45 @@
+# A book carrying the shapes the beancount export has a line for and nothing
+# had: accounts with a code and a description, a transaction numbered but not
+# described, one carrying a document link, and a split of zero.
+2024-01-01 commodity XCD
+	mnemonic: "XCD"
+	fullname: "East Caribbean Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+
+2024-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "XCD"
+2024-01-01 open Assets:Bank
+	type: "Bank"
+	code: "1001"
+	description: "Operating account"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "XCD"
+2024-01-01 open Expenses
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "XCD"
+2024-01-01 open Expenses:Sundry
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "XCD"
+
+# Numbered and not described — a cheque written into the ledger before anyone
+# said what it was for.
+2024-02-01 * "CHK-1001" ""
+	Assets:Bank -25.00 XCD
+	Expenses:Sundry 25.00 XCD
+
+# Carrying a link to the scan of the receipt.
+2024-02-02 * "Stationery"
+	doc_link: "file:///receipts/2024-02-02.pdf"
+	Assets:Bank -15.00 XCD
+	Expenses:Sundry 15.00 XCD
+
+# A split of nothing, which a book can hold and beancount has no posting for.
+2024-02-03 * "Refund settled against itself"
+	Assets:Bank -40.00 XCD
+	Expenses:Sundry 40.00 XCD
+	Expenses:Sundry 0.00 XCD

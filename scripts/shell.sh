@@ -18,35 +18,14 @@ else
 fi
 
 # Check if image exists
+#
+# `build.sh` takes the tag as well as the base image, so the table mapping one
+# to the other lives there alone. Copied here it knew seven of the ten builds,
+# and `./scripts/shell.sh opensuse` on a machine without that image answered
+# `Unknown tag: opensuse` rather than building it.
 if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
     echo "Image $IMAGE_NAME not found. Building..."
-    case "$TAG" in
-        latest)
-            ./scripts/build.sh debian:13
-            ;;
-        debian12)
-            ./scripts/build.sh debian:12
-            ;;
-        debian11)
-            ./scripts/build.sh debian:11
-            ;;
-        ubuntu20)
-            ./scripts/build.sh ubuntu:20.04
-            ;;
-        ubuntu22)
-            ./scripts/build.sh ubuntu:22.04
-            ;;
-        ubuntu24)
-            ./scripts/build.sh ubuntu:24.04
-            ;;
-        ubuntu26)
-            ./scripts/build.sh ubuntu:26.04
-            ;;
-        *)
-            echo "Unknown tag: $TAG"
-            exit 1
-            ;;
-    esac
+    "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/build.sh" "$TAG"
 fi
 
 echo "Starting interactive shell in $IMAGE_NAME..."

@@ -1,0 +1,36 @@
+# Income booked in two currencies, which is what makes a consolidated income
+# statement need a rate: the CAD side needs none, the USD side needs one for
+# every period it appears in.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Exports
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-03-01 * "Domestic sale"
+	Assets:Bank 100.00 CAD
+	Income:Sales -100.00 CAD
+
+2026-03-02 * "Export sale"
+	currency.mnemonic: "USD"
+	Assets:Bank USD 200.00 USD
+	Income:Exports -200.00 USD

@@ -878,7 +878,7 @@ class TestImportFromFileUnknownAccount:
 # ---------------------------------------------------------------------------
 
 class TestCreateCommodity:
-    def _commodity_directive(self, mnemonic='XTEST', namespace='CURRENCY',
+    def _commodity_directive(self, mnemonic='XTEST', namespace='FUND',
                               fullname='Test Commodity', fraction=100):
         from services.plaintext_parser import DirectiveType, PlaintextDirective
         d = PlaintextDirective(DirectiveType.CREATE_COMMODITY, 0, '')
@@ -892,6 +892,14 @@ class TestCreateCommodity:
         return d
 
     def test_create_commodity_inserts_into_table(self):
+        """A security — the only kind of commodity a file may invent.
+
+        `XTEST` used to be declared here in the CURRENCY namespace, which
+        GnuCash cannot store: it writes currencies without a name or a
+        fraction and looks them up in its ISO 4217 table on read, so a code
+        that is not in that table saves and then will not load. It is a fund
+        now, which is what a unit nobody issues as currency actually is.
+        """
         from services.gnucash_importer import GnuCashImporter
 
         session, book, path = _make_book()
@@ -899,8 +907,25 @@ class TestCreateCommodity:
             directive = self._commodity_directive()
             GnuCashImporter.create_commodity(directive, book)
             table = book.get_table()
-            result = table.lookup('CURRENCY', 'XTEST')
+            result = table.lookup('FUND', 'XTEST')
             assert result is not None
+        finally:
+            session.end()
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_a_currency_gnucash_does_not_issue_is_refused(self):
+        """The same symbol in the CURRENCY namespace, which is not storable."""
+        import pytest
+
+        from services.gnucash_importer import GnuCashImporter
+
+        session, book, path = _make_book()
+        try:
+            directive = self._commodity_directive(namespace='CURRENCY')
+            with pytest.raises(Exception, match='ISO 4217'):
+                GnuCashImporter.create_commodity(directive, book)
+            assert book.get_table().lookup('CURRENCY', 'XTEST') is None
         finally:
             session.end()
             if os.path.exists(path):
@@ -918,7 +943,7 @@ class TestCreateCommodity:
             GnuCashImporter.create_commodity(directive, book)
             # Still exactly one entry
             table = book.get_table()
-            result = table.lookup('CURRENCY', 'XTEST')
+            result = table.lookup('FUND', 'XTEST')
             assert result is not None
         finally:
             session.end()

@@ -1,0 +1,70 @@
+# A `settled_amount:` finer than the bank's currency.
+#
+# It is a booked amount too — the cash that lands on the bank split — and it
+# was checked only for "parses" and "positive". 780.005 HKD gave a rate of
+# 780.005/100, the split rounded to 780.00, and the residual was computed from
+# that rounded figure, so the entry balanced and the run reported `Errors: 0`
+# about a payment the file did not describe.
+#
+# What this fixture produces: a refusal naming 780.005 and HKD's cent.
+#
+# Verified by tests/integration/test_amount_must_fit_the_currency.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-SETTLED-FINE"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-SETTLED-FINE"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank:HKD"
+		settled_amount: 780.005
+		memo: "Payment for INV-USD-SETTLED-FINE"
+		Income:FX Gain $residual$ CAD

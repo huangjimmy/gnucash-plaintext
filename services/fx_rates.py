@@ -128,7 +128,17 @@ class FxRates:
             raise FileNotFoundError(f"FX rates file not found: {path}")
 
         with open(p) as f:
-            data = yaml.safe_load(f)
+            try:
+                data = yaml.safe_load(f)
+            except yaml.YAMLError as e:
+                # As a ValueError, which is what this method documents itself
+                # as raising for a file it cannot read, and what every caller
+                # already handles. A `YAMLError` escaping instead reached the
+                # CLI's `except (FileNotFoundError, ValueError)` unhandled, so
+                # a rates file with a typo in it came back as a traceback with
+                # no message — on `report` and on `import --fx-rates` alike.
+                raise ValueError(
+                    f"FX rates file {path} is not valid YAML: {e}") from e
 
         if not isinstance(data, dict):
             raise ValueError(f"FX rates file must be a YAML mapping, got: {type(data)}")

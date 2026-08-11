@@ -1,0 +1,76 @@
+# Two posted vendor bills from two vendors, for the printing paths.
+#
+# Printing a *posted* bill is a different reader from printing a draft: the
+# tax lines and the subtotal are derived from the posting transaction's
+# splits rather than from the entries, and the payment block is read off the
+# posted lot. Nothing reached either before — every print-bill test refused
+# something instead of rendering it.
+#
+# One bill carries two taxes and a payment, the other neither, so a renderer
+# that only ever sees one shape does not pass by accident. Different vendors
+# and different dates, so `--vendor`, `--from`/`--to` and a glob each have
+# something to leave out.
+taxtable "GST+PST"
+	entry:
+		account: "Liabilities:Tax:GST"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax:PST"
+		rate: 7.0%
+		type: PERCENT
+
+vendor "V-PRINT-A"
+	name: "Alpha Supply"
+	currency: CAD
+
+vendor "V-PRINT-B"
+	name: "Beta Trading"
+	currency: CAD
+
+bill "BILL-PRINT-001"
+	vendor_id: "V-PRINT-A"
+	currency: CAD
+	date_opened: 2026-02-10
+	notes: "Two taxes and a payment"
+	entry:
+		date: 2026-02-10
+		description: "Office chairs"
+		action: "Materials"
+		account: "Expenses:Office Supplies"
+		quantity: 2
+		price: 500
+		taxable: true
+		tax_included: false
+		tax_table: "GST+PST"
+	posted:
+		date: 2026-02-11
+		due: 2026-03-11
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-PRINT-001"
+		accumulate: true
+	payment:
+		date: 2026-02-20
+		amount: 400
+		bank_account: "Assets:Bank"
+		memo: "Part payment"
+
+bill "BILL-PRINT-002"
+	vendor_id: "V-PRINT-B"
+	currency: CAD
+	date_opened: 2026-03-15
+	entry:
+		date: 2026-03-15
+		description: "Printer paper"
+		action: "Materials"
+		account: "Expenses:Office Supplies"
+		quantity: 10
+		price: 12
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-16
+		due: 2026-04-15
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-PRINT-002"
+		accumulate: true

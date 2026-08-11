@@ -1,0 +1,62 @@
+# A `payment:` block whose `amount:` is finer than the currency.
+#
+# `18.191` on a split line is refused, and it is the same figure on the same
+# invoice — a booked amount is a whole number of the currency's own units, and
+# which line of the block states it does not change that. This one reached
+# `string_to_gnc_numeric_quantity`, which parses at a fixed millionth and
+# refuses nothing, so the payment path was the last place the rule was not
+# applied.
+#
+# What this fixture produces: a refusal naming 18.191 and the cent, and no
+# payment.
+#
+# Verified by tests/integration/test_amount_must_fit_the_currency.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-CENT"
+	name: "Cent Customer"
+	currency: CAD
+
+invoice "INV-CENT-001"
+	customer_id: "C-CENT"
+	currency: CAD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-CENT-001"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 18.191
+		account: "Assets:Bank"
+		memo: "Payment for INV-CENT-001"

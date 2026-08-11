@@ -26,35 +26,14 @@ fi
 IMAGE_NAME="gnucash-dev:$TAG"
 
 # Check if image exists
+#
+# By tag, which `build.sh` accepts alongside the base image — see
+# `scripts/shell.sh` for what the copy of that table here cost. This one is
+# reached by `test-deployment.sh`, so a tag it did not know meant a deployment
+# check that could not run on three of the ten builds.
 if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
     echo "Image $IMAGE_NAME not found. Building..."
-    case "$TAG" in
-        latest)
-            ./scripts/build.sh debian:13
-            ;;
-        debian12)
-            ./scripts/build.sh debian:12
-            ;;
-        debian11)
-            ./scripts/build.sh debian:11
-            ;;
-        ubuntu20)
-            ./scripts/build.sh ubuntu:20.04
-            ;;
-        ubuntu22)
-            ./scripts/build.sh ubuntu:22.04
-            ;;
-        ubuntu24)
-            ./scripts/build.sh ubuntu:24.04
-            ;;
-        ubuntu26)
-            ./scripts/build.sh ubuntu:26.04
-            ;;
-        *)
-            echo "Unknown tag: $TAG"
-            exit 1
-            ;;
-    esac
+    "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/build.sh" "$TAG"
 fi
 
 docker run --rm -v "$PROJECT_PATH:/workspace" "$IMAGE_NAME" "$@"

@@ -1,0 +1,48 @@
+# A yen balance bought at a rate no fixed number of decimals states exactly.
+#
+# ¥2,000,000 for 18,200.01 CAD is 0.0091000050 CAD/JPY. Written as a rate to
+# eight places and multiplied back out, the value lands a cent either side of
+# 18,200.01 depending on which way the eighth digit goes — and the CAD side
+# carries no rate, so it comes back exact and the entry no longer sums to
+# zero. GnuCash then parks the difference in an Imbalance split.
+#
+# The figures are ordinary: ¥2,000,000 is about CAD 18,200, which is a bank
+# balance, not an edge case. What makes it bite is the size — the error is
+# bounded by the amount times half of the last place kept, so it passes half a
+# cent somewhere around a million units.
+#
+# JPY has no minor unit, so the amount is a whole number of yen and the
+# `share_price:` states the rate as the exact ratio it is.
+#
+# Verified by tests/integration/test_beancount_keeps_the_units_the_book_holds.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity JPY
+	mnemonic: "JPY"
+	fullname: "Japanese Yen"
+	namespace: "CURRENCY"
+	fraction: 1
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:JPY
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+
+2026-02-01 * "Buy 2,000,000 JPY"
+	currency.mnemonic: "CAD"
+	Assets:Bank:JPY 2000000 JPY
+		account.commodity.mnemonic: "JPY"
+		share_price: "1820001/200000000"
+		value: "18200.01"
+	Assets:Bank -18200.01 CAD
+		account.commodity.mnemonic: "CAD"

@@ -26,6 +26,7 @@ from services.invoice_renderer import (
     render_to_html,
     render_to_plaintext,
 )
+from use_cases.export_transactions import UnwritableFigureError
 
 _XSLT_PATH = Path(__file__).parent.parent / "services" / "invoice.xslt"
 
@@ -37,11 +38,14 @@ def _all_invoices(book):
     results = []
     for r in q.run():
         inv = wrap_invoice_or_bill(r)
-        # Customer invoices only (skip vendor bills)
-        try:
-            cust = inv.GetOwner().GetCustomer()
-        except Exception:
-            cust = None
+        # Customer invoices only (skip vendor bills). Asked of every document
+        # in the book, vendor bills included: `GetCustomer()` answers None for
+        # one rather than raising, on all ten supported builds — measured, and
+        # the reason the `except Exception` that used to wrap this is gone. It
+        # could not be reached to be right or wrong, and a bare `except` over
+        # a call whose failure would mean the book cannot be read is one that
+        # would have quietly dropped documents instead.
+        cust = inv.GetOwner().GetCustomer()
         if cust is not None:
             results.append(inv)
     q.destroy()
@@ -80,22 +84,6 @@ def _filter_invoices(invoices, selectors, from_date, to_date, customer):
 
     out.sort(key=lambda inv: (inv.GetDateOpened(), inv.GetID()))
     return out
-
-
-def _render_one(invoice, book, fmt, xslt_path, company_info):
-    """Return the rendered output bytes (pdf) or string (html/plaintext)
-    for a single invoice."""
-    if fmt == 'plaintext':
-        return render_to_plaintext(invoice, book, company_info=company_info)
-    if fmt == 'html':
-        return render_to_html(invoice, book, xslt_path,
-                              company_info=company_info)
-    if fmt == 'pdf':
-        # PDF combining is done at the dispatcher level via the HTML
-        # fragments; this helper only produces per-invoice HTML.
-        return render_to_html(invoice, book, xslt_path,
-                              company_info=company_info)
-    raise click.UsageError(f'Unknown format: {fmt!r}')
 
 
 def _write_combined(invoices, book, fmt, xslt_path, company_info, output):
@@ -151,60 +139,78 @@ def _write_combined(invoices, book, fmt, xslt_path, company_info, output):
         output_path.write_text(combined)
         return
 
-    if fmt == 'pdf':
-        import weasyprint
-        fragments = [
-            render_to_html(inv, book, xslt_path, company_info=company_info)
-            for inv in invoices
-        ]
-        # Concatenate HTML fragments with explicit page break so each
-        # invoice starts on a fresh page in the combined PDF.
-        shell_parts = []
-        for frag in fragments:
-            inner = frag
-            for tag in ('</body>', '</html>'):
-                inner = inner.replace(tag, '')
-            # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
-            # per-fragment; literal `<html>` and absent DOCTYPE stripping
-            # leaves nested DOCTYPEs and nested `<html>` in the combined
-            # output (invalid both as HTML and XML). Strip all three so
-            # the combined doc has exactly one outer shell.
-            inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
-            inner = re.sub(r'<html\b[^>]*>', '', inner)
-            inner = re.sub(r'<body\b[^>]*>', '', inner)
-            shell_parts.append(
-                f'<section style="page-break-after: always;">{inner}</section>'
-            )
-        combined_html = (
-            '<html><body>' + ''.join(shell_parts) + '</body></html>'
+    # pdf, unconditionally: `--format` is a `click.Choice` of exactly three,
+    # and the other two have returned above. Asking again would add a fourth
+    # case nothing can take — and a fourth format added to the Choice would
+    # silently fall through it, which is the failure a trailing `raise` was
+    # meant to catch and could never reach.
+    import weasyprint
+    fragments = [
+        render_to_html(inv, book, xslt_path, company_info=company_info)
+        for inv in invoices
+    ]
+    # Concatenate HTML fragments with explicit page break so each
+    # invoice starts on a fresh page in the combined PDF.
+    shell_parts = []
+    for frag in fragments:
+        inner = frag
+        for tag in ('</body>', '</html>'):
+            inner = inner.replace(tag, '')
+        # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
+        # per-fragment; literal `<html>` and absent DOCTYPE stripping
+        # leaves nested DOCTYPEs and nested `<html>` in the combined
+        # output (invalid both as HTML and XML). Strip all three so
+        # the combined doc has exactly one outer shell.
+        inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
+        inner = re.sub(r'<html\b[^>]*>', '', inner)
+        inner = re.sub(r'<body\b[^>]*>', '', inner)
+        shell_parts.append(
+            f'<section style="page-break-after: always;">{inner}</section>'
         )
-        weasyprint.HTML(string=combined_html).write_pdf(str(output_path))
-        return
-
-    raise click.UsageError(f'Unknown format: {fmt!r}')
+    combined_html = (
+        '<html><body>' + ''.join(shell_parts) + '</body></html>'
+    )
+    weasyprint.HTML(string=combined_html).write_pdf(str(output_path))
 
 
 def _write_per_invoice(invoices, book, fmt, xslt_path, company_info, outdir):
-    """Write one file per invoice into the directory `outdir`."""
+    """Write one file per invoice into the directory `outdir`.
+
+    Every invoice is rendered before any file is written, and the directory is
+    made only once there is something to put in it. A printed `payment:` block
+    states its amount at the unit its account is kept to and refuses a figure
+    the currency cannot hold, so rendering can stop partway through a run —
+    and writing inside the loop left the documents before the offender on disk
+    and the ones after it missing, with nothing on the directory saying which.
+    `export` renders in full for the same reason; the combined form below
+    already did.
+    """
+    ext = {'plaintext': 'txt', 'html': 'html', 'pdf': 'pdf'}[fmt]
+    rendered = [
+        (f'{inv.GetID()}.{ext}',
+         render_to_plaintext(inv, book, company_info=company_info)
+         if fmt == 'plaintext'
+         else render_to_html(inv, book, xslt_path, company_info=company_info))
+        for inv in invoices
+    ]
+    # A PDF is laid out before any of them is written too, not only the HTML
+    # it is laid out from. Written as each one finished, a document weasyprint
+    # cannot lay out — a font it cannot find, an image it cannot read — left
+    # the directory partial in exactly the way rendering first was meant to
+    # stop, from the other half of the same loop.
+    if fmt == 'pdf':
+        import weasyprint
+        rendered = [(name, weasyprint.HTML(string=html).write_pdf())
+                    for name, html in rendered]
+
     outdir = Path(outdir.rstrip('/'))
     outdir.mkdir(parents=True, exist_ok=True)
-    ext = {'plaintext': 'txt', 'html': 'html', 'pdf': 'pdf'}[fmt]
-    for inv in invoices:
-        target = outdir / f'{inv.GetID()}.{ext}'
-        if fmt == 'plaintext':
-            target.write_text(
-                render_to_plaintext(inv, book, company_info=company_info)
-            )
-        elif fmt == 'html':
-            target.write_text(
-                render_to_html(inv, book, xslt_path,
-                               company_info=company_info)
-            )
-        elif fmt == 'pdf':
-            import weasyprint
-            html = render_to_html(inv, book, xslt_path,
-                                  company_info=company_info)
-            weasyprint.HTML(string=html).write_pdf(str(target))
+    for name, body in rendered:
+        target = outdir / name
+        if fmt == 'pdf':                # the third of three, see above
+            target.write_bytes(body)
+        else:
+            target.write_text(body)
 
 
 @click.command()
@@ -305,5 +311,11 @@ def print_invoice(gnucash_file, invoice_selectors, invoice_id,
                     f'✓ Wrote {len(selected)} invoice(s) to {output}'
                 )
 
+    except UnwritableFigureError as exc:
+        # As a sentence, not a traceback. A printed document carries the guids
+        # that make it re-importable, so its payment amount is judged the way
+        # the export's is — and a refusal the reader cannot read is a refusal
+        # that tells them nothing about which figure to correct.
+        raise click.ClickException(str(exc)) from exc
     finally:
         repo.close()

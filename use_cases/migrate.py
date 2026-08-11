@@ -128,12 +128,16 @@ def write_sidecar(book_path: str, applied: list):
 def sidecar_is_fresh(book_path: str, sidecar: dict) -> bool:
     """True if the sidecar's stamp still matches the book file — i.e. the book
     has not changed since the sidecar was written, so its cached `applied` list
-    can be trusted without opening the book."""
+    can be trusted without opening the book.
+
+    The book is not stat'd defensively. `migrate` takes it as a
+    `click.Path(exists=True)`, so a book that is not there has already been
+    refused by the time this is asked; catching the stat and answering "not
+    fresh" would only send an absent book on to be opened, which says the same
+    thing several frames later and less clearly.
+    """
     if not sidecar:
         return False
-    try:
-        current = book_stamp(book_path)
-    except OSError:
-        return False
+    current = book_stamp(book_path)
     return (sidecar.get('book_size') == current['book_size']
             and sidecar.get('book_mtime') == current['book_mtime'])

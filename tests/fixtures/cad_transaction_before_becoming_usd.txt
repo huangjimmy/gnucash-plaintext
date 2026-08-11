@@ -3,7 +3,7 @@
 # The test that uses this rewrites the transaction into a USD purchase and
 # re-imports it with `--strategy update`, which is how currency can arrive in a
 # book through an edit rather than a fresh transaction. That currency needs a
-# cost basis exactly like any other; without one it lists as `untracked`, over
+# cost basis exactly like any other; without one it lists as `none recorded`, over
 # a message saying this tool never wrote the split — which it just did.
 #
 # Verified by tests/integration/test_update_strategy_respects_cost_basis.py.

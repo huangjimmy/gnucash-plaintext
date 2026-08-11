@@ -218,7 +218,9 @@ def test_clearing_rejected_when_no_open_credit(tmp_path):
 
     # No credit left → the clearing-shaped split has nothing to reduce.
     r = _import_fixture(runner, gf, 'q_refund_prepayment.txt', tmp_path, alias='r2.txt')
-    assert r.exit_code == 0, r.output
+    # Non-zero, because the run reported an error — the book is untouched
+    # either way, and the exit code is what a script reads.
+    assert r.exit_code == 1, r.output
     assert 'Errors:       1' in r.output, r.output
     assert 'no open credit' in r.output.lower(), r.output
     assert _lots(gf, 'Assets.Accounts Receivable') == settled_lots
@@ -230,7 +232,9 @@ def test_customer_lot_owner_on_ap_split_is_rejected(tmp_path):
     gf = _setup_customer_credit(runner, tmp_path)
     before = _balances(gf)
     r = _import_fixture(runner, gf, 'q_lot_owner_ap_mismatch.txt', tmp_path)
-    assert r.exit_code == 0, r.output
+    # Non-zero, because the run reported an error — the book is
+    # untouched either way, and the exit code is what a script reads.
+    assert r.exit_code == 1, r.output
     assert 'Errors:       1' in r.output, r.output
     assert 'receivable' in r.output.lower(), r.output
     assert _balances(gf) == before
@@ -241,7 +245,9 @@ def test_lot_owner_guid_mismatch_is_rejected(tmp_path):
     gf = _setup_customer_credit(runner, tmp_path)
     before = _balances(gf)
     r = _import_fixture(runner, gf, 'q_lot_owner_guid_mismatch.txt', tmp_path)
-    assert r.exit_code == 0, r.output
+    # Non-zero, because the run reported an error — the book is
+    # untouched either way, and the exit code is what a script reads.
+    assert r.exit_code == 1, r.output
     assert 'Errors:       1' in r.output, r.output
     assert 'guid' in r.output.lower(), r.output
     assert _balances(gf) == before

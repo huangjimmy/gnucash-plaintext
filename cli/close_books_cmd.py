@@ -5,19 +5,12 @@ Implements the 'close-books' subcommand which zeroes out all Income/Expense
 accounts and transfers net income to Equity:Retained Earnings:{currency}.
 """
 
-from datetime import date, datetime
 
 import click
 
+from cli._dates import parse_date
 from repositories.gnucash_repository import GnuCashRepository
 from use_cases.close_books import AlreadyClosedError, CloseBooksUseCase
-
-
-def _parse_date(ctx, param, value: str) -> date:
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError as e:
-        raise click.BadParameter(f"Date must be in YYYY-MM-DD format, got: {value}") from e
 
 
 @click.command("close-books")
@@ -25,7 +18,7 @@ def _parse_date(ctx, param, value: str) -> date:
 @click.option(
     "--closing-date",
     required=True,
-    callback=_parse_date,
+    callback=parse_date,
     is_eager=True,
     expose_value=True,
     help="Date to close books (YYYY-MM-DD)",

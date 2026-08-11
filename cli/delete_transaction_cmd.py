@@ -23,6 +23,7 @@ import sys
 
 import click
 
+from cli._saving import save_or_report
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from use_cases.delete_transaction import DeleteTransactionUseCase
 
@@ -115,11 +116,7 @@ def delete_transactions(gnucash_file, guids, by_guid, output_file):
         # Save once after all deletes — keeps the backup file atomic
         # with respect to the on-disk book state.
         if any(r is not None for _, r, _ in results):
-            try:
-                repo.save()
-            except Exception as e:
-                if "ERR_FILEIO_BACKUP_ERROR" not in str(e):
-                    raise click.ClickException(f"Failed to save: {e}") from e
+            save_or_report(repo)
 
         for guid, result, err in results:
             if result is not None:
@@ -128,10 +125,27 @@ def delete_transactions(gnucash_file, guids, by_guid, output_file):
                     f'({result.date} "{result.description}")',
                     err=True,
                 )
+                # Said here as well as in the backup, because the backup is
+                # the thing that is missing: a reader who redirected it and
+                # did not look would otherwise learn on the day they needed
+                # to undo.
+                if result.undo_copy_error:
+                    click.echo(
+                        f'{result.guid}: WARNING no undo copy — '
+                        f'{result.undo_copy_error}',
+                        err=True,
+                    )
             else:
                 click.echo(f'{guid}: {err}', err=True)
 
-        if not all_ok:
+        # A deletion with no way back does not report success. The transaction
+        # is gone either way — this command is the only way to remove one the
+        # format cannot write, which is why it proceeds — but the exit code is
+        # what a script reads, and `delete-transactions … -o undo.txt &&
+        # next-step` would otherwise chain on a backup holding only comments.
+        # The same shape as `import` printing `Errors: N` and exiting 0.
+        if not all_ok or any(r is not None and r.undo_copy_error
+                             for _guid, r, _err in results):
             sys.exit(1)
     finally:
         repo.close()

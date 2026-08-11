@@ -1,0 +1,70 @@
+# Text carrying the three characters beancount reads as punctuation.
+#
+# A double quote ends a beancount string, a semicolon starts a comment, and a
+# backslash escapes whatever follows it. All three turn up in ordinary text — a
+# supplier named in quotes, a note with a clause in it, a Windows path in a
+# document link. Written into the export raw, the file this tool produced could
+# not be read by this tool: the description ran to the first inner quote and
+# the rest of the line was not a header, so the parse refused, and a refused
+# parse takes the whole ledger rather than one entry.
+#
+# The three of them together is where escaping goes wrong rather than missing:
+#
+#   - a quote *and* a semicolon in one description — the comment stripper
+#     counts quotes and the string reader honours `\"`, and if they disagree
+#     the line is cut inside its own string;
+#   - a backslash before an `n` — `C:\name` escapes to `C:\\name`, and reading
+#     the escapes one replacement at a time turned it into `C:\` + a newline +
+#     `ame`;
+#   - a link ending in a backslash, which is what a Windows directory looks
+#     like.
+#
+# Every field here is free text a person typed, and every one is read back
+# through the same rule.
+#
+# What this fixture produces: four transactions and an account whose text has
+# to come back exactly as written.
+#
+# Verified by tests/integration/test_a_beancount_export_reads_back_as_itself.py.
+2024-01-01 commodity XCD
+	mnemonic: "XCD"
+	fullname: "East Caribbean Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+
+2024-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "XCD"
+2024-01-01 open Assets:Bank
+	type: "Bank"
+	code: "A\"B"
+	description: "Called \"Old\" until 2023; renamed since"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "XCD"
+2024-01-01 open Expenses
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "XCD"
+2024-01-01 open Expenses:Sundry
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "XCD"
+
+2024-02-01 * "Paid \"Acme\" Ltd"
+	Assets:Bank -25.00 XCD
+	Expenses:Sundry 25.00 XCD
+
+2024-02-02 * "Lunch; and coffee"
+	Assets:Bank -15.00 XCD
+	Expenses:Sundry 15.00 XCD
+
+2024-02-03 * "Paid \"Acme; Ltd\""
+	Assets:Bank -35.00 XCD
+	Expenses:Sundry 35.00 XCD
+
+2024-02-04 * "Filed under C:\\name"
+	doc_link: "file:///C:\\receipts\\"
+	Assets:Bank -45.00 XCD
+		memo: "Kept in C:\\name; see the folder"
+	Expenses:Sundry 45.00 XCD

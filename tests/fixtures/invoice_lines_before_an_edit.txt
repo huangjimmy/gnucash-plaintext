@@ -1,0 +1,195 @@
+# Six invoices, one line each, so that one edit can be made to each field.
+#
+# Re-importing a ledger asks of every document "does the book already say
+# this?", and answers per field. A field left out of that comparison is a
+# field a person can edit in the ledger, import, and see reported `unchanged`
+# — the invoice keeps the old figure, and nothing says so.
+#
+# One line per invoice rather than six lines on one, because the comparison
+# stops at the first line that differs: six documents ask six questions, one
+# entry field each.
+#
+# invoice_lines_after_an_edit.txt is this file with one field changed in each.
+#
+# What this fixture produces: six unposted invoices.
+#
+# Verified by tests/integration/test_an_edited_invoice_line_lands.py.
+2026-01-01 open Income
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income:Other
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+  type: Liability
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:GST
+  type: Liability
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+  type: Accounts Receivable
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+
+customer "C-EDIT"
+  name: "Edited Customer"
+  currency: CAD
+
+taxtable "GST"
+  entry:
+    account: "Liabilities:GST"
+    rate: 5.0%
+    type: PERCENT
+
+taxtable "PST"
+  entry:
+    account: "Liabilities:GST"
+    rate: 8.0%
+    type: PERCENT
+
+invoice "INV-DATE"
+  customer_id: "C-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+invoice "INV-DESC"
+  customer_id: "C-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+invoice "INV-ACTION"
+  customer_id: "C-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+invoice "INV-ACCOUNT"
+  customer_id: "C-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+invoice "INV-QUANTITY"
+  customer_id: "C-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+invoice "INV-PRICE"
+  customer_id: "C-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+invoice "INV-TAXABLE"
+  customer_id: "C-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+invoice "INV-INCLUDED"
+  customer_id: "C-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+invoice "INV-TABLE"
+  customer_id: "C-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"

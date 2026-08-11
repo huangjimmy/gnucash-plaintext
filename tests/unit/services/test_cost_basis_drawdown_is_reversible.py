@@ -26,7 +26,7 @@ from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.foreign_currency import (
     COST_BASIS_SPLIT_KEY,
     apply_cost_basis_picks,
-    available_of,
+    cost_basis_balance_of,
     cost_of,
     find_split_by_guid,
     give_back_to_cost_bases,
@@ -36,12 +36,12 @@ from services.foreign_currency import (
 CENTS = 100
 
 
-def _tracked_bases(book):
-    """Every basis on the USD account, by guid, with what it has available."""
+def _basis_balances(book):
+    """Every basis on the USD account, by guid, with the balance each has."""
     account = find_account(book.get_root_account(), 'Assets:Bank:USD')
     found = {}
     for split in account.GetSplitList():
-        balance = available_of(split)
+        balance = cost_basis_balance_of(split)
         if balance is not None:
             found[split_guid(split)] = balance
     return found
@@ -95,7 +95,7 @@ def test_giving_back_restores_exactly_what_the_picks_took(tmp_path):
     repo = GnuCashRepository(str(gnucash_file))
     repo.open(mode=SessionMode.NORMAL)
     try:
-        before = _tracked_bases(repo.book)
+        before = _basis_balances(repo.book)
         assert sorted(before.values()) == [Fraction(100), Fraction(100)], before
 
         # 40 from the basis that cost 1.35, 25 from the one that cost 1.30.
@@ -107,11 +107,11 @@ def test_giving_back_restores_exactly_what_the_picks_took(tmp_path):
 
         taken = apply_cost_basis_picks(repo.book, transaction)
         assert sorted(taken.values()) == [Fraction(25), Fraction(40)], taken
-        during = _tracked_bases(repo.book)
+        during = _basis_balances(repo.book)
         assert sorted(during.values()) == [Fraction(60), Fraction(75)], during
 
         give_back_to_cost_bases(repo.book, taken)
-        assert _tracked_bases(repo.book) == before, (
-            f'{before} became {_tracked_bases(repo.book)}')
+        assert _basis_balances(repo.book) == before, (
+            f'{before} became {_basis_balances(repo.book)}')
     finally:
         repo.close()

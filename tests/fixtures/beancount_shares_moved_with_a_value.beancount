@@ -1,0 +1,52 @@
+; The same transfer in kind, saying what the units are worth.
+;
+; beancount_shares_moved_between_brokers.beancount is this file without the
+; rates, which leaves a security as the only thing to denominate the entry in
+; — and GnuCash does not keep a transaction denominated in one past a save.
+; With the rate on it the entry is in CAD, which is how GnuCash's own register
+; records a transfer of shares.
+;
+; What this fixture produces: one transaction in CAD, 10 units off one account
+; and onto the other, each side worth 1,000.00 CAD, and no Imbalance.
+;
+; Verified by tests/integration/test_beancount_reads_what_a_person_writes.py.
+2024-01-01 commodity CAD
+    gnucash-mnemonic: "CAD"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "Canadian Dollar"
+    gnucash-fraction: "100"
+2024-01-01 commodity NASDAQ.HOOL
+    gnucash-mnemonic: "HOOL"
+    gnucash-namespace: "NASDAQ"
+    gnucash-fullname: "Hooli Inc"
+    gnucash-fraction: "1"
+2024-01-01 open Assets CAD
+    gnucash-name: "Assets"
+    gnucash-guid: "1111111111111111111111111111111a"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:BrokerA CAD
+    gnucash-name: "Assets:BrokerA"
+    gnucash-guid: "1111111111111111111111111111111b"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "True"
+2024-01-01 open Assets:BrokerA:HOOL NASDAQ.HOOL
+    gnucash-name: "Assets:BrokerA:HOOL"
+    gnucash-guid: "1111111111111111111111111111111c"
+    gnucash-type: "Stock"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:BrokerB CAD
+    gnucash-name: "Assets:BrokerB"
+    gnucash-guid: "1111111111111111111111111111111d"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "True"
+2024-01-01 open Assets:BrokerB:HOOL NASDAQ.HOOL
+    gnucash-name: "Assets:BrokerB:HOOL"
+    gnucash-guid: "1111111111111111111111111111111e"
+    gnucash-type: "Stock"
+    gnucash-placeholder: "False"
+
+2024-02-01 * "Broker" "Transfer HOOL in kind"
+    gnucash-guid: "2222222222222222222222222222222a"
+  Assets:BrokerA:HOOL -10 NASDAQ.HOOL @ 100.00 CAD
+  Assets:BrokerB:HOOL 10 NASDAQ.HOOL @ 100.00 CAD

@@ -34,6 +34,16 @@ class TestBeancountRoundtrip:
             })
             original_accounts = len(repo1.get_all_accounts())
             original_transactions = len(repo1.get_all_transactions())
+            # What each account is denominated in, to compare against — a
+            # round trip that quietly substituted a default commodity would
+            # otherwise still satisfy every count above it.
+            original_commodities = {
+                account.get_full_name(): (
+                    account.GetCommodity().get_namespace(),
+                    account.GetCommodity().get_mnemonic(),
+                    account.GetCommodity().get_fraction())
+                for account in repo1.get_all_accounts()
+                if account.GetCommodity() is not None}
 
         finally:
             repo1.close()
@@ -60,10 +70,24 @@ class TestBeancountRoundtrip:
             # Verify no errors
             assert not result.has_errors(), f"Import had errors: {result.errors}"
 
-            # Verify counts match
-            assert result.commodities_created > 0
+            # Verify counts match. Not `commodities_created > 0`: that counts
+            # what the book *gained*, and this book's currencies are in
+            # GnuCash's ISO table already, so a faithful round trip creates
+            # none of them. What the round trip owes is that each account came
+            # back in the commodity it went out in — asking the rebuilt book
+            # whether it *has* that commodity cannot fail, because the account
+            # resolved it from the table to be created at all.
             assert result.accounts_created == original_accounts
             assert result.transactions_created == original_transactions
+
+            rebuilt = {
+                account.get_full_name(): (
+                    account.GetCommodity().get_namespace(),
+                    account.GetCommodity().get_mnemonic(),
+                    account.GetCommodity().get_fraction())
+                for account in repo2.get_all_accounts()
+                if account.GetCommodity() is not None}
+            assert rebuilt == original_commodities, rebuilt
 
             repo2.save()
 
@@ -616,14 +640,24 @@ class TestBeancountRoundtripFidelity:
                 f"Multi-currency export should declare commodity {currency}"
             )
 
-    def test_multi_currency_export_emits_price_annotations(self, temp_gnucash_comprehensive):
+    def test_multi_currency_export_emits_total_cost_annotations(
+            self, temp_gnucash_comprehensive):
         """
-        Cross-currency splits carry a beancount `@ price commodity` annotation.
+        Cross-currency splits carry beancount's `@@ total commodity`.
 
-        The comprehensive fixture has FX transactions (e.g., buying USD with CAD,
-        buying HKD with CAD).  For each split whose account commodity differs from
-        the transaction currency, the exporter must emit an `@ price` annotation
-        so beancount tools can compute FX gains/losses and validate the transaction.
+        The comprehensive fixture has FX transactions (buying USD with CAD,
+        buying HKD with CAD). A split whose account commodity differs from its
+        transaction's currency has two figures, and the second has to be
+        stated or the entry cannot be read back.
+
+        The *total* form, not the per-unit `@ rate`. A rate is a quotient and
+        has to be written to some number of places — the exporter used eight —
+        and the importer, having no value to read, rebuilt one as
+        `amount × round₈(value / amount)`. That error passes half a cent once
+        the amount reaches about a million: ¥2,000,000 worth 18,200.01 CAD
+        came back a cent out, its counterpart split came back exact, and
+        GnuCash parked the difference in an Imbalance split. `@@` states the
+        figure the book holds and nothing is reconstructed.
         """
         repo = GnuCashRepository(temp_gnucash_comprehensive)
         repo.open()
@@ -634,17 +668,20 @@ class TestBeancountRoundtripFidelity:
 
         lines = beancount_content.splitlines()
         # Cross-currency posting lines have the form:
-        #   <account> <amount> <commodity> @ <price> <tx_commodity>
-        at_price_lines = [ln for ln in lines if ln.startswith('  ') and ' @ ' in ln]
-        assert len(at_price_lines) > 0, (
-            "Expected at least one posting with `@ price` annotation in multi-currency output"
+        #   <account> <amount> <commodity> @@ <total> <tx_commodity>
+        totals = [ln for ln in lines if ln.startswith('  ') and ' @@ ' in ln]
+        assert len(totals) > 0, (
+            'Expected at least one posting stating its total in the '
+            f'transaction currency:\n{beancount_content}'
         )
 
-        # Spot-check: a CAD-funded transaction with a non-CAD account should have @ CAD
-        cad_price_lines = [ln for ln in at_price_lines if ln.endswith(' CAD')]
-        assert len(cad_price_lines) > 0, (
-            "Expected postings annotated with @ ... CAD for CAD-funded cross-currency transactions"
-        )
+        # And none in the rounded per-unit form.
+        assert not [ln for ln in lines
+                    if ln.startswith('  ') and ' @ ' in ln], lines
+
+        # Spot-check: a CAD-funded transaction with a non-CAD account states
+        # its total in CAD.
+        assert [ln for ln in totals if ln.endswith(' CAD')], totals
 
     def test_multi_currency_roundtrip_preserves_transaction_count(self, temp_gnucash_comprehensive):
         """
