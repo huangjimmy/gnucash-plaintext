@@ -1,13 +1,17 @@
-"""An amount's precision comes from its account, not only from its currency.
+"""How an amount is *written* comes from its account, not from its currency.
 
 GnuCash keeps a smallest unit per account as well as per commodity, and they
-are not always the same: fuel at 1.819 a litre needs a third decimal that a
-Canadian dollar does not have. This tool round-trips that setting as
-`commodity_scu:`, so an amount stated at the account's precision has to
-survive being validated on the way in and written on the way out.
+are not always the same — an expense account for fuel is commonly kept to
+thousandths. This tool round-trips that setting as `commodity_scu:`, so a
+figure on such an account is written back at the account's precision: 18.190,
+not 18.19. Written at the currency's two places instead, the file states a
+figure with a different denominator from the split's, and re-importing it is
+refused for the mismatch — a book that cannot read its own export.
 
-Judging either against the currency's hundredths refuses 18.190 as an amount
-CAD cannot hold, and rounds it away on export — on an account that holds it.
+What the account's unit does *not* decide is whether a stated figure is
+legal. A booked amount is judged against the currency: 18.190 passes because
+it is 18.19, and 18.191 is refused however fine the account is (see
+tests/integration/test_amount_must_fit_the_currency.py).
 """
 
 from click.testing import CliRunner

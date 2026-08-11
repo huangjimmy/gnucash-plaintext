@@ -1,0 +1,63 @@
+# One deposit covering two customers, written with a bank split per customer
+# so each portion carries its own memo and its own figure. That is what lets a
+# payment block name one portion and not the other, and it is the shape where
+# one transaction can end up carrying an unpost's mark for one document while
+# still holding money that settled another.
+customer "C-SHARE-A"
+	name: "Alpha Share"
+	currency: CAD
+
+customer "C-SHARE-B"
+	name: "Beta Share"
+	currency: CAD
+
+invoice "INV-SHARE-A"
+	customer_id: "C-SHARE-A"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service A"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-SHARE-A"
+		accumulate: true
+
+invoice "INV-SHARE-B"
+	customer_id: "C-SHARE-B"
+	currency: CAD
+	date_opened: 2026-05-01
+	entry:
+		date: 2026-05-01
+		description: "Service B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 120
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-SHARE-B"
+		accumulate: true
+
+2026-05-15 * "Deposit covering Alpha and Beta"
+	currency.mnemonic: "CAD"
+	Assets:Bank 100.00 CAD
+		memo: "Portion for Alpha"
+	Assets:Bank 120.00 CAD
+		memo: "Portion for Beta"
+	Assets:Accounts Receivable -100.00 CAD
+		memo: "Portion for Alpha"
+	Assets:Accounts Receivable -120.00 CAD
+		memo: "Portion for Beta"

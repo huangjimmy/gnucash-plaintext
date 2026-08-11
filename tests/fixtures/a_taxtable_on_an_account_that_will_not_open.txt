@@ -1,0 +1,36 @@
+# A tax table posting to an account whose own declaration is refused.
+#
+# `commodity_scu:` is quoted here, and the setter is a C `int` that refuses a
+# string outright — so `Liabilities:GST` never gets created. A `taxtable` then
+# posts to it.
+#
+# Business objects are imported before the transaction pass, so a tax table is
+# the first thing to reach an account that was not made. Read only as "the
+# account is missing", the run stops there and the reader is told a tax table
+# names an account that is not in the book — true, and not the reason. The
+# reason is one line above it in their own file.
+#
+# What this fixture produces: nothing. The run is refused, and what it says
+# has to name the account's own failure, not only the tax table's.
+#
+# Verified by tests/integration/test_a_refused_account_is_named_not_its_dependants.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:GST
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: "1000"
+
+taxtable "GST"
+	entry:
+		account: "Liabilities:GST"
+		amount: 5.0
+		type: percentage

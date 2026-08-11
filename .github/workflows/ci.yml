@@ -8,34 +8,25 @@ on:
 
 jobs:
   test:
-    name: Test on ${{ matrix.distribution }}
+    name: Test on ${{ matrix.tag }}
     runs-on: ubuntu-latest
 
+    # All ten supported builds, the same ten `scripts/test-all-versions-parallel.sh`
+    # sweeps for the pre-commit gate. Seven of them until `build.sh` learned to
+    # take a tag: fedora, arch and openSUSE build from their own Dockerfiles
+    # rather than from a `BASE_IMAGE` build-arg, and the matrix knew only the
+    # build-arg shape, so a failure only those three would show reached the
+    # gate and not CI.
+    #
+    # The tag is the only column, and the version each carries is not written
+    # here at all — `build.sh` prints it from the one table that has it. Spelled
+    # into the job names, it was a copy: `ubuntu24` read `GnuCash-49` long after
+    # the image moved to 5.5, and nothing printed or checked it.
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - distribution: 'GnuCash-510_Debian-13'
-            base_image: 'debian:13'
-            tag: 'latest'
-          - distribution: 'GnuCash-413_Debian-12'
-            base_image: 'debian:12'
-            tag: 'debian12'
-          - distribution: 'GnuCash-44_Debian-11'
-            base_image: 'debian:11'
-            tag: 'debian11'
-          - distribution: 'GnuCash-514_Ubuntu-2604'
-            base_image: 'ubuntu:26.04'
-            tag: 'ubuntu26'
-          - distribution: 'GnuCash-49_Ubuntu-2404'
-            base_image: 'ubuntu:24.04'
-            tag: 'ubuntu24'
-          - distribution: 'GnuCash-48_Ubuntu-2204'
-            base_image: 'ubuntu:22.04'
-            tag: 'ubuntu22'
-          - distribution: 'GnuCash-38_Ubuntu-2004'
-            base_image: 'ubuntu:20.04'
-            tag: 'ubuntu20'
+        tag: [latest, debian12, debian11, ubuntu26, ubuntu24, ubuntu22,
+              ubuntu20, fedora41, arch, opensuse]
 
     steps:
       - name: Checkout code
@@ -45,21 +36,24 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image
-        run: |
-          docker build \
-            --build-arg BASE_IMAGE=${{ matrix.base_image }} \
-            -t gnucash-dev:${{ matrix.tag }} \
-            .
+        # By tag, through the script that knows which Dockerfile and which base
+        # image each one means — the same call the sweep and every local build
+        # make.
+        run: ./scripts/build.sh ${{ matrix.tag }}
 
       - name: Run tests
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            gnucash-dev:${{ matrix.tag }} \
-            sh -c "cd /workspace && \
-              python3 -m pip install -e '.[dev]' -q --break-system-packages && \
-              pytest tests/ -v --tb=short"
-        # Note: --break-system-packages is safe in Docker containers (isolated environment)
+        # Through `scripts/test.sh`, which is now the one place that decides
+        # how the suite is run — the user, the mount, HOME, the coverage file.
+        # `scripts/test-all-versions-parallel.sh`, which the pre-commit hook
+        # runs, goes through it too.
+        #
+        # Spelled out here as its own `docker run` it was one of three copies
+        # of that recipe, agreeing only by hand: this one had no `--user`, so
+        # CI ran as root while every local run ran as the invoking user. Root
+        # writes whatever the mode says, so the one test that takes write
+        # permission off a directory could not fail here — the gate reported
+        # green on every version and CI red on every version.
+        run: ./scripts/test.sh ${{ matrix.tag }}
 
       - name: Run deployment test
         run: ./scripts/test-deployment.sh ${{ matrix.tag }}
@@ -90,13 +84,44 @@ jobs:
         run: docker build -t gnucash-dev:latest .
 
       - name: Run tests with coverage
+        # As the invoking user, like every other run of this suite. Left as
+        # root this job failed outright, the same way the matrix job above did
+        # and for the same reason: root writes whatever the mode says, so the
+        # read-only-directory test asserted against a command that succeeded.
+        # No figure reached Codecov at all — the step was red and the upload
+        # never ran. Not through `scripts/test.sh` only because this job wants
+        # `coverage.xml` for Codecov, which that script does not produce: it
+        # writes the per-version data the union sweep combines.
+        #
+        # `--cov` and not `--cov=.`, so the file set is the `source` in
+        # pyproject.toml — the one the gate measures. Spelled `.` it counted a
+        # different set of files, which is how one number can drift from the
+        # other while both are called coverage.
+        #
+        # `GNC_UNPRIVILEGED_RUN` because `--user` alone is a promise nothing
+        # checks: drop it here again and the read-only-directory test skips
+        # quietly, its lines leave the figure this job sends to Codecov, and
+        # the run stays green. The flag makes that a failure.
+        #
+        # Derived, not asserted, the way `scripts/test.sh` derives it: `--user
+        # "$(id -u):$(id -g)"` is `--user 0:0` when the invoker is root, and a
+        # flag saying otherwise sends its reader hunting a `--user` that was
+        # never dropped. GitHub's runner is not root today, which is exactly
+        # the kind of thing that is true until it is not.
         run: |
+          UNPRIVILEGED=()
+          if [ "$(id -u)" != 0 ]; then
+            UNPRIVILEGED=(-e GNC_UNPRIVILEGED_RUN=1)
+          fi
           docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp/home \
+            "${UNPRIVILEGED[@]}" \
             -v ${{ github.workspace }}:/workspace \
             gnucash-dev:latest \
-            sh -c "cd /workspace && \
-              python3 -m pip install -e '.[dev]' -q --break-system-packages && \
-              pytest tests/ --cov=. --cov-report=xml --cov-report=term"
+            sh -c "mkdir -p /tmp/home/.local && cd /workspace && \
+              python3 -m pip install -e '.[dev]' -q --break-system-packages --user && \
+              PATH=/tmp/home/.local/bin:\$PATH pytest tests/ --cov --cov-report=xml --cov-report=term"
         # Note: --break-system-packages is safe in Docker (isolated environment)
 
       - name: Upload coverage to Codecov

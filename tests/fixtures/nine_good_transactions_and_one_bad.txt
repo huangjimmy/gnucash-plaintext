@@ -1,0 +1,58 @@
+# Transactions that would land, and one that would not.
+#
+# A dry run over this has something to import and something to refuse, which
+# are different answers — and the arm that reports a dry run with any error at
+# all said "nothing would be imported", four lines under a count saying nine.
+#
+# Read against a book that already holds the accounts, because `--new` and
+# `--dry-run` are mutually exclusive: a dry run always has a book already.
+2026-02-01 * "One"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 1.00 CAD
+	Assets:Bank -1.00 CAD
+
+2026-02-02 * "Two"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 2.00 CAD
+	Assets:Bank -2.00 CAD
+
+2026-02-03 * "Three"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 3.00 CAD
+	Assets:Bank -3.00 CAD
+
+2026-02-04 * "Four"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 4.00 CAD
+	Assets:Bank -4.00 CAD
+
+2026-02-05 * "Five"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 5.00 CAD
+	Assets:Bank -5.00 CAD
+
+2026-02-06 * "Six"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 6.00 CAD
+	Assets:Bank -6.00 CAD
+
+2026-02-07 * "Seven"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 7.00 CAD
+	Assets:Bank -7.00 CAD
+
+2026-02-08 * "Eight"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 8.00 CAD
+	Assets:Bank -8.00 CAD
+
+2026-02-09 * "Nine"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 9.00 CAD
+	Assets:Bank -9.00 CAD
+
+# The one that cannot land: an account the book does not hold.
+2026-02-10 * "Ten"
+	currency.mnemonic: "CAD"
+	Expenses:Nowhere 10.00 CAD
+	Assets:Bank -10.00 CAD

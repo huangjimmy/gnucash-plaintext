@@ -1,0 +1,30 @@
+# A CAD declared at a fraction GnuCash will not keep.
+#
+# GnuCash writes an ISO currency without a fraction and looks it up by code
+# when reading the book back, so a fraction stated here is a session value the
+# file never holds. The mismatch is therefore still there on the next run, and
+# on every run after it.
+#
+# Counted as a change, that made an unchanged ledger rewrite the book every
+# time it was imported — each run leaving another timestamped backup, for a
+# difference no save could remove. A book moved between two supported
+# distributions meets this without anybody typing an odd fraction at all,
+# because GnuCash disagrees with itself about KRW: 1/100 before 5.15, 1 after.
+#
+# What this fixture produces: one CAD commodity and one account. Importing it
+# twice must report nothing to save the second time.
+#
+# Verified by tests/integration/test_an_iso_fraction_does_not_rewrite_the_book.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 1000
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"

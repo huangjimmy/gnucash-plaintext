@@ -1,0 +1,28 @@
+# One CAD transaction touching an account kept to the thousandth and an
+# ordinary one kept to the cent. Both splits are legal figures and the entry
+# balances exactly — 12.00 out, 12.00 in.
+#
+# The values GnuCash stores carry the two accounts' own denominators, so a
+# balance check that adds bare numerators sees 12000 against -1200 and calls a
+# correct entry unbalanced.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fuel
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+
+2026-02-01 * "Fuel, billed to the cent and held to the thousandth"
+	Expenses:Fuel 12.00 CAD
+	Assets:Bank -12.00 CAD

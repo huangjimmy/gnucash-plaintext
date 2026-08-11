@@ -1,0 +1,32 @@
+# An `open` whose `commodity_scu:` is quoted.
+#
+# Every other value on an `open` block is quoted — `code:`, `description:`,
+# `guid:`, `commodity.mnemonic:` — so quoting this one is an ordinary slip,
+# and the setter behind it is a C `int` that refuses a string outright.
+#
+# What made it worse than a refusal: the account's `guid:` is claimed before
+# the unit is set, and a claimed guid is in the book's collection whether or
+# not the account was ever attached. So the refusal left the guid taken, and
+# the pass that retried the same directive reported a collision with an
+# account the book does not contain — naming a guid rather than the line that
+# is actually wrong.
+#
+# What this fixture produces: a refusal about the unit, on both import paths.
+#
+# Verified by tests/integration/test_an_open_that_fails_after_it_is_attached.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0001"
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Fuel
+	guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0003"
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: "1000"

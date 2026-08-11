@@ -1,0 +1,37 @@
+# A 100.00 invoice paid 250.00 — the customer overpaid by 150.00.
+#
+# The payment settles the invoice with 100.00 and leaves 150.00 as the
+# customer's credit, which is what `prepayment:` states. Printed and read into
+# a book that does not already hold the deposit, the block has to say both
+# figures or the 150.00 is not entered at all.
+#
+# Accounts come from payment_roundtrip_accounts.txt, so the same printed
+# document can be read into a fresh book built from that file alone.
+customer "C-OVER"
+	name: "Overpaying Customer"
+	currency: CAD
+
+invoice "INV-OVER"
+	customer_id: "C-OVER"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-OVER"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 250.00
+		bank_account: "Assets:Bank"
+		memo: "Paid too much"
+		prepayment: 150.00

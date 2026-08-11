@@ -1,0 +1,33 @@
+; A file that opens accounts without declaring the currencies they are in.
+;
+; `commodity` directives are how a file names a security — `FUND.FUNDX` for
+; `FUNDX` in the `FUND` namespace — and GnuCash already carries every ISO 4217
+; currency, so a person writing an entry by hand from scratch has no reason to
+; declare CAD or USD at all. The account's commodity and the entry's currency
+; both fall back to looking the symbol up as a currency, which is what makes
+; that file work.
+;
+; What this fixture produces: two accounts in currencies the file never
+; declares, and one transaction between them.
+;
+; Verified by tests/integration/test_beancount_reads_what_a_person_writes.py.
+2024-01-01 open Assets CAD
+    gnucash-name: "Assets"
+    gnucash-guid: "1111111111111111111111111111111a"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Bank CAD
+    gnucash-name: "Assets:Bank"
+    gnucash-guid: "1111111111111111111111111111111b"
+    gnucash-type: "Bank"
+    gnucash-placeholder: "False"
+2024-01-01 open Expenses CAD
+    gnucash-name: "Expenses"
+    gnucash-guid: "1111111111111111111111111111111c"
+    gnucash-type: "Expense"
+    gnucash-placeholder: "False"
+
+2024-02-01 * "Grocer" "Lunch"
+    gnucash-guid: "2222222222222222222222222222222a"
+  Expenses 50.00 CAD
+  Assets:Bank -50.00 CAD

@@ -1,0 +1,75 @@
+# A `share_price:` that reaches a figure finer than the bank's currency.
+#
+# The twin of `settled_amount_finer_than_the_bank.txt`, stating the rate rather
+# than the cash. 100 USD at 7.80005 is 780.005 HKD — the same unrepresentable
+# figure, by the other documented spelling of the same fact.
+#
+# Checked only for "parses" and "positive", the rate gave a bank split rounded
+# to 780.00 while the residual was computed from that rounded figure, so the
+# entry balanced and the run reported `Errors: 0` about a payment the file did
+# not describe. Worse than its twin: nothing then matched it either, because
+# the comparison reads what the file says — 780.005 — against what the book
+# holds, so the document was rebuilt on every import, forever.
+#
+# What this fixture produces: a refusal naming 780.005 and HKD's cent.
+#
+# Verified by tests/integration/test_amount_must_fit_the_currency.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-RATE-FINE"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-RATE-FINE"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank:HKD"
+		share_price: 7.80005
+		memo: "Payment for INV-USD-RATE-FINE"
+		Income:FX Gain $residual$ CAD

@@ -163,8 +163,15 @@ cython_debug/
 
 # Claude Code runtime files (created by AI reviewer in pre-commit hook)
 .claude-plugin/
+.claude/
 plugins/
 external_plugins/
+
+# External sample data (CLAUDE.md: not part of the repo). Ignored, not merely
+# uncommitted: `review-commit.sh --working` reviews everything git reports as
+# untracked, so a file that is only *unstaged* has its full contents sent to
+# the reviewer. These hold real financial data.
+reference_file*.txt
 
 # Personal local-use scripts (not part of repo, see CLAUDE.md)
 ledger.py
@@ -177,6 +184,10 @@ plaintext_to_beancount.py
 *.gnucash.text
 *.beancount
 *.beancount.errors
+# Except the beancount test inputs, which are part of the suite. Ignored, a
+# test that reads one passes here and fails on a fresh clone, because the file
+# is in the working tree and not in the repository.
+!tests/fixtures/*.beancount
 transaction.txt
 ttt.txt
 receipts/

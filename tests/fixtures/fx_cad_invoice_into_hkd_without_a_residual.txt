@@ -1,0 +1,70 @@
+# The same shape with no `$residual$` line — which is what a reader writes
+# for a settlement that realizes nothing, and the form that used to slip
+# through: the refusal only spoke when the block carried split lines.
+#
+# The document is already in the base currency, so it realizes nothing: a
+# receivable holding CAD does not appreciate against CAD. What the HKD cost is
+# a question about the bank account, answered where currency is bought.
+#
+# Left to run, this reached the basis drawdown and failed with "state
+# `cost_basis_balance:` on that split" — which cannot be done, because the
+# importer refuses that key on a CAD split and the split is written by the
+# posting rather than by any directive.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: CAD
+
+invoice "INV-CAD-INTO-HKD-BARE"
+	customer_id: "C-US"
+	currency: CAD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-CAD-INTO-HKD-BARE"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank:HKD"
+		settled_amount: 780.00
+		memo: "Payment for INV-CAD-INTO-HKD-BARE"

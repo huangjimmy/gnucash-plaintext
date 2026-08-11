@@ -30,10 +30,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# The union as measured on 2026-08-05, across GnuCash 5.10, 4.13, 4.4, 3.8 and
-# 5.15 — `latest`, `debian12`, `debian11`, `ubuntu20` and `arch`. The tag names
-# and the versions are not interchangeable: `debian11` is 4.4, not 4.13.
-THRESHOLD=89
+# The union as measured on 2026-08-09, across every supported build. The tag
+# names and the versions are not interchangeable: `debian11` is 4.4, not 4.13,
+# and `ubuntu24` is 5.5 — CLAUDE.md lists what each one carries.
+THRESHOLD=94
 REPORT_ONLY=""
 HTML=""
 while [ $# -gt 0 ]; do

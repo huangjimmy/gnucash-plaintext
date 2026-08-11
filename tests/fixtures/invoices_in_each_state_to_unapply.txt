@@ -1,0 +1,107 @@
+# One customer and three invoices, each in a state `unapply-payment` has to
+# refuse for a different reason: never posted, posted but never paid, and
+# posted and paid.
+#
+# The paid one is there so a refusal can be told from a book with nothing in
+# it — a command that says "no payments to unapply" about every invoice in the
+# book is not answering, and the third invoice is the control that says the
+# other two answers are about those two invoices.
+#
+# `Liabilities:Owed Back` is somewhere for a peeled payment to land: money
+# received that is no longer applied to an invoice is something you may owe
+# back, and `--to` has no defensible default.
+#
+# Verified by tests/integration/test_unapply_says_why_it_cannot.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Owed Back
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-UNAPPLY"
+	name: "Unapply Customer"
+	currency: CAD
+
+invoice "INV-DRAFT"
+	customer_id: "C-UNAPPLY"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Never posted"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+
+invoice "INV-UNPAID"
+	customer_id: "C-UNAPPLY"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Posted, never paid"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-UNPAID"
+		accumulate: true
+
+invoice "INV-PAID"
+	customer_id: "C-UNAPPLY"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Posted and paid"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-PAID"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		memo: "Paid in full"

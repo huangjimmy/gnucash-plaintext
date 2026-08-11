@@ -1,0 +1,87 @@
+# A USD invoice overpaid into an HKD bank, in a CAD-base book.
+#
+# Three currencies meet in one settlement entry. The invoice carries 100.00 USD
+# at the 1.40 it was booked at; the customer sent 1,560.00 HKD, worth 268.32 CAD
+# at 0.172; and 200.00 USD of receivable is cleared by it, so 100.00 USD more
+# than the document is owed and stays behind as a credit.
+#
+# What the credit is worth is the question this shape asks. It was not received
+# at the invoice's rate — nothing about 1.40 was paid — it was received at what
+# the payment converted at, which is the bank's whole figure over everything it
+# paid for: 268.32 CAD for 200.00 USD, so 1.3416, and the 100.00 USD left over
+# stands at 134.16 CAD.
+#
+# What this fixture produces:
+#
+#   Assets:Bank:HKD              1,560.00 HKD   value  268.32 CAD
+#   A/R USD    -100.00 USD                      value -140.00 CAD  (the invoice)
+#   A/R USD    -100.00 USD                      value -134.16 CAD  (the credit)
+#   Income:FX Gain                                       5.84 CAD  ($residual$)
+#
+# and no Imbalance split. The whole 5.84 belongs to the invoice — settled at
+# 1.3416 against the 1.40 it was booked at — and none of it to the credit, which
+# is carried at what it cost. Valuing the credit at 1.40 instead would report
+# 11.68 realized and hand the customer a credit worth 5.84 CAD more than the
+# money that arrived.
+#
+# Verified by tests/integration/test_settling_into_a_third_currency.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-OVER-HKD"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-OVER-HKD"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		account: "Assets:Bank:HKD"
+		settled_amount: 1560.00
+		prepayment: 100
+		memo: "Payment for INV-USD-OVER-HKD"
+		Income:FX Gain $residual$ CAD

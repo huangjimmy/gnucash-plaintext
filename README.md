@@ -280,7 +280,7 @@ The book reports in CAD. Currency in any other denomination is held at a **cost 
 2026-01-05 * "INV-USD-001" "Invoice INV-USD-001"
 	currency.mnemonic: "USD"
 	Assets:Accounts Receivable USD 100.00 USD
-		cost_basis_available: "100.00"
+		cost_basis_balance: "100.00"
 	Income:Sales -140.00 CAD
 		share_price: "10000/14000"
 		value: "-100.00"
@@ -319,11 +319,48 @@ Settling at a rate other than the one the record was booked at **realizes a gain
 
 A sale measured against two bases carries two foreign-currency splits, one naming each, and each split's amount is how much of that basis it uses — 200 USD can be taken entirely from one basis, 100 from each of two, or 50 and 150. Selling more than a basis has available is refused on import, and so is selling against an **unpaid invoice**: an A/R split states what a customer owes, not currency the book holds, so it must be collected first (or carry `cost_basis_force: true`). Deleting a sale gives its currency straight back to the bases it measured against, and a record whose basis is in use cannot be unposted until those sales are removed.
 
-`cost_basis_available:` on a split is how much of *that basis* has not yet been sold; it is not the balance of an account. One bank account can hold currency from several bases at different costs, and a paid invoice's basis keeps its balance after the money has moved to the bank. The KVP is the record of that balance: it opens at everything the split brought in, each sale lowers it, and deleting a sale raises it again. A file that states a balance is stating it net of that file's own sales, so re-importing an export never counts a sale twice. A basis carrying no such KVP — one written in the GnuCash GUI, or predating this — reads as `untracked` rather than as its full amount, because how much of it was already sold is unknown. Writing `cost_basis_available:` on that split in an import file is how it gets a balance — checked as it lands, since nothing after that questions it: it must be on a split that holds foreign currency, and then a number, not negative, no finer than the unit its own account is held to, and no more than that split brought in.
+`cost_basis_balance:` on a split is how much of *that basis* has not yet been sold; it is not the balance of an account. One bank account can hold currency from several bases at different costs, and a paid invoice's basis keeps its balance after the money has moved to the bank. The KVP is the record of that balance: it opens at everything the split brought in, each sale lowers it, and deleting a sale raises it again. A file that states a balance is stating it net of that file's own sales, so re-importing an export never counts a sale twice. A basis carrying no such KVP — one written in the GnuCash GUI, or predating this — reads as `none recorded` rather than as its full amount, because how much of it was already sold is not known. Writing `cost_basis_balance:` on that split in an import file is how it gets a balance — checked as it lands, since nothing after that questions it: it must be on a split that holds foreign currency, and then a number, not negative, no finer than the unit its own account is held to, and no more than that split brought in.
+
+**Paying out of a foreign account whose cost bases still have a balance.** Cash leaving a foreign account is a disposal like any other, so it has to say which cost basis it comes out of — and a `payment:` block has nowhere to say it, because GnuCash's own `ApplyPayment` writes the bank split and `cost_basis_split_guid:` cannot be put on it. Such a payment is therefore **refused**, and the message names the account, what the payment spends, and what balance its bases still have between them.
+
+This is asked of every foreign bank, not only one in a third currency. Paying a USD bill out of a USD bank whose bases still have a balance is the commoner shape and drifts the same way — the basis goes on offering currency the account no longer holds, and the cash leaves valued at the payment day's rate instead of at what it cost — so the question is asked before the cross-currency arithmetic, which that case never reaches.
+
+A foreign account has no basis on it until something opens one: currency bought or borrowed into it, or a settlement landing in it. Until then there is nothing to measure against and a payment out of it is ordinary. **A ledger that imported cleanly before may now be refused**, because settling into a foreign account is itself what opens the basis.
+
+The way to spend a basis balance is the way every other foreign disposal is written — an ordinary transaction whose bank split names its basis, attached to the document by `txn_guid:` / `txn_split_guid:`:
+
+```
+2026-03-01 * "Pay BILL-USD-001"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -100.00 USD
+		share_price: "1.40"
+		value: "-140.00"
+		cost_basis_split_guid: "c4ccb16d7be34e15a112d903319c5267"
+	Liabilities:Accounts Payable USD 100.00 USD
+		share_price: "1.40"
+		value: "140.00"
+```
+
+`share_price:` is the cost the basis carries, and `cost_basis_split_guid:` names the basis this cash comes out of. Both lines state what their USD is worth in the book's currency, because a split that says nothing is valued at its own figure — 100.00 CAD against the 140.00 beside it, a rate of 1 — and GnuCash puts the 40.00 difference in `Imbalance-CAD`. Where the two rates differ the entry realizes a gain or a loss, and an `Income:FX Gain $residual$ CAD` line takes it, exactly as in the settlement examples above.
+
+Then the bill's own block attaches that transaction — `txn_guid:` is the transaction above, `txn_split_guid:` its A/P split, and `account:` the bank it moved through:
+
+```
+	payment:
+		date: 2026-03-01
+		amount: 100
+		account: "Assets:Bank:USD"
+		txn_guid: "3f7b21c8de4a4f9e8a15b0c7d2e64913"
+		txn_split_guid: "9f0a4c2e1b7d40a8b2c3d4e5f6a7b8c9"
+```
+
+Three different guids: the basis the cash comes out of, the transaction that spends it, and that transaction's payable split. `find-transactions` prints the first two and the export prints all three.
+
+(Both blocks are written without trailing `#` comments because the plaintext format has none: a `#` starts a comment only at the beginning of a line, so anything after a value is read as part of it.)
 
 **`$residual$`** is available on any transaction, not only a currency sale: one split may write it in place of an amount and take what the others leave over, the way GnuCash's editor fills an Imbalance line once an account is chosen. It is a token rather than an omitted amount, so a truncated line cannot silently become a residual split. At most one per transaction; asking for one where the splits already balance is an error, and so is asking for one on an account whose commodity differs from the transaction currency — the residual is a transaction-currency figure, and writing it as an amount in another currency would invent a 1:1 rate.
 
-See **[Listing foreign-currency cost bases](#listing-foreign-currency-cost-bases-fx-balances)** for the command that shows every basis with its cost and available balance, and **[docs/multi-currency.md](docs/multi-currency.md)** for the full reference — invoicing and billing side by side, buying, borrowing and selling, every error with what it means, and how the reports treat foreign currency.
+See **[Listing foreign-currency cost bases](#listing-foreign-currency-cost-bases-fx-balances)** for the command that shows every basis with its cost and basis balance, and **[docs/multi-currency.md](docs/multi-currency.md)** for the full reference — invoicing and billing side by side, buying, borrowing and selling, every error with what it means, and how the reports treat foreign currency.
 
 ### Custom Metadata
 
@@ -335,6 +372,45 @@ layer and round-trips through export/import without loss.
 This applies to **every object type** — transactions, splits, accounts, customers,
 vendors, invoices, and bills — making the format directly comparable to beancount's
 open-ended metadata model.
+
+#### What a key says, and what leaving it out says
+
+One rule, the same for reserved fields and custom metadata, on every block that is
+read against something the book already holds — transactions and their splits,
+customers and vendors, invoices and bills:
+
+| In the block | What it means |
+|---|---|
+| `key: "value"` | set the field to that value |
+| `key: ""` | clear the field — and for a custom key, remove it |
+| *(the line is absent)* | say nothing: the book keeps what it has |
+
+**`open` is the exception, and it is not a partial-update rule at all.** An `open`
+for an account the book already has is a no-op: the account is found by name and the
+block is skipped whole, so neither `description: "…"` nor `description: ""` nor any
+custom key changes anything. An `open` creates an account or does nothing. To change
+one that exists, use `rename-account` or edit it in GnuCash.
+
+Leaving a line out is not an instruction, because most blocks are partial. A person
+editing a name writes the name; `print-invoice --format plaintext` writes a document
+block, not a transcript of the book; an export taken before a field existed has no
+line for it. A block that named only what it was changing used to empty everything it
+did not name.
+
+Two consequences worth stating:
+
+- To clear something, say so: `addr1: ""` empties an address line, and
+  `department: ""` takes a custom key off. There is no spelling that means "remove"
+  by omission, and there cannot be one — omission is how a partial block stays safe.
+- A comparison follows the same rule. A field the block does not name cannot make a
+  re-import report `updated`, which is what keeps an unchanged ledger from rewriting
+  the book on every run.
+
+Blocks that carry *lines* — an invoice's or bill's `entry:` lines, a transaction's
+splits — are different, and deliberately: the block is the whole truth about them, so
+removing a line removes it from the book. A block with **no** lines at all is refused
+rather than obeyed, because a file cut short by a failed write looks exactly like one
+that meant it.
 
 #### Reserved fields per object type
 
@@ -795,6 +871,8 @@ Preview without making changes (dry run):
 ```bash
 gnucash-plaintext import mybook.gnucash transactions.txt --dry-run
 ```
+
+Exit code 1 if the run reported any error, whether or not the rest imported: what did import is saved first, and the exit code is how the run says the rest did not. A file the parser could not read at all imports nothing and is refused outright. A book `--new` created for a run that saved *nothing* is removed again, so a retry is not blocked by a file you never made — but a run that saved some of the file keeps its book, because that book now holds work, and the fix is to import the corrected ledger into it rather than to start again. Exit code 0 means nothing was reported as an error — read `Skipped:` for objects that matched an existing GUID and were left as they were, which under the default strategy includes a transaction you edited and re-imported without `--strategy update`.
 
 #### Capturing GUIDs of newly imported transactions
 
@@ -1366,24 +1444,24 @@ Every split that brought foreign currency into the book, with what one unit cost
 ```bash
 gnucash-plaintext fx-balances ledger.gnucash
 gnucash-plaintext fx-balances ledger.gnucash --currency USD
-gnucash-plaintext fx-balances ledger.gnucash --available-only
+gnucash-plaintext fx-balances ledger.gnucash --with-balance-only
 gnucash-plaintext fx-balances ledger.gnucash --verify-costs
 ```
 
 ```
-DATE         SPLIT GUID                         ACCOUNT                                      COST       ACQUIRED      AVAILABLE
+DATE         SPLIT GUID                         ACCOUNT                                      COST       ACQUIRED  BASIS BALANCE
 -------------------------------------------------------------------------------------------------------------------------------
 2026-01-05   c4ccb16d7be34e15a112d903319c5267   Assets:Accounts Receivable USD        1.4 CAD/USD     100.00 USD     100.00 USD
              Invoice INV-USD-001
 2026-01-10   a0941ac334c44a31ba0120a0493c931c   Assets:Bank:USD                      1.35 CAD/USD     100.00 USD      60.00 USD
              Buy 100 USD at 1.35
 
-Available USD: 160.00 USD
+Total USD basis balance: 160.00 USD
 ```
 
-Read-only. The cost is stated with its direction — CAD per unit of the currency held — and the available balance shown is the basis's own, not any account's balance.
+Read-only. The cost is stated with its direction — CAD per unit of the currency held — and the basis balance shown is the basis's own, not any account's balance.
 
-`--verify-costs` re-checks every cost against the ledger it is derived from: that no available balance is above what its basis brought in or below zero, and that any stored `cost_basis_cost` parses and agrees with the transaction. It runs the whole book, prints each basis that disagrees with the full computation behind it — both guids, the amount and value, every factor multiplied, and both answers with the one used — and exits 1 at the end if anything did. A basis whose figures cannot be read is reported with its traceback rather than ending the run. Rates are not checked, because rates run forward only: a file states one, the amount is multiplied by it and rounded, and the effective rate the ledger then carries — 45.00 USD at 1.405 books 63.23 CAD, a ratio of 6323/4500 — is that rounding rather than a discrepancy. Reading a figure back to ask which rate produced it has no answer. (Nor is a split's `share_price` checked against its value: GnuCash computes the rate *as* value over amount, so the comparison is one number against itself.)
+`--verify-costs` re-checks every cost against the ledger it is derived from: that no basis balance is above what its basis brought in or below zero, and that any stored `cost_basis_cost` parses and agrees with the transaction. It runs the whole book, prints each basis that disagrees with the full computation behind it — both guids, the amount and value, every factor multiplied, and both answers with the one used — and exits 1 at the end if anything did. A basis whose figures cannot be read is reported with its traceback rather than ending the run. Rates are not checked, because rates run forward only: a file states one, the amount is multiplied by it and rounded, and the effective rate the ledger then carries — 45.00 USD at 1.405 books 63.23 CAD, a ratio of 6323/4500 — is that rounding rather than a discrepancy. Reading a figure back to ask which rate produced it has no answer. (Nor is a split's `share_price` checked against its value: GnuCash computes the rate *as* value over amount, so the comparison is one number against itself.)
 
 ```
 Checked 2 cost basis(es); 1 disagree with their own figures:
@@ -1681,6 +1759,12 @@ gnucash-plaintext find-transactions ledger.gnucash \
 The importer looks up the existing bank transaction by `txn_guid:`, finds the specific AR-side split named by `txn_split_guid:`, and attaches it to the invoice's posted lot in-place — no new transaction is created and all original bank metadata is preserved.
 
 `txn_split_guid:` is optional in hand-written plaintext (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order). It is **always** emitted on export so every round-trip is order-independent and unambiguous.
+
+**A `txn_guid:` that names nothing has two readings**, and the block cannot tell them apart on its own: a document being rebuilt into a fresh book, where the bank transaction genuinely is not there yet, and a retarget against the book that holds it, where the guid is simply mistyped. The first has to go through — a printed document carries the guids of the book it came from precisely so that book relinks rather than paying twice, and it still has to be readable elsewhere. The second must not: recording the payment from the block enters money that has already moved.
+
+What separates them is the book. Where the block's own `date:`, `amount:`, direction, account and `memo:` describe a transaction the book already has, the money is here and the guid is wrong, and the run is refused — naming that transaction, its guid, and the document it already settles, so you can either correct the guid to it or drop `txn_guid:`. A rebuild into a book that never held the money matches nothing and is untouched.
+
+Two payments can agree on every one of those fields, and then nothing in the file tells them apart: one customer with two invoices for the same figure, paid on the same day into the same account, with the same memo on both bank lines. Give the second its own `memo:` — naming the movement is what a memo is for — and both import. Between two *different* owners the check never fires, because the remedy it offers does not exist there: one customer's receipt cannot settle another's invoice, so a match across owners can only be coincidence.
 
 #### One bank transaction covering multiple invoices or bills
 
@@ -2237,9 +2321,14 @@ The project is tested against multiple GnuCash versions using different Docker b
 | Debian 12 | 4.13 | `debian12` |
 | Debian 11 | 4.4 | `debian11` |
 | Ubuntu 26.04 | 5.14 | `ubuntu26` |
-| Ubuntu 24.04 | 4.9 | `ubuntu24` |
+| Ubuntu 24.04 | 5.5 | `ubuntu24` |
 | Ubuntu 22.04 | 4.8 | `ubuntu22` |
 | Ubuntu 20.04 | 3.8 | `ubuntu20` |
+| Fedora 41 | 5.13 | `fedora41` |
+| Arch Linux | 5.15 | `arch` |
+| openSUSE Tumbleweed | 5.16 | `opensuse` |
+
+Ten builds, and the version is what each image's own package database reports rather than what the base distribution is expected to ship — `ubuntu24` carries 5.5, not the 4.9 it was listed as for a long time. The last three build from their own Dockerfiles (`Dockerfile.fedora`, `Dockerfile.arch`, `Dockerfile.opensuse`) rather than from a `BASE_IMAGE` build argument.
 
 ### Interactive Development Shell
 

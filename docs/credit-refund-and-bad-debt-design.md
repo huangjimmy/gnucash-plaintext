@@ -2,7 +2,7 @@
 
 **Feature branch**: `feature/credit-refund-bad-debt`
 **Created**: 2026-06-03
-**Status**: Implemented and tested on GnuCash 5.10 (credit clearing — refund / vendor bad debt / customer forfeit / partial / standalone create+settle / round-trip; invoice & bill bad-debt validation; the `open_prepayment:` summary with import warn). Engine path probe-backed across GnuCash 3.8–5.14; the 45-test Q-014 orphan/payment-roundtrip suite still passes.
+**Status**: Implemented and tested on GnuCash 5.10 (credit clearing — refund / vendor bad debt / customer forfeit / partial / standalone create+settle / round-trip; invoice & bill bad-debt validation; the `open_prepayment:` summary with import warn). Engine path probe-backed across GnuCash 3.8–5.16; the 45-test Q-014 orphan/payment-roundtrip suite still passes.
 
 ---
 
@@ -146,7 +146,7 @@ xaccTransSetDatePostedSecs(txn, date); xaccTransCommitEdit(txn)
 
 When there is no open lot to reduce, the same primitives **create** a new lot (`gnc_lot_new` + `xaccAccountInsertLot` + `gnc_lot_add_split` + `gncOwnerAttachToLot`) — the existing Q-014 orphan-reconstruction path, now also used for a fresh standalone credit. This join-or-create is implemented as `_attach_lot_owner_split` in `services/gnucash_importer.py`, replacing Q-014's former always-create `lot_owner:` handler; the owner-lot walk reuses the `xaccAccountGetLotList` pattern from `use_cases/unpost_business_objects.py`.
 
-This path is **verified on all ten supported builds** (GnuCash 3.8 through 5.14) for full refund, partial refund, vendor bad debt, forfeit, standalone-credit create-then-settle, and export → fresh re-import — no version gate needed — and the 45-test Q-014 orphan/payment-roundtrip suite still passes, so folding orphan reconstruction into the same path didn't regress it.
+This path is **verified on all ten supported builds** (GnuCash 3.8 through 5.16) for full refund, partial refund, vendor bad debt, forfeit, standalone-credit create-then-settle, and export → fresh re-import — no version gate needed — and the 45-test Q-014 orphan/payment-roundtrip suite still passes, so folding orphan reconstruction into the same path didn't regress it.
 
 Customer *bad debt against an invoice* (decision 1) is different — it closes the invoice's own document lot via the existing invoice `ApplyPayment` path (just with an expense transfer account), which does not invoke the buggy lot-netting and works on every version.
 
@@ -246,13 +246,19 @@ Proves owner + amount is a sufficient handle (decision 3).
 | 3.8 | Ubuntu 20.04 | ✓ | ✓ | ✓ |
 | 4.4 | Debian 11 | ✓ | **SEGFAULT** | ✓ |
 | 4.8 | Ubuntu 22.04 | ✓ | **SEGFAULT** | ✓ |
-| 4.9 | Ubuntu 24.04 | ✓ | ✓ | ✓ |
 | 4.13 | Debian 12 | ✓ | ✓ | ✓ |
+| 5.5 | Ubuntu 24.04 | ✓ | ✓ | ✓ |
 | 5.10 | Debian 13 | ✓ | ✓ | ✓ |
-| 5.13 | Fedora 41 / openSUSE | ✓ | ✓ | ✓ |
-| 5.14 | Ubuntu 26.04 / Arch | ✓ | ✓ | ✓ |
+| 5.13 | Fedora 41 | ✓ | ✓ | ✓ |
+| 5.14 | Ubuntu 26.04 | ✓ | ✓ | ✓ |
+| 5.15 | Arch Linux | ✓ | ✓ | ✓ |
+| 5.16 | openSUSE Tumbleweed | ✓ | ✓ | ✓ |
 
-The auto-apply path (`gncOwnerApplyPaymentSecs` with `auto_pay`) **segfaults on GnuCash 4.4 and 4.8** — reproducibly, through pure SWIG using the book's own engine instance (so it is not a ctypes/instance-mismatch artifact). The crash is *inside* `gncOwnerAutoApplyPaymentsWithLots` when it nets the new payment lot against the existing credit lot: creating the prepayment lot (`+N`) returns fine, the offsetting `−N` payment crashes. The non-monotonic pattern (ok 3.8 / broken 4.4–4.8 / ok 4.9+) points to an early-4.x engine regression fixed by 4.9.
+In version order, because that is what the column is scanned for: the boundary below is read off this table, and rows sorted by anything else put the 4.x/5.x transition in two places.
+
+The version each row names is what that image's own package database reports. Three of them were a release or more out when this table was written — Ubuntu 24.04 was listed as 4.9 and carries 5.5 — which matters here more than anywhere else in the repo, for the same reason.
+
+The auto-apply path (`gncOwnerApplyPaymentSecs` with `auto_pay`) **segfaults on GnuCash 4.4 and 4.8** — reproducibly, through pure SWIG using the book's own engine instance (so it is not a ctypes/instance-mismatch artifact). The crash is *inside* `gncOwnerAutoApplyPaymentsWithLots` when it nets the new payment lot against the existing credit lot: creating the prepayment lot (`+N`) returns fine, the offsetting `−N` payment crashes. The pattern is ok on 3.8, broken on 4.4 and 4.8, ok from 4.13 on — an early-4.x engine regression, and the supported builds place its repair somewhere in 4.9–4.13 rather than at 4.9, which is what this table said while Ubuntu 24.04 was labelled with a version it does not carry.
 
 **The primitive lot-split path (decision 5) avoids the bug entirely and passes on all ten builds** — so this is resolved, not an open question: there is no version gate. Intermediate snapshots (identical on 3.8 / 4.4 / 4.8 / 5.10) show the mechanic step by step:
 

@@ -1,0 +1,45 @@
+# Fund units are not money, so the account's unit decides what they can hold.
+#
+# FUNDX is declared `fraction: 100` — the number a fund company puts on a
+# prospectus — while the holding account is kept to thousandths, which is how
+# units are actually quoted. 12.345 units is a legal quantity here, and the
+# currency's cent has nothing to say about it: judged as money it would be
+# refused for needing a third decimal, with a message calling fund units "not
+# money this book can record".
+#
+# What this fixture produces: 12.345 FUNDX bought for 1,234.50 CAD, and the
+# quantity coming back out unchanged.
+#
+# Verified by tests/integration/test_amount_must_fit_the_currency.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity FUNDX
+	mnemonic: "FUNDX"
+	fullname: "Example Balanced Fund"
+	namespace: "FUND"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Fund
+	type: Mutual Fund
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "FUNDX"
+	commodity_scu: 1000
+
+2026-02-01 * "Buy 12.345 units"
+	currency.mnemonic: "CAD"
+	Assets:Fund 12.345 FUNDX
+		account.commodity.mnemonic: "FUNDX"
+		share_price: "100"
+		value: "1234.50"
+	Assets:Bank -1234.50 CAD
+		account.commodity.mnemonic: "CAD"

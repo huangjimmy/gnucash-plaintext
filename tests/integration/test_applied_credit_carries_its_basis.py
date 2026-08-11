@@ -101,19 +101,19 @@ def test_the_remaining_credit_keeps_the_cost_it_was_acquired_at(tmp_path):
     # The applied part carries no basis figures at all.
     applied = text.split('Assets:Accounts Receivable USD -40.00 USD')[1]
     applied = applied.split('\n\tAssets')[0]
-    assert 'cost_basis_available' not in applied, applied
+    assert 'cost_basis_balance' not in applied, applied
     assert 'cost_basis_cost' not in applied, applied
 
     # What is left of the credit carries them, at its own size.
     remainder = text.split('Assets:Accounts Receivable USD -60.00 USD')[1]
     remainder = remainder.split('\n\tAssets')[0]
-    assert 'cost_basis_available: "60.00"' in remainder, remainder
+    assert 'cost_basis_balance: "60.00"' in remainder, remainder
     assert 'cost_basis_cost: "1.4 CAD/USD"' in remainder, remainder
 
     # And the listing follows: the first invoice's 100.00, the second's 40.00,
     # and 60.00 of credit still owed — nothing offering more than it holds.
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Available USD: 200.00' in listing, listing
+    assert 'Total USD basis balance: 200.00' in listing, listing
     assert '60.00 USD' in listing, listing
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
@@ -149,7 +149,7 @@ def test_what_is_left_of_the_credit_comes_back_with_its_cost(tmp_path):
     # carrying the cost it was acquired at.
     listing = runner.invoke(cli, ['fx-balances', str(rebuilt)])
     assert listing.exit_code == 0, listing.output
-    assert 'Available USD: 200.00' in listing.output, listing.output
+    assert 'Total USD basis balance: 200.00' in listing.output, listing.output
     assert '1.4 CAD/USD' in listing.output, listing.output
     assert '60.00 USD' in listing.output, listing.output
     checked = runner.invoke(cli, ['fx-balances', str(rebuilt), '--verify-costs'])
@@ -189,13 +189,13 @@ def test_a_credit_spent_to_the_last_cent_keeps_no_basis(tmp_path):
     # The whole 100.00 credit went into the invoice, and carries nothing.
     spent = text.split('Assets:Accounts Receivable USD -100.00 USD')[1]
     spent = spent.split('\n\tAssets')[0].split('\n\tIncome')[0]
-    assert 'cost_basis_available' not in spent, spent
+    assert 'cost_basis_balance' not in spent, spent
     assert 'cost_basis_cost' not in spent, spent
 
     # The book now holds the first invoice's 100.00 and the new one's 250.00.
     listing = runner.invoke(cli, ['fx-balances', str(book)])
     assert listing.exit_code == 0, listing.output
-    assert 'Available USD: 350.00' in listing.output, listing.output
+    assert 'Total USD basis balance: 350.00' in listing.output, listing.output
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
 
@@ -209,9 +209,9 @@ def test_the_remainder_is_told_apart_from_a_settlement_of_its_own_size(tmp_path)
     and that remainder is exactly the size of the settlement sitting next to
     it. Picking by size, the settlement can be reached first and handed the
     credit's balance and cost, which nothing then reads: its lot belongs to a
-    document, so it is no basis. The customer's real 100.00 is left untracked,
+    document, so it is no basis. The customer's real 100.00 is left with no recorded balance,
     the book reports 150.00 available against 250.00 held, and selling that
-    credit is refused for having no tracked balance.
+    credit is refused for having no balance recorded.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -236,20 +236,20 @@ def test_the_remainder_is_told_apart_from_a_settlement_of_its_own_size(tmp_path)
     # has gone, and its lot belongs to a document.
     settlement = text.split('Assets:Accounts Receivable USD -100.00 USD')[1]
     settlement = settlement.split('\n\tAssets')[0].split('\n\tIncome')[0]
-    assert 'cost_basis_available' not in settlement, settlement
+    assert 'cost_basis_balance' not in settlement, settlement
     assert 'cost_basis_cost' not in settlement, settlement
 
     # What is left of the credit is 100.00, and it is what carries the basis.
     remainder = text.split('Assets:Accounts Receivable USD -100.00 USD')[2]
     remainder = remainder.split('\n\tAssets')[0].split('\n\tIncome')[0]
-    assert 'cost_basis_available: "100.00"' in remainder, remainder
+    assert 'cost_basis_balance: "100.00"' in remainder, remainder
     assert 'cost_basis_cost: "1.4 CAD/USD"' in remainder, remainder
 
     # 100.00 on the first invoice, 50.00 on the second, 100.00 still owed
     # back — against 250.00 in the bank.
     listing = runner.invoke(cli, ['fx-balances', str(book)])
     assert listing.exit_code == 0, listing.output
-    assert 'Available USD: 250.00' in listing.output, listing.output
+    assert 'Total USD basis balance: 250.00' in listing.output, listing.output
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
 
@@ -315,7 +315,7 @@ def _edit_the_credits_basis(book, change):
             transaction = Transaction(instance=raw)
             for split in transaction.GetSplitList():
                 metadata = dict(get_custom_metadata(split))
-                if 'cost_basis_available' not in metadata:
+                if 'cost_basis_balance' not in metadata:
                     continue
                 if str(split.GetAmount()) != '-10000/100':
                     continue
@@ -333,7 +333,7 @@ def _edit_the_credits_basis(book, change):
 def test_a_balance_that_will_not_parse_survives_a_division_as_it_reads(tmp_path):
     """Unreadable is not absent, and a division must not write over it.
 
-    `available_of` answers None for a balance that is missing and for one that
+    `cost_basis_balance_of` answers None for a balance that is missing and for one that
     will not parse alike, so inside a branch that has already found the key,
     None can only mean unparseable. Treated as absent, the largest figure the
     division could produce is written onto a basis nobody can vouch for — and
@@ -343,7 +343,7 @@ def test_a_balance_that_will_not_parse_survives_a_division_as_it_reads(tmp_path)
     runner = CliRunner()
     book = _overpaid_book(runner, tmp_path)
     _edit_the_credits_basis(
-        book, lambda md: {**md, 'cost_basis_available': '20,00'})
+        book, lambda md: {**md, 'cost_basis_balance': '20,00'})
 
     credit_txn, credit_split = _the_credit_split(book)
     second = tmp_path / 'second.txt'
@@ -360,7 +360,7 @@ def test_a_balance_that_will_not_parse_survives_a_division_as_it_reads(tmp_path)
     text = exported.read_text()
     remainder = text.split('Assets:Accounts Receivable USD -70.00 USD')[1]
     remainder = remainder.split('\n\tAssets')[0].split('\n\tIncome')[0]
-    assert 'cost_basis_available: "20,00"' in remainder, remainder
+    assert 'cost_basis_balance: "20,00"' in remainder, remainder
 
     # And the report still names it, which is the whole point of keeping it:
     # the text itself, quoted back, is what tells the reader what to correct.
@@ -370,10 +370,10 @@ def test_a_balance_that_will_not_parse_survives_a_division_as_it_reads(tmp_path)
     assert "reads '20,00', which is not a number" in checked.output, checked.output
 
 
-def test_dividing_an_untracked_credit_leaves_it_untracked(tmp_path):
+def test_dividing_a_credit_with_no_recorded_balance_records_none(tmp_path):
     """No balance was ever written for it, so a division writes none either.
 
-    A credit carrying a cost but no balance is untracked: nothing recorded
+    A credit carrying a cost but no balance has none recorded: nothing recorded
     what has already been sold from it. Reading the residue's own size as its
     balance would open a basis for currency that may be long gone, and every
     later sale would be measured against it.
@@ -382,7 +382,7 @@ def test_dividing_an_untracked_credit_leaves_it_untracked(tmp_path):
     book = _overpaid_book(runner, tmp_path)
     _edit_the_credits_basis(
         book, lambda md: {key: val for key, val in md.items()
-                          if key != 'cost_basis_available'})
+                          if key != 'cost_basis_balance'})
 
     credit_txn, credit_split = _the_credit_split(book)
     second = tmp_path / 'second.txt'
@@ -399,7 +399,7 @@ def test_dividing_an_untracked_credit_leaves_it_untracked(tmp_path):
     text = exported.read_text()
     remainder = text.split('Assets:Accounts Receivable USD -70.00 USD')[1]
     remainder = remainder.split('\n\tAssets')[0].split('\n\tIncome')[0]
-    assert 'cost_basis_available' not in remainder, remainder
+    assert 'cost_basis_balance' not in remainder, remainder
     assert 'cost_basis_cost' in remainder, remainder
 
 
@@ -445,7 +445,7 @@ def test_dividing_a_credit_gives_back_only_what_was_left(tmp_path):
     text = exported.read_text()
     remainder = text.split('Assets:Accounts Receivable USD -70.00 USD')[1]
     remainder = remainder.split('\n\tAssets')[0].split('\n\tIncome')[0]
-    assert 'cost_basis_available: "20.00"' in remainder, remainder
+    assert 'cost_basis_balance: "20.00"' in remainder, remainder
 
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
@@ -526,12 +526,12 @@ def test_a_vendor_credit_keeps_its_cost_the_same_way(tmp_path):
 
     applied = text.split('Liabilities:Accounts Payable USD 40.00 USD')[1]
     applied = applied.split('\n\tLiabilities')[0].split('\n\tAssets')[0]
-    assert 'cost_basis_available' not in applied, applied
+    assert 'cost_basis_balance' not in applied, applied
     assert 'cost_basis_cost' not in applied, applied
 
     remainder = text.split('Liabilities:Accounts Payable USD 60.00 USD')[1]
     remainder = remainder.split('\n\tLiabilities')[0].split('\n\tAssets')[0]
-    assert 'cost_basis_available: "60.00"' in remainder, remainder
+    assert 'cost_basis_balance: "60.00"' in remainder, remainder
     assert 'cost_basis_cost: "1.4 CAD/USD"' in remainder, remainder
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output

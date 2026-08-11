@@ -1,0 +1,171 @@
+# Eight bills, one line each, so that one edit can be made to each field.
+#
+# The mirror of invoice_lines_before_an_edit.txt, and the same question: a
+# field left out of the comparison that answers "does the book already say
+# this?" is a field a person can edit in the ledger, import, and see reported
+# `unchanged`.
+#
+# Two of these were left out. The bill comparison skipped `taxable:` and
+# `tax_included:` on the reasoning that GnuCash could not persist a bill
+# entry's tax flags — which was true of a vendor bill handled as a customer
+# invoice, and is not true of one handled as a bill (CLAUDE.md §8). Both are
+# written on import and both are read back, so both have to be compared.
+#
+# bill_lines_before_an_edit.txt is this file before the edits.
+#
+# What this fixture produces: the same bills, each with one field of its line
+# changed.
+#
+# Verified by tests/integration/test_an_edited_bill_line_lands.py.
+2026-01-01 open Expenses
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Travel
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+  type: Liability
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:GST
+  type: Liability
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+  type: Accounts Payable
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+
+vendor "V-EDIT"
+  name: "Edited Vendor"
+  currency: CAD
+
+taxtable "GST"
+  entry:
+    account: "Liabilities:GST"
+    rate: 5.0%
+    type: PERCENT
+
+taxtable "PST"
+  entry:
+    account: "Liabilities:GST"
+    rate: 8.0%
+    type: PERCENT
+
+bill "BILL-DATE"
+  vendor_id: "V-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-08
+    description: "A line"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+bill "BILL-DESC"
+  vendor_id: "V-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A different line"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+bill "BILL-ACCOUNT"
+  vendor_id: "V-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Expenses:Travel"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+bill "BILL-QUANTITY"
+  vendor_id: "V-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Expenses:Supplies"
+    quantity: 3
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+bill "BILL-PRICE"
+  vendor_id: "V-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 125
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+
+bill "BILL-TAXABLE"
+  vendor_id: "V-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+    tax_table: "GST"
+
+bill "BILL-INCLUDED"
+  vendor_id: "V-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: true
+    tax_table: "GST"
+
+bill "BILL-TABLE"
+  vendor_id: "V-EDIT"
+  currency: CAD
+  date_opened: 2026-01-01
+  entry:
+    date: 2026-01-01
+    description: "A line"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "PST"

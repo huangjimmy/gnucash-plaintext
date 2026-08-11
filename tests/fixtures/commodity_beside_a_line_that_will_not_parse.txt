@@ -1,0 +1,26 @@
+# A commodity declaration, and a line the parser cannot read.
+#
+# The parser records a structural error and carries on building directives, so
+# a file like this still yields a commodity and an account — and the
+# `--include-business-objects` pass wrote them into the book without ever
+# asking whether the parse had failed, while the transaction pass returned on
+# the same errors having done nothing. The run then reported `Errors: 1` and
+# `✓ Changes saved`, and only on that path: the same file without the flag
+# wrote nothing at all. One file, two answers, decided by a flag.
+#
+# The file carries no business objects on purpose. One with an invoice in it
+# was already saved by a different arm of the same condition, so the shape
+# that shows this is the one where the commodity is all there is.
+#
+# What this fixture produces: a refusal naming the file, and no book — with
+# the flag and without it.
+2026-01-01 commodity QQD
+	mnemonic: "QQD"
+	fullname: "Q Fund"
+	namespace: "FUND"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+		this line is indented under nothing and states nothing

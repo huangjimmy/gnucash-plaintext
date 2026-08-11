@@ -59,12 +59,41 @@ The rest is a long tail of ten-or-fewer per file. `./scripts/coverage.sh --repor
 
 The beancount subsystem stands out as a block rather than a tail: `import-beancount` at 15% and `export-beancount` at 28% are whole commands whose bodies never run, against one round-trip test that calls the use cases directly and skips the CLI entirely. Roughly 150 of the 1572 points are there, and a handful of command-level tests reach most of them.
 
+## Where it stands now
+
+Union of all ten supported builds — `latest` (5.10), `debian12` (4.13), `debian11` (4.4), `ubuntu26` (5.14), `ubuntu24` (5.5), `ubuntu22` (4.8), `ubuntu20` (3.8), `fedora41` (5.13), `arch` (5.15), `opensuse` (5.16) — 2312 tests, 2026-08-11:
+
+**94%** — 504 statements and 439 branches that no supported version executes, against 1004 and 560 at the baseline. Thirty-nine files are at 100% and no longer appear in the report at all.
+
+`THRESHOLD` in `scripts/coverage.sh` is 94, so the figure cannot slip back.
+
+| file | lines | branches | covered |
+|---|---|---|---|
+| `services/gnucash_importer.py` | 242 | 201 | 90% |
+| `use_cases/unpost_business_objects.py` | 43 | 29 | 88% |
+| `services/foreign_currency.py` | 30 | 28 | 93% |
+| `services/invoice_renderer.py` | 18 | 21 | 93% |
+| `use_cases/export_transactions.py` | 17 | 26 | 95% |
+| `infrastructure/gnucash/utils.py` | 17 | 9 | 89% |
+| `use_cases/account_balance.py` | 10 | 7 | 92% |
+| `use_cases/import_transactions.py` | 9 | 5 | 95% |
+| `use_cases/export_business_objects.py` | 9 | 11 | 96% |
+| `services/bill_renderer.py` | 9 | 10 | 95% |
+
+The rest is a tail of eight-or-fewer per file. Two whole subsystems have left the table: `cli/import_beancount_cmd.py` and `cli/export_beancount_cmd.py`, at 15% and 28%, are now at 100% — the command bodies are exercised through the CLI, including every per-object failure path, and the refusals they grew along the way are each paired with a fixture and listed in `RELEASE_NOTES.md`.
+
+**What closing the gap actually produced.** The lines were the instrument, not the goal: nearly every gap was a behaviour nothing had asked about, and asking found defects rather than merely covering statements. Among them — a payment block that entered the same money twice when its `txn_guid:` was mistyped; a book made unexportable by a currency GnuCash restated between versions; an import that rewrote the book on every run over a ledger that had not changed; a printed document that leaked its owner's private keys and reported a credit settlement as a bank payment; the `export` and `print-invoice` truncation described in CLAUDE.md finding 14; and a `payment:` block spending a foreign account whose cost bases still held a balance.
+
+**What was deleted rather than covered**, in the same spirit as the ten branches Q-035 removed: `get_all_sub_accounts`, `to_string_in_fraction_format`, `render_to_pdf`, the `available_of`/`open_available` family, three duplicated copies of `holdable_unit`, a null-account guard in `cli/find_transactions_cmd.py` (finding 12 above is the measurement that settles it), and the `try`/`except` wrappers around SWIG calls that cannot raise on any supported build.
+
+**What is listed rather than covered.** `cli/_saving.py:22-24` — the branch that swallows `ERR_FILEIO_BACKUP_ERROR` — is reachable only when two saves land inside the same second, which is the collision the suite deliberately sleeps a second to avoid. A test that depends on the timing going the other way is a flake, so the path is recorded here instead.
+
 ## Closed as part of Q-035
 
 Two branches in the credit-division machinery, both of which state a rule in a docstring that nothing checked:
 
 - **A balance that will not parse, carried across a division.** `available_of` answers `None` for a balance that is absent and for one that is malformed alike, so inside a branch that has already found the key, `None` can only mean malformed. Read as absent, the largest figure the division could produce is written onto a basis nobody can vouch for, and the text `--verify-costs` exists to report is destroyed on the way — `20,00` for `20.00` comes back as a clean 70.00 available. Q-035 recorded this as "guarded by construction rather than by a failing test"; it is now `test_a_balance_that_will_not_parse_survives_a_division_as_it_reads`.
-- **An untracked credit divided.** A credit carrying a cost but no balance is untracked — nothing recorded what has already been sold from it — and reading the residue's own size as its balance would open a basis for currency that may be long gone. Now `test_dividing_an_untracked_credit_leaves_it_untracked`.
+- **A credit with no recorded balance, divided.** A credit carrying a cost but no balance has none recorded — nothing wrote down what has already been sold from it — and reading the residue's own size as its balance would open a basis for currency that may be long gone. Now `test_dividing_a_credit_with_no_recorded_balance_records_none`.
 
 Both build a book the importer would refuse to read, by writing the KVP directly, because how such a book is *read* is the thing under test.
 
@@ -110,8 +139,8 @@ The bare `CDLL(None)` handles matter most. The shared loader promotes the librar
 
 Reach 100% line and branch on the union, then turn the gate on:
 
-1. Cover or delete what the table above lists, file by file. Where a line cannot be reached, deleting it is the answer — an unreachable line is the defect, and a test that reaches it by contortion only hides that.
-2. Raise `THRESHOLD` in `scripts/coverage.sh` as each file is closed, and at 100 move it to `fail_under` in `[tool.coverage.report]`. It defaults to the measured floor rather than the destination so that the bare command passes and refuses to let the figure slip; a default of 100 today would fail on every run, and a gate that always fails is a gate somebody turns off.
+1. Cover or delete what the "Where it stands now" table lists, file by file. Where a line cannot be reached, deleting it is the answer — an unreachable line is the defect, and a test that reaches it by contortion only hides that. `services/gnucash_importer.py` is half of what is left on its own.
+2. Raise `THRESHOLD` in `scripts/coverage.sh` as each file is closed — it stands at 94 — and at 100 move it to `fail_under` in `[tool.coverage.report]`. It tracks the measured floor rather than the destination so that the bare command passes and refuses to let the figure slip; a default of 100 today would fail on every run, and a gate that always fails is a gate somebody turns off.
 3. `scripts/hooks/pre-commit` runs `test-all-versions-parallel.sh` already; run it under `GNC_COVERAGE=1` and gate on the combined figure there, so a commit that adds an unreached line is blocked the way a lint failure is.
 4. Empty the `KNOWN` list in `test_c_bindings_are_declared_once.py`, file by file, starting with the two bare `CDLL(None)` handles.
 

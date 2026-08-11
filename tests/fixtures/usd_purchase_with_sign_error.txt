@@ -6,9 +6,9 @@
 # reuses the same splits rather than creating new ones: splits are matched by
 # account, so the guid does not change.
 #
-# What the corrected version must produce: a tracked basis for the 100.00 USD
+# What the corrected version must produce: a basis with a balance for the 100.00 USD
 # that has now arrived. Skipping any split that existed before the edit left
-# it `untracked`, over a message saying this tool never wrote it.
+# it `none recorded`, over a message saying this tool never wrote it.
 #
 # Verified by tests/integration/test_update_strategy_respects_cost_basis.py.
 2026-01-01 open Assets

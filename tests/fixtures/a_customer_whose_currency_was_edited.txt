@@ -1,0 +1,6 @@
+# The same customer with `currency:` changed to USD. A currency is what an
+# owner's documents are raised in, and a posted invoice is already in the old
+# one, so the word cannot be edited into meaning something else.
+customer "C-EDIT"
+	name: "Edit Test"
+	currency: USD

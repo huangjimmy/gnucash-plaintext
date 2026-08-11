@@ -36,7 +36,7 @@ def test_the_bases_and_the_rest_of_the_file_are_left_alone(tmp_path):
         '--include-business-objects', '--fx-rates', RATES])
     assert result.exit_code == 0, result.output
     before = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Available USD: 200.00' in before, before
+    assert 'Total USD basis balance: 200.00' in before, before
 
     failing = tmp_path / 'failing.txt'
     failing.write_text(Path(NO_GAIN_SPLIT).read_text() + AN_ORDINARY_TRANSACTION)

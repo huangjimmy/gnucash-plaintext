@@ -166,7 +166,7 @@ def test_paying_a_usd_invoice_at_another_rate_realizes_the_difference(tmp_path):
     assert 'cost_basis_split_guid:' in exported, exported
 
     # Settling into CAD consumed the basis: that USD is gone.
-    assert 'Available USD: 0.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 0.00 USD' in _balances(runner, book)
 
 
 def test_paying_a_usd_bill_at_another_rate_realizes_the_difference(tmp_path):
@@ -182,7 +182,7 @@ def test_paying_a_usd_bill_at_another_rate_realizes_the_difference(tmp_path):
     assert 'Assets:Bank -137.00 CAD' in exported, exported
     assert 'Income:FX Gain -3.00 CAD' in exported, exported         # credit: a gain
     assert 'value: "140.00"' in exported, exported
-    assert 'Available USD: 0.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 0.00 USD' in _balances(runner, book)
 
 
 def test_a_realizing_payment_must_say_where_the_gain_belongs(tmp_path):
@@ -274,7 +274,7 @@ def test_settling_in_the_records_own_currency_realizes_nothing(tmp_path):
 
     listing = _balances(runner, book)
     assert listing.count('100.00 USD     100.00 USD') == 1, listing
-    assert 'Available USD: 100.00 USD' in listing, listing
+    assert 'Total USD basis balance: 100.00 USD' in listing, listing
     assert 'Assets:Bank:USD' not in listing, listing
 
     # No gain split anywhere in the payment entry — the fixture declares an
@@ -319,7 +319,7 @@ def test_a_converting_settlement_can_be_written_out_as_a_transaction(tmp_path):
     assert 'Assets:Bank 137.00 CAD' in exported, exported
     assert 'Income:FX Gain 3.00 CAD' in exported, exported
     assert 'payment: none' not in exported, exported
-    assert 'Available USD: 0.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 0.00 USD' in _balances(runner, book)
 
 
 def test_a_converting_payment_survives_export_and_re_import(tmp_path):
@@ -352,7 +352,7 @@ def test_a_converting_payment_survives_export_and_re_import(tmp_path):
     assert 'Income:FX Gain 3.00 CAD' in round_tripped, round_tripped
     assert 'Assets:Bank 137.00 CAD' in round_tripped, round_tripped
     assert 'value: "-140.00"' in round_tripped, round_tripped
-    assert 'Available USD: 0.00 USD' in _balances(runner, fresh)
+    assert 'Total USD basis balance: 0.00 USD' in _balances(runner, fresh)
 
 
 def test_same_currency_payment_still_settles_without_a_rate(tmp_path):
@@ -427,7 +427,7 @@ def test_a_converting_bill_payment_that_overpays_values_both_parts(tmp_path):
     assert 'Income:FX Gain -3.00 CAD' in text, text
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Available USD: 100.00' in listing, listing
+    assert 'Total USD basis balance: 100.00' in listing, listing
     # And at the rate it was actually sent at, 274/200, not the 1.40 the bill
     # was carried at — the whole point of taking the cost from the payment's
     # own figures rather than writing the record's onto it.
@@ -468,7 +468,7 @@ def test_a_record_with_no_cost_cannot_reach_the_overpayment_arithmetic(tmp_path)
 def test_an_overpaid_converting_payment_round_trips(tmp_path):
     """Export it, import that into a fresh book, export again — and compare.
 
-    The overpaid split carries an engine-set value and a `cost_basis_available`
+    The overpaid split carries an engine-set value and a `cost_basis_balance`
     KVP, and both have to survive the trip. No expectation is written down
     here: the diff is the answer.
     """

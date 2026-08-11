@@ -1,0 +1,21 @@
+; An ordinary beancount file: valid beancount, and not one this tool wrote.
+;
+; Its transaction carries none of the `gnucash-*` metadata an export adds, and
+; the parser refuses it on the first of those it looks for — which is the check
+; that makes "only beancount files exported from GnuCash can be imported" true.
+;
+; The account declaration *is* fully annotated, so the refusal has to come from
+; the transaction rather than from the first line of the file: a parser that
+; gave up earlier would refuse this for the wrong reason and pass a test that
+; only asked whether it refused.
+;
+; Verified by tests/integration/test_cli_beancount.py.
+2024-01-01 open Assets:Bank CAD
+  gnucash-name: "Assets:Bank"
+  gnucash-guid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  gnucash-type: "BANK"
+  gnucash-placeholder: "false"
+
+2024-01-15 * "Payee" "Groceries"
+  Assets:Bank  -50.00 CAD
+  Expenses:Food  50.00 CAD

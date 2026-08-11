@@ -1204,14 +1204,19 @@ def test_every_open_credit_is_listed_whatever_gave_it_its_owner(tmp_path):
 
 
 def test_dividing_a_credit_on_an_account_kept_finer_than_the_cent(tmp_path):
-    """50.005 divided against 30.00 leaves 20.005, amount and value alike.
+    """50.00 divided against 30.00 leaves 20.00, held at the account's unit.
 
     An account may be kept finer than its currency — a tenth of a cent, which
     this tool round-trips as `commodity_scu:` — and a same-currency split
-    carries its value at that unit too. Rounding either half at the currency's
-    hundredth makes the two sum to 50.01, and GnuCash answers the missing
-    tenth of a cent with an Imbalance split, on a transaction whose splits
-    were exact when it was written.
+    carries its value at that unit too, so the division reports thousandths
+    where the account has them.
+
+    The figures a file *states* are whole cents, because that is all a file
+    may state: a booked amount is judged against the currency however fine the
+    account is. This began as a 50.005 credit, and what that bought was a
+    split whose amount sat at the account's unit while its value was rounded
+    to the currency's — two figures for one sum, balancing only because both
+    halves were wrong the same way.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -1221,22 +1226,23 @@ def test_dividing_a_credit_on_an_account_kept_finer_than_the_cent(tmp_path):
     assert runner.invoke(cli, ['import', '--new', str(book), str(source),
                                '--include-business-objects']).exit_code == 0
 
-    txn_guid, split_guid = _credit_split(book, amount='-50005/1000')
+    txn_guid, split_guid = _credit_split(book, amount='-50000/1000')
     result = _import_fixture(runner, book, tmp_path,
                              'credit_payment_dividing_a_finer_credit.txt',
                              txn_guid, split_guid)
     assert result.exit_code == 0, result.output
 
     assert _outstanding(book, 'INV-FINE') == '0/1000'
-    assert _credit_amounts(book) == {'Fine Grained pays ahead': Fraction(-4001, 200)}
+    assert _credit_amounts(book) == {'Fine Grained pays ahead': Fraction(-20)}
 
-    # The amounts divide at the account's own unit — 50.005 into 30.000 and
-    # 20.005, with nothing rounded away — and the values, which this book
-    # keeps at the cent as the import wrote them, still sum to zero, so
-    # GnuCash has no imbalance to record.
+    # The amounts divide at the account's own unit — 50.000 into 30.000 and
+    # 20.000 — and the values still sum to zero, so GnuCash has no imbalance
+    # to record. The denominators are the point: on this account the figures
+    # are thousandths, and a division that answered in hundredths would be
+    # rounding on the way past.
     figures = _credit_transaction_figures(book, 'Fine Grained pays ahead')
     assert sorted(figures['amounts']) == sorted(
-        ['50005/1000', '-30000/1000', '-20005/1000']), figures
+        ['50000/1000', '-30000/1000', '-20000/1000']), figures
     assert figures['value_sum'] == '0', figures
 
 
@@ -1458,12 +1464,12 @@ def test_the_export_of_a_divided_credit_can_be_edited_and_re_imported(tmp_path):
 
 
 def test_a_credit_on_a_finer_account_exports_at_that_account_s_unit(tmp_path):
-    """50.005 goes out as 50.005, not 50.00 — or the file cannot come back.
+    """50.000 goes out as 50.000, not 50.00 — or the file cannot come back.
 
     An amount is held to its account's own unit, and a payment block states an
     amount. Written at the currency's two places instead, the block says a
-    figure the split does not hold, and re-importing it is refused for the
-    mismatch — a book that cannot read its own export.
+    figure with a different denominator from the split's, and re-importing it
+    is refused for the mismatch — a book that cannot read its own export.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -1473,7 +1479,7 @@ def test_a_credit_on_a_finer_account_exports_at_that_account_s_unit(tmp_path):
     assert runner.invoke(cli, ['import', '--new', str(book), str(source),
                                '--include-business-objects']).exit_code == 0
 
-    txn_guid, split_guid = _credit_split(book, amount='-50005/1000')
+    txn_guid, split_guid = _credit_split(book, amount='-50000/1000')
     assert _import_fixture(runner, book, tmp_path,
                            'credit_payment_whole_on_a_finer_account.txt',
                            txn_guid, split_guid).exit_code == 0
@@ -1481,7 +1487,7 @@ def test_a_credit_on_a_finer_account_exports_at_that_account_s_unit(tmp_path):
     exported = tmp_path / 'out.txt'
     assert runner.invoke(cli, ['export', str(book), str(exported),
                                '--include-business-objects']).exit_code == 0
-    assert 'amount: 50.005' in exported.read_text(), exported.read_text()
+    assert 'amount: 50.000' in exported.read_text(), exported.read_text()
 
     # And the book reads its own export back.
     rebuilt = tmp_path / 'rebuilt.gnucash'
@@ -1491,13 +1497,13 @@ def test_a_credit_on_a_finer_account_exports_at_that_account_s_unit(tmp_path):
 
 
 def test_a_divided_credit_on_a_finer_account_reports_itself_honestly(tmp_path):
-    """20.005 left over is 20.005 in the listing and in the export.
+    """20.000 left over is 20.000 in the listing and in the export.
 
-    A lot on a receivable kept to a tenth of a cent holds figures the currency
-    cannot express, and both the `open_prepayment:` summary and
-    `find-prepayments` wrote them at the currency's two places. The summary is
-    read back and compared exactly on import, so the book warned about itself
-    on every import — over money nobody has.
+    A lot on a receivable kept to a tenth of a cent holds its figures at that
+    unit, and both the `open_prepayment:` summary and `find-prepayments` wrote
+    them at the currency's two places instead. The summary is read back and
+    compared exactly on import, so a denominator that disagreed had the book
+    warning about itself on every import.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -1507,19 +1513,19 @@ def test_a_divided_credit_on_a_finer_account_reports_itself_honestly(tmp_path):
     assert runner.invoke(cli, ['import', '--new', str(book), str(source),
                                '--include-business-objects']).exit_code == 0
 
-    txn_guid, split_guid = _credit_split(book, amount='-50005/1000')
+    txn_guid, split_guid = _credit_split(book, amount='-50000/1000')
     assert _import_fixture(runner, book, tmp_path,
                            'credit_payment_dividing_a_finer_credit.txt',
                            txn_guid, split_guid).exit_code == 0
 
     listing = runner.invoke(cli, ['find-prepayments', str(book)])
     assert listing.exit_code == 0, listing.output
-    assert 'CAD 20.005' in listing.output, listing.output
+    assert 'CAD 20.000' in listing.output, listing.output
 
     exported = tmp_path / 'out.txt'
     assert runner.invoke(cli, ['export', str(book), str(exported),
                                '--include-business-objects']).exit_code == 0
-    assert 'amount: 20.005' in exported.read_text(), exported.read_text()
+    assert 'amount: 20.000' in exported.read_text(), exported.read_text()
 
     # Read back with nothing to complain about.
     rebuilt = tmp_path / 'rebuilt.gnucash'
@@ -1830,13 +1836,14 @@ def test_a_deposit_the_account_cannot_express_is_not_divided(tmp_path):
 def test_a_retarget_names_its_residual_at_the_accounts_own_unit(tmp_path):
     """The figure a message asks for has to be one the file may state.
 
-    A receivable kept to a tenth of a cent holds 20.005, and that is the
-    residual a 50.005 transaction leaves on a 30.00 invoice. Written at the
-    currency's two places the message asks for `prepayment: 20.01` — which the
-    same import then refuses, because 20.01 is not what the transaction leaves,
-    and the refusal quotes the expected figure through the same formatter and
-    so reads "declared `prepayment: 20.01` does not match the computed residual
-    20.01". There is no figure the reader can write that the message names.
+    A receivable kept to a tenth of a cent holds 20.000, and that is the
+    residual a 50.00 transaction leaves on a 30.00 invoice — the account's unit
+    is a thousandth, so its figures carry three places. Written at the
+    currency's two instead, the message and the check disagree about the same
+    number, and the refusal quotes the expected figure through the same
+    formatter, so it reads "declared … does not match the computed residual"
+    with both sides printed identically. There is no figure the reader can
+    write that the message names.
 
     Every other figure this tool writes about such an account was already at
     the account's unit — the payment block's `amount:`, the exported
@@ -1856,7 +1863,7 @@ def test_a_retarget_names_its_residual_at_the_accounts_own_unit(tmp_path):
     assert runner.invoke(cli, ['import', str(book), str(bank)]).exit_code == 0
 
     fixture = (FIXTURES / 'finer_account_retarget_invoice.txt').read_text().replace(
-        'TXN_GUID', _cash_txn_guid(book, '50005/1000'))
+        'TXN_GUID', _cash_txn_guid(book, '50000/1000'))
 
     # No `prepayment:` at all: the message has to name the figure to add.
     asked = tmp_path / 'asked.txt'
@@ -1864,13 +1871,12 @@ def test_a_retarget_names_its_residual_at_the_accounts_own_unit(tmp_path):
     result = runner.invoke(cli, ['import', str(book), str(asked),
                                  '--include-business-objects'])
     assert result.exit_code != 0, result.output
-    assert 'prepayment: 20.005' in result.output, result.output
-    assert '50.005' in result.output, result.output
-    assert '20.01' not in result.output, result.output
+    assert 'prepayment: 20.000' in result.output, result.output
+    assert '50.000' in result.output, result.output
 
     # And the figure it named is the one the import accepts.
     stated = tmp_path / 'stated.txt'
-    stated.write_text(fixture.replace('PREPAY_LINE', '\t\tprepayment: 20.005'))
+    stated.write_text(fixture.replace('PREPAY_LINE', '\t\tprepayment: 20.000'))
     accepted = runner.invoke(cli, ['import', str(book), str(stated),
                                    '--include-business-objects'])
     assert accepted.exit_code == 0, accepted.output
@@ -1878,12 +1884,11 @@ def test_a_retarget_names_its_residual_at_the_accounts_own_unit(tmp_path):
         _outstanding(book, 'INV-FINE-RETARGET')
 
     # `find-prepayments` says the same figure the messages above do, which is
-    # what makes the two readable together: the residue is 20.005 and not the
-    # 20.01 the currency's two places would give.
+    # what makes the two readable together: the residue reads 20.000, at the
+    # account's own unit, not the 20.00 the currency's two places would give.
     listed = runner.invoke(cli, ['find-prepayments', str(book)])
     assert listed.exit_code == 0, listed.output
-    assert '20.005' in listed.output, listed.output
-    assert '20.01' not in listed.output, listed.output
+    assert '20.000' in listed.output, listed.output
 
 
 def test_a_bare_txn_guid_on_a_deposit_carrying_a_fee_is_refused(tmp_path):

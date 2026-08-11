@@ -28,6 +28,7 @@ from services.bill_renderer import (
     render_to_plaintext,
 )
 from services.invoice_renderer import read_book_company_info
+from use_cases.export_transactions import UnwritableFigureError
 
 _XSLT_PATH = Path(__file__).parent.parent / "services" / "bill.xslt"
 
@@ -39,11 +40,14 @@ def _all_bills(book):
     results = []
     for r in q.run():
         bill = wrap_invoice_or_bill(r)
-        # Vendor bills only (skip customer invoices).
-        try:
-            vendor = bill.GetOwner().GetVendor()
-        except Exception:
-            vendor = None
+        # Vendor bills only (skip customer invoices). Asked of every document
+        # in the book, customer invoices included: `GetVendor()` answers None
+        # for one rather than raising, on all ten supported builds — measured,
+        # and the reason the `except Exception` that used to wrap this is gone.
+        # It could not be reached to be right or wrong, and a bare `except`
+        # over a call whose failure would mean the book cannot be read is one
+        # that would have quietly dropped documents instead.
+        vendor = bill.GetOwner().GetVendor()
         if vendor is not None:
             results.append(bill)
     q.destroy()
@@ -131,57 +135,69 @@ def _write_combined(bills, book, fmt, xslt_path, company_info, output):
         output_path.write_text(combined)
         return
 
-    if fmt == 'pdf':
-        import weasyprint
-        fragments = [
-            render_to_html(b, book, xslt_path, company_info=company_info)
-            for b in bills
-        ]
-        shell_parts = []
-        for frag in fragments:
-            inner = frag
-            for tag in ('</body>', '</html>'):
-                inner = inner.replace(tag, '')
-            # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
-            # per-fragment; literal `<html>` and absent DOCTYPE stripping
-            # leaves nested DOCTYPEs and nested `<html>` in the combined
-            # output (invalid both as HTML and XML). Strip all three so
-            # the combined doc has exactly one outer shell.
-            inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
-            inner = re.sub(r'<html\b[^>]*>', '', inner)
-            inner = re.sub(r'<body\b[^>]*>', '', inner)
-            shell_parts.append(
-                f'<section style="page-break-after: always;">{inner}</section>'
-            )
-        combined_html = (
-            '<html><body>' + ''.join(shell_parts) + '</body></html>'
+    # pdf, unconditionally: `--format` is a `click.Choice` of exactly three,
+    # and the other two have returned above. Asking again would add a fourth
+    # case nothing can take — and a fourth format added to the Choice would
+    # silently fall through it, which is the failure a trailing `raise` was
+    # meant to catch and could never reach.
+    import weasyprint
+    fragments = [
+        render_to_html(b, book, xslt_path, company_info=company_info)
+        for b in bills
+    ]
+    shell_parts = []
+    for frag in fragments:
+        inner = frag
+        for tag in ('</body>', '</html>'):
+            inner = inner.replace(tag, '')
+        # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
+        # per-fragment; literal `<html>` and absent DOCTYPE stripping
+        # leaves nested DOCTYPEs and nested `<html>` in the combined
+        # output (invalid both as HTML and XML). Strip all three so
+        # the combined doc has exactly one outer shell.
+        inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
+        inner = re.sub(r'<html\b[^>]*>', '', inner)
+        inner = re.sub(r'<body\b[^>]*>', '', inner)
+        shell_parts.append(
+            f'<section style="page-break-after: always;">{inner}</section>'
         )
-        weasyprint.HTML(string=combined_html).write_pdf(str(output_path))
-        return
-
-    raise click.UsageError(f'Unknown format: {fmt!r}')
+    combined_html = (
+        '<html><body>' + ''.join(shell_parts) + '</body></html>'
+    )
+    weasyprint.HTML(string=combined_html).write_pdf(str(output_path))
 
 
 def _write_per_bill(bills, book, fmt, xslt_path, company_info, outdir):
+    """Write one file per bill into the directory `outdir`.
+
+    Every bill is rendered before any file is written, and the directory is
+    made only once there is something to put in it — see `_write_per_invoice`
+    for what writing inside the loop cost when a payment figure was refused
+    partway through.
+    """
+    ext = {'plaintext': 'txt', 'html': 'html', 'pdf': 'pdf'}[fmt]
+    rendered = [
+        (f'{b.GetID()}.{ext}',
+         render_to_plaintext(b, book, company_info=company_info)
+         if fmt == 'plaintext'
+         else render_to_html(b, book, xslt_path, company_info=company_info))
+        for b in bills
+    ]
+    # Laid out before any of them is written, PDFs included — see
+    # `_write_per_invoice` for what writing them as they finished cost.
+    if fmt == 'pdf':
+        import weasyprint
+        rendered = [(name, weasyprint.HTML(string=html).write_pdf())
+                    for name, html in rendered]
+
     outdir = Path(outdir.rstrip('/'))
     outdir.mkdir(parents=True, exist_ok=True)
-    ext = {'plaintext': 'txt', 'html': 'html', 'pdf': 'pdf'}[fmt]
-    for b in bills:
-        target = outdir / f'{b.GetID()}.{ext}'
-        if fmt == 'plaintext':
-            target.write_text(
-                render_to_plaintext(b, book, company_info=company_info)
-            )
-        elif fmt == 'html':
-            target.write_text(
-                render_to_html(b, book, xslt_path,
-                               company_info=company_info)
-            )
-        elif fmt == 'pdf':
-            import weasyprint
-            html = render_to_html(b, book, xslt_path,
-                                  company_info=company_info)
-            weasyprint.HTML(string=html).write_pdf(str(target))
+    for name, body in rendered:
+        target = outdir / name
+        if fmt == 'pdf':                # the third of three, see above
+            target.write_bytes(body)
+        else:
+            target.write_text(body)
 
 
 @click.command()
@@ -270,5 +286,9 @@ def print_bill(gnucash_file, bill_selectors, bill_id,
             if output != '-':
                 click.echo(f'✓ Wrote {len(selected)} bill(s) to {output}')
 
+    except UnwritableFigureError as exc:
+        # As the invoice printer does: a refusal the reader cannot read tells
+        # them nothing about which figure to correct.
+        raise click.ClickException(str(exc)) from exc
     finally:
         repo.close()

@@ -1,0 +1,21 @@
+# A fund declared at a finer fraction than the book holds it at.
+#
+# A security's fraction *is* written into the file, unlike an ISO currency's,
+# so restating one is a real change and the book has to be saved for it.
+#
+# Imported with `--include-business-objects`, the account pre-pass makes the
+# change before the transaction pass runs — so the transaction pass finds the
+# fractions equal and reports nothing, and if the pre-pass did not carry the
+# distinction through, the run reported an update and then threw it away. The
+# same file saved without the flag and not with it.
+#
+# What this fixture produces: FUNDX restated from 100 to 1000, and nothing
+# else — no transaction, no account, so the fraction is the only reason to
+# save.
+#
+# Verified by tests/integration/test_a_fund_fraction_is_saved_with_either_flag.py.
+2026-01-01 commodity FUNDX
+	mnemonic: "FUNDX"
+	fullname: "Example Fund"
+	namespace: "FUND"
+	fraction: 1000

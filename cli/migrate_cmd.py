@@ -53,9 +53,10 @@ def _now():
 def _apply_op(batch, line):
     """Parse one migration line as a CLI invocation and run it against the shared
     batch session. Raises click.ClickException / UsageError on failure."""
+    # No empty-line guard: `_parse_ops` has already dropped every blank and
+    # every comment, so what arrives here is a stripped, non-comment line, and
+    # `shlex.split` of one always yields at least a token.
     tokens = shlex.split(line)
-    if not tokens:
-        return
     name, rest = tokens[0], tokens[1:]
     if name == 'migrate':
         raise click.ClickException(

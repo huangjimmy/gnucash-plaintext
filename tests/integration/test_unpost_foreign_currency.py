@@ -66,7 +66,7 @@ def test_unposting_an_invoice_whose_basis_was_sold_is_refused(tmp_path):
         .replace('share_price: "1.35"', 'share_price: "1.40"')
         .replace('value: "-54.00"', 'value: "-56.00"'))
     assert _run(runner, 'import', str(book), str(sale)).exit_code == 0
-    assert 'Available USD: 60.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
 
     result = _run(runner, 'unpost-invoices', str(book), 'INV-USD-001')
     assert result.exit_code != 0, result.output
@@ -75,7 +75,7 @@ def test_unposting_an_invoice_whose_basis_was_sold_is_refused(tmp_path):
     assert 'Sell 40 USD' in message, message
 
     # And the basis is untouched: nothing was half-done.
-    assert 'Available USD: 60.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
 
 
 def test_unposting_a_bill_whose_basis_was_settled_is_refused(tmp_path):

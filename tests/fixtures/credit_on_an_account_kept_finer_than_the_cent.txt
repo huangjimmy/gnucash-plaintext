@@ -1,9 +1,16 @@
-# A receivable kept to a tenth of a cent, holding a 50.005 credit.
+# A receivable kept to a tenth of a cent, holding a 50.00 credit.
 #
-# Dividing that credit against a 30.00 document leaves 20.005 — a figure the
-# account can hold and the currency cannot. Rounding either half at the
-# currency's hundredth makes the two sum to 50.01, and GnuCash answers the
-# missing tenth of a cent with an Imbalance split.
+# The account's unit is finer than the currency's, which is what this fixture
+# is for: figures on it are held and written at a thousandth, so a credit
+# divided here reports itself as 50.000 rather than 50.00.
+#
+# The *stated* figure is a whole number of cents, because that is all a file
+# may state — a booked amount is judged against the currency, whatever unit
+# the account is kept to. 50.005 stood here before, and what it bought was a
+# split whose amount was stored at the account's unit while its value was
+# rounded to the currency's: 18.191 against 18.190 on the same split, with an
+# invented rate between CAD and CAD, balancing only because both sides were
+# wrong by the same factor.
 2026-01-01 open Assets
 	type: Asset
 	commodity.namespace: "CURRENCY"
@@ -33,6 +40,6 @@ customer "C-FINE"
 
 2026-01-10 * "Fine Grained pays ahead"
 	currency.mnemonic: "CAD"
-	Assets:Bank 50.005 CAD
-	Assets:Accounts Receivable -50.005 CAD
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
 		lot_owner: "customer:C-FINE"

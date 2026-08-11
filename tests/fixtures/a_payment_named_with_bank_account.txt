@@ -1,0 +1,66 @@
+# A payment naming a transaction this book does not have, spelled with `bank_account:`.
+#
+# `account:` is the canonical key and `bank_account:` the accepted alias, so
+# the two files differ in one word and must be read the same way. Asked for
+# one spelling alone, the rule that lets a self-describing payment be created
+# when its guid resolves to nothing was chosen by which word the writer used:
+# the alias created the payment, the canonical key refused the run.
+#
+# What this fixture produces: one invoice, posted, paid — the guid naming
+# nothing, and the block saying everything needed to make the payment.
+#
+# Verified by tests/integration/test_both_spellings_read_the_same.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-SPELL"
+	name: "Spelling Customer"
+	currency: CAD
+
+invoice "INV-SPELL"
+	customer_id: "C-SPELL"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-SPELL"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		memo: "Paid"
+		txn_guid: "deadbeefdeadbeefdeadbeefdeadbeef"

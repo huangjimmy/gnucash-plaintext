@@ -32,6 +32,7 @@ from infrastructure.gnucash.utils import (
 )
 from repositories.gnucash_repository import GnuCashRepository
 from services.foreign_currency import (
+    COST_BASIS_BALANCE_KEY,
     COST_BASIS_COST_KEY,
     derived_cost_of,
     establishes_cost_basis,
@@ -40,6 +41,59 @@ from services.gnucash_importer import (
     ORPHANED_BY_UNPOST_KEY,
     is_a_bank_paid_orphan,
 )
+
+
+class UnwritableFigureError(ValueError):
+    """A figure the book holds that plaintext has no way of stating.
+
+    Its own type rather than a bare `ValueError`, because callers act on it:
+    `delete-transactions` goes ahead without an undo copy, and the export
+    gathers every one in the book before refusing. `json.JSONDecodeError` is
+    a `ValueError` too, so catching the base class would let a corrupt KVP
+    slot be reported as a figure this format cannot write. A `ValueError`
+    subclass all the same, so anything catching broadly still catches it.
+    """
+
+
+def refuse_a_figure_the_currency_cannot_hold(amount, account, what,
+                                             where=''):
+    """A figure an export cannot state, refused before it is written.
+
+    A booked amount is a whole number of its currency's smallest unit. GnuCash
+    stores a finer one — an account may be kept to a tenth of a cent — and the
+    importer will not read it back, so writing it produced a file this tool
+    could not import: the export said nothing and `import` on its own output
+    dropped the entry.
+
+    Currency only. `stated_money` judges a security against the account's
+    unit alone, and `string_to_gnc_numeric` keeps a security quantity as the
+    ratio it is; fund units are quoted to three decimals and more, and the
+    beancount importer stores them that way on purpose, so refusing them here
+    would reject on export what that importer had just written.
+
+    One helper for all three exports — plaintext, beancount, and the business
+    objects — because they write the same figures out of the same books, and
+    the one that lacked the rule wrote payment and prepayment lines the other
+    two would have refused.
+    """
+    commodity = account.GetCommodity() if account is not None else None
+    if commodity is None:
+        return
+    if (commodity.get_namespace() or '').upper() != 'CURRENCY':
+        return
+    fraction = commodity.get_fraction()
+    if (amount * fraction).denominator == 1:
+        return
+    scu = account.GetCommoditySCU() or fraction
+    raise UnwritableFigureError(
+        f'{what} on {get_account_full_name(account)!r}'
+        + (f' in {where!r}' if where else '')
+        + f' is {money_text(amount, scu)} {commodity.get_mnemonic()}, which '
+        f'is finer than that currency: its smallest unit is '
+        f'{money_text(Fraction(1, fraction), fraction)}. A booked amount is a '
+        f'whole number of those, so this cannot be written — the file would '
+        f'not import. Correct the amount in GnuCash (a unit price may carry '
+        f'more decimals; the amount booked to the account may not).')
 
 
 def _owner_of_a_bank_paid_orphan(splits, lib):
@@ -570,11 +624,23 @@ class ExportTransactionsUseCase:
         for account, transaction in result.accounts:
             self._format_account(account, transaction, lines)
 
-        # Output transactions
+        # Output transactions. Collected the same way as the section-only
+        # path above: every transaction the format cannot express is named,
+        # and none is written, rather than the first one ending the run.
+        refusals = []
         for transaction in result.transactions:
             tx_guid = transaction.GetGUID().to_string()
             balance_map = result.account_balances_after_tx.get(tx_guid)
-            self._format_transaction(transaction, lines, balance_map=balance_map)
+            try:
+                self._format_transaction(transaction, lines,
+                                         balance_map=balance_map)
+            except UnwritableFigureError as exc:
+                refusals.append(str(exc))
+        if refusals:
+            raise UnwritableFigureError(
+                f'{len(refusals)} transaction(s) hold figures this format '
+                f'cannot write, and nothing was exported:\n  - '
+                + '\n  - '.join(refusals))
 
         # Join lines and add trailing newline to match legacy format
         return '\n'.join(lines) + '\n' if lines else ''
@@ -627,12 +693,32 @@ class ExportTransactionsUseCase:
         return '\n'.join(lines) + '\n' if lines else ''
 
     def format_transactions_section(self, result: ExportResult) -> str:
-        """Format only transactions (no commodities or accounts)."""
+        """Format only transactions (no commodities or accounts).
+
+        A transaction the format cannot express stops the export, and every
+        such transaction is named before it does. Skipping them instead would
+        write a file that is a *smaller* ledger than the book — re-imported,
+        the missing ones are gone and nothing says so — which is the opposite
+        of what an import error means, where the book is untouched and the
+        file is the thing to fix. So the export refuses, and the reader gets
+        the whole list rather than one offender per run through a book that
+        may hold thousands.
+        """
         lines = []
+        refusals = []
         for transaction in result.transactions:
             tx_guid = transaction.GetGUID().to_string()
             balance_map = result.account_balances_after_tx.get(tx_guid)
-            self._format_transaction(transaction, lines, balance_map=balance_map)
+            try:
+                self._format_transaction(transaction, lines,
+                                         balance_map=balance_map)
+            except UnwritableFigureError as exc:
+                refusals.append(str(exc))
+        if refusals:
+            raise UnwritableFigureError(
+                f'{len(refusals)} transaction(s) hold figures this format '
+                f'cannot write, and nothing was exported:\n  - '
+                + '\n  - '.join(refusals))
         return '\n'.join(lines) + '\n' if lines else ''
 
     def format_transaction_list(self, transactions: list) -> str:
@@ -991,17 +1077,33 @@ class ExportTransactionsUseCase:
         # transaction's, so each is written at that commodity's decimals. The
         # share price is a rate, not money: it has no smallest unit and is
         # written at whatever it needs.
+        # No null guard on the parent: this is only ever called while walking a
+        # transaction's own splits, so there is one. The guard that stood here
+        # was already contradicted three lines down, where the refusal below
+        # reads the description without asking — and a branch that cannot be
+        # reached is one nothing keeps honest.
         transaction = split.GetParent()
-        transaction_currency = (transaction.GetCurrency()
-                                if transaction is not None else split_currency)
+        transaction_currency = transaction.GetCurrency()
         # The account's own smallest unit, which is not always the currency's:
         # GnuCash keeps it per account, this exporter emits it as
         # `commodity_scu:` when it differs, and an account kept to tenths of a
         # cent — fuel at 1.819 a litre — would otherwise have its amounts
         # rounded away on the way out.
         account_scu = split_account.GetCommoditySCU()
-        formatted_amount = money_text(numeric_to_fraction(split.GetAmount()),
-                                      account_scu)
+        split_amount = numeric_to_fraction(split.GetAmount())
+        # Written at the account's unit, so 18.190 keeps its third place and
+        # comes back with the denominator it left with. That is a trailing
+        # zero on a figure the currency holds perfectly well.
+        #
+        # A figure that genuinely *needs* the extra digit is different: 1.819
+        # CAD is not a number of cents, and the import refuses it. Emitting it
+        # anyway wrote a file this tool cannot read — `export` said nothing,
+        # and `import --new` on its own output dropped the transaction. Said
+        # here instead, against the split that holds it.
+        refuse_a_figure_the_currency_cannot_hold(
+            split_amount, split_account, 'the split',
+            transaction.GetDescription())
+        formatted_amount = money_text(split_amount, account_scu)
         share_price = to_string_with_decimal_point_placed(split.GetSharePrice())
         # A split in the transaction's own currency has one figure, not two:
         # its value is its amount. Writing the value at the currency's unit
@@ -1009,6 +1111,17 @@ class ExportTransactionsUseCase:
         # rounding — 18.190 with `value: "18.19"` — so the exporter emitted a
         # `value:` line for a split that never needed one, and every re-import
         # booked a value half a thousandth off its own amount.
+        # No guard on the value, where the amount above has one, and the
+        # asymmetry is the engine's rather than this exporter's: measured,
+        # `SetValue(GncNumeric(135005, 1000))` on a CAD transaction reads back
+        # as `13501/100`. GnuCash normalises a value to the transaction
+        # currency's denominator as it is written, so no book holds one finer
+        # than that and this `money_text` is rounding a figure already round.
+        #
+        # An amount is different, which is why it needs the guard: an account
+        # may legitimately be kept finer than its currency (`commodity_scu:`),
+        # so GnuCash stores what it is given and the check has something to
+        # catch. Pinned by `test_a_value_the_currency_cannot_hold.py`.
         value_scu = (account_scu
                      if split_currency.get_mnemonic() == transaction_currency.get_mnemonic()
                      else transaction_currency.get_fraction())
@@ -1151,6 +1264,16 @@ class ExportTransactionsUseCase:
             # figure in it, and that one keeps it.
             if key == COST_BASIS_COST_KEY and _stored_cost_is_ignorable(split):
                 continue
+            # The pre-rename spelling of the balance key, written under its
+            # current name. A book from before the rename carries it on every
+            # basis, and emitted as it stands it made a file this tool refuses
+            # by name — export succeeding, import of its own output failing,
+            # on the one route out of such a book. The figure is unchanged;
+            # only the key was ever wrong.
+            if key == 'cost_basis_available':
+                key = COST_BASIS_BALANCE_KEY
+                if COST_BASIS_BALANCE_KEY in custom_split_meta:
+                    continue      # both spellings present: the current one wins
             lines.append(f'\t\t{key}: {encode_value_as_string(value)}')
 
         # Running balance — emitted last so it reads as a post-transaction annotation

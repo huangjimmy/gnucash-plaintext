@@ -1,0 +1,7 @@
+# The same transaction with its split lines cut. A transaction block needs only
+# its date, flag and description to parse, so a file cut short by a failed write
+# still reads as one — and rebuilding from it left the transaction with no money
+# in it at all.
+2026-05-20 * "Office supplies"
+	guid: "TXN_GUID"
+	currency.mnemonic: "CAD"

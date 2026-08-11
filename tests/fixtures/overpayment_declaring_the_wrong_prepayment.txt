@@ -1,0 +1,72 @@
+# An overpayment whose `prepayment:` says the wrong figure.
+#
+# `prepayment:` states the credit a payment beyond the document leaves behind.
+# On the `txn_guid:` routes this tool carves the residue itself and compares
+# the figure exactly; on this one GnuCash carves it, and nothing read the
+# declaration at all — so `prepayment: 50` on a payment that leaves 100.00
+# imported with `Errors: 0` and the next export wrote `prepayment: 100.00`
+# back. The identical misstatement written the other way is refused.
+#
+# What this fixture produces: a refusal naming both figures, and no payment.
+#
+# Verified by tests/integration/test_settling_into_a_third_currency.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-OVER-WRONG"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-OVER-WRONG"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		account: "Assets:Bank:HKD"
+		settled_amount: 1560.00
+		prepayment: 50
+		memo: "Payment for INV-USD-OVER-WRONG"
+		Income:FX Gain $residual$ CAD

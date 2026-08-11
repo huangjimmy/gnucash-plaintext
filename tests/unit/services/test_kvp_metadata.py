@@ -198,7 +198,7 @@ class TestKvpRoundtrip:
             s2.SetAccount(checking)
             s2.SetValue(GncNumeric(-2000, 100))
 
-            set_custom_metadata(s1, {'cost_basis_available': '100.00'})
+            set_custom_metadata(s1, {'cost_basis_balance': '100.00'})
             tx.CommitEdit()
             session.save()
             session.end()
@@ -213,7 +213,7 @@ class TestKvpRoundtrip:
 
             reopened.BeginEdit()
             kept = {key: value for key, value in get_custom_metadata(split).items()
-                    if key != 'cost_basis_available'}
+                    if key != 'cost_basis_balance'}
             set_custom_metadata(split, kept)
             reopened.CommitEdit()
             session2.save()

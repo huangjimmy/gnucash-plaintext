@@ -9,6 +9,7 @@ Only transactions can be deleted — not accounts or commodities.
 """
 
 from dataclasses import dataclass
+from typing import Optional
 
 from repositories.gnucash_repository import GnuCashRepository
 from services.foreign_currency import (
@@ -16,7 +17,10 @@ from services.foreign_currency import (
     give_back_to_cost_bases,
     require_no_cost_basis_dependents,
 )
-from use_cases.export_transactions import ExportTransactionsUseCase
+from use_cases.export_transactions import (
+    ExportTransactionsUseCase,
+    UnwritableFigureError,
+)
 
 
 @dataclass
@@ -26,6 +30,10 @@ class DeleteTransactionResult:
     description: str
     date: str
     plaintext: str  # Plaintext export of the deleted transaction (for undo)
+    # Why no re-importable copy could be made, when that is the case. The
+    # transaction is deleted either way; `plaintext` then holds a commented
+    # note instead of a transaction block, and the caller says so.
+    undo_copy_error: Optional[str] = None
 
 
 class DeleteTransactionUseCase:
@@ -62,10 +70,34 @@ class DeleteTransactionUseCase:
         description = target.GetDescription()
         date = target.GetDate().strftime("%Y-%m-%d")
 
-        # Export before deletion so the caller has an undo copy
+        # Export before deletion so the caller has an undo copy.
+        #
+        # A transaction plaintext cannot state does not get to be undeletable.
+        # A book holding a figure finer than its currency is exactly the book
+        # someone reaches for `delete-transactions` to fix, and refusing here
+        # left them no remedy inside the tool at all: `export` refuses it,
+        # and the deletion refused it for the same reason, one step removed.
+        # So the copy is what is lost, not the command — and loudly, in the
+        # place the copy would have been and again on the result, because a
+        # deletion with no way back is the caller's decision to have made.
         exporter = ExportTransactionsUseCase(self.repository)
         export_result = exporter.execute_by_guid(guid)
-        plaintext = exporter.format_as_plaintext(export_result)
+        undo_copy_error = None
+        try:
+            plaintext = exporter.format_as_plaintext(export_result)
+        except UnwritableFigureError as exc:
+            undo_copy_error = str(exc)
+            # Every line commented, the refusal's own included: it names one
+            # split per line, and a bare continuation line in a backup file
+            # is a parse error waiting for whoever re-imports the rest.
+            reason = '\n'.join(f'#   {line}'
+                               for line in undo_copy_error.splitlines())
+            plaintext = (
+                f'# No undo copy could be written for {date} '
+                f'{description!r} ({guid}).\n'
+                f'{reason}\n'
+                f'# The transaction was deleted anyway. Re-creating it means '
+                f'entering it in GnuCash.\n')
 
         # Q-035: a transaction that establishes a cost basis cannot go while
         # anything still measures against it — that split *is* the basis.
@@ -86,4 +118,5 @@ class DeleteTransactionUseCase:
             description=description,
             date=date,
             plaintext=plaintext,
+            undo_copy_error=undo_copy_error,
         )

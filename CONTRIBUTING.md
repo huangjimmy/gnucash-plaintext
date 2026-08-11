@@ -49,9 +49,14 @@ Tests run inside Docker containers against real GnuCash files (no mocking):
 | debian:12 | 4.13 | supported |
 | debian:11 | 4.4 | supported |
 | ubuntu:26.04 | 5.14 | supported |
-| ubuntu:24.04 | 4.9 | supported |
+| ubuntu:24.04 | 5.5 | supported |
 | ubuntu:22.04 | 4.8 | supported |
 | ubuntu:20.04 | 3.8 | minimum |
+| fedora:41 | 5.13 | supported |
+| archlinux | 5.15 | supported |
+| opensuse/tumbleweed | 5.16 | supported |
+
+The version is what the image's own package database reports, not what the distribution is expected to ship. Re-probe when a base image moves: `ubuntu:24.04` was listed as 4.9 for a long time and carries 5.5, which put the only 4.x/5.x behavioural boundary this suite measures on the wrong side of two builds.
 
 ### Code Style
 

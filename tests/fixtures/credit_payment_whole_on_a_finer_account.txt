@@ -18,7 +18,7 @@ invoice "INV-FINE-WHOLE"
 		memo: "INV-FINE-WHOLE"
 		accumulate: true
 	payment:
-		amount: 50.005
+		amount: 50.00
 		from_credit: true
 		credit_dated: 2026-01-10
 		txn_guid: "TXN_GUID"

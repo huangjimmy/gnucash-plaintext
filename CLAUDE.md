@@ -79,13 +79,23 @@ This is an open-source project. **Never commit directly to `main`.**
 ## Docker Rules
 
 ### Supported Distributions (Verified)
-- debian:13 (GnuCash 5.10) - default
+
+The version each image carries, read from its own package database on
+2026-08-09. The tag names and the versions are not interchangeable, and
+guessing one from the other has been wrong: `ubuntu24` is 5.5, not the 4.9 it
+was listed as, which put the only 4.x/5.x behavioural boundary this suite has
+measured on the wrong side of two builds.
+
+- debian:13 (GnuCash 5.10) - default, `latest`
 - debian:12 (GnuCash 4.13)
 - debian:11 (GnuCash 4.4)
 - ubuntu:26.04 (GnuCash 5.14)
-- ubuntu:24.04 (GnuCash 4.9)
+- ubuntu:24.04 (GnuCash 5.5)
 - ubuntu:22.04 (GnuCash 4.8)
 - ubuntu:20.04 (GnuCash 3.8) - minimum
+- arch (GnuCash 5.15)
+- fedora:41 (GnuCash 5.13)
+- opensuse (GnuCash 5.16)
 
 ### ❌ Do NOT Support
 - debian:10 (EOL, broken dependencies)
@@ -258,9 +268,12 @@ GnuCash Python bindings have different reliability for reading vs writing:
    ```
 
 #### Always Test All Platforms
-Test on all supported distributions:
+Test on all supported distributions — the list and the version each carries is
+the one under "Supported Distributions" above, which is read from the images
+themselves:
 - Debian 11 (GnuCash 4.4), 12 (4.13), 13 (5.10)
-- Ubuntu 20.04 (GnuCash 3.8), 22.04 (4.8), 24.04 (4.9)
+- Ubuntu 20.04 (GnuCash 3.8), 22.04 (4.8), 24.04 (5.5), 26.04 (5.14)
+- Fedora 41 (5.13), Arch (5.15), openSUSE Tumbleweed (5.16)
 
 **Common pattern**: Works on Debian, segfaults on Ubuntu → RTLD_LOCAL issue.
 
@@ -535,6 +548,84 @@ it most obviously:
   `bank_account:` and no date — the money's origin gone, with nothing in the
   file having asked for a credit at all.
 
+### 11. A KVP written outside `BeginEdit`/`CommitEdit` never reaches disk
+
+Discovered 2026-08-08 while covering the re-import comparisons.
+
+`set_custom_metadata` writes through `qof_instance` and marks the instance dirty, and that is enough for an object being created — the backend serialises a new object whole. It is not enough for one the book already had:
+
+```python
+customer.SetName(...)        # inside BeginEdit/CommitEdit — persists
+customer.CommitEdit()
+set_custom_metadata(customer, {'department': 'east'})   # outside — lost on save
+```
+
+Measured on GnuCash 5.10: the slot reads back as `{"department": "east"}` for the rest of the session and as its **previous** value after a save and reload. Wrapping the write in `customer.BeginEdit()` / `customer.CommitEdit()` persists it.
+
+What that cost: every change to a custom key on an object the book already held — a changed value, a removed key — was dropped in silence. And because the stored slot never changed, the object stayed different from the file for good, so each re-import compared unequal, reported `updated`, and saved the book again. An unchanged ledger imported twice wrote the book twice.
+
+The same rule applies to every business object, not just customers: `import_customer`, `import_vendor`, `import_invoice` and `import_bill` all bracket the write now.
+
+**Corollary for `set_custom_metadata(obj, {})`**: an empty dict is how the slot is emptied. That is not the same as "write it whenever the file names none", which was tried and is worse: the slot is written from a *block*, most blocks are partial — a person names what they are changing, a printed document carries less than that — and replacing the slot wholesale made every one of them a delete.
+
+So the slot is merged rather than replaced, and follows the rule the address lines follow:
+
+- a key the block does not name says nothing about it;
+- a key named empty (`department: ""`) is removed;
+- a key that has since become a field of its own (`addr1` on a vendor, once vendors gained address setters) is dropped from the slot on the next import, and filtered out of every writer — emitted from both the slot and the field, the line appeared twice and the stale copy came second, which is the one a re-import keeps.
+
+**The rule is in README under "What a key says, and what leaving it out says"** — that is where the format is defined, and the code follows it: `key: "value"` sets, `key: ""` clears (and removes a custom key), an absent line says nothing. It holds for reserved fields and custom metadata alike, on every block, in both the writer and the comparison that decides `unchanged`.
+
+**The general rule this is one case of**: on the import side, an absent key is not an instruction. `if 'notes' in metadata` is the shape — the transaction and split paths have always used it — and `md.get('notes', '')` is the shape that erases. Whatever the comparison that decides `unchanged` reads, the writer must write, and neither may read a field the block did not name.
+
+### 12. A split with no account: GnuCash 5.x drops the transaction, 4.x segfaults on load
+
+Discovered 2026-08-09 while measuring the coverage union.
+
+A split whose `<split:account>` element is missing is not a book this tool can write, but it is a book it can be handed. What happens then is GnuCash's answer, not ours, and it is not the same answer on every supported version. Measured on a book saved by this tool and then edited to remove one `<split:account>`:
+
+| GnuCash | what `qof_session_load` does |
+|---|---|
+| 5.5, 5.10, 5.13, 5.14, 5.15, 5.16 | drops the whole transaction; the book that comes back is short an entry and every split in it has an account |
+| 4.13, 4.8, 4.4, 3.8 | **segfault**, inside `qof_session_load`, before any of this tool's code is given control |
+
+**What it settles**: a split with no account cannot reach a command on any supported version, so a null-account check in the reading path is dead code on all ten. `cli/find_transactions_cmd.py` carried one in its ctypes walk and it is gone, on this evidence rather than on the 5.x half alone.
+
+**What it costs**: nothing this tool does can prevent the 4.x crash — it happens while the file is being parsed, several frames below `GnuCashRepository.open`. There is no `try` that catches it and no state to check first.
+
+**And a rule for the suite**: a test may not feed the loader a corrupt book. A segfault does not fail a test, it kills the interpreter, taking the other 2025 tests in that run with it and leaving `./scripts/coverage.sh` unable to report a union at all — which is how this was found. The measurement lives here and in the module docstring of `tests/integration/test_finding_a_transaction_by_its_amount.py`, and is asserted nowhere. Version-gating it with `skipif` was the alternative and was refused: the suite has no version-gated test in it, deliberately — the union model is that every version runs everything — and the first one would be guarding GnuCash's own loader rather than any behaviour of this tool.
+
+### 13. A document has no `GetGUID`, and `Invoice` is not on the `gnucash` package
+
+Discovered 2026-08-11 while comparing the document a payment already settles against the one being paid.
+
+Finding 5 above says SWIG `Invoice.GetGUID()` is "missing on some platforms". It is missing on **all** of them. Probed on every supported build — 3.8, 4.4, 4.8, 4.13, 5.5, 5.10, 5.13, 5.14, 5.15, 5.16:
+
+| asked of the bindings | answer, on all ten |
+|---|---|
+| `hasattr(gnucash, 'Invoice')` | `False` — the class lives in `gnucash.gnucash_business`, not on the package |
+| `hasattr(Invoice, 'GetGUID')` | `False` |
+| `hasattr(Bill, 'GetGUID')` | `False` |
+| `hasattr(Invoice, 'GetOwnerType')` | `True` |
+| `gnucash_core_c.gncInvoiceGetInvoiceFromLot` | present |
+
+`Customer` and `Vendor` *do* carry `GetGUID` — `gnucash_importer.py` reads both that way and the suite passes on all ten — so the absence is a property of the document classes, not of the bindings in general. `add_methods_with_prefix('gncInvoice')` picks up what the C header names `gncInvoice*`, and the guid accessor is not one of those.
+
+**So a document's identity is read through ctypes, and `_swig_invoice_guid_str(record)` is the one way to do it**: `qof_instance_get_guid` + `guid_to_string_buff`, off `record.instance`. It takes anything with an `.instance`, including the raw pointer out of `gncInvoiceGetInvoiceFromLot` once `wrap_invoice_or_bill` has wrapped it.
+
+The failure this hides is quiet, because the two obvious spellings fail differently. `Invoice(instance=raw).GetGUID()` raises `AttributeError`, and a `try`/`except` around it — which is how these lookups are usually written here — swallows that into "no answer", so the comparison silently says *not the same document* for every document. `from gnucash import Invoice` raises `ImportError` inside the same `try` and reads the same way.
+
+### 14. Render every document before opening any destination
+
+Not a GnuCash finding — a rule this repo learned twice, once per command family.
+
+Formatting can refuse. A split holding a figure finer than its currency cannot be written as plaintext, and a printed `payment:` block states its amount at the unit its account is kept to and refuses the same figures the export refuses. So the write step can raise partway through, and where the file was already open, or the earlier documents already on disk, what is left behind is a partial answer that reads as a whole one:
+
+- `export` opened the target, then rendered — so an export that refused had already truncated yesterday's ledger, leaving a 0-byte file where a good one had been;
+- `print-invoice`/`print-bill` with `-o out/` wrote each document inside the loop — so a refusal left the documents before the offender in the directory and the ones after it missing, with nothing saying which.
+
+Both now build the complete output first and touch the destination only once it exists in full; the per-document form makes the directory only when there is something to put in it. `_write_combined` was always right, because it concatenates into a list before writing — which is why the combined form never showed the defect and the per-document form did.
+
 ---
 
-**Last Updated**: 2026-08-06
+**Last Updated**: 2026-08-11

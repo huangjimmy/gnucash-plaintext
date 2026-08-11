@@ -1,0 +1,101 @@
+; The posting spellings a person writes, rather than the one this tool emits.
+;
+; Editing an export by hand is the whole point of exporting to beancount, and
+; a reader reaches for beancount's own forms: the per-unit `@ rate`, the cost
+; basis `{cost}`, and a trailing `; note`. The exporter writes only `@@ total`,
+; so a parser tuned to that alone dropped these — and dropped them by treating
+; the line as the end of the transaction, which took every posting below it
+; too. The transaction then imported short, GnuCash balanced what was left
+; with an Imbalance split, and the run reported success.
+;
+; Beancount does not require a blank line between directives either, and most
+; of the entries below simply run on. Taken for an unreadable posting, the next
+; entry's header refused the whole file.
+;
+; What this fixture produces: ten transactions, each valuing its foreign side
+; at 1.35 CAD/USD by a different spelling, and none of them short a posting.
+; The cost baskets carry a lot date and a label, which is how beancount's own
+; documentation writes them — GnuCash has nowhere to keep those, so they are
+; read and dropped rather than refused, and so are the `!`/`*` flags a
+; person puts on a posting they want to come back to, the metadata keys a
+; person or another plugin writes under one, a semicolon inside a lot label,
+; and the unindented `option`/`plugin`/`include` lines that may follow an
+; entry with no blank line. Commas between digit
+; groups are beancount's own number grammar and the commonest hand-written
+; spelling of all; refused, `1,234.50` cost the whole file, with a message
+; saying the line was the wrong shape when only the grouping was unread.
+;
+; Verified by tests/integration/test_beancount_reads_what_a_person_writes.py.
+2024-01-01 commodity CAD
+    gnucash-mnemonic: "CAD"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "Canadian Dollar"
+    gnucash-fraction: "100"
+2024-01-01 commodity USD
+    gnucash-mnemonic: "USD"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "US Dollar"
+    gnucash-fraction: "100"
+2024-01-01 open Assets CAD
+    gnucash-name: "Assets"
+    gnucash-guid: "1111111111111111111111111111111a"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Bank CAD
+    gnucash-name: "Assets:Bank"
+    gnucash-guid: "1111111111111111111111111111111b"
+    gnucash-type: "Bank"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Bank:USD USD
+    gnucash-name: "Assets:Bank:USD"
+    gnucash-guid: "1111111111111111111111111111111c"
+    gnucash-type: "Bank"
+    gnucash-placeholder: "False"
+
+2024-02-01 * "Payee" "Bought USD, per-unit rate"
+    gnucash-guid: "2222222222222222222222222222222a"
+  Assets:Bank:USD 100.00 USD @ 1.35 CAD
+  Assets:Bank -135.00 CAD
+
+2024-02-02 * "Payee" "Bought USD, cost basis"
+    gnucash-guid: "2222222222222222222222222222222b"
+  Assets:Bank:USD 100.00 USD {1.35 CAD}
+  Assets:Bank -135.00 CAD
+
+2024-02-03 * "Payee" "Bought USD, with notes"
+    gnucash-guid: "2222222222222222222222222222222c"
+  Assets:Bank:USD 100.00 USD @@ 135.00 CAD  ; the total, annotated
+  Assets:Bank -135.00 CAD  ; reconciled against "March statement"
+; A comment of its own between two entries, and no blank line after it.
+2024-02-04 * "Payee" "Bought USD, cost basis with a lot date"
+    gnucash-guid: "2222222222222222222222222222222d"
+  Assets:Bank:USD 100.00 USD {1.35 CAD, 2024-02-04}
+  Assets:Bank -135.00 CAD
+2024-02-05 * "Payee" "Bought USD, cost basis with a label"
+    gnucash-guid: "2222222222222222222222222222222e"
+  Assets:Bank:USD 100.00 USD {1.35 CAD, "lot-a"}
+  Assets:Bank -135.00 CAD
+2024-02-06 * "Payee" "Bought USD, total cost basis"
+    gnucash-guid: "2222222222222222222222222222222f"
+  Assets:Bank:USD 100.00 USD {{135.00 CAD}}
+  Assets:Bank -135.00 CAD
+2024-02-07 * "Payee" "Bought USD, signed amount"
+    gnucash-guid: "22222222222222222222222222222220"
+  Assets:Bank:USD +100.00 USD @ 1.35 CAD
+  Assets:Bank -135.00 CAD
+2024-02-08 * "Payee" "Bought USD, flagged postings"
+    gnucash-guid: "22222222222222222222222222222221"
+  ! Assets:Bank:USD 100.00 USD @ 1.35 CAD
+  * Assets:Bank -135.00 CAD
+2024-02-09 * "Payee" "Bought USD, grouped digits"
+    gnucash-guid: "22222222222222222222222222222222"
+  Assets:Bank:USD 1,000.00 USD @@ 1,350.00 CAD
+  Assets:Bank -1,350.00 CAD
+2024-02-10 * "Payee" "Bought USD, with metadata this tool does not keep"
+    gnucash-guid: "22222222222222222222222222222223"
+  Assets:Bank:USD 100.00 USD {1.35 CAD, "lot;a"}
+    category: "currency"
+    gnucash-memo: "kept after an unknown key"
+  Assets:Bank -135.00 CAD
+    reviewed: "yes"
+option "operating_currency" "CAD"

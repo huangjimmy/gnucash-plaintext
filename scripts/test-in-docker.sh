@@ -18,6 +18,23 @@ TEST_PATH="${1:-tests/}"
 export HOME="${HOME:-/tmp/home}"
 mkdir -p "$HOME/.local"
 
+# And said out loud when it is root, because what root costs here is silence.
+# A process running as root writes whatever the mode says, so the tests that
+# need a directory they cannot write to cannot be run — they check for the
+# state and skip when it is not there, which is the honest answer but also a
+# green suite with a behaviour untested and its lines out of the union
+# scripts/coverage.sh gates. Dropping `--user` from a container is how that
+# happens, and it happened: CI ran as root on every version while the gate ran
+# as the invoking user, and the difference showed up as a CI failure rather
+# than as anything the suite said. Not an error — `scripts/shell.sh` runs
+# without `--user` on purpose, and `pytest tests/` in there is a documented
+# way to work — so this says so and carries on.
+if [ "$(id -u)" = 0 ]; then
+    echo "⚠  running as root: tests needing an unwritable directory will skip"
+    echo "   (root ignores the mode). scripts/test.sh passes --user; a bare"
+    echo "   'docker run' does not."
+fi
+
 echo "Installing package..."
 python3 -m pip install -e . weasyprint --break-system-packages --user -q
 

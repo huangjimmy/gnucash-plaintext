@@ -268,7 +268,10 @@ class PlaintextParser:
         self.root_directive = PlaintextDirective(DirectiveType.ROOT, 0, "", None)
         self.current_directive = self.root_directive
 
-        for line_number, line in enumerate(plaintext_lines):
+        # `start=1`, because the numbers below go into messages a reader takes
+        # to their editor, and every editor counts from one. Left at the
+        # default they named the line above the mistake.
+        for line_number, line in enumerate(plaintext_lines, start=1):
             if line.strip() == "":
                 continue
             # Q-019: skip `#` comment lines. The print-invoice / print-bill

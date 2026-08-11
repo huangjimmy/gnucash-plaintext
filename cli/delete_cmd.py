@@ -25,6 +25,7 @@ import sys
 
 import click
 
+from cli._saving import save_or_report
 from infrastructure.gnucash.guid_lookup import normalise_guid
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from use_cases.delete_business_objects import (
@@ -66,20 +67,10 @@ def _run_delete(gnucash_file, ids, use_case_cls, by_guid=False):
             if r.status != DeleteStatus.DELETED:
                 all_ok = False
 
-        if all_ok:
-            try:
-                repo.save()
-            except Exception as e:
-                if 'ERR_FILEIO_BACKUP_ERROR' not in str(e):
-                    raise click.ClickException(f'Failed to save: {e}') from e
-        else:
-            # Only save if at least one deletion succeeded
-            if any(r.status == DeleteStatus.DELETED for r in results):
-                try:
-                    repo.save()
-                except Exception as e:
-                    if 'ERR_FILEIO_BACKUP_ERROR' not in str(e):
-                        raise click.ClickException(f'Failed to save: {e}') from e
+        # Saved when anything was deleted, which `all_ok` implies and a
+        # partial run has to be asked about.
+        if all_ok or any(r.status == DeleteStatus.DELETED for r in results):
+            save_or_report(repo)
 
         if not all_ok:
             sys.exit(1)
@@ -102,11 +93,7 @@ def _run_archive(gnucash_file, ids, use_case_cls, by_guid=False):
                 all_ok = False
 
         if any(r.status == ArchiveStatus.ARCHIVED for r in results):
-            try:
-                repo.save()
-            except Exception as e:
-                if 'ERR_FILEIO_BACKUP_ERROR' not in str(e):
-                    raise click.ClickException(f'Failed to save: {e}') from e
+            save_or_report(repo)
 
         if not all_ok:
             sys.exit(1)
@@ -135,11 +122,7 @@ def _run_delete_invoice_or_bill(gnucash_file, ids, use_case_cls, by_guid=False):
                 all_ok = False
 
         if any(r.status == DeleteInvoiceStatus.DELETED for r in results):
-            try:
-                repo.save()
-            except Exception as e:
-                if 'ERR_FILEIO_BACKUP_ERROR' not in str(e):
-                    raise click.ClickException(f'Failed to save: {e}') from e
+            save_or_report(repo)
 
         if not all_ok:
             sys.exit(1)

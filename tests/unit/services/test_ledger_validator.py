@@ -637,6 +637,57 @@ class TestValidateTransactionEdgeCases:
             session.end()
 
 
+class TestBalanceAcrossDifferentDenominators:
+    """Values that do not share a denominator, which is what the sum is for.
+
+    `_is_transaction_balanced` summed `value.num()` and ignored denominators.
+    That is right for anything GnuCash wrote — it normalises every value to
+    the transaction currency's fraction — and wrong for the one input class
+    the check exists to serve: a file something else wrote. 1/2 and -1/4 do
+    not balance, and their numerators sum to zero.
+
+    Called directly because the state cannot be built through the bindings:
+    GnuCash normalises the denominators on the way in, which is exactly why
+    the everyday path never exposed this.
+    """
+
+    class _Split:
+        """The one thing `_is_transaction_balanced` asks a split for."""
+
+        def __init__(self, num, denom):
+            self._value = _Numeric(num, denom)
+
+        def GetValue(self):  # noqa: N802 — GnuCash's own spelling; a stand-in
+            return self._value    # for a Split has to answer to the same name
+
+    def test_numerators_that_cancel_are_not_a_balanced_transaction(self):
+        from services.ledger_validator import LedgerValidator
+
+        splits = [self._Split(1, 2), self._Split(-1, 4)]
+
+        assert LedgerValidator()._is_transaction_balanced(splits) is False
+
+    def test_figures_that_really_do_cancel_are_balanced(self):
+        from services.ledger_validator import LedgerValidator
+
+        splits = [self._Split(1, 2), self._Split(-2, 4)]
+
+        assert LedgerValidator()._is_transaction_balanced(splits) is True
+
+
+class _Numeric:
+    """A GncNumeric's value interface: `num()` and `denom()`."""
+
+    def __init__(self, num, denom):
+        self._num, self._denom = num, denom
+
+    def num(self):
+        return self._num
+
+    def denom(self):
+        return self._denom
+
+
 class TestCheckTransactionDateOrderEdgeCases:
 
     def test_single_transaction_no_error(self, temp_gnucash_with_transactions):

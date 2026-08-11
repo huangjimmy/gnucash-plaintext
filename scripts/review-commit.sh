@@ -9,18 +9,29 @@
 # Usage:
 #   ./scripts/review-commit.sh                      # staged changes
 #   ./scripts/review-commit.sh -m "commit message"  # staged changes, proposed message
+#   ./scripts/review-commit.sh --working            # everything uncommitted, vs main
 #   ./scripts/review-commit.sh HEAD                 # the commit just made
 #   ./scripts/review-commit.sh 7f60d32              # any commit, by sha or tag
 #   ./scripts/review-commit.sh main..HEAD           # a whole branch, as one diff
 #   ./scripts/review-commit.sh --dry-run HEAD       # what would be reviewed, no AI call
 #
+# `--working` is for work still in progress: it diffs the working tree against
+# `main` (override with REVIEW_BASE) and counts untracked files, so a review
+# can be had before there is anything to commit. It stages nothing.
+#
 # The commit's own message is given to the reviewer; -m is for the staged case,
-# where no message exists yet.
+# where no message exists yet, and doubles as the place to tell the reviewer
+# what the change is trying to do — what to look at, what was already decided,
+# what not to re-litigate.
 #
 # Environment:
-#   AI_REVIEW_TIMEOUT   seconds to allow (default 600). A large change needs
-#                       more: this repo's foreign-currency commit is ~8k added
-#                       lines and does not finish in ten minutes.
+#   AI_REVIEW_TIMEOUT   seconds to allow (default 1800). Ten minutes was the
+#                       default and was not enough: this repo's
+#                       foreign-currency commit is ~8k added lines, and a
+#                       4.5k-line working tree timed out at 600s having done
+#                       the work — the run is thrown away, not resumed, so a
+#                       short default costs the whole review rather than
+#                       truncating it.
 #
 
 set -e
@@ -30,13 +41,18 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
-TIMEOUT_SECONDS="${AI_REVIEW_TIMEOUT:-600}"
+TIMEOUT_SECONDS="${AI_REVIEW_TIMEOUT:-1800}"
 COMMIT_MSG=""
 REVISION=""
 DRY_RUN=0
+WORKING=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --working)
+            WORKING=1
+            shift
+            ;;
         -m|--message)
             if [ $# -lt 2 ]; then
                 echo "❌ -m needs a message" >&2
@@ -90,6 +106,90 @@ if [ -n "$REVISION" ]; then
         SUBJECT="$SHA $(git log -1 --format='%s' "$REVISION")"
     fi
     SOURCE="commit"
+elif [ -n "$WORKING" ]; then
+    # Everything not yet committed, staged or not, against the base branch —
+    # which is what "review what I have written so far" means while the work
+    # is still in progress. Untracked files are included by registering them
+    # with `--intent-to-add`: without it a whole new module reads as absent,
+    # and a review of new work would see only the edits to old files.
+    #
+    # `-N` stages no content, but it does register the path in the index, and
+    # that registration outlives this script: after one review, `git add -u`
+    # and `git commit -a` would pick those files up. CLAUDE.md forbids
+    # `git add -A` for exactly that reason — untracked probes, secrets and the
+    # external reference files (`convert_qfx.py`, `ledger.py`,
+    # `reference_file*.txt`) must never be swept in — so a review that leaves
+    # them registered hands the next commit the mistake the rule prevents.
+    #
+    # Named explicitly rather than `--all`, and undone on the way out however
+    # this exits: the paths are remembered first, and a trap resets exactly
+    # those and nothing else.
+    #
+    # On INT and TERM as well as EXIT. A review runs up to half an hour, so
+    # being interrupted part-way through one is the ordinary case, not the
+    # exotic one — and an EXIT trap alone does not run when the shell is
+    # killed by a signal, which is exactly the run that would leave the paths
+    # registered.
+    #
+    # Each signal handler exits. Bash *resumes* the script after a trap
+    # returns, so a single `trap ... EXIT INT TERM` unregistered the paths
+    # mid-run and then carried on reviewing a diff those files had just been
+    # removed from — measured: `[cleanup ran]`, the work after the signal,
+    # `[cleanup ran]` again, exit 0. A review that reports success on half the
+    # diff is worse than one that stops.
+    #
+    # And a note on disk, because no trap runs for `kill -9` or a lost
+    # terminal. The next run resets whatever the last one left registered
+    # before it registers anything of its own, so the mistake CLAUDE.md's
+    # `git add -A` rule exists to prevent cannot outlive one review.
+    REVIEW_LEFTOVERS="$(git rev-parse --git-dir)/review-commit-registered"
+    if [ -s "$REVIEW_LEFTOVERS" ]; then
+        # Only paths still registered and still empty. `--intent-to-add` puts
+        # the path in the index with nothing in it, which `git status
+        # --porcelain` reports as `" A"` — a space in the staged column. A
+        # file the user has since staged for real reads `"A "`, and unstaging
+        # that would throw away work this script never did. A killed run
+        # leaves this note behind, so the list can be a day old and mean
+        # nothing by the time it is read.
+        while IFS= read -r leftover; do
+            [ -n "$leftover" ] || continue
+            state=$(git status --porcelain -- "$leftover" 2>/dev/null | head -1)
+            case "$state" in
+                ' A'*) git reset -q -- "$leftover" >/dev/null 2>&1 || true ;;
+            esac
+        done < "$REVIEW_LEFTOVERS"
+        rm -f "$REVIEW_LEFTOVERS"
+    fi
+    REVIEW_ADDED=$(git ls-files --others --exclude-standard)
+    if [ -n "$REVIEW_ADDED" ]; then
+        printf '%s\n' "$REVIEW_ADDED" > "$REVIEW_LEFTOVERS"
+        printf '%s\n' "$REVIEW_ADDED" | tr '\n' '\0' \
+            | xargs -0 -r git add --intent-to-add -- >/dev/null 2>&1 || true
+        _review_unregister() {
+            printf '%s\n' "$REVIEW_ADDED" | tr '\n' '\0' \
+                | xargs -0 -r git reset -q -- >/dev/null 2>&1 || true
+            rm -f "$REVIEW_LEFTOVERS"
+        }
+        trap '_review_unregister' EXIT
+        trap '_review_unregister; exit 130' INT
+        trap '_review_unregister; exit 143' TERM
+    fi
+    BASE=${REVIEW_BASE:-main}
+    if git rev-parse --verify --quiet "${BASE}^{commit}" >/dev/null; then
+        # Against where the branch left the base, not the base's tip. This is
+        # an open-source repo where other work lands while a branch is open,
+        # and diffing the tip presents every commit merged since the branch
+        # point as a deletion — the reviewer is handed inverted hunks removing
+        # code this branch never touched, and asked to approve it.
+        MERGE_BASE=$(git merge-base "$BASE" HEAD 2>/dev/null || echo "$BASE")
+        DIFF=$(git diff --no-color "$MERGE_BASE")
+        SUBJECT="working tree vs $BASE"
+    else
+        DIFF=$(git diff --no-color HEAD)
+        SUBJECT="working tree vs HEAD"
+    fi
+    [ -n "$COMMIT_MSG" ] || COMMIT_MSG="[Uncommitted work in progress]"
+    SOURCE="working tree"
 else
     DIFF=$(git diff --staged --no-color)
     [ -n "$COMMIT_MSG" ] || COMMIT_MSG="[No commit message provided]"
@@ -163,9 +263,9 @@ $COMMIT_MSG
 
 ## What has already been run:
 The pre-commit hook runs lint and the **whole test suite on every supported
-distribution** — Debian 11/12/13, Ubuntu 20.04/22.04/24.04/26.04, Fedora and
-Arch, which is every supported GnuCash from 3.8 to 5.14 — and stops before
-reaching you unless all of it passed. Running tests yourself is optional and
+distribution** — Debian 11/12/13, Ubuntu 20.04/22.04/24.04/26.04, Fedora 41,
+Arch and openSUSE Tumbleweed, which is every supported GnuCash from 3.8 to
+5.16 — and stops before reaching you unless all of it passed. Running tests yourself is optional and
 "the cross-version sweep should be run" is not a finding. What is worth
 reporting is a behaviour no test covers.
 

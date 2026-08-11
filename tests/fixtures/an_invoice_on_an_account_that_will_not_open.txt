@@ -1,0 +1,63 @@
+# The same shape as `a_taxtable_on_an_account_that_will_not_open.txt`, reached
+# by an invoice instead of a tax table — which is the commoner way in.
+#
+# `commodity_scu:` is quoted, and the setter is a C `int` that refuses a string
+# outright, so `Income:Sales` is never created. An invoice entry then posts to
+# it.
+#
+# Tax tables are imported in the early business-object pass and invoices in the
+# deferred one, so the two arrive at a missing account by different routes. Read
+# only as "the account is missing", the run says an invoice entry names an
+# account that is not in the book — true, and not the reason. The reason is one
+# line above it in the reader's own file.
+#
+# What this fixture produces: nothing. The run is refused, and what it says has
+# to name the account's own failure, not only the invoice's.
+#
+# Verified by tests/integration/test_a_refused_account_is_named_not_its_dependants.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: "1000"
+
+customer "C-DEP"
+	name: "Deferred Customer"
+	currency: CAD
+
+invoice "INV-DEP"
+	customer_id: "C-DEP"
+	currency: CAD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-DEP"
+		accumulate: true

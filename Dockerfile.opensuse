@@ -1,9 +1,9 @@
-# openSUSE Tumbleweed — GnuCash 5.13, Python 3.13
-# Supported distributions (verified 2026-03-17):
+# openSUSE Tumbleweed — GnuCash 5.16, Python 3.13
+# Supported distributions (`rpm -q gnucash`, 2026-08-11):
 # ┌──────────────────────┬─────────────────┬────────────────────────┐
 # │ Distribution         │ GnuCash Version │ Status                 │
 # ├──────────────────────┼─────────────────┼────────────────────────┤
-# │ opensuse/tumbleweed  │ 5.13            │ ✅ Verified            │
+# │ opensuse/tumbleweed  │ 5.16            │ ✅ Verified            │
 # └──────────────────────┴─────────────────┴────────────────────────┘
 #
 # Notes:
@@ -14,6 +14,14 @@
 # - .so path: /usr/lib64/libgnc-engine.so  (no gnucash/ subdirectory)
 # - dejavu-fonts required: minimal openSUSE container has NO system fonts;
 #   weasyprint's pango/HarfBuzz stack segfaults with zero fonts installed
+# - python3 required for the standard library, not for the interpreter: the
+#   base image carries `python3XX-base`, which omits `sqlite3`. Nothing in the
+#   suite imports it, so a plain run passes — but `coverage` keeps its data in
+#   SQLite, so `GNC_COVERAGE=1` died here with `ImportError: Module 'sqlite3'
+#   is not installed` and took the whole union down with it. The unversioned
+#   meta-package rather than `python313`, which is what the error message
+#   suggests: Tumbleweed's default interpreter moves, and a pinned name would
+#   stop resolving the release after it does
 #
 # Usage:
 #   docker build -f Dockerfile.opensuse -t gnucash-dev:opensuse .
@@ -22,6 +30,7 @@ FROM opensuse/tumbleweed
 
 RUN zypper install -y \
         gnucash \
+        python3 \
         python3-gnucash \
         git \
         python3-pip \

@@ -1,0 +1,64 @@
+# A USD invoice settled into an HKD bank for exactly what it was booked at.
+#
+# 100.00 USD at 1.40 is 140.00 CAD, and 1000.00 HKD at 0.14 is 140.00 CAD, so
+# the settlement realizes nothing and the block needs no `$residual$` line.
+# The cash still arrived, and currency the book now holds needs a basis
+# whichever way the rate moved.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-EXACT-HKD"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-EXACT-HKD"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank:HKD"
+		settled_amount: 1000.00
+		memo: "Payment for INV-USD-EXACT-HKD"

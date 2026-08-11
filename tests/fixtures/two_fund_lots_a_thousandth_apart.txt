@@ -1,0 +1,76 @@
+# Two holdings that differ in the last place the account can hold.
+#
+# The fund account is kept to thousandths, so 12.345 units and 12.346 units are
+# two different quantities and a search for one is not a search for the other.
+# Matched within half a cent — `abs(found - asked) < 0.005` — one search
+# answered with both, and with everything from 12.341 to 12.349 besides.
+#
+# The yen entry is the same question from the other side: a currency whose
+# smallest unit is 1, printed to two decimals as `2000.00`, which is a figure
+# with no meaning in yen.
+#
+# What this fixture produces: two fund purchases a thousandth apart, and one
+# yen payment.
+#
+# Verified by tests/integration/test_finding_a_transaction_by_its_amount.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity JPY
+	mnemonic: "JPY"
+	fullname: "Japanese Yen"
+	namespace: "CURRENCY"
+	fraction: 1
+2026-01-01 commodity FUNDX
+	mnemonic: "FUNDX"
+	fullname: "Example Balanced Fund"
+	namespace: "FUND"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Yen
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+2026-01-01 open Assets:Fund
+	type: Mutual Fund
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "FUNDX"
+	commodity_scu: 1000
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+
+2026-02-01 * "Buy 12.345 units"
+	currency.mnemonic: "CAD"
+	Assets:Fund 12.345 FUNDX
+		account.commodity.mnemonic: "FUNDX"
+		share_price: "100"
+		value: "1234.50"
+	Assets:Bank -1234.50 CAD
+		account.commodity.mnemonic: "CAD"
+
+2026-02-02 * "Buy 12.346 units"
+	currency.mnemonic: "CAD"
+	Assets:Fund 12.346 FUNDX
+		account.commodity.mnemonic: "FUNDX"
+		share_price: "100"
+		value: "1234.60"
+	Assets:Bank -1234.60 CAD
+		account.commodity.mnemonic: "CAD"
+
+2026-02-03 * "Pay 2000 yen"
+	currency.mnemonic: "JPY"
+	Expenses 2000 JPY
+		account.commodity.mnemonic: "JPY"
+	Assets:Yen -2000 JPY
+		account.commodity.mnemonic: "JPY"

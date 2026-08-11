@@ -1,0 +1,27 @@
+# An account kept *coarser* than its currency: whole dollars, no cents.
+#
+# 18.19 is a perfectly good number of Canadian dollars — the currency holds it
+# — but this account does not, and rounding it to 18 on the way in changes a
+# figure the file stated. The counterpart split still carries 18.19, so the
+# entry no longer adds up and GnuCash parks the 0.19 in Imbalance-CAD.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Rounded
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1
+
+2026-02-01 * "Cents on an account that counts dollars"
+	Expenses:Rounded 18.19 CAD
+	Assets:Bank -18.19 CAD

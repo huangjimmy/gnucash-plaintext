@@ -24,7 +24,11 @@ from infrastructure.gnucash.engine import (
     load_gnc_engine,
     safe_ctypes_string,
 )
-from infrastructure.gnucash.kvp import get_custom_metadata
+from infrastructure.gnucash.kvp import (
+    KNOWN_VENDOR_METADATA_KEYS,
+    get_custom_metadata,
+    held_value,
+)
 from infrastructure.gnucash.utils import exact_text, money_text, numeric_to_fraction
 from services.invoice_renderer import (
     _ctypes_account_full_name,
@@ -33,6 +37,12 @@ from services.invoice_renderer import (
     _render_seller_header,
     _render_taxtable_block,
     build_company_xml,
+)
+from services.plaintext_blocks import (
+    document_text_lines,
+    owner_block_lines,
+    payment_block_lines,
+    posted_block_lines,
 )
 
 
@@ -144,8 +154,8 @@ def bill_to_xml(bill, book, company_info=None):
     date_due_s = date_due.strftime("%Y-%m-%d") if date_due else ''
     if not date_due_s and is_draft and bill_kvp.get('due_date'):
         date_due_s = str(bill_kvp['due_date']).strip()
-    notes = bill.GetNotes() or ''
-    billing_id = bill.GetBillingID() or ''
+    notes = held_value(bill, bill.GetNotes() or '', 'notes')
+    billing_id = held_value(bill, bill.GetBillingID() or '', 'billing_id')
 
     vendor = None
     try:
@@ -158,9 +168,14 @@ def bill_to_xml(bill, book, company_info=None):
 
     addr = vendor.GetAddr()
     vend_name = vendor.GetName()
-    addr1, addr2 = addr.GetAddr1(), addr.GetAddr2()
-    addr3, addr4 = addr.GetAddr3(), addr.GetAddr4()
-    email = addr.GetEmail()
+    # Through `held_value`, because a book written before vendors had address
+    # setters keeps the address in the slot — read from the field alone, the
+    # rendered bill printed every address line blank.
+    addr1 = held_value(vendor, addr.GetAddr1(), 'addr1')
+    addr2 = held_value(vendor, addr.GetAddr2(), 'addr2')
+    addr3 = held_value(vendor, addr.GetAddr3(), 'addr3')
+    addr4 = held_value(vendor, addr.GetAddr4(), 'addr4')
+    email = held_value(vendor, addr.GetEmail(), 'email')
 
     if is_draft and not cash_basis_marker:
         status = 'draft'
@@ -297,22 +312,10 @@ def render_to_html(bill, book, xslt_path, company_info=None) -> str:
     return str(transform(xml_doc))
 
 
-def render_to_pdf(bill, book, xslt_path, pdf_path, company_info=None):
-    import weasyprint
-
-    html = render_to_html(bill, book, xslt_path, company_info=company_info)
-    weasyprint.HTML(string=html).write_pdf(pdf_path)
-
-
 def _render_vendor_block(vendor) -> str:
-    """Minimal vendor block — id, name, currency. The bill plaintext
-    re-importer looks up vendors by id, so the block is required for
-    self-contained re-import; address/email aren't needed."""
-    return (
-        f'vendor "{vendor.GetID()}"\n'
-        f'\tname: "{vendor.GetName()}"\n'
-        f'\tcurrency: {vendor.GetCurrency().get_mnemonic()}'
-    )
+    """The vendor block, written by `services/plaintext_blocks`."""
+    return '\n'.join(owner_block_lines(
+        'vendor', vendor, KNOWN_VENDOR_METADATA_KEYS))
 
 
 def render_to_plaintext(bill, book, company_info=None) -> str:
@@ -359,9 +362,9 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         f'\tcurrency: {currency}',
         f'\tdate_opened: {date_opened}',
     ]
+    bill_lines += document_text_lines(bill)
 
     from infrastructure.gnucash.utils import (
-        format_amount_for_commodity,
         get_account_full_name,
     )
 
@@ -407,16 +410,7 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         bill_lines.append('\tpayment: none')
     else:
         ap_name = get_account_full_name(bill.GetPostedAcc())
-        bill_lines.append('\tposted:')
-        bill_lines.append(
-            f'\t\tdate: {bill.GetDatePosted().strftime("%Y-%m-%d")}'
-        )
-        bill_lines.append(
-            f'\t\tdue: {bill.GetDateDue().strftime("%Y-%m-%d")}'
-        )
-        bill_lines.append(f'\t\tap_account: "{ap_name}"')
-        bill_lines.append(f'\t\tmemo: "{posting_txn.GetDescription()}"')
-        bill_lines.append('\t\taccumulate: true')
+        bill_lines += posted_block_lines(bill, 'ap_account', ap_name)
 
         lot = bill.GetPostedLot()
         had_payment = False
@@ -428,7 +422,6 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
                     continue
                 if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                     continue
-                pay_date = txn.GetDate().strftime('%Y-%m-%d')
                 bank_name = ''
                 pay_memo = ''
                 for i in range(txn.CountSplits()):
@@ -440,17 +433,13 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
                         bank_name = get_account_full_name(sp.GetAccount())
                         pay_memo = sp.GetMemo() or ''
                         break
-                # This bill's payment amount is its own allocation — the AP
-                # split in its lot (`s`) — not the bank-side total, which would
-                # over-report when one bank tx pays several bills. Format exactly
-                # at the AP commodity's decimal count (no to_double).
-                pay_amt = format_amount_for_commodity(
-                    s.GetAmount().abs(), s.GetAccount().GetCommodity())
-                bill_lines.append('\tpayment:')
-                bill_lines.append(f'\t\tdate: {pay_date}')
-                bill_lines.append(f'\t\tamount: {pay_amt}')
-                bill_lines.append(f'\t\tbank_account: "{bank_name}"')
-                bill_lines.append(f'\t\tmemo: "{pay_memo}"')
+                # As the invoice renderer does: the amount is the block
+                # writer's to work out, from `s` — this bill's own allocation,
+                # not the bank-side total.
+                bill_lines += payment_block_lines(
+                    txn, s, bank_name, pay_memo,
+                    f'bill "{bill.GetID()}"', txn.GetNum() or '')
+
                 had_payment = True
         if not had_payment:
             bill_lines.append('\tpayment: none')

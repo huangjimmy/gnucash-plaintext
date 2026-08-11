@@ -1,0 +1,43 @@
+# The same settlement as `fx_usd_invoice_settled_into_an_hkd_bank.txt`, stating
+# the rate instead of the figure that landed. `share_price:` and
+# `settled_amount:` are the two documented spellings of one fact — 100 USD at
+# 7.80 is the 780.00 HKD the other file states outright — so a book built from
+# either must be the same book, and a file refused under one spelling must be
+# refused under the other.
+#
+# It carries the other document's memo because it describes the other
+# document's movement — which is what a reader hand-writing a second block
+# against money the book already holds would copy. The duplicate guard matches
+# on the memo, so a block that named a different one would be a different
+# payment and rightly not compared.
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-BY-RATE"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-BY-RATE"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank:HKD"
+		share_price: 7.80
+		txn_guid: "TXN_GUID"
+		memo: "Payment for INV-USD-INTO-HKD"
+		Income:FX Gain $residual$ CAD

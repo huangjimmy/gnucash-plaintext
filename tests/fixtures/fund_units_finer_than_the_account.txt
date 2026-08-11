@@ -1,0 +1,44 @@
+# The same fund, stated finer than the account it sits on can hold.
+#
+# 12.3456 units against an account kept to thousandths is refused — but for
+# the account's reason, not the currency's. The refusal has two branches and
+# a security can only ever fail the account one, so naming the currency here
+# tells the reader to round to two places when three are legal, and calls
+# fund units "not money this book can record" when they are not money at all.
+#
+# What this fixture produces: a refusal naming 0.001 and the account, and a
+# suggestion to give the account a `commodity_scu:` that can hold the figure.
+#
+# Verified by tests/integration/test_amount_must_fit_the_currency.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity FUNDX
+	mnemonic: "FUNDX"
+	fullname: "Example Balanced Fund"
+	namespace: "FUND"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Fund
+	type: Mutual Fund
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "FUNDX"
+	commodity_scu: 1000
+
+2026-02-01 * "Buy 12.3456 units"
+	currency.mnemonic: "CAD"
+	Assets:Fund 12.3456 FUNDX
+		account.commodity.mnemonic: "FUNDX"
+		share_price: "100"
+		value: "1234.56"
+	Assets:Bank -1234.56 CAD
+		account.commodity.mnemonic: "CAD"

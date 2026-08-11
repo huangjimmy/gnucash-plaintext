@@ -38,9 +38,26 @@ from cli.set_book_key_cmd import set_book_key
 from cli.unapply_cmd import unapply_payment
 from cli.unpost_cmd import unpost_bills, unpost_invoices
 from cli.validate_cmd import validate_ledger
+from repositories.gnucash_repository import BookUnavailableError
 
 
-@click.group()
+class _Cli(click.Group):
+    """The group every command hangs off, so a book that will not open is
+    answered once rather than in thirty places.
+
+    The repository turns the backend's refusal into a sentence; commands that
+    wrap their own `repo.open()` print it themselves, and the ones that do not
+    would let it out as a traceback. Caught here, both say the same thing.
+    """
+
+    def invoke(self, ctx):
+        try:
+            return super().invoke(ctx)
+        except BookUnavailableError as e:
+            raise click.ClickException(str(e)) from e
+
+
+@click.group(cls=_Cli)
 @click.version_option(version='0.3.3', prog_name='gnucash-plaintext')
 def cli():
     """

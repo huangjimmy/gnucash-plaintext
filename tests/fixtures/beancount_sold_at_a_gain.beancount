@@ -1,0 +1,63 @@
+; A holding sold at a gain, written the way beancount writes one.
+;
+; `-10 HOOL {500.00 USD} @ 550.00 USD` says two different things: the basket
+; is what the units cost, and the price is what they fetched. Beancount
+; balances the entry at `units × cost` — the basket — and treats the price as
+; information. The gain is the third posting, stated outright.
+;
+; Read the other way round, the holding was valued at 5,500.00 instead of the
+; 5,000.00 it cost, the splits summed to the 500.00 gain, and GnuCash scrubbed
+; in `Imbalance-USD 500.00` while the run reported one transaction and no
+; error — the failure the empty-basket refusal and the unreadable-line refusal
+; were both written to stop, arriving through the door those two closed.
+;
+; What this fixture produces: the holding at 5,000.00 USD of value, the cash
+; at 5,500.00, the gain at -500.00, and no Imbalance.
+;
+; Verified by tests/integration/test_beancount_reads_what_a_person_writes.py.
+2024-01-01 commodity USD
+    gnucash-mnemonic: "USD"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "US Dollar"
+    gnucash-fraction: "100"
+2024-01-01 commodity NASDAQ.HOOL
+    gnucash-mnemonic: "HOOL"
+    gnucash-namespace: "NASDAQ"
+    gnucash-fullname: "Hooli Inc"
+    gnucash-fraction: "10000"
+2024-01-01 open Assets USD
+    gnucash-name: "Assets"
+    gnucash-guid: "3333333333333333333333333333333a"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Broker USD
+    gnucash-name: "Assets:Broker"
+    gnucash-guid: "3333333333333333333333333333333b"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Broker:HOOL NASDAQ.HOOL
+    gnucash-name: "Assets:Broker:HOOL"
+    gnucash-guid: "3333333333333333333333333333333c"
+    gnucash-type: "Stock"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Broker:Cash USD
+    gnucash-name: "Assets:Broker:Cash"
+    gnucash-guid: "3333333333333333333333333333333d"
+    gnucash-type: "Bank"
+    gnucash-placeholder: "False"
+2024-01-01 open Income USD
+    gnucash-name: "Income"
+    gnucash-guid: "3333333333333333333333333333333e"
+    gnucash-type: "Income"
+    gnucash-placeholder: "False"
+2024-01-01 open Income:Gains USD
+    gnucash-name: "Income:Gains"
+    gnucash-guid: "3333333333333333333333333333333f"
+    gnucash-type: "Income"
+    gnucash-placeholder: "False"
+
+2024-03-01 * "Broker" "Sold ten at a gain"
+    gnucash-guid: "44444444444444444444444444444444"
+  Assets:Broker:HOOL -10 NASDAQ.HOOL {500.00 USD} @ 550.00 USD
+  Assets:Broker:Cash 5500.00 USD
+  Income:Gains -500.00 USD

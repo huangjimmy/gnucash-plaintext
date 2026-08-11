@@ -343,10 +343,12 @@ class TestImportCLI:
     def test_import_new_reports_account_creation_error(self, import_new_plaintext_invalid_account_type):
         """--new with an unrecognised account type warns clearly in the summary.
 
-        Account creation errors are non-fatal (the file is kept), but they must
-        NOT pass silently: the summary names the bad type and lists the supported
-        ones so the user can fix it, rather than the account landing with no type
-        and quietly dropping off reports.
+        Account creation errors are non-fatal to the book — what imported is
+        kept and the file stays — but they must NOT pass silently: the summary
+        names the bad type and lists the supported ones so the user can fix
+        it, rather than the account landing with no type and quietly dropping
+        off reports. And the exit code says so too, since a script reads that
+        and not the summary.
         """
         runner = CliRunner()
 
@@ -357,7 +359,10 @@ class TestImportCLI:
                 '--new', new_gnucash, import_new_plaintext_invalid_account_type
             ])
 
-            assert result.exit_code == 0
+            # Non-fatal to the *book* — what imported is kept, and the file is
+            # there — but the run says so in its exit code as well as its
+            # summary, because `import … && next-step` cannot read a summary.
+            assert result.exit_code == 1, result.output
             assert os.path.exists(new_gnucash)
             assert "Errors:" in result.output
             assert "Failed to create account" in result.output

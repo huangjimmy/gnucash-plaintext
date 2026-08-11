@@ -1,0 +1,17 @@
+# A currency GnuCash has never heard of. `QQD` is not an ISO 4217 code, and
+# the CURRENCY namespace is the one GnuCash fills from the ISO table itself.
+#
+# Written to a file, such a commodity comes out without `<cmdty:name>` or
+# `<cmdty:fraction>` — GnuCash omits both for currencies, expecting to find
+# them in the table when it reads the file back. For a code that is not in
+# the table there is nothing to find, and the whole book fails to load.
+2024-01-01 commodity QQD
+	mnemonic: "QQD"
+	fullname: "Q Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+
+2024-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "QQD"

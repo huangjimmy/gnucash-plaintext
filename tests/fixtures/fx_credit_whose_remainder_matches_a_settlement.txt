@@ -7,7 +7,7 @@
 # remainder by size alone can reach the settlement first and hand it the
 # credit's balance and cost, leaving the customer's real remaining credit with
 # no balance at all: 150.00 USD reported against 250.00 held, and the credit
-# refused as a basis for having no tracked balance.
+# refused as a basis for having no balance recorded.
 #
 # Verified by tests/integration/test_applied_credit_carries_its_basis.py.
 2026-01-01 open Assets

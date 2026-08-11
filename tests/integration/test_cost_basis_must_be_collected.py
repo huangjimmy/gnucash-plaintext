@@ -67,7 +67,7 @@ def test_selling_against_an_uncollected_receivable_is_refused(tmp_path):
     assert 'has not been collected' in message, message
 
     # Nothing was recorded against it.
-    assert 'Available USD: 100.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 100.00 USD' in _balances(runner, book)
 
 
 def test_the_refusal_can_be_forced(tmp_path):
@@ -78,7 +78,7 @@ def test_the_refusal_can_be_forced(tmp_path):
                   _sale_against(tmp_path, basis, forced=True, name='forced.txt'))
     assert result.exit_code == 0, result.output
     assert 'error:' not in result.output, result.output
-    assert 'Available USD: 60.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
 
 
 def test_selling_is_allowed_once_the_invoice_is_paid(tmp_path):
@@ -94,7 +94,7 @@ def test_selling_is_allowed_once_the_invoice_is_paid(tmp_path):
     result = _run(runner, 'import', str(book), _sale_against(tmp_path, basis))
     assert result.exit_code == 0, result.output
     assert 'error:' not in result.output, result.output
-    assert 'Available USD: 60.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
 
 
 def test_currency_bought_outright_needs_no_override(tmp_path):
@@ -112,4 +112,4 @@ def test_currency_bought_outright_needs_no_override(tmp_path):
     result = _run(runner, 'import', str(book), str(sale))
     assert result.exit_code == 0, result.output
     assert 'error:' not in result.output, result.output
-    assert 'Available USD: 160.00 USD' in _balances(runner, book)
+    assert 'Total USD basis balance: 160.00 USD' in _balances(runner, book)

@@ -11,7 +11,7 @@ from datetime import date
 from fractions import Fraction
 from typing import Dict, List, Optional, Set, Tuple
 
-from gnucash import Account, GncNumeric, Split, Transaction
+from gnucash import Account, Split, Transaction
 from gnucash.gnucash_core_c import (
     ACCT_TYPE_EQUITY,
     ACCT_TYPE_EXPENSE,
@@ -20,7 +20,12 @@ from gnucash.gnucash_core_c import (
     xaccTransSetIsClosingTxn,
 )
 
-from infrastructure.gnucash.utils import find_account
+from infrastructure.gnucash.utils import (
+    find_account,
+    numeric_to_fraction,
+    to_money,
+    transaction_under_construction,
+)
 
 CLOSING_DESCRIPTION_PREFIX = "Closing entry"
 
@@ -232,33 +237,51 @@ class BookCloser:
         currency = commod_table.lookup("CURRENCY", currency_code)
         currency_fraction = currency.get_fraction()
 
-        tx = Transaction(book)
-        tx.BeginEdit()
-        tx.SetCurrency(currency)
-        tx.SetDate(closing_date.day, closing_date.month, closing_date.year)
-        tx.SetDescription(f"{CLOSING_DESCRIPTION_PREFIX} ({currency_code})")
+        # Guarded like every other transaction this tool builds: a failure
+        # part-way through takes the entry with it rather than leaving a
+        # half-written closing entry in the open book. This is the one
+        # transaction of the year whose whole purpose is that the books come
+        # out level, so it is the last one that should be left half made.
+        with transaction_under_construction(book) as tx:
+            tx.SetCurrency(currency)
+            tx.SetDate(closing_date.day, closing_date.month, closing_date.year)
+            tx.SetDescription(f"{CLOSING_DESCRIPTION_PREFIX} ({currency_code})")
 
-        equity_balance = Fraction(0)
+            # Each figure reaches the currency's smallest unit through
+            # GnuCash's own rounding, and equity takes back exactly what the
+            # others were rounded to.
+            #
+            # `int(value * fraction)` truncates toward zero, which is not a way
+            # of handling money: an account kept to thousandths can hold 18.191
+            # — GnuCash's GUI writes such balances, and the amount is stored at
+            # the account's unit — and closing it wrote 18.19 while equity was
+            # truncated separately, so the two roundings did not have to agree.
+            # Two half-cents is enough to break it: each side truncated to
+            # 0.00 while equity truncated their 0.010 to 0.01, and GnuCash
+            # scrubbed the difference into Imbalance-CAD.
+            #
+            # Summing the *placed* values rather than the raw balances is what
+            # makes equity's side exact by construction: whatever rounding did
+            # to the accounts, equity is its negation, so the splits sum to
+            # zero.
+            placed = Fraction(0)
 
-        for account, balance in account_balances:
-            closing_value = -balance
-            numerator = int(closing_value * currency_fraction)
-            split = Split(book)
-            split.SetParent(tx)
-            split.SetAccount(account)
-            split.SetValue(GncNumeric(numerator, currency_fraction))
-            equity_balance += balance
+            for account, balance in account_balances:
+                closing_value = to_money(-balance, currency_fraction)
+                split = Split(book)
+                split.SetParent(tx)
+                split.SetAccount(account)
+                split.SetValue(closing_value)
+                placed += numeric_to_fraction(closing_value)
 
-        equity_numerator = int(equity_balance * currency_fraction)
-        equity_split = Split(book)
-        equity_split.SetParent(tx)
-        equity_split.SetAccount(equity_account)
-        equity_split.SetValue(GncNumeric(equity_numerator, currency_fraction))
+            equity_split = Split(book)
+            equity_split.SetParent(tx)
+            equity_split.SetAccount(equity_account)
+            equity_split.SetValue(to_money(-placed, currency_fraction))
 
-        # Mark it as a GnuCash closing transaction so reports (and our own
-        # income-statement / re-close detection) recognise it via the
-        # authoritative flag, not just the description. Persists to the XML.
-        xaccTransSetIsClosingTxn(tx.instance, True)
+            # Mark it as a GnuCash closing transaction so reports (and our own
+            # income-statement / re-close detection) recognise it via the
+            # authoritative flag, not just the description. Persists to the XML.
+            xaccTransSetIsClosingTxn(tx.instance, True)
 
-        tx.CommitEdit()
         return tx

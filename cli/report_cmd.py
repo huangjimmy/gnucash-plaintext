@@ -11,11 +11,11 @@ concatenated.
       --fiscal-year-end 2026-12-31
 """
 import sys
-from datetime import datetime
 from typing import Optional
 
 import click
 
+from cli._dates import parse_date
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.balance_sheet import BalanceSheet
 from services.balance_sheet_renderer import render_text as bs_render_text
@@ -29,23 +29,14 @@ from use_cases.generate_income_statement import (
 _STATEMENTS = ("income-statement", "balance-sheet")
 
 
-def _parse_date(ctx, param, value):
-    if value is None:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError as e:
-        raise click.BadParameter(f"Date must be YYYY-MM-DD, got: {value}") from e
-
-
 @click.command("report")
 @click.argument("gnucash_file", type=click.Path(exists=True))
 @click.argument("statements", nargs=-1, required=True)
-@click.option("--fiscal-year-end", callback=_parse_date,
+@click.option("--fiscal-year-end", callback=parse_date,
               help="Fiscal year end (YYYY-MM-DD); start auto-computed as end − 1 year + 1 day.")
-@click.option("--start", callback=_parse_date, help="Explicit period start (with --end).")
-@click.option("--end", callback=_parse_date, help="Explicit period end (with --start).")
-@click.option("--as-of", "as_of", callback=_parse_date,
+@click.option("--start", callback=parse_date, help="Explicit period start (with --end).")
+@click.option("--end", callback=parse_date, help="Explicit period end (with --start).")
+@click.option("--as-of", "as_of", callback=parse_date,
               help="Balance-sheet date. Defaults to the period end.")
 @click.option("--fx-rates", "fx_rates_file", default=None, type=click.Path(exists=True),
               help="YAML FX rates → CAD (for multi-currency T2 consolidation).")
@@ -101,7 +92,9 @@ def report(gnucash_file, statements, fiscal_year_end, start, end, as_of,
                 result = GenerateIncomeStatementUseCase(repo).execute(
                     start_date=period_start, end_date=period_end, fx_rates=fx)
                 parts.append(is_render_text(result))
-            elif stmt == "balance-sheet":
+            # balance-sheet. The names are checked against `_STATEMENTS`
+            # above, so there is no third case to fall through to.
+            else:
                 parts.append(bs_render_text(
                     BalanceSheet().compute(root, as_of_date, fx, prices)))
     except (ValueError, MissingFxRateError) as e:

@@ -1,0 +1,52 @@
+# An `open_prepayment:` summary somebody edited by hand, in four ways.
+#
+# The block is informational and derived — the importer rebuilds credits from
+# the per-split `lot_owner:` KVPs and never from this summary — so a
+# disagreement is a warning and the next export rewrites the figure. That is
+# only true if every shape a person can leave behind is read as a shape rather
+# than as a figure: a block naming no owner, an amount that is not a number,
+# and a block on an account this book does not have are all things a half
+# finished edit leaves, and reading any of them as a number would have the
+# import warn about a credit nobody declared.
+#
+# What this fixture produces: one customer credit of 50.00 on the receivable,
+# and a summary declaring
+#   - 30.00 for C-EDIT, which is wrong and must be warned about;
+#   - a block naming neither customer nor vendor;
+#   - a block whose amount is a word.
+#
+# Verified by tests/integration/test_a_hand_edited_prepayment_summary_is_not_read_as_figures.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	open_prepayment:
+		customer: "C-EDIT"
+		amount: 30.00 CAD
+	open_prepayment:
+		amount: 10.00 CAD
+	open_prepayment:
+		customer: "C-EDIT"
+		amount: about fifty
+
+customer "C-EDIT"
+	name: "Hand Edit Customer"
+	currency: CAD
+
+2026-01-05 * "Deposit on account"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
+		lot_owner: "customer:C-EDIT"

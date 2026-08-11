@@ -1,0 +1,60 @@
+# Two accounts whose names share a prefix, one of them refused.
+#
+# `Income:Sales` cannot be made — `commodity_scu:` is quoted and the C setter
+# is an int that refuses a string outright — while `Income:Sales Returns` is
+# fine. An invoice then posts to the good one, and fails for its own reason:
+# a tax table the book has not got.
+#
+# What the refusal must not do is offer `Income:Sales` as the cause. It is a
+# substring of the account the invoice names, and nothing else connects them.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: "1000"
+2026-01-01 open Income:Sales Returns
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-PREFIX"
+	name: "Prefix Customer"
+	currency: CAD
+
+invoice "INV-PREFIX"
+	customer_id: "C-PREFIX"
+	currency: CAD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales Returns"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "No Such Table"
+	posted:
+		date: 2026-03-02
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-PREFIX"
+		accumulate: true

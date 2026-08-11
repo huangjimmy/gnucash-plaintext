@@ -1,0 +1,65 @@
+# A `payment:` block whose `amount:` is finer than the account holding it.
+#
+# 18.19 is a fine number of Canadian dollars and not a whole number of the
+# units this receivable is kept in — its Smallest Fraction is a dollar. The
+# settling split lands on that account and is stored at its unit, so the
+# amount came out 18 against a value of 18.19 on a same-currency split, and
+# the export wrote `amount: 18` back.
+#
+# The payment path judged the figure against the currency alone, so the
+# account arm of the check — which exists for exactly this — never ran here.
+#
+# What this fixture produces: a refusal naming 18.19 and the account's whole
+# dollar, and no payment.
+#
+# Verified by tests/integration/test_amount_must_fit_the_currency.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-COARSE"
+	name: "Coarse Customer"
+	currency: CAD
+
+invoice "INV-COARSE-001"
+	customer_id: "C-COARSE"
+	currency: CAD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-COARSE-001"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 18.19
+		account: "Assets:Bank"
+		memo: "Payment for INV-COARSE-001"

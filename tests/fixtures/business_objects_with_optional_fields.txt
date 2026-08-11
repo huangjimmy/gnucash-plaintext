@@ -1,0 +1,51 @@
+# The optional fields a business object may carry and usually does not: a
+# customer's full address and email, an invoice's billing id and notes, and a
+# payment's cheque number. Each is written only when it is there, so a book
+# without them never exercises the line that writes them.
+customer "C-FULL"
+	name: "Full Details Co"
+	currency: CAD
+	addr1: "Suite 400"
+	addr2: "1 Example Street"
+	addr3: "Toronto ON"
+	addr4: "M5V 1A1"
+	email: "ap@example.test"
+
+# A second customer carrying none of them, which is what shows the writer's
+# false side. A vendor proves nothing here: the vendor block has no address
+# fields at all, so their absence there is true by construction.
+customer "C-BARE"
+	name: "Bare Co"
+	currency: CAD
+
+vendor "V-FULL"
+	name: "Full Details Supply"
+	currency: CAD
+
+invoice "INV-FULL-001"
+	customer_id: "C-FULL"
+	currency: CAD
+	date_opened: 2026-03-01
+	billing_id: "PO-99871"
+	notes: "Quoted 2026-02-20, net 30"
+	entry:
+		date: 2026-03-01
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 2
+		price: 150
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-02
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-FULL-001"
+		accumulate: true
+	payment:
+		date: 2026-03-10
+		amount: 300
+		bank_account: "Assets:Bank"
+		memo: "Cheque"
+		num: "1042"

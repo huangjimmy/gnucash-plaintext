@@ -21,20 +21,22 @@ def normalise_guid(guid) -> str:
       - UUID-with-hyphens (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
       - mixed-case hex (lowercased on the way out)
 
-    Rejects:
-      - int/float/bool — these come from unquoted all-digit guid values in
-        plaintext where the parser auto-converts to int and silently loses
-        the digit count. Force the caller to quote.
-      - any string that `string_to_guid` cannot parse.
+    Rejects any string that `string_to_guid` cannot parse.
+
+    Everything that reaches here is a string, because every caller is a Click
+    option: `--txn` on `unapply-payment`, `--by-guid` on
+    `delete-transactions`, `--by-guid` on the `unpost-*` commands, and
+    `--guid` on `rename-account` (reached directly and through `migrate`,
+    which re-enters commands with text arguments).
+
+    A guard against `int`/`float`/`bool` stood here for a plaintext hazard —
+    an unquoted all-digit guid, which the parser converts to a number that has
+    lost its leading zeros and its digit count — but no plaintext path calls
+    this function, so the guard could not be reached to catch it. The importer
+    keeps its own `_normalise_guid` with that check intact, which is where
+    file-stated guids actually arrive. If this one is ever wired to a file,
+    the check belongs with it, where a test can reach it.
     """
-    if isinstance(guid, (int, float, bool)):
-        raise ValueError(
-            f"guid must be a quoted string (got {type(guid).__name__} {guid!r}); "
-            f"unquoted all-digit values are auto-converted to a number and "
-            f"lose their digit count. Quote the guid: e.g. \"{guid:032x}\""
-            if isinstance(guid, int) and 0 <= guid < 2**128
-            else f"guid must be a quoted string (got {type(guid).__name__} {guid!r})"
-        )
     if not string_to_guid(guid, GncGUID()):
         raise ValueError(f"Invalid GUID format: {guid!r}")
     return guid.replace('-', '').lower()

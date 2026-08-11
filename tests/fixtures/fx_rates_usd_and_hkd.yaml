@@ -1,0 +1,9 @@
+# Dated rates into CAD. A settlement that crosses two foreign currencies needs
+# both: the receivable's own rate to post it, and the bank's to value the cash
+# the transaction is denominated against.
+USD/CAD:
+  2026-01-05: 1.40
+  2026-02-20: 1.37
+HKD/CAD:
+  2026-01-05: 0.175
+  2026-02-20: 0.172

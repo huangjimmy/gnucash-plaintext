@@ -1,0 +1,38 @@
+# A USD bill paid, through a payment block, from a USD bank whose cost bases
+# still have a balance. Refused, for the same reason the HKD-bank shape is.
+#
+# Nothing is realized here — the bill and the cash are both USD, so the
+# settlement crosses no rate — and that is exactly what made this one easy to
+# miss: the cross-currency arithmetic returns long before the disposal is
+# looked at. The disposal happens all the same. 100.00 USD bought at 1.35 has
+# a cost basis and an available balance; spending it has to say which basis it
+# comes out of, and a payment block has nowhere to say it.
+#
+# What this fixture produces: a refusal naming `Assets:Bank:USD`, the
+# 100.00 USD available on it, and the `txn_guid:` route.
+# tests/fixtures/fx_settle_usd_bill_with_usd_cash.txt is that route, and shows
+# what the refusal is asking for: `cost_basis_split_guid:` on the bank line.
+#
+# Verified by tests/integration/test_spending_what_a_settlement_brought_in.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-25
+    amount: 100
+    account: "Assets:Bank:USD"
+    memo: "Payment for BILL-USD-001"

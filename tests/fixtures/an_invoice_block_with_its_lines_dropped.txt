@@ -1,0 +1,13 @@
+# The same invoice with its `entry:` lines cut. A document is rebuilt from its
+# block, so importing this would unpost it and leave it empty — which is what a
+# file truncated in an editor looks like, and is refused rather than obeyed.
+invoice "INV-EDIT"
+	customer_id: "C-EDIT"
+	currency: CAD
+	date_opened: 2026-05-01
+	posted:
+		date: 2026-05-02
+		due: 2026-06-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-EDIT"
+		accumulate: true

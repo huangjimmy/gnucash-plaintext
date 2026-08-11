@@ -1,0 +1,95 @@
+# Two vendor bills on a payable kept to a tenth of a cent, each overpaid.
+#
+# The bill-side twin of credit_on_an_account_kept_finer_than_the_cent.txt plus
+# overpaid_invoice_on_a_finer_account.txt: the account's unit is finer than the
+# currency's, so a settling split can be moved to a figure the currency cannot
+# hold — which is what a book coming from the GnuCash GUI can carry and what a
+# printed `payment:` block has to refuse rather than round.
+#
+# Two of them, because a run refused on its first document cannot be told from
+# a run that wrote nothing at all.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+vendor "V-FINE"
+	name: "Fine Grained Supplies"
+	currency: CAD
+
+bill "BILL-FINE-ONE"
+	vendor_id: "V-FINE"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Paper"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-FINE-ONE"
+		accumulate: true
+	payment:
+		date: 2026-02-05
+		amount: 50.00
+		bank_account: "Assets:Bank"
+		memo: "Overpaid, to the thousandth"
+		prepayment: 20.00
+
+bill "BILL-FINE-TWO"
+	vendor_id: "V-FINE"
+	currency: CAD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Ink"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 40
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-03-31
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-FINE-TWO"
+		accumulate: true
+	payment:
+		date: 2026-03-05
+		amount: 55.00
+		bank_account: "Assets:Bank"
+		memo: "Overpaid, to the thousandth"
+		prepayment: 15.00

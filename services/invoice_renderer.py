@@ -9,8 +9,14 @@ import gnucash.gnucash_core_c as gc
 from gnucash import Split
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
-from infrastructure.gnucash.kvp import get_custom_metadata
+from infrastructure.gnucash.kvp import KNOWN_CUSTOMER_METADATA_KEYS, get_custom_metadata
 from infrastructure.gnucash.utils import exact_text, money_text, numeric_to_fraction
+from services.plaintext_blocks import (
+    document_text_lines,
+    owner_block_lines,
+    payment_block_lines,
+    posted_block_lines,
+)
 
 
 def read_book_company_info(file_path):
@@ -341,13 +347,6 @@ def render_to_html(invoice, book, xslt_path, company_info=None) -> str:
     return str(transform(xml_doc))
 
 
-def render_to_pdf(invoice, book, xslt_path, pdf_path, company_info=None):
-    import weasyprint
-
-    html = render_to_html(invoice, book, xslt_path, company_info=company_info)
-    weasyprint.HTML(string=html).write_pdf(pdf_path)
-
-
 # ── Q-017: plaintext render ────────────────────────────────────────────────
 #
 # Same canonical format as `export --include-business-objects`, with
@@ -612,15 +611,9 @@ def _render_taxtable_block(lib, tt_ptr) -> str:
 
 
 def _render_customer_block(cust) -> str:
-    """Minimal customer block — id, name, currency. The renderer doesn't
-    emit address/email because the recipient already has those; the block
-    exists to satisfy the importer's `customer_id:` lookup if someone
-    re-imports the rendered file for validation."""
-    return (
-        f'customer "{cust.GetID()}"\n'
-        f'\tname: "{cust.GetName()}"\n'
-        f'\tcurrency: {cust.GetCurrency().get_mnemonic()}'
-    )
+    """The customer block, written by `services/plaintext_blocks`."""
+    return '\n'.join(owner_block_lines(
+        'customer', cust, KNOWN_CUSTOMER_METADATA_KEYS))
 
 
 def _render_seller_header(company_info) -> str:
@@ -717,14 +710,10 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         f'\tcurrency: {currency}',
         f'\tdate_opened: {date_opened}',
     ]
-    if invoice.GetBillingID():
-        inv_lines.append(f'\tbilling_id: "{invoice.GetBillingID()}"')
-    if invoice.GetNotes():
-        inv_lines.append(f'\tnotes: "{invoice.GetNotes()}"')
+    inv_lines += document_text_lines(invoice)
 
     # Per-entry blocks with informational fields
     from infrastructure.gnucash.utils import (
-        format_amount_for_commodity,
         get_account_full_name,
     )
 
@@ -779,12 +768,7 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         inv_lines.append('\tpayment: none')
     else:
         ar_name = get_account_full_name(invoice.GetPostedAcc())
-        inv_lines.append('\tposted:')
-        inv_lines.append(f'\t\tdate: {invoice.GetDatePosted().strftime("%Y-%m-%d")}')
-        inv_lines.append(f'\t\tdue: {invoice.GetDateDue().strftime("%Y-%m-%d")}')
-        inv_lines.append(f'\t\tar_account: "{ar_name}"')
-        inv_lines.append(f'\t\tmemo: "{posting_txn.GetDescription()}"')
-        inv_lines.append('\t\taccumulate: true')
+        inv_lines += posted_block_lines(invoice, 'ar_account', ar_name)
 
         # Payment blocks reuse the export logic — but the render path
         # cares about audit info, not round-trip, so we emit a minimal
@@ -801,7 +785,6 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
                     continue
                 if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                     continue
-                pay_date = txn.GetDate().strftime('%Y-%m-%d')
                 # bank-side split = the non-AR side; find any (for the account
                 # name + memo only)
                 bank_name = ''
@@ -813,17 +796,14 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
                         bank_name = get_account_full_name(sp.GetAccount())
                         pay_memo = sp.GetMemo() or ''
                         break
-                # This invoice's payment amount is its own allocation — the AR
-                # split in its lot (`s`) — not the bank-side total, which would
-                # over-report when one bank tx pays several invoices. Format
-                # exactly at the AR commodity's decimal count (no to_double).
-                pay_amt = format_amount_for_commodity(
-                    s.GetAmount().abs(), s.GetAccount().GetCommodity())
-                inv_lines.append('\tpayment:')
-                inv_lines.append(f'\t\tdate: {pay_date}')
-                inv_lines.append(f'\t\tamount: {pay_amt}')
-                inv_lines.append(f'\t\tbank_account: "{bank_name}"')
-                inv_lines.append(f'\t\tmemo: "{pay_memo}"')
+                # The amount is the block writer's to work out — from `s`, the
+                # AR split in this invoice's own lot, not the bank-side total,
+                # which would over-report when one bank tx pays several
+                # invoices. Computed here instead, it was rounded to the
+                # currency's places while the export refused the same figure.
+                inv_lines += payment_block_lines(
+                    txn, s, bank_name, pay_memo,
+                    f'invoice "{invoice.GetID()}"', txn.GetNum() or '')
                 had_payment = True
         if not had_payment:
             inv_lines.append('\tpayment: none')

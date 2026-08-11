@@ -1,0 +1,59 @@
+# A customer and a vendor carrying a key this tool has no setter for.
+#
+# Anything the format does not know is kept in a slot beside the object and
+# written back out on export, so a ledger can carry a field this tool does not
+# understand and not lose it.
+#
+# Dropping such a key from the ledger has to take it off the object too — and
+# that is the case the writer skipped: it wrote the slot only when the file
+# still had something to put in it, so the last key could never be removed.
+# The object then differed from the file for good, and every import from then
+# on reported `updated` and saved the book again.
+#
+# The same skip is what a book written before vendors had addresses runs into:
+# its vendor's address sits in this slot, the new code sets the real address
+# and leaves the slot, and the export then writes every address line twice.
+#
+# an_owner_after_dropping_a_custom_key.txt is this file without the key.
+#
+# What this fixture produces: two owners carrying `department`.
+#
+# Verified by tests/integration/test_dropping_a_custom_key_takes_it_off.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+
+customer "C-KEY"
+	name: "Acme Supplies"
+	currency: CAD
+	department: "north"
+
+vendor "V-KEY"
+	name: "Beta Printing"
+	currency: CAD
+	department: "south"
+
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+invoice "INV-KEY"
+	customer_id: "C-KEY"
+	currency: CAD
+	date_opened: 2026-01-01
+	department: "north"
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false

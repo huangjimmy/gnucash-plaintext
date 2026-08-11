@@ -1,0 +1,27 @@
+# An amount that needs a digit the currency does not have.
+#
+# 18.190 is 18.19 written with a trailing zero and is fine. 18.191 is not a
+# number of Canadian dollars at all — the cent is the unit, and a tenth of one
+# is not money this book can hold.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fuel
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1000
+
+2026-02-01 * "A tenth of a cent nobody can pay"
+	Expenses:Fuel 18.191 CAD
+	Assets:Bank -18.191 CAD

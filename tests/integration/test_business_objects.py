@@ -496,13 +496,19 @@ def test_business_objects_persisted_when_imported_into_existing_file(tmp_path):
     """
     runner = CliRunner()
 
-    # Step 1: create a GnuCash file that already has all required accounts.
-    # Import the full business_objects.txt (which includes accounts) so the file
-    # is fully populated — AR, AP, Bank, Income:Sales, etc. already exist.
+    # Step 1: create a GnuCash file that already has all required accounts —
+    # AR, AP, Bank, Income:Sales — and none of the business objects. Without
+    # the flag, the same ledger's `open` lines are read and its customer,
+    # vendor, invoice and bill blocks are not.
+    #
+    # The objects have to be new to the book for this to test anything: run
+    # with the flag here, step 2 would re-import the same IDs, every one would
+    # report `unchanged`, and a run that changes nothing is a run with nothing
+    # to save. Asserting `Changes saved` there asserted the book is rewritten
+    # for a file it already holds.
     gnucash_file = tmp_path / "existing.gnucash"
     result = runner.invoke(cli, ["import", "--new", str(gnucash_file),
-                                 "tests/fixtures/business_objects.txt",
-                                 "--include-business-objects"])
+                                 "tests/fixtures/business_objects.txt"])
     assert result.exit_code == 0, f"Setup import failed:\n{result.output}"
 
     import time

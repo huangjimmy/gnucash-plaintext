@@ -1,0 +1,46 @@
+; An `open` whose `gnucash-name` has a part that names nothing.
+;
+; Two shapes, one rule: the name is empty outright, and the name ends in the
+; separator (`Assets:Bank:`), which is a part as empty as the whole.
+;
+; The key is required and this file has it, so the required-metadata check
+; passed. Downstream, looking an empty path up answers with the root account —
+; `find_account` reads `''` as "the tree itself" — and the account creation
+; took that for "already there" and skipped, so the book never gained the
+; account, the run still counted it, and `✓ Import successful / Accounts: 3`
+; was printed over a book holding two. A later posting on it then failed with
+; a message about an account mapping, which is not where the fault was.
+;
+; The trailing separator went the other way and made an account: a child with
+; no name at all under Assets:Bank, which GnuCash shows as an empty row and
+; every export writes back as the same typo.
+;
+; What this fixture produces: a refusal naming the account whose name is
+; empty.
+;
+; Verified by tests/integration/test_beancount_reads_what_a_person_writes.py.
+2024-01-01 commodity CAD
+    gnucash-mnemonic: "CAD"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "Canadian Dollar"
+    gnucash-fraction: "100"
+2024-01-01 open Assets CAD
+    gnucash-name: "Assets"
+    gnucash-guid: "1111111111111111111111111111111a"
+    gnucash-type: "Asset"
+    gnucash-placeholder: "False"
+2024-01-01 open Assets:Bank CAD
+    gnucash-name: ""
+    gnucash-guid: "1111111111111111111111111111111b"
+    gnucash-type: "Bank"
+    gnucash-placeholder: "False"
+2024-01-01 open Expenses CAD
+    gnucash-name: "Expenses"
+    gnucash-guid: "1111111111111111111111111111111c"
+    gnucash-type: "Expense"
+    gnucash-placeholder: "False"
+
+2024-02-01 * "Payee" "Lunch"
+    gnucash-guid: "2222222222222222222222222222222a"
+  Expenses 50.00 CAD
+  Assets:Bank -50.00 CAD

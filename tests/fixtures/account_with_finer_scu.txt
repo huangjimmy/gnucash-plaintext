@@ -1,9 +1,13 @@
 # An account kept to a finer unit than its currency has.
 #
 # GnuCash stores a smallest unit per account, not only per commodity, and this
-# one is set to thousandths. Fuel is the everyday reason: 1.819 a litre is a
-# tenth of a cent, and a book tracking it needs the third decimal even though
-# a Canadian dollar has two.
+# one is set to thousandths — fuel priced by the litre is the everyday reason
+# such accounts exist.
+#
+# What that unit buys here is how the figures are *held and written*: 18.190,
+# with the third decimal, not 18.19. What it does not buy is a licence to
+# state a figure the currency cannot hold: a booked amount is judged against
+# the currency, so 18.190 passes (it is 18.19) and 18.191 is refused.
 #
 # What this fixture produces: `commodity_scu: 1000` on the account, and the
 # amounts below round-tripping exactly —

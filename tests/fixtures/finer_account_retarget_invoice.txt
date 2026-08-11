@@ -1,7 +1,8 @@
 # A 30.00 invoice on a receivable kept to a tenth of a cent, paid by naming a
-# 50.005 transaction. The residual is 20.005 — a figure this account holds
-# exactly — and that is what `prepayment:` has to state, so it is also what the
-# message asking for it has to name.
+# 50.00 transaction. The residual is 20.000 — the account's unit is a
+# thousandth, so that is the figure it holds and reports — and that is what
+# `prepayment:` has to state, so it is also what the message asking for it has
+# to name.
 invoice "INV-FINE-RETARGET"
 	customer_id: "C-FINE"
 	currency: CAD
@@ -23,7 +24,7 @@ invoice "INV-FINE-RETARGET"
 		accumulate: true
 	payment:
 		date: 2026-02-05
-		amount: 50.005
+		amount: 50.00
 		bank_account: "Assets:Bank"
 		txn_guid: "TXN_GUID"
 		memo: "Overpayment"

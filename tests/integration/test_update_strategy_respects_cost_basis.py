@@ -20,11 +20,11 @@ from click.testing import CliRunner
 from cli.main import cli
 from infrastructure.gnucash.utils import find_account
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
-from services.foreign_currency import available_of
+from services.foreign_currency import cost_basis_balance_of
 
 
 def _book_with_a_partial_sale(tmp_path):
-    """100 USD bought at 1.35, then 40 of it sold — 60.00 left available."""
+    """100 USD bought at 1.35, then 40 of it sold — 60.00 of balance left."""
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
     result = runner.invoke(cli, [
@@ -50,13 +50,13 @@ def _exported(runner, book, path):
     return path.read_text()
 
 
-def _available_on_the_basis(book):
+def _balance_on_the_basis(book):
     repo = GnuCashRepository(str(book))
     repo.open(mode=SessionMode.READ_ONLY)
     try:
         account = find_account(repo.book.get_root_account(), 'Assets:Bank:USD')
         for split in account.GetSplitList():
-            balance = available_of(split)
+            balance = cost_basis_balance_of(split)
             if balance is not None:
                 return balance
     finally:
@@ -67,13 +67,13 @@ def _available_on_the_basis(book):
 def test_editing_a_sale_beyond_its_basis_is_refused_on_reimport(tmp_path):
     """The same refusal a fresh import gives, on the edit path.
 
-    Selling more of a basis than it has available is refused when the sale is
+    Selling more of a basis than its balance is refused when the sale is
     written; re-importing an edited copy of that sale must be refused for the
     same reason, or the check is one an editor walks straight past.
     """
     runner, book = _book_with_a_partial_sale(tmp_path)
-    before = _available_on_the_basis(book)
-    assert before is not None, 'the fixture should leave a tracked basis'
+    before = _balance_on_the_basis(book)
+    assert before is not None, 'the fixture should leave a basis with a balance'
 
     edited = tmp_path / 'edited.txt'
     text = _exported(runner, book, tmp_path / 'out.txt')
@@ -83,7 +83,7 @@ def test_editing_a_sale_beyond_its_basis_is_refused_on_reimport(tmp_path):
     result = runner.invoke(cli, ['import', str(book), str(edited),
                                  '--strategy', 'update'])
 
-    after = _available_on_the_basis(book)
+    after = _balance_on_the_basis(book)
     # Refused for the right reason — the cost basis — and pointed at the route
     # that does work: delete the transaction (which gives the basis back what
     # it took) and import the new version, where every check runs again.
@@ -103,7 +103,7 @@ def test_editing_only_a_description_on_such_a_transaction_is_accepted(tmp_path):
     it would make every cost-basis transaction unamendable for a typo.
     """
     runner, book = _book_with_a_partial_sale(tmp_path)
-    before = _available_on_the_basis(book)
+    before = _balance_on_the_basis(book)
 
     edited = tmp_path / 'edited.txt'
     text = _exported(runner, book, tmp_path / 'out.txt')
@@ -117,15 +117,15 @@ def test_editing_only_a_description_on_such_a_transaction_is_accepted(tmp_path):
 
     after_text = _exported(runner, book, tmp_path / 'after.txt')
     assert 'Sell 40 USD (Q1 wire)' in after_text, after_text
-    assert _available_on_the_basis(book) == before
+    assert _balance_on_the_basis(book) == before
 
 
 def test_an_update_that_brings_in_currency_opens_its_basis(tmp_path):
-    """Currency arriving through an edit is tracked like any other.
+    """Currency arriving through an edit opens a basis like any other.
 
     `create_transaction` opens a basis for what a transaction brings in;
     `update_transaction` did not, so correcting a placeholder into a USD
-    holding left it listed as `untracked` — over a message saying this tool
+    holding left it listed as `none recorded` — over a message saying this tool
     had never written that split, which it had just written — and the currency
     could not be sold until the user hand-wrote a balance for it.
     """
@@ -159,8 +159,8 @@ def test_an_update_that_brings_in_currency_opens_its_basis(tmp_path):
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'untracked' not in listing, listing
-    assert 'Available USD: 100.00' in listing, listing
+    assert 'none recorded' not in listing, listing
+    assert 'Total USD basis balance: 100.00' in listing, listing
 
 
 @pytest.mark.parametrize('stated', [
@@ -175,7 +175,7 @@ def test_a_refused_update_leaves_the_transaction_alone(tmp_path, stated):
     The cost-basis work an update triggers happens after `CommitEdit`, and a
     rollback cannot undo a committed edit — so a failure there reported an
     error while the rewritten transaction stayed on disk: new splits, a
-    poisoned KVP, and no available balance, which is exactly the untracked
+    poisoned KVP, and no basis balance, which is exactly the unrecorded
     state the work exists to prevent. A stated cost is checked before anything
     is written, so the refusal leaves the book as it was.
     """
@@ -218,7 +218,7 @@ def test_correcting_a_sign_error_opens_the_basis_it_creates(tmp_path):
     Splits are matched by account, so fixing reversed signs reuses the very
     same split — same guid — and it becomes a purchase where it was not one
     before. Skipping every split that existed before the edit left that
-    currency `untracked`, over a message saying this tool never wrote the
+    currency `none recorded`, over a message saying this tool never wrote the
     split. What matters is whether it was a basis before, not whether it
     existed.
     """
@@ -250,8 +250,8 @@ def test_correcting_a_sign_error_opens_the_basis_it_creates(tmp_path):
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'untracked' not in listing, listing
-    assert 'Available USD: 100.00' in listing, listing
+    assert 'none recorded' not in listing, listing
+    assert 'Total USD basis balance: 100.00' in listing, listing
 
 
 def test_the_same_export_gives_the_same_balance_either_way_in(tmp_path):
@@ -267,18 +267,18 @@ def test_the_same_export_gives_the_same_balance_either_way_in(tmp_path):
     """
     runner, book = _book_with_a_partial_sale(tmp_path)
     text = _exported(runner, book, tmp_path / 'out.txt')
-    assert 'cost_basis_available: "60.00"' in text, text
+    assert 'cost_basis_balance: "60.00"' in text, text
 
     fresh = tmp_path / 'fresh.gnucash'
     result = runner.invoke(cli, ['import', '--new', str(fresh),
                                  str(tmp_path / 'out.txt')])
     assert result.exit_code == 0, result.output
-    into_fresh = _available_on_the_basis(fresh)
+    into_fresh = _balance_on_the_basis(fresh)
 
     result = runner.invoke(cli, ['import', str(book), str(tmp_path / 'out.txt'),
                                  '--strategy', 'update'])
     assert result.exit_code == 0, result.output
-    over_itself = _available_on_the_basis(book)
+    over_itself = _balance_on_the_basis(book)
 
     assert over_itself == into_fresh, (
         f'the same file gives {into_fresh} USD into a fresh book and '
@@ -292,8 +292,8 @@ def test_an_update_that_writes_a_prepayment_puts_it_in_its_owner_s_lot(tmp_path)
     — when it sits in an owner lot no document owns, and `lot_owner:` is what
     puts it there. Only the create path acted on it, so an update that wrote
     such a split dropped the line silently: the split landed in no lot, read
-    as a settlement, and the currency the same file tracks through `--new`
-    went untracked with no error to say so.
+    as a settlement, and the currency the same file gives a basis through
+    `--new` got no balance with no error to say so.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -324,7 +324,7 @@ def test_an_update_that_writes_a_prepayment_puts_it_in_its_owner_s_lot(tmp_path)
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Available USD: 100.00' in listing, listing
+    assert 'Total USD basis balance: 100.00' in listing, listing
     assert 'Accounts Receivable USD' in listing, listing
 
     # And the lot is really there, not merely inferred from the listing: the
@@ -376,7 +376,7 @@ def test_a_balance_stated_on_a_lost_transaction_reaches_no_later_sale(tmp_path):
     text = _exported(runner, book, tmp_path / 'out.txt')
     basis = re.findall(
         r'Assets:Bank:USD 100\.00 USD\n\t+guid: "([0-9a-f]{32})"', text)[0]
-    before = _available_on_the_basis(book)
+    before = _balance_on_the_basis(book)
 
     edited = tmp_path / 'edited.txt'
     edited.write_text(
@@ -388,7 +388,7 @@ def test_a_balance_stated_on_a_lost_transaction_reaches_no_later_sale(tmp_path):
     result = runner.invoke(cli, ['import', str(book), str(edited),
                                  '--strategy', 'update'])
     assert 'requires a guid' in result.output, result.output
-    assert _available_on_the_basis(book) == before, result.output
+    assert _balance_on_the_basis(book) == before, result.output
 
 
 def test_deleting_a_sale_then_reimporting_under_update_is_refused(tmp_path):
@@ -403,13 +403,13 @@ def test_deleting_a_sale_then_reimporting_under_update_is_refused(tmp_path):
     """
     runner, book = _book_with_a_partial_sale(tmp_path)
     text = _exported(runner, book, tmp_path / 'out.txt')
-    assert 'cost_basis_available: "60.00"' in text, text
+    assert 'cost_basis_balance: "60.00"' in text, text
 
     sale_guid = re.search(r'Sell 40 USD"\n\tguid: "([0-9a-f]{32})"', text).group(1)
     result = runner.invoke(cli, ['delete-transactions', str(book),
                                  sale_guid, '--by-guid'])
     assert result.exit_code == 0, result.output
-    assert _available_on_the_basis(book) == Fraction(100), 'delete should restore it'
+    assert _balance_on_the_basis(book) == Fraction(100), 'delete should restore it'
 
     result = runner.invoke(cli, ['import', str(book), str(tmp_path / 'out.txt'),
                                  '--strategy', 'update'])
@@ -420,8 +420,8 @@ def test_deleting_a_sale_then_reimporting_under_update_is_refused(tmp_path):
     # stated balance a second time. The basis keeps what deleting the sale gave
     # back to it.
     assert 'not found in book' in result.output, result.output
-    assert _available_on_the_basis(book) == Fraction(100), (
-        f'the basis moved to {_available_on_the_basis(book)} on an import that '
+    assert _balance_on_the_basis(book) == Fraction(100), (
+        f'the basis moved to {_balance_on_the_basis(book)} on an import that '
         f'refused the only transaction that could have moved it')
 
 
