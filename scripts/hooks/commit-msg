@@ -1,0 +1,60 @@
+#!/bin/bash
+#
+# commit-msg hook: refuse a hard-wrapped commit message.
+#
+# A paragraph in this project's commit messages is one line, and this file is written the way it asks messages to be written.
+#
+# Breaking a paragraph at a column bakes the author's terminal width into the history: every reader's terminal, `git log`, and every web view re-flow it to their own width, and a paragraph already broken at someone else's reads as ragged half-lines in all of them. It also makes an edit to one sentence rewrite every line after it, so the diff of a reworded paragraph is the whole paragraph.
+#
+# So: a long line followed by another line of the same paragraph is a break, and the commit is refused. Blank lines separate paragraphs, and lists, tables, quotes, indented blocks and fenced code are left alone — their line breaks are the content, not a column.
+#
+# "Long" is the one number here, and it is a floor rather than a width: a line under it is short enough to be a deliberate line of its own — a label, a short sentence — and is never reported, whatever follows it.
+#
+# The subject is exempt: it is one line by definition and is meant to be short.
+
+MESSAGE_FILE="$1"
+
+WRAPPED=$(awk '
+  # Everything from the scissors line down is git`s own, not the message.
+  /^# ------------------------ >8 ------------------------$/ { exit }
+  /^#/ { next }
+  { line[++n] = $0 }
+  END {
+    fenced = 0
+    for (i = 2; i <= n; i++) {
+      current = line[i]
+      following = line[i + 1]
+
+      if (current ~ /^```/) { fenced = !fenced; continue }
+      if (fenced) continue
+
+      # A paragraph ends at a blank line, and the last line has no successor.
+      if (current == "" || i == n || following == "") continue
+
+      # Short lines are not a wrap: a two-line signature, a pair of labels, a sentence that simply ends early.
+      if (length(current) < 64) continue
+
+      # The next line starts something of its own rather than continuing this paragraph: a bullet, a numbered item, a table row, a quote, a heading, an indented or fenced block.
+      if (following ~ /^[[:space:]]/)        continue
+      if (following ~ /^[-*+][[:space:]]/)   continue
+      if (following ~ /^[0-9]+[.)][[:space:]]/) continue
+      if (following ~ /^[|>#]/)              continue
+      if (following ~ /^```/)                continue
+
+      printf "  line %d: %s\n", i, current
+    }
+  }
+' "$MESSAGE_FILE")
+
+if [ -n "$WRAPPED" ]; then
+    echo "❌ Commit blocked: the message is hard-wrapped."
+    echo ""
+    echo "These lines are long and the line after each continues the same paragraph, so the paragraph has been broken at a column:"
+    echo ""
+    echo "$WRAPPED"
+    echo ""
+    echo "Write one paragraph as one line and separate paragraphs with a blank line. Lists, tables, quotes and fenced code are left alone."
+    exit 1
+fi
+
+exit 0

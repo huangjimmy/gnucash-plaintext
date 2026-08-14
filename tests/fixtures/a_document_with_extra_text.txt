@@ -1,0 +1,87 @@
+2026-01-01 open Assets
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+  type: Accounts Receivable
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+
+company
+  name: "Extra Text Co."
+  id: "111222333RT0001"
+  gst: "111222333RT0001"
+  pst: "BC PST-0000-1111; SK 2222-3333"
+  extra_text1: "Remit to: Bank 000-111"
+  extra_text2: "Ask us: billing@example.test"
+  fiscal_year_end: "12-31"
+
+customer "C-EXTRA"
+  name: "Extra Text Customer"
+  currency: CAD
+  extra_text1: "Portal: portal.example.test/acme"
+  extra_text2: "Net 45 by agreement"
+  credit_rating: "chase early"
+
+invoice "INV-EXTRA-001"
+  customer_id: "C-EXTRA"
+  currency: CAD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-EXTRA-001"
+    accumulate: true
+
+customer "C-EXTRA-TOO"
+  name: "Another Extra Text Customer"
+  currency: CAD
+  extra_text1: "Portal: portal.example.test/other"
+  extra_text2: "Net 15 by agreement"
+
+# A second document, to a *different* customer, so a whole-book run renders
+# more than one page and the two owner blocks do not say the same thing.
+#
+# Both halves matter. What the seller's block can hold is a property of the
+# report, not of the document, so a page that cannot hold the registration
+# numbers cannot hold them for either of these — one sentence, not two. The
+# owner's block is per customer, so a sink keyed on the sentence rather than
+# on the report and the block would collapse the first and repeat the second
+# once per customer. With one customer on both invoices that is invisible.
+invoice "INV-EXTRA-002"
+  customer_id: "C-EXTRA-TOO"
+  currency: CAD
+  date_opened: 2026-01-06
+  entry:
+    date: 2026-01-06
+    description: "More consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 2
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-06
+    due: 2026-02-06
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-EXTRA-002"
+    accumulate: true

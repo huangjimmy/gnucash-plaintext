@@ -204,9 +204,16 @@ class PlaintextParser:
         self.errors: List[str] = []
 
     def parse_file(self, plaintext_file_path: str):
-        """Parse plaintext file"""
+        """Parse plaintext file.
+
+        Read as UTF-8, which is what this format is written in — the exporter
+        writes it and every fixture is in it. Left to the locale, a ledger
+        naming a customer `Éditions Cliché` is unreadable on a machine whose
+        `LANG` is not a UTF-8 one, and the error names a byte offset rather
+        than the line it is on.
+        """
         def lines_of_file():
-            with open(plaintext_file_path) as file:
+            with open(plaintext_file_path, encoding='utf-8') as file:
                 yield from file
 
         self.parse_iterable(lines_of_file())

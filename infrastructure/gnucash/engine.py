@@ -34,7 +34,7 @@ import ctypes
 import logging
 from functools import lru_cache
 
-_ENGINE_LIB_PATHS = [
+ENGINE_LIB_PATHS = [
     '/usr/lib/x86_64-linux-gnu/gnucash/libgnc-engine.so',            # Debian 11/12/13, Ubuntu 22/24
     '/usr/lib/x86_64-linux-gnu/gnucash/gnucash/libgncmod-engine.so', # Ubuntu 20 (GnuCash 3.8)
     '/usr/lib64/gnucash/libgnc-engine.so',                           # Fedora 41+
@@ -166,6 +166,14 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncOwnerInitCustomer',
             'gncOwnerInitVendor',
             'gncOwnerAttachToLot',
+            # Which book everything else is about. Rendering a document asks
+            # GnuCash's own report to draw it, and the report resolves the
+            # document from a guid against the *current* book — the Python
+            # bindings open a session without making it current, so this says
+            # so. Declared here like every other pointer-taking call: passed
+            # as a Python int with no argtypes, the session pointer would be
+            # truncated to 32 bits.
+            'gnc_set_current_session',
         ]
 
     missing = [f for f in required_functions if not hasattr(lib, f)]
@@ -280,6 +288,8 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     # Read by nobody, so `None` is right whether the C function returns void or
     # a gboolean — where declaring an int for a void function reads whatever
     # the return register happened to hold.
+    lib.gnc_set_current_session.restype        = None
+    lib.gnc_set_current_session.argtypes       = [ctypes.c_void_p]
     lib.gnc_lot_add_split.restype              = None
     lib.gnc_lot_add_split.argtypes             = [ctypes.c_void_p, ctypes.c_void_p]
     lib.gnc_lot_get_balance.restype            = GncNumericC
@@ -320,7 +330,7 @@ def load_gnc_engine() -> ctypes.CDLL:
     the GnuCash Python extension (critical on Ubuntu where RTLD_LOCAL is
     the default).
     """
-    for path in _ENGINE_LIB_PATHS:
+    for path in ENGINE_LIB_PATHS:
         try:
             ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
             lib = ctypes.CDLL(None)
@@ -341,5 +351,5 @@ def load_gnc_engine() -> ctypes.CDLL:
         pass
 
     raise RuntimeError(
-        "Could not load libgnc-engine.so — tried: " + str(_ENGINE_LIB_PATHS)
+        "Could not load libgnc-engine.so — tried: " + str(ENGINE_LIB_PATHS)
     )

@@ -24,6 +24,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=3.0",
     "ruff>=0.1.0",  # Linter + formatter (replaces flake8, black, isort)
+    "pypdf>=3.0",   # reads a printed PDF's text back, to check it is selectable
 ]
 
 [project.scripts]
@@ -42,7 +43,7 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-"*" = ["*.yaml", "*.yml", "*.xslt", "*.html"]
+"*" = ["*.yaml", "*.yml", "*.html"]
 
 [build-system]
 requires = ["setuptools>=45", "wheel"]

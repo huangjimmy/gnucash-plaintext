@@ -2,10 +2,9 @@
 """
 CLI command for printing GnuCash vendor bills.
 
-Q-019: parallel to cli/invoice_print_cmd.py. A bill is an inbound
-document (vendor → us), so the rendered output puts the vendor on the
-"Bill From" side and our company on the "Bill To" side (driven from
-the GnuCash book's Business → Company options).
+Q-019: parallel to cli/invoice_print_cmd.py. A bill is a vendor's invoice —
+one `gncInvoice` type and one GnuCash report — so the page is
+drawn exactly as an invoice's is, with the vendor as the document's owner.
 
 Output formats: pdf, html, plaintext. The plaintext format reuses the
 canonical bill block syntax (already understood by `import`) with
@@ -13,7 +12,6 @@ Q-017 bill_* informational totals.
 """
 
 import fnmatch
-import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -21,16 +19,16 @@ from pathlib import Path
 import click
 from gnucash import Query
 
+from cli._warnings import said_once
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.bill_renderer import (
     render_to_html,
     render_to_plaintext,
 )
+from services.document_pages import combine_pages, load_weasyprint
 from services.invoice_renderer import read_book_company_info
 from use_cases.export_transactions import UnwritableFigureError
-
-_XSLT_PATH = Path(__file__).parent.parent / "services" / "bill.xslt"
 
 
 def _all_bills(book):
@@ -87,7 +85,13 @@ def _filter_bills(bills, selectors, from_date, to_date, vendor):
     return out
 
 
-def _write_combined(bills, book, fmt, xslt_path, company_info, output):
+def _write_combined(bills, book, fmt, company_info, output, session=None,
+                    report=None, report_file=None):
+    """Write all rendered bills into a single file (or stdout).
+
+    `session` is the open session for `book` — see
+    `invoice_print_cmd._write_combined`.
+    """
     if output == '-':
         if fmt != 'plaintext':
             raise click.UsageError(
@@ -98,7 +102,9 @@ def _write_combined(bills, book, fmt, xslt_path, company_info, output):
             render_to_plaintext(b, book, company_info=company_info)
             for b in bills
         ]
-        sys.stdout.write('\n'.join(parts))
+        # Encoded here rather than by the locale — see
+        # `invoice_print_cmd._write_combined`.
+        sys.stdout.buffer.write('\n'.join(parts).encode('utf-8'))
         return
 
     output_path = Path(output)
@@ -107,32 +113,20 @@ def _write_combined(bills, book, fmt, xslt_path, company_info, output):
             render_to_plaintext(b, book, company_info=company_info)
             for b in bills
         ]
-        output_path.write_text('\n'.join(parts))
+        # UTF-8 stated — see `invoice_print_cmd._write_combined` for what the
+        # locale's answer costs on a document whose owner is not named in
+        # ASCII.
+        output_path.write_text('\n'.join(parts), encoding='utf-8')
         return
 
+    warn = said_once()          # one sink for the run — see there
+    combined = combine_pages(
+        render_to_html(b, session, report=report, report_file=report_file,
+                       warn=warn)
+        for b in bills
+    )
     if fmt == 'html':
-        fragments = [
-            render_to_html(b, book, xslt_path, company_info=company_info)
-            for b in bills
-        ]
-        shell_parts = []
-        for frag in fragments:
-            inner = frag
-            for tag in ('</body>', '</html>'):
-                inner = inner.replace(tag, '')
-            # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
-            # per-fragment; literal `<html>` and absent DOCTYPE stripping
-            # leaves nested DOCTYPEs and nested `<html>` in the combined
-            # output (invalid both as HTML and XML). Strip all three so
-            # the combined doc has exactly one outer shell.
-            inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
-            inner = re.sub(r'<html\b[^>]*>', '', inner)
-            inner = re.sub(r'<body\b[^>]*>', '', inner)
-            shell_parts.append(
-                f'<section style="page-break-after: always;">{inner}</section>'
-            )
-        combined = '<html><body>' + ''.join(shell_parts) + '</body></html>'
-        output_path.write_text(combined)
+        output_path.write_text(combined, encoding='utf-8')
         return
 
     # pdf, unconditionally: `--format` is a `click.Choice` of exactly three,
@@ -140,34 +134,13 @@ def _write_combined(bills, book, fmt, xslt_path, company_info, output):
     # case nothing can take — and a fourth format added to the Choice would
     # silently fall through it, which is the failure a trailing `raise` was
     # meant to catch and could never reach.
-    import weasyprint
-    fragments = [
-        render_to_html(b, book, xslt_path, company_info=company_info)
-        for b in bills
-    ]
-    shell_parts = []
-    for frag in fragments:
-        inner = frag
-        for tag in ('</body>', '</html>'):
-            inner = inner.replace(tag, '')
-        # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
-        # per-fragment; literal `<html>` and absent DOCTYPE stripping
-        # leaves nested DOCTYPEs and nested `<html>` in the combined
-        # output (invalid both as HTML and XML). Strip all three so
-        # the combined doc has exactly one outer shell.
-        inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
-        inner = re.sub(r'<html\b[^>]*>', '', inner)
-        inner = re.sub(r'<body\b[^>]*>', '', inner)
-        shell_parts.append(
-            f'<section style="page-break-after: always;">{inner}</section>'
-        )
-    combined_html = (
-        '<html><body>' + ''.join(shell_parts) + '</body></html>'
-    )
-    weasyprint.HTML(string=combined_html).write_pdf(str(output_path))
+    weasyprint = load_weasyprint()
+
+    weasyprint.HTML(string=combined).write_pdf(str(output_path))
 
 
-def _write_per_bill(bills, book, fmt, xslt_path, company_info, outdir):
+def _write_per_bill(bills, book, fmt, company_info, outdir, session=None,
+                    report=None, report_file=None):
     """Write one file per bill into the directory `outdir`.
 
     Every bill is rendered before any file is written, and the directory is
@@ -176,17 +149,19 @@ def _write_per_bill(bills, book, fmt, xslt_path, company_info, outdir):
     partway through.
     """
     ext = {'plaintext': 'txt', 'html': 'html', 'pdf': 'pdf'}[fmt]
+    warn = said_once()          # one sink for the run — see there
     rendered = [
         (f'{b.GetID()}.{ext}',
          render_to_plaintext(b, book, company_info=company_info)
          if fmt == 'plaintext'
-         else render_to_html(b, book, xslt_path, company_info=company_info))
+         else render_to_html(b, session, report=report,
+                             report_file=report_file, warn=warn))
         for b in bills
     ]
     # Laid out before any of them is written, PDFs included — see
     # `_write_per_invoice` for what writing them as they finished cost.
     if fmt == 'pdf':
-        import weasyprint
+        weasyprint = load_weasyprint()
         rendered = [(name, weasyprint.HTML(string=html).write_pdf())
                     for name, html in rendered]
 
@@ -197,7 +172,7 @@ def _write_per_bill(bills, book, fmt, xslt_path, company_info, outdir):
         if fmt == 'pdf':                # the third of three, see above
             target.write_bytes(body)
         else:
-            target.write_text(body)
+            target.write_text(body, encoding='utf-8')   # see _write_combined
 
 
 @click.command()
@@ -217,12 +192,22 @@ def _write_per_bill(bills, book, fmt, xslt_path, company_info, outdir):
 @click.option("-o", "--output", required=True,
               help="Output file path, directory (trailing /), or '-' for "
                    "stdout (plaintext only).")
-@click.option("--template", "template_path", default=None,
+@click.option("--report", default=None,
+              help="Which GnuCash report draws the page — its English name "
+                   "(e.g. 'Fancy Invoice') or its template guid. Names are "
+                   "matched as the report registers them, which is English "
+                   "on every build; a localized GnuCash shows you the "
+                   "translated name, so use the guid there. Defaults to "
+                   "'Printable Invoice', the one GnuCash's own File → Print "
+                   "Invoice uses.")
+@click.option("--report-file", "report_file", default=None,
               type=click.Path(exists=True, dir_okay=False),
-              help=("Path to a custom XSLT template. Defaults to the "
-                    "embedded services/bill.xslt."))
+              help="A Scheme (.scm) file to load before the report is looked "
+                   "up, so a report of your own — `gnc:define-report` — can "
+                   "be named with --report. This is GnuCash's own extension "
+                   "point: your report is written the way its own are.")
 def print_bill(gnucash_file, bill_selectors, bill_id,
-               from_date, to_date, vendor, fmt, output, template_path):
+               from_date, to_date, vendor, fmt, output, report, report_file):
     """Prints one or more GnuCash vendor bills.
 
     Examples:
@@ -240,7 +225,26 @@ def print_bill(gnucash_file, bill_selectors, bill_id,
         # plaintext stream of one vendor's bills, stdout
         print-bill book.gnucash --vendor V-001 --format plaintext -o -
     """
-    company_info = read_book_company_info(gnucash_file)
+    # Refused rather than ignored — see `invoice_print_cmd.print_invoice`.
+    if fmt == 'plaintext' and (report or report_file):
+        raise click.UsageError(
+            '--report and --report-file choose which GnuCash report draws the '
+            'page, and --format plaintext draws no page: it writes the '
+            'canonical plaintext syntax. Use --format pdf or --format html.')
+
+    # Likewise a `.scm` nothing names — see there.
+    if report_file and not report:
+        raise click.UsageError(
+            '--report-file loads a report so --report can name it, and on its '
+            'own it would load yours and still draw GnuCash\'s. Add --report '
+            '"<the name your .scm passes to gnc:define-report>" (or its '
+            'guid).')
+
+    # Only the plaintext render writes a seller header from it, and reading it
+    # decompresses and parses the whole book file — a cost the default format
+    # has no use for, because GnuCash's report reads the book's options itself.
+    company_info = (read_book_company_info(gnucash_file)
+                    if fmt == 'plaintext' else None)
 
     selectors = list(bill_selectors)
     if bill_id:
@@ -277,12 +281,15 @@ def print_bill(gnucash_file, bill_selectors, bill_id,
                 + ')'
             )
 
-        xslt = template_path if template_path else str(_XSLT_PATH)
         if output.endswith('/'):
-            _write_per_bill(selected, book, fmt, xslt, company_info, output)
+            _write_per_bill(selected, book, fmt, company_info, output,
+                            session=repo.session, report=report,
+                            report_file=report_file)
             click.echo(f'✓ Wrote {len(selected)} bill(s) to {output}')
         else:
-            _write_combined(selected, book, fmt, xslt, company_info, output)
+            _write_combined(selected, book, fmt, company_info, output,
+                            session=repo.session, report=report,
+                            report_file=report_file)
             if output != '-':
                 click.echo(f'✓ Wrote {len(selected)} bill(s) to {output}')
 

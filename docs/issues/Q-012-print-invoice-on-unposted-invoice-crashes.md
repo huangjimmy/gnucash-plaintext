@@ -6,6 +6,12 @@ severity: medium
 status: closed
 ---
 
+> **The printed page has since changed ([Q-036](Q-036-printed-documents-are-not-gnucashs-page.md)).**
+> An unposted document is drawn by GnuCash's own Printable Invoice, which prices it from its
+> entries and marks it "Invoice in progress…". The crash and the refusal to drop unposted
+> documents stand; the draft badge and the provisional-tax caption described below were part of
+> this project's own page and are gone with it.
+
 ## Problem
 
 Calling `gnucash-plaintext print-invoice <book> --invoice-id <id>` on an

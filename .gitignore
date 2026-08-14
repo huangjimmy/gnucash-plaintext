@@ -163,9 +163,16 @@ cython_debug/
 
 # Claude Code runtime files (created by AI reviewer in pre-commit hook)
 .claude-plugin/
-.claude/
+.claude/*
 plugins/
 external_plugins/
+
+# …except the project's shared settings, which carry rules this repo enforces
+# on anyone working in it with an agent (see scripts/refuse-bash-file-edits.sh).
+# `settings.local.json` beside it stays ignored: that one is personal.
+# `.claude/*` and not `.claude/`, because git does not look inside an ignored
+# directory and the negation below would never be reached.
+!.claude/settings.json
 
 # External sample data (CLAUDE.md: not part of the repo). Ignored, not merely
 # uncommitted: `review-commit.sh --working` reviews everything git reports as

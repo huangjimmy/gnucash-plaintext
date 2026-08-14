@@ -1,11 +1,11 @@
-"""Q-019: drafts (cash-basis OR plain accrual) render full tax info.
+"""Q-019: drafts (cash-basis OR plain accrual) carry full tax info.
 
-GnuCash only materialises tax splits at posting time; before then, the
-posted-path tax extraction returns nothing. Q-019 has the renderers
-compute tax from each entry's tax_table via compute_entry_informational
-so unposted invoices and bills carry the same tax detail as posted
-ones — marked as provisional in HTML / plaintext so the viewer knows
-the figures may change at post time.
+GnuCash only materialises tax splits at posting time. Its own page prices an
+unposted document from the entries' tax tables and states the tax as one
+total, so the HTML needs nothing from this project; the plaintext render does
+its own arithmetic through `compute_entry_informational` and marks the figures
+provisional, because a plaintext document is re-imported and its numbers are
+checked against a recomputation.
 """
 import time
 from pathlib import Path
@@ -14,6 +14,7 @@ from click.testing import CliRunner
 
 from cli.main import cli
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
+from tests.integration.rendered_page import is_in_progress
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q019_accounts.txt')
@@ -55,8 +56,7 @@ def _render_invoice_html(gnc, invoice_id):
         )
         q.destroy()
         assert inv is not None, f'invoice {invoice_id!r} not found'
-        xslt = Path(__file__).resolve().parents[2] / 'services' / 'invoice.xslt'
-        return render_to_html(inv, repo.book, str(xslt))
+        return render_to_html(inv, repo.session)
     finally:
         repo.close()
 
@@ -88,74 +88,45 @@ def _render_invoice_plaintext(gnc, invoice_id):
 
 # ── HTML / PDF render path ─────────────────────────────────────────
 
-def test_cash_basis_unposted_invoice_html_renders_combined_tax(tmp_path):
-    """Cash-basis unposted invoice with GST 5% + PST 7%: the HTML must
-    show one <tax-line> row per tax-table account (per-account
-    aggregation), the correct grand total (200 + 24 = 224), AND a
-    provisional-tax notice so the viewer knows the figures will be
-    recomputed at post time."""
+def test_cash_basis_unposted_invoice_html_prices_its_tax(tmp_path):
+    """Cash-basis unposted invoice with GST 5% + PST 7%: GnuCash prices it
+    from the entries' tax table — 200.00 net, 10.00 GST, 14.00 PST, 224.00
+    owed — and marks it in progress, which is what says the figures are not
+    posted yet.
+
+    One row per tax account, each named: a filer reclaims the GST and not the
+    PST, and a document stating only their sum does not tell them which is
+    which. GnuCash's report writes them that way when asked
+    (`Display/Use Detailed Tax Summary`), and it is asked.
+    """
     runner = CliRunner()
     gnc = _import_into_fresh_book(
         runner, tmp_path, 'q019_unposted_cash_with_tax.txt',
     )
     html = _render_invoice_html(gnc, 'INV-Q19-CASH-TAX-200')
 
-    # Cash-basis → UNPAID badge (not DRAFT).
-    assert '<span class="badge badge-unpaid">Unpaid</span>' in html
-    assert '<span class="badge badge-draft">Draft</span>' not in html
-
-    # Both per-tax-account rows are present.
-    assert '>GST<' in html, (
-        f'expected GST tax-line row; HTML:\n{html[:2500]}'
-    )
-    assert '>PST<' in html, (
-        f'expected PST tax-line row; HTML:\n{html[:2500]}'
-    )
-
-    # Tax dollars: GST = 200 * 0.05 = 10.00; PST = 200 * 0.07 = 14.00.
-    assert '$10.00' in html, 'expected GST = $10.00 row'
-    assert '$14.00' in html, 'expected PST = $14.00 row'
-
-    # Grand total includes tax (200 + 24 = 224.00).
-    assert 'CAD\xa0224.00' in html or 'CAD&#160;224.00' in html or 'CAD 224.00' in html, (
-        f'expected grand total CAD 224.00; got:\n{html[-2000:]}'
-    )
-
-    # Provisional-tax notice must appear.
-    assert 'provisional' in html.lower(), (
-        f'expected provisional-tax notice; HTML:\n{html[-2000:]}'
-    )
+    assert is_in_progress(html), html
+    assert '>C$200.00<' in html, f'net; HTML:\n{html[-2500:]}'
+    assert '>GST</td>' in html, f'GST named; HTML:\n{html[-2500:]}'
+    assert '>C$10.00<' in html, f'5% of 200.00; HTML:\n{html[-2500:]}'
+    assert '>PST</td>' in html, f'PST named; HTML:\n{html[-2500:]}'
+    assert '>C$14.00<' in html, f'7% of 200.00; HTML:\n{html[-2500:]}'
+    assert '>C$224.00<' in html, f'owed; HTML:\n{html[-2500:]}'
 
 
-def test_plain_accrual_draft_invoice_html_renders_single_tax(tmp_path):
-    """Plain accrual draft (no cash_basis flag) with a single 10% Sales
-    Tax: badge stays DRAFT, but tax detail is now rendered just like the
-    cash-basis case. Single tax-table entry → single tax-line row +
-    `single` tax-label CSS class."""
+def test_plain_accrual_draft_invoice_html_prices_its_tax(tmp_path):
+    """The same for a plain accrual draft carrying no `cash_basis:` key, on a
+    single 10% table: 300.00 net, 30.00 tax, 330.00 owed."""
     runner = CliRunner()
     gnc = _import_into_fresh_book(
         runner, tmp_path, 'q019_unposted_draft_with_tax.txt',
     )
     html = _render_invoice_html(gnc, 'INV-Q19-DRAFT-TAX-300')
 
-    # Plain draft → DRAFT badge.
-    assert '<span class="badge badge-draft">Draft</span>' in html
-    assert '<span class="badge badge-unpaid">Unpaid</span>' not in html
-
-    # Single tax-table → one tax-line row, `single` label class.
-    assert 'tax-single' in html, (
-        f'expected single-rate tax-label class; HTML:\n{html[:2500]}'
-    )
-
-    # Tax = 300 * 0.10 = 30.00; grand total = 330.00.
-    assert '$30.00' in html, 'expected tax-line row amount $30.00'
-    assert 'CAD\xa0330.00' in html or 'CAD&#160;330.00' in html or 'CAD 330.00' in html, (
-        f'expected grand total CAD 330.00; got:\n{html[-2000:]}'
-    )
-
-    assert 'provisional' in html.lower(), (
-        f'expected provisional-tax notice on draft; HTML:\n{html[-2000:]}'
-    )
+    assert is_in_progress(html), html
+    assert '>C$300.00<' in html, f'net; HTML:\n{html[-2500:]}'
+    assert '>C$30.00<' in html, f'10% of 300.00; HTML:\n{html[-2500:]}'
+    assert '>C$330.00<' in html, f'owed; HTML:\n{html[-2500:]}'
 
 
 # ── Plaintext render path ─────────────────────────────────────────

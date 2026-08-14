@@ -111,7 +111,12 @@ def read_sidecar(book_path: str):
     if not os.path.exists(path):
         return None
     try:
-        with open(path) as f:
+        # UTF-8 and not the locale's. `json.dumps` escapes everything above
+        # ASCII by default (`ensure_ascii=True`), so the sidecar this tool
+        # writes is ASCII today and the locale cannot mangle it — but that is
+        # a default rather than a guarantee, and a sidecar written by anything
+        # else is UTF-8 by JSON's own spec.
+        with open(path, encoding='utf-8') as f:
             return json.loads(f.read())
     except (ValueError, OSError):
         return None
@@ -121,7 +126,7 @@ def write_sidecar(book_path: str, applied: list):
     data = book_stamp(book_path)
     data['applied'] = applied
     data['head'] = applied[-1]['id'] if applied else None
-    with open(sidecar_path(book_path), 'w') as f:
+    with open(sidecar_path(book_path), 'w', encoding='utf-8') as f:
         f.write(json.dumps(data, indent=2, sort_keys=True))
 
 

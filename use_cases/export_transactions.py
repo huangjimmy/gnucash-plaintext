@@ -1369,7 +1369,10 @@ class ExportTransactionsUseCase:
         )
         plaintext = self.format_as_plaintext(result)
 
-        with open(output_path, 'w') as f:
+        # UTF-8 stated: this format is written and read as UTF-8, and taking
+        # the locale's answer makes an account named `Achats — fournitures`
+        # unwritable on some machines and unreadable on others.
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write(plaintext)
 
         return len(result.transactions)

@@ -116,7 +116,7 @@ measured on the wrong side of two builds.
 - `repositories/` - thin GnuCash session and query layer
 - `tests/` - `unit/` (services / use cases / infrastructure / repositories) and `integration/` (CLI end-to-end); `research/` holds long-running scenario probes
 - `docs/` - design notes, issue tracker (`docs/issues/`), research probes, post-mortems
-- `templates/` - Jinja/XSLT templates for invoice and report rendering
+- `templates/` - report templates; an invoice or bill is drawn by GnuCash's own Printable Invoice and has none
 
 ## Testing Philosophy
 
@@ -160,6 +160,13 @@ measured on the wrong side of two builds.
 3. **Working on main** - Always create a feature worktree + branch (see Feature Branch Workflow)
 4. **Running pytest / python directly** - All tests must run via `./scripts/test.sh` in Docker so they hit a real GnuCash install
 5. **Skipping lint before commit** - Run `./scripts/fix-lint.sh --unsafe` before staging, not after the pre-commit hook rejects you
+6. **Editing a file from the shell** - `sed -i`, `perl -i`, a `python3 - <<EOF … write_text()` heredoc, `cat > file`: every one of these applies substitutions nobody reviewed, usually across several files in one call. Read the file, then Edit it; create one with Write. `scripts/refuse-bash-file-edits.sh` blocks the shell forms outright (wired in `.claude/settings.json`), and reading — `sed -n`, `grep`, `awk` to stdout — is untouched
+
+## Commit Messages Are Not Hard-Wrapped
+
+One paragraph is one line, separated by blank lines. Breaking a paragraph at a column bakes the author's terminal width into the history: `git log`, every reader's terminal and every web view re-flow it, so a paragraph already broken at someone else's width reads as ragged half-lines everywhere. `scripts/hooks/commit-msg` refuses a wrapped message; lists, tables, quotes and fenced code are left alone, because their line breaks are the content.
+
+Install both hooks with `./scripts/install-hooks.sh`.
 
 ## Useful Commands
 

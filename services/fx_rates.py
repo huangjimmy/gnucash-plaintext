@@ -127,7 +127,8 @@ class FxRates:
         if not p.exists():
             raise FileNotFoundError(f"FX rates file not found: {path}")
 
-        with open(p) as f:
+        # UTF-8 and not the locale's: YAML is a UTF-8 format by its own spec.
+        with open(p, encoding='utf-8') as f:
             try:
                 data = yaml.safe_load(f)
             except yaml.YAMLError as e:

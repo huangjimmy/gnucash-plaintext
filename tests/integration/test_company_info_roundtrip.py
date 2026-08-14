@@ -162,13 +162,18 @@ def _assert_full_company_rendered(doc):
     """Every populated company field must appear in the rendered output.
     Requirement: if the book carries company info, the invoice/bill prints
     all of it — name, contact, Company ID, GST, every PST number, address,
-    phone, fax, email, url."""
+    phone, fax, email, url.
+
+    GnuCash's own page has a row for all of those but the registration
+    numbers, which GnuCash has no field for: they are book options this tool
+    writes, and the seller's block on the page states them by name."""
     for key, want in EXPECTED.items():
-        if key == 'pst':
-            continue  # rendered as one row per number, asserted below
+        if key in ('gst', 'pst'):
+            continue  # labelled, and PST is one row per number — below
         assert want in doc, f'company field {key!r} ({want!r}) missing from render:\n{doc}'
+    assert f'GST: {EXPECTED["gst"]}' in doc, f'GST missing from render:\n{doc}'
     for pst in ('BC PST-1234-5678', 'SK 9012-3456'):
-        assert pst in doc, f'PST {pst!r} missing from render:\n{doc}'
+        assert f'PST: {pst}' in doc, f'PST {pst!r} missing from render:\n{doc}'
 
 
 def test_print_invoice_html_renders_full_company_block(tmp_path):
@@ -179,7 +184,8 @@ def test_print_invoice_html_renders_full_company_block(tmp_path):
                             '--format', 'html', '-o', str(out)])
     assert r.exit_code == 0, r.output
     html = out.read_text()
-    assert '>From<' in html, f'missing "From" company block:\n{html}'
+    assert f'company-name">{EXPECTED["name"]}<' in html, (
+        f'the company must head its block:\n{html}')
     _assert_full_company_rendered(html)
 
 

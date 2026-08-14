@@ -47,7 +47,7 @@ def export_accounts(gnucash_file, output_file, as_of_date):
             result = use_case.execute_accounts_only()
             output = use_case.format_accounts_only(result, as_of_date=as_of_date)
 
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:  # not the locale's
                 f.write(output)
 
             n_accounts = len(result.accounts)

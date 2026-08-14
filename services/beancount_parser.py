@@ -358,7 +358,8 @@ class BeancountParser:
         Raises:
             BeancountValidationError: If file has validation errors
         """
-        with open(file_path) as f:
+        # UTF-8, which is what beancount files are and what this tool writes.
+        with open(file_path, encoding='utf-8') as f:
             content = f.read()
 
         self.parse(content)

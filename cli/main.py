@@ -38,22 +38,30 @@ from cli.set_book_key_cmd import set_book_key
 from cli.unapply_cmd import unapply_payment
 from cli.unpost_cmd import unpost_bills, unpost_invoices
 from cli.validate_cmd import validate_ledger
+from infrastructure.guile import GuileUnavailableError
 from repositories.gnucash_repository import BookUnavailableError
+from services.document_pages import PdfEngineUnavailableError
+from services.gnucash_report import DocumentNotRenderedError
 
 
 class _Cli(click.Group):
-    """The group every command hangs off, so a book that will not open is
+    """The group every command hangs off, so what a command cannot do is
     answered once rather than in thirty places.
 
-    The repository turns the backend's refusal into a sentence; commands that
-    wrap their own `repo.open()` print it themselves, and the ones that do not
-    would let it out as a traceback. Caught here, both say the same thing.
+    Each of these is already written as a sentence for a person to read — a
+    book that will not open, a machine with no Scheme interpreter to draw an
+    invoice with, one with no PDF engine to lay the page out, a document
+    GnuCash's report declined to draw. Commands that wrap the call print it
+    themselves; the ones that do not would let it out as a traceback, and a
+    refusal a reader cannot read tells them nothing about what to do next.
+    Caught here, all of them say the same thing.
     """
 
     def invoke(self, ctx):
         try:
             return super().invoke(ctx)
-        except BookUnavailableError as e:
+        except (BookUnavailableError, DocumentNotRenderedError,
+                GuileUnavailableError, PdfEngineUnavailableError) as e:
             raise click.ClickException(str(e)) from e
 
 

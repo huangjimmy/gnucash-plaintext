@@ -1,4 +1,4 @@
-"""Every ctypes signature belongs in the shared engine, and nowhere else.
+"""Every ctypes signature belongs in a shared loader, and nowhere else.
 
 `argtypes` must be set for every C function that takes a pointer. Without it
 ctypes passes a Python integer as a C `int`, truncating a 64-bit pointer to 32
@@ -12,9 +12,11 @@ what every earlier caller is holding. Two call sites declaring
 `gnc_lot_add_split` as `None` and as `c_int` is one function whose return type
 depends on which module was imported last.
 
-So the rule is one place: `infrastructure/gnucash/engine.py`, where
-`_setup_lib_restypes` declares them and `verify_ctypes_functions` checks at
-load that the build actually has them.
+So the rule is one place per library, and `LOADERS` names them:
+`infrastructure/gnucash/engine.py` for GnuCash's engine, where
+`_setup_lib_restypes` declares its symbols and `verify_ctypes_functions` checks
+at load that the build actually has them, and `infrastructure/guile.py` for
+libguile, which GnuCash's own report needs in-process to draw a document.
 
 This test is a ratchet. `KNOWN` lists what has not been moved yet, exactly, and
 the test fails both ways: a declaration that is not listed is new debt and is
@@ -36,8 +38,12 @@ import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
 
-# The one place a signature may be declared.
-SHARED = 'infrastructure/gnucash/engine.py'
+# Where a signature may be declared: one loader per library, each owning that
+# library's handle and every signature set on it.
+LOADERS = (
+    'infrastructure/gnucash/engine.py',
+    'infrastructure/guile.py',
+)
 
 SEARCHED = ['cli', 'services', 'use_cases', 'infrastructure', 'repositories']
 
@@ -173,7 +179,7 @@ def _declarations_outside_the_shared_engine():
     for root in SEARCHED:
         for path in sorted((REPO_ROOT / root).rglob('*.py')):
             relative = path.relative_to(REPO_ROOT).as_posix()
-            if relative == SHARED:
+            if relative in LOADERS:
                 continue
             handles = set()
             tree = ast.parse(path.read_text())
@@ -212,7 +218,7 @@ def test_no_new_c_binding_is_declared_outside_the_shared_engine():
         if new:
             added[path] = sorted(new)
     assert not added, (
-        'ctypes signatures declared outside ' + SHARED + ':\n'
+        'ctypes signatures declared outside ' + ' and '.join(LOADERS) + ':\n'
         + '\n'.join(f'  {path}: {", ".join(names)}'
                     for path, names in sorted(added.items()))
         + '\n\nDeclare them in _setup_lib_restypes() and name them in '

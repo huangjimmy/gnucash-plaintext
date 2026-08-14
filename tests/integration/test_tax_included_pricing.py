@@ -32,6 +32,7 @@ from gnucash import Query
 from cli.main import cli
 from infrastructure.gnucash.utils import get_account_full_name, wrap_invoice_or_bill
 from repositories.gnucash_repository import GnuCashRepository
+from tests.integration.rendered_page import is_in_progress, readable
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q019_accounts.txt')
@@ -142,25 +143,29 @@ def test_tax_included_invoice_draft_plaintext_backs_out_net_and_tax(tmp_path):
 
 
 def test_tax_included_invoice_draft_html_backs_out_net_and_tax(tmp_path):
-    """Same invoice rendered to HTML: GST/PST rows show $50.00/$70.00,
-    Subtotal is the net CAD 1,000.00, grand total the unchanged gross
-    CAD 1,120.00, plus the provisional notice."""
+    """Same invoice rendered to HTML: the gross 1,120.00 backs out to a net
+    1,000.00, and the tax is stated per account — GST 50.00, PST 70.00.
+
+    What the test is for is unchanged and is the arithmetic: a tax-inclusive
+    price of 1,120.00 at 12% is 1,000.00 net plus 120.00 tax, split 5% and 7%
+    between the two accounts, and a draft says so before it is posted.
+    """
     runner = CliRunner()
     gnc = _import_into_fresh_book(runner, tmp_path, 'tax_included_invoice.txt')
     out = tmp_path / 'inv.html'
     r = runner.invoke(cli, ['print-invoice', str(gnc), 'INV-TAXINCL-1120',
                             '--format', 'html', '-o', str(out)])
     assert r.exit_code == 0, f'print-invoice: {r.output}'
-    html = out.read_text()
+    html = readable(out.read_text())
 
-    assert '>GST<' in html and '>PST<' in html
-    assert '$50.00' in html, f'GST tax line $50.00 missing:\n{html}'
-    assert '$70.00' in html, f'PST tax line $70.00 missing:\n{html}'
-    assert ('CAD\xa01,000.00' in html or 'CAD&#160;1,000.00' in html
-            or 'CAD 1,000.00' in html), f'net subtotal missing:\n{html[-2500:]}'
-    assert ('CAD\xa01,120.00' in html or 'CAD&#160;1,120.00' in html
-            or 'CAD 1,120.00' in html), f'grand total missing:\n{html[-2500:]}'
-    assert 'provisional' in html.lower()
+    assert '>C$1,000.00<' in html, f'net subtotal missing:\n{html[-2500:]}'
+    assert '>GST</td>' in html and '>C$50.00<' in html, (
+        f'GST 5% of the backed-out 1,000.00:\n{html[-2500:]}')
+    assert '>PST</td>' in html and '>C$70.00<' in html, (
+        f'PST 7% of the backed-out 1,000.00:\n{html[-2500:]}')
+    assert '>C$1,120.00<' in html, f'gross total missing:\n{html[-2500:]}'
+    assert is_in_progress(html), (
+        f'an unposted document is drawn as in progress:\n{html}')
 
 
 # ── Draft render: bill ─────────────────────────────────────────────
@@ -193,25 +198,26 @@ def test_tax_included_bill_draft_plaintext_backs_out_net_and_tax(tmp_path):
 
 
 def test_tax_included_bill_draft_html_backs_out_net_and_tax(tmp_path):
-    """Same bill rendered to HTML: GST/PST rows $50.00/$70.00, net
-    Subtotal CAD 1,000.00, grand total the unchanged gross CAD 1,120.00,
-    provisional notice."""
+    """The bill side of the same back-out, on the same page GnuCash prints.
+
+    One report serves both directions, and the entry rows read the Bill side
+    of each getter — so a bill states its tax the way an invoice does, one
+    named row per tax account.
+    """
     runner = CliRunner()
     gnc = _import_into_fresh_book(runner, tmp_path, 'tax_included_bill.txt')
     out = tmp_path / 'bill.html'
     r = runner.invoke(cli, ['print-bill', str(gnc), 'BILL-TAXINCL-1120',
                             '--format', 'html', '-o', str(out)])
     assert r.exit_code == 0, f'print-bill: {r.output}'
-    html = out.read_text()
+    html = readable(out.read_text())
 
-    assert '>GST<' in html and '>PST<' in html
-    assert '$50.00' in html, f'GST tax line $50.00 missing:\n{html}'
-    assert '$70.00' in html, f'PST tax line $70.00 missing:\n{html}'
-    assert ('CAD\xa01,000.00' in html or 'CAD&#160;1,000.00' in html
-            or 'CAD 1,000.00' in html), f'net subtotal missing:\n{html[-2500:]}'
-    assert ('CAD\xa01,120.00' in html or 'CAD&#160;1,120.00' in html
-            or 'CAD 1,120.00' in html), f'grand total missing:\n{html[-2500:]}'
-    assert 'provisional' in html.lower()
+    assert '>C$1,000.00<' in html, f'net subtotal missing:\n{html[-2500:]}'
+    assert '>GST</td>' in html and '>C$50.00<' in html, (
+        f'GST 5% of the backed-out 1,000.00:\n{html[-2500:]}')
+    assert '>PST</td>' in html and '>C$70.00<' in html, (
+        f'PST 7% of the backed-out 1,000.00:\n{html[-2500:]}')
+    assert '>C$1,120.00<' in html, f'gross total missing:\n{html[-2500:]}'
 
 
 # ── Posted round-trip: invoice ─────────────────────────────────────

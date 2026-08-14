@@ -11,7 +11,6 @@ importer recomputes these on re-import and errors on mismatch.
 """
 
 import fnmatch
-import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -19,16 +18,16 @@ from pathlib import Path
 import click
 from gnucash import Query
 
+from cli._warnings import said_once
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from services.document_pages import combine_pages, load_weasyprint
 from services.invoice_renderer import (
     read_book_company_info,
     render_to_html,
     render_to_plaintext,
 )
 from use_cases.export_transactions import UnwritableFigureError
-
-_XSLT_PATH = Path(__file__).parent.parent / "services" / "invoice.xslt"
 
 
 def _all_invoices(book):
@@ -86,8 +85,15 @@ def _filter_invoices(invoices, selectors, from_date, to_date, customer):
     return out
 
 
-def _write_combined(invoices, book, fmt, xslt_path, company_info, output):
-    """Write all rendered invoices into a single file (or stdout)."""
+def _write_combined(invoices, book, fmt, company_info, output, session=None,
+                    report=None, report_file=None):
+    """Write all rendered invoices into a single file (or stdout).
+
+    `session` is the open session for `book`: GnuCash's own report resolves a
+    document from its guid against the *current* book, so the renderer has to
+    be told which session that is. `report` and `report_file` choose which
+    GnuCash report draws the page.
+    """
     if output == '-':
         if fmt != 'plaintext':
             raise click.UsageError(
@@ -98,7 +104,11 @@ def _write_combined(invoices, book, fmt, xslt_path, company_info, output):
             render_to_plaintext(inv, book, company_info=company_info)
             for inv in invoices
         ]
-        sys.stdout.write('\n'.join(parts))
+        # Through the byte stream, encoded here: `sys.stdout` takes its
+        # encoding from the locale like every other text handle, so
+        # `-o -` and `-o file.txt` would write the same document differently —
+        # and `-o -` is the form the README pipes back into `import`.
+        sys.stdout.buffer.write('\n'.join(parts).encode('utf-8'))
         return
 
     output_path = Path(output)
@@ -107,36 +117,21 @@ def _write_combined(invoices, book, fmt, xslt_path, company_info, output):
             render_to_plaintext(inv, book, company_info=company_info)
             for inv in invoices
         ]
-        output_path.write_text('\n'.join(parts))
+        # UTF-8 stated, not taken from the locale: a customer's name is not
+        # ASCII in general, and `write_text` without it either raises after
+        # having already truncated the destination to nothing, or writes
+        # Latin-1 bytes into a file whose own `<meta charset>` says UTF-8.
+        output_path.write_text('\n'.join(parts), encoding='utf-8')
         return
 
+    warn = said_once()          # one sink for the run, not one per document
+    combined = combine_pages(
+        render_to_html(inv, session, report=report, report_file=report_file,
+                       warn=warn)
+        for inv in invoices
+    )
     if fmt == 'html':
-        fragments = [
-            render_to_html(inv, book, xslt_path, company_info=company_info)
-            for inv in invoices
-        ]
-        # Wrap each in <section> with a page-break so users who print the
-        # combined HTML get the same separation a multi-page PDF would
-        # show. Strip the surrounding <html><body> from each fragment so
-        # the combined doc has just one outer shell.
-        shell_parts = []
-        for frag in fragments:
-            inner = frag
-            for tag in ('</body>', '</html>'):
-                inner = inner.replace(tag, '')
-            # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
-            # per-fragment; literal `<html>` and absent DOCTYPE stripping
-            # leaves nested DOCTYPEs and nested `<html>` in the combined
-            # output (invalid both as HTML and XML). Strip all three so
-            # the combined doc has exactly one outer shell.
-            inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
-            inner = re.sub(r'<html\b[^>]*>', '', inner)
-            inner = re.sub(r'<body\b[^>]*>', '', inner)
-            shell_parts.append(
-                f'<section style="page-break-after: always;">{inner}</section>'
-            )
-        combined = '<html><body>' + ''.join(shell_parts) + '</body></html>'
-        output_path.write_text(combined)
+        output_path.write_text(combined, encoding='utf-8')
         return
 
     # pdf, unconditionally: `--format` is a `click.Choice` of exactly three,
@@ -144,36 +139,13 @@ def _write_combined(invoices, book, fmt, xslt_path, company_info, output):
     # case nothing can take — and a fourth format added to the Choice would
     # silently fall through it, which is the failure a trailing `raise` was
     # meant to catch and could never reach.
-    import weasyprint
-    fragments = [
-        render_to_html(inv, book, xslt_path, company_info=company_info)
-        for inv in invoices
-    ]
-    # Concatenate HTML fragments with explicit page break so each
-    # invoice starts on a fresh page in the combined PDF.
-    shell_parts = []
-    for frag in fragments:
-        inner = frag
-        for tag in ('</body>', '</html>'):
-            inner = inner.replace(tag, '')
-        # The XSLT emits `<!DOCTYPE html PUBLIC …>` + `<html lang="en">`
-        # per-fragment; literal `<html>` and absent DOCTYPE stripping
-        # leaves nested DOCTYPEs and nested `<html>` in the combined
-        # output (invalid both as HTML and XML). Strip all three so
-        # the combined doc has exactly one outer shell.
-        inner = re.sub(r'<!DOCTYPE[^>]*>', '', inner)
-        inner = re.sub(r'<html\b[^>]*>', '', inner)
-        inner = re.sub(r'<body\b[^>]*>', '', inner)
-        shell_parts.append(
-            f'<section style="page-break-after: always;">{inner}</section>'
-        )
-    combined_html = (
-        '<html><body>' + ''.join(shell_parts) + '</body></html>'
-    )
-    weasyprint.HTML(string=combined_html).write_pdf(str(output_path))
+    weasyprint = load_weasyprint()
+
+    weasyprint.HTML(string=combined).write_pdf(str(output_path))
 
 
-def _write_per_invoice(invoices, book, fmt, xslt_path, company_info, outdir):
+def _write_per_invoice(invoices, book, fmt, company_info, outdir, session=None,
+                       report=None, report_file=None):
     """Write one file per invoice into the directory `outdir`.
 
     Every invoice is rendered before any file is written, and the directory is
@@ -186,11 +158,13 @@ def _write_per_invoice(invoices, book, fmt, xslt_path, company_info, outdir):
     already did.
     """
     ext = {'plaintext': 'txt', 'html': 'html', 'pdf': 'pdf'}[fmt]
+    warn = said_once()          # one sink for the run, not one per document
     rendered = [
         (f'{inv.GetID()}.{ext}',
          render_to_plaintext(inv, book, company_info=company_info)
          if fmt == 'plaintext'
-         else render_to_html(inv, book, xslt_path, company_info=company_info))
+         else render_to_html(inv, session, report=report,
+                             report_file=report_file, warn=warn))
         for inv in invoices
     ]
     # A PDF is laid out before any of them is written too, not only the HTML
@@ -199,7 +173,7 @@ def _write_per_invoice(invoices, book, fmt, xslt_path, company_info, outdir):
     # the directory partial in exactly the way rendering first was meant to
     # stop, from the other half of the same loop.
     if fmt == 'pdf':
-        import weasyprint
+        weasyprint = load_weasyprint()
         rendered = [(name, weasyprint.HTML(string=html).write_pdf())
                     for name, html in rendered]
 
@@ -210,7 +184,7 @@ def _write_per_invoice(invoices, book, fmt, xslt_path, company_info, outdir):
         if fmt == 'pdf':                # the third of three, see above
             target.write_bytes(body)
         else:
-            target.write_text(body)
+            target.write_text(body, encoding='utf-8')   # see _write_combined
 
 
 @click.command()
@@ -231,14 +205,23 @@ def _write_per_invoice(invoices, book, fmt, xslt_path, company_info, outdir):
 @click.option("-o", "--output", required=True,
               help="Output file path, directory (trailing /), or '-' for "
                    "stdout (plaintext only).")
-@click.option("--template", "template_path", default=None,
+@click.option("--report", default=None,
+              help="Which GnuCash report draws the page — its English name "
+                   "(e.g. 'Fancy Invoice') or its template guid. Names are "
+                   "matched as the report registers them, which is English "
+                   "on every build; a localized GnuCash shows you the "
+                   "translated name, so use the guid there. Defaults to "
+                   "'Printable Invoice', the one GnuCash's own File → Print "
+                   "Invoice uses.")
+@click.option("--report-file", "report_file", default=None,
               type=click.Path(exists=True, dir_okay=False),
-              help=("Path to a custom XSLT template (Q-011). The XML schema "
-                    "the template receives is documented at the top of "
-                    "services/invoice.xslt. Defaults to the embedded "
-                    "template."))
+              help="A Scheme (.scm) file to load before the report is looked "
+                   "up, so a report of your own — `gnc:define-report` — can "
+                   "be named with --report. This is GnuCash's own extension "
+                   "point: your report is written the way its own are.")
 def print_invoice(gnucash_file, invoice_selectors, invoice_id,
-                  from_date, to_date, customer, fmt, output, template_path):
+                  from_date, to_date, customer, fmt, output, report,
+                  report_file):
     """Prints one or more GnuCash invoices.
 
     Examples:
@@ -256,7 +239,34 @@ def print_invoice(gnucash_file, invoice_selectors, invoice_id,
         # plaintext stream of a customer's invoices, stdout
         print-invoice book.gnucash --customer C-001 --format plaintext -o -
     """
-    company_info = read_book_company_info(gnucash_file)
+    # Refused rather than ignored. `--format plaintext` is this project's own
+    # render of the canonical syntax and no GnuCash report is involved in it,
+    # so a run naming a report would quietly produce a document the reader did
+    # not ask for — and `-o -` is plaintext by definition, which is where it
+    # would be least visible.
+    if fmt == 'plaintext' and (report or report_file):
+        raise click.UsageError(
+            '--report and --report-file choose which GnuCash report draws the '
+            'page, and --format plaintext draws no page: it writes the '
+            'canonical plaintext syntax. Use --format pdf or --format html.')
+
+    # And a `.scm` nothing then names is the same silence: loading a file
+    # registers a report, it does not choose one, so this would have printed
+    # the stock page, exited 0 and said `✓ Wrote 1 invoice(s)` — with the
+    # reader's own report loaded and unused, and nothing saying so. The two
+    # flags are one instruction in two halves.
+    if report_file and not report:
+        raise click.UsageError(
+            '--report-file loads a report so --report can name it, and on its '
+            'own it would load yours and still draw GnuCash\'s. Add --report '
+            '"<the name your .scm passes to gnc:define-report>" (or its '
+            'guid).')
+
+    # Only the plaintext render writes a seller header from it, and reading it
+    # decompresses and parses the whole book file — a cost the default format
+    # has no use for, because GnuCash's report reads the book's options itself.
+    company_info = (read_book_company_info(gnucash_file)
+                    if fmt == 'plaintext' else None)
 
     selectors = list(invoice_selectors)
     if invoice_id:
@@ -297,15 +307,17 @@ def print_invoice(gnucash_file, invoice_selectors, invoice_id,
                 + ')'
             )
 
-        xslt = template_path if template_path else str(_XSLT_PATH)
         if output.endswith('/'):
-            _write_per_invoice(selected, book, fmt, xslt, company_info,
-                               output)
+            _write_per_invoice(selected, book, fmt, company_info, output,
+                               session=repo.session, report=report,
+                               report_file=report_file)
             click.echo(
                 f'✓ Wrote {len(selected)} invoice(s) to {output}'
             )
         else:
-            _write_combined(selected, book, fmt, xslt, company_info, output)
+            _write_combined(selected, book, fmt, company_info, output,
+                            session=repo.session, report=report,
+                            report_file=report_file)
             if output != '-':
                 click.echo(
                     f'✓ Wrote {len(selected)} invoice(s) to {output}'

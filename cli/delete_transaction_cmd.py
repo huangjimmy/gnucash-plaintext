@@ -111,7 +111,10 @@ def delete_transactions(gnucash_file, guids, by_guid, output_file):
                     f.write(combined)
                 click.echo(f"Backup written to {output_file}", err=True)
             else:
-                sys.stdout.write(combined)
+                # Encoded here rather than by the locale, so the undo copy is
+                # the same bytes down a pipe as it is in the file above. This
+                # one is the only copy of a transaction being destroyed.
+                sys.stdout.buffer.write(combined.encode('utf-8'))
 
         # Save once after all deletes — keeps the backup file atomic
         # with respect to the on-disk book state.
