@@ -6,6 +6,12 @@ severity: low
 status: closed
 ---
 
+> **The printed page has since changed ([Q-036](Q-036-printed-documents-are-not-gnucashs-page.md)).**
+> `cash_basis:` and `due_date:` round-trip exactly as described, and neither reaches the printed
+> page: GnuCash's own Printable Invoice takes a document's dates from its posting, so an unposted
+> one carries none and is marked "Invoice in progress…" whether the flag is there or not. The
+> UNPAID-versus-DRAFT badge and the conditional "Due:" row below were this project's page.
+
 ## Pain point
 
 Cash-basis tax filers (Canadian small businesses below the CRA cash-basis threshold, US Schedule C filers, single-entity service consultancies) recognize revenue when cash is received, not when an invoice is posted. They still issue normal invoices — billing the customer is a separate concern from tax classification — but at tax time they need to know which invoices' revenue should be reported by payment date rather than invoice date.

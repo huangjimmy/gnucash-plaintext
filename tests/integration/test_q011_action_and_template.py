@@ -1,15 +1,15 @@
 """
-Q-011: action field is optional; UNIT column hides when empty for all
-entries; print-invoice accepts a custom XSLT via --template.
+Q-011: an entry's `action` field is optional, and what a document prints
+for it is whatever the entry says.
 
-Three concerns covered here:
+Two concerns covered here:
 
-  1. Importer accepts an `entry:` directive with no `action:` line and
+  1. The importer accepts an `entry:` directive with no `action:` line and
      stores it as empty (Choice B in Q-011 docs).
-  2. The default XSLT (`services/invoice.xslt`) hides the UNIT column
-     when no entry has a non-empty action, and shows it when at least
-     one does.
-  3. `print-invoice --template <path>` overrides the embedded XSLT.
+  2. GnuCash's page carries an Action column, and an entry with an action
+     fills its cell while one without leaves it empty. The column itself is
+     the report's — it is drawn whether or not anything fills it, which is
+     GnuCash's choice and not one this project makes.
 """
 
 from pathlib import Path
@@ -19,10 +19,6 @@ from click.testing import CliRunner
 
 from cli.main import cli
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULT_XSLT = _REPO_ROOT / "services" / "invoice.xslt"
-
 
 _ACCOUNTS = """
 2026-01-01 open Assets
@@ -63,8 +59,8 @@ def _export(runner, gnc, out):
                                "--include-business-objects"])
 
 
-def _render_invoice_html(gnc_path: str, invoice_id: str, xslt_path: str) -> str:
-    """Run the XSLT on the named invoice and return the HTML string."""
+def _render_invoice_html(gnc_path: str, invoice_id: str) -> str:
+    """The page GnuCash draws for the named invoice."""
     from gnucash import Query, Session
     from gnucash.gnucash_business import Invoice
 
@@ -82,7 +78,7 @@ def _render_invoice_html(gnc_path: str, invoice_id: str, xslt_path: str) -> str:
         )
         q.destroy()
         assert inv is not None, f"Invoice {invoice_id!r} not found"
-        return render_to_html(inv, book, xslt_path)
+        return render_to_html(inv, ses)
     finally:
         ses.end()
 
@@ -182,22 +178,20 @@ invoice "INV-001"
         )
 
 
-# ── 2. XSLT: UNIT column visibility ─────────────────────────────────────────
+# ── 2. The page: what the Action column carries ─────────────────────────────
 
 
-class TestUnitColumnHiddenWhenAllEmpty:
+class TestTheActionColumn:
     """If every entry has an empty action, the rendered HTML must omit
-    the UNIT column entirely — both <th>Unit</th> and the per-row cells."""
+    the cell for an entry that has no action."""
 
     def _setup(self, tmp_path, action_per_entry: list) -> str:
         """Set up a book with one POSTED invoice whose entries have the
         listed actions. action_per_entry[i] is either None (omit `action:`
         line) or a string (use `action: "<s>"`).
 
-        The invoice must be posted because invoice_to_xml() walks the
-        posted lot for payments — unposted invoices crash the renderer
-        with NoneType errors. Posted is the realistic scenario anyway:
-        you only print invoices you've sent.
+        Posted, which is the realistic scenario: you only print invoices
+        you have sent.
         """
         runner = CliRunner()
         gnc = tmp_path / "book.gnucash"
@@ -237,134 +231,17 @@ invoice "INV-001"
         assert r.exit_code == 0, r.output
         return str(gnc)
 
-    def test_all_empty_actions_hides_unit_column(self, tmp_path):
+    def test_no_entry_has_an_action_and_none_is_printed(self, tmp_path):
         gnc = self._setup(tmp_path, [None, None, ''])
-        html = _render_invoice_html(gnc, "INV-001", str(_DEFAULT_XSLT))
-        # The UNIT column header and cells must be absent.
-        assert '<th style="text-align:center">Unit</th>' not in html, (
-            f"UNIT column header must be hidden when all actions empty:\n{html}"
-        )
+        html = _render_invoice_html(gnc, "INV-001")
 
-    def test_at_least_one_non_empty_shows_unit_column(self, tmp_path):
+        assert '<th>Action</th>' in html, html
+        # Three entries, three empty Action cells and nothing invented for
+        # them. `<td></td>` is what the report writes for one.
+        assert html.count('<td></td>') >= 3, html
+
+    def test_the_action_an_entry_states_is_printed(self, tmp_path):
         gnc = self._setup(tmp_path, ['Hours', None, ''])
-        html = _render_invoice_html(gnc, "INV-001", str(_DEFAULT_XSLT))
-        assert '<th style="text-align:center">Unit</th>' in html, (
-            f"UNIT column must show when at least one entry has action:\n{html}"
-        )
-        # The "Hours" cell must be in the row, blank cells for the others.
-        assert '>Hours<' in html
+        html = _render_invoice_html(gnc, "INV-001")
 
-
-# ── 3. CLI: --template flag ─────────────────────────────────────────────────
-
-
-class TestPrintInvoiceCustomTemplate:
-    """`print-invoice --template <path>` uses the supplied XSLT instead
-    of the embedded one. Verified by passing a stub XSLT that emits a
-    sentinel string in the output PDF."""
-
-    @pytest.fixture
-    def gnc_with_invoice(self, tmp_path):
-        runner = CliRunner()
-        gnc = tmp_path / "book.gnucash"
-        fixture = _ACCOUNTS + """
-customer "C001"
-\tname: "Acme"
-\tcurrency: CAD
-
-invoice "INV-001"
-\tcustomer_id: "C001"
-\tcurrency: CAD
-\tdate_opened: 2026-01-01
-\tentry:
-\t\tdate: 2026-01-01
-\t\tdescription: "Service"
-\t\taction: "Hours"
-\t\taccount: "Income:Sales"
-\t\tquantity: 5
-\t\tprice: 100
-\t\ttaxable: false
-\t\ttax_included: false
-\tposted:
-\t\tdate: 2026-01-01
-\t\tdue: 2026-01-31
-\t\tar_account: "Assets:Accounts Receivable"
-\t\tmemo: "Invoice INV-001"
-\t\taccumulate: true
-\tpayment: none
-"""
-        r = _import_new(runner, gnc, _write(tmp_path / "in.txt", fixture))
-        assert r.exit_code == 0, r.output
-        return str(gnc)
-
-    _STUB_XSLT = """<?xml version="1.0"?>
-<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-<xsl:output method="html" encoding="UTF-8"/>
-<xsl:template match="/invoice">
-<html><body><p>Q011-CUSTOM-TEMPLATE-SENTINEL</p>
-<p>id: <xsl:value-of select="id"/></p></body></html>
-</xsl:template>
-</xsl:stylesheet>"""
-
-    def test_custom_template_threads_through_to_html(self, gnc_with_invoice, tmp_path):
-        """Verify the --template path actually feeds the XSLT pipeline:
-        render directly to HTML using the stub XSLT and check for the
-        sentinel. This exercises the same render_to_html call that
-        `print-invoice` uses internally — if this passes, the CLI just
-        wraps it with weasyprint."""
-        stub_xslt = tmp_path / "stub.xslt"
-        stub_xslt.write_text(self._STUB_XSLT)
-        html = _render_invoice_html(gnc_with_invoice, "INV-001", str(stub_xslt))
-        assert 'Q011-CUSTOM-TEMPLATE-SENTINEL' in html, (
-            f"Stub XSLT sentinel missing — XSLT path threading is broken.\n"
-            f"HTML:\n{html}"
-        )
-
-    def test_cli_template_flag_succeeds_with_custom_xslt(self, gnc_with_invoice, tmp_path):
-        """End-to-end CLI test: --template <stub.xslt> produces a PDF.
-        We can't easily extract text from the PDF in the test env, so
-        the sentinel check lives in test_custom_template_threads_through_to_html;
-        here we only verify the CLI argument plumbing."""
-        stub_xslt = tmp_path / "stub.xslt"
-        stub_xslt.write_text(self._STUB_XSLT)
-        pdf = tmp_path / "custom.pdf"
-
-        runner = CliRunner()
-        r = runner.invoke(cli, [
-            "print-invoice", gnc_with_invoice,
-            "--invoice-id", "INV-001",
-            "-o", str(pdf),
-            "--template", str(stub_xslt),
-        ])
-        assert r.exit_code == 0, r.output
-        assert pdf.exists() and pdf.stat().st_size > 0
-
-    def test_default_template_used_when_flag_omitted(self, gnc_with_invoice, tmp_path):
-        """No --template → embedded invoice.xslt. Verify by rendering
-        through the same render_to_html with the embedded path and
-        checking that:
-          - the default template's signature ('Tax Applied' header) is present,
-          - and the stub template's sentinel is absent (proves no stub leak
-            from a previous test run / global state).
-        """
-        html = _render_invoice_html(gnc_with_invoice, "INV-001", str(_DEFAULT_XSLT))
-        assert 'Tax Applied' in html, (
-            f"Default template was not applied — 'Tax Applied' header "
-            f"missing.\nHTML:\n{html}"
-        )
-        assert 'Q011-CUSTOM-TEMPLATE-SENTINEL' not in html, (
-            f"Default-template render must NOT contain the custom-template "
-            f"stub sentinel; if this fires, the XSLT path was not properly "
-            f"isolated.\nHTML:\n{html}"
-        )
-
-    def test_nonexistent_template_path_errors(self, gnc_with_invoice, tmp_path):
-        pdf = tmp_path / "x.pdf"
-        runner = CliRunner()
-        r = runner.invoke(cli, [
-            "print-invoice", gnc_with_invoice,
-            "--invoice-id", "INV-001",
-            "-o", str(pdf),
-            "--template", str(tmp_path / "does-not-exist.xslt"),
-        ])
-        assert r.exit_code != 0
+        assert '<td>Hours</td>' in html, html

@@ -151,7 +151,7 @@ See [docs/statement-import-pipeline.md](docs/statement-import-pipeline.md) and [
 
 ### print-invoice: plaintext output and multi-invoice selection
 
-`print-invoice` gained a plaintext renderer with audit-friendly tax totals (subtotal, per-tax-table breakdown, total) suitable for `git diff` review of quarterly invoices, and a `--template` flag for custom XSLT/Jinja templates. Multi-invoice selection by date range, customer, or glob produces either a combined PDF or one file per invoice. The `UNIT` column is hidden by default and the `action:` field is now optional. ([Q-011](docs/issues/Q-011-invoice-action-optional-and-custom-template.md), [Q-017](docs/issues/Q-017-print-invoice-plaintext-format-and-multi-invoice.md))
+`print-invoice` gained a plaintext renderer with audit-friendly tax totals (subtotal, per-tax-table breakdown, total) suitable for `git diff` review of quarterly invoices. Multi-invoice selection by date range, customer, or glob produces either a combined PDF or one file per invoice. The `action:` field is now optional. ([Q-011](docs/issues/Q-011-invoice-action-optional-and-custom-template.md), [Q-017](docs/issues/Q-017-print-invoice-plaintext-format-and-multi-invoice.md))
 
 ```bash
 # Plaintext, all Q1 2026 invoices for one customer
@@ -165,11 +165,69 @@ gnucash-plaintext print-invoice mybook.gnucash \
   --format pdf -o q1-acme/
 ```
 
-Also: `print-invoice` no longer crashes on unposted invoices — they render as a draft watermark. ([Q-012](docs/issues/Q-012-print-invoice-on-unposted-invoice-crashes.md))
+Also: `print-invoice` no longer crashes on unposted invoices. ([Q-012](docs/issues/Q-012-print-invoice-on-unposted-invoice-crashes.md))
+
+### A printed invoice or bill is the page GnuCash prints
+
+`print-invoice` and `print-bill` render through GnuCash's own **Printable Invoice** — the report its File → Print Invoice uses — so a document carries GnuCash's heading, columns, totals and wording rather than a layout of this project's. Every supported version draws it, GnuCash 3.8 included: a Guile interpreter runs inside this process and is handed the book already open. ([Q-036](docs/issues/Q-036-printed-documents-are-not-gnucashs-page.md))
+
+**Fixed: a foreign-currency document printed the wrong amount.** Take a USD 100.00 invoice posted to a CAD income account, in a book where the rate that day was 1.40.
+
+- **Before:** the printed invoice said `USD 140.00`. That is the CAD figure — what the book valued the receivable at — with `USD` in front of it. The customer was asked for the wrong amount.
+- **Now:** the printed invoice says `USD 100.00`, which is what the invoice is for.
+
+The line items were always right; it was the subtotal, tax and amount due that were wrong, so the page disagreed with itself.
+
+**Changed: `--template` is replaced by `--report` and `--report-file`.** The old flag took an XSLT stylesheet for this project's own renderer, which was a second implementation of the same document and carried the same currency defect as the first. Both it and that renderer are gone; scripts passing `--template` will need updating.
+
+Customising the page is now choosing or writing a GnuCash report, which is what the page is:
+
+```bash
+# one of the five reports GnuCash ships: Printable Invoice (the default),
+# Fancy Invoice, Easy Invoice, Tax Invoice, Australian Tax Invoice
+print-invoice book.gnucash INV-001 -o inv.pdf --report "Fancy Invoice"
+
+# or one you wrote, in the language GnuCash's own are written in
+print-invoice book.gnucash INV-001 -o inv.pdf \
+    --report-file my-invoice.scm --report "My Invoice"
+```
+
+`--report-file` loads a `.scm` before the report is looked up, so a file calling `gnc:define-report` is registered by the time `--report` names it — GnuCash's own extension point, and the same report works from GnuCash's GUI. `tests/fixtures/a_report_of_your_own.scm` is a minimal one to start from; the README section "Changing the page means changing the report that draws it" has the details.
+
+**What the printed document itself gained, against the last release:**
+
+- free text of your own — the book's `extra_text1:`, `extra_text2:` … lines under your company, and the customer's or vendor's own under theirs. One key is one printed line, printed exactly as written. No other custom key reaches the page;
+- GnuCash's "Invoice in progress…" on an unposted document, in place of this project's DRAFT badge and "figures are provisional" caption.
+
+**What it lost:**
+
+- the per-line **Tax Applied** column, which named each line's tax table (`GST 5% + PST 7%`, or `Exempt`). GnuCash's page marks a line `T` in a `Taxable` column instead, and names each tax with its own amount in the totals below;
+- an unposted document's `due_date:` — GnuCash takes a document's dates from its posting, so an unposted one shows none. The key still round-trips through the format, and a report of your own can print it.
+
+**What it kept** — worth saying, because these are what a filer checks for: the GST and each PST registration number, the seller's `contact:`, the document's `notes:`, and the tax named per account with its own amount. The old page carried all four and so does this one; two of them are GnuCash rows this tool switches on, because it ships them off.
+
+Everything else on the page is GnuCash's own wording, columns and totals rather than this project's.
+
+### Text files are read and written as UTF-8, whatever the machine's locale says
+
+Every file this tool reads or writes as text — ledgers, beancount files, printed documents, exported accounts, reports, the FX-rates YAML — now states UTF-8 explicitly. It used to take whatever `locale.getpreferredencoding()` answered, which is UTF-8 on a desktop and often ASCII in a container, a cron job or CI with no `LANG` set.
+
+Nothing changes for you if your locale is a UTF-8 one, which is the usual case. If it is not, and your book names anybody outside plain ASCII, then **before** this release:
+
+- `export` truncated the destination file to empty and *then* raised `UnicodeEncodeError`, leaving a 0-byte ledger where a good one had been;
+- `import` refused a ledger naming a customer `Éditions Cliché` with `'ascii' codec can't decode byte 0xc3`;
+- `validate` — with no `--report`, which is the usual form — failed outright on a *valid* book, because the warning it was printing named an account like `Income:Dépenses accessoires`;
+- `print-invoice` and `print-bill` failed the same way as `export` for `--format html` and `--format plaintext`: the destination truncated, then the write raised. Under a Latin-1 locale they wrote Latin-1 bytes instead, into a page whose own `<meta charset>` says UTF-8 — mojibake in the browser, with nothing reporting a problem. And where the page got as far as being drawn, GnuCash had already replaced each character its locale could not hold with `?`, silently and with a zero exit.
+
+**Now** all of them work, and `export` → `import` round-trips such a book unchanged.
+
+Two spellings of the same destination also disagreed: on `export-transaction` and `delete-transactions`, `-o file.txt` wrote UTF-8 while `-o -` wrote whatever the locale gave. Both write UTF-8 now, on those two and on the print commands, which matters because `-o -` is the form piped back into `import`.
 
 ### Cash-basis invoice KVP
 
 Invoices can be tagged `cash_basis: true` to identify revenue that should be reported on the payment date rather than the invoice date — for cash-basis tax filers (Canadian small business below the CRA threshold, US Schedule C, single-entity service consultancies). The flag is descriptive metadata stored as a KVP slot; it round-trips and does not change accounting behaviour. ([Q-018](docs/issues/Q-018-cash-basis-invoice-kvp.md))
+
+Its companion `due_date:` — for an unposted cash-basis invoice, which has no posting to take a due date from — still round-trips, and no longer appears on the printed page: GnuCash's report takes a document's dates from its posting and draws an unposted one as "Invoice in progress…". Putting it back is a change to that report rather than a flag here, since this tool passes no layout of its own; see "Changing the page means changing the report that draws it" in the README.
 
 ### Business-object round-trip correctness
 
@@ -314,8 +372,7 @@ Any posted invoice can be rendered to a PDF directly from the CLI:
 gnucash-plaintext print-invoice mybook.gnucash --invoice-id INV-2026-001 -o invoice.pdf
 ```
 
-The output is produced from `services/invoice.xslt`, which you can customise
-to match your company's branding.
+The output was produced from `services/invoice.xslt`, which you could customise to match your company's branding. **Superseded:** a printed document is now GnuCash's own Printable Invoice, that stylesheet and the `--template` flag are gone, and what a page shows is what GnuCash shows — see "A printed invoice or bill is the page GnuCash prints" above.
 
 ### Platform support expanded
 

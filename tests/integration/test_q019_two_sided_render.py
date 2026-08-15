@@ -1,18 +1,21 @@
 """Q-019: invoice / bill rendering shows BOTH sides.
 
-Invoice: customer (Bill To) on one side, our company (From) on the
-other. Bill: vendor (Bill From) on one side, our company (Bill To) on
-the other. Drives the full CLI pipeline — populates real Business →
-Company book options via the GnuCash KvpFrame API, then runs
-`print-invoice` / `print-bill`, which calls `read_book_company_info`
-itself. No `company_info=` injection (that would skip the wiring
-between the reader and the renderer, where bugs hide).
+Both documents are drawn by GnuCash's own Printable Invoice report, which puts
+the document's owner on one side and the seller — us, from the book's Business
+→ Company options — on the other. A bill is a vendor's invoice, so the owner
+there is the vendor; one report draws both and neither side is invented here.
+
+Drives the full CLI pipeline — populates real Business → Company book options
+via the GnuCash KvpFrame API, then runs `print-invoice` / `print-bill`, which
+calls `read_book_company_info` itself. No `company_info=` injection (that would
+skip the wiring between the reader and the renderer, where bugs hide).
 """
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.integration.rendered_page import is_in_progress, readable
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q019_accounts.txt')
@@ -89,9 +92,8 @@ def _book_with_company(runner, tmp_path, fixture_name):
 # ── Invoice two-sided rendering ────────────────────────────────────
 
 def test_invoice_html_renders_both_customer_and_company(tmp_path):
-    """`print-invoice --format html` produces an HTML doc that contains
-    BOTH the customer ('Bill To') block AND our company ('From') block,
-    with all relevant fields populated from book options."""
+    """`print-invoice --format html` shows the customer on one side and us on
+    the other, with every populated book option on the page."""
     runner = CliRunner()
     gnc = _book_with_company(
         runner, tmp_path, 'q019_unposted_cash_with_tax.txt',
@@ -103,26 +105,23 @@ def test_invoice_html_renders_both_customer_and_company(tmp_path):
     ])
     assert r.exit_code == 0, f'print-invoice: {r.output}'
 
-    html = out_html.read_text()
+    html = readable(out_html.read_text())
 
-    # Customer side (Bill To)
-    assert '>Bill To<' in html, f'missing "Bill To" header; HTML:\n{html}'
-    assert 'Beta Industries' in html, (
-        f'customer name must appear in Bill To block; HTML:\n{html}'
+    # Customer side: the document's owner, in the report's client block.
+    assert 'client-name">Beta Industries<' in html, (
+        f'customer name must head the client block; HTML:\n{html}'
     )
 
-    # Company side (From)
-    assert '>From<' in html, f'missing "From" header; HTML:\n{html}'
-    assert COMPANY['Company Name'] in html, (
-        f'company name must appear in From block; HTML:\n{html}'
+    # Seller side: the company block, from the book's options.
+    assert f'company-name">{COMPANY["Company Name"]}<' in html, (
+        f'company name must head the company block; HTML:\n{html}'
     )
     assert COMPANY['Company ID'] in html, (
-        f'Company ID (tax registration) value must appear in From '
-        f'block; HTML:\n{html}'
+        f'Company ID (tax registration) value must appear; HTML:\n{html}'
     )
     # Address line 1 of the multi-line company address.
     assert '100 Main St' in html, (
-        f'company address must appear in From block; HTML:\n{html}'
+        f'company address must appear; HTML:\n{html}'
     )
     assert COMPANY['Company Phone Number'] in html
     assert COMPANY['Company Email Address'] in html
@@ -163,12 +162,14 @@ _BILL_FIXTURE = 'q019_unposted_cash_bill.txt'
 
 
 def test_bill_html_renders_both_vendor_and_company(tmp_path):
-    """`print-bill --format html` produces a doc that puts the vendor
-    on the 'Bill From' side and our company on the 'Bill To' side
-    (the inverse of an invoice). Tax lines (GST + PST, 4×50 = 200,
-    tax = 5+7 = 12% → 24.00) and provisional notice are also asserted
-    so this test simultaneously covers Q-019's draft-tax behaviour
-    on bills."""
+    """`print-bill --format html` shows the vendor in the client block — a
+    bill is the vendor's invoice, and GnuCash draws it from the same report —
+    with us in the company block.
+
+    The figures are checked too (4×50 = 200, GST 5% + PST 7% = 24.00), so this
+    covers Q-019's draft tax on bills: the document is unposted, and GnuCash
+    prices an unposted one from its entries and says it is in progress.
+    """
     runner = CliRunner()
     gnc = _book_with_company(runner, tmp_path, _BILL_FIXTURE)
 
@@ -179,33 +180,27 @@ def test_bill_html_renders_both_vendor_and_company(tmp_path):
     ])
     assert r.exit_code == 0, f'print-bill: {r.output}'
 
-    html = out_html.read_text()
+    html = readable(out_html.read_text())
 
-    # Vendor side (Bill From).
-    assert '>Bill From<' in html, (
-        f'missing "Bill From" header; HTML:\n{html}'
-    )
-    assert 'Office Depot Wholesale' in html, (
-        f'vendor name must appear in Bill From block; HTML:\n{html}'
+    # Vendor side: the document's owner, in the report's client block.
+    assert 'client-name">Office Depot Wholesale<' in html, (
+        f'vendor name must head the client block; HTML:\n{html}'
     )
 
-    # Company side (Bill To — us).
-    assert '>Bill To<' in html, (
-        f'missing "Bill To" header; HTML:\n{html}'
-    )
-    assert COMPANY['Company Name'] in html
+    # Seller side (us).
+    assert f'company-name">{COMPANY["Company Name"]}<' in html
     assert COMPANY['Company ID'] in html
     assert '100 Main St' in html
 
-    # Tax breakdown (drives Q-019 draft tax for bills).
-    assert '>GST<' in html
-    assert '>PST<' in html
-    assert '$10.00' in html, 'GST 5% on $200 = $10.00'
-    assert '$14.00' in html, 'PST 7% on $200 = $14.00'
-    assert 'CAD\xa0224.00' in html or 'CAD&#160;224.00' in html or 'CAD 224.00' in html, (
-        f'grand total CAD 224.00 must appear; HTML:\n{html[-2000:]}'
-    )
-    assert 'provisional' in html.lower()
+    # What GnuCash prices the entries at, with each tax named.
+    assert '>C$200.00<' in html, f'4 × C$50.00; HTML:\n{html}'
+    assert '>GST</td>' in html and '>C$10.00<' in html, (
+        f'5% of C$200.00, under its own name; HTML:\n{html}')
+    assert '>PST</td>' in html and '>C$14.00<' in html, (
+        f'7% of C$200.00, under its own name; HTML:\n{html}')
+    assert '>C$224.00<' in html, f'grand total; HTML:\n{html[-2000:]}'
+    assert is_in_progress(html), (
+        f'an unposted document is drawn as in progress; HTML:\n{html}')
 
 
 def test_bill_plaintext_emits_seller_and_vendor_headers(tmp_path):

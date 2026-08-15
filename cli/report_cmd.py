@@ -104,7 +104,7 @@ def report(gnucash_file, statements, fiscal_year_end, start, end, as_of,
 
     combined = "\n\n".join(parts)
     if output_file:
-        with open(output_file, "w") as f:
+        with open(output_file, "w", encoding="utf-8") as f:   # not the locale's
             f.write(combined)
         click.echo(f"Written to {output_file}")
     else:

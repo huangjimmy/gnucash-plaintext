@@ -1,0 +1,96 @@
+2026-01-01 open Assets
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+  type: Accounts Receivable
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income:Dépenses accessoires
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+  type: Liability
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+  type: Accounts Payable
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fournitures
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+
+company
+  name: "Éditions Cliché Inc."
+  id: "111222333RT0001"
+  extra_text1: "Règlement par virement — merci"
+
+customer "C-UNICODE"
+  name: "东京物産株式会社"
+  addr1: "日本橋 1-2-3"
+  addr2: "東京都"
+  currency: CAD
+  extra_text1: "担当: 山田さん"
+
+invoice "INV-UNICODE-001"
+  customer_id: "C-UNICODE"
+  currency: CAD
+  date_opened: 2026-01-05
+  notes: "Livraison à Montréal — voir l'entente №7"
+  entry:
+    date: 2026-01-05
+    description: "Conseil — étude de marché (½ journée)"
+    action: "Heures"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Facture INV-UNICODE-001"
+    accumulate: true
+
+vendor "V-UNICODE"
+  name: "Fournitures Léger & Frère"
+  addr1: "12 rue de l'Église"
+  currency: CAD
+  extra_text1: "Référence fournisseur: №4501"
+
+bill "BILL-UNICODE-001"
+  vendor_id: "V-UNICODE"
+  currency: CAD
+  date_opened: 2026-01-06
+  notes: "Reçu par courriel — à régler sous 30 jours"
+  entry:
+    date: 2026-01-06
+    description: "Papeterie — cartouches d'encre"
+    action: "Unités"
+    account: "Expenses:Fournitures"
+    quantity: 2
+    price: 40
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-06
+    due: 2026-02-06
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Facture fournisseur BILL-UNICODE-001"
+    accumulate: true

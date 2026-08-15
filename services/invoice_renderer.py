@@ -2,14 +2,13 @@
 """
 Service for rendering GnuCash invoices to PDF.
 """
-import xml.etree.ElementTree as ET
 from fractions import Fraction
 
 import gnucash.gnucash_core_c as gc
 from gnucash import Split
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
-from infrastructure.gnucash.kvp import KNOWN_CUSTOMER_METADATA_KEYS, get_custom_metadata
+from infrastructure.gnucash.kvp import KNOWN_CUSTOMER_METADATA_KEYS
 from infrastructure.gnucash.utils import exact_text, money_text, numeric_to_fraction
 from services.plaintext_blocks import (
     document_text_lines,
@@ -87,264 +86,45 @@ def split_pst_numbers(value) -> list:
     return [p.strip() for p in str(value).split(';') if p.strip()]
 
 
-def build_company_xml(root, company_info):
-    """Build the `<company>` seller block shared by invoice and bill XML.
+def render_to_html(invoice, session, report=None, report_file=None,
+                   warn=None) -> str:
+    """The document as HTML, drawn by GnuCash.
 
-    Emits GnuCash's native Business fields plus the custom GST/PST
-    registration numbers (Q-028). GST is one `<gst>`; PST is one `<pst>`
-    element per number so the stylesheet can render multiple provincial
-    registrations as separate rows."""
-    co = company_info or {}
-    co_el = ET.SubElement(root, 'company')
-    ET.SubElement(co_el, 'name').text = co.get('name', '')
-    ET.SubElement(co_el, 'contact').text = co.get('contact', '')
-    ET.SubElement(co_el, 'id').text = co.get('id', '')
-    ET.SubElement(co_el, 'gst').text = co.get('gst', '')
-    for pst in split_pst_numbers(co.get('pst', '')):
-        ET.SubElement(co_el, 'pst').text = pst
-    ET.SubElement(co_el, 'addr1').text = co.get('addr1', '')
-    ET.SubElement(co_el, 'addr2').text = co.get('addr2', '')
-    ET.SubElement(co_el, 'addr3').text = co.get('addr3', '')
-    ET.SubElement(co_el, 'addr4').text = co.get('addr4', '')
-    ET.SubElement(co_el, 'phone').text = co.get('phone', '')
-    ET.SubElement(co_el, 'fax').text = co.get('fax', '')
-    ET.SubElement(co_el, 'email').text = co.get('email', '')
-    ET.SubElement(co_el, 'url').text = co.get('url', '')
-    return co_el
+    The page is a GnuCash report, through `services/gnucash_report` — by
+    default the Printable Invoice its own File → Print Invoice draws. So what
+    this prints is what GnuCash prints, and there is no second layout here to
+    keep in step with it: the one this project used to carry had its own
+    columns, its own tax rows and its own totals, and its totals were wrong
+    for a document in a currency the book is not kept in.
 
+    `report` picks a different one — by the name GnuCash's GUI lists it under,
+    or by template guid — and `report_file` loads a `.scm` first, so a report
+    written by the reader is registered by the time it is named. Customising
+    the page is writing a GnuCash report, which is what GnuCash's own pages
+    are.
 
-def _read_tax_label(lib, ptr):
-    taxable = bool(lib.gncEntryGetInvTaxable(ptr))
-    if not taxable:
-        return 'Exempt', 'exempt'
+    `session` is the open session holding the document: GnuCash's report
+    resolves the document from its guid against the *current* book and reads
+    the book's own options for the company block, so neither a book handle nor
+    a company block read out of the file has anything left to say here.
 
-    tt_ptr = lib.gncEntryGetInvTaxTable(ptr)
-    if not tt_ptr:
-        return 'Taxable', 'single'
-
-    tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr, default='Taxable')
-
-    # Process tax table entries using iterate_glist
-    glist_ptr = lib.gncTaxTableGetEntries(tt_ptr)
-
-    def process_tax_table_entry(lib, tte_ptr):
-        """Process single tax table entry pointer."""
-        acct_ptr = lib.gncTaxTableEntryGetAccount(tte_ptr)
-        amt_c = lib.gncTaxTableEntryGetAmount(tte_ptr)
-        rate = numeric_to_fraction(amt_c) if amt_c.denom else Fraction(0)
-        name = safe_ctypes_string(lib.xaccAccountGetName, acct_ptr, default='?')
-        rate_str = f'{exact_text(rate)}%'
-        # If rate already appears in account name (e.g., "GST 5%"), use just the name
-        return name if rate_str in name else f"{name} {rate_str}"
-
-    rate_parts = iterate_glist(lib, glist_ptr, process_tax_table_entry)
-    rate_parts.reverse()  # GnuCash prepends entries
-
-    if not rate_parts:
-        return tt_name, 'single'
-
-    label = ' + '.join(rate_parts)
-    ttype = 'combined' if len(rate_parts) > 1 else 'single'
-    return label, ttype
-
-
-def invoice_to_xml(inv, book, company_info=None):
-    lib = load_gnc_engine()
-
-    inv_id = inv.GetID()
-    # Q-012: detect unposted state up front. The renderer's tax/payment
-    # blocks below all assume a posted invoice (posting_txn + posted_lot
-    # both non-None); for unposted we render a "draft" preview instead.
-    posting_txn = inv.GetPostedTxn()
-    is_draft = posting_txn is None
-    is_paid = False if is_draft else gc.gncInvoiceIsPaid(inv.instance)
-
-    # Q-018: a `cash_basis: true` KVP on an UNPOSTED invoice means
-    # "this is a real bill awaiting cash, not a work-in-progress draft."
-    # In a cash-basis workflow, the invoice posts only when cash arrives;
-    # before that, the customer still needs a payable document. Render
-    # as UNPAID (not DRAFT) for the badge, but keep the same draft-only
-    # layout (no tax breakdown / no payment history — those don't exist
-    # until posting). Also accept an optional KVP `due_date` slot
-    # (string YYYY-MM-DD) for the due date — the GnuCash `posted:`
-    # block is absent so there's no posted.due to pull from.
-    inv_kvp = get_custom_metadata(inv) or {}
-    cash_basis_marker = str(inv_kvp.get('cash_basis', '')).strip().lower() == 'true'
-    currency = inv.GetCurrency().get_mnemonic()
-    date_opened = inv.GetDateOpened().strftime("%Y-%m-%d")
-    date_due = inv.GetDateDue()
-    date_due_s = date_due.strftime("%Y-%m-%d") if date_due else ''
-    # Q-018: when posted.due is absent (unposted cash-basis invoice),
-    # fall back to the `due_date` KVP slot if the user provided one.
-    if not date_due_s and is_draft and inv_kvp.get('due_date'):
-        date_due_s = str(inv_kvp['due_date']).strip()
-    notes = inv.GetNotes() or ''
-    billing_id = inv.GetBillingID() or ''
-
-    cust = None
-    try:
-        owner = inv.GetOwner()
-        cust = owner.GetCustomer()
-    except Exception:
-        pass
-    if cust is None:
-        raise ValueError("Could not determine customer for invoice")
-
-    addr = cust.GetAddr()
-    cust_name = cust.GetName()
-    addr1, addr2 = addr.GetAddr1(), addr.GetAddr2()
-    addr3, addr4 = addr.GetAddr3(), addr.GetAddr4()
-    email = addr.GetEmail()
-
-    if is_draft and not cash_basis_marker:
-        status = 'draft'
-    elif is_paid:
-        status = 'paid'
-    else:
-        # Posted-but-unpaid (accrual), or unposted+cash_basis (Q-018):
-        # both render with the same UNPAID badge.
-        status = 'unpaid'
-    root = ET.Element('invoice', status=status, currency=currency)
-    ET.SubElement(root, 'id').text = inv_id
-    ET.SubElement(root, 'date').text = date_opened
-    ET.SubElement(root, 'due-date').text = date_due_s
-    ET.SubElement(root, 'billing-id').text = billing_id
-    ET.SubElement(root, 'notes').text = notes
-
-    c_el = ET.SubElement(root, 'customer')
-    ET.SubElement(c_el, 'name').text = cust_name
-    ET.SubElement(c_el, 'addr1').text = addr1 or ''
-    ET.SubElement(c_el, 'addr2').text = addr2 or ''
-    ET.SubElement(c_el, 'addr3').text = addr3 or ''
-    ET.SubElement(c_el, 'addr4').text = addr4 or ''
-    ET.SubElement(c_el, 'email').text = email or ''
-
-    build_company_xml(root, company_info)
-
-    entries_el = ET.SubElement(root, 'entries')
-    # Q-019: drafts (cash-basis or accrual) now compute tax from each
-    # entry's tax_table via compute_entry_informational. The net amount
-    # (qty × price adjusted for tax_included) is the per-entry subtotal,
-    # and per-tax-account dollars are aggregated into tax_account_totals
-    # for the <tax-lines> block below.
-    # Every figure on the document is exact until it is written, and it is
-    # written at the invoice currency's own smallest unit.
-    unit = inv.GetCurrency().get_fraction()
-    entries_subtotal = Fraction(0)
-    tax_account_totals = {}
-    for raw_entry in inv.GetEntries():
-        ptr = int(raw_entry.instance)
-        desc = safe_ctypes_string(lib.gncEntryGetDescription, ptr)
-        action = safe_ctypes_string(lib.gncEntryGetAction, ptr)
-        qty_c = lib.gncEntryGetQuantity(ptr)
-        price_c = lib.gncEntryGetInvPrice(ptr)
-        qty = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
-        price = numeric_to_fraction(price_c) if price_c.denom else Fraction(0)
-        net_amount, _entry_tax, breakdown = compute_entry_informational(
-            lib, ptr,
-        )
-        entries_subtotal += net_amount
-        for bd_acct_name, _bd_rate, bd_amount in breakdown:
-            tax_account_totals[bd_acct_name] = (
-                tax_account_totals.get(bd_acct_name, Fraction(0)) + bd_amount
-            )
-
-        tax_label, tax_type = _read_tax_label(lib, ptr)
-
-        e_el = ET.SubElement(entries_el, 'entry')
-        ET.SubElement(e_el, 'description').text = desc
-        ET.SubElement(e_el, 'action').text = action
-        ET.SubElement(e_el, 'quantity').text = exact_text(qty)
-        ET.SubElement(e_el, 'unit-price').text = money_text(price, unit)
-        ET.SubElement(e_el, 'amount').text = money_text(net_amount, unit)
-        ET.SubElement(e_el, 'tax-label', type=tax_type).text = tax_label
-
-    tax_lines_el = ET.SubElement(root, 'tax-lines')
-    payments_el = ET.SubElement(root, 'payments')
-
-    if is_draft:
-        # Q-019: render full tax breakdown for unposted invoices (cash-basis
-        # or plain draft). GnuCash only materialises tax splits on the
-        # posting transaction; before that, recompute the same numbers
-        # from each entry's tax_table. The <draft-tax-notice/> element
-        # tells the XSLT to mark these figures as provisional. Payment
-        # history and amount-remaining still require a posted AR lot, so
-        # they stay omitted on the draft path.
-        for acct_name, dollars in tax_account_totals.items():
-            tl = ET.SubElement(tax_lines_el, 'tax-line')
-            # The posted path uses acct.GetName() (leaf only);
-            # compute_entry_informational produces colon-joined fullnames
-            # ("Liabilities:Tax:GST"). Take the leaf so a draft tax-line
-            # row reads identically to the same row on a posted invoice.
-            ET.SubElement(tl, 'name').text = acct_name.rsplit(':', 1)[-1]
-            ET.SubElement(tl, 'amount').text = money_text(dollars, unit)
-        grand_total = entries_subtotal + sum(
-            tax_account_totals.values(), Fraction(0))
-        ET.SubElement(root, 'subtotal').text = money_text(entries_subtotal, unit)
-        ET.SubElement(root, 'total').text = money_text(grand_total, unit)
-        ET.SubElement(root, 'draft-tax-notice')
-        return ET.ElementTree(root)
-
-    # Posted: derive tax lines + subtotal from the posting transaction's splits.
-    subtotal_total = Fraction(0)
-    tax_total = Fraction(0)
-    for i in range(posting_txn.CountSplits()):
-        s = posting_txn.GetSplit(i)
-        acct = s.GetAccount()
-        atype = gc.xaccAccountGetType(acct.instance)
-        amt = abs(numeric_to_fraction(s.GetAmount()))
-        if atype == gc.ACCT_TYPE_INCOME:
-            subtotal_total += amt
-        elif atype in (gc.ACCT_TYPE_LIABILITY, gc.ACCT_TYPE_PAYABLE):
-            tax_total += amt
-            tl = ET.SubElement(tax_lines_el, 'tax-line')
-            ET.SubElement(tl, 'name').text = acct.GetName()
-            ET.SubElement(tl, 'amount').text = money_text(amt, unit)
-
-    grand_total = subtotal_total + tax_total
-    ET.SubElement(root, 'subtotal').text = money_text(subtotal_total, unit)
-    ET.SubElement(root, 'total').text = money_text(grand_total, unit)
-
-    lot = inv.GetPostedLot()
-    for raw_split in lot.get_split_list():
-        s = Split(instance=raw_split)
-        txn = s.GetParent()
-        if txn is None:
-            continue
-        if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
-            continue
-        pay_date = txn.GetDate().strftime("%Y-%m-%d")
-        pay_memo = txn.GetDescription() or ''
-        pay_num = txn.GetNum() or ''
-        pay_amt = abs(numeric_to_fraction(s.GetAmount()))
-        p_el = ET.SubElement(payments_el, 'payment')
-        ET.SubElement(p_el, 'date').text = pay_date
-        ET.SubElement(p_el, 'memo').text = pay_memo
-        ET.SubElement(p_el, 'num').text = pay_num
-        ET.SubElement(p_el, 'amount').text = money_text(pay_amt, unit)
-
-    remaining = abs(numeric_to_fraction(lot.get_balance()))
-    ET.SubElement(root, 'amount-remaining').text = money_text(remaining, unit)
-
-    return ET.ElementTree(root)
-
-
-def render_to_html(invoice, book, xslt_path, company_info=None) -> str:
-    """Apply the XSLT to the invoice's XML and return the resulting HTML.
-
-    Q-011: split out from render_to_pdf so callers (and tests) can
-    inspect the XSLT output directly without going through weasyprint.
-    Useful for verifying that a custom `--template <path>` was actually
-    threaded through to the transform.
+    HTML and not a PDF, so a caller — and a test — can read what the page says
+    without going through weasyprint. `cli/invoice_print_cmd.py` lays the PDF
+    out from this, after every document in the run has been rendered.
     """
-    from lxml import etree as lxml_etree
+    from services.gnucash_importer import _swig_invoice_guid_str
+    from services.gnucash_report import (
+        _extra_text,
+        carry_slot_values_onto_the_fields,
+        render_document_html,
+    )
 
-    xml_tree = invoice_to_xml(invoice, book, company_info=company_info)
-    xml_str = ET.tostring(xml_tree.getroot(), encoding='unicode')
-    xml_doc = lxml_etree.fromstring(xml_str)
-    xslt_doc = lxml_etree.parse(xslt_path)
-    transform = lxml_etree.XSLT(xslt_doc)
-    return str(transform(xml_doc))
+    carry_slot_values_onto_the_fields(invoice)
+    company_extra, owner_extra = _extra_text(invoice)
+    return render_document_html(
+        session, _swig_invoice_guid_str(invoice),
+        company_extra=company_extra, owner_extra=owner_extra,
+        report=report, report_file=report_file, warn=warn)
 
 
 # ── Q-017: plaintext render ────────────────────────────────────────────────

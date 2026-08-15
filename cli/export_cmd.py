@@ -136,7 +136,12 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
                     in (documents_refusal, transactions_refusal)
                     if refusal is not None))
 
-            with open(output_file, "w") as f:
+            # UTF-8 stated rather than taken from the locale. Without it,
+            # `open(..., "w")` truncates and then `write` raises on the first
+            # character the locale cannot hold — the half-written destination
+            # the whole build-then-write block above exists to prevent, and a
+            # customer named `Éditions Cliché` is enough to reach it.
+            with open(output_file, "w", encoding="utf-8") as f:
                 f.write(text)
 
             click.echo(f"✓ Exported {count} transaction(s) to {output_file}")

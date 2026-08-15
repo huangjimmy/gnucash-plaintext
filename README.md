@@ -1072,12 +1072,11 @@ bill "BILL-2026-001"
 
 #### Your own company info: the `company` directive
 
-A single book-level `company` directive round-trips the seller identity that
-`print-invoice` / `print-bill` show in the "From" / "Bill To" block. These are
-GnuCash's own **File → Properties → Business** options — they were rendered
-before but never exported or imported, so a roundtrip into a fresh book used to
-lose them. The directive has no id and no date; it is master data for the whole
-book:
+A single book-level `company` directive round-trips the seller identity
+`print-invoice` / `print-bill` head the page with. These are GnuCash's own
+**File → Properties → Business** options — they were rendered before but never
+exported or imported, so a roundtrip into a fresh book used to lose them. The
+directive has no id and no date; it is master data for the whole book:
 
 ```
 company
@@ -1911,7 +1910,15 @@ Generate a PDF for any posted invoice:
 gnucash-plaintext print-invoice mybook.gnucash INV-2026-001 -o invoice.pdf
 ```
 
-`--format {pdf,html,plaintext}` selects the output format (defaults to `pdf`). The PDF/HTML paths render via the XSLT template at `services/invoice.xslt`. The default template covers Description, Qty, Unit Price, Amount, and Tax Applied columns. A "Unit" column appears only if at least one entry on the invoice has a non-empty `action:` field — e.g. `"Hours"`, `"Project"`, `"Material"`. For goods/items invoices the column stays hidden (Q-011).
+> **Needs Guile and WeasyPrint.** GnuCash's own report draws the page and that report is Scheme, so a `libguile` has to be installed — most distributions pull it in with `gnucash` itself, but Fedora and openSUSE do not, and there `dnf install guile` / `zypper install guile` is the fix. PDF output additionally needs WeasyPrint (`pip install weasyprint`). Neither is needed for `--format plaintext`, and a missing one is reported by name rather than as a traceback.
+
+`--format {pdf,html,plaintext}` selects the output format (defaults to `pdf`). **The PDF and HTML pages are GnuCash's own.** By default they are drawn by GnuCash's **Printable Invoice** — the report its own File → Print Invoice uses — so a printed document is the document GnuCash prints: its heading, its columns, its totals, its wording. `--report` and `--report-file` choose another, including one you wrote; see "Changing the page means changing the report that draws it" below. Every supported version renders it, GnuCash 3.8 included; a Guile interpreter runs inside this process and is handed the book this process already has open.
+
+What that means for the page: `Invoice #<id>` at the top left, the customer on one side and your company on the other, then Date, Description, Action, Quantity, Unit Price, Discount, Taxable and Total, and Net Price, one row per tax account, Total Price and Amount Due beneath. An unposted document is priced from its entries and marked "Invoice in progress…"; a paid one lists its payments and an amount due of zero. A bill is a vendor's invoice and is drawn by the same report, with the vendor as the document's owner.
+
+Four of the report's own switches are set, and nothing else — and only on the reports listed under `--report` below, never on one you wrote. (The last of the four is spelled differently by different reports, so it is written out more than once.) Two carry fields this format has and GnuCash ships hidden — the document's `notes:`, and the seller's `contact:` (which GnuCash prints as "Please direct all enquiries to …"). One asks for the tax **per account**, so a page states GST and PST by name and by amount rather than adding them into a single `Tax` figure: a filer reclaims the one and not the other, and a Canadian invoice has to state the GST/HST amount, which their sum does not. The last empties `Extra Notes`, whose default is the literal "Thank you for your patronage!" — uninvited on an invoice of yours, and backwards on a bill, where it would thank the supplier for their patronage of you.
+
+Every figure is in the **document's** currency: a USD invoice on a CAD income account states USD throughout, never the book's valuation of it.
 
 **Multi-invoice selection (Q-017)**: `print-invoice` accepts any combination of positional IDs, glob patterns, a `--from`/`--to` date range, or a `--customer` filter:
 
@@ -1931,12 +1938,64 @@ Output composition is `-o file.ext` (single combined file), `-o dir/` (one file 
 
 **Plaintext format (Q-017)**: `--format plaintext` emits the same canonical plaintext syntax used by `export`, populated with **informational** totals — `entry_amount` and `entry_tax` per line, repeatable `breakdown:` sub-blocks showing which tax account got which dollar (audit-friendly for combined HST = GST + PST), and invoice-level `invoice_subtotal`, `invoice_tax_total`, `invoice_total`. The exporter never emits these (round-trip stays minimal); the renderer does. On re-import the values are recomputed from the source-of-truth fields (`quantity × price × tax_table`) and the importer errors loudly on any mismatch — so you get tamper detection automatically when sharing rendered plaintext files. Draft (unposted) invoices emit only `invoice_subtotal` since per-entry tax requires posting.
 
-**Custom templates**: pass `--template <path>` to use your own XSLT (custom columns, branding, multi-language). The XML schema the template receives is documented at the top of `services/invoice.xslt`.
+**Free text of your own, without a template of your own.** GnuCash's page has no row for two things people want on a document, so two rows are added to it and nothing else:
 
-```bash
-gnucash-plaintext print-invoice mybook.gnucash INV-2026-001 \
-    -o invoice.pdf --template my-invoice-template.xslt
+* the **seller's** block, under your company's address: your GST and each PST registration number (GnuCash has no field for either — this tool keeps them in book options), followed by the book's `extra_text1:`, `extra_text2:` … lines;
+* the **owner's** block, under the customer or vendor address: *their* `extra_text1:`, `extra_text2:` … lines.
+
+The report builds its page in Scheme and has no template file to edit, so these go in as one more row of the block they belong beside — added to what GnuCash drew, never woven into how it draws it.
+
+One key is one printed line, numbered like the `addr1:`..`addr4:` keys elsewhere in this format, and they print exactly as written. Nothing is interpreted, so "a different website for wholesale customers" is something you write on the customer rather than a template you maintain:
+
 ```
+company
+  extra_text1: "Payment by e-transfer to pay@example.test"
+  extra_text2: "Net 30"
+
+customer "C-001"
+  extra_text1: "Order through wholesale.example.test"
+  extra_text2: "Account manager: Jane"
+```
+
+They are ordinary custom keys, so they export and re-import with everything else. Other custom keys are **not** printed: the seller's `fiscal_year_end:` and a customer's `credit_rating:` are the book owner's business, and the document goes to the other party.
+
+#### Changing the page means changing the report that draws it
+
+In rising order of effort:
+
+1. **The book's own fields.** The company block comes from **File → Properties → Business**; the customer's or vendor's block comes from their address. Most of what people want changed is here.
+2. **The two `extra_text` blocks above**, for what GnuCash keeps no field for at all.
+3. **A different report GnuCash already ships.** `--report` takes the report's English name — `Printable Invoice` (the default), `Fancy Invoice`, `Easy Invoice`, `Tax Invoice` or `Australian Tax Invoice` — or a template guid, in either case and with or without `uuidgen`'s dashes. All five draw on every supported version:
+
+   ```bash
+   gnucash-plaintext print-invoice mybook.gnucash INV-2026-001 \
+       -o invoice.pdf --report "Fancy Invoice"
+   ```
+
+   `Fancy Invoice` and `Easy Invoice` lay out the same company and client blocks as the default, so everything this tool adds to the seller's block comes with you — **your GST and PST registration numbers** and the `extra_text` lines — and each tax is still named and totalled separately.
+
+   **`Tax Invoice` and `Australian Tax Invoice` carry none of that.** They build their page from their own template with no such blocks, so a document printed with either states neither registration number, and they total tax their own way — a Tax Rate and a Tax Amount column per line, rather than a named GST and PST total. If you are invoicing in Canada, that page is missing something the CRA requires you to state. It still prints — the report is doing what it was written to do — but the run says on stderr that it could not place those lines, naming the first of them, so a document that lost your GST number does not leave silently.
+
+   A report registers its **English** name, and GnuCash translates only when it draws its own menus — so a French GnuCash lists `Facture améliorée` for the report that is `Fancy Invoice` here. Naming a report by its guid works in every language.
+
+4. **A report of your own.** `--report-file` loads a `.scm` before the report is looked up, so a file of yours calling `gnc:define-report` is registered by the time `--report` names it:
+
+   ```bash
+   gnucash-plaintext print-invoice mybook.gnucash INV-2026-001 \
+       -o invoice.pdf --report-file my-invoice.scm --report "My Invoice"
+   ```
+
+   This is GnuCash's own extension point, not one invented here: your report is written the way every report GnuCash ships is written, runs in the same machinery, and works from GnuCash's GUI too if you install it there. Start from `invoice.scm` in GnuCash's report directory — `/usr/share/guile/site/*/gnucash/reports/standard/` on 4.x and 5.x, `/usr/share/gnucash/scm/gnucash/report/` on 3.8 — and `tests/fixtures/a_report_of_your_own.scm` is a minimal one to read first, including the one thing to know: the options API changed between 3.8 and 4.x, so a report meant to run on both asks `(defined? 'gnc-new-optiondb)` and declares its options either way.
+
+   **If you copy one of GnuCash's, give your report a `report-guid` of its own** — `uuidgen` prints one, in any case and with or without its dashes. Keeping the guid you copied is the mistake this warns about twice: registered under a guid GnuCash already has, your report is refused as a duplicate and never registers at all, so `--report` cannot find it by name; registered under that guid in another case, both answer to every spelling of it and `--report <that guid>` is refused as ambiguous. Give it a name of its own too, unless you mean to name it by guid from then on: GnuCash accepts a report that reuses another's *name* — the guids differ, so both register — but two of them then answer to it, and `--report "<that name>"` is refused as ambiguous, for the report you copied as well as yours.
+
+   Your report is handed the document through the `General / Invoice Number` option, which this tool sets — a report without that option is refused by name, since there is no way to tell it which document to draw. None of the display switches above is set on a report of yours: those belong to the reports listed under 3, and your options are yours.
+
+   The seller's and owner's blocks follow your layout rather than being required of it. If your report keeps `make-company-table` and `make-client-table` — which it will if you started from `invoice.scm` — the registration numbers and `extra_text` lines are added to those blocks as they are on GnuCash's own page. If it lays the page out some other way, they are simply left out — no refusal and no warning, where GnuCash's own page would have been refused for the same absence. Your page is yours, and the numbers are on the book (`Business/Company GST Number` and the `extra_text` keys) for your report to read if it wants them.
+
+   Keeping the block but not a table inside it — the seller written out as text, say — is the case in between, and the run says so on stderr rather than staying quiet: the rows go in at the end of the block's own table, so a block without one has nowhere to hold them. Nothing is refused and the document prints; you are told which lines it could not place.
+
+So a field this format carries that GnuCash's page has no row for — an unposted document's `due_date:` is the one such case — prints only if your own report prints it. It round-trips through the ledger either way.
 
 **The `action:` field on invoice entries** is optional. Omitting the line is equivalent to `action: ""` — the entry's action is set to empty. If you want to preserve a non-empty action (e.g. "Hours") across re-imports, you must include `action: "Hours"` in the directive every time; the importer treats each entry directive as the full source of truth, not a partial patch.
 

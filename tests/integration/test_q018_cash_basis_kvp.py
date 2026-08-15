@@ -13,6 +13,7 @@ from click.testing import CliRunner
 
 from cli.main import cli
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
+from tests.integration.rendered_page import is_in_progress
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q018_accounts.txt')
@@ -240,10 +241,7 @@ def test_cash_basis_flag_does_not_appear_in_pdf_or_html(tmp_path):
     issuer's tax-method classification. The HTML output for the
     flag-bearing invoice should be byte-identical to the same invoice
     rendered without the flag (modulo GUIDs which differ per import)."""
-    from services.invoice_renderer import (
-        invoice_to_xml,  # noqa: F401 — also forces argtypes load
-        render_to_html,
-    )
+    from services.invoice_renderer import render_to_html
 
     runner = CliRunner()
     # Book A: invoice WITH the flag
@@ -285,8 +283,7 @@ def test_cash_basis_flag_does_not_appear_in_pdf_or_html(tmp_path):
                 None,
             )
             q.destroy()
-            xslt = Path(__file__).resolve().parents[2] / 'services' / 'invoice.xslt'
-            return render_to_html(inv, repo.book, str(xslt))
+            return render_to_html(inv, repo.session)
         finally:
             repo.close()
 
@@ -309,7 +306,7 @@ def test_cash_basis_flag_does_not_appear_in_pdf_or_html(tmp_path):
 # ── Unposted-render path (cash_basis: true on an invoice awaiting cash) ──
 
 def _render_invoice(gnc, invoice_id):
-    """Helper: render the named invoice through the default XSLT and
+    """Helper: render the named invoice as GnuCash draws it and
     return the HTML string."""
     from gnucash import Query
     from gnucash.gnucash_business import Invoice as BizInvoice
@@ -330,8 +327,7 @@ def _render_invoice(gnc, invoice_id):
         )
         q.destroy()
         assert inv is not None, f'invoice {invoice_id!r} not found'
-        xslt = Path(__file__).resolve().parents[2] / 'services' / 'invoice.xslt'
-        return render_to_html(inv, repo.book, str(xslt))
+        return render_to_html(inv, repo.session)
     finally:
         repo.close()
 
@@ -348,64 +344,36 @@ def _import_into_fresh_book(runner, tmp_path, fixture_name):
     return gnc
 
 
-# The badge CSS classes (.badge-paid / .badge-draft / .badge-unpaid)
-# all live in the <style> block on every render, so substring tests
-# against the class name match too eagerly. The actual badge element
-# uses the closing-tag form below — pick that for the assertions.
-_BADGE_DRAFT = '<span class="badge badge-draft">Draft</span>'
-_BADGE_UNPAID = '<span class="badge badge-unpaid">Unpaid</span>'
-_BADGE_PAID = '<span class="badge badge-paid">Paid</span>'
+def test_a_cash_basis_invoice_is_drawn_like_any_other_unposted_one(tmp_path):
+    """`cash_basis: true` is the issuer's tax classification, and GnuCash's
+    page has no notion of it: an unposted document is priced from its entries
+    and marked in progress, whether the flag is there or not.
 
-
-def test_unposted_cash_basis_with_due_date_renders_unpaid(tmp_path):
-    """An unposted invoice with `cash_basis: true` AND a `due_date:`
-    KVP renders as UNPAID (not DRAFT) and shows the due date."""
+    Its dates come from the posting, so an unposted document carries none —
+    the `due_date:` key still round-trips through the format, and no longer
+    reaches the printed page.
+    """
     runner = CliRunner()
     gnc = _import_into_fresh_book(
         runner, tmp_path, 'q018_unposted_cash_with_due.txt'
     )
     html = _render_invoice(gnc, 'INV-Q18-UNPOSTED-WITH-DUE')
-    assert _BADGE_UNPAID in html, (
-        f'expected UNPAID badge, got:\n{html[:1500]}'
-    )
-    assert _BADGE_DRAFT not in html, (
-        f'must not render DRAFT for cash-basis invoice:\n{html[:1500]}'
-    )
-    assert '2026-05-30' in html, (
-        f'due_date KVP must surface in the rendered output:\n{html[:1500]}'
-    )
-    # And the KVP key itself stays out of customer-facing HTML.
+
+    assert is_in_progress(html), html
+    assert 'Due Date' not in html, html
+    # And the key itself stays out of a customer-facing page.
     assert 'cash_basis' not in html.lower()
 
 
-def test_unposted_cash_basis_without_due_date_renders_unpaid_no_due_row(tmp_path):
-    """Unposted + cash_basis + NO due_date KVP renders UNPAID with no
-    due-date row at all (the `Due:` label simply isn't emitted)."""
-    runner = CliRunner()
-    gnc = _import_into_fresh_book(
-        runner, tmp_path, 'q018_unposted_cash_no_due.txt'
-    )
-    html = _render_invoice(gnc, 'INV-Q18-UNPOSTED-NO-DUE')
-    assert _BADGE_UNPAID in html
-    assert _BADGE_DRAFT not in html
-    # The "Due:" label only renders when due-date has content; absent
-    # here, so no "Due:" appears in the meta row.
-    assert '<strong>Due:</strong>' not in html, (
-        f'unposted cash-basis with no due_date must not emit a "Due:" '
-        f'label; got:\n{html[:1500]}'
-    )
-
-
-def test_unposted_invoice_without_cash_basis_still_renders_draft(tmp_path):
-    """Regression: the Q-012 draft path is unchanged for invoices that
-    do NOT carry `cash_basis: true`. An ordinary work-in-progress
-    invoice still renders with the DRAFT badge."""
+def test_an_invoice_without_the_flag_is_drawn_the_same_way(tmp_path):
+    """The other half of the pair: with no `cash_basis:` key at all, an
+    unposted document is drawn exactly as the one above is. That the two
+    pages agree is the point — the flag is private to the issuer."""
     runner = CliRunner()
     gnc = _import_into_fresh_book(
         runner, tmp_path, 'q018_unposted_draft_no_flag.txt'
     )
     html = _render_invoice(gnc, 'INV-Q18-DRAFT')
-    assert _BADGE_DRAFT in html, (
-        f'expected DRAFT badge (Q-012 default), got:\n{html[:1500]}'
-    )
-    assert _BADGE_UNPAID not in html
+
+    assert is_in_progress(html), html
+    assert 'cash_basis' not in html.lower()

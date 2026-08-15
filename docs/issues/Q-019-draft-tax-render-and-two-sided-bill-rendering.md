@@ -6,6 +6,13 @@ severity: medium
 status: closed
 ---
 
+> **The printed page has since changed ([Q-036](Q-036-printed-documents-are-not-gnucashs-page.md)).**
+> `print-bill`, the plaintext seller header and the draft tax figures in plaintext stand. The HTML
+> and PDF page is GnuCash's own Printable Invoice: it puts the document's owner in one block and
+> the seller in the other — a bill is a vendor's invoice, so the vendor is its owner — rather than
+> the "Bill From" / "Bill To" headings this project chose, it prices an unposted document from
+> its entries itself, and it states tax as one total rather than as named GST and PST rows.
+
 ## Three related gaps in the rendering surface
 
 **1. Draft invoices lost their tax breakdown.** A cash-basis invoice (Q-018) doesn't post until cash arrives — and an accrual draft hasn't been posted yet either. Both render through the "is_draft" path, which historically (Q-012) emitted subtotal-only with no `<tax-lines>` and no grand total. For a Canadian small-business filer issuing a cash-basis invoice with GST/HST, this means the rendered PDF shows the wrong amount — line items only, no tax — exactly the case where tax detail matters most.
@@ -32,7 +39,7 @@ The badge logic from Q-018 is preserved: plain accrual draft → DRAFT badge, ca
 
 ### `print-bill` CLI + `bill_renderer.py` + `bill.xslt`
 
-`cli/bill_print_cmd.py` mirrors `invoice_print_cmd.py` exactly: same flags (`--format {pdf,html,plaintext}`, `--vendor`, `--from`, `--to`, `--bill-id`, `--template`, `-o`), same multi-bill selection (positional IDs, globs, date ranges), same combined/per-bill output modes.
+`cli/bill_print_cmd.py` mirrors `invoice_print_cmd.py` exactly: same flags (`--format {pdf,html,plaintext}`, `--vendor`, `--from`, `--to`, `--bill-id`, `--report`, `--report-file`, `-o`), same multi-bill selection (positional IDs, globs, date ranges), same combined/per-bill output modes.
 
 `services/bill_renderer.py` uses the Bill-side SWIG getters (`gncEntryGetBillTaxable`, `gncEntryGetBillTaxTable`, `gncEntryGetBillPrice`, etc.) per CLAUDE.md's "Bill Entry API vs Invoice Entry API" rule, and exposes `compute_bill_entry_informational` as the bill analogue of the invoice helper. The posted-bill tax extraction filters by "everything that's not the AP-posting account and not an Expense account is a tax accrual" — this covers both LIABILITY tax-accrual accounts and ASSET ITC-recoverable accounts (Canadian input-tax-credit books).
 

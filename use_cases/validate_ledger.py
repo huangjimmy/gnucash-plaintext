@@ -4,6 +4,7 @@ Use case for validating GnuCash ledger.
 Orchestrates validation services to check ledger integrity.
 """
 
+import sys
 from typing import Optional
 
 from repositories.gnucash_repository import GnuCashRepository
@@ -88,11 +89,24 @@ class ValidateLedgerUseCase:
         result = self.execute()
         report = self.validator.format_validation_report(result)
 
+        # UTF-8 on both arms. A report names what it found — an account path
+        # in a category mismatch, a transaction's description when the dates
+        # are out of order — so it holds whatever the book holds, and the
+        # locale's answer is not always able to hold that. Stated on the file
+        # arm and not the other, `validate book.gnucash` on a book with an
+        # account named `Income:Dépenses accessoires` would fail outright
+        # under a locale that cannot encode it — and *that* is the arm taken
+        # when `--report` is omitted, which is to say almost always.
+        #
+        # `print` and not `click.echo` was the whole difference: click
+        # re-wraps a stream whose encoding cannot hold the text, which is what
+        # keeps `balance-sheet` and `report` working; a bare `print` gets no
+        # such rescue.
         if output_path:
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(report)
         else:
-            print(report)
+            sys.stdout.buffer.write(report.encode('utf-8') + b'\n')
 
         return result
 

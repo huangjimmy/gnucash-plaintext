@@ -58,7 +58,7 @@ def balance_sheet(gnucash_file, as_of, fx_rates_file, prices_file, output_file):
 
     text = render_text(result)
     if output_file:
-        with open(output_file, "w") as f:
+        with open(output_file, "w", encoding="utf-8") as f:   # not the locale's
             f.write(text)
         click.echo(f"Written to {output_file}")
     else:

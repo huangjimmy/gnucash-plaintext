@@ -468,7 +468,9 @@ class ExportBeancountUseCase:
         """
         beancount = self.execute(start_date, end_date, account_filter)
 
-        with open(output_path, 'w') as f:
+        # UTF-8 stated, not the locale's — beancount files are UTF-8 and a
+        # payee's name is not ASCII in general.
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write(beancount)
 
         return len(beancount.split('\n'))

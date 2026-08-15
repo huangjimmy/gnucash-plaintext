@@ -64,7 +64,11 @@ def export_transaction(gnucash_file, input_file, guids, output_path):
                     f.write(plaintext)
                 click.echo(f"✓ {len(guids)} transaction(s) exported to {output_path}")
             else:
-                sys.stdout.write(plaintext)
+                # Through the byte stream, encoded here: `sys.stdout` takes
+                # the locale's encoding, and the file arm above states UTF-8 —
+                # so the same transaction would come out one way to a file and
+                # another down a pipe.
+                sys.stdout.buffer.write(plaintext.encode('utf-8'))
 
         finally:
             repo.close()

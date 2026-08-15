@@ -2,18 +2,18 @@
 """
 Service for rendering GnuCash vendor bills to HTML/PDF/plaintext.
 
-Q-019: parallel to services/invoice_renderer.py. A bill is the inverse
-of an invoice — money flows FROM us (Bill To) TO a vendor (Bill From),
-so the two-sided rendering swaps the role of the company-info block
-and the owner block compared to invoices.
+Q-019: parallel to services/invoice_renderer.py. A bill is a vendor's
+invoice — one `gncInvoice` type with a vendor owner — so the HTML page
+is GnuCash's own Printable Invoice, drawn exactly as an invoice's is,
+with the vendor as the document's owner. Nothing here decides which
+party goes on which side of it.
 
-Tax handling mirrors the invoice renderer: posted bills read tax from
-the posting transaction's AP splits; unposted bills compute tax from
-each entry's bill-side tax_table via compute_bill_entry_informational
-and the rendered output carries a `draft-tax-notice` class so the
-viewer knows the figures are provisional.
+The plaintext render is this project's, and computes what GnuCash
+would: an unposted bill has no tax splits yet, so tax comes from each
+entry's bill-side tax_table through compute_bill_entry_informational,
+and the output says the figures are provisional — a plaintext document
+is re-imported, and its numbers are checked against a recomputation.
 """
-import xml.etree.ElementTree as ET
 from fractions import Fraction
 
 import gnucash.gnucash_core_c as gc
@@ -26,17 +26,14 @@ from infrastructure.gnucash.engine import (
 )
 from infrastructure.gnucash.kvp import (
     KNOWN_VENDOR_METADATA_KEYS,
-    get_custom_metadata,
-    held_value,
 )
-from infrastructure.gnucash.utils import exact_text, money_text, numeric_to_fraction
+from infrastructure.gnucash.utils import exact_text, numeric_to_fraction
 from services.invoice_renderer import (
     _ctypes_account_full_name,
     _fmt_money,
     _fmt_rate,
     _render_seller_header,
     _render_taxtable_block,
-    build_company_xml,
 )
 from services.plaintext_blocks import (
     document_text_lines,
@@ -44,40 +41,6 @@ from services.plaintext_blocks import (
     payment_block_lines,
     posted_block_lines,
 )
-
-
-def _read_bill_tax_label(lib, ptr):
-    """Per-entry tax label for the rendered bill line. Uses Bill-side
-    getters per CLAUDE.md ("Bill Entry API vs Invoice Entry API")."""
-    taxable = bool(lib.gncEntryGetBillTaxable(ptr))
-    if not taxable:
-        return 'Exempt', 'exempt'
-
-    tt_ptr = lib.gncEntryGetBillTaxTable(ptr)
-    if not tt_ptr:
-        return 'Taxable', 'single'
-
-    tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr, default='Taxable')
-
-    glist_ptr = lib.gncTaxTableGetEntries(tt_ptr)
-
-    def process_tax_table_entry(_lib, tte_ptr):
-        acct_ptr = _lib.gncTaxTableEntryGetAccount(tte_ptr)
-        amt_c = _lib.gncTaxTableEntryGetAmount(tte_ptr)
-        rate = numeric_to_fraction(amt_c) if amt_c.denom else Fraction(0)
-        name = safe_ctypes_string(_lib.xaccAccountGetName, acct_ptr, default='?')
-        rate_str = f'{exact_text(rate)}%'
-        return name if rate_str in name else f"{name} {rate_str}"
-
-    rate_parts = iterate_glist(lib, glist_ptr, process_tax_table_entry)
-    rate_parts.reverse()
-
-    if not rate_parts:
-        return tt_name, 'single'
-
-    label = ' + '.join(rate_parts)
-    ttype = 'combined' if len(rate_parts) > 1 else 'single'
-    return label, ttype
 
 
 def _bill_tax_table_entries(lib, tt_ptr):
@@ -127,189 +90,27 @@ def compute_bill_entry_informational(lib, entry_ptr):
     return (net, entry_tax, breakdown)
 
 
-def bill_to_xml(bill, book, company_info=None):
-    """Render a vendor bill as XML for bill.xslt.
+def render_to_html(bill, session, report=None, report_file=None,
+                   warn=None) -> str:
+    """The bill as HTML — see `invoice_renderer.render_to_html`.
 
-    The output XML shape mirrors invoice_to_xml so the same XSLT
-    machinery (label-colspan template, per-entry rows, tax-line rows,
-    payment-history block) can be reused. The semantic role swap
-    ("Bill From" = vendor, "Bill To" = us) happens in bill.xslt's
-    address section, not here — the XML uses neutral element names
-    (`<vendor>`, `<company>`) so both renderers stay consistent.
+    One report serves both: a bill is a `gncInvoice` with a vendor owner, and
+    GnuCash draws it from the same report — including a report of the reader's
+    own, named through `report` after `report_file` has registered it.
     """
-    lib = load_gnc_engine()
-
-    bill_id = bill.GetID()
-    posting_txn = bill.GetPostedTxn()
-    is_draft = posting_txn is None
-    is_paid = False if is_draft else gc.gncInvoiceIsPaid(bill.instance)
-
-    bill_kvp = get_custom_metadata(bill) or {}
-    cash_basis_marker = (
-        str(bill_kvp.get('cash_basis', '')).strip().lower() == 'true'
+    from services.gnucash_importer import _swig_invoice_guid_str
+    from services.gnucash_report import (
+        _extra_text,
+        carry_slot_values_onto_the_fields,
+        render_document_html,
     )
-    currency = bill.GetCurrency().get_mnemonic()
-    date_opened = bill.GetDateOpened().strftime("%Y-%m-%d")
-    date_due = bill.GetDateDue()
-    date_due_s = date_due.strftime("%Y-%m-%d") if date_due else ''
-    if not date_due_s and is_draft and bill_kvp.get('due_date'):
-        date_due_s = str(bill_kvp['due_date']).strip()
-    notes = held_value(bill, bill.GetNotes() or '', 'notes')
-    billing_id = held_value(bill, bill.GetBillingID() or '', 'billing_id')
 
-    vendor = None
-    try:
-        owner = bill.GetOwner()
-        vendor = owner.GetVendor()
-    except Exception:
-        pass
-    if vendor is None:
-        raise ValueError("Could not determine vendor for bill")
-
-    addr = vendor.GetAddr()
-    vend_name = vendor.GetName()
-    # Through `held_value`, because a book written before vendors had address
-    # setters keeps the address in the slot — read from the field alone, the
-    # rendered bill printed every address line blank.
-    addr1 = held_value(vendor, addr.GetAddr1(), 'addr1')
-    addr2 = held_value(vendor, addr.GetAddr2(), 'addr2')
-    addr3 = held_value(vendor, addr.GetAddr3(), 'addr3')
-    addr4 = held_value(vendor, addr.GetAddr4(), 'addr4')
-    email = held_value(vendor, addr.GetEmail(), 'email')
-
-    if is_draft and not cash_basis_marker:
-        status = 'draft'
-    elif is_paid:
-        status = 'paid'
-    else:
-        status = 'unpaid'
-    root = ET.Element('bill', status=status, currency=currency)
-    ET.SubElement(root, 'id').text = bill_id
-    ET.SubElement(root, 'date').text = date_opened
-    ET.SubElement(root, 'due-date').text = date_due_s
-    ET.SubElement(root, 'billing-id').text = billing_id
-    ET.SubElement(root, 'notes').text = notes
-
-    v_el = ET.SubElement(root, 'vendor')
-    ET.SubElement(v_el, 'name').text = vend_name
-    ET.SubElement(v_el, 'addr1').text = addr1 or ''
-    ET.SubElement(v_el, 'addr2').text = addr2 or ''
-    ET.SubElement(v_el, 'addr3').text = addr3 or ''
-    ET.SubElement(v_el, 'addr4').text = addr4 or ''
-    ET.SubElement(v_el, 'email').text = email or ''
-
-    build_company_xml(root, company_info)
-
-    entries_el = ET.SubElement(root, 'entries')
-    # Every figure stays exact until it is written, at the bill currency's own
-    # smallest unit.
-    unit = bill.GetCurrency().get_fraction()
-    entries_subtotal = Fraction(0)
-    tax_account_totals = {}
-    for raw_entry in bill.GetEntries():
-        ptr = int(raw_entry.instance)
-        desc = safe_ctypes_string(lib.gncEntryGetDescription, ptr)
-        # Bills don't have an `action` field (see _format_bill_entry).
-        qty_c = lib.gncEntryGetQuantity(ptr)
-        price_c = lib.gncEntryGetBillPrice(ptr)
-        qty = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
-        price = numeric_to_fraction(price_c) if price_c.denom else Fraction(0)
-        net_amount, _entry_tax, breakdown = compute_bill_entry_informational(
-            lib, ptr,
-        )
-        entries_subtotal += net_amount
-        for bd_acct_name, _bd_rate, bd_amount in breakdown:
-            tax_account_totals[bd_acct_name] = (
-                tax_account_totals.get(bd_acct_name, Fraction(0)) + bd_amount
-            )
-
-        tax_label, tax_type = _read_bill_tax_label(lib, ptr)
-
-        e_el = ET.SubElement(entries_el, 'entry')
-        ET.SubElement(e_el, 'description').text = desc
-        ET.SubElement(e_el, 'action').text = ''
-        ET.SubElement(e_el, 'quantity').text = exact_text(qty)
-        ET.SubElement(e_el, 'unit-price').text = money_text(price, unit)
-        ET.SubElement(e_el, 'amount').text = money_text(net_amount, unit)
-        ET.SubElement(e_el, 'tax-label', type=tax_type).text = tax_label
-
-    tax_lines_el = ET.SubElement(root, 'tax-lines')
-    payments_el = ET.SubElement(root, 'payments')
-
-    if is_draft:
-        for acct_name, dollars in tax_account_totals.items():
-            tl = ET.SubElement(tax_lines_el, 'tax-line')
-            ET.SubElement(tl, 'name').text = acct_name.rsplit(':', 1)[-1]
-            ET.SubElement(tl, 'amount').text = money_text(dollars, unit)
-        grand_total = entries_subtotal + sum(
-            tax_account_totals.values(), Fraction(0))
-        ET.SubElement(root, 'subtotal').text = money_text(entries_subtotal, unit)
-        ET.SubElement(root, 'total').text = money_text(grand_total, unit)
-        ET.SubElement(root, 'draft-tax-notice')
-        return ET.ElementTree(root)
-
-    # Posted: derive tax lines + subtotal from the posting transaction's
-    # splits. Skip the AP-posting split (matches the bill's PostedAcc);
-    # EXPENSE splits make up the subtotal; everything else is a tax
-    # accrual (LIABILITY for accrued payable tax, ASSET for a
-    # recoverable input-tax-credit account, etc.).
-    posted_ap_acct = bill.GetPostedAcc()
-    subtotal_total = Fraction(0)
-    tax_total = Fraction(0)
-    for i in range(posting_txn.CountSplits()):
-        s = posting_txn.GetSplit(i)
-        acct = s.GetAccount()
-        atype = gc.xaccAccountGetType(acct.instance)
-        amt = abs(numeric_to_fraction(s.GetAmount()))
-        if (posted_ap_acct is not None
-                and acct.instance == posted_ap_acct.instance):
-            continue
-        if atype == gc.ACCT_TYPE_EXPENSE:
-            subtotal_total += amt
-        else:
-            tax_total += amt
-            tl = ET.SubElement(tax_lines_el, 'tax-line')
-            ET.SubElement(tl, 'name').text = acct.GetName()
-            ET.SubElement(tl, 'amount').text = money_text(amt, unit)
-
-    grand_total = subtotal_total + tax_total
-    ET.SubElement(root, 'subtotal').text = money_text(subtotal_total, unit)
-    ET.SubElement(root, 'total').text = money_text(grand_total, unit)
-
-    lot = bill.GetPostedLot()
-    for raw_split in lot.get_split_list():
-        s = Split(instance=raw_split)
-        txn = s.GetParent()
-        if txn is None:
-            continue
-        if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
-            continue
-        pay_date = txn.GetDate().strftime("%Y-%m-%d")
-        pay_memo = txn.GetDescription() or ''
-        pay_num = txn.GetNum() or ''
-        pay_amt = abs(numeric_to_fraction(s.GetAmount()))
-        p_el = ET.SubElement(payments_el, 'payment')
-        ET.SubElement(p_el, 'date').text = pay_date
-        ET.SubElement(p_el, 'memo').text = pay_memo
-        ET.SubElement(p_el, 'num').text = pay_num
-        ET.SubElement(p_el, 'amount').text = money_text(pay_amt, unit)
-
-    remaining = abs(numeric_to_fraction(lot.get_balance()))
-    ET.SubElement(root, 'amount-remaining').text = money_text(remaining, unit)
-
-    return ET.ElementTree(root)
-
-
-def render_to_html(bill, book, xslt_path, company_info=None) -> str:
-    """Apply bill.xslt to the bill's XML and return the HTML string."""
-    from lxml import etree as lxml_etree
-
-    xml_tree = bill_to_xml(bill, book, company_info=company_info)
-    xml_str = ET.tostring(xml_tree.getroot(), encoding='unicode')
-    xml_doc = lxml_etree.fromstring(xml_str)
-    xslt_doc = lxml_etree.parse(xslt_path)
-    transform = lxml_etree.XSLT(xslt_doc)
-    return str(transform(xml_doc))
+    carry_slot_values_onto_the_fields(bill)
+    company_extra, owner_extra = _extra_text(bill)
+    return render_document_html(
+        session, _swig_invoice_guid_str(bill),
+        company_extra=company_extra, owner_extra=owner_extra,
+        report=report, report_file=report_file, warn=warn)
 
 
 def _render_vendor_block(vendor) -> str:

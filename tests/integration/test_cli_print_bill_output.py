@@ -97,9 +97,9 @@ class TestHtml:
     def test_two_bills_combine_into_one_document(self, tmp_path):
         """One outer shell, whatever the per-bill fragments carry.
 
-        Each fragment arrives from the XSLT with its own DOCTYPE, `<html>`
-        and `<body>`; left in place they nest, and the combined file is
-        neither valid HTML nor valid XML.
+        Each fragment is a whole page of GnuCash's, with its own DOCTYPE,
+        `<html>` and `<body>`; left in place they nest, and the combined file
+        is neither valid HTML nor valid XML.
         """
         gnc = _book(tmp_path)
         out = tmp_path / 'both.html'
@@ -109,9 +109,12 @@ class TestHtml:
 
         assert result.exit_code == 0, result.output
         text = out.read_text()
-        assert text.count('<!DOCTYPE') == 0
-        assert text.count('<html>') == 1
-        assert text.count('<body>') == 1
+        # One of each, and the report's own — the shell is carried from the
+        # first fragment rather than synthesised, so the tags keep their
+        # attributes and the count is one, not zero.
+        assert text.count('<!DOCTYPE') == 1
+        assert text.count('<html') == 1
+        assert text.count('<body') == 1
         assert text.count('page-break-after') == 2
         assert 'BILL-PRINT-001' in text
         assert 'BILL-PRINT-002' in text
@@ -126,27 +129,6 @@ class TestHtml:
         assert result.exit_code == 0, result.output
         assert (outdir / 'BILL-PRINT-001.html').exists()
         assert (outdir / 'BILL-PRINT-002.html').exists()
-
-    def test_a_custom_template_is_used_in_place_of_the_embedded_one(self, tmp_path):
-        """`--template` is the documented way to restyle, and nothing read it."""
-        gnc = _book(tmp_path)
-        template = tmp_path / 'minimal.xslt'
-        template.write_text(
-            '<?xml version="1.0"?>\n'
-            '<xsl:stylesheet version="1.0" '
-            'xmlns:xsl="http://www.w3.org/1999/XSL/Transform">\n'
-            '  <xsl:template match="/">\n'
-            '    <html><body><p>TEMPLATE MARKER '
-            '<xsl:value-of select="//bill_id"/></p></body></html>\n'
-            '  </xsl:template>\n'
-            '</xsl:stylesheet>\n')
-        out = tmp_path / 'custom.html'
-        result = CliRunner().invoke(cli, [
-            'print-bill', str(gnc), 'BILL-PRINT-001',
-            '--format', 'html', '--template', str(template), '-o', str(out)])
-
-        assert result.exit_code == 0, result.output
-        assert 'TEMPLATE MARKER' in out.read_text()
 
 
 class TestPdf:

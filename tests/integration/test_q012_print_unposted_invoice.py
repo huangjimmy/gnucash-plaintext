@@ -6,16 +6,11 @@ would hit `posting_txn.CountSplits()` on a None object and crash. Real
 user incident: their frontend asked the API to render a draft invoice
 and got a 500 with a NoneType AttributeError.
 
-Q-012 makes the renderer treat unposted invoices as drafts:
-  - Status attribute = 'draft' (vs 'paid' / 'unpaid' for posted)
-  - Subtotal computed from entries directly (qty * price)
-  - No tax-line breakdown (would require pre-post tax computation per
-    entry; deferred — see issue Q-012)
-  - No payment-history table (drafts can't have payments)
-  - No amount-remaining
-
-The XSLT shows a DRAFT badge so the user knows the rendered total
-doesn't include tax.
+An unposted document reaches GnuCash's own Printable Invoice like any
+other, and GnuCash prices it from its entries and marks it "Invoice in
+progress...". No status is decided here and no badge is drawn here; what
+this pins is that the document is rendered rather than dropped, and that
+what the page says about it is what the entries say.
 """
 
 from pathlib import Path
@@ -25,9 +20,8 @@ from click.testing import CliRunner
 
 from cli.main import cli
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
+from tests.integration.rendered_page import is_in_progress
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULT_XSLT = _REPO_ROOT / "services" / "invoice.xslt"
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
@@ -71,8 +65,8 @@ def _import_new(runner, gnc, fixture):
 
 
 def _render_invoice_html(gnc_path: str, invoice_id: str) -> str:
-    """Render the named invoice through the embedded XSLT — same path
-    print-invoice uses internally, minus the weasyprint PDF step."""
+    """The page GnuCash draws — the same path `print-invoice` takes,
+    minus the weasyprint PDF step."""
     from gnucash import Query, Session
     from gnucash.gnucash_business import Invoice
 
@@ -90,7 +84,7 @@ def _render_invoice_html(gnc_path: str, invoice_id: str) -> str:
         )
         q.destroy()
         assert inv is not None, f"Invoice {invoice_id!r} not found"
-        return render_to_html(inv, book, str(_DEFAULT_XSLT))
+        return render_to_html(inv, ses)
     finally:
         ses.end()
 
@@ -126,24 +120,14 @@ class TestPrintInvoiceOnUnpostedNoLongerCrashes:
 
 
 class TestRenderedDraftInvoice:
-    """The HTML produced for a draft invoice must:
-      - mark itself as a draft (status='draft' → DRAFT badge),
-      - include all entry rows,
-      - omit per-tax breakdown (drafts can't compute taxes pre-post),
-      - omit the payment-history table (drafts have no payments)."""
+    """The page GnuCash draws for an unposted document: priced from its
+    entries, marked as in progress, and carrying no payments."""
 
-    def test_draft_badge_present(self, gnc_with_draft_invoice):
-        """Match the active <span> rather than the class name alone — the
-        embedded XSLT defines `.badge-paid`/`.badge-unpaid`/`.badge-draft`
-        in the <style> block, so all three substrings appear in every
-        rendered HTML. The discriminator is which span is actually
-        emitted."""
+    def test_it_is_marked_as_not_yet_posted(self, gnc_with_draft_invoice):
         html = _render_invoice_html(gnc_with_draft_invoice, "INV-DRAFT-001")
-        assert '<span class="badge badge-draft">Draft</span>' in html, (
-            f"Draft invoice must render a DRAFT badge span.\nHTML:\n{html}"
+        assert is_in_progress(html), (
+            f"An unposted document is drawn as in progress.\nHTML:\n{html}"
         )
-        assert '<span class="badge badge-paid">' not in html
-        assert '<span class="badge badge-unpaid">' not in html
 
     def test_entry_rows_present(self, gnc_with_draft_invoice):
         html = _render_invoice_html(gnc_with_draft_invoice, "INV-DRAFT-001")
@@ -151,37 +135,26 @@ class TestRenderedDraftInvoice:
         assert '>Goods<' in html, html
         assert '>Sales<' in html, html
 
-    def test_subtotal_matches_sum_of_entry_amounts(self, gnc_with_draft_invoice):
-        """Q-012: drafts compute subtotal as sum of (qty * price). Our
-        fixture: 100 * $15 + 5 * $20 = $1500 + $100 = $1600."""
+    def test_the_total_is_the_sum_of_the_entry_amounts(self,
+                                                       gnc_with_draft_invoice):
+        """Priced from the entries: 100 x $15 + 5 x $20 = $1,600.00."""
         html = _render_invoice_html(gnc_with_draft_invoice, "INV-DRAFT-001")
-        assert '1,600.00' in html, (
-            f"Draft subtotal must equal sum of entry amounts ($1,600.00). "
-            f"HTML:\n{html}"
+        assert '>C$1,600.00<' in html, (
+            f"An unposted document is priced from its entries.\nHTML:\n{html}"
         )
 
-    def test_no_payment_history_section(self, gnc_with_draft_invoice):
+    def test_nothing_has_been_paid_on_it(self, gnc_with_draft_invoice):
+        """A document that is not posted cannot have been paid, so the whole
+        of it is still due and no payment row is drawn."""
         html = _render_invoice_html(gnc_with_draft_invoice, "INV-DRAFT-001")
-        # Payment History header is conditional on payments existing.
-        assert 'Payment History' not in html, (
-            f"Draft invoice has no payments — Payment History section must "
-            f"NOT render.\nHTML:\n{html}"
-        )
-
-    def test_no_amount_remaining(self, gnc_with_draft_invoice):
-        """Amount Remaining is part of the payment-history table; absence
-        of payments means no remaining row either."""
-        html = _render_invoice_html(gnc_with_draft_invoice, "INV-DRAFT-001")
-        assert 'Amount Remaining' not in html
+        assert 'Payment' not in html, html
 
 
 class TestPostedInvoicesStillWork:
-    """Regression guard: posted invoices must still render with their
-    full tax breakdown and (if applicable) payment history. The fix
-    branch in invoice_to_xml gates only on `posting_txn is None`, so
-    posted invoices flow through the original code path unchanged."""
+    """Regression guard: a posted document is still drawn, with what it is
+    for and what is still owed on it."""
 
-    def test_posted_invoice_renders_with_unpaid_badge(self, tmp_path):
+    def test_posted_invoice_renders_as_owed_in_full(self, tmp_path):
         runner = CliRunner()
         gnc = tmp_path / "book.gnucash"
         fixture = _ACCOUNTS + _fixture("q012_invoice_posted_simple")
@@ -189,5 +162,7 @@ class TestPostedInvoicesStillWork:
         assert r.exit_code == 0, r.output
 
         html = _render_invoice_html(str(gnc), "INV-POSTED-001")
-        assert '<span class="badge badge-unpaid">Unpaid</span>' in html, html
-        assert '<span class="badge badge-draft">' not in html
+        assert '<div class="invoice-title">Invoice #INV-POSTED-001</div>' \
+            in html, html
+        assert not is_in_progress(html), html
+        assert '>Amount Due</td>' in html, html

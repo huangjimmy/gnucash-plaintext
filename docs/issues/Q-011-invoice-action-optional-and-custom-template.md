@@ -6,38 +6,11 @@ severity: low
 status: closed
 ---
 
-## Problem
-
-A user reported that their generated invoice PDF showed a "UNIT" column
-filled with `Hours` for every line — including rows like "Goods × 100"
-that aren't billed by hours. They confirmed they never typed `Hours`
-themselves; their .txt-generation script (which they wrote) hardcoded
-`action: "Hours"` because every example in our codebase uses it.
-
-Three compounding causes:
-
-1. **Importer requires `action`** (`services/gnucash_importer.py:1641`):
-   ```python
-   entry.SetAction(entry_directive.metadata['action'])
-   ```
-   `metadata['action']` raises `KeyError` if missing. Users writing
-   their own .txt-generators feel forced to populate it with *some*
-   value.
-
-2. **All examples in our docs/tests use `"Hours"`** as the canonical
-   action. A user copy-pasting from `tests/integration/test_business_objects.py`,
-   `test_payment_roundtrip.py`, or the README example inherits the
-   hardcode without realising the field is free-form metadata that can
-   be left empty.
-
-3. **Default XSLT always renders the UNIT column** (`services/invoice.xslt:275`):
-   ```xml
-   <td style="text-align:center"><xsl:value-of select="action"/></td>
-   ```
-   No conditional. Every entry gets a cell whether the value is meaningful
-   or not. The column header also says "UNIT" rather than "Action" — but
-   relabelling alone doesn't fix the screenshot, since "Hours" is plainly
-   not a unit for goods either way.
+> **The printed page has since changed ([Q-036](Q-036-printed-documents-are-not-gnucashs-page.md)).**
+> A PDF or HTML document is drawn by GnuCash's own Printable Invoice, which decides its own
+> columns — an entry's `action:` fills its Action column, and the column is drawn whether or not
+> anything fills it. `--template` and the XSLT it took are gone with the second renderer they
+> drove; the `action:` field being optional, which is the rest of this issue, is unchanged.
 
 ## Decisions
 
