@@ -319,6 +319,16 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.xaccAccountGetType.argtypes            = [ctypes.c_void_p]
     lib.gncInvoiceGetInvoiceFromLot.restype    = ctypes.c_void_p
     lib.gncInvoiceGetInvoiceFromLot.argtypes   = [ctypes.c_void_p]
+    # The date format every date on a printed page that is *not* the
+    # document's own is written in. A process-wide setting: GnuCash's GUI
+    # writes it at startup from its own preference, and nothing does in a
+    # process that only loaded the library, so it sits at its compiled
+    # default of `QOF_DATE_FORMAT_LOCALE` and the printing machine's locale
+    # decides. See `services/gnucash_report.py`, which sets it from the book.
+    lib.qof_date_format_set.restype            = None
+    lib.qof_date_format_set.argtypes           = [ctypes.c_int]
+    lib.qof_date_format_get.restype            = ctypes.c_int
+    lib.qof_date_format_get.argtypes           = []
 
 
 @lru_cache(maxsize=1)

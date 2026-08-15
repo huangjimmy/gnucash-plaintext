@@ -12,6 +12,7 @@ JSON blob.
 
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
@@ -181,6 +182,61 @@ def test_null_value_removes_a_custom_key(tmp_path):
     fields = _company_fields(_export(runner, gf, tmp_path))
     assert 'entity_type' not in fields                     # removed via null
     assert fields.get('province') == 'BC'                  # the other key survives
+
+
+class TestAKeyTheCompanyBlockOwns:
+    """`set-book-key` writes the blob, and a `company` field is not kept there.
+
+    Every reader of one of those names looks at GnuCash's own Business option:
+    the export prefers it, the printed page reads it, and the migration that
+    moves an older book's blob copy onto the option fires only while the
+    option is empty. So a write here would report `created` and then be
+    invisible in every direction — until the next import carrying a `company`
+    block deleted it. Refused by name, with the block to use instead.
+    """
+
+    def _refused(self, tmp_path, key, value):
+        runner = CliRunner()
+        gf = _new_book(runner, tmp_path)
+        _import(runner, gf, 'company\n\tname: "Acme"\n', tmp_path, 'c1.txt')
+        return runner.invoke(cli, ['set-book-key', str(gf),
+                                   '--key', key, '--value', value])
+
+    def test_a_business_field_is_refused(self, tmp_path):
+        r = self._refused(tmp_path, 'date_format', '%Y-%m-%d')
+
+        assert r.exit_code != 0, r.output
+        assert 'date_format' in r.output and 'company' in r.output
+
+    def test_a_field_that_was_always_one_is_refused_too(self, tmp_path):
+        """The rule is the set's, not the newest member's."""
+        r = self._refused(tmp_path, 'phone', '+1-555-0100')
+
+        assert r.exit_code != 0, r.output
+        assert 'phone' in r.output
+
+    @pytest.mark.parametrize('key', ['addr1', 'addr[0]'])
+    def test_an_address_line_is_refused_in_either_spelling(self, tmp_path,
+                                                           key):
+        """And refused *for the right reason*, which is the harder half.
+
+        `addr[0]` is a well-formed key in this format — the grammar takes a
+        trailing index — so turning it away as malformed would tell the reader
+        their spelling is wrong when it is the format's own, and would never
+        reach the sentence naming the block to state it in.
+        """
+        r = self._refused(tmp_path, key, '42 Example Street')
+
+        assert r.exit_code != 0, r.output
+        assert key in r.output
+        assert 'company' in r.output
+        assert 'invalid book key' not in r.output
+
+    def test_a_key_of_the_readers_own_is_still_accepted(self, tmp_path):
+        """Including one that merely looks like an address line."""
+        r = self._refused(tmp_path, 'addr7', 'a key of my own')
+
+        assert r.exit_code == 0, r.output
 
 
 def test_set_book_key_does_not_disturb_other_custom_keys(tmp_path):

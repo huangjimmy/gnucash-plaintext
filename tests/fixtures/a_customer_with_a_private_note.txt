@@ -29,7 +29,7 @@
 customer "C-PRIVATE"
 	name: "Private Note Customer"
 	currency: CAD
-	addr1: "1 Any Street"
+	addr[0]: "1 Any Street"
 	email: "billing@example.com"
 	credit_rating: "poor - chase early"
 

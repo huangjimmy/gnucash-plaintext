@@ -5,10 +5,10 @@
 customer "C-FULL"
 	name: "Full Details Co"
 	currency: CAD
-	addr1: "Suite 400"
-	addr2: "1 Example Street"
-	addr3: "Toronto ON"
-	addr4: "M5V 1A1"
+	addr[0]: "Suite 400"
+	addr[1]: "1 Example Street"
+	addr[2]: "Toronto ON"
+	addr[3]: "M5V 1A1"
 	email: "ap@example.test"
 
 # A second customer carrying none of them, which is what shows the writer's

@@ -42,8 +42,8 @@ company
 
 customer "C-UNICODE"
   name: "东京物産株式会社"
-  addr1: "日本橋 1-2-3"
-  addr2: "東京都"
+  addr[0]: "日本橋 1-2-3"
+  addr[1]: "東京都"
   currency: CAD
   extra_text1: "担当: 山田さん"
 
@@ -70,7 +70,7 @@ invoice "INV-UNICODE-001"
 
 vendor "V-UNICODE"
   name: "Fournitures Léger & Frère"
-  addr1: "12 rue de l'Église"
+  addr[0]: "12 rue de l'Église"
   currency: CAD
   extra_text1: "Référence fournisseur: №4501"
 

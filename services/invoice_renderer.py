@@ -68,10 +68,15 @@ def read_book_company_info(file_path):
         'email': _str_val(biz_el, 'Company Email Address'),
         'url': _str_val(biz_el, 'Company Website URL'),
     }
+    # Every line the slot holds, under `address`, rather than four keys named
+    # after the first four of them. The book's address is one free-text field
+    # and takes as many lines as are typed into it, so reading four was the
+    # same truncation the export had — and this is the copy a *printed*
+    # document is drawn from, so a company with a country on line five posted
+    # invoices without it.
     addr_raw = _str_val(biz_el, 'Company Address')
-    addr_lines = addr_raw.split('\n') if addr_raw else []
-    for i, k in enumerate(['addr1', 'addr2', 'addr3', 'addr4']):
-        result[k] = addr_lines[i].strip() if i < len(addr_lines) else ''
+    result['address'] = [line.strip()
+                         for line in (addr_raw.split('\n') if addr_raw else [])]
 
     return result
 
@@ -429,11 +434,9 @@ def _render_seller_header(company_info) -> str:
         parts.append(f'GST: {gst}')
     for pst in split_pst_numbers(company_info.get('pst')):
         parts.append(f'PST: {pst}')
-    addr_lines = [
-        (company_info.get(k) or '').strip()
-        for k in ('addr1', 'addr2', 'addr3', 'addr4')
-    ]
-    addr_joined = ', '.join(line for line in addr_lines if line)
+    addr_joined = ', '.join(
+        line for line in (company_info.get('address') or [])
+        if (line or '').strip())
     if addr_joined:
         parts.append(addr_joined)
     for key in ('phone', 'fax', 'email', 'url'):

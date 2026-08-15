@@ -107,7 +107,8 @@ class TestExportingSuchABook:
         text = _export(legacy, tmp_path).read_text()
 
         vendor_block = text.split('vendor "V-ADDR"')[1].split('\n\n')[0]
-        assert vendor_block.count('addr1:') == 1, vendor_block
+        assert vendor_block.count('addr[0]:') == 1, vendor_block
+        assert 'addr1:' not in vendor_block, vendor_block
 
     def test_a_key_that_is_still_the_slot_is_kept(self, legacy, tmp_path):
         """Only the keys that became real fields leave the slot."""
@@ -148,7 +149,7 @@ class TestDeletingTheLine:
 
         The slot holds the only copy this book has, so dropping it on a block
         that says nothing about the key would lose the address outright.
-        Clearing it is said with `addr1: ""`, as everywhere else.
+        Clearing it is said with `addr[0]: ""`, as everywhere else.
         """
         cut = self._without_the_line(legacy, tmp_path)
 

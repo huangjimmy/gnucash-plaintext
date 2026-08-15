@@ -19,16 +19,20 @@ FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q019_accounts.txt')
 COMPANY = str(FIXTURES / 'company_full.txt')
 
-# Field values as written in tests/fixtures/company_full.txt.
+# Field values as written in tests/fixtures/company_full.txt, keyed as the
+# *export* writes them. The fixture states its address in the older
+# `addr1`..`addr3` spelling and is left that way on purpose: read one way and
+# written the other, this pins that a ledger predating the indexed keys still
+# lands on the same address.
 EXPECTED = {
     'name':    'Acme Plaintext Co.',
     'contact': 'Jane Doe',
     'id':      '123456789RT0001',
     'gst':     '123456789RT0001',
     'pst':     'BC PST-1234-5678; SK 9012-3456',
-    'addr1':   '100 Main St',
-    'addr2':   'Suite 200',
-    'addr3':   'Toronto ON M5H 1A1',
+    'addr[0]': '100 Main St',
+    'addr[1]': 'Suite 200',
+    'addr[2]': 'Toronto ON M5H 1A1',
     'phone':   '+1-555-0142',
     'fax':     '+1-555-0199',
     'email':   'billing@acmeplain.test',

@@ -42,8 +42,7 @@ from infrastructure.gnucash.utils import (
     money_text,
     numeric_to_fraction,
 )
-
-_ADDRESS_KEYS = ('addr1', 'addr2', 'addr3', 'addr4', 'email')
+from services.plaintext_addresses import LEGACY_ADDRESS_KEYS, address_key
 
 
 def owner_block_lines(kind: str, owner, known_keys, with_guid: bool = False,
@@ -77,14 +76,17 @@ def owner_block_lines(kind: str, owner, known_keys, with_guid: bool = False,
     if not owner.GetActive():
         lines.append('\tactive: false')
 
-    for key, value in zip(_ADDRESS_KEYS,
-                          (addr.GetAddr1(), addr.GetAddr2(), addr.GetAddr3(),
-                           addr.GetAddr4(), addr.GetEmail())):
-        # `held` is already read above; without it each of these five keys
-        # re-reads the same slot.
-        value = held_value(owner, value, key, held)
+    for index, value in enumerate((addr.GetAddr1(), addr.GetAddr2(),
+                                   addr.GetAddr3(), addr.GetAddr4())):
+        # `held` is already read above; without it each of these keys re-reads
+        # the same slot. The slot is looked up under the old spelling, which
+        # is the one a book old enough to have the address there wrote.
+        value = held_value(owner, value, LEGACY_ADDRESS_KEYS[index], held)
         if value:
-            lines.append(f'\t{key}: "{value}"')
+            lines.append(f'\t{address_key(index)}: "{value}"')
+    email = held_value(owner, addr.GetEmail(), 'email', held)
+    if email:
+        lines.append(f'\temail: "{email}"')
 
     if with_custom_keys:
         for key, value in sorted(held.items()):

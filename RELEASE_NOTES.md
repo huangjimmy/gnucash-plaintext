@@ -14,6 +14,37 @@ This includes `import --dry-run`, which is the case likeliest to be scripted: a 
 
 This reaches ledgers that imported cleanly before, because settling *into* a foreign account is itself what opens a basis on it, and it is asked of every foreign bank rather than only one in a third currency — paying a USD bill out of a USD bank whose bases still have a balance drifts the same way and reaches none of the cross-currency arithmetic. Write the settlement as an ordinary transaction whose bank split carries `cost_basis_split_guid:`, and attach it to the document with `txn_guid:` / `txn_split_guid:`. README's foreign-currency section shows the shape, and [docs/multi-currency.md](docs/multi-currency.md) lists the refusal beside the others.
 
+**`date_format` on the `company` block is now a reserved key.** It used to be any other key, so a ledger naming it was kept as book-level custom metadata: round-tripped, never read, never printed. It is now GnuCash's own Fancy Date Format option, so a ledger that has been carrying `date_format` for something of its own will find that value moved into the GnuCash option its own reports read — and, if it is one of the four formats that map, deciding the dates on every printed document.
+
+A book already holding it as a custom key is migrated on the next import **that carries a `company` block** — the migration lives in that block's import, so a run of transactions alone does not perform it, and a book whose ledgers never mention the company keeps the old copy indefinitely. When it does happen the value moves to the option and the custom copy is dropped, so nothing carries two answers. Until then, an export emits it once — from the option where this version keeps it, or from the custom copy where an older book still does — rather than twice. If you were using `date_format` to mean something else, rename your key before importing again — and see the note below, because the same now applies to every other name the `company` block owns.
+
+**Every `company` field name is reserved, and a custom book key of the same name is now acted on.** The set is `name`, `contact`, `id`, `gst`, `pst`, `phone`, `fax`, `email`, `url`, `date_format` and the address lines — nine of them ordinary enough that a book may well have picked one for something of its own, through `set-book-key` or a `company` block written before the name meant anything.
+
+Three new behaviours reach them. A block that *names* the key deletes the custom copy, where before both survived and the custom copy won the round trip. An import whose block does **not** name it moves the custom copy into GnuCash's own Business option, when that option is empty. And when that option is **not** empty, the custom copy is deleted — it is a second answer to a question the option already answers, and left in place it was written back over the option the next time someone cleared that field in GnuCash. That deletion is announced on stderr, naming the key and the value, because nothing else would say so: the writers prefer the option, so the value is not in your last export either. So `set-book-key --key id --value "ISO-9001"` — legal until now — becomes GnuCash's **Company ID** on the next import carrying a `company` block, and prints on invoices as the company registration number.
+
+**This reaches migration files too.** `set-book-key` is a valid `migrate` operation, so a checked-in `migrations/00N-*.txt` line like `set-book-key --key id --value "ISO-9001"` now fails — and `migrate` stops at it. On books where that migration is already recorded as applied nothing changes, but building a *new* book from the migration set aborts partway. Edit the migration line to a name outside the set, or state the value in a `company` block instead; a migration already applied does not re-run, so changing the line does not re-apply it.
+
+If you have used any of those names for something of your own, rename the key before importing again. `gnucash-plaintext export --include-business-objects` shows what a book holds; a name outside the set is untouched, including one that merely looks like a reserved one (`addr7`, `company_id`, `url2`).
+
+**`set-book-key` refuses those names outright.** `--key date_format`, `--key id`, `--key phone`, `--key addr[0]` and the rest of the set are stored in GnuCash's Business options now, and every reader looks for them there — so a write into the custom blob would report `created` and then be invisible to the export, to the printed page and to the reports, until the next import carrying a `company` block deleted it. The refusal names the block to state it in instead. Keys of your own are unaffected, including ones that merely look like a reserved name: `addr7` is yours.
+
+**An address is written `addr[0]`, `addr[1]`, … and the `company` address is no longer cut off at four lines.** The lines of an address are numbered in brackets now, counting from zero, on the `company`, `customer` and `vendor` blocks alike. Two things this fixes, both measured on real books:
+
+- **A company address longer than four lines was silently truncated.** GnuCash's File → Properties → Business address is one free-text box and takes as many lines as you type; the export wrote the first four. A six-line address came out of `export` with its country and its attention line missing, so a book rebuilt from that ledger had a four-line address and nothing said so. The `company` block now writes and reads every line the book holds.
+- **A block naming one address line emptied the others.** `company` with `addr[0]:` alone rewrote the whole address from that one line — an address of four lines cut to one. It now follows the rule the rest of the format follows, and the customer address always did: what a block does not name, it is not asking to change. To empty a line, name it empty.
+
+A customer's or a vendor's address is a GnuCash `GncAddress` and genuinely has four fields, so `addr[4]` on one of those blocks is **refused** rather than filed where nothing prints it. Only the book's own address takes more.
+
+`addr1`–`addr4` are still read, so ledgers written before this keep importing, and mean what they always did — `addr1` is the first line, which is `addr[0]`. Nothing writes them any more, so a re-export of an existing book will show this as a diff. A block spelling one line both ways is refused rather than resolved. Scripts that grep exports for `addr1:` need the new spelling.
+
+The brackets are what make this safe to extend: `addr[7]` is the eighth line of the address, while `addr7` is an ordinary custom key of yours. Numbering the keys `addr5`, `addr6` instead would have quietly taken every such name for the format.
+
+**If you wrote `addr5:` to get a fifth line, rename it to `addr[4]:`.** It was the obvious thing to try and it never worked: the previous version filed it in the book's custom metadata, where it round-tripped through the export and never reached the address, so those books have a four-line address and a stray key beside it. This version does not change that — `addr5` is an ordinary key, by the rule above, and nothing migrates it, because the format cannot tell a line you meant from a key you named. Renaming it puts the line in the address; leaving it alone keeps it exactly as it is today, exported and never printed. The same applies to `addr6`, `addr7` and so on.
+
+An index carries no leading zeros: `addr[07]` is refused, naming `addr[7]` as the line it meant, rather than being taken as a second name for the same line. And an index past ten thousand is refused as a typo — the index is a position, so `addr[10000000]` asks for a ten-million-line address built out of ten million empty ones. That is a limit on what a file may ask for; a book's own address is not capped, and however many lines GnuCash holds is what the export writes.
+
+**A book holding its address in both places has them merged.** Typing an address into File → Properties → Business on a book whose address was still in the older custom slot leaves both populated; the option is the address as far as it goes, and the slot supplies only what lies past the end of it. The next import that carries a `company` block settles it onto the option and clears the slot's copies.
+
 **`cost_basis_available:` is now `cost_basis_balance:`, and `--available-only` is now `--with-balance-only`.** *Available* named nothing — available for what, of what — and the figure it holds is a balance: how much of that cost basis has not been sold. The key, the `fx-balances` column (`AVAILABLE` → `BASIS BALANCE`), the totals line (`Available USD:` → `Total USD basis balance:`) and every refusal that mentioned it now say so.
 
 A file still stating `cost_basis_available:` is **refused by name**, pointing at the new key. It is not accepted quietly: the old spelling is no longer a reserved key, so it would be kept as an ordinary custom key that nothing reads — the balance unchecked, the file's own sales not counted as already applied, and the basis re-opened at everything it brought in. That gives back currency the same file records as sold. The figure itself does not change; only the key.
@@ -166,6 +197,32 @@ gnucash-plaintext print-invoice mybook.gnucash \
 ```
 
 Also: `print-invoice` no longer crashes on unposted invoices. ([Q-012](docs/issues/Q-012-print-invoice-on-unposted-invoice-crashes.md))
+
+### Printing into a directory no longer loses a document
+
+`print-invoice` / `print-bill` with `-o dir/` name each file after its document, and a document's id is free text.
+
+**Before:** the id was used verbatim as the file name. Two documents sharing an id produced **one** file — the second overwrote the first — while the run reported `✓ Wrote 2 invoice(s)`; GnuCash does not require ids to be unique and both documents survive a save and reload, so this was reachable in an ordinary book. An id holding a separator, such as `2026/001`, addressed a directory that did not exist and the run died with a `FileNotFoundError` traceback, having rendered every document and written none.
+
+**Now:** a separator is written as `-` (`2026-001.pdf`, in the directory you named, and nothing can address a path outside it), and a repeated id takes the document's guid — `<id>_<guid>.pdf` on **both** documents, so neither is the one that quietly kept the plain name. An id that is unique and path-free names its file exactly as before, which is nearly all of them.
+
+### A book says how its dates are written
+
+The `company` directive takes **`date_format`**, an `strftime` format saying how dates are written on the invoices and bills this tool prints.
+
+```
+company
+  name: "Maple Leaf Widgets Inc."
+  date_format: "%Y-%m-%d"
+```
+
+**Before:** nothing in a ledger could say. A printed document took its own posted and due dates from a GnuCash book option — one no command here could write, so the only way to set it was the GnuCash GUI, on every machine that prints, and an export and re-import lost it. Every other date on the page — each entry's, each payment's, "printed on" — came from a process-wide setting that GnuCash's GUI fills in at startup and a command-line process never does, so those followed the locale of whoever ran the command. Two people printing one invoice got two differently-dated documents, and a page could carry two date formats at once.
+
+**Now:** the ledger says it once and both follow. `date_format` writes the book option *and* sets the process-wide format, so a document printed on any machine reads the same way throughout. It exports with the rest of the `company` block and survives a round trip. `date_format: ""` clears it, and the book goes back to being dated by the machine.
+
+**Four formats match exactly** — `%Y-%m-%d`, `%m/%d/%Y`, `%d/%m/%Y`, `%d.%m.%Y` — because the process-wide setting takes a style rather than a format string. Any other format still works on the document's own dates and **now warns** that the rest of the page cannot follow it, naming the four that can. `%d %B %Y` prints `09 March 2026` at the top and leaves the entry rows to the machine, which is a fine thing to choose and no longer a thing to discover.
+
+Note that GnuCash's own Edit → Preferences → Date/Time never affected this command — it is read by the GnuCash GUI at startup, and `print-invoice` is not the GUI. Measured on 5.10: changing it changes nothing on the page. Reports of your own see the book's format too, through `gnc:options-fancy-date`. [docs/dates-on-printed-documents.md](docs/dates-on-printed-documents.md) is the worked guide — a runnable ledger, the page it prints, and what to do when your format is not one of the four. ([Q-037](docs/issues/Q-037-a-printed-document-is-dated-by-the-machine-that-printed-it.md))
 
 ### A printed invoice or bill is the page GnuCash prints
 

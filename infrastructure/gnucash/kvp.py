@@ -106,19 +106,32 @@ KNOWN_SPLIT_METADATA_KEYS = frozenset({
     'guid',
 })
 
+# The four lines of a `GncAddress`, in both spellings: `addr[0]`..`addr[3]`,
+# which is what the writers emit, and `addr1`..`addr4`, which is what ledgers
+# and older books still hold. Both belong in a known-key set — a set naming one
+# of them emits the other twice, once as the address and once as a leftover
+# custom key, and the stale copy comes second, which is the one a re-import
+# keeps.
+#
+# Spelled out here rather than built from `services/plaintext_addresses`, which
+# is where the syntax is defined and where every other reader of it asks: this
+# is infrastructure, and importing a service into it points the layering the
+# wrong way. Four fields is a fact about `GncAddress` and does not move.
+_ADDRESS_KEYS = frozenset(
+    {f'addr[{i}]' for i in range(4)} | {f'addr{i + 1}' for i in range(4)})
+
 # Customer metadata keys that have dedicated GnuCash setters.
 KNOWN_CUSTOMER_METADATA_KEYS = frozenset({
-    'guid', 'name', 'currency', 'addr1', 'addr2', 'addr3', 'addr4', 'email', 'active',
-})
+    'guid', 'name', 'currency', 'email', 'active',
+}) | _ADDRESS_KEYS
 
 # Vendor metadata keys that have dedicated GnuCash setters. The address keys
 # belong here for the same reason they do above: a vendor has an address, the
 # bill renderer prints it, and without a setter behind them these keys were
 # filed as custom metadata — a slot named `addr1` rather than the address.
 KNOWN_VENDOR_METADATA_KEYS = frozenset({
-    'guid', 'name', 'currency', 'addr1', 'addr2', 'addr3', 'addr4', 'email',
-    'active',
-})
+    'guid', 'name', 'currency', 'email', 'active',
+}) | _ADDRESS_KEYS
 
 # Invoice metadata keys that have dedicated GnuCash setters.
 KNOWN_INVOICE_METADATA_KEYS = frozenset({

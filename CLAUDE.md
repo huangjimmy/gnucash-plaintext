@@ -633,6 +633,55 @@ Formatting can refuse. A split holding a figure finer than its currency cannot b
 
 Both now build the complete output first and touch the destination only once it exists in full; the per-document form makes the directory only when there is something to put in it. `_write_combined` was always right, because it concatenates into a list before writing — which is why the combined form never showed the defect and the per-document form did.
 
+### 15. Dates: two settings decide them, and one is a process global the GUI fills in
+
+Discovered 2026-08-15, from a user printing with a report of their own.
+
+A date on a printed document comes from one of two places, and which one depends on *which* date it is:
+
+| date | written by | reads |
+|---|---|---|
+| the document's posted date and due date | `gnc-print-time64 date (gnc:options-fancy-date book)` | a **book option** — `("Business" ("Fancy Date Format" "custom"))`, via `gnc:fancy-date-info` |
+| every entry's date, every payment's date, "printed on" | `qof-print-date` | a **process global**, `qof_date_format_get()` |
+
+**The process global is the trap.** GnuCash's GUI sets it at startup from its GSettings preference. A process that only loaded the library sets nothing, so it holds its compiled default `QOF_DATE_FORMAT_LOCALE` (`4`) and those dates follow the *locale of whoever ran the command*. Measured on 5.10, 4.13 and 3.8: it reads `4` in this tool's process no matter what the GnuCash preference says, and setting that preference — through GSettings' keyfile backend, since the images have neither dconf nor a session bus — changes nothing on the page. **`Edit → Preferences → Date/Time` does not reach anything this project prints.**
+
+Consequences worth knowing before touching any printed date:
+
+- setting only the book option gives a page with **two date formats on it** — measured, `09 March 2026` at the top and `03/09/26` in the entry rows;
+- setting *neither* is uniform, because both halves then fall back to the same locale — so adding the book option is what introduces the split, and `services/gnucash_report.py` sets the global from the same key to close it;
+- `qof_date_format_set` takes **a style, not a format string**: `US=0, UK=1, CE=2, ISO=3` from `gnc-date.h`, whose own comment says it "checks to make sure it's a legal value". `QOF_DATE_FORMAT_CUSTOM` is the check printer's and there is no public setter for a custom string, so a format like `%d %B %Y` cannot reach the entry rows at all — the run warns rather than pretending;
+- it is a **global**, so anything that sets it must put it back. One command printing one book must not leave the next book, or the next test in the same pytest process, reading the first book's format.
+
+### 16. A book's address is one string; an owner's is four fields
+
+Discovered 2026-08-15, from a user asking why a company address was being split at all.
+
+The two look alike in the format and are different objects in GnuCash:
+
+| whose | how GnuCash stores it | how long it may be |
+|---|---|---|
+| the book's own (File → Properties → Business) | **one** option, `Business` → `Company Address`, a single string with `\n` in it | as long as it is — the dialog is a free-text box |
+| a customer's or a vendor's | a `GncAddress` — four separate fields, `SetAddr1`..`SetAddr4` | exactly four, and there is no fifth to set |
+
+Measured on 5.10, from a book this tool wrote:
+
+```
+book option Business/'Company Address':
+    '42 Example Street\nUnit 5\nSpringfield ON\nA1A 1A1'
+book option Business/'Company Address 1':  None      ← no such option
+customer C-ADDR address fields:
+    ['1 Customer Way', 'Suite 9', '', '']
+```
+
+and in the saved XML the book's is one slot whose value spans lines.
+
+**What that cost.** The `company` block wrote four numbered keys and the export split the slot into four, so a six-line address — a unit number, a country, an "attention" line, which is not an unusual address — exported as four lines with the rest silently gone. The export is the whole ledger, so a book rebuilt from one had a shorter address than the book it came from, with nothing said. The four-line cap was right for the owner blocks and wrong for the book's, because it was copied from the object that has four fields to the one that has none.
+
+**And a second, from the same confusion**: the company path rewrote the whole slot from whatever keys the block named, so a block correcting the street deleted the postcode. The owner path never did — it writes `if key in md` — and the rule (an absent key is not an instruction, finding 11) applies to both.
+
+`services/plaintext_addresses.py` holds the parsing and the limit now, so there is one answer to "which line is this key" and one place that knows a `GncAddress` has four of them.
+
 ---
 
-**Last Updated**: 2026-08-11
+**Last Updated**: 2026-08-15

@@ -399,7 +399,7 @@ did not name.
 
 Two consequences worth stating:
 
-- To clear something, say so: `addr1: ""` empties an address line, and
+- To clear something, say so: `addr[0]: ""` empties an address line, and
   `department: ""` takes a custom key off. There is no spelling that means "remove"
   by omission, and there cannot be one — omission is how a partial block stays safe.
 - A comparison follows the same rule. A field the block does not name cannot make a
@@ -459,7 +459,7 @@ that meant it.
 | `name` | Customer name |
 | `currency` | Customer currency |
 | `active` | Active flag (`true`/`false`; defaults `true`) |
-| `addr1`–`addr4` | Billing address lines |
+| `addr[0]`–`addr[3]` | Billing address lines (see [An address](#an-address)) |
 | `email` | Contact email |
 
 **Vendor** — reserved fields:
@@ -470,6 +470,60 @@ that meant it.
 | `name` | Vendor name |
 | `currency` | Vendor currency |
 | `active` | Active flag (`true`/`false`; defaults `true`) |
+| `addr[0]`–`addr[3]` | Address lines (see [An address](#an-address)) |
+| `email` | Contact email |
+
+#### An address
+
+An address is a list of lines, and a value in this format is one line — there is no
+escape for a newline, and a quoted value does not span lines. So each line is its own
+key, with the line's number in brackets, counting from zero:
+
+```
+customer "C-001"
+  name: "Example Customer Inc."
+  currency: CAD
+  addr[0]: "2000 Example Ave"
+  addr[1]: "Suite 900"
+  addr[2]: "Springfield ON"
+  addr[3]: "A1A 1A1"
+```
+
+The number is the line's **position**, so the lines a block does not name stay where
+they are: `addr[0]: "9 New Road"` corrects the street and leaves the postcode alone,
+and `addr[2]: ""` empties the third line without moving the fourth.
+
+**How many lines you get depends on whose address it is.** A customer's or a vendor's
+is a GnuCash `GncAddress`, which has exactly four fields, so `addr[4]` on one of those
+blocks is refused — there is nowhere in the book to put it. The book's own address, in
+the [`company`](#your-own-company-info-the-company-directive) block, is one free-text
+field with newlines in it, and takes as many lines as you write.
+
+**The index is in brackets so that it is an index.** `addr7` is an ordinary custom key
+— a name you chose, round-tripping as what it is — while `addr[7]` is the eighth line
+of the address. Nothing about a key that merely ends in a digit is reserved. (So if you
+once wrote `addr5:` hoping for a fifth line, it is a custom key and always was: rename
+it to `addr[4]:` to make it part of the address.)
+
+An index carries no leading zeros. `addr[07]` is refused, naming `addr[7]` as the line
+it meant — one spelling per line, so a block cannot name the same line twice while
+appearing to name two.
+
+**Nothing caps how long the book's own address is.** (A customer's or a vendor's stops
+at four, as above — that is GnuCash's `GncAddress`, not a rule of this format.) The
+`company` box takes as many lines as you type, and a book it holds is exported in full —
+every line, however many.
+
+What *is* refused is a file naming a line absurdly far out. The index is a position, so
+`addr[10000000]` asks for a ten-million-line address, built out of ten million empty
+ones; taken at its word it wrote ten megabytes of newlines into the book. A stated index
+past ten thousand is read as a typo and refused by name. That is a limit on what a file
+may ask for, not on what a book may hold.
+
+`addr1`–`addr4` are still read, since ledgers written before the index moved into
+brackets exist. They mean what they always did: `addr1` is the first line, which is
+`addr[0]`. Nothing writes them any more, and a block spelling one line both ways is
+refused rather than resolved.
 
 **Invoice** — reserved fields:
 
@@ -540,9 +594,9 @@ object are stored together in a single JSON object.
 customer "CUST-001"
   name: "Acme Logistics"
   currency: CAD
-  addr1: "2000 McGill College Ave"
-  addr3: "Montreal"
-  addr4: "QC"
+  addr[0]: "2000 McGill College Ave"
+  addr[2]: "Montreal"
+  addr[3]: "QC"
   jw.country: "CA"
   jw.postal_code: "H3A 3H3"
 
@@ -553,7 +607,7 @@ customer "CUST-001"
 	erp.cost_centre: "DEPT-42"
 ```
 
-- `name`, `currency`, `addr1`–`addr4` → reserved customer fields
+- `name`, `currency`, `addr[0]`–`addr[3]` → reserved customer fields
 - `jw.country`, `jw.postal_code` → stored in the customer's KVP slot
 - `type`, `commodity.*` → reserved account fields
 - `erp.cost_centre` → stored in the account's KVP slot
@@ -1085,17 +1139,55 @@ company
   id: "123456789RT0001"
   gst: "123456789RT0001"
   pst: "BC PST-1234-5678; SK 9012-3456"
-  addr1: "42 Example Street, Unit 5"
-  addr2: "Springfield ON A1A 1A1"
+  addr[0]: "42 Example Street"
+  addr[1]: "Unit 5"
+  addr[2]: "Springfield ON"
+  addr[3]: "A1A 1A1"
+  addr[4]: "CANADA"
   phone: "+1-555-0100"
   fax: "+1-555-0199"
   email: "billing@example.com"
   url: "https://example.com"
+  date_format: "%d %B %Y"
 ```
 
-`name`, `contact`, `id`, `phone`, `fax`, `email`, `url`, and `addr1..4` map
-directly to GnuCash's native Business fields. The address lines are stored in
-GnuCash's single multi-line `Company Address` slot.
+`name`, `contact`, `id`, `phone`, `fax`, `email`, `url`, and the address lines
+map directly to GnuCash's native Business fields.
+
+The address is stored in GnuCash's single multi-line `Company Address` slot, so
+unlike a customer's it has **no limit of four**: File → Properties → Business is
+one free-text box, and `addr[0]` upwards writes as many lines as you put in it.
+The keys work as [An address](#an-address) describes — the number is the line's
+position, a line you do not name is left alone, and `addr[4]: ""` empties one.
+
+`date_format` **decides how the document's own dates are printed on an invoice or bill** — the posted date and the due date, the two at the top of the page. It is an `strftime` format: `%d %B %Y` gives `09 March 2026`, `%Y-%m-%d` gives `2026-03-09`, `%m/%d/%y` gives `03/09/26`. It is native too, and GnuCash calls it the **Fancy Date Format** — File → Properties → Business in the GUI, stored under that option's `custom` sub-key. GnuCash's own invoice reports read it when they draw (`gnc:options-fancy-date` in `options.scm` reads exactly that sub-key), so setting it here changes the page `print-invoice` and `print-bill` produce. What GnuCash's *dialog* does with an option this tool wrote is not something the test suite can reach — the containers have no GUI — so it is not claimed here: if you set the format in GnuCash and want it to survive, put it in the ledger too.
+
+**It applies to the page, not to the ledger.** `--format html` and `--format pdf` are the rendered document a reader receives, and that is what `date_format` decides. `--format plaintext` writes dates as `YYYY-MM-DD` whatever the book says, because that output is this format — it has to be re-importable, and a date this tool cannot parse back is not a ledger. So a book set to `%d.%m.%Y` prints `09.03.2026` on the invoice and `2026-03-09` in the plaintext of the same document, on purpose.
+
+**One page, one format.** A document has dates in two places — its own posted and due dates at the top, and then each entry's date, each payment's date, and "printed on". GnuCash writes the first pair from the book's format and the rest from a process-wide date setting, which its GUI fills in at startup from its preference. This tool fills it in from your `date_format`, so both halves agree and a printed page reads one way throughout.
+
+**Four formats can be matched exactly**, because GnuCash's date setting takes a style rather than a format string:
+
+| `date_format` | document date | entry row | "printed on" |
+|---|---|---|---|
+| `%Y-%m-%d` | `2026-03-09` | `2026-03-09` | `2026-08-15` |
+| `%m/%d/%Y` | `03/09/2026` | `03/09/2026` | `08/15/2026` |
+| `%d/%m/%Y` | `09/03/2026` | `09/03/2026` | `15/08/2026` |
+| `%d.%m.%Y` | `09.03.2026` | `09.03.2026` | `15.08.2026` |
+
+**Any other format is still yours to set, and the run tells you what it cost.** `date_format: "%d %B %Y"` gives you `09 March 2026` on the document's own dates — there is no style for it, so the entry rows keep following the locale of the machine printing, and you get a page with two formats on it. That is a legitimate thing to want and it is not silent:
+
+```
+⚠ the book's date_format is '%d %B %Y', which GnuCash has no date style for — the document's
+  date and due date will read that way and every other date on the page will follow this
+  machine's locale. For one format throughout, use one of: %Y-%m-%d, %d.%m.%Y, %d/%m/%Y, %m/%d/%Y
+```
+
+If you want a format outside those four on *every* date, write the report — a report of your own formats each date itself, so nothing is left to the machine. See "Changing the page means changing the report that draws it" below.
+
+Note that GnuCash's **Edit → Preferences → Date/Time** does not affect this command: that preference is read by the GnuCash GUI at startup, and `print-invoice` is not the GUI. Measured on 5.10 — setting it changed nothing on the page. The book is what decides here.
+
+Everything in this section was measured on GnuCash 5.10, 4.13 and 3.8. **[docs/dates-on-printed-documents.md](docs/dates-on-printed-documents.md)** is the worked guide: a complete ledger you can run, the page it produces, the export it round-trips through, what to do for a format outside the four, and the tests that prove each of it.
 
 `gst` and `pst` are **registration numbers GnuCash has no field for** — there is
 only one generic `Company ID`. This tool stores them as extra Business slots
@@ -1936,6 +2028,13 @@ gnucash-plaintext print-invoice mybook.gnucash 'INV-2026-*' --format plaintext -
 
 Output composition is `-o file.ext` (single combined file), `-o dir/` (one file per invoice), or `-o -` (stdout, plaintext only).
 
+**Into a directory, each file is named after its document** — `INV-2026-001.pdf` — with two adjustments, because a document's id is free text and is being used as a file name:
+
+* **a separator is replaced.** `2026/001` is an ordinary way to number an invoice, and it would otherwise address `q1/2026/001.pdf`, a directory nobody made. It is written as `2026-001.pdf`, in the directory you named. The same applies to anything that would point outside it.
+* **a repeated id takes the document's guid.** GnuCash does not require ids to be unique, and two documents sharing one used to mean one file — the second overwriting the first, while the run reported having written both. Both files are now written as `<id>_<guid>.pdf`; *both* take the guid, so neither is the one that quietly kept the plain name.
+
+An id that is unique and holds no separator — which is nearly all of them — names its file exactly as it always did.
+
 **Plaintext format (Q-017)**: `--format plaintext` emits the same canonical plaintext syntax used by `export`, populated with **informational** totals — `entry_amount` and `entry_tax` per line, repeatable `breakdown:` sub-blocks showing which tax account got which dollar (audit-friendly for combined HST = GST + PST), and invoice-level `invoice_subtotal`, `invoice_tax_total`, `invoice_total`. The exporter never emits these (round-trip stays minimal); the renderer does. On re-import the values are recomputed from the source-of-truth fields (`quantity × price × tax_table`) and the importer errors loudly on any mismatch — so you get tamper detection automatically when sharing rendered plaintext files. Draft (unposted) invoices emit only `invoice_subtotal` since per-entry tax requires posting.
 
 **Free text of your own, without a template of your own.** GnuCash's page has no row for two things people want on a document, so two rows are added to it and nothing else:
@@ -1945,7 +2044,7 @@ Output composition is `-o file.ext` (single combined file), `-o dir/` (one file 
 
 The report builds its page in Scheme and has no template file to edit, so these go in as one more row of the block they belong beside — added to what GnuCash drew, never woven into how it draws it.
 
-One key is one printed line, numbered like the `addr1:`..`addr4:` keys elsewhere in this format, and they print exactly as written. Nothing is interpreted, so "a different website for wholesale customers" is something you write on the customer rather than a template you maintain:
+One key is one printed line, for the reason an [address](#an-address) is written a line per key: a value here is one line, and there is no escape for a newline. These are ordinary custom keys rather than a reserved list, so they are numbered from one without brackets — the brackets on an address mark a key the format itself owns. They print exactly as written; nothing is interpreted, so "a different website for wholesale customers" is something you write on the customer rather than a template you maintain:
 
 ```
 company
