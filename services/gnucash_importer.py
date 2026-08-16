@@ -93,6 +93,16 @@ from services.foreign_currency import (
     write_cost_basis_balance,
 )
 from services.fx_rates import MissingFxRateError
+from services.plaintext_addresses import (
+    OWNER_ADDRESS_LINES,
+    address_key,
+    address_line_index,
+    address_lines_beyond,
+    address_lines_from,
+    is_address_key,
+    named_address_lines,
+    refuse_an_index_on_a_key_that_has_no_list,
+)
 from services.plaintext_parser import (
     RESIDUAL_AMOUNT,
     DirectiveType,
@@ -121,8 +131,29 @@ COMPANY_FIELD_TO_SLOT = {
     'fax':     'Company Fax Number',
     'email':   'Company Email Address',
     'url':     'Company Website URL',
+    # How the book's dates are to be written, as an `strftime` format.
+    #
+    # Nested, unlike its neighbours: GnuCash keeps this one at
+    # `options/Business/Fancy Date Format/custom`, which is what
+    # `gnc:fancy-date-info` reads — `(gnc:book-get-option-value book
+    # "Business" '("Fancy Date Format" "custom"))`. The slot name carries the
+    # extra level because `set_book_string_option` joins section and name with
+    # a slash and `qof_book_set_string_option` splits the whole path, so a
+    # name with a slash in it addresses a deeper frame. Measured on 5.10: the
+    # saved XML holds the same `Fancy Date Format` → `custom` frames GnuCash's
+    # own File → Properties → Business writes.
+    #
+    # Worth having because the fallback is not a property of the book at all.
+    # A book with no format of its own is dated by `qof-date-format-get`, the
+    # *application's* preference, which lives in GSettings — so the same
+    # invoice printed on two machines came out dated two ways, and no ledger
+    # could say otherwise.
+    'date_format': 'Fancy Date Format/custom',
 }
-_COMPANY_ADDR_KEYS = ('addr1', 'addr2', 'addr3', 'addr4')
+
+# The address is written one line per key, indexed — `addr[0]` upwards. See
+# `services/plaintext_addresses.py` for why the index is in brackets and what
+# the two spellings mean.
 
 # Q-029: any `company` key that is not a known Business field (above) or an
 # address line is book-level custom metadata — e.g. `fiscal_year_end`,
@@ -1851,15 +1882,29 @@ def _write_named_address(owner, md: dict) -> None:
     person editing a name writes the name, a printed invoice carries a partial
     owner block, an export taken before a field existed has none at all.
 
-    Clearing is still possible and is said rather than implied: `addr1: ""` is
-    present, and empties.
+    Clearing is still possible and is said rather than implied: `addr[0]: ""`
+    is present, and empties.
+
+    A line past the fourth is refused. A `GncAddress` has four fields and no
+    fifth, so there is nothing to set it on — and the alternative, which is
+    what used to happen to any key the address did not claim, is that it
+    becomes custom metadata: round-tripping through the ledger perfectly while
+    never reaching the address, so the file says five lines and the printed
+    invoice shows four. Only the book's own `company` address is free of the
+    limit, its lines being one string rather than four fields.
     """
     addr = owner.GetAddr()
-    for key, setter in (('addr1', addr.SetAddr1), ('addr2', addr.SetAddr2),
-                        ('addr3', addr.SetAddr3), ('addr4', addr.SetAddr4),
-                        ('email', addr.SetEmail)):
-        if key in md:
-            setter(md[key] or '')
+    setters = (addr.SetAddr1, addr.SetAddr2, addr.SetAddr3, addr.SetAddr4)
+    for index, value in named_address_lines(md).items():
+        if index >= OWNER_ADDRESS_LINES:
+            raise ValueError(
+                f'{address_key(index)!r} is beyond the address — a customer '
+                f'or vendor address holds four lines, {address_key(0)!r} to '
+                f'{address_key(OWNER_ADDRESS_LINES - 1)!r}. Only the book\'s '
+                f'own `company` address takes more')
+        setters[index](value)
+    if 'email' in md:
+        addr.SetEmail(md['email'] or '')
 
 
 def _named_address_matches(owner, md: dict) -> bool:
@@ -1870,12 +1915,25 @@ def _named_address_matches(owner, md: dict) -> bool:
     reason to call the owner out of date either.
     """
     addr = owner.GetAddr()
-    for key, getter in (('addr1', addr.GetAddr1), ('addr2', addr.GetAddr2),
-                        ('addr3', addr.GetAddr3), ('addr4', addr.GetAddr4),
-                        ('email', addr.GetEmail)):
-        if key in md and (md[key] or '') != getter():
+    getters = (addr.GetAddr1, addr.GetAddr2, addr.GetAddr3, addr.GetAddr4)
+    for index, value in named_address_lines(md).items():
+        if index >= OWNER_ADDRESS_LINES or value != getters[index]():
             return False
-    return True
+    return not ('email' in md and (md['email'] or '') != addr.GetEmail())
+
+
+def _refuse_bracketed_keys(md: dict, known) -> None:
+    """No block mints a bracketed key of its own.
+
+    Every path that turns a block's keys into custom metadata passes through
+    here, because the rule is the format's rather than any one block's: an
+    index in brackets names a line of a list, the address is the only list,
+    and a key outside it that wears one would take a name the next
+    list-valued key needs. See `refuse_an_index_on_a_key_that_has_no_list`.
+    """
+    for key in md:
+        if key not in known:
+            refuse_an_index_on_a_key_that_has_no_list(key)
 
 
 def _custom_keys_to_store(md: dict, known: frozenset) -> dict:
@@ -1897,6 +1955,7 @@ def _custom_keys_to_store(md: dict, known: frozenset) -> dict:
     `_merge_custom_metadata` is the same rule where there is something to
     remove.
     """
+    _refuse_bracketed_keys(md, known)
     return {k: v for k, v in md.items()
             if k not in known and v is not None and str(v) != ''}
 
@@ -1908,6 +1967,7 @@ def _merge_slot_keys_named(obj, md: dict, known: frozenset) -> None:
     `BeginEdit`/`CommitEdit` bracket: a split has neither, and is edited
     through the transaction that owns it — which the caller has open.
     """
+    _refuse_bracketed_keys(md, known)
     named = {k: v for k, v in md.items() if k not in known and v is not None}
     if not named:
         return
@@ -1928,12 +1988,23 @@ def _merge_custom_metadata(obj, md: dict, known: frozenset) -> None:
     carries one, and so does a person correcting a name. Replacing the slot
     wholesale made every partial block a delete.
 
-    A key is removed by naming it empty, which is what `addr1: ""` does one
+    A key is removed by naming it empty, which is what `addr[0]: ""` does one
     field over. Removing it by leaving the line out cannot be told from never
     having mentioned it.
     """
+    _refuse_bracketed_keys(md, known)
     named = {k: v for k, v in md.items() if k not in known and v is not None}
     held = get_custom_metadata(obj) or {}
+    # Only for the objects that *have* an address. This helper serves
+    # transactions, invoices and bills too, and none of those owns an address
+    # — their known-key sets name none — so on one of them `addr1` is an
+    # ordinary custom key the reader chose, and reading it as a line of an
+    # address deleted it when a block happened to name `addr[0]`, for an
+    # object with no address at all. Parsing it at all was wrong there too: a
+    # transaction key spelled with a wild index was refused for asking too
+    # much of an address the transaction does not have.
+    has_address = any(is_address_key(k) for k in known)
+    named_lines = named_address_lines(md) if has_address else {}
     # A key that has since become a field of its own leaves the slot — but
     # only once the block has stated it, because until then the slot is the
     # only copy the book has. A book written before vendors had address
@@ -1943,8 +2014,18 @@ def _merge_custom_metadata(obj, md: dict, known: frozenset) -> None:
     # writer above has set the field, so the slot copy is the stale one — and
     # it is the one the parser keeps when both are written, which is what
     # reverted an address changed in GnuCash.
-    kept = {k: v for k, v in held.items()
-            if k not in known or k not in md}
+    #
+    # An address line is matched by the line it names rather than by the key,
+    # because the two spellings name the same line: a block saying `addr[0]`
+    # supersedes a slot still holding `addr1`, and matching the key alone left
+    # the stale copy behind for every block written since the index moved into
+    # brackets — which is every block this tool writes.
+    def _superseded(key):
+        if has_address and is_address_key(key):
+            return address_line_index(key) in named_lines
+        return key in known and key in md
+
+    kept = {k: v for k, v in held.items() if not _superseded(k)}
     if not named and kept == held:
         return
     for key, value in named.items():
@@ -7665,19 +7746,71 @@ class GnuCashImporter:
                 set_book_string_option(book, 'Business', slot, val)
                 changed = True
 
-        # Address lines → single multi-line `Company Address` slot, the inverse
-        # of the `read_book_company_info` split-on-newline. Only rewritten when
-        # the directive names at least one address line.
-        if any(k in md for k in _COMPANY_ADDR_KEYS):
-            addr_val = '\n'.join(
-                ('' if md.get(k) is None else str(md.get(k, '')))
-                for k in _COMPANY_ADDR_KEYS
-            ).rstrip('\n')
-            current = get_book_string_option(book, 'Business', 'Company Address') or ''
+        # Address lines → the single multi-line `Company Address` slot, the
+        # inverse of the `read_book_company_info` split-on-newline. As many
+        # lines as the block names: the slot is free text, and File →
+        # Properties → Business takes as many as are typed into it, so an
+        # address with a unit, a country and an "attention" line has six
+        # without being unusual.
+        #
+        # Only the lines the block names, the rest left where they are. It
+        # used to rewrite the whole slot from whatever the block named, so a
+        # block correcting the street deleted the postcode — an address of
+        # four lines cut to one by a block that named `addr[0]`. Every other
+        # key in this format leaves what it does not mention alone, the
+        # customer address included, and there was no reason for the book's
+        # own address to be the exception.
+        # A book written before the company block had address lines keeps them
+        # in the custom blob and has nothing on the option, so on such a book
+        # the blob **is** the address — and the lines the block names are
+        # written on top of it, not instead of it. Editing the street of a
+        # four-line address stated that way otherwise left the option holding
+        # the street alone: the other three were superseded out of the blob,
+        # the option never learnt them, and the export — which falls back to
+        # the blob only when the book has no address at all — then wrote a
+        # one-line address. A block that said nothing kept all four, so the
+        # loss came of asking to change one of them.
+        held = get_book_custom_metadata(book) or {}
+        carried_lines = {address_line_index(k): str(v)
+                         for k, v in held.items()
+                         if is_address_key(k) and v is not None and str(v)}
+
+        named_lines = named_address_lines(md)
+        current = get_book_string_option(book, 'Business',
+                                         'Company Address') or ''
+        migrating = bool(carried_lines)
+        if named_lines or migrating:
+            # The option is the address as far as it goes, and the slot
+            # supplies what lies past the end of it. A book can hold both —
+            # type an address into File → Properties → Business on a book
+            # whose address was still in the slot, and it does — and reading
+            # only one of them lost the other's tail: a four-line slot behind
+            # a two-line option had lines three and four in no export and in
+            # no book rebuilt from one, permanently, since no import merged
+            # them either.
+            base = address_lines_beyond(
+                current.split('\n') if current else [], carried_lines)
+            addr_val = '\n'.join(address_lines_from(base, named_lines))
             if current:
                 had_any = True
-            if current != addr_val:
-                set_book_string_option(book, 'Business', 'Company Address', addr_val)
+            # Every line's blob copy goes once the option holds the address,
+            # not only the copies of the lines the block named — and only once
+            # the option write has reported success, because until then the
+            # blob is the sole copy of whatever it carried.
+            # `set_book_string_option` swallows its exception and returns
+            # False, so an unguarded delete would lose the address on exactly
+            # the run that failed to write it.
+            wrote = current != addr_val and set_book_string_option(
+                book, 'Business', 'Company Address', addr_val)
+            if wrote:
+                changed = True
+            # `current == addr_val` is the option already holding everything
+            # the blob had — nothing to write, and the copies are stale all
+            # the same. Left behind they are carried by every later run of
+            # this book for no reader at all.
+            if (migrating and (wrote or current == addr_val)
+                    and merge_book_custom_metadata(
+                        book, {k: None for k in held if is_address_key(k)})):
                 changed = True
 
         # Q-029 (fixed): any key that is not a known Business field or an address
@@ -7688,8 +7821,87 @@ class GnuCashImporter:
         # is removed (JSON Merge Patch). It used to replace the whole blob, so a
         # partial company directive silently deleted any custom key it didn't
         # repeat; merge is shared with `set-book-key` so both behave the same.
-        known = set(COMPANY_FIELD_TO_SLOT) | set(_COMPANY_ADDR_KEYS)
-        custom = {k: v for k, v in md.items() if k not in known}
+        known = set(COMPANY_FIELD_TO_SLOT)
+        _refuse_bracketed_keys(md, known | {k for k in md
+                                            if is_address_key(k)})
+        custom = {k: v for k, v in md.items()
+                  if k not in known and not is_address_key(k)}
+
+        # A key that has since become a field of its own leaves the slot —
+        # **but only once the block has stated it**, which is the rule
+        # `_merge_custom_metadata` follows for the per-object slots and for
+        # the same reason: until the block states it, the slot is the only
+        # copy the book has. A book written before `date_format` was a
+        # Business option keeps it there and has nothing on the option;
+        # dropping it unasked loses the format outright.
+        #
+        # Stated, the loop above has just written the option, so the slot's
+        # copy is the stale one and goes. (CLAUDE.md finding 11.)
+        held = get_book_custom_metadata(book) or {}
+        superseded = {k: None for k in held if k in known and k in md}
+        # The address's own copies are dealt with where it is written, above:
+        # migrating takes every line, since the option then holds the whole
+        # address, and that has to happen before this reads the blob back.
+        # An address line's stale copy goes by the line it names rather than
+        # by the key, because the two spellings name the same line: a block
+        # saying `addr[0]` supersedes a blob holding `addr1`, and a book that
+        # kept both would export the line twice with the stale copy second.
+        superseded.update({k: None for k in held
+                           if is_address_key(k)
+                           and address_line_index(k) in named_lines})
+        if superseded and merge_book_custom_metadata(book, superseded):
+            changed = True
+
+        # And the option is written from the slot when the block says nothing
+        # and the option has nothing — the migration itself, rather than a
+        # tidy-up of one. Without it a book whose only copy is in the slot
+        # keeps a `date_format` that no report reads and no page shows: the
+        # value is there, and everything that looks for it looks at the
+        # option.
+        #
+        # Either way the slot's copy goes, and that second half is what keeps
+        # the first honest. A book can hold both — a legacy slot copy and an
+        # option written in GnuCash — and while the slot kept its copy, a
+        # reader who then cleared that option in the GUI had the stale value
+        # written back onto it by the next import that said nothing about the
+        # key. The option is the book's answer once it has one, so a slot copy
+        # beside it is stale by definition, whatever it says. This is the
+        # address's rule for the fields that are not the address.
+        #
+        # The copy is dropped only if the option write reported success.
+        # `set_book_string_option` swallows its exception and returns False,
+        # and that write happens precisely when the slot is the only copy the
+        # book has — so deleting it regardless of whether the value landed
+        # anywhere would lose it outright, on the one path whose whole purpose
+        # is not to.
+        for key, slot in COMPANY_FIELD_TO_SLOT.items():
+            if key in md or key not in held:
+                continue
+            carried = '' if held[key] is None else str(held[key])
+            option = get_book_string_option(book, 'Business', slot) or ''
+            if option:
+                # Said out loud, because this is the arm that ends a value.
+                # These names were ordinary custom keys on every release
+                # before this one, so a book may hold one for something of its
+                # own — `name` as an internal codename beside a Company Name
+                # — and it is dropped here without the block having asked, on
+                # a run whose summary says `updated` and nothing else. Nor
+                # could the reader have got it out of the last export: the
+                # writers prefer the option and skip this copy.
+                if merge_book_custom_metadata(book, {key: None}):
+                    changed = True
+                    if carried:
+                        _echo_note(
+                            f'⚠ dropped the book\'s custom {key!r} key '
+                            f'({carried!r}) — that name belongs to the '
+                            f'`company` block now, and GnuCash\'s own '
+                            f'{slot} already holds {option!r}. Rename the '
+                            f'key in an earlier export if you need it back.')
+            elif carried and set_book_string_option(book, 'Business', slot,
+                                                    carried):
+                merge_book_custom_metadata(book, {key: None})
+                changed = True
+
         if custom:
             if get_book_custom_metadata(book):
                 had_any = True

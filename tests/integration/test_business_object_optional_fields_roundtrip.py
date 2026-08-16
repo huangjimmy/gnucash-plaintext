@@ -38,10 +38,10 @@ class TestACustomersAddress:
     def test_every_line_it_carries_is_written(self, tmp_path):
         text = _exported(tmp_path)
 
-        assert 'addr1: "Suite 400"' in text
-        assert 'addr2: "1 Example Street"' in text
-        assert 'addr3: "Toronto ON"' in text
-        assert 'addr4: "M5V 1A1"' in text
+        assert 'addr[0]: "Suite 400"' in text
+        assert 'addr[1]: "1 Example Street"' in text
+        assert 'addr[2]: "Toronto ON"' in text
+        assert 'addr[3]: "M5V 1A1"' in text
         assert 'email: "ap@example.test"' in text
 
     def test_a_customer_without_them_carries_none(self, tmp_path):
@@ -58,7 +58,7 @@ class TestACustomersAddress:
         bare = bare.split('\nvendor ')[0]
 
         assert 'name: "Bare Co"' in bare, bare
-        for field in ('addr1', 'addr2', 'addr3', 'addr4', 'email'):
+        for field in ('addr[0]', 'addr[1]', 'addr[2]', 'addr[3]', 'email'):
             assert field not in bare, (field, bare)
 
 

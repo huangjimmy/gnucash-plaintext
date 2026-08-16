@@ -3,7 +3,7 @@
 #
 # This is what a person writes to correct a name — the block they are editing,
 # not a transcript of everything the book holds — and it is what every printed
-# document carries. An absent key is not an instruction: `addr1:` missing says
+# document carries. An absent key is not an instruction: `addr[0]:` missing says
 # nothing about the address, the way `notes:` missing has always said nothing
 # about a transaction's notes.
 #

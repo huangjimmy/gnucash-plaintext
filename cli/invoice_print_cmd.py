@@ -18,10 +18,12 @@ from pathlib import Path
 import click
 from gnucash import Query
 
+from cli._document_files import file_names
 from cli._warnings import said_once
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.document_pages import combine_pages, load_weasyprint
+from services.gnucash_importer import _swig_invoice_guid_str
 from services.invoice_renderer import (
     read_book_company_info,
     render_to_html,
@@ -159,13 +161,16 @@ def _write_per_invoice(invoices, book, fmt, company_info, outdir, session=None,
     """
     ext = {'plaintext': 'txt', 'html': 'html', 'pdf': 'pdf'}[fmt]
     warn = said_once()          # one sink for the run, not one per document
+    # Named before anything is rendered, because a name can be a reason not to
+    # start: an id is free text and is about to be joined to a path. See
+    # `cli/_document_files.py` for what a separator and a repeated id each did.
     rendered = [
-        (f'{inv.GetID()}.{ext}',
+        (name,
          render_to_plaintext(inv, book, company_info=company_info)
          if fmt == 'plaintext'
          else render_to_html(inv, session, report=report,
                              report_file=report_file, warn=warn))
-        for inv in invoices
+        for name, inv in file_names(invoices, ext, _swig_invoice_guid_str)
     ]
     # A PDF is laid out before any of them is written too, not only the HTML
     # it is laid out from. Written as each one finished, a document weasyprint

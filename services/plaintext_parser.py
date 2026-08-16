@@ -22,25 +22,6 @@ from infrastructure.gnucash.utils import decode_value_from_string
 
 
 @dataclass
-class CustomerDirective:
-    id: str
-    name: str
-    currency: str
-    addr1: Optional[str] = None
-    addr2: Optional[str] = None
-    addr3: Optional[str] = None
-    addr4: Optional[str] = None
-    email: Optional[str] = None
-
-
-@dataclass
-class VendorDirective:
-    id: str
-    name: str
-    currency: str
-
-
-@dataclass
 class TaxTableEntry:
     account: str
     rate: str
@@ -424,7 +405,21 @@ RESIDUAL_AMOUNT = '$residual$'
 _amount_re = r'(?:[+|-]*\d+(?:\.\d+)?|\$residual\$)'
 split_pattern = r'^\s*([^"]*?)\s+(' + _amount_re + r')\s+([^ ]+)\s*$'
 split_pattern2 = r'^\s*([^"]*?)\s+(' + _amount_re + r')\s+("[^"]+")\s*$'
-metadata_pattern = r'^\s*([a-z_][a-zA-Z0-9_\-.]*)\s*:\s*(.*?)\s*$'
+# A key, optionally indexed: `addr[0]`. The index is how the format writes a
+# value that is a list of lines rather than one line — an address is the only
+# one today — and it is part of the key rather than a new kind of line so that
+# every reader that already splits on the colon keeps working.
+#
+# Bracketed rather than numbered (`addr1`, `addr2`) so that the list stays
+# distinguishable from an ordinary key that happens to end in a digit. A book's
+# custom keys are the book owner's to name, and `abc1`/`abc2` are two unrelated
+# keys; without the brackets, taking `addr` + any number for the address would
+# have reserved a whole namespace of names nobody had agreed to give up, and
+# made `addr7` mean something different depending on which block it was in.
+#
+# Only a trailing index parses, and only digits inside it, so a stray bracket
+# is still a line the reader has to fix rather than a key that quietly appears.
+metadata_pattern = r'^\s*([a-z_][a-zA-Z0-9_\-.]*(?:\[\d+\])?)\s*:\s*(.*?)\s*$'
 commodity_pattern = r'^\s*(\d{4}-\d{2}-\d{2})\s+(commodity)\s+([^"\']*)\s*$'
 open_account_pattern = r'^\s*(\d{4}-\d{2}-\d{2})\s+(open)\s+([^"]*)\s*([^"\']*)\s*$'
 open_account_pattern2 = r'^\s*(\d{4}-\d{2}-\d{2})\s+(open)\s+("(?:\\.|[^"])*?"|\{.*?\})\s*([^"\']*)\s*$'

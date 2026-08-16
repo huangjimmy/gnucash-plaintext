@@ -1,10 +1,10 @@
 # A customer and a vendor, both with an address.
 #
 # The two blocks are the same shape and describe the same kind of thing — who
-# the book trades with — and the customer block has carried `addr1:` through
-# `email:` all along. The vendor block did not: those keys have no vendor
-# setter behind them, so they were filed as custom metadata, which is a slot
-# named `addr1` rather than the vendor's address. The export wrote them back
+# the book trades with — and the customer block has carried the address lines
+# through `email:` all along. The vendor block did not: those keys have no
+# vendor setter behind them, so they were filed as custom metadata, which is a
+# slot named `addr1` rather than the vendor's address. The export wrote them back
 # out of that slot, so the round trip looked clean while the address the book
 # actually holds was untouched.
 #
@@ -29,19 +29,19 @@
 customer "C-ADDR"
 	name: "Acme Supplies"
 	currency: CAD
-	addr1: "Acme Supplies Ltd"
-	addr2: "1 Front Street"
-	addr3: "Toronto ON"
-	addr4: "M5J 1A1"
+	addr[0]: "Acme Supplies Ltd"
+	addr[1]: "1 Front Street"
+	addr[2]: "Toronto ON"
+	addr[3]: "M5J 1A1"
 	email: "ap@acme.example"
 	department: "north"
 
 vendor "V-ADDR"
 	name: "Beta Printing"
 	currency: CAD
-	addr1: "Beta Printing Inc"
-	addr2: "2 Rear Lane"
-	addr3: "Hamilton ON"
-	addr4: "L8P 1A1"
+	addr[0]: "Beta Printing Inc"
+	addr[1]: "2 Rear Lane"
+	addr[2]: "Hamilton ON"
+	addr[3]: "L8P 1A1"
 	email: "invoices@beta.example"
 	department: "south"

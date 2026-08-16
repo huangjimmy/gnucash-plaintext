@@ -1,0 +1,99 @@
+# A book that says how its dates are to be written.
+#
+# GnuCash keeps this as a book option — `Business` → `Fancy Date Format` →
+# `custom`, which File → Properties → Business writes — and its own invoice
+# report reads it (`invoice.scm` calls `gnc:options-fancy-date`). A book
+# without one falls back to the *application's* date preference, which lives
+# in GSettings rather than in the file, so two people printing the same book
+# get differently-dated documents.
+#
+# `%d %B %Y` rather than something ISO-shaped on purpose: it is unmistakable
+# in a rendered page, and it is not what any of the fallbacks would produce.
+
+2026-01-01 open Assets
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+  type: Accounts Receivable
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+  type: Liability
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+  type: Accounts Payable
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Office Supplies
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+
+company
+  name: "Date Format Co."
+  date_format: "%d %B %Y"
+
+customer "C-DATE"
+  name: "Date Format Customer"
+  currency: CAD
+
+invoice "INV-DATE-001"
+  customer_id: "C-DATE"
+  currency: CAD
+  date_opened: 2026-03-09
+  entry:
+    date: 2026-03-09
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-03-09
+    due: 2026-04-09
+    ar_account: "Assets:Accounts Receivable"
+    memo: "Invoice INV-DATE-001"
+    accumulate: true
+
+# A bill as well as an invoice, because `print-bill` reads the same two date
+# settings and names its files the same way — and a fix applied to one of two
+# near-identical call sites is the kind that comes back.
+vendor "V-DATE"
+  name: "Date Format Supply"
+  currency: CAD
+
+bill "BILL-DATE-001"
+  vendor_id: "V-DATE"
+  currency: CAD
+  date_opened: 2026-03-09
+  entry:
+    date: 2026-03-09
+    description: "Paper"
+    action: "Material"
+    account: "Expenses:Office Supplies"
+    quantity: 1
+    price: 40
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-03-09
+    due: 2026-04-09
+    ap_account: "Liabilities:Accounts Payable"
+    memo: "Bill BILL-DATE-001"
+    accumulate: true

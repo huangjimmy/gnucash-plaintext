@@ -1,0 +1,20 @@
+# A company whose address needs more lines than four.
+#
+# GnuCash's File → Properties → Business address is one free multi-line text
+# box — nothing in it stops at four lines, and a company with a unit, a
+# country and a "who to send it to" line reaches six without trying. The
+# `company` block indexes those lines, and the index does not stop either:
+# `addr[0]` upwards, as many as the address has.
+#
+# (A customer's or vendor's address is a different thing — a `GncAddress`,
+# which really does have exactly four fields. `addr[4]` on one of those blocks
+# is refused, because nothing could hold it.)
+
+company
+	name: "Example Co"
+	addr[0]: "42 Example Street"
+	addr[1]: "Unit 5"
+	addr[2]: "Springfield ON"
+	addr[3]: "A1A 1A1"
+	addr[4]: "CANADA"
+	addr[5]: "Attn: Accounts Payable"

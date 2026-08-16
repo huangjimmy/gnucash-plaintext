@@ -120,6 +120,39 @@ def test_operation_with_bad_arguments_aborts_with_its_message(tmp_path):
     assert 'failed at operation' in r.output and 'No changes were saved' in r.output
 
 
+def test_a_migration_stamping_a_company_field_name_aborts_and_says_why(
+        tmp_path):
+    """`set-book-key` is a migration operation, and it stopped accepting the
+    `company` block's field names — which are ordinary enough that a
+    checked-in migration may well stamp one.
+
+    Nothing is half-applied: the run stops on the line and saves nothing, so a
+    book built from the migration set is either the whole set or untouched.
+    The reader is told which line and why, since the alternative is a `migrate`
+    that fails on a file that worked yesterday with no account of it.
+    """
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    d = _migrations(tmp_path, {
+        '0001.txt': 'set-book-key --key id --value "ISO-9001"\n'})
+
+    r = runner.invoke(cli, ['migrate', str(gf), str(d)])
+
+    assert r.exit_code != 0
+    assert "'id'" in r.output and 'company' in r.output
+    assert 'No changes were saved' in r.output
+
+
+def test_a_migration_may_still_stamp_a_key_of_its_own(tmp_path):
+    """The refusal is the reserved set's, not `set-book-key`'s."""
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    d = _migrations(tmp_path, {
+        '0001.txt': 'set-book-key --key company_id --value "ISO-9001"\n'})
+
+    assert runner.invoke(cli, ['migrate', str(gf), str(d)]).exit_code == 0
+
+
 def test_applied_migration_is_immutable(tmp_path):
     runner = CliRunner()
     gf = _new_book(runner, tmp_path)

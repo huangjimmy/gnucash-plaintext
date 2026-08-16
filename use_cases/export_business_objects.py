@@ -33,6 +33,13 @@ from infrastructure.gnucash.utils import (
     numeric_to_fraction,
     wrap_invoice_or_bill,
 )
+from services.gnucash_importer import COMPANY_FIELD_TO_SLOT
+from services.plaintext_addresses import (
+    address_key,
+    address_line_index,
+    address_lines_beyond,
+    is_address_key,
+)
 from services.plaintext_blocks import (
     document_text_lines,
     owner_block_lines,
@@ -211,7 +218,8 @@ class ExportBusinessObjectsUseCase:
         plus the custom GST/PST registration numbers. Returns '' when the
         book has no company option set, so books without company info export
         unchanged. Address is split back from the single multi-line `Company
-        Address` slot into addr1..4, the inverse of the importer's join."""
+        Address` slot into one indexed key per line, the inverse of the
+        importer's join."""
         ordered = [
             ('name',    'Company Name'),
             ('contact', 'Company Contact Person'),
@@ -224,42 +232,114 @@ class ExportBusinessObjectsUseCase:
             ('fax',   'Company Fax Number'),
             ('email', 'Company Email Address'),
             ('url',   'Company Website URL'),
+            # Nested under `Fancy Date Format` — see `COMPANY_FIELD_TO_SLOT`.
+            # Emitted because it is the book's, and a book that says how its
+            # dates are written must still say so after a round trip; left
+            # out, an export and re-import handed the rebuilt book back to
+            # whatever the printing machine's date preference happened to be.
+            ('date_format', 'Fancy Date Format/custom'),
         ]
 
-        def opt(slot):
-            return (get_book_string_option(self.book, 'Business', slot) or '').strip()
+        # The slot is read first, because it is what an older book has. A key
+        # that has since become a field of its own may be in either place: on
+        # the option, where this version writes it, or in the custom blob,
+        # where a book written before it was a field still keeps it. This is
+        # the book-level `held_value` — field wins, slot is the fallback —
+        # and without the fallback an export of such a book emitted no line
+        # at all, having filtered the only copy the book had out of the
+        # custom keys below.
+        held = {}
+        blob = get_book_string_option(self.book, COMPANY_CUSTOM_SECTION,
+                                      COMPANY_CUSTOM_SLOT)
+        if blob:
+            try:
+                held = json.loads(blob) or {}
+            except (ValueError, TypeError):
+                held = {}
+
+        def opt(slot, key):
+            value = (get_book_string_option(self.book, 'Business', slot)
+                     or '').strip()
+            if value:
+                return value
+            carried = held.get(key)
+            return '' if carried is None else str(carried).strip()
 
         lines = ['company']
         has_value = False
         for key, slot in ordered:
-            val = opt(slot)
+            val = opt(slot, key)
             if val:
                 lines.append(f'\t{key}: {encode_value_as_string(val)}')
                 has_value = True
 
-        addr_raw = get_book_string_option(self.book, 'Business', 'Company Address') or ''
-        addr_lines = addr_raw.split('\n') if addr_raw else []
-        for i, key in enumerate(('addr1', 'addr2', 'addr3', 'addr4')):
-            val = addr_lines[i].strip() if i < len(addr_lines) else ''
+        # Every line the address has, not the first four of them. The option
+        # is one free multi-line string and File → Properties → Business takes
+        # as many lines as are typed into it, so reading four back was a
+        # silent truncation — and the export is the whole ledger, so what it
+        # leaves out is gone from any book rebuilt from it.
+        addr_raw = get_book_string_option(self.book, 'Business',
+                                          'Company Address') or ''
+        addr_lines = [line.strip() for line in addr_raw.split('\n')] \
+            if addr_raw else []
+
+        # And the lines the blob holds past the end of it. A book written
+        # before the company block had address lines keeps them there; a book
+        # that then had an address typed into File → Properties → Business
+        # holds *both*, and these keys are skipped in the custom dump below,
+        # so whatever this does not read appears in no export and in no book
+        # rebuilt from one.
+        #
+        # Past the end only, never inside. A line the option lacks within its
+        # own length was cleared — by a block naming it empty or in GnuCash —
+        # and putting one of those back from the blob is the export
+        # contradicting the book it was taken from. Read as all-or-nothing
+        # this was worse in the other direction: the blob was consulted only
+        # for a book with no address at all, so a four-line blob behind a
+        # two-line option lost lines three and four outright.
+        carried = {address_line_index(k): str(v).strip()
+                   for k, v in held.items()
+                   if is_address_key(k) and v is not None and str(v).strip()}
+        addr_lines = address_lines_beyond(addr_lines, carried)
+
+        # However many lines that is. Nothing here caps it: GnuCash's own box
+        # takes as many as are typed into it, and a book it holds happily is a
+        # book this has to be able to state. Refusing an export over an
+        # address length would leave such a book with no way out of GnuCash
+        # and into this format at all — and unlike a sub-cent amount, which
+        # genuinely cannot be written, an address of any length is only more
+        # keys.
+
+        for index, val in enumerate(addr_lines):
             if val:
+                key = address_key(index)
                 lines.append(f'\t{key}: {encode_value_as_string(val)}')
                 has_value = True
 
         for key, slot in trailing:
-            val = opt(slot)
+            val = opt(slot, key)
             if val:
                 lines.append(f'\t{key}: {encode_value_as_string(val)}')
                 has_value = True
 
         # Q-029: custom (non-Business) keys stored as one JSON blob — emit each
         # back as its own `key: value` line (sorted for a stable round-trip).
-        blob = get_book_string_option(self.book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT)
-        if blob:
-            try:
-                custom = json.loads(blob)
-            except (ValueError, TypeError):
-                custom = {}
+        custom = held
+        if custom:
+            # A key that has since become a field of its own is skipped here,
+            # because the loops above have already emitted it — from the
+            # option where this version keeps it, or from this blob where an
+            # older book still does. Written from both, the line appeared
+            # twice and the stale copy came second, which is the one a
+            # re-import keeps, so a book would have been dragged back to the
+            # old value on every round trip. Skipping it here without the
+            # fallback above is the other half of the same mistake: the line
+            # then disappeared from a book whose only copy was here.
+            # `date_format` is the case that exists — it was any old key
+            # before it was a Business option. (CLAUDE.md finding 11.)
             for key in sorted(custom):
+                if key in COMPANY_FIELD_TO_SLOT or is_address_key(key):
+                    continue
                 lines.append(f'\t{key}: {encode_value_as_string(custom[key])}')
                 has_value = True
 

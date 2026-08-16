@@ -128,10 +128,8 @@ class TestReadBookCompanyInfoUncompressed:
             assert info['phone'] == '+1-800-555-0100'
             assert info['email'] == 'billing@widget.example'
             assert info['url']   == 'https://widget.example'
-            assert info['addr1'] == '123 Main St'
-            assert info['addr2'] == 'Suite 4'
-            assert info['addr3'] == 'Toronto'
-            assert info['addr4'] == 'ON M5V 1A1'
+            assert info['address'] == ['123 Main St', 'Suite 4', 'Toronto',
+                                       'ON M5V 1A1']
         finally:
             os.unlink(path)
 
@@ -144,21 +142,36 @@ class TestReadBookCompanyInfoUncompressed:
             info = read_book_company_info(path)
             assert info['name']  == ''
             assert info['phone'] == ''
-            assert info['addr1'] == ''
+            assert info['address'] == []
         finally:
             os.unlink(path)
 
-    def test_address_fewer_than_four_lines_pads_with_empty(self):
-        """A two-line address still produces four addr keys; extras are ''."""
+    def test_the_address_is_as_long_as_the_book_wrote_it(self):
+        """However many lines that is — two here, six below.
+
+        Four keys padded with '' was the shape before, and it could not say
+        anything but four: the slot is one free-text field and File →
+        Properties → Business takes as many lines as are typed into it, so a
+        fifth was read by nobody and printed nowhere.
+        """
         from services.invoice_renderer import read_book_company_info
         xml_bytes = _build_gnucash_xml({'address': 'Line 1\nLine 2'})
         path = _write_xml_file(xml_bytes, compress=False)
         try:
-            info = read_book_company_info(path)
-            assert info['addr1'] == 'Line 1'
-            assert info['addr2'] == 'Line 2'
-            assert info['addr3'] == ''
-            assert info['addr4'] == ''
+            assert read_book_company_info(path)['address'] == ['Line 1',
+                                                               'Line 2']
+        finally:
+            os.unlink(path)
+
+    def test_and_a_line_past_the_fourth_is_kept(self):
+        from services.invoice_renderer import read_book_company_info
+        xml_bytes = _build_gnucash_xml({
+            'address': '42 Example Street\nUnit 5\nSpringfield ON\n'
+                       'A1A 1A1\nCANADA\nAttn: Accounts Payable'})
+        path = _write_xml_file(xml_bytes, compress=False)
+        try:
+            assert read_book_company_info(path)['address'][-2:] == [
+                'CANADA', 'Attn: Accounts Payable']
         finally:
             os.unlink(path)
 
@@ -209,10 +222,7 @@ class TestRenderSellerHeader:
         out = _render_seller_header({
             'name':  'Acme Inc.',
             'id':    '12345RT0001',
-            'addr1': '100 Main St',
-            'addr2': '',
-            'addr3': '',
-            'addr4': '',
+            'address': ['100 Main St'],
             'phone': '+1-555-0000',
             'email': 'hi@acme.test',
             'url':   'https://acme.test',
@@ -249,12 +259,22 @@ class TestRenderSellerHeader:
         out = _render_seller_header({
             'name':  'Sole Proprietor',
             'id':    '',
-            'addr1': '',
-            'addr2': '',
-            'addr3': '',
-            'addr4': '',
+            'address': ['', '', '', ''],
             'phone': '',
             'email': 'me@example.test',
             'url':   '',
         })
         assert out == '# Issued by: Sole Proprietor | me@example.test'
+
+    def test_every_line_of_a_long_address_is_in_the_header(self):
+        """The header is the seller block a recipient reads, so an address
+        cut off at four lines reaches them missing its country."""
+        from services.invoice_renderer import _render_seller_header
+        out = _render_seller_header({
+            'name': 'Acme Inc.',
+            'address': ['42 Example Street', 'Unit 5', 'Springfield ON',
+                        'A1A 1A1', 'CANADA'],
+        })
+
+        assert '42 Example Street, Unit 5, Springfield ON, A1A 1A1, CANADA' \
+            in out

@@ -148,6 +148,80 @@ _LEGACY_SETUP = '''
 '''
 
 
+# The book's `date_format` written the way QOF's own setting spells it.
+#
+# `date_format` reaches the document's posted and due dates only; every other
+# date on the page — each entry's, each payment's, "printed on" — is written
+# by `qof-print-date`, which reads this process-wide setting. GnuCash's GUI
+# writes it at startup from its preference; a process that only loaded the
+# library leaves it at `QOF_DATE_FORMAT_LOCALE`, so those dates followed the
+# locale of whoever ran the command while the document's followed the book.
+#
+# Setting it from the book is what makes one page read one way. QOF takes a
+# style and not a format string — `qof_date_format_set` "checks to make sure
+# it's a legal value" and `QOF_DATE_FORMAT_CUSTOM` is the check printer's —
+# so only these four can be matched. Values from `QofDateFormat` in
+# `gnc-date.h`; the strings are what each style prints.
+_QOF_DATE_STYLES = {
+    '%Y-%m-%d': 3,      # QOF_DATE_FORMAT_ISO
+    '%m/%d/%Y': 0,      # QOF_DATE_FORMAT_US
+    '%d/%m/%Y': 1,      # QOF_DATE_FORMAT_UK
+    '%d.%m.%Y': 2,      # QOF_DATE_FORMAT_CE
+}
+
+
+def _say_nothing(*_args, **_kwargs) -> None:
+    """The `warn` a library caller who passed none gets."""
+
+
+def _write_every_date_the_books_way(book, warn):
+    """Point QOF at the book's `date_format`, and say so when it cannot be.
+
+    Returns what QOF held before, for the caller to put back: it is a global
+    of the whole process, and a command that printed one document should not
+    leave every later one — or the next test in the file — reading its book's
+    format.
+    """
+    from infrastructure.gnucash.engine import load_gnc_engine
+    from infrastructure.gnucash.kvp import get_book_string_option
+
+    wanted = (get_book_string_option(book, 'Business',
+                                     'Fancy Date Format/custom') or '').strip()
+    if not wanted:
+        return None
+
+    lib = load_gnc_engine()
+    style = _QOF_DATE_STYLES.get(wanted)
+    if style is None:
+        # Settable, and said out loud. A format QOF has no style for is a
+        # perfectly good thing to want on the document's own dates — it is
+        # the reason `date_format` takes a format string at all — but the
+        # rest of the page cannot be made to match it, and a reader who is
+        # not told will see two formats on one document and think this
+        # broken.
+        warn(f'the book\'s date_format is {wanted!r}, which GnuCash has '
+             f'no date style for — the document\'s date and due date '
+             f'will read that way and every other date on the page will '
+             f'follow this machine\'s locale. For one format throughout, '
+             f'use one of: '
+             + ', '.join(sorted(_QOF_DATE_STYLES)),
+             key=('date_format', wanted))
+        return None
+
+    before = lib.qof_date_format_get()
+    lib.qof_date_format_set(style)
+    return before
+
+
+def _restore_the_date_style(before) -> None:
+    """Put QOF back where it was, for the reason `_make_current(None)` exists."""
+    if before is None:
+        return
+    from infrastructure.gnucash.engine import load_gnc_engine
+
+    load_gnc_engine().qof_date_format_set(before)
+
+
 def _make_current(session) -> None:
     """Tell GnuCash which book everything else is about.
 
@@ -215,10 +289,13 @@ def _extra_text(doc) -> tuple:
 def _free_text(held: dict) -> str:
     """The `extra_text1:`, `extra_text2:` … lines a slot holds, in order.
 
-    Numbered the way the address keys this format already has are
-    (`addr1`..`addr4`), because a value here is one line: there is no escape
-    for a newline and a quoted value does not span lines. So more lines is
-    more keys.
+    One key per line, for the reason an address is written that way: a value
+    here is one line, there is no escape for a newline, and a quoted value
+    does not span lines. So more lines is more keys.
+
+    Numbered from one without brackets, unlike an address. These are ordinary
+    custom keys — a name the book owner chose — and the brackets on an address
+    mark a key the format itself owns.
 
     Ordered by the number and not by the key as text, which would put
     `extra_text10` between `extra_text1` and `extra_text2`.
@@ -264,6 +341,11 @@ def carry_slot_values_onto_the_fields(doc) -> None:
         return
     address = party.GetAddr()
     held = get_custom_metadata(party) or {}
+    # Keyed `addr1`..`addr4` because that is what is *in* such a slot: this
+    # reads the books written before these keys had setters, and those are the
+    # names they used. Nothing writes an indexed key into a slot — a known key
+    # goes to the field, and `set-book-key` refuses the name — so there is no
+    # second spelling to look for here.
     for key, current, setter in (
             ('addr1', address.GetAddr1(), address.SetAddr1),
             ('addr2', address.GetAddr2(), address.SetAddr2),
@@ -341,18 +423,42 @@ def render_document_html(session, guid: str, company_extra='',
     # to end — the state the `finally` below exists to avoid.
     _make_current(session)
 
+    was = None
     try:
+        # Inside the `try`, for the reason the comment above `_make_current`
+        # gives: anything that raises between setting the current session and
+        # entering this block leaves the global naming a session the caller is
+        # about to end, and skips the restore below. Every date on the page is
+        # written the book's way where GnuCash has a style for it, and a
+        # sentence goes to stderr where it has not — see
+        # `_write_every_date_the_books_way`.
+        # Normalised once here rather than checked at each place that reports
+        # something: a caller inside this repo always has a way to reach the
+        # reader, and the default exists for a library caller who has not.
+        was = _write_every_date_the_books_way(session.book,
+                                              warn or _say_nothing)
         with tempfile.TemporaryDirectory(prefix='gnucash-render-') as work:
             return _render(lib, Path(work), guid, company_extra, owner_extra,
                            report=report, report_file=report_file, warn=warn)
     finally:
-        # Unset on the way out: the caller is about to end this session, and a
-        # global still naming it is a pointer to a book that no longer exists
-        # for whatever runs next in this process. NULL is the state before the
-        # first render — `gnc_get_current_session` makes an empty one of its
-        # own if something asks — where `gnc_clear_current_session` would end
-        # and destroy the session the repository is itself about to end.
-        _make_current(None)
+        # Both of these put a process-wide global back, and the date style is
+        # the one that must not be skipped: a session pointer left set is read
+        # by the next thing that asks for a *session*, while a date format
+        # left set silently changes how every later document in the process is
+        # dated — including the next test in the same pytest run. So the
+        # restore is nested rather than sequenced, and survives a throw from
+        # the unset above.
+        try:
+            # Unset on the way out: the caller is about to end this session,
+            # and a global still naming it is a pointer to a book that no
+            # longer exists for whatever runs next in this process. NULL is
+            # the state before the first render — `gnc_get_current_session`
+            # makes an empty one of its own if something asks — where
+            # `gnc_clear_current_session` would end and destroy the session
+            # the repository is itself about to end.
+            _make_current(None)
+        finally:
+            _restore_the_date_style(was)
 
 
 def _dialect(run, work: Path) -> tuple:

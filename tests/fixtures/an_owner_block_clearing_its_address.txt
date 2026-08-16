@@ -16,4 +16,4 @@
 customer "C-ADDR"
 	name: "Acme Supplies"
 	currency: CAD
-	addr1: ""
+	addr[0]: ""
