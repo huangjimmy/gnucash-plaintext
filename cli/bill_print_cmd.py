@@ -22,12 +22,17 @@ from gnucash import Query
 from cli._document_files import file_names
 from cli._warnings import said_once
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
+from infrastructure.pdf.printing import (
+    PRINTABLE,
+    a_display,
+    laid_out_by_webkit,
+)
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.bill_renderer import (
     render_to_html,
     render_to_plaintext,
 )
-from services.document_pages import combine_pages, load_weasyprint
+from services.document_pages import combine_pages
 from services.gnucash_importer import _swig_invoice_guid_str
 from services.invoice_renderer import read_book_company_info
 from use_cases.export_transactions import UnwritableFigureError
@@ -131,14 +136,11 @@ def _write_combined(bills, book, fmt, company_info, output, session=None,
         output_path.write_text(combined, encoding='utf-8')
         return
 
-    # pdf, unconditionally: `--format` is a `click.Choice` of exactly three,
-    # and the other two have returned above. Asking again would add a fourth
-    # case nothing can take — and a fourth format added to the Choice would
-    # silently fall through it, which is the failure a trailing `raise` was
-    # meant to catch and could never reach.
-    weasyprint = load_weasyprint()
-
-    weasyprint.HTML(string=combined).write_pdf(str(output_path))
+    # Laid out by WebKit, the engine GnuCash's own Print Bill button uses —
+    # the same action as an invoice's Print Invoice, relabelled per document.
+    # `--format` is a `click.Choice`, and `html` and `plaintext` have returned
+    # above, so what is left is one of the printable ones.
+    output_path.write_bytes(laid_out_by_webkit(combined, fmt))
 
 
 def _write_per_bill(bills, book, fmt, company_info, outdir, session=None,
@@ -150,7 +152,7 @@ def _write_per_bill(bills, book, fmt, company_info, outdir, session=None,
     for what writing inside the loop cost when a payment figure was refused
     partway through.
     """
-    ext = {'plaintext': 'txt', 'html': 'html', 'pdf': 'pdf'}[fmt]
+    ext = {'plaintext': 'txt', 'html': 'html', **PRINTABLE}[fmt]
     warn = said_once()          # one sink for the run — see there
     # Named before rendering — see `invoice_print_cmd._write_per_invoice`.
     rendered = [
@@ -163,16 +165,17 @@ def _write_per_bill(bills, book, fmt, company_info, outdir, session=None,
     ]
     # Laid out before any of them is written, PDFs included — see
     # `_write_per_invoice` for what writing them as they finished cost.
-    if fmt == 'pdf':
-        weasyprint = load_weasyprint()
-        rendered = [(name, weasyprint.HTML(string=html).write_pdf())
-                    for name, html in rendered]
+    if fmt in PRINTABLE:
+        # One display for the whole run — see `_write_per_invoice`.
+        with a_display() as on:
+            rendered = [(name, laid_out_by_webkit(html, fmt, on=on))
+                        for name, html in rendered]
 
     outdir = Path(outdir.rstrip('/'))
     outdir.mkdir(parents=True, exist_ok=True)
     for name, body in rendered:
         target = outdir / name
-        if fmt == 'pdf':                # the third of three, see above
+        if fmt in PRINTABLE:            # laid out above, so bytes
             target.write_bytes(body)
         else:
             target.write_text(body, encoding='utf-8')   # see _write_combined
@@ -201,8 +204,9 @@ def _write_per_bill(bills, book, fmt, company_info, outdir, session=None,
                    "matched as the report registers them, which is English "
                    "on every build; a localized GnuCash shows you the "
                    "translated name, so use the guid there. Defaults to "
-                   "'Printable Invoice', the one GnuCash's own File → Print "
-                   "Invoice uses.")
+                   "the book's Default Invoice Report setting, and to "
+                   "'Printable Invoice' where the book has none — the report "
+                   "GnuCash's own Print Bill button uses.")
 @click.option("--report-file", "report_file", default=None,
               type=click.Path(exists=True, dir_okay=False),
               help="A Scheme (.scm) file to load before the report is looked "

@@ -34,9 +34,12 @@
         (gnc:html-markup-p
           "THIS PAGE WAS DRAWN BY A REPORT OF MY OWN")
         ;; An option of this report's own, under a name GnuCash's invoice
-        ;; reports also use. This tool empties `Extra Notes` on the reports it
-        ;; advertises, to take out "Thank you for your patronage!"; doing that
-        ;; to every report would silently blank whatever a reader put here.
+        ;; reports also use. The default below stands unless the *book*
+        ;; carries a footer, set with `set-invoice-style`: a sentence the
+        ;; reader wrote goes on whatever report draws the page. The three
+        ;; display switches are the opposite — set by `print-invoice` and
+        ;; `print-bill` on GnuCash's own invoice reports alone, never on a
+        ;; report loaded with `--report-file`.
         (gnc:html-markup-p
           (string-append
             "extra notes: "

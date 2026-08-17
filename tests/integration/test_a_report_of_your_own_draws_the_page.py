@@ -160,10 +160,17 @@ class TestAReportOfYourOwn:
         assert 'A REPORT WHOSE GUID CAME FROM UUIDGEN' in page, page[:2000]
 
     def test_its_own_options_are_left_alone(self, book, tmp_path):
-        """This tool empties `Extra Notes` on the reports it advertises, to
-        take out "Thank you for your patronage!". Fired at every report, that
-        silently blanks whatever a reader declared under the same name — the
-        same overreach as demanding a `div` of someone else's page."""
+        """A report loaded with `--report-file` lays out the page alone: no
+        opinion held by `print-invoice` is written into the report's options.
+
+        The three display switches are the opinion, and the switches go on
+        GnuCash's own invoice reports only. What the *book* holds is a
+        separate question — see
+        `test_setting_the_notes_and_css_a_document_prints_with.py`, where a
+        footer set with `set-invoice-style` reaches a report from a `.scm`
+        file as well, the sentence being the reader's rather than the print
+        command's.
+        """
         page = _printed(book, tmp_path, '--report-file', OWN_REPORT,
                         '--report', 'A Report Of Your Own')
 
@@ -466,22 +473,20 @@ class TestChoosingBetweenTheReportsGnuCashShips:
         assert 'INV-Q19-CASH-TAX-200' in page, page[:2000]
 
     @pytest.mark.parametrize('name', ALL_OF_THEM)
-    def test_none_of_them_thanks_the_reader_for_their_patronage(
-            self, book, tmp_path, name):
-        """The option that empties that line is set on every report offered.
+    def test_each_of_them_keeps_its_own_options(self, book, tmp_path, name):
+        """Every one of these is GnuCash's page, drawn with GnuCash's
+        defaults.
 
-        "Thank you for your patronage!" is a text option's *default*, appended
-        to every page — a sentence the seller never wrote on an invoice, and
-        backwards on a bill, where it thanks the supplier for their patronage
-        of you. Emptying it is one `try-set`, and a `try-set` that misses is
-        silent by design, so each report has to be asked rather than assumed:
-        measured, `Display/Extra Notes` is the invoice family's spelling and
-        Tax Invoice keeps the same row under `Notes`, so that page carried the
-        line until both were set.
+        "Thank you for your patronage!" is the default of a text option the
+        reader chooses — `Extra Notes` in the invoice family, the same row
+        under `Notes` for Tax Invoice. `print-invoice` writes no sentence
+        into the option: a sentence arrives from GnuCash's report options or
+        from `set-invoice-style`, and a book and a configuration naming
+        neither leave GnuCash's default on the page.
         """
         page = _printed(book, tmp_path, '--report', name)
 
-        assert 'patronage' not in page.lower(), page[-1500:]
+        assert 'patronage' in page.lower(), page[-1500:]
 
     def test_they_are_not_all_the_same_page(self, book, tmp_path):
         """Or the name would be reaching GnuCash and changing nothing."""
@@ -523,11 +528,12 @@ class TestChoosingBetweenTheReportsGnuCashShips:
         by_name = _printed(book, tmp_path, '--report', 'Fancy Invoice')
 
         assert by_guid == by_name
-        # And the treatment came with it: tax named per account, the
-        # report's own marketing line taken out.
+        # And the treatment came with it: tax named per account. What the
+        # report says for itself — its `Extra Notes` footer among it — is left
+        # alone either way, so the two pages agree on that too, which the
+        # equality above already has.
         assert 'GST' in by_guid, by_guid[-2000:]
         assert 'PST' in by_guid, by_guid[-2000:]
-        assert 'patronage' not in by_guid.lower(), by_guid[-1500:]
 
     def test_the_default_is_the_printable_invoice(self, book, tmp_path):
         assert _printed(book, tmp_path) == \
@@ -1165,9 +1171,9 @@ class TestTheBillCommandTakesThemToo:
         """The format the flag defaults to, and the one a reader sends.
 
         Every other test here reads HTML, because that is what a page can be
-        read from — but the PDF path lays that HTML out through WeasyPrint,
-        and a report reaching print through `--format pdf` is the whole point
-        of writing one.
+        read from — but the PDF path hands that HTML to WebKit in a child
+        process of its own, and a report reaching print through
+        `--format pdf` is the whole point of writing one.
         """
         out = tmp_path / 'bill.pdf'
         result = CliRunner().invoke(cli, [

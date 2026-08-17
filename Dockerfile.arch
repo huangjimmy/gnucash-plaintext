@@ -18,11 +18,18 @@
 
 FROM archlinux:latest
 
+# `python-gobject`, the WebKit typelib and Xvfb: a printed document is laid
+# out by WebKit, the engine GnuCash's own Print Invoice button uses, and
+# WebKit wants a display a machine printing from a script has not got.
 RUN pacman -Syu --noconfirm \
         gnucash \
         python \
         python-pip \
         python-lxml \
+        python-gobject \
+        webkit2gtk-4.1 \
+        xorg-server-xvfb \
+        xorg-xauth \
         git && \
     pacman -Scc --noconfirm
 

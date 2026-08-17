@@ -18,8 +18,10 @@ something GnuCash decided and a reader can see:
   GnuCash's own `html-document.scm` writes that tag with the comment "this
   lovely little number just makes sure that `<body>` attributes like bgcolor
   get included";
-* the `<head>`, holding a `<link>` to the report's stylesheet and an inline
-  `<style>` of its font options.
+* the `<head>`, holding a `<link>` to the report's stylesheet, an inline
+  `<style>` of its font options, and the `<meta>` naming the page's encoding
+  — which is what keeps an accented name accented once the page reaches
+  WebKit as a file.
 
 Synthesised bare instead, all four were lost — and `-o file.html` takes this
 path for a *single* document too, so the same invoice came out one way to a
@@ -27,6 +29,10 @@ file and another way into a directory, one in standards mode with the report's
 colours and one in quirks mode without them. The first fragment's tags serve
 all of them: they come from one report with one set of options, so they are
 identical but for the title.
+
+What lays the page out once it is built is `infrastructure/pdf/printing.py`,
+that being an adapter to an X server and a child interpreter rather than
+anything about documents.
 """
 import re
 
@@ -39,30 +45,6 @@ _BODY = re.compile(r'<body\b[^>]*>(.*?)</body>', re.S | re.I)
 _DOCTYPE = re.compile(r'<!DOCTYPE[^>]*>', re.I)
 _HTML_OPEN = re.compile(r'<html\b[^>]*>', re.I)
 _BODY_OPEN = re.compile(r'<body\b[^>]*>', re.I)
-
-
-class PdfEngineUnavailableError(RuntimeError):
-    """No WeasyPrint, so an HTML page cannot be laid out as a PDF."""
-
-
-def load_weasyprint():
-    """WeasyPrint, or a sentence saying how to get it.
-
-    Imported here and not at module scope, because it is needed only by
-    `--format pdf` and importing it is not cheap. Its own class rather than
-    the bare `ModuleNotFoundError`, so the commands can print what to install:
-    a traceback is not an answer to "this machine has no PDF engine", and
-    `income-statement` has said so properly for as long as it has had a PDF.
-    """
-    try:
-        import weasyprint
-    except ImportError as absent:  # pragma: no cover - every image has it
-        raise PdfEngineUnavailableError(
-            'WeasyPrint is not installed, so a PDF cannot be laid out. '
-            'Install it with `pip install weasyprint`, or on Debian '
-            '`apt install python3-weasyprint`. `--format html` and '
-            '`--format plaintext` need nothing.') from absent
-    return weasyprint
 
 
 def _body_of(fragment: str) -> str:

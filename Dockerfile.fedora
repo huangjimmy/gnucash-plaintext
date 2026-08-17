@@ -18,12 +18,19 @@
 
 FROM fedora:41
 
+# `python3-gobject`, the WebKit typelib and Xvfb: a printed document is laid
+# out by WebKit, the engine GnuCash's own Print Invoice button uses, and
+# WebKit wants a display a machine printing from a script has not got.
 RUN dnf install -y \
         gnucash \
         guile \
         git \
         python3-pip \
-        python3-lxml && \
+        python3-lxml \
+        python3-gobject \
+        webkit2gtk4.1 \
+        xorg-x11-server-Xvfb \
+        xorg-x11-xauth && \
     dnf clean all
 
 WORKDIR /workspace

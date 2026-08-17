@@ -98,6 +98,15 @@ class TestBookOptionsWithoutAPointer:
     def test_setting_reports_failure(self):
         assert kvp.set_book_string_option(_NoInstance(), 'sec', 'name', 'v') is False
 
+    def test_and_the_raising_form_says_what_went_wrong(self):
+        """Two contracts over one body: a bulk write takes the bool and
+        carries on, while `set-invoice-style` — one command, one write —
+        needs the reason, which the bool has already thrown away."""
+        with pytest.raises(Exception) as refused:
+            kvp.write_book_string_option(_NoInstance(), 'sec', 'name', 'v')
+
+        assert 'instance' in str(refused.value)
+
     def test_reading_answers_nothing(self):
         assert kvp.get_book_string_option(_NoInstance(), 'sec', 'name') is None
 

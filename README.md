@@ -2002,13 +2002,62 @@ Generate a PDF for any posted invoice:
 gnucash-plaintext print-invoice mybook.gnucash INV-2026-001 -o invoice.pdf
 ```
 
-> **Needs Guile and WeasyPrint.** GnuCash's own report draws the page and that report is Scheme, so a `libguile` has to be installed — most distributions pull it in with `gnucash` itself, but Fedora and openSUSE do not, and there `dnf install guile` / `zypper install guile` is the fix. PDF output additionally needs WeasyPrint (`pip install weasyprint`). Neither is needed for `--format plaintext`, and a missing one is reported by name rather than as a traceback.
+> **Needs Guile, and for PDF, WebKit.** GnuCash's own report draws the page and that report is Scheme, so a `libguile` has to be installed — most distributions pull it in with `gnucash` itself, but Fedora and openSUSE do not, and there `dnf install guile` / `zypper install guile` is the fix.
+>
+> **A PDF is laid out by WebKit, the engine GnuCash's own Print Invoice button prints with**, so a printed document is the document GnuCash prints rather than a second engine's reading of it. The difference is not cosmetic: GnuCash's report writes its table borders as HTML-4 presentational attributes (`border`, `cellpadding`, `bgcolor`), which WeasyPrint does not implement — measured on one page, 97 rectangles painted against none, so a printed invoice had no lines round anything. The sheet follows the machine's locale, as GnuCash's own does: A4 in most of the world, US Letter under `en_US` and `en_CA`. WebKit's library comes with GnuCash; its Python bindings and an X server for it to draw into do not:
+>
+> ```bash
+> apt install python3-gi gir1.2-webkit2-4.1 xvfb xauth   # Debian, Ubuntu (4.0 on the older ones)
+> dnf install python3-gobject webkit2gtk4.1 xorg-x11-server-Xvfb xorg-x11-xauth
+> zypper install python3-gobject typelib-1_0-WebKit2-4_1 xorg-x11-server-Xvfb xauth
+> pacman -S python-gobject webkit2gtk-4.1 xorg-server-xvfb xorg-xauth
+> ```
+>
+> None of that is needed for `--format html`, which still wants Guile because GnuCash's report draws the page. `--format plaintext` wants neither: it is written here from the book's own objects, no report and no layout engine. A missing piece is reported by name rather than as a traceback.
+>
+> **The page is drawn with the GnuCash settings on the machine printing.** GnuCash reads a user configuration at startup — stylesheet settings, and every report configuration saved from a report's options dialog — and `print-invoice` reads the same files before rendering. A stylesheet customised in GnuCash therefore applies to `print-invoice` as well, and a report configuration carrying a customised CSS is drawn by `--report "<the name saved under>"`, with the options held in the configuration. A machine that has never run GnuCash prints at GnuCash's defaults.
+>
+> Those files are Scheme, and reading them evaluates them — which is how a saved configuration works at all. So printing evaluates whatever `stylesheets-2.0`, `saved-reports-2.4` and `saved-reports-2.8` hold under the printing account's GnuCash data directory (`$GNC_DATA_HOME`, else `$XDG_DATA_HOME/gnucash`, else `~/.local/share/gnucash`) — the reader's own files on a personal machine, and whatever that account holds on a shared build server. **`GNUCASH_PLAINTEXT_NO_USER_CONFIG=1` skips the read**, drawing at GnuCash's built-in defaults, which is where a run that wants one page whatever home it has should stand. A file that will not parse is passed over with a warning naming it, rather than costing the document.
+>
+> **And with the report the book is set to use.** GnuCash 5 added a **Default Invoice Report** setting to File → Properties → Business. It decides the report GnuCash draws with when the Print Invoice button is pressed on an open invoice, and a book that has never been given one prints with the Printable Invoice. `print-invoice` reads the same setting, so a book set to a different report prints with that report here too, with nothing to repeat on the command line. GnuCash 3.8 and the 4.x line have no such setting, so a book carrying one prints with it on a GnuCash 5 machine and with the Printable Invoice on an older one — with nothing said, because there is no setting there to report. A saved report configuration can be named there, which is how a customised CSS reaches a printed document. Two consequences follow, each written to stderr as it happens: a page drawn by a saved configuration carries the options held in the configuration, so the three switches below stay unset (a combined `Tax` figure in place of one row per tax account, where the configuration was saved with the detailed summary off); and a machine holding no such configuration — a build server, a colleague's laptop — prints with the Printable Invoice rather than refusing, a saved configuration being a file in the GnuCash the configuration was saved from. `--report` overrides the book for a single run.
 
-`--format {pdf,html,plaintext}` selects the output format (defaults to `pdf`). **The PDF and HTML pages are GnuCash's own.** By default they are drawn by GnuCash's **Printable Invoice** — the report its own File → Print Invoice uses — so a printed document is the document GnuCash prints: its heading, its columns, its totals, its wording. `--report` and `--report-file` choose another, including one you wrote; see "Changing the page means changing the report that draws it" below. Every supported version renders it, GnuCash 3.8 included; a Guile interpreter runs inside this process and is handed the book this process already has open.
+`--format {pdf,html,plaintext}` selects the output format (defaults to `pdf`). **The PDF and HTML pages are GnuCash's own.** With the setting above left alone they are drawn by GnuCash's **Printable Invoice** — the report its own Print Invoice button uses — so a printed document is the document GnuCash prints: its heading, its columns, its totals, its wording. `--report` and `--report-file` choose another report, a report written from scratch included; see "Changing the page means changing the report that draws it" below. Every supported version renders it, GnuCash 3.8 included; a Guile interpreter runs inside this process and is handed the book this process already has open.
 
 What that means for the page: `Invoice #<id>` at the top left, the customer on one side and your company on the other, then Date, Description, Action, Quantity, Unit Price, Discount, Taxable and Total, and Net Price, one row per tax account, Total Price and Amount Due beneath. An unposted document is priced from its entries and marked "Invoice in progress…"; a paid one lists its payments and an amount due of zero. A bill is a vendor's invoice and is drawn by the same report, with the vendor as the document's owner.
 
-Four of the report's own switches are set, and nothing else — and only on the reports listed under `--report` below, never on one you wrote. (The last of the four is spelled differently by different reports, so it is written out more than once.) Two carry fields this format has and GnuCash ships hidden — the document's `notes:`, and the seller's `contact:` (which GnuCash prints as "Please direct all enquiries to …"). One asks for the tax **per account**, so a page states GST and PST by name and by amount rather than adding them into a single `Tax` figure: a filer reclaims the one and not the other, and a Canadian invoice has to state the GST/HST amount, which their sum does not. The last empties `Extra Notes`, whose default is the literal "Thank you for your patronage!" — uninvited on an invoice of yours, and backwards on a bill, where it would thank the supplier for their patronage of you.
+Three of the report's own switches are set, and nothing else — and only on the reports listed under `--report` below, never on a report loaded with `--report-file`. Each shows a field this format carries and GnuCash ships hidden, so a document printed from a ledger states what the ledger says: the document's `notes:`, the seller's `contact:` (which GnuCash prints as "Please direct all enquiries to …"), and the tax **per account**, so a page states GST and PST by name and by amount rather than adding them into a single `Tax` figure — a filer reclaims the one and not the other, and a Canadian invoice has to state the GST/HST amount, which their sum does not.
+
+### Set the footer and the CSS a printed document carries
+
+`set-invoice-style` writes the two boxes GnuCash's report options give as **Display → Extra Notes** and **Layout → CSS**, without opening GnuCash:
+
+```bash
+gnucash-plaintext set-invoice-style book.gnucash --note "Payment due in 30 days"
+gnucash-plaintext set-invoice-style book.gnucash --note ""          # no footer
+gnucash-plaintext set-invoice-style book.gnucash --clear-note       # the report's own
+gnucash-plaintext set-invoice-style book.gnucash --css invoice.css
+gnucash-plaintext set-invoice-style book.gnucash --clear-css        # the report's own
+gnucash-plaintext set-invoice-style book.gnucash --show             # what the book holds
+```
+
+Three states, and `--show` names each: a book saying nothing about the footer prints the sentence the report carries, `--note ""` prints no footer at all, and `--note "…"` prints the text. `--clear-note` is the way back to the first — worth knowing before setting a footer on a localized build, where GnuCash's own default is translated and cannot be retyped.
+
+**`--css` takes the whole stylesheet, not an addition to one.** GnuCash's `Layout → CSS` box holds the report's entire stylesheet and ships filled in — the line-item borders, the table widths, the padding resets, the `@media print` rule — and a file passed here replaces all of it, so a file holding one font rule prints a page with no borders. GnuCash's own dialog pre-fills the box, which is why editing there feels different. To start from what the report draws with, print with `--clear-css` and copy the page's `<style>` block:
+
+```bash
+gnucash-plaintext set-invoice-style book.gnucash --clear-css
+gnucash-plaintext print-invoice book.gnucash INV-001 --format html -o page.html
+# edit the <style> block out of page.html into invoice.css, change it, then:
+gnucash-plaintext set-invoice-style book.gnucash --css invoice.css
+```
+
+The same `<style>` block is where a stylesheet already set on a book can be read back if the file it came from is lost — `--show` prints it too, under a `css:` header, which is for reading rather than for redirecting into a file.
+
+The book keeps the footer and the CSS, so one book prints one page from a laptop, a server or a build, and `print-invoice` and `print-bill` apply both settings alike. A book holding neither setting prints the footer and styling the report itself carries — GnuCash's default footer reads "Thank you for your patronage!", and `set-invoice-style --note ""` removes the footer.
+
+The footer and the CSS reach **whatever report draws the page**, GnuCash's own reports and a report loaded with `--report-file` alike: `set-invoice-style` wrote each setting onto the book, for every document the book prints. A book carrying a setting therefore **wins over a saved configuration carrying the same one** — a CSS set with `set-invoice-style` replaces the CSS saved into a report configuration, the book being applied after the configuration's options are generated. `--clear-css` takes the book's back off, leaving the configuration's. The three switches above work the other way round — `print-invoice` and `print-bill` set the switches, and only on the reports listed under `--report`.
+
+**Neither is part of the plaintext format.** A ledger says what a book contains, and how a document is styled is not that: nothing exports them and nothing imports them, so two books differing only in styling export the same ledger. They are read and written by this command alone.
 
 Every figure is in the **document's** currency: a USD invoice on a CAD income account states USD throughout, never the book's valuation of it.
 
@@ -2088,9 +2137,18 @@ In rising order of effort:
 
    **If you copy one of GnuCash's, give your report a `report-guid` of its own** — `uuidgen` prints one, in any case and with or without its dashes. Keeping the guid you copied is the mistake this warns about twice: registered under a guid GnuCash already has, your report is refused as a duplicate and never registers at all, so `--report` cannot find it by name; registered under that guid in another case, both answer to every spelling of it and `--report <that guid>` is refused as ambiguous. Give it a name of its own too, unless you mean to name it by guid from then on: GnuCash accepts a report that reuses another's *name* — the guids differ, so both register — but two of them then answer to it, and `--report "<that name>"` is refused as ambiguous, for the report you copied as well as yours.
 
-   Your report is handed the document through the `General / Invoice Number` option, which this tool sets — a report without that option is refused by name, since there is no way to tell it which document to draw. None of the display switches above is set on a report of yours: those belong to the reports listed under 3, and your options are yours.
+   A report loaded with `--report-file` is handed the document through the `General / Invoice Number` option, which `print-invoice` sets — a report lacking the `General / Invoice Number` option is refused by name, there being no way to tell a report without the option which document to draw. None of the display switches above reaches a report loaded with `--report-file`: `print-invoice` and `print-bill` set the three switches on the reports listed under `--report`, and the layout of a report loaded from a `.scm` file is decided by the `.scm` file.
 
-   The seller's and owner's blocks follow your layout rather than being required of it. If your report keeps `make-company-table` and `make-client-table` — which it will if you started from `invoice.scm` — the registration numbers and `extra_text` lines are added to those blocks as they are on GnuCash's own page. If it lays the page out some other way, they are simply left out — no refusal and no warning, where GnuCash's own page would have been refused for the same absence. Your page is yours, and the numbers are on the book (`Business/Company GST Number` and the `extra_text` keys) for your report to read if it wants them.
+   **What does reach a report loaded with `--report-file` is what the book carries**: a footer or a stylesheet set with `set-invoice-style` goes on whatever report draws the page, a report from a `.scm` file included. Both settings come from the book — `set-invoice-style` puts each one there, for every document the book prints — so a report declaring an option under one of the names the shipped reports use has the book's value written into it. Those names, every one of which is written:
+
+   | setting | section / name |
+   |---|---|
+   | the stylesheet | `Layout` / `CSS`, and `Notes` / `Embedded CSS` |
+   | the footer | `Display` / `Extra Notes`, `Notes` / `Extra Notes`, and `Notes` / `Extra notes` |
+
+   Five pairs, because the invoice family and the Tax Invoice family disagree about both boxes and GnuCash 3.8 spells one of them lowercase. Give an option of your own a section and name outside that table — a `Display / CSS` is untouched, for instance — or take both settings off the book with `--clear-note` and `--clear-css` (`--note ""` is a setting rather than an absence; `set-invoice-style book.gnucash --show` prints what the book holds).
+
+   The seller's and owner's blocks follow the report's layout rather than being required of the report. A report keeping `make-company-table` and `make-client-table` — the case for a report started from `invoice.scm` — has the registration numbers and `extra_text` lines added to both blocks, as on GnuCash's own page. A report laying the page out some other way has the numbers and lines left out, with no refusal and no warning, where GnuCash's own page would have been refused for the same absence. The layout belongs to the `.scm` file, and the numbers stay on the book (`Business/Company GST Number` and the `extra_text` keys) for the report to read.
 
    Keeping the block but not a table inside it — the seller written out as text, say — is the case in between, and the run says so on stderr rather than staying quiet: the rows go in at the end of the block's own table, so a block without one has nowhere to hold them. Nothing is refused and the document prints; you are told which lines it could not place.
 
@@ -2179,7 +2237,7 @@ gnucash-plaintext income-statement mybook.gnucash --fiscal-year-end 2024-12-31
 gnucash-plaintext income-statement mybook.gnucash --start 2023-04-01 --end 2024-03-31
 ```
 
-Output formats — text (default), HTML, or PDF:
+Output formats — text (default), HTML, or PDF. The PDF here is laid out by WeasyPrint, this page being the project's own rather than one of GnuCash's reports — `pip install 'gnucash-plaintext[statement]'`, or the distribution's `weasyprint` package:
 
 ```bash
 # Text to stdout (default)

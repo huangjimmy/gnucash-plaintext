@@ -1,10 +1,10 @@
 """The printed page is GnuCash's, drawn by GnuCash.
 
 `services/gnucash_report` hands the book and the document's guid to GnuCash's
-own **Printable Invoice** — the report File → Print Invoice draws — and asks it
-to render. Nothing about the layout, the columns or the totals is computed
-here, so the document a customer receives is the one GnuCash's own Print
-produces.
+own **Printable Invoice** — the report GnuCash's own Print Invoice button
+draws — and asks it to render. Nothing about the layout, the columns or the
+totals is computed here, so the document a customer receives is the one
+GnuCash itself produces.
 
 The figures are the point of the first test: this invoice is USD 100.00 in a
 CAD book whose income account is CAD, which is the shape that printed
@@ -247,14 +247,21 @@ class TestItIsGnuCashsPage:
     def test_the_customer_is_named(self, rendered):
         assert 'US Customer' in rendered, rendered[:3000]
 
-    def test_the_reports_own_marketing_line_is_not_printed(self, rendered):
-        """`Display/Extra Notes` is a *text* option, not a switched-off row,
-        and its default is the literal "Thank you for your patronage!" which
-        the report appends to every page it draws.
+    def test_the_reports_own_footer_is_left_as_gnucash_wrote_it(self,
+                                                                rendered):
+        """`Extra Notes` belongs to the reader, and `print-invoice` writes
+        nothing into the option.
 
-        Nobody using this tool asked for that sentence: it is uninvited on an
-        invoice of yours, and on a bill it is untrue — the page would thank
-        the supplier for their patronage of you. So the option is emptied, and
-        what a document says is what the book says.
+        The default is the literal "Thank you for your patronage!"
+        (`invoice.scm`), printed here because GnuCash draws the page. A
+        reader wanting a different footer, or none, says so in GnuCash's
+        report options dialog or with `set-invoice-style` on the book — both
+        reach the render below.
         """
-        assert 'patronage' not in rendered.lower(), rendered[-1500:]
+        # By the block the report puts it in rather than by its words: the
+        # default is `(G_ "Thank you for your patronage!")`, translated at
+        # render time, so a localized build says something else entirely. The
+        # English is asserted beside it because the suite runs under C.UTF-8,
+        # where it is what GnuCash writes.
+        assert 'invoice-notes' in rendered, rendered[-1500:]
+        assert 'patronage' in rendered.lower(), rendered[-1500:]

@@ -28,6 +28,9 @@
 
 FROM opensuse/tumbleweed
 
+# `python3-gobject` and the WebKit typelib, plus Xvfb: a printed document is
+# laid out by WebKit, the engine GnuCash's own Print Invoice button uses, and
+# WebKit wants a display a machine printing from a script has not got.
 RUN zypper install -y \
         gnucash \
         guile \
@@ -36,6 +39,11 @@ RUN zypper install -y \
         git \
         python3-pip \
         python3-lxml \
+        python3-gobject \
+        python3-gobject-Gdk \
+        typelib-1_0-WebKit2-4_1 \
+        xorg-x11-server-Xvfb \
+        xauth \
         dejavu-fonts && \
     zypper clean --all
 

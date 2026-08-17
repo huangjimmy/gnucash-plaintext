@@ -488,31 +488,49 @@ def set_book_string_option(book, section: str, name: str, value: str) -> bool:
     single flat slot key (`plaintext_metadata`). Book options live at a
     nested 3-deep path in a different namespace, so they need their
     own API.
+    A caller that has to *report* a failure — a command whose whole job is
+    the one write — calls `write_book_string_option` instead, which lets the
+    reason out rather than leaving it in the log.
     """
     try:
-        obj_ptr = int(book.instance)
-        lib = _load_gnc_engine()
-        lib.qof_book_set_string_option.argtypes = [
-            ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p,
-        ]
-        lib.qof_book_set_string_option.restype = None
-
-        opt_path = f'options/{section}/{name}'.encode()
-        lib.qof_book_set_string_option(
-            ctypes.c_void_p(obj_ptr),
-            opt_path,
-            value.encode('utf-8'),
-        )
-        # qof_book_set_string_option marks the book dirty internally,
-        # but call our helper too so the session save reliably re-emits
-        # the slots (matches the pattern of every other write here).
-        _mark_instance_dirty(obj_ptr)
+        write_book_string_option(book, section, name, value)
         return True
     except Exception as e:
         logging.error(
             f"Failed to set book option options/{section}/{name}: {e}"
         )
         return False
+
+
+def write_book_string_option(book, section: str, name: str, value: str) -> None:
+    """`set_book_string_option`, with the failure raised rather than logged.
+
+    The bool form is what a bulk write wants: importing a ledger sets many
+    options, and one refused slot is reported beside everything else the run
+    reported rather than ending it. A command setting a single option wants
+    the opposite — the reason the write failed is the only thing to say, and
+    a bool has already thrown it away by the time the caller sees `False`.
+
+    One body, two contracts, so the ctypes call and the dirty-marking below
+    exist once.
+    """
+    obj_ptr = int(book.instance)
+    lib = _load_gnc_engine()
+    lib.qof_book_set_string_option.argtypes = [
+        ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p,
+    ]
+    lib.qof_book_set_string_option.restype = None
+
+    opt_path = f'options/{section}/{name}'.encode()
+    lib.qof_book_set_string_option(
+        ctypes.c_void_p(obj_ptr),
+        opt_path,
+        value.encode('utf-8'),
+    )
+    # qof_book_set_string_option marks the book dirty internally,
+    # but call our helper too so the session save reliably re-emits
+    # the slots (matches the pattern of every other write here).
+    _mark_instance_dirty(obj_ptr)
 
 
 def get_book_string_option(book, section: str, name: str) -> Optional[str]:

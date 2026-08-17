@@ -112,11 +112,138 @@ class TestABill:
         for name in ('GST', 'PST'):
             assert name in text, (name, text)
 
-    def test_it_does_not_thank_the_vendor_for_their_patronage(self, text):
-        """The report's `Extra Notes` default says exactly that, and a bill is
-        a document the *vendor* sent us — so on this side of the transaction
-        the sentence is not merely uninvited, it is backwards."""
-        assert 'patronage' not in text.lower(), text
+    def test_the_reports_own_footer_reaches_the_pdf(self, text):
+        """`Extra Notes` is the reader's option and is left as GnuCash set it,
+        so its default sentence prints — on a bill too, where it reads oddly,
+        because that is what GnuCash prints for a bill and the option belongs
+        to whoever is printing. `set-invoice-style --note` is where a book
+        says otherwise."""
+        assert 'patronage' in text.lower(), text
+
+
+class TestThePrintingPageRunsNoScript:
+    """A deliberate difference from GnuCash's own viewer, which leaves
+    scripting on because it is a browser as well as a printer.
+
+    A report interpolates book text into the page it draws — a customer's
+    name, an entry description, a logo filename — so a field it does not
+    escape is script executing while an invoice is printed. Nothing about
+    laying a document out needs scripting, and the page comes out the same
+    without it.
+
+    Asserted through the service that lays pages out, on a page written here:
+    a document GnuCash drew has no script to run, which is the point, so
+    there is nothing in one to assert against.
+    """
+
+    def test_what_a_script_would_have_written_is_not_on_the_page(self,
+                                                                 tmp_path):
+        from infrastructure.pdf.printing import laid_out_by_webkit
+
+        page = ('<html><body><p>PRINTED BY THE REPORT</p>'
+                '<script>document.write("WRITTEN BY A SCRIPT")</script>'
+                '</body></html>')
+        out = tmp_path / 'scripted.pdf'
+        out.write_bytes(laid_out_by_webkit(page))
+
+        text = _text_of(out)
+
+        assert 'PRINTED BY THE REPORT' in text, text
+        assert 'WRITTEN BY A SCRIPT' not in text, text
+
+
+class TestTheCharactersReachThePdf:
+    """Accented text survives the handoff into the printed file.
+
+    Newly load-bearing: WeasyPrint took a `str`, and WebKit reads the page
+    off a `file://` URI — so what reaches the printer depends on the
+    `<meta charset>` GnuCash writes surviving `combine_pages` and on the file
+    being written UTF-8. Both hold, and a change to either would mojibake
+    every printed invoice with an accent in it while every other test here
+    stayed green.
+
+    Latin-1-range letters rather than the CJK of
+    `test_a_printed_document_keeps_its_characters`: no image ships a CJK
+    font, so that one can say nothing about a PDF, while `Café Ltée` is
+    drawn by the fonts every image has.
+    """
+
+    def test_an_accented_name_is_selectable(self, tmp_path):
+        """Through the whole pipeline, not a page written here: GnuCash draws
+        it, `combine_pages` rebuilds the shell around it, the parent writes
+        the file, WebKit reads it back. A hand-written page proves only that
+        WebKit honours a `<meta charset>` somebody typed, and would pass with
+        the head dropped or the file written in the locale's encoding."""
+        book = tmp_path / 'accented.gnucash'
+        made = CliRunner().invoke(cli, [
+            'import', '--new', str(book),
+            'tests/fixtures/a_document_in_more_than_ascii.txt',
+            '--include-business-objects'])
+        assert made.exit_code == 0, made.output
+
+        out = tmp_path / 'accented.pdf'
+        printed = CliRunner().invoke(cli, [
+            'print-invoice', str(book), 'INV-UNICODE-001',
+            '--format', 'pdf', '--output', str(out)])
+        assert printed.exit_code == 0, printed.output
+
+        text = _text_of(out)
+        assert 'Éditions Cliché Inc.' in text, text
+        assert 'Montréal' in text, text
+        assert 'étude de marché' in text, text
+
+
+class TestOnADisplayTheCallerAlreadyHas:
+    """A desktop, where `DISPLAY` is set before the command runs.
+
+    The images have none, so the arm a person at a screen takes is the one
+    the suite would otherwise never enter — and it is the arm that starts no
+    server and cleans nothing up. Entered here by arranging a display the
+    ordinary way and then handing its `DISPLAY` back in, which is what a
+    desktop looks like from inside this function.
+    """
+
+    def test_the_document_is_printed_on_it(self, tmp_path, monkeypatch):
+        from infrastructure.pdf.printing import a_display, laid_out_by_webkit
+
+        with a_display() as (_, arranged):
+            monkeypatch.setenv('DISPLAY', arranged['DISPLAY'])
+            if 'XAUTHORITY' in arranged:
+                monkeypatch.setenv('XAUTHORITY', arranged['XAUTHORITY'])
+
+            with a_display() as (prefix, env):
+                assert prefix == [], prefix       # nothing wrapped
+                assert env is None, env           # nothing arranged
+
+            out = tmp_path / 'on-a-desktop.pdf'
+            out.write_bytes(laid_out_by_webkit(
+                '<html><body><p>PRINTED ON A DESKTOP</p></body></html>'))
+
+        assert 'PRINTED ON A DESKTOP' in _text_of(out)
+
+
+class TestWhenTheEngineIsNotThere:
+    """The sentence a reader without the bindings meets.
+
+    WebKit's library arrives with GnuCash, its Python bindings do not — so
+    `import gi` failing in the child is the likeliest way this path breaks on
+    a real machine, and what comes back must name the package rather than a
+    traceback. Reached by pointing the parent at a child that is not there,
+    which is what a machine missing them amounts to: `python3 -m` exits
+    non-zero and says why.
+    """
+
+    def test_it_names_what_to_install(self, monkeypatch):
+        from infrastructure.pdf import printing
+
+        monkeypatch.setattr(printing, '_CHILD',
+                            'infrastructure.pdf.no_such_child')
+
+        with pytest.raises(printing.PdfEngineUnavailableError) as told:
+            printing.laid_out_by_webkit('<html><body>x</body></html>')
+
+        assert 'python3-gi' in str(told.value), told.value
+        assert 'No module named' in str(told.value), told.value
 
 
 class TestSeveralDocumentsInOnePdf:

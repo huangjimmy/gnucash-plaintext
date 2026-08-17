@@ -32,9 +32,12 @@ the locale's own answer is UTF-8.
 There is no PDF assertion here. A `/ToUnicode` CMap is produced by the Latin
 text alone, so it holds identically whether the CJK survived, was replaced by
 `?`, or came out as tofu — none of the images installs a CJK font — which
-makes it a claim about WeasyPrint rather than about this. The PDF's text layer
-is covered on an ASCII document by
-`test_a_printed_pdf_can_be_selected_and_copied`.
+makes it a claim about the layout engine rather than about this. That engine
+is WebKit, which reads the page off a `file://` URI rather than being handed
+a `str`, so the characters reaching it depend on the `<meta charset>` GnuCash
+writes surviving `combine_pages`; it does, and what this file asserts is the
+step before — that the *page* keeps them. The PDF's text layer is covered on
+an ASCII document by `test_a_printed_pdf_can_be_selected_and_copied`.
 """
 
 import os
