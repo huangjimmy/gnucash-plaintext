@@ -21,8 +21,13 @@ from gnucash import Query
 from cli._document_files import file_names
 from cli._warnings import said_once
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
+from infrastructure.pdf.printing import (
+    PRINTABLE,
+    a_display,
+    laid_out_by_webkit,
+)
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
-from services.document_pages import combine_pages, load_weasyprint
+from services.document_pages import combine_pages
 from services.gnucash_importer import _swig_invoice_guid_str
 from services.invoice_renderer import (
     read_book_company_info,
@@ -136,14 +141,10 @@ def _write_combined(invoices, book, fmt, company_info, output, session=None,
         output_path.write_text(combined, encoding='utf-8')
         return
 
-    # pdf, unconditionally: `--format` is a `click.Choice` of exactly three,
-    # and the other two have returned above. Asking again would add a fourth
-    # case nothing can take — and a fourth format added to the Choice would
-    # silently fall through it, which is the failure a trailing `raise` was
-    # meant to catch and could never reach.
-    weasyprint = load_weasyprint()
-
-    weasyprint.HTML(string=combined).write_pdf(str(output_path))
+    # Laid out by WebKit, the engine GnuCash's own Print Invoice button uses.
+    # `--format` is a `click.Choice`, and `html` and `plaintext` have returned
+    # above, so what is left is one of the printable ones.
+    output_path.write_bytes(laid_out_by_webkit(combined, fmt))
 
 
 def _write_per_invoice(invoices, book, fmt, company_info, outdir, session=None,
@@ -159,7 +160,7 @@ def _write_per_invoice(invoices, book, fmt, company_info, outdir, session=None,
     `export` renders in full for the same reason; the combined form below
     already did.
     """
-    ext = {'plaintext': 'txt', 'html': 'html', 'pdf': 'pdf'}[fmt]
+    ext = {'plaintext': 'txt', 'html': 'html', **PRINTABLE}[fmt]
     warn = said_once()          # one sink for the run, not one per document
     # Named before anything is rendered, because a name can be a reason not to
     # start: an id is free text and is about to be joined to a path. See
@@ -172,21 +173,25 @@ def _write_per_invoice(invoices, book, fmt, company_info, outdir, session=None,
                              report_file=report_file, warn=warn))
         for name, inv in file_names(invoices, ext, _swig_invoice_guid_str)
     ]
-    # A PDF is laid out before any of them is written too, not only the HTML
-    # it is laid out from. Written as each one finished, a document weasyprint
-    # cannot lay out — a font it cannot find, an image it cannot read — left
-    # the directory partial in exactly the way rendering first was meant to
-    # stop, from the other half of the same loop.
-    if fmt == 'pdf':
-        weasyprint = load_weasyprint()
-        rendered = [(name, weasyprint.HTML(string=html).write_pdf())
-                    for name, html in rendered]
+    # Every document is laid out before any of them is written too, not only
+    # the HTML each is laid out from. Written as each one finished, a document
+    # the engine cannot lay out left the directory partial in exactly the way
+    # rendering first was meant to stop, from the other half of the same loop.
+    if fmt in PRINTABLE:
+        # One display for the whole run rather than one per document: `-o
+        # out/` over fifty invoices started and tore down fifty X servers
+        # otherwise. True of the server this arranges itself, which is every
+        # supported build; a machine falling back to `xvfb-run` gets one per
+        # document, that wrapper owning a command rather than a block.
+        with a_display() as on:
+            rendered = [(name, laid_out_by_webkit(html, fmt, on=on))
+                        for name, html in rendered]
 
     outdir = Path(outdir.rstrip('/'))
     outdir.mkdir(parents=True, exist_ok=True)
     for name, body in rendered:
         target = outdir / name
-        if fmt == 'pdf':                # the third of three, see above
+        if fmt in PRINTABLE:            # laid out above, so bytes
             target.write_bytes(body)
         else:
             target.write_text(body, encoding='utf-8')   # see _write_combined
@@ -216,8 +221,9 @@ def _write_per_invoice(invoices, book, fmt, company_info, outdir, session=None,
                    "matched as the report registers them, which is English "
                    "on every build; a localized GnuCash shows you the "
                    "translated name, so use the guid there. Defaults to "
-                   "'Printable Invoice', the one GnuCash's own File → Print "
-                   "Invoice uses.")
+                   "the book's Default Invoice Report setting, and to "
+                   "'Printable Invoice' where the book has none — the report "
+                   "GnuCash's own Print Invoice button uses.")
 @click.option("--report-file", "report_file", default=None,
               type=click.Path(exists=True, dir_okay=False),
               help="A Scheme (.scm) file to load before the report is looked "

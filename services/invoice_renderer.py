@@ -96,7 +96,7 @@ def render_to_html(invoice, session, report=None, report_file=None,
     """The document as HTML, drawn by GnuCash.
 
     The page is a GnuCash report, through `services/gnucash_report` — by
-    default the Printable Invoice its own File → Print Invoice draws. So what
+    default the Printable Invoice its own Print Invoice button draws. So what
     this prints is what GnuCash prints, and there is no second layout here to
     keep in step with it: the one this project used to carry had its own
     columns, its own tax rows and its own totals, and its totals were wrong
@@ -114,8 +114,8 @@ def render_to_html(invoice, session, report=None, report_file=None,
     a company block read out of the file has anything left to say here.
 
     HTML and not a PDF, so a caller — and a test — can read what the page says
-    without going through weasyprint. `cli/invoice_print_cmd.py` lays the PDF
-    out from this, after every document in the run has been rendered.
+    without laying it out. `cli/invoice_print_cmd.py` prints the PDF from
+    this, through WebKit, after every document in the run has been rendered.
     """
     from services.gnucash_importer import _swig_invoice_guid_str
     from services.gnucash_report import (

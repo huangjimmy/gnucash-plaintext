@@ -28,7 +28,19 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
     apt-get -y install gnucash python3-gnucash git python3-pip python3-venv \
-        libxml2-dev libxslt-dev python3-lxml weasyprint && \
+        libxml2-dev libxslt-dev python3-lxml weasyprint \
+        # `python3-gi` for the bindings, `xvfb` because WebKit wants a
+        # display and a machine printing from a script has none, and `xauth`
+        # so that display takes a cookie rather than any local connection.
+        python3-gi gir1.2-gtk-3.0 xvfb xauth && \
+    # A printed document is laid out by WebKit, the engine GnuCash's own
+    # Print Invoice button uses. Its library is here already — GnuCash
+    # depends on it — but not its typelib, and `import gi` needs both. The
+    # 4.1 API is what a GnuCash 5 build carries and 4.0 what a 4.x one does,
+    # so whichever this base has is the one installed, and neither being
+    # present is a build error rather than a runtime surprise.
+    (apt-get -y install gir1.2-webkit2-4.1 || \
+     apt-get -y install gir1.2-webkit2-4.0) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

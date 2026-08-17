@@ -1,0 +1,123 @@
+# A book with everything a printed invoice puts on the page.
+#
+# The other print fixtures are sparse — a customer with no address, no company
+# block — so the page they draw is a grid of totals with empty boxes around
+# it, and a test reading that page cannot tell a missing address from a
+# stylesheet that never applied. This one carries what a real document
+# carries: a seller with an address and registration numbers, a customer with
+# an address, a posted invoice with a described line, and dates written the
+# book's way — and a vendor with a posted bill, the other document a book
+# prints.
+#
+# Every name, number and address here is invented.
+
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Office Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+company
+	name: "Example Widgets Inc."
+	addr[0]: "500-1 Example Avenue"
+	addr[1]: "Springfield ON"
+	addr[2]: "Canada"
+	addr[3]: "A1A 1A1"
+	id: "000000000"
+	gst: "000000000 RT 0001"
+	contact: "A Person"
+	date_format: "%Y-%m-%d"
+
+customer "C-WHOLE"
+	name: "Second Example Ltd"
+	currency: CAD
+	addr[0]: "Second Example Ltd"
+	addr[1]: "2 Example Street, Suite 100"
+	addr[2]: "Registration Number: 0000000"
+	addr[3]: "Othertown ON B2B 2B2"
+
+invoice "INV-WHOLE-001"
+	customer_id: "C-WHOLE"
+	currency: CAD
+	date_opened: 2026-07-31
+	notes: "Net 30. Quoted 2026-07-01."
+	entry:
+		date: 2026-07-31
+		description: "Monthly service for July 2026 | Account 00000 | Unit 0000"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 40
+		price: 68
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-31
+		due: 2026-09-30
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-WHOLE-001"
+		accumulate: true
+
+# A bill as well, because a document's styling is set on the book and applies
+# to both — and one of two near-identical print paths is where a setting that
+# reaches only invoices would hide.
+vendor "V-WHOLE"
+	name: "Third Example Supply Co."
+	currency: CAD
+	addr[0]: "Third Example Supply Co."
+	addr[1]: "3 Example Road"
+	addr[2]: "Elsewhere ON"
+	addr[3]: "C3C 3C3"
+
+bill "BILL-WHOLE-001"
+	vendor_id: "V-WHOLE"
+	currency: CAD
+	date_opened: 2026-07-15
+	notes: "Account 00000."
+	entry:
+		date: 2026-07-15
+		description: "Paper, letter, 5000 sheets"
+		action: "Material"
+		account: "Expenses:Office Supplies"
+		quantity: 10
+		price: 12.5
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-15
+		due: 2026-08-14
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-WHOLE-001"
+		accumulate: true

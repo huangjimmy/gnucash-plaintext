@@ -1,7 +1,7 @@
 """
 Integration tests for the print-invoice CLI command.
 
-Requires Docker (real GnuCash session + lxml/weasyprint).
+Requires Docker (real GnuCash session, and WebKit with a display for the PDF).
 Uses the business_objects.txt fixture which already contains posted invoices.
 """
 

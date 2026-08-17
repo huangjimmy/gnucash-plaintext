@@ -2,11 +2,70 @@
 
 ## Unreleased
 
+### A printed PDF is the page GnuCash prints
+
+**`print-invoice` and `print-bill` lay their PDF out with WebKit, the engine GnuCash's own Print Invoice button prints with.** WeasyPrint laid it out before, and a second engine reading the same HTML is a second answer to a question GnuCash has already answered — measured on one page: WebKit paints 97 rectangles and WeasyPrint none, because the table borders come from the HTML-4 presentational attributes GnuCash's report writes (`border`, `cellpadding`, `bgcolor`) which WeasyPrint does not implement. A printed invoice had no lines round anything.
+
+The sheet follows the machine, as GnuCash's does: no paper size is named, so GTK takes the one the locale gives — A4 in most of the world, US Letter under `en_US` and `en_CA`. WeasyPrint used its own default instead, which is how the same book printed A4 here and Letter from GnuCash on a Canadian desktop.
+
+**What this needs installed**: WebKit's library arrives with GnuCash, but its Python bindings and a display do not:
+
+```bash
+apt install python3-gi gir1.2-webkit2-4.1 xvfb xauth   # 4.0 on older Debian/Ubuntu
+dnf install python3-gobject webkit2gtk4.1 xorg-x11-server-Xvfb xorg-x11-xauth
+zypper install python3-gobject typelib-1_0-WebKit2-4_1 xorg-x11-server-Xvfb xauth
+pacman -S python-gobject webkit2gtk-4.1 xorg-server-xvfb xorg-xauth
+```
+
+`xauth` is in each line on purpose: without it the display an invoice is drawn on takes a connection from any local user, and what is on it is a customer's name, address and balance. A machine without them is told which package to install rather than shown a traceback, and `--format html` and `--format plaintext` need none of it. WeasyPrint is still what `income-statement` lays out, that page being this project's own rather than GnuCash's.
+
+**One deliberate difference from GnuCash's own engine: the printing page runs no JavaScript.** GnuCash's viewer leaves scripting on, being a browser as well as a printer, and a report interpolates book text — a customer's name, an entry description, a logo filename — into the page it draws. Nothing about laying an invoice out needs scripting and the page comes out the same without it. Remote images and stylesheets are still fetched, exactly as they were under WeasyPrint.
+
+GnuCash's print dialog also offers PostScript and SVG. Neither is offered here: asking GTK's "Print to File" printer for either — same page, same code — ends with the print operation reporting *finished* and no file written, and an option that exits 0 and produces nothing is worse than one that is not there.
+
+### A printed document uses the GnuCash settings on the machine printing
+
+**Settings made in GnuCash now apply to `print-invoice` and `print-bill`.** GnuCash reads a user configuration at startup — stylesheet settings, and every report configuration saved from a report's options dialog — before drawing anything. Neither print command read the configuration files, so a page came out at built-in defaults: printing one invoice from GnuCash and from `print-invoice` gave `border="1.0"` against `border="0.0"`, a grey page against white, 12pt type against 10pt.
+
+A stylesheet customised in GnuCash now applies to a printed page. A report configuration carrying a customised CSS is drawn by `--report "<the name saved under>"`, registered by the same read, with the options held in the configuration.
+
+Those files are Scheme, and reading them evaluates them — which is what GnuCash does at startup, and what makes a saved configuration work at all. So `print-invoice` and `print-bill` now evaluate the Scheme in `stylesheets-2.0`, `saved-reports-2.4` and `saved-reports-2.8` under the *printing account's* GnuCash data directory (`$GNC_DATA_HOME`, else `$XDG_DATA_HOME/gnucash`, else `~/.local/share/gnucash`). On a personal machine those are the reader's own files; on a shared build account, whatever is in that account's home directory is what runs. A file that will not parse is passed over with a warning naming it, rather than costing the document.
+
+**`GNUCASH_PLAINTEXT_NO_USER_CONFIG=1` skips the read**, drawing at GnuCash's built-in defaults exactly as before this release — for CI, a shared build account, or any run that wants the same page whatever is in the home directory it happens to have.
+
+**And a book set to a different report prints with that report.** GnuCash 5 added a **Default Invoice Report** setting to File → Properties → Business. It decides what GnuCash draws with when the Print Invoice button is pressed on an open invoice, and a book that has never been given one prints with the Printable Invoice. `print-invoice` and `print-bill` read the same setting, so a book set to a saved report configuration needs no `--report` on the command line. GnuCash 3.8 and the 4.x line have no such setting, so the same book prints with its chosen report on a GnuCash 5 machine and with the Printable Invoice on an older one, and nothing is said there because there is no setting to read. Two consequences on a GnuCash 5 machine, each written to stderr as it happens:
+
+- a page drawn by a saved configuration carries the options held in the configuration, and the three display switches `print-invoice` sets are not among the options — so a page can state one combined `Tax` figure where the Printable Invoice states GST and PST by name for the same book;
+- a machine holding no such configuration prints with the Printable Invoice rather than refusing. A saved configuration is a file in the GnuCash the configuration was saved from, and a build server or a colleague's laptop holds no copy.
+
+`--report` overrides the book for a single run. GnuCash 3.8 and the whole 4.x line have no such book option, and a book on either era prints as before.
+
+**New: `set-invoice-style` sets the footer and the page's CSS.** The footer and the CSS are the two boxes GnuCash's report options give as Display → Extra Notes and Layout → CSS, and until now setting either meant opening GnuCash — no use on a machine printing from a script:
+
+```bash
+gnucash-plaintext set-invoice-style book.gnucash --note "Payment due in 30 days"
+gnucash-plaintext set-invoice-style book.gnucash --note ""          # no footer
+gnucash-plaintext set-invoice-style book.gnucash --clear-note       # the report's own
+gnucash-plaintext set-invoice-style book.gnucash --css invoice.css
+gnucash-plaintext set-invoice-style book.gnucash --show             # what is set
+```
+
+The footer has three states and `--show` names each: a book saying nothing prints the sentence the report carries, `--note ""` prints no footer at all, `--note "…"` prints the text. `--clear-note` and `--clear-css` take a setting off the book — the way back to the report's own footer on a localized build, where GnuCash's default is translated and cannot be retyped.
+
+The book keeps the footer and the CSS, and `print-invoice` and `print-bill` apply both alike. A book holding neither setting prints the footer and styling the report itself carries — for the footer, GnuCash's "Thank you for your patronage!".
+
+Neither setting is part of the plaintext format: no export writes the footer or the CSS and no import reads either, `set-invoice-style` being the one command holding both.
+
+
 ### Breaking: changes that affect ledgers and scripts that worked before
 
 **`import` exits non-zero when it reports an error.** A run that collected per-object errors used to print `Errors: N` and still exit 0, so `gnucash-plaintext import book.gnucash ledger.txt && next-step` ran the next step over a partly-imported book — and the same command with `--include-business-objects` exited 1, so one file got two answers depending on a flag. The exit code now follows what the summary says. Scripts that chained on success will stop where they previously continued, which is the point; a script that wants the old behaviour should test the summary itself rather than the exit code.
 
 This includes `import --dry-run`, which is the case likeliest to be scripted: a dry run over a file with per-object errors now exits 1, so `import --dry-run && import` stops rather than running the real import over exactly the file the dry run objected to. It still writes nothing — reporting and saving are separate — and a clean file's dry run still exits 0.
+
+**`--report "<a name>"` can now be refused as ambiguous where it worked before.** Reading the saved-report files registers every configuration saved in GnuCash, and GnuCash pre-fills "Save Report Configuration As…" with the name of the report being saved — so a configuration saved by pressing Enter is a second `Printable Invoice`, and `print-invoice book INV --report "Printable Invoice"` is refused rather than drawing whichever the hash yielded. The refusal names both guids, and `--report <guid>` is the way through; renaming the configuration in GnuCash is the other.
+
+**Printed invoices and bills carry GnuCash's footer again: "Thank you for your patronage!"** The three `Extra Notes` writes that emptied the option are gone, so a book saying nothing about the footer prints the sentence GnuCash's report carries — on bills too, where the sentence thanks the supplier and reads oddly, that being what GnuCash prints for a bill. `Extra Notes` holds text somebody chose, and choosing belongs to the reader rather than to `print-invoice`: `set-invoice-style book.gnucash --note ""` prints no footer at all, `--note "…"` prints a sentence of the book's, and `--clear-note` goes back to GnuCash's.
 
 **`delete-transactions` exits non-zero when it could not write an undo copy.** The transaction is still removed — this command is the only way to remove one the format cannot write, and it warns on stderr and says so in the backup file itself. What changed is the exit code: `delete-transactions … -o undo.txt && next-step` chained on a backup holding nothing but comments, because the file existed and the run said it went fine. A script that wants the old behaviour should test for the transaction's absence rather than the exit code.
 
@@ -226,7 +285,7 @@ Note that GnuCash's own Edit → Preferences → Date/Time never affected this c
 
 ### A printed invoice or bill is the page GnuCash prints
 
-`print-invoice` and `print-bill` render through GnuCash's own **Printable Invoice** — the report its File → Print Invoice uses — so a document carries GnuCash's heading, columns, totals and wording rather than a layout of this project's. Every supported version draws it, GnuCash 3.8 included: a Guile interpreter runs inside this process and is handed the book already open. ([Q-036](docs/issues/Q-036-printed-documents-are-not-gnucashs-page.md))
+`print-invoice` and `print-bill` render through GnuCash's own **Printable Invoice** — the report its Print Invoice button uses — so a document carries GnuCash's heading, columns, totals and wording rather than a layout of this project's. Every supported version draws it, GnuCash 3.8 included: a Guile interpreter runs inside this process and is handed the book already open. ([Q-036](docs/issues/Q-036-printed-documents-are-not-gnucashs-page.md))
 
 **Fixed: a foreign-currency document printed the wrong amount.** Take a USD 100.00 invoice posted to a CAD income account, in a book where the rate that day was 1.40.
 

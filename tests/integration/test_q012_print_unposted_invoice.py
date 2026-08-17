@@ -66,7 +66,7 @@ def _import_new(runner, gnc, fixture):
 
 def _render_invoice_html(gnc_path: str, invoice_id: str) -> str:
     """The page GnuCash draws — the same path `print-invoice` takes,
-    minus the weasyprint PDF step."""
+    minus the WebKit step that lays it out."""
     from gnucash import Query, Session
     from gnucash.gnucash_business import Invoice
 

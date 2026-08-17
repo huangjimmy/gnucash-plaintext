@@ -14,11 +14,17 @@ Two problems, and the first is a wrong number on a document sent to a customer.
 
 It was invisible to 2,300 tests because every render test built from `business_objects.txt`, which is CAD end to end — 14 `currency: CAD` lines and 10 CAD accounts. In a single-currency book a split's amount and its value are the same number, so reading the wrong one of the two cannot be seen.
 
-**The page was ours, and GnuCash's is the one people expect.** The layout was a stylesheet written here: Description, Qty, Unit Price, Amount and Tax Applied, with tax broken out as named GST and PST rows. What GnuCash's own File → Print Invoice draws is its **Printable Invoice** report: `Invoice #<id>` at the top left, the document's owner on one side and the seller on the other, then Date, Description, Action, Quantity, Unit Price, Discount, Taxable and Total, and Net Price, Tax, Total Price and Amount Due beneath. Ours matched none of it, and every difference was a thing to reimplement and keep in step.
+**The page was ours, and GnuCash's is the one people expect.** The layout was a stylesheet written here: Description, Qty, Unit Price, Amount and Tax Applied, with tax broken out as named GST and PST rows. What GnuCash's own Print Invoice button draws is its **Printable Invoice** report: `Invoice #<id>` at the top left, the document's owner on one side and the seller on the other, then Date, Description, Action, Quantity, Unit Price, Discount, Taxable and Total, and Net Price, Tax, Total Price and Amount Due beneath. Ours matched none of it, and every difference was a thing to reimplement and keep in step.
 
 ## What it does now
 
-The page is GnuCash's, drawn by GnuCash. `services/gnucash_report.py` hands GnuCash the book and the document's guid and asks a report to render it. By default that is the Printable Invoice — report guid `5123a759ceb9483abf2182d01c140e8d` — which is what File → Print Invoice draws; `--report` and `--report-file` choose another. Nothing here computes a layout, a column rule or a total.
+The page is GnuCash's, drawn by GnuCash. `services/gnucash_report.py` hands GnuCash the book and the document's guid and asks a report to render it. `--report` and `--report-file` choose which; with neither, the **book** is asked — `qof_book_get_default_invoice_report_guid`, which is File → Properties → Business and what GnuCash's own Print Invoice button reads — and a book naming none is drawn by the Printable Invoice, report guid `5123a759ceb9483abf2182d01c140e8d`. Nothing here computes a layout, a column rule or a total.
+
+**A guid the book names and this build has no report for is drawn with the Printable Invoice, warned about by guid, rather than refused.** The book usually names a configuration the reader saved, and a saved configuration is a file in the GnuCash that saved it — present on their laptop, absent on a build server and on a colleague's. Refusing there stops the book printing anywhere but on one machine, over a setting made in a dialog rather than on this command line, with a refusal naming a guid nobody typed. A name or guid the caller *did* type is still refused: they can see what they wrote.
+
+The second consequence is written to stderr as well, nobody having typed the book option either: where the book names a report outside the five `print-invoice` advertises, the page carries the options saved in the configuration and the three switches below stay unset — so a page can state one combined `Tax` figure where the Printable Invoice states the breakdown for the same book.
+
+The accessor arrived with GnuCash 5 — absent from `libgnc-engine.so` and from `qofbook.h` on 3.8 and the whole 4.x line, measured — so a book on those builds names no report here, which is what their own printing does. Nothing is written to stderr about it either: the two sentences below are about a setting that was read, and on those builds there is none to read. A book carrying the option therefore prints with its chosen report on a GnuCash 5 machine and with the Printable Invoice on an older one, in silence. It is declared through `getattr` for that reason: naming a symbol a library does not export raises in `load_gnc_engine` itself, which failed *every* command on those builds. And the string it returns is the caller's (`gchar *`, not `const char *`, and measurably a fresh pointer per call), so it is copied out and `g_free`d.
 
 **Guile runs inside this process.** `scm_init_guile()` on the already-loaded libguile puts a Scheme interpreter in the process that has the book open, and because the Python bindings and Guile's are the same C library sharing the same globals, `gnc-get-current-session` answers with the session Python opened — after `gnc_set_current_session`, which the bindings do not call themselves. Nothing is shelled out to and no book is opened twice.
 
@@ -28,22 +34,23 @@ The two eras differ only in names — `use-modules` against `gnc:module-load`, `
 
 The page is the same on every build. Measured across 3.8 and 5.10, the whole document differs in `cellspacing="0"` against `"0.0"` and an ellipsis spelled `...` against `…`, and in one figure: **the payment row**. A payment made through a transaction valued in another currency is stated in the transaction's currency on 3.8 — `-C$140.00` under totals that all read `$100.00` — and in the document's on 4.x and 5.x. That row is the report's, so the tests read the totals.
 
-## The four options that are set
+## The options that are set
 
-Beyond the document's guid, exactly four of the report's own switches are set. Two carry fields this format has and GnuCash ships hidden; two take out defaults of the report's that are wrong for a document this tool prints:
+Beyond the document's guid, three of the report's own switches are set. Each shows a field this format carries and GnuCash ships hidden:
 
 | option | why |
 |---|---|
 | `Display/Invoice Notes` | the document's `notes:`, which this format carries and a document that dropped it would lose |
 | `Display/Company contact` | the book's `contact:`, as GnuCash's "Please direct all enquiries to …" |
 | `Display/Use Detailed Tax Summary` | one row per tax account — `GST` and `PST` by name and amount, not one combined `Tax` figure |
-| `Display/Extra Notes` → `""` | its default is the literal "Thank you for your patronage!", appended to every page |
 
-All four are set tolerantly: an option a build does not have raises "Attempt to write non-existent option", and a row missing on an older GnuCash must not cost that build its document.
+All three are set tolerantly: an option a build does not have raises "Attempt to write non-existent option", and a row missing on an older GnuCash must not cost that build its document.
+
+`Display/Extra Notes` is not one of them, and the reason is below.
 
 **The tax breakdown is not a formatting preference.** This change splices in the GST and PST registration numbers on the grounds that a Canadian invoice is required to state them; the same rules require it to state the GST/HST *amount*, and GST added to PST does not state it. A filer reclaims the GST and not the PST, so a document giving only their sum cannot be worked from. The format has carried the per-account breakdown since Q-019, the plaintext render still writes it, and the page would have quietly stopped agreeing with both.
 
-**And the marketing line is GnuCash's, not ours to pass on.** `Extra Notes` is a text option rather than a switched-off row, which is how it escaped the first audit of what this sets: nothing turns it on, it is simply there. On an invoice it is a sentence the seller never wrote; on a bill — a document the *vendor* sent — it thanks the supplier for their patronage of you.
+**`Extra Notes` holds text rather than a switch, and no text is written by `print-invoice`.** The three options above turn *on* the display of a field the ledger already carries; `Extra Notes` holds a sentence somebody chose, and choosing the sentence belongs to the reader — through a configuration saved in GnuCash's report options dialog, or through `set-invoice-style` on the book. Where neither names a sentence, GnuCash's own default prints: "Thank you for your patronage!".
 
 ## The two additions
 
@@ -82,7 +89,17 @@ A key that has since become a field of its own still sits in the slot of every b
 
 ## PDF
 
-The PDF is laid out from that HTML by WeasyPrint, and its text is text: `tests/integration/test_a_printed_pdf_can_be_selected_and_copied.py` reads the file back with a PDF reader and looks for what the page says, because select-and-copy is what a customer does with an invoice and the HTML proves nothing about it. A combined print is one file with one document per page, and each page is read back on its own.
+**The PDF is laid out by WebKit, which is what GnuCash prints with.** Its Print Invoice button hands the report's HTML to WebKit, so anything else laying that HTML out is a second answer to a question already answered — and the two answers differ on the page. Measured on one document, same HTML both ways: WebKit paints 97 rectangles and WeasyPrint none, the borders coming from the HTML-4 presentational attributes GnuCash's report writes (`border`, `cellpadding`, `bgcolor`) which WeasyPrint does not implement. The reader's printed invoice had no lines round anything.
+
+**Two things are deliberately not named here, both being the machine's**: the paper size, which GTK takes from the locale exactly as GnuCash does — naming one printed every reader's document on the author's paper — and, in the other direction, the *message* catalogue, which is forced to `C` for the child alone. GTK's file printer is asked for by name and that name is translated (`Imprimer dans un fichier` under `fr_FR`), and WebKit answers `Printer not found (500)` for a name it does not hold. Only `LC_MESSAGES` is neutralised, because `LC_PAPER` is what decides the sheet — and `LC_ALL` takes care, glibc resolving every category through it first: a reader whose only locale variable is `LC_ALL=en_US.UTF-8` loses US Letter to the `C` fallback if it is simply removed, measured as `na_letter 612 792` becoming `iso_a4 595 842`. So what `LC_ALL` was deciding is written into each category before it goes. No test reaches any of this: the images carry `C`, `C.utf8` and `POSIX` and nothing else.
+
+`infrastructure/pdf/webkit_page.py` is a child process — `WebKit2.PrintOperation` with GTK's "Print to File" printer. A child, because a GTK main loop inside the process holding an open book and an initialised Guile is two event loops over the same ctypes-shared globals; and because a machine printing from a script has no display to give it. One is arranged by `a_display`: the reader's own `DISPLAY` where there is one, else an `Xvfb` started for the run and shared across every document in it, else `xvfb-run` on a machine carrying the wrapper and no server.
+
+**The page runs no JavaScript**, which is a deliberate difference from GnuCash's own viewer — a viewer being a browser as well as a printer. The report interpolates book text into the page, so a field it does not escape is script executing during a print; nothing about laying out an invoice needs scripting, and the page draws the same without it. Remote images and stylesheets are still fetched, as they were under WeasyPrint: closing that is a network policy rather than a flag.
+
+PostScript and SVG are what GnuCash's dialog offers beside PDF, and neither is offered here: asking GTK for either ends with the operation reporting *finished* and no file written, measured on 5.10.
+
+The PDF's text is text: `tests/integration/test_a_printed_pdf_can_be_selected_and_copied.py` reads the file back with a PDF reader and looks for what the page says, because select-and-copy is what a customer does with an invoice and the HTML proves nothing about it. A combined print is one file with one document per page, and each page is read back on its own.
 
 ## The second renderer is gone
 

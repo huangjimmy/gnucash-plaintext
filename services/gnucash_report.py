@@ -2,11 +2,12 @@
 """Render a document by asking GnuCash to render it.
 
 The page is GnuCash's own — by default the **Printable Invoice** report, which
-is what File → Print Invoice draws: `Invoice #<id>` at the top left, the
-customer on one side and your company on the other, then Date / Description /
-Action / Quantity / Unit Price / Discount / Taxable / Total, and Net Price,
-Tax, Total Price and Amount Due beneath. Nothing here reimplements a layout, a
-column rule or a total; this module hands GnuCash a guid and asks it to draw.
+is what GnuCash's own Print Invoice button draws: `Invoice #<id>` at the top
+left, the customer on one side and your company on the other, then Date /
+Description / Action / Quantity / Unit Price / Discount / Taxable / Total, and
+Net Price, Tax, Total Price and Amount Due beneath. Nothing here reimplements
+a layout, a column rule or a total; this module hands GnuCash a guid and asks
+it to draw.
 
 Which report draws it is the caller's to choose — one of the five GnuCash
 ships, or one the reader wrote — and that is the whole of this project's
@@ -35,6 +36,7 @@ and a build with none registered fails inside `symbol->string` on a #f name —
 which reads like a bug in the caller and is not.
 """
 import contextlib
+import ctypes
 import html as html_escaping
 import os
 import re
@@ -42,8 +44,10 @@ import tempfile
 from pathlib import Path
 
 from infrastructure.guile import load_guile
+from services.invoice_style import the_books_invoice_style
 
-# GnuCash's "Printable Invoice", the report its own Print Invoice uses.
+# GnuCash's "Printable Invoice", the report its own Print Invoice button
+# uses.
 PRINTABLE_INVOICE_GUID = '5123a759ceb9483abf2182d01c140e8d'
 
 # Printable, Easy and Fancy Invoice are three `gnc:define-report` calls in one
@@ -112,6 +116,28 @@ _dialect_cache = None
 # on every document after the first.
 _loaded_report_files = {}
 
+#: Whether this process has read the reader's own GnuCash configuration.
+#: Once, for the reason `_loaded_report_files` exists: a run printing a whole
+#: book would otherwise re-read it per document, and re-registering a report
+#: guid is refused by `gnc:define-report` as a duplicate.
+_read_the_readers_gnucash = False
+
+#: The files GnuCash reads at startup, and this did not. They hold what the
+#: reader set in GnuCash's own dialogs, and a page drawn without them is drawn
+#: at defaults the reader has already changed.
+#:
+#: Measured, on a page whose every table came out `border="0.0"`: the reader's
+#: `Table border width` of 1 lives in `stylesheets-2.0`, so their invoice has
+#: a box round every table and the same invoice printed here had none. Same
+#: report, same stylesheet by name, same CSS — a setting of theirs we never
+#: read.
+#:
+#: `saved-reports-*` are the same thing for a report configuration saved from
+#: the report's own options dialog. Both are loaded by GnuCash's
+#: `gnc_load_scm_config` when it starts, beside `config-user.scm`.
+_THE_READERS_GNUCASH = ('stylesheets-2.0',
+                        'saved-reports-2.4', 'saved-reports-2.8')
+
 
 class DocumentNotRenderedError(RuntimeError):
     """GnuCash did not draw the document, and why.
@@ -128,6 +154,30 @@ _MODERN_SETUP = '''
 (use-modules (gnucash engine) (gnucash app-utils) (gnucash report))
 (use-modules (gnucash reports standard invoice))
 (use-modules (gnucash report stylesheets plain))
+;; `gnc-build-userdata-path`, for reading the reader's own GnuCash
+;; configuration — in a `catch` and after the report modules, because a build
+;; without it can still draw every document. Loaded first and bare, its
+;; absence aborted the whole setup and the reader was told the Printable
+;; Invoice report is not registered, which is not what went wrong. The one
+;; place it is called is inside a `catch` of its own.
+(catch #t (lambda () (use-modules (gnucash core-utils))) (lambda i #f))
+;; The other stylesheets GnuCash ships, so a reader who set their invoice to
+;; one of them gets it. `(gnucash report)` does not pull these in — its
+;; `report-module-loader` is exported for the application to call, and this is
+;; not the application — and a `stylesheets-2.0` entry names its template with
+;; `gnc:html-style-sheet-template-find`, which answers #f for one that never
+;; registered. The file's own `(if template …)` then drops that entry in
+;; silence, so a reader who customised Easy or Technicolor would have had
+;; their settings passed over with nothing said.
+;;
+;; Each in its own `catch`: a build missing one must not lose the others, and
+;; the four are separate modules that have moved between releases.
+(catch #t (lambda () (use-modules (gnucash report stylesheets footer)))
+       (lambda i #f))
+(catch #t (lambda () (use-modules (gnucash report stylesheets head-or-tail)))
+       (lambda i #f))
+(catch #t (lambda () (use-modules (gnucash report stylesheets css)))
+       (lambda i #f))
 '''
 
 _LEGACY_SETUP = '''
@@ -139,6 +189,18 @@ _LEGACY_SETUP = '''
 (use-modules (gnucash report report-system))
 (use-modules (gnucash report invoice))
 (use-modules (gnucash report stylesheet-plain))
+;; And the rest of them — see `_MODERN_SETUP` for why. 3.8 spells each as its
+;; own `stylesheet-<name>` module rather than a `stylesheets` package.
+(catch #t (lambda () (use-modules (gnucash report stylesheet-footer)))
+       (lambda i #f))
+(catch #t (lambda () (use-modules (gnucash report stylesheet-head-or-tail)))
+       (lambda i #f))
+(catch #t (lambda () (use-modules (gnucash report stylesheet-css)))
+       (lambda i #f))
+;; `gnc-build-userdata-path` — see `_MODERN_SETUP` for why this is caught.
+;; 3.8 keeps the module under the same name as 4.x/5.x, which nothing else
+;; here does: `/usr/share/gnucash/scm/gnucash/core-utils.scm` re-exports it.
+(catch #t (lambda () (use-modules (gnucash core-utils))) (lambda i #f))
 ;; The report registry — `gnc-report-add`, which `gnc:make-report` calls, and
 ;; `gnc-report-find`. On 3.8 they are not in the report-system module but in
 ;; its SWIG module, so without this `gnc:make-report` looks broken when it is
@@ -359,6 +421,63 @@ def carry_slot_values_onto_the_fields(doc) -> None:
             party.CommitEdit()
 
 
+def _the_report_this_book_prints_with(book):
+    """`(guid, name)` the book names, or `(None, None)` when it names none.
+
+    The name is the reader's own label for it — what the chooser in File →
+    Properties showed them — and it is what anything said about this choice
+    quotes, the guid being exact and telling them nothing. GnuCash writes
+    both; a book carrying only the guid gives `None` for the name.
+
+    GnuCash keeps this in File → Properties → Business and reads it when its
+    own Print Invoice button draws a document — including a configuration the
+    reader saved, which is how a page of theirs becomes the one their book
+    prints with. Asking the book is why nothing here has to be told a report
+    on the command line.
+
+    `None` for a book that has never been given one; GnuCash then draws with
+    its own built-in default, and so does this.
+
+    A guid the build has no report for is **not** an error here — see
+    `_render`, which draws with the default and says so. The book is asked on
+    every machine, and a configuration the reader saved lives on theirs.
+    """
+    from infrastructure.gnucash.engine import load_gnc_engine
+
+    lib = load_gnc_engine()
+    # The accessors arrived with GnuCash 5: absent on 3.8 and on the whole 4.x
+    # line, measured from the exported symbols and from `qofbook.h` on 4.4 and
+    # 4.13. A book on those builds names no report here and its documents draw
+    # with the default, which is what their own printing does.
+    ask = getattr(lib, 'qof_book_get_default_invoice_report_guid', None)
+    if ask is None:
+        return None, None
+
+    def taken(answer):
+        """The string, copied out and freed.
+
+        The caller frees the string — `gchar *`, not the `const char *` of
+        `qof_book_get_string_option` beside it, and measurably a fresh
+        pointer per call. Skipping the free leaks ~48 bytes per rendered
+        document, which a run printing a whole book does once per page.
+        """
+        if not answer:
+            return None
+        try:
+            return ctypes.string_at(answer).decode('utf-8').strip() or None
+        finally:
+            free = getattr(lib, 'g_free', None)
+            if free is not None:
+                free(answer)
+
+    guid = taken(ask(int(book.instance)))
+    if guid is None:
+        return None, None
+    by_name = getattr(lib, 'qof_book_get_default_invoice_report_name', None)
+    name = taken(by_name(int(book.instance))) if by_name is not None else None
+    return guid, name
+
+
 def render_document_html(session, guid: str, company_extra='',
                          owner_extra='', report=None, report_file=None,
                          warn=None) -> str:
@@ -376,7 +495,7 @@ def render_document_html(session, guid: str, company_extra='',
     registered and draw on every supported build: Printable Invoice, Fancy
     Invoice, Easy Invoice, Tax Invoice and Australian Tax Invoice — the last
     arriving with Tax Invoice's module rather than being asked for. The
-    default is the Printable Invoice its own File → Print Invoice uses.
+    default is the Printable Invoice its own Print Invoice button uses.
 
     `report_file` is a Scheme file loaded before the report is looked up, so a
     report of your own — `gnc:define-report` in a `.scm` of your writing — is
@@ -417,6 +536,22 @@ def render_document_html(session, guid: str, company_extra='',
             'a report file was given with no report named, so nothing would '
             'have drawn the page but GnuCash\'s default — name the report the '
             'file defines')
+    # Which report, when the caller has not said: the book's own answer, from
+    # File → Properties → Business, which is what GnuCash's own Print Invoice
+    # button reads. A book set up to print with a particular report prints
+    # with it here too, without anyone repeating that on the command line.
+    from_the_book = book_calls_it = None
+    if report is None and report_file is None:
+        from_the_book, book_calls_it = \
+            _the_report_this_book_prints_with(session.book)
+        report = from_the_book or report
+
+    # The two free-text boxes on a printed document — Display → Extra Notes
+    # and Layout → CSS — as the book holds them, written by
+    # `set-invoice-style`. Kept in the book so a script printing on a machine
+    # that has never run GnuCash draws the page the reader configured.
+    css, note = the_books_invoice_style(session.book)
+
     lib = load_guile()
     # After `load_guile`, so a machine without an interpreter raises before the
     # global is set rather than leaving it naming a session the caller is about
@@ -439,7 +574,9 @@ def render_document_html(session, guid: str, company_extra='',
                                               warn or _say_nothing)
         with tempfile.TemporaryDirectory(prefix='gnucash-render-') as work:
             return _render(lib, Path(work), guid, company_extra, owner_extra,
-                           report=report, report_file=report_file, warn=warn)
+                           report=report, report_file=report_file, warn=warn,
+                           css=css, note=note, from_the_book=from_the_book,
+                           book_calls_it=book_calls_it)
     finally:
         # Both of these put a process-wide global back, and the date style is
         # the one that must not be skipped: a session pointer left set is read
@@ -532,9 +669,125 @@ def _dialect(run, work: Path) -> tuple:
     return _dialect_cache
 
 
+def _read_the_readers_own_gnucash(run, work: Path, warn) -> None:
+    """Load what the reader set in GnuCash, before drawing anything.
+
+    A printed page is decided by three things: the book, the report, and the
+    reader's own GnuCash settings. This read the first two and never the
+    third, so every page came out at defaults the reader may have changed
+    years ago — and the difference is not subtle. Measured against a reader's
+    own printout: their `Table border width` is 1, which puts a box round
+    every table on the page, and the same invoice printed here had none,
+    because that setting lives in `stylesheets-2.0` in GnuCash's user data
+    directory and nothing here opened it.
+
+    GnuCash reads the configuration files when starting, through
+    `gnc_load_scm_config`. A process that only embeds the library does not,
+    which is why the read below exists. No setting is invented here and no
+    value is copied out of a configuration file: the files belong to the
+    reader, and are read where GnuCash keeps them.
+
+    `gnc-build-userdata-path` is how the directory is found, which is what
+    GnuCash's own stylesheet code calls for the same purpose, and it is
+    spelled that way on every supported build.
+
+    A file that will not parse is passed over rather than raised: the reader
+    may not know it exists, it is not this document's fault, and the page can
+    still be drawn from what did load.
+
+    **`GNUCASH_PLAINTEXT_NO_USER_CONFIG=1` skips the whole read**, and the
+    page is then drawn at GnuCash's built-in defaults, as before any of this.
+    Reading Scheme is evaluating it, which is what makes a saved
+    configuration work at all — and the directory is chosen by environment
+    variables, so on a shared build account whatever is in that account's
+    home directory is what runs. A run that wants the old hermetic behaviour
+    says so with one variable rather than by arranging an empty home.
+    """
+    global _read_the_readers_gnucash
+    if _read_the_readers_gnucash:
+        return
+    _read_the_readers_gnucash = True
+    if os.environ.get('GNUCASH_PLAINTEXT_NO_USER_CONFIG', '') not in ('', '0'):
+        return
+    for name in _THE_READERS_GNUCASH:
+        # `%load-should-auto-compile` off around the load, because guile
+        # announces every compilation on stderr — three lines per file, and a
+        # fourth if it fails — and stderr is where a dropped GST number is
+        # reported. That warning exists so a document does not leave silently
+        # short of something a tax authority requires, and burying it under
+        # guile's cache chatter is the same defect this module already carries
+        # a long comment about, from the last time something wrote there.
+        #
+        # The reader gains nothing from the cache either: these files are read
+        # once per process and are a few lines long.
+        #
+        # Through `dynamic-wind`, so a file that throws puts it back: this
+        # module restores the date style the same way, and for the same
+        # reason — a global left as this run set it is the next command's
+        # problem, not this one's.
+        broke = work / f'{name}.failed'
+        # Asked for before it is called, because a build without
+        # `(gnucash core-utils)` is one this still draws documents on — the
+        # module is loaded in a `catch` of its own on exactly that ground.
+        # Without the probe, the unbound variable lands in the `catch` below
+        # and is reported as *the reader's file* being unreadable: three
+        # lines per printed document, naming files that may not exist, on the
+        # stream the dropped-GST-number warning is written to. The two
+        # tolerances have to say the same thing about a missing module, and
+        # what they say is nothing.
+        run(f'(catch #t'
+            f'  (lambda ()'
+            f'   (if (defined? (quote gnc-build-userdata-path))'
+            f'    (let ((path (gnc-build-userdata-path {_scheme_string(name)}))'
+            f'          (was %load-should-auto-compile))'
+            f'      (dynamic-wind'
+            f'        (lambda () (set! %load-should-auto-compile #f))'
+            f'        (lambda () (if (access? path R_OK) (load path)))'
+            f'        (lambda () (set! %load-should-auto-compile was))))))'
+            f'  (lambda (key . args)'
+            f'    (call-with-output-file {_scheme_string(str(broke))}'
+            f'      (lambda (port)'
+            # Said, as on every other port here: Python reads the file back as
+            # UTF-8, and a port left on the locale writes whatever the locale
+            # can hold. What is thrown carries the path — from
+            # `gnc-build-userdata-path`, so the reader's `$HOME` — and a home
+            # directory with a non-ASCII character, under a locale that is not
+            # UTF-8, wrote Latin-1 bytes that `read_text` then refused. The
+            # warning about an unreadable configuration file would have become
+            # the reason the document did not print, which is the inverse of
+            # what the `catch` is for.
+            f'        (set-port-encoding! port "UTF-8")'
+            f'        (display (list key args) port)))))')
+        # Said out loud, because the alternative is a refusal that blames the
+        # reader. One bad entry aborts the whole file, so every configuration
+        # in it goes unregistered — and `--report "My Invoice"` then fails
+        # with "no report of that name is registered on this build", which
+        # sends them to look at their locale for a problem in their own file.
+        # `--report-file` already names its load failures for the same reason.
+        if broke.exists():
+            detail = broke.read_text(encoding='utf-8').strip()
+            broke.unlink()
+            warn(f'the GnuCash configuration file {name} could not be read, '
+                 f'so the settings and saved reports the file holds were not '
+                 f'applied: {detail[:300]}',
+                 key=('unreadable-gnucash-config', name))
+
+
 def _render(lib, work: Path, guid: str, company_extra, owner_extra,
-            report=None, report_file=None, warn=None) -> str:
+            report=None, report_file=None, warn=None, css=None,
+            note=None, from_the_book=None, book_calls_it=None) -> str:
     """The render itself, with `work` a directory to write through.
+
+    `from_the_book` is the guid when `report` is the book's own answer rather
+    than the caller's — which decides what happens if nothing is registered
+    under it. A name the caller typed is refused, because they can retype it;
+    a guid the *book* names is drawn with the default and said out loud,
+    because the reader may be nowhere near the machine that saved it.
+
+    `book_calls_it` is the label the book keeps beside that guid, and is what
+    every sentence about the choice quotes: nobody typed the guid, so a
+    message quoting it alone tells the reader nothing about which report it
+    means.
 
     **The page crosses from Scheme to Python as UTF-8, said on both sides.**
     Guile picks a port's encoding from the locale and replaces anything the
@@ -585,6 +838,8 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
                 f'GnuCash could not render the document: {message[:900]}')
 
     setter, find_report = _dialect(run, work)
+
+    _read_the_readers_own_gnucash(run, work, warn or _say_nothing)
 
     # A report of the caller's own, registered before it is looked for. This is
     # GnuCash's extension point rather than one invented here: a `.scm` calling
@@ -656,7 +911,39 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     for registered in _loaded_report_files.values():
         readers_own = readers_own | registered
 
+    # What to call this report in anything said to the reader. A guid out of
+    # the book is nobody's typing, so it is quoted with the label the book
+    # keeps beside it — the one the chooser in File → Properties showed them
+    # — and a report they named on the command line is called what they wrote.
+    called = report if report else 'Printable Invoice'
+    if from_the_book:
+        called = f'{book_calls_it} ({from_the_book})' if book_calls_it \
+            else from_the_book
+
     wanted = _report_id_expression(report, from_this_file)
+    # A report the *book* names and this build has never heard of is drawn
+    # with the default rather than refused. The guid names a configuration the
+    # reader saved, and a saved configuration lives in the GnuCash of whoever
+    # saved it: their laptop has it, the build server printing the same book
+    # does not, and neither does a colleague. Refusing there stops a book from
+    # printing at all on every machine but one — for a setting the reader made
+    # in GnuCash's own File → Properties, not on this command line, so the
+    # refusal names a guid they never typed and asks them to type it.
+    #
+    # A name or guid the caller *did* type is still refused, unchanged: they
+    # can see what they wrote and retype it, and silently drawing something
+    # else would answer a different question than the one they asked.
+    if from_the_book:
+        # Caught as well as `or`ed, because the lookup has two ways to decline
+        # and only one of them answers `#f`. Two templates matching one guid —
+        # the registry compares case-sensitively while this lookup does not,
+        # so a hand-edited saved-reports file can hold `7C7D…` beside `7c7d…`
+        # — calls Scheme `error` instead, which would refuse the document over
+        # a setting made in File → Properties, quoting a guid nobody typed.
+        # That is the outcome the fallback exists to prevent, so both ways
+        # down reach it.
+        wanted = (f'(or (catch #t (lambda () {wanted}) (lambda ignored #f)) '
+                  f'{_scheme_string(PRINTABLE_INVOICE_GUID)})')
     # The reports whose display options this tool sets — the same five it
     # advertises and checks, as they register themselves, sorted so the Scheme
     # it builds is the same string on every run.
@@ -668,11 +955,36 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     # entry that is not in this list. Either way a page of theirs draws under
     # a guid that is not here, and none of these switches is set on it.
     advertised = ' '.join(_scheme_string(g) for g in sorted(_DREW_A_DOCUMENT))
-    # Four of the report's own switches, and nothing else — written as six
-    # `try-set` lines because the last of them has three spellings across the
-    # reports and the eras. Two carry fields this format has and GnuCash ships
-    # hidden; two take out defaults of the report's that are wrong for a
-    # document this tool prints:
+    # What the book says these two boxes hold, or nothing at all where it says
+    # nothing — an unset one leaves the report's own value, which is GnuCash's
+    # default or whatever the reader configured in GnuCash.
+    #
+    # Every spelling the shipped reports use, read out of the shipped Scheme
+    # on 5.10 and 3.8. The invoice family and the Tax Invoice family disagree
+    # about both boxes, and the eras disagree about one of them:
+    #
+    #   report family    footer                    styling
+    #   invoice.scm      Display / Extra Notes     Layout / CSS
+    #   taxinvoice.scm   Notes   / Extra Notes     Notes  / Embedded CSS
+    #   taxinvoice 3.8   Notes   / Extra notes     Notes  / Embedded CSS
+    #
+    # A spelling left out is not an error anywhere: `try-set` asks before it
+    # writes, so the page draws and the setting silently does not arrive. The
+    # styling had one spelling and the footer three, so `--css` reached the
+    # invoice family and never Tax Invoice — `✓ Set css`, `--show` printing
+    # the whole stylesheet, and a page carrying none of it.
+    the_books = ''.join(
+        f'\n    (try-set options {_scheme_string(section)} '
+        f'{_scheme_string(name)} {_scheme_string(value)})'
+        for value, section, name in ((css, 'Layout', 'CSS'),
+                                     (css, 'Notes', 'Embedded CSS'),
+                                     (note, 'Display', 'Extra Notes'),
+                                     (note, 'Notes', 'Extra Notes'),
+                                     (note, 'Notes', 'Extra notes'))
+        if value is not None)
+    # Three of the report's own switches, and nothing else. Each shows a field
+    # **this format carries and GnuCash ships hidden**, so a document printed
+    # from a ledger states what the ledger says:
     #
     #   Display/Invoice Notes            the document's `notes:`
     #   Display/Company contact          the book's `contact:`, printed by
@@ -687,32 +999,15 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     #                                    format has always carried the
     #                                    breakdown per tax account, and the
     #                                    plaintext render still writes it.
-    #   Notes/Extra Notes                the same row under the page and name
-    #   Notes/Extra notes                Tax Invoice gives it. That report is
-    #                                    a module of its own and spells its
-    #                                    options its own way, so the `Display`
-    #                                    line below is a no-op there and the
-    #                                    patronage sentence was printing on
-    #                                    every Tax Invoice page.
     #
-    #                                    Two spellings because GnuCash changed
-    #                                    the capital: `Extra notes` on 3.8,
-    #                                    `Extra Notes` on 4.13 and 5.10. Each
-    #                                    build takes the one it has and
-    #                                    ignores the other, which is what
-    #                                    `try-set` is for — and the difference
-    #                                    was found by the test failing on 3.8
-    #                                    alone after the 5.10 spelling fixed
-    #                                    it there.
-    #   Display/Extra Notes              emptied. Its default is the literal
-    #                                    "Thank you for your patronage!",
-    #                                    which the report appends to every
-    #                                    page — uninvited on an invoice of
-    #                                    yours, and untrue on a bill, where it
-    #                                    thanks the supplier for their
-    #                                    patronage of you. It is a text option
-    #                                    and not a hidden row, which is how it
-    #                                    escaped the audit of what gets set.
+    # `Extra Notes` is **not** among them, and the difference is the point:
+    # these three turn on the display of something the reader wrote, while
+    # that one *holds* text — a sentence somebody chose, in the same dialog.
+    # Whose sentence reaches the page is the reader's to say: a configuration
+    # they saved in GnuCash, or `set-invoice-style` on the book, which is
+    # applied further down. Where they have said neither, GnuCash's own
+    # default prints — the literal "Thank you for your patronage!"
+    # (`invoice.scm`, and `taxinvoice.scm` for the Tax Invoice family).
     #
     # `try-set` and not `set-opt` for every one, and it asks before it writes.
     #
@@ -733,6 +1028,36 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     #
     # `gnc:lookup-option` answers on all three eras, which the required write
     # above already depends on.
+    # A report that is registered and does not print a document. The caller
+    # typing one is told so; a *book* naming one is drawn with the Printable
+    # Invoice, for the reason the guid fallback above exists — the setting was
+    # made in File → Properties and the refusal would quote a guid nobody
+    # typed on this command line. GnuCash's own chooser cannot offer such a
+    # report (`gnc:report-is-invoice-report?` follows `'parent-type` to the
+    # parent's `'invoice` hook, and every one of those carries the option), so
+    # a book reaching here was written by hand or by something else.
+    #
+    # The swap is written down as it happens, because afterwards it cannot be
+    # told from the other two ways a book's report fails to draw: all three
+    # end with the Printable Invoice's guid in `drew`, and the sentence for
+    # each sends the reader somewhere different. This one is registered and
+    # present — telling its reader that nothing answers to the guid, and to
+    # go looking in the saved-report files, is a search for a file that is
+    # there and is not the problem.
+    swapped = work / 'drew-instead.id'
+    no_document = (
+        f'(begin (call-with-output-file {_scheme_string(str(swapped))}'
+        f'         (lambda (port) (display template-id port)))'
+        f' (set! template-id '
+        f'{_scheme_string(PRINTABLE_INVOICE_GUID)})'
+        f' (set! options (gnc:make-report-options template-id)))'
+        if from_the_book else
+        f'(error (string-append'
+        f' "that report does not print a document: "'
+        f' {_scheme_string(called)}'
+        f' " — it has no General / Invoice Number option, so there is no way"'
+        f' " to tell it which invoice or bill to draw"))')
+
     drawing = f'''
 (let* ((set-opt {setter})
        (try-set (lambda (o p n v)
@@ -743,21 +1068,15 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
   (if (not template-id)
       (error (string-append
                "no report of that name is registered on this build: "
-               {_scheme_string(report if report else 'Printable Invoice')}
+               {_scheme_string(called)}
                " — reports register their English names, so a localized "
                "GnuCash lists a translated one that is not this; naming the "
                "report by its guid works in every language")))
-  (call-with-output-file {_scheme_string(drew)}
-    (lambda (port)
-      ;; Said, like every other port here: this is read back as UTF-8, and a
-      ;; port left on the locale writes whatever the locale can hold.
-      (set-port-encoding! port "UTF-8")
-      (display template-id port)))
   (let ((options (gnc:make-report-options template-id)))
     ;; The document. Every report that prints one takes it here, so this is
     ;; the one write that is not optional — and a report without the option is
     ;; a report that cannot be told which document to draw, which is said as a
-    ;; sentence.
+    ;; sentence, or drawn with the default where the book chose the report.
     ;;
     ;; Asked before writing rather than caught after, because the two eras
     ;; fail differently and neither answer is one to hand a reader: on 3.8 the
@@ -767,24 +1086,39 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     ;; and the document the reader named never reached the report at all.
     ;; `gnc:lookup-option` answers on all three, measured.
     (if (not (gnc:lookup-option options "General" "Invoice Number"))
-        (error (string-append
-                 "that report does not print a document: "
-                 {_scheme_string(report if report else 'Printable Invoice')}
-                 " — it has no General / Invoice Number option, so there is "
-                 "no way to tell it which invoice or bill to draw")))
+        {no_document})
+    ;; Written here rather than above, so it names the report that *drew*
+    ;; rather than the one first resolved: everything Python decides from this
+    ;; file — whether a document was drawn, and what to say about the book's
+    ;; choice — is about the page in hand.
+    (call-with-output-file {_scheme_string(drew)}
+      (lambda (port)
+        ;; Said, like every other port here: this is read back as UTF-8, and a
+        ;; port left on the locale writes whatever the locale can hold.
+        (set-port-encoding! port "UTF-8")
+        (display template-id port)))
     (set-opt options "General" "Invoice Number" {_scheme_string(guid)})
-    ;; The four display switches, and only for the reports this tool
-    ;; advertises. A report of the reader's own decides its own page: one
-    ;; declaring an `Extra Notes` of its own had it silently blanked, which is
-    ;; the same overreach as demanding a `div` of it.
+    ;; The three display switches, and only for the reports `print-invoice`
+    ;; and `print-bill` advertise. A report loaded with `--report-file` lays
+    ;; out a page of the author's design: writing an option the `.scm` file
+    ;; declares for a purpose of the author's is the same overreach as
+    ;; demanding a `div` of the `.scm` file.
+    ;;
+    ;; A configuration saved in GnuCash registers under a guid of its own, so
+    ;; it does not match here and is drawn with the options it was saved with
+    ;; — the reader chose those in GnuCash's dialog, and they are the answer
+    ;; for that page.
     (if (member template-id (list {advertised}))
         (begin
           (try-set options "Display" "Invoice Notes" #t)
           (try-set options "Display" "Company contact" #t)
-          (try-set options "Display" "Use Detailed Tax Summary" #t)
-          (try-set options "Display" "Extra Notes" "")
-          (try-set options "Notes" "Extra Notes" "")
-          (try-set options "Notes" "Extra notes" "")))
+          (try-set options "Display" "Use Detailed Tax Summary" #t)))
+    ;; The book's own Extra Notes and CSS, where it has them — set with
+    ;; `set-invoice-style`, and on whatever report is drawing, because the
+    ;; reader asked for them on their documents rather than on one report.
+    ;; The footer is written in all three spellings the reports use: the
+    ;; invoice family keeps it under `Display`, Tax Invoice under `Notes`, and
+    ;; 3.8 spells that one lowercase.{the_books}
     (let* ((report (gnc:make-report template-id options))
            (html (gnc:report-render-html ({find_report} report) #t)))
       (call-with-output-file {_scheme_string(out)}
@@ -883,6 +1217,57 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     ours = registered_as not in readers_own
     of_the_invoice_family = ours and drawn_by in INVOICE_FAMILY_GUIDS
 
+    # What the book asked for, and what it got. Nobody typed either, so both
+    # are said once per run — this is the answer to "why does this book print
+    # a different page here than it does on my laptop", which is otherwise
+    # visible only by comparing two pages side by side.
+    if from_the_book and warn is not None:
+        asked_for = from_the_book.replace('-', '').lower()
+        if swapped.exists():
+            # Registered, present, and unable to say which document to draw.
+            # Named as that, because the file the other sentence points at is
+            # where this report is and is not what is wrong with it.
+            warn(f'this book\'s Default Invoice Report is {called}, which '
+                 f'prints no document — the report has no General / Invoice '
+                 f'Number option, so there is no way to tell it which invoice '
+                 f'or bill to draw, and the document was drawn with the '
+                 f'Printable Invoice instead',
+                 key=('book-names-a-reportless-report', from_the_book))
+        elif drawn_by.replace('-', '') != asked_for:
+            # Both ways the lookup declines end here, so the sentence covers
+            # both: nothing registered under the guid, and more than one
+            # thing registered under it. Which of the two it was is not
+            # asked — the answer is in the same place either way, the files
+            # holding the reader's saved configurations.
+            warn(f'this book\'s Default Invoice Report is {called}, and no '
+                 f'one report on this GnuCash answers to that guid — either '
+                 f'nothing is registered under it, or two configurations are '
+                 f'— so the document was drawn with the Printable Invoice. A '
+                 f'configuration saved in GnuCash is a file in the GnuCash it '
+                 f'was saved in: '
+                 + ' and '.join(_THE_READERS_GNUCASH[1:])
+                 + ' hold them, and a book naming one prints its own page '
+                   'only where that configuration is',
+                 key=('book-names-no-such-report', from_the_book))
+        elif not (ours and drawn_by in _DREW_A_DOCUMENT):
+            # The same question the Scheme asks before setting the switches —
+            # `_DREW_A_DOCUMENT`, the five reports `print-invoice` advertises
+            # — rather than the invoice family, three of the five. Asked the
+            # narrower way, a book naming Tax Invoice or Australian Tax
+            # Invoice was told the page came from options somebody saved and
+            # went without the switches, while the switches were being set on
+            # a report GnuCash ships. GnuCash's own chooser offers Tax Invoice
+            # and Australian Tax Invoice for the book option: `taxinvoice.scm`
+            # declares `'hook 'invoice` for each, which is what
+            # `gnc:report-is-invoice-report?` collects.
+            warn(f'this book\'s Default Invoice Report is {called}, so the '
+                 f'page carries the options saved in the configuration. The '
+                 f'three display switches `print-invoice` sets on GnuCash\'s '
+                 f'own invoice reports stay unset — the tax per account is '
+                 f'one of the three, so a page stating one combined `Tax` '
+                 f'figure is the saved configuration doing as saved',
+                 key=('book-names-its-own-report', from_the_book))
+
     # The boundary here is "a report this tool knows", not "a report of
     # GnuCash's": a shipped report absent from `_DREW_A_DOCUMENT` gets no
     # check either, because there is nothing measured to check it against.
@@ -942,10 +1327,14 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
         # document — but the owner's is that owner's, so the line quoted is
         # the first one dropped and the others are not named. A sentence about
         # one document would have read as though only that one lost anything.
-        # `report` is a name here, never None: with no `--report` the page is
-        # the Printable Invoice, which is of the family, which makes the block
-        # required — so that path refuses above rather than arriving here.
-        warn(f'{report} has '
+        #
+        # `called`, never `report`: a book naming Tax Invoice reaches here
+        # with no flags typed at all — that report has neither block, and the
+        # family check above is what makes its absence a warning rather than a
+        # refusal — so the sentence would otherwise open with a bare guid out
+        # of File → Properties, naming the page in the one spelling the reader
+        # has never seen.
+        warn(f'{called} has '
              + (f'a {block.split("-")[0]} block with no table in it to put '
                 f'this on' if block_was_there
                 else f'no {block.split("-")[0]} block to put this on')
@@ -953,7 +1342,7 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
              f'First dropped: {lines[0][:80]}'
              + (f' (and {len(lines) - 1} more on that document)'
                 if len(lines) > 1 else ''),
-             key=(report, block))
+             key=(called, block))
 
     text = _with_extra_row(text, 'company-table', company_extra,
                            required=of_the_invoice_family, on_drop=dropped)
@@ -1124,7 +1513,18 @@ def _report_id_expression(report, from_this_file) -> str:
         f'(let ((nm (gnc:report-template-name template)))'
         f'  (and (string? nm) (string=? nm {_scheme_string(report)})))',
         'the name', report,
-        'name the one you mean by its guid instead')
+        # Where the second one comes from, because the reader typed a name
+        # that worked yesterday. GnuCash pre-fills "Save Report Configuration
+        # As…" with the name of the report being saved, so pressing Enter
+        # leaves a configuration called `Printable Invoice` beside GnuCash's
+        # own — registered here now that the saved-report files are read, and
+        # invisible from the command line. The guid tells them apart, and the
+        # files are named so the reader can go and rename one.
+        'name the one you mean by its guid instead — a second report under '
+        'one name is usually a configuration saved in GnuCash, whose name is '
+        'pre-filled with the report it was saved from; '
+        + ' and '.join(_THE_READERS_GNUCASH[1:])
+        + ' in GnuCash\'s user data directory is where those live')
 
 
 def _without_dashes(expression: str) -> str:

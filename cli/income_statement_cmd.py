@@ -177,11 +177,16 @@ def income_statement(
         try:
             render_pdf(result, output_file, fx_rate_labels=fx_rate_labels)
         except ImportError as e:
+            # Named as its own extra, `[invoice]` having stopped carrying it:
+            # a printed invoice is laid out by WebKit now, and this page —
+            # written here rather than by a GnuCash report — is the only
+            # thing left that WeasyPrint lays out.
             raise click.ClickException(
-                "WeasyPrint is not installed. Install it with:\n"
-                "  pip install weasyprint\n"
-                "or in Docker: apt install python3-weasyprint  (Debian) / "
-                "pip install weasyprint  (Ubuntu)"
+                "WeasyPrint is not installed, and this report is laid out "
+                "with it. Install it with:\n"
+                "  pip install 'gnucash-plaintext[statement]'\n"
+                "or on its own: pip install weasyprint / apt install "
+                "python3-weasyprint"
             ) from e
         click.echo(f"PDF report written to {output_file}")
 

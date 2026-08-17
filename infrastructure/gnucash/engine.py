@@ -205,6 +205,40 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncTaxTableEntryGetType.argtypes       = [ctypes.c_void_p]
     lib.gncTaxTableEntryGetAmount.restype      = GncNumericC
     lib.gncTaxTableEntryGetAmount.argtypes     = [ctypes.c_void_p]
+    # ── The book's own answer to "which report prints an invoice" ────────────
+    # File → Properties → Business has it, and GnuCash reads it when its own
+    # Print Invoice button draws a document. Asked here rather than assuming a
+    # report, so a book that names one is printed the way its owner set it up
+    # without anyone repeating it on the command line. `None` when nobody has
+    # set one, which is a book GnuCash prints with its own built-in default.
+    # Declared only where the build has it: the accessor arrived with GnuCash
+    # 5 — measured absent from `libgnc-engine.so` and from `qofbook.h` on 4.4
+    # and 4.13 as well as 3.8 — and naming a symbol a library does not export
+    # raises `AttributeError` here, which took down `load_gnc_engine` itself,
+    # so every command that touches the engine failed on those builds with
+    # "Could not load libgnc-engine.so". Nothing else in this function is
+    # optional, which is why it had no such guard before.
+    #
+    # `c_void_p` and not `c_char_p`, because the string is the **caller's**:
+    # `qofbook.h` declares it `gchar *`, non-const, beside the `const char *`
+    # of `qof_book_get_string_option`. Measured on 5.10: consecutive calls
+    # return different pointers, and 500 000 of them grow maxrss by 23 MB. As
+    # `c_char_p` ctypes copies it and the original is never freed, so the
+    # reader is the one who has to — see `_the_report_this_book_prints_with`.
+    # The name beside the guid is what the reader picked in that dialog, and
+    # it is what a message about their choice has to say: a guid names the
+    # report exactly and tells them nothing about which one it is.
+    for optional in ('qof_book_get_default_invoice_report_guid',
+                     'qof_book_get_default_invoice_report_name'):
+        found = getattr(lib, optional, None)
+        if found is not None:
+            found.restype  = ctypes.c_void_p
+            found.argtypes = [ctypes.c_void_p]
+    # What frees it. GLib is loaded already — the engine is built on it — so
+    # this resolves wherever the accessor above does.
+    if getattr(lib, 'g_free', None) is not None:
+        lib.g_free.restype  = None
+        lib.g_free.argtypes = [ctypes.c_void_p]
     # ── Owner ────────────────────────────────────────────────────────────────
     # Whose money a lot or a payment transaction holds. Set here with every
     # other signature rather than at each call: an argtypes line that lives

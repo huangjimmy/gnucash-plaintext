@@ -35,12 +35,13 @@ from cli.migrate_cmd import migrate
 from cli.rename_account_cmd import rename_account
 from cli.report_cmd import report
 from cli.set_book_key_cmd import set_book_key
+from cli.set_invoice_style_cmd import set_invoice_style
 from cli.unapply_cmd import unapply_payment
 from cli.unpost_cmd import unpost_bills, unpost_invoices
 from cli.validate_cmd import validate_ledger
 from infrastructure.guile import GuileUnavailableError
+from infrastructure.pdf.printing import PdfEngineUnavailableError
 from repositories.gnucash_repository import BookUnavailableError
-from services.document_pages import PdfEngineUnavailableError
 from services.gnucash_report import DocumentNotRenderedError
 
 
@@ -114,6 +115,7 @@ cli.add_command(unpost_bills, name='unpost-bills')
 cli.add_command(unapply_payment, name='unapply-payment')
 cli.add_command(rename_account, name='rename-account')
 cli.add_command(set_book_key, name='set-book-key')
+cli.add_command(set_invoice_style, name='set-invoice-style')
 cli.add_command(migrate, name='migrate')
 cli.add_command(find_orphan_payments, name='find-orphan-payments')
 cli.add_command(find_prepayments, name='find-prepayments')
