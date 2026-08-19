@@ -137,6 +137,10 @@ KNOWN_VENDOR_METADATA_KEYS = frozenset({
 KNOWN_INVOICE_METADATA_KEYS = frozenset({
     'guid', 'customer_id', 'customer_guid', 'currency', 'date_opened',
     'billing_id', 'notes', 'posted', 'payment',
+    # Which direction the document posts, and a field of its own — left out
+    # of this set it went to the custom slot as well, so the export wrote
+    # `credit_note:` twice, once from the field and once from the slot.
+    'credit_note',
     'auto_apply_credit',  # Q-015: triggers gncInvoiceAutoApplyPayments after posting
     # Q-017: informational totals emitted by `print-invoice --format
     # plaintext`. Recomputed from entries on import; mismatch is an
@@ -154,6 +158,7 @@ KNOWN_BILL_METADATA_KEYS = frozenset({
     # and built it again.
     'billing_id', 'notes',
     'posted', 'payment',
+    'credit_note',   # a field of its own, as on the invoice side
     'auto_apply_credit',  # Q-015: triggers gncInvoiceAutoApplyPayments after posting
     # Q-017: bill analogues of the invoice informational totals.
     'bill_subtotal', 'bill_tax_total', 'bill_total',

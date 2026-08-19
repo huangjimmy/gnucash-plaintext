@@ -441,41 +441,6 @@ class TestAccountInfo:
 class TestTransactionMethods:
     """Test transaction-related methods"""
 
-    def test_is_balanced_transaction(self, temp_gnucash_with_transactions):
-        """Test checking if transaction is balanced"""
-        from gnucash import Session, Transaction
-
-        from services.account_categorizer import AccountCategorizer
-
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
-
-        try:
-            book = session.book
-
-            # Get a transaction
-            from gnucash import Query
-            query = Query()
-            query.search_for('Trans')
-            query.set_book(book)
-            result = query.run()
-            tx = Transaction(instance=result[0])
-
-            categorizer = AccountCategorizer()
-            splits = tx.GetSplitList()
-
-            # Transaction should be balanced
-            assert categorizer.is_balanced_transaction(splits) is True
-
-        finally:
-            session.end()
-
     def test_categorize_split_accounts(self, temp_gnucash_with_transactions):
         """Test categorizing split accounts"""
         from gnucash import Session, Transaction

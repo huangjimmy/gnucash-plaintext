@@ -94,7 +94,7 @@ def test_a_partly_spent_credit_reads_as_already_applied(tmp_path):
     _import(runner, book, 'q015_aac_bill002_partial_credit.txt', tmp_path)
 
     exported = _export(runner, book, tmp_path, 'out.txt')
-    assert exported.count('from_credit: true') == 2, exported
+    assert exported.count('from_credit: #True') == 2, exported
 
     # The book's own export, read back: nothing to do, on both sides.
     again = _reimport(runner, book, exported, 'again.txt', tmp_path)

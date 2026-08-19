@@ -4,6 +4,7 @@ import re
 from datetime import date
 from decimal import Decimal
 
+from infrastructure.gnucash.utils import unescape_string
 from infrastructure.pdf.standard_tx import Split, StandardTransaction
 
 AUTOPAY_ACCOUNT = "Reconcile:Autopay"
@@ -63,7 +64,10 @@ def _parse_blocks(lines: list[str]) -> list[StandardTransaction]:
             continue
 
         post_date = date.fromisoformat(m.group(1))
-        description = m.group(2).replace('\\"', '"')
+        # The four escapes `ReconcilePreviewWriter` writes, not the quote
+        # alone: a description holding `C:\name` is written `C:\\name`, and
+        # undoing one escape of the four hands it back a character too many.
+        description = unescape_string(m.group(2))
         guid = None
         source_pdfs: list[str] = []
         currency = "HKD"

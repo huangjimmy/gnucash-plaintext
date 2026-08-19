@@ -34,6 +34,7 @@ from infrastructure.gnucash.utils import (
     wrap_invoice_or_bill,
 )
 from services.gnucash_importer import COMPANY_FIELD_TO_SLOT
+from services.invoice_renderer import credit_note_lines
 from services.plaintext_addresses import (
     address_key,
     address_line_index,
@@ -41,7 +42,10 @@ from services.plaintext_addresses import (
     is_address_key,
 )
 from services.plaintext_blocks import (
+    bill_entry_flags,
     document_text_lines,
+    entry_discount,
+    entry_notes,
     owner_block_lines,
     payment_amount_text,
     payment_residue,
@@ -415,7 +419,7 @@ class ExportBusinessObjectsUseCase:
 
             for acct_name, rate in entry_parts:
                 lines.append('	entry:')
-                lines.append(f'		account: "{acct_name}"')
+                lines.append(f'		account: {encode_value_as_string(acct_name)}')
                 lines.append(f'		rate: {_fmt_rate(rate)}')
                 lines.append('		type: PERCENT')
 
@@ -423,6 +427,21 @@ class ExportBusinessObjectsUseCase:
 
         tables = iterate_glist(lib, glist_ptr, process_tax_table)
         return '\n\n'.join(tables)
+
+    def _refusal_naming_its_document(self, exc) -> str:
+        """The refusal, with the document it came out of named once.
+
+        An export writes a whole book, so a sentence about "this line" or
+        "this amount" leaves a reader nothing to find. Some refusals are
+        built with the document in them already — the payment ones take
+        `_document_being_written` as an argument — so it is added only where
+        it is missing, rather than naming the same document twice.
+        """
+        said = str(exc)
+        if (self._document_being_written
+                and self._document_being_written not in said):
+            return f'{self._document_being_written}: {said}'
+        return said
 
     # ── Invoices ─────────────────────────────────────────────────────────────
 
@@ -462,7 +481,7 @@ class ExportBusinessObjectsUseCase:
                 # Collected, and this document written nowhere: a partial
                 # document would re-import as an edit that silently drops
                 # whatever could not be written.
-                self._refusals.append(str(exc))
+                self._refusals.append(self._refusal_naming_its_document(exc))
         return '\n\n'.join(invoice_strings)
 
     def _invoice_lines(self, inv, cust, guid_for_ptr, lib) -> list:
@@ -471,18 +490,24 @@ class ExportBusinessObjectsUseCase:
         lines = [
             f'invoice "{inv.GetID()}"',
             f'\tguid: "{guid_for_ptr(int(inv.instance))}"',
-            f'	customer_id: "{cust.GetID()}"',
+            f'	customer_id: {encode_value_as_string(cust.GetID())}',
             f'\tcustomer_guid: "{cust.GetGUID().to_string()}"',
             f'	currency: {inv.GetCurrency().get_mnemonic()}',
             f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
         ]
+        # Written before anything else about the document, because it is what
+        # the rest of it means: the same quantities and the same accounts
+        # post the other way round. Without it a credit note rebuilt in a
+        # fresh book as an ordinary invoice, and the export is what a book is
+        # reconstructed from.
+        lines += credit_note_lines(inv)
         lines += document_text_lines(inv)
 
         custom_meta = {k: v for k, v
                        in (get_custom_metadata(inv) or {}).items()
                        if k not in KNOWN_INVOICE_METADATA_KEYS}
         for k, v in sorted(custom_meta.items()):
-            lines.append(f'	{k}: "{v}"')
+            lines.append(f'	{k}: {encode_value_as_string(v)}')
 
         for raw_entry in inv.GetEntries():
             lines += self._format_inv_entry(lib, raw_entry)
@@ -494,15 +519,16 @@ class ExportBusinessObjectsUseCase:
             lines.append('	posted:')
             lines.append(f'		date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
             lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
-            lines.append(f'		ar_account: "{ar_name}"')
-            lines.append(f'		memo: "{posted_txn.GetDescription()}"')
+            lines.append(f'		ar_account: {encode_value_as_string(ar_name)}')
+            lines.append(
+                f'		memo: {encode_value_as_string(posted_txn.GetDescription())}')
             # Always emit posted_txn_guid (symmetric with Q-016's
             # always-emit payment txn_guid). On re-import, the importer
             # links this existing tx instead of calling PostToAccount,
             # which would otherwise mint a duplicate alongside the
             # standalone-imported one and orphan the original.
             lines.append(f'		posted_txn_guid: "{posted_txn.GetGUID().to_string()}"')
-            lines.append('		accumulate: true')
+            lines.append('		accumulate: #True')
         else:
             lines.append('	posted: none')
 
@@ -553,13 +579,13 @@ class ExportBusinessObjectsUseCase:
         lines = [
             '	entry:',
             f'		date: {date_str}',
-            f'		description: "{desc}"',
-            f'		action: "{action}"',
-            f'		account: "{acct_name}"',
+            f'		description: {encode_value_as_string(desc)}',
+            f'		action: {encode_value_as_string(action)}',
+            f'		account: {encode_value_as_string(acct_name)}',
             f'		quantity: {_fmt_quantity(qty)}',
             f'		price: {_fmt_quantity(price)}',
-            f'		taxable: {"true" if taxable else "false"}',
-            f'		tax_included: {"true" if tax_incl else "false"}',
+            f'		taxable: {encode_value_as_string(taxable)}',
+            f'		tax_included: {encode_value_as_string(tax_incl)}',
         ]
 
         # Tax table — ctypes required (SWIG const-type bug)
@@ -567,17 +593,24 @@ class ExportBusinessObjectsUseCase:
         if tt_ptr:
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
             if tt_name:
-                lines.append(f'		tax_table: "{tt_name}"')
+                lines.append(
+                    f'		tax_table: {encode_value_as_string(tt_name)}')
+
+        lines.extend(entry_notes(lib, ptr))
+        lines.extend(entry_discount(lib, raw_entry, ptr))
 
         return lines
 
     def _format_bill_entry(self, lib, raw_entry) -> list:
         """Format one bill (vendor invoice) entry as plaintext lines.
 
-        Note: the `action:` field is intentionally absent. GnuCash's Entry
-        object stores action on the invoice side only (gncEntryGetAction is
-        for customer invoices, not vendor bills). Bills do not expose or
-        persist an action field through the GnuCash API.
+        `action:` is written here as it is for an invoice. A `GncEntry` has
+        one action field, which GnuCash's bill window shows in its Action
+        column like the invoice window does — measured on 5.10: an entry
+        given `Material`, saved and reopened, reads back `Material`. This
+        used to be left out on the belief that the field was invoice-side
+        only, so a bill's Action was dropped by every export and lost on the
+        re-import that followed.
         """
         ptr = int(raw_entry.instance)
 
@@ -596,19 +629,32 @@ class ExportBusinessObjectsUseCase:
         lines = [
             '	entry:',
             f'		date: {date_str}',
-            f'		description: "{desc}"',
-            f'		account: "{acct_name}"',
+            f'		description: {encode_value_as_string(desc)}',
+        ]
+
+        # Written whichever it is, as an invoice line writes it: one
+        # `GncEntry` field, one export, and a reader should not have to know
+        # that an absent line means an empty action.
+        action = safe_ctypes_string(lib.gncEntryGetAction, ptr) or ''
+
+        lines.extend([
+            f'		action: {encode_value_as_string(action)}',
+            f'		account: {encode_value_as_string(acct_name)}',
             f'		quantity: {_fmt_quantity(qty)}',
             f'		price: {_fmt_quantity(price)}',
-            f'		taxable: {"true" if taxable else "false"}',
-            f'		tax_included: {"true" if tax_incl else "false"}',
-        ]
+            f'		taxable: {encode_value_as_string(taxable)}',
+            f'		tax_included: {encode_value_as_string(tax_incl)}',
+        ])
 
         tt_ptr = lib.gncEntryGetBillTaxTable(ptr)
         if tt_ptr:
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
             if tt_name:
-                lines.append(f'		tax_table: "{tt_name}"')
+                lines.append(
+                    f'		tax_table: {encode_value_as_string(tt_name)}')
+
+        lines.extend(entry_notes(lib, ptr))
+        lines.extend(bill_entry_flags(lib, ptr))
 
         return lines
 
@@ -633,9 +679,10 @@ class ExportBusinessObjectsUseCase:
         return [
             '	payment:',
             f'		amount: {amount}',
-            '		from_credit: true',
+            '		from_credit: #True',
             f'		credit_dated: {txn.GetDate().strftime("%Y-%m-%d")}',
-            f'		memo: "{in_lot_ar_ap_split.GetMemo() or ""}"',
+            f'		memo: '
+            f'{encode_value_as_string(in_lot_ar_ap_split.GetMemo() or "")}',
             f'		txn_guid: "{txn.GetGUID().to_string()}"',
             f'		txn_split_guid: "{in_lot_ar_ap_split.GetGUID().to_string()}"',
         ]
@@ -704,13 +751,13 @@ class ExportBusinessObjectsUseCase:
             '	payment:',
             f'		date: {pay_date}',
             f'		amount: {pay_amt_str}',
-            f'		bank_account: "{bank_name}"',
+            f'		bank_account: {encode_value_as_string(bank_name)}',
             f'		txn_guid: "{txn_guid}"',
             f'		txn_split_guid: "{txn_split_guid}"',
-            f'		memo: "{pay_memo}"',
+            f'		memo: {encode_value_as_string(pay_memo)}',
         ]
         if pay_num:
-            lines.append(f'		num: "{pay_num}"')
+            lines.append(f'		num: {encode_value_as_string(pay_num)}')
         if prepay > 0:
             lines.append(
                 f'		prepayment: '
@@ -756,7 +803,7 @@ class ExportBusinessObjectsUseCase:
                     self._bill_lines(inv, vendor, guid_for_ptr, lib)))
             except UnwritableFigureError as exc:
                 # As the invoice side collects them, and for the same reason.
-                self._refusals.append(str(exc))
+                self._refusals.append(self._refusal_naming_its_document(exc))
         return '\n\n'.join(bill_strings)
 
     def _bill_lines(self, inv, vendor, guid_for_ptr, lib) -> list:
@@ -765,10 +812,11 @@ class ExportBusinessObjectsUseCase:
         lines = [
             f'bill "{inv.GetID()}"',
             f'\tguid: "{guid_for_ptr(int(inv.instance))}"',
-            f'	vendor_id: "{vendor.GetID()}"',
+            f'	vendor_id: {encode_value_as_string(vendor.GetID())}',
             f'\tvendor_guid: "{vendor.GetGUID().to_string()}"',
             f'	currency: {inv.GetCurrency().get_mnemonic()}',
             f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
+            *credit_note_lines(inv),   # as the invoice side writes it
         ]
         # As the invoice block writes them: a bill has both, the bill
         # comparison reads `GetNotes()`, and an export that did not carry
@@ -781,7 +829,7 @@ class ExportBusinessObjectsUseCase:
                        in (get_custom_metadata(inv) or {}).items()
                        if k not in KNOWN_BILL_METADATA_KEYS}
         for k, v in sorted(custom_meta.items()):
-            lines.append(f'	{k}: "{v}"')
+            lines.append(f'	{k}: {encode_value_as_string(v)}')
 
         for raw_entry in inv.GetEntries():
             lines += self._format_bill_entry(lib, raw_entry)
@@ -793,10 +841,11 @@ class ExportBusinessObjectsUseCase:
             lines.append('	posted:')
             lines.append(f'		date: {inv.GetDatePosted().strftime("%Y-%m-%d")}')
             lines.append(f'		due: {inv.GetDateDue().strftime("%Y-%m-%d")}')
-            lines.append(f'		ap_account: "{ap_name}"')
-            lines.append(f'		memo: "{posted_txn.GetDescription()}"')
+            lines.append(f'		ap_account: {encode_value_as_string(ap_name)}')
+            lines.append(
+                f'		memo: {encode_value_as_string(posted_txn.GetDescription())}')
             lines.append(f'		posted_txn_guid: "{posted_txn.GetGUID().to_string()}"')
-            lines.append('		accumulate: true')
+            lines.append('		accumulate: #True')
         else:
             lines.append('	posted: none')
 

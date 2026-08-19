@@ -1,9 +1,26 @@
 """Which line of an address a key names.
 
-An address is the only value in this format that is a list rather than a line.
-A value cannot hold a newline — there is no escape for one, and a quoted value
-does not span lines — so the lines are written one per key, and the key carries
-the line's number: `addr[0]`, `addr[1]`, and upwards.
+An address is the only value in this format that is a list rather than a line,
+and a list is written one key per line, the key carrying the line's number:
+`addr[0]`, `addr[1]`, and upwards. Every writer here does that — an owner's
+address and the book's company address alike — and every reader joins them
+back up.
+
+That is the format's syntax for a list, not a limit on what a value may hold.
+A value *can* hold a newline: `\\n` is one of the four escapes, and writing an
+address as one escaped value would round-trip. It is not written that way, and
+the keys are what every ledger already carries.
+
+**How many lines there are is a property of the object, not of this syntax**,
+and the two addresses differ:
+
+- an **owner's** is a `GncAddress` — `addr1` through `addr4`, four fields and
+  no fifth — so a fifth key has nowhere to go and is refused;
+- the **book's own**, File → Properties → Business, is a single option holding
+  as many lines as are typed into it, and nothing caps it.
+
+Reading the owner's limit off the book's address is what made a six-line
+company address export as four with the rest gone in silence.
 
 **Why the number is in brackets.** The keys used to be `addr1`..`addr4`, and
 the obvious way to lift the limit of four was to keep counting: `addr5`,

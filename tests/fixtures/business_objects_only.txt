@@ -5,7 +5,7 @@ customer "1"
 customer "2"
 	name: "Retired Customer"
 	currency: CAD
-	active: false
+	active: #False
 
 vendor "V001"
 	name: "Test Vendor"
@@ -14,7 +14,7 @@ vendor "V001"
 vendor "V002"
 	name: "Retired Vendor"
 	currency: CAD
-	active: false
+	active: #False
 
 taxtable "GST"
 	entry:
@@ -33,15 +33,19 @@ invoice "INV-2026-001"
 		account: "Income:Sales"
 		quantity: 1
 		price: 100
-		taxable: true
-		tax_included: false
+		taxable: #True
+		tax_included: #False
 		tax_table: "GST"
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
 	posted:
 		date: 2026-01-01
 		due: 2026-01-31
 		ar_account: "Assets:Accounts Receivable"
 		memo: "Invoice INV-2026-001"
-		accumulate: true
+		accumulate: #True
 	payment: none
 
 invoice "INV-2026-002"
@@ -55,9 +59,13 @@ invoice "INV-2026-002"
 		account: "Income:Sales"
 		quantity: 2
 		price: 75
-		taxable: true
-		tax_included: false
+		taxable: #True
+		tax_included: #False
 		tax_table: "GST"
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
 	posted: none
 	payment: none
 
@@ -72,15 +80,19 @@ invoice "INV-2026-003"
 		account: "Income:Sales"
 		quantity: 1
 		price: 200
-		taxable: true
-		tax_included: false
+		taxable: #True
+		tax_included: #False
 		tax_table: "GST"
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
 	posted:
 		date: 2026-01-20
 		due: 2026-02-19
 		ar_account: "Assets:Accounts Receivable"
 		memo: "Invoice INV-2026-003"
-		accumulate: true
+		accumulate: #True
 	payment:
 		date: 2026-01-25
 		amount: 210.00
@@ -98,15 +110,19 @@ invoice "INV-2026-004"
 		account: "Income:Sales"
 		quantity: 3
 		price: 100
-		taxable: true
-		tax_included: false
+		taxable: #True
+		tax_included: #False
 		tax_table: "GST"
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
 	posted:
 		date: 2026-02-01
 		due: 2026-03-03
 		ar_account: "Assets:Accounts Receivable"
 		memo: "Invoice INV-2026-004"
-		accumulate: true
+		accumulate: #True
 	payment:
 		date: 2026-02-10
 		amount: 100.00
@@ -129,15 +145,19 @@ invoice "INV-2026-005"
 		account: "Income:Sales"
 		quantity: 1
 		price: 400
-		taxable: true
-		tax_included: false
+		taxable: #True
+		tax_included: #False
 		tax_table: "GST"
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
 	posted:
 		date: 2026-02-05
 		due: 2026-03-07
 		ar_account: "Assets:Accounts Receivable"
 		memo: "Invoice INV-2026-005"
-		accumulate: true
+		accumulate: #True
 	payment:
 		date: 2026-02-15
 		amount: 200.00
@@ -156,17 +176,22 @@ bill "BILL-2026-001"
 	entry:
 		date: 2026-01-01
 		description: "Office Supplies"
+		action: ""
 		account: "Expenses:Supplies"
 		quantity: 1
 		price: 100
-		taxable: false
-		tax_included: false
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		billable: #False
+		billable_to: ""
+		payment_type: cash
 	posted:
 		date: 2026-01-01
 		due: 2026-01-31
 		ap_account: "Liabilities:Accounts Payable"
 		memo: "Bill BILL-2026-001"
-		accumulate: true
+		accumulate: #True
 	payment: none
 
 bill "BILL-2026-002"
@@ -176,11 +201,16 @@ bill "BILL-2026-002"
 	entry:
 		date: 2026-01-15
 		description: "IT Supplies"
+		action: ""
 		account: "Expenses:Supplies"
 		quantity: 2
 		price: 75
-		taxable: false
-		tax_included: false
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		billable: #False
+		billable_to: ""
+		payment_type: cash
 	posted: none
 	payment: none
 
@@ -191,17 +221,22 @@ bill "BILL-2026-003"
 	entry:
 		date: 2026-01-20
 		description: "Monthly Subscription"
+		action: ""
 		account: "Expenses:Supplies"
 		quantity: 1
 		price: 200
-		taxable: false
-		tax_included: false
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		billable: #False
+		billable_to: ""
+		payment_type: cash
 	posted:
 		date: 2026-01-20
 		due: 2026-02-19
 		ap_account: "Liabilities:Accounts Payable"
 		memo: "Bill BILL-2026-003"
-		accumulate: true
+		accumulate: #True
 	payment:
 		date: 2026-01-25
 		amount: 200.00
@@ -215,17 +250,22 @@ bill "BILL-2026-004"
 	entry:
 		date: 2026-02-01
 		description: "Equipment Purchase"
+		action: ""
 		account: "Expenses:Supplies"
 		quantity: 3
 		price: 100
-		taxable: false
-		tax_included: false
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		billable: #False
+		billable_to: ""
+		payment_type: cash
 	posted:
 		date: 2026-02-01
 		due: 2026-03-03
 		ap_account: "Liabilities:Accounts Payable"
 		memo: "Bill BILL-2026-004"
-		accumulate: true
+		accumulate: #True
 	payment:
 		date: 2026-02-10
 		amount: 100.00
@@ -244,17 +284,22 @@ bill "BILL-2026-005"
 	entry:
 		date: 2026-02-05
 		description: "Annual License"
+		action: ""
 		account: "Expenses:Supplies"
 		quantity: 1
 		price: 400
-		taxable: false
-		tax_included: false
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		billable: #False
+		billable_to: ""
+		payment_type: cash
 	posted:
 		date: 2026-02-05
 		due: 2026-03-07
 		ap_account: "Liabilities:Accounts Payable"
 		memo: "Bill BILL-2026-005"
-		accumulate: true
+		accumulate: #True
 	payment:
 		date: 2026-02-15
 		amount: 200.00

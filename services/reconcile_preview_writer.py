@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from infrastructure.gnucash.utils import escape_string
 from infrastructure.pdf.standard_tx import StandardTransaction
 
 AUTOPAY_ACCOUNT = "Reconcile:Autopay"
@@ -44,7 +45,8 @@ class ReconcilePreviewWriter:
 
 
 def _write_tx(f, tx: StandardTransaction, doc_link_base: str) -> None:
-    desc = tx.description.replace('"', '\\"')
+    # As `ready_to_import_writer` does it: the escapes the reader undoes.
+    desc = escape_string(tx.description)
     f.write(f'{tx.post_date.strftime("%Y-%m-%d")} * "{desc}"\n')
 
     if tx.guid:

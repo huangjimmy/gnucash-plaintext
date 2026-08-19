@@ -66,7 +66,7 @@ class TestWhatItPrints:
         _book, printed = book_and_printed
 
         text = printed.read_text()
-        assert 'from_credit: true' in text, text
+        assert 'from_credit: #True' in text, text
 
 
 class TestReadingItBack:
@@ -98,6 +98,6 @@ class TestAgainstTheExport:
 
         exported = out.read_text().split('invoice "INV-MB-1"')[1]
         exported = exported.split('\ninvoice ')[0]
-        assert 'from_credit: true' in exported, exported
+        assert 'from_credit: #True' in exported, exported
         assert 'bank_account:' not in exported, exported
         assert 'bank_account:' not in printed.read_text(), printed.read_text()

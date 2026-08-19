@@ -397,22 +397,64 @@ def format_amount_for_commodity(number, commodity) -> str:
     return str(d.quantize(Decimal(1).scaleb(-places)))
 
 
+#: Every key this format reads as a boolean, wherever it sits.
+#:
+#: A boolean is written `#True` / `#False` — the same `#` that marks `#None`
+#: and `#3/4`, and what `encode_value_as_string` produces for a `bool`. It is
+#: the only spelling that survives the round trip: a bare `true` decodes to
+#: the *string* `'true'`, which is why `taxable: True` once read as false
+#: (the flag was compared against `'true'` while `True` decoded to a bool)
+#: and why `placeholder: false` reached SWIG as a string and killed the
+#: account it was on.
+#:
+#: **This is a roster, not a switch.** Nothing in the reading or writing
+#: path consults it: each writer calls `encode_value_as_string` on its own
+#: flag and each reader calls `_a_yes_or_no` with its own key name. The one
+#: consumer is `tests/integration/test_a_written_flag_is_a_typed_literal.py`,
+#: which exports real books and asks of every line whose key is named here
+#: whether the value is a typed literal — so adding a key to this list
+#: widens that check and wires up nothing. A new flag needs its writer and
+#: its reader written too, and belongs here so the check covers it.
+#:
+#: Reading is looser than writing on purpose: `_a_yes_or_no` also takes the
+#: words a person writes by hand — `true`/`1`/`yes` and `false`/`0`/`no`, in
+#: any case — so no ledger ever written stops importing.
+FLAG_KEYS = frozenset({
+    'placeholder', 'tax_related',           # an `open` block
+    'closing',                              # a transaction
+    'active',                               # a customer or a vendor
+    'credit_note', 'auto_apply_credit',     # an invoice or a bill
+    'accumulate',                           # a `posted:` block
+    'taxable', 'tax_included', 'billable',  # an `entry:` block
+    'from_credit',                          # a `payment:` block
+    'cost_basis_force',                     # a split
+})
+
+
 def escape_string(s: str) -> str:
-    """
-    Escape special characters in string for plaintext format.
+    """Escape the four characters a quoted plaintext value cannot hold raw.
 
-    Args:
-        s: String to escape
+    A quote and a backslash corrupt the *value*: the reader slices a quoted
+    line from its first quote to its last and then unescapes it, so a
+    backslash written raw is eaten and one written doubled comes back single.
 
-    Returns:
-        Escaped string
+    A newline corrupts the *block*, which is worse and is why escaping three
+    of the four would be worse than escaping none: the reader is a line per
+    key, so a raw newline ends the value mid-word and offers the rest of it
+    to the parser as a key of its own. Escaped, the value stays on one line
+    and the block is still a block.
+
+    `str.maketrans` translates in one pass, so the backslashes this emits are
+    not themselves escaped again.
     """
     if s is None:
         return s
 
     translation_table = str.maketrans({
         '"': '\\"',
-        '\\': '\\\\'
+        '\\': '\\\\',
+        '\n': '\\n',
+        '\r': '\\r',
     })
     return s.translate(translation_table)
 
@@ -442,18 +484,34 @@ def encode_value_as_string(value) -> str:
 
 
 def unescape_string(s: str) -> str:
-    """
-    Unescape special characters in string.
+    r"""Undo `escape_string`, reading left to right.
 
-    Args:
-        s: Escaped string
+    One pass rather than a chain of `replace` calls, because a chain stops
+    being right as soon as there is more than one escape: `C:\\name`
+    unescaped by `\\`→`\` and then `\n`→newline gives `C:` and a newline,
+    having read as an escape a backslash that was already part of the value.
+    Scanning left to right, a backslash consumes exactly the character after
+    it and no character can be read twice.
 
-    Returns:
-        Unescaped string
+    A backslash before anything else — `\q`, or one ending the string —
+    keeps both characters, so text a hand-written file never meant as an
+    escape survives instead of being dropped.
     """
     if s is None:
         return s
-    return s.replace('\\"', '"').replace('\\\\', '\\')
+
+    known = {'"': '"', '\\': '\\', 'n': '\n', 'r': '\r'}
+    out = []
+    index = 0
+    while index < len(s):
+        char = s[index]
+        if char == '\\' and index + 1 < len(s) and s[index + 1] in known:
+            out.append(known[s[index + 1]])
+            index += 2
+        else:
+            out.append(char)
+            index += 1
+    return ''.join(out)
 
 
 def decode_value_from_string(s: str):

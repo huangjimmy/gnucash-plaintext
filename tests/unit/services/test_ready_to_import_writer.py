@@ -168,3 +168,53 @@ class TestReadyToImportWriter:
         content = self._write(tmp_path)
         assert "=====" in content  # section headers present
         assert content  # not empty
+
+
+class TestWhatADescriptionMayHold:
+    r"""This file is written to be imported, so `import` is what reads it.
+
+    `parse_transaction_head` unescapes four characters, and a quote-only
+    escape on the way out matched one of them: `C:\name` was written raw and
+    came back as `C:` and a newline, and a description holding a real
+    newline ended its own block, offering the rest of itself to the parser
+    as a key of its own.
+    """
+
+    def _written(self, tmp_path: Path, description: str) -> str:
+        path = str(tmp_path / "out.txt")
+        WRITER.write(path, [_new_tx(desc=description)], [], [], [])
+        return Path(path).read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("description", [
+        r"AUTOPAY C:\name",
+        r'AUTOPAY "INGROUP"',
+        "AUTOPAY\nsecond line",
+        "AUTOPAY\rsecond line",
+        r'both: "C:\name"',
+    ])
+    def test_the_importer_reads_back_what_was_written(
+            self, tmp_path, description):
+        from services.plaintext_parser import parse_transaction_head
+
+        content = self._written(tmp_path, description)
+
+        heads = [ln for ln in content.splitlines() if ln.startswith("2026-")]
+        assert len(heads) == 1, content
+        _, _, read_back = parse_transaction_head(heads[0])
+        assert read_back == description
+
+    def test_a_commented_block_stays_commented(self, tmp_path):
+        """A commented section is commented per line, so a raw newline in a
+        description left the rest of it uncommented — a stray line in a file
+        whose whole point is that a duplicate is not imported."""
+        dup = MatchResult(
+            status=MatchStatus.LIKELY_DUP,
+            existing=_make_entry(desc="AUTOPAY\nsecond line"),
+            merged_tx=None,
+        )
+        path = str(tmp_path / "out.txt")
+        WRITER.write(path, [], [dup], [], [])
+        content = Path(path).read_text(encoding="utf-8")
+
+        assert all(ln.startswith(";;") or not ln.strip()
+                   for ln in content.splitlines()), content

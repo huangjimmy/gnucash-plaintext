@@ -382,7 +382,7 @@ def test_a_credit_smaller_than_the_document_owes_pays_what_it_can(tmp_path):
                                '--include-business-objects']).exit_code == 0
     block = exported.read_text().split('invoice "INV-CREDIT-PARTIAL"')[1]
     block = block.split('\n\n')[0]
-    assert 'from_credit: true' in block, block
+    assert 'from_credit: #True' in block, block
     assert 'amount: 50.00' in block, block
 
     # The credit is gone and 150.00 of the invoice is still owed.
@@ -424,7 +424,7 @@ def test_a_credit_bigger_than_the_document_pays_what_it_owes(tmp_path):
                                '--include-business-objects']).exit_code == 0
     block = exported.read_text().split('invoice "INV-CREDIT-OVERPAID"')[1]
     block = block.split('\n\n')[0]
-    assert 'from_credit: true' in block, block
+    assert 'from_credit: #True' in block, block
     assert 'amount: 30.00' in block, block
 
 

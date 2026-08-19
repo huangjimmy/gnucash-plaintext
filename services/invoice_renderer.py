@@ -2,16 +2,31 @@
 """
 Service for rendering GnuCash invoices to PDF.
 """
+import ctypes
+import math
 from fractions import Fraction
 
 import gnucash.gnucash_core_c as gc
 from gnucash import Split
 
-from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
+from infrastructure.gnucash.engine import (
+    GncAccountValueC,
+    iterate_glist,
+    load_gnc_engine,
+    safe_ctypes_string,
+)
 from infrastructure.gnucash.kvp import KNOWN_CUSTOMER_METADATA_KEYS
-from infrastructure.gnucash.utils import exact_text, money_text, numeric_to_fraction
+from infrastructure.gnucash.utils import (
+    encode_value_as_string,
+    exact_text,
+    money_text,
+    numeric_to_fraction,
+    to_money,
+)
 from services.plaintext_blocks import (
     document_text_lines,
+    entry_discount,
+    entry_notes,
     owner_block_lines,
     payment_block_lines,
     posted_block_lines,
@@ -181,13 +196,6 @@ def _ctypes_account_full_name(lib, acct_ptr) -> str:
     return ':'.join(parts)
 
 
-def _close(a, b, tol=Fraction(1, 100)) -> bool:
-    """Whether two figures agree to within `tol` — compared as the exact
-    rationals they are, so "a cent apart" means a cent, not a cent plus
-    whatever the nearest double happened to be."""
-    return abs(Fraction(a) - Fraction(b)) <= tol
-
-
 def _declared_number(raw, label: str, field: str) -> Fraction:
     """A number the user wrote, read exactly. `0.07` is 7/100, not the double
     nearest to it, so comparing it against a recomputed figure is a comparison
@@ -222,97 +230,386 @@ def _tax_table_entries(lib, tt_ptr):
     return entries
 
 
-def compute_entry_informational(lib, entry_ptr):
+def _line_key(raw_entry):
+    """What tells one line of a document from another, wherever it is read.
+
+    Its description and its date — the fields `gncEntryCompare` itself sorts
+    on, minus the date entered, which a rebuilt book stamps anew.
+    """
+    return (raw_entry.GetDescription() or '',
+            raw_entry.GetDate().strftime('%Y-%m-%d'))
+
+
+def entries_fitted_to_the_document(entries_data, document_tax, unit,
+                                   document_subtotal=None):
+    """`entries_data` with every tax figure rounded so the columns add up.
+
+    Two levels, both of them a column a reader can add: each line's tax to
+    the document's stated tax, and each line's `breakdown:` blocks to that
+    line's own tax.
+
+    The **net** column needs no fitting and gets none: a document's subtotal
+    is the sum of its lines' rounded values — measured on 5.10, three lines
+    of 86.96 against a stated 260.88 — so the lines already add to it. It is
+    checked all the same when `document_subtotal` is given, because "needs no
+    fitting" is a claim about GnuCash, and a page whose net column does not
+    add to its own subtotal is exactly as wrong as one whose tax column does
+    not. Both checks refuse rather than print, since the import recomputes
+    the page the same way the writer wrote it and would agree with it.
+    """
+    # Fitted per *account* first, across every line, because that is how the
+    # book holds it: each account's tax is rounded once over the whole
+    # document and posted as one split. Fitting each line's tax first and
+    # splitting it between accounts afterwards makes both columns add up on
+    # the page and neither match the book — measured shape: two lines of 1.10
+    # taxed 5% + 5%, where each line's 0.055 + 0.055 rounds to 0.06 + 0.05 on
+    # every line, so the page shows one account 0.12 and the other 0.10 while
+    # the book posts 0.11 each.
+    #
+    # Ties are broken on what a line *is* — its description and date — not on
+    # where it sits: `gncEntryCompare` orders a document by date, then date
+    # entered, then description, and a rebuilt book stamps its own date
+    # entered, so a page keyed on position could disagree with its own
+    # re-import by a unit.
+    rows_by_account = {}
+    for position, (_, _, _, breakdown) in enumerate(entries_data):
+        for name, _rate, amount in breakdown:
+            rows_by_account.setdefault(name, []).append((position, amount))
+
+    share = {}
+    for name, rows in rows_by_account.items():
+        account_total = numeric_to_fraction(
+            to_money(sum((amount for _, amount in rows), Fraction(0)), unit))
+        for (position, _), fitted_amount in zip(rows, figures_that_add_up(
+                [amount for _, amount in rows], account_total, unit,
+                keys=[_line_key(entries_data[position][0])
+                      for position, _ in rows])):
+            share[(position, name)] = fitted_amount
+
+    fitted = []
+    for position, (raw_entry, amount, _, breakdown) in enumerate(entries_data):
+        rows = [(name, rate, share[(position, name)])
+                for name, rate, _ in breakdown]
+        fitted.append((raw_entry, amount,
+                       sum((row[2] for row in rows), Fraction(0)), rows))
+
+    # What the lines now state, against what the document says it is worth.
+    # They agree because a document's tax *is* the sum of its accounts' —
+    # measured on 5.10 — and this fits to those same account totals. A
+    # disagreement would mean that model is wrong on some version, and a page
+    # whose column does not add to its own total is one to refuse.
+    stated = sum((entry_tax for _, _, entry_tax, _ in fitted), Fraction(0))
+    if stated != document_tax:
+        from use_cases.export_transactions import UnwritableFigureError
+        raise UnwritableFigureError(
+            f'this document is worth {exact_text(document_tax)} in tax and '
+            f'its lines account for {exact_text(stated)} — the two are '
+            f'GnuCash\'s own figures and no page can state both')
+
+    # And the net column, which is not fitted and so is only ever right
+    # because GnuCash sums the rounded lines for its subtotal. Unchecked,
+    # that was the one column of the two where a version rounding it some
+    # other way would print a page that does not add up, have the import
+    # recompute it identically, and re-import clean.
+    if document_subtotal is not None:
+        net = sum((amount for _, amount, _, _ in fitted), Fraction(0))
+        if net != document_subtotal:
+            from use_cases.export_transactions import UnwritableFigureError
+            raise UnwritableFigureError(
+                f'this document is worth {exact_text(document_subtotal)} '
+                f'before tax and its lines account for {exact_text(net)} — '
+                f'the two are GnuCash\'s own figures and no page can state '
+                f'both')
+    return fitted
+
+
+def figures_that_add_up(parts, whole, unit, keys=None):
+    """`parts` rounded to the currency's unit, summing to `whole` exactly.
+
+    A printed document states a tax per line and a tax for the document, and
+    the book holds only the second: GnuCash rounds a document's tax once, and
+    an accumulated posting has no per-line tax split to compare a line
+    against. Rounding each line on its own then leaves a column that does not
+    add up — measured on 5.10, three 100.00 lines at 15 per cent tax-included
+    print 13.04 apiece against a stated 39.13.
+
+    GnuCash's own page sidesteps this by printing no per-line tax at all;
+    this format states one, for a reader and for the re-import that checks
+    it, so the parts are fitted to the whole instead. Each is rounded down
+    and the units that leaves are handed out one apiece, largest remainder
+    first.
+
+    **`whole` is the parts' own sum, rounded to the unit** — that is what
+    `entries_fitted_to_the_document` passes, per tax account, and it is what
+    keeps this to a single pass. Rounding to nearest puts the whole within
+    half a unit of the exact sum, and flooring a part loses less than a unit,
+    so the shortfall is never negative and never exceeds the number of parts
+    carrying a fraction. Every such line therefore takes at most one unit,
+    has room for it — flooring left it under its own figure — and cannot
+    reach zero from the other side on the way. A caller handing a `whole`
+    from somewhere else would break all three at once.
+    """
+    if not parts:
+        return []
+
+    scaled = [part * unit for part in parts]
+    # Floored, not truncated: `int()` rounds toward zero, so a negative part
+    # would keep a remainder in (-1, 0], sort first as the largest, and take
+    # the +1 that belongs to the line with the biggest fraction — a line
+    # whose own tax is -0.001 printing 0.01. Only a document mixing signs
+    # reaches it, a negative quantity beside a positive one.
+    floors = [math.floor(value) for value in scaled]
+    # Floored like the parts, for the same reason and not because it matters
+    # here: a whole is a figure in the currency's own units, so it scales to
+    # an integer. Truncating beside a floor is an asymmetry a later edit
+    # would trip over.
+    short = math.floor(whole * unit) - sum(floors)
+
+    # Only among the lines that carry any of it. A line the page declares
+    # `taxable: false` holds no tax and has no `breakdown:` block under it,
+    # so a unit landing there states tax the line does not carry and that
+    # nothing on the page adds up to. Every part zero is the untaxed
+    # document, where the whole is zero too and nothing moves.
+    carrying = [i for i in range(len(parts)) if scaled[i] != 0]
+
+    # Largest fractional part first, and by what each part *is* after that —
+    # `keys`, see `_line_key`, rather than where it happens to sit. Without
+    # them the position stands in, which is only stable while the list is.
+    # Either way the same document allocates the same way every time, which
+    # is what lets the import recompute what the writer printed.
+    tie = keys if keys is not None else list(range(len(parts)))
+    remainders = sorted(carrying,
+                        key=lambda i: (-(scaled[i] - floors[i]), tie[i]))
+    for index in remainders[:short]:
+        floors[index] += 1
+    return [Fraction(units, unit) for units in floors]
+
+
+def tax_breakdown(lib, entry_ptr, tt_ptr, is_cust_doc=1, is_credit_note=0):
+    """`[(account, rate, amount)]` — one row per tax-table entry.
+
+    The rate comes from the table and the amount from the engine, joined on
+    the account each names, so a row states the money the posting split
+    carries beside the rate that produced it. The rate is written as a
+    percentage whatever the table entry's own type is — a table entry stating
+    a flat amount rather than a rate is drawn as one here too, which is older
+    than this and unchanged by it. A table naming one account
+    twice is merged by the engine, so the rows are grouped the same way
+    rather than each claiming the whole amount.
+    """
+    by_account = _doc_tax_by_account(lib, entry_ptr, is_cust_doc, is_credit_note)
+    rows = []
+    for acct_name, rate in _tax_table_entries(lib, tt_ptr):
+        for row, (seen_name, seen_rate, _) in enumerate(rows):
+            if seen_name == acct_name:
+                rows[row] = (seen_name, seen_rate + rate,
+                             by_account.get(acct_name, Fraction(0)))
+                break
+        else:
+            rows.append((acct_name, rate,
+                         by_account.get(acct_name, Fraction(0))))
+    return rows
+
+
+def credit_note_lines(document) -> list:
+    """`credit_note: true` for one, and nothing for an ordinary document.
+
+    GnuCash's Business → New Credit Note makes a `gncInvoice` with a flag
+    and its lines stored negated: a credit note for 200.00 holds a quantity
+    of −2 at 100.00, its `gncInvoiceGetTotal*` answer +200.00, and its
+    posting splits are the mirror of an invoice's — Sales +200.00 and A/R
+    −200.00. Measured on 5.10.
+
+    So a ledger states one key and nothing else changes: the quantities are
+    already what the book holds, and the figures agree with the totals once
+    the flag is passed to `gncEntryGetDocValue`. Written only when it is set,
+    because `credit_note: false` on every ordinary document is a line saying
+    nothing about the overwhelming majority of them, and its absence is
+    already what a fresh document holds.
+    """
+    return ['\tcredit_note: #True'] if document.GetIsCreditNote() else []
+
+
+def document_totals(lib, document):
+    """`(subtotal, tax, total)` for an invoice or a bill, as GnuCash has them.
+
+    Not the sum of the per-line figures: GnuCash rounds a document's tax once
+    rather than line by line, so a bill of three 100.00 lines at 15 per cent
+    tax-included posts 260.88 + 39.13 = **300.01** while the rounded per-line
+    tax adds to 39.12 — measured on 5.10, and the page said 300.00 against
+    its own A/P split of 300.01.
+
+    Read for a draft too. These compute from the entries, so an unposted
+    document has totals before it has splits.
+    """
+    ptr = int(document.instance)
+
+    def figure(value):
+        # `denom` guarded as every other reading here is: a gnc_numeric error
+        # value carries denominator 0, and dividing by it would surface as a
+        # bare ZeroDivisionError rather than a figure of zero.
+        return numeric_to_fraction(value) if value.denom else Fraction(0)
+
+    return (figure(lib.gncInvoiceGetTotalSubtotal(ptr)),
+            figure(lib.gncInvoiceGetTotalTax(ptr)),
+            figure(lib.gncInvoiceGetTotal(ptr)))
+
+
+def _doc_tax_by_account(lib, entry_ptr, is_cust_doc=1, is_credit_note=0):
+    """`{account full name: tax}` for one entry, as the engine computes it.
+
+    The figures its posting splits carry: measured on 5.10, a line taxed by
+    a two-entry table (5% + 8%) and discounted 10 per cent posts 45.00 to
+    GST and 72.00 to PST, and this returns exactly those.
+    """
+    def _one(_lib, data_ptr):
+        pair = ctypes.cast(
+            data_ptr, ctypes.POINTER(GncAccountValueC)).contents
+        name = (_ctypes_account_full_name(_lib, pair.account)
+                if pair.account else '?')
+        amount = (numeric_to_fraction(pair.value)
+                  if pair.value.denom else Fraction(0))
+        return (name, amount)
+
+    # The list is the caller's: `gncEntryGetDocTaxValues` builds a fresh
+    # `AccountValueList` rather than handing back the entry's own, and
+    # `gncAccountValueDestroy` is what the header says to free it with. Left
+    # alone it leaks a node and a value per tax account per entry, on every
+    # export, every printed document and every import that checks one.
+    values = lib.gncEntryGetDocTaxValues(entry_ptr, is_cust_doc, is_credit_note)
+    try:
+        found = {}
+        for name, amount in iterate_glist(lib, values, _one):
+            found[name] = found.get(name, Fraction(0)) + amount
+        return found
+    finally:
+        if values:
+            lib.gncAccountValueDestroy(values)
+
+
+def compute_entry_informational(lib, entry_ptr, is_credit_note=0):
     """For one invoice entry, return (entry_amount, entry_tax,
     breakdown) where:
-      * entry_amount = qty × price, adjusted for tax_included (the net
-        amount; informational invoice_subtotal sums these).
-      * entry_tax    = total tax dollars contributed by this entry.
+      * entry_amount = what GnuCash posts to the income account for this
+        line — quantity × price, less the discount, and net of tax where
+        the price includes it.
+      * entry_tax    = the tax GnuCash puts on this line.
       * breakdown    = [(account_name, rate_decimal, amount), ...] —
         one tuple per tax-table entry, or [] when the entry isn't
         taxable (or has no tax_table).
 
-    `tax_included` semantics: when true, the displayed price already
-    includes tax; the net amount is `gross / (1 + total_rate)` and the
-    tax dollars are `gross − net`. When false, the price is the net
-    amount and tax is added on top.
+    The document's `invoice_subtotal:` and `invoice_tax_total:` are *not*
+    these added up — see `document_totals`, which GnuCash rounds once.
+
+    Every figure is GnuCash's own, read through `gncEntryGetDocValue`,
+    `gncEntryGetDocTaxValue` and `gncEntryGetDocTaxValues` — the functions
+    `gncInvoicePostToAccount` posts from. They answer what this project's
+    own arithmetic could not: a discount lands by three different rules,
+    and `tax_included` backs the tax out beneath them.
+
+    Measured on 5.10, a line of 10 × 100 discounted 10 per cent against a
+    10 per cent tax table:
+
+        pretax     posts 900.00 + 90.00 tax   (discount, then tax)
+        sametime   posts 900.00 + 100.00 tax  (both off the full amount)
+        posttax    posts 890.00 + 100.00 tax  (tax, then discount on the sum)
+
+    `qty × price` said 1000.00 + 100.00 for all three, so a printed document
+    stated a total the book contradicted — and `--format pdf`, drawn by
+    GnuCash's own report, disagreed with `--format plaintext` from the same
+    command.
+
+    `is_cust_doc=1`: these are the invoice-side fields. The bill side has
+    `compute_bill_entry_informational`, and a bill has no discount.
+
+    `is_credit_note` is the document's credit-note flag, and it belongs here for the
+    same reason `is_cust_doc` does — it is what the engine posts from.
+    GnuCash stores a credit note's lines negated, so a credit note for 200
+    holds a quantity of −2 at 100 and `gncEntryGetDocValue(..., is_credit_note=1)`
+    answers +200: the figure the document's own total states, and the figure
+    a person typed into the window. Measured on 5.10, against a credit note
+    built the way GnuCash's window builds one — flag set and quantity stored
+    negative — where the posting splits are Sales +200 and A/R −200.
     """
-    qty_c = lib.gncEntryGetQuantity(entry_ptr)
-    pri_c = lib.gncEntryGetInvPrice(entry_ptr)
-    qty = numeric_to_fraction(qty_c) if qty_c.denom else Fraction(0)
-    price = numeric_to_fraction(pri_c) if pri_c.denom else Fraction(0)
-    gross_or_net = qty * price
+    # The net rounded as the engine rounds it, because the document's own
+    # subtotal is the sum of these — measured, three 86.96 lines and a stated
+    # 260.88. The tax unrounded, because the document's tax is *not* the sum
+    # of the rounded lines: GnuCash rounds it once, and the writer fits the
+    # lines to it through `figures_that_add_up`.
+    value = lib.gncEntryGetDocValue(entry_ptr, 1, 1, is_credit_note)
+    tax = lib.gncEntryGetDocTaxValue(entry_ptr, 0, 1, is_credit_note)
+    net = numeric_to_fraction(value) if value.denom else Fraction(0)
+    entry_tax = numeric_to_fraction(tax) if tax.denom else Fraction(0)
 
     taxable = bool(lib.gncEntryGetInvTaxable(entry_ptr))
-    tax_included = bool(lib.gncEntryGetInvTaxIncluded(entry_ptr))
     tt_ptr = lib.gncEntryGetInvTaxTable(entry_ptr) if taxable else None
-
     if not taxable or not tt_ptr:
-        return (gross_or_net, Fraction(0), [])
+        return (net, Fraction(0), [])
 
-    tt_entries = _tax_table_entries(lib, tt_ptr)
-    total_rate = sum((rate for _, rate in tt_entries), Fraction(0))
-
-    # Backing tax out of a tax-included price is a division, which is where a
-    # float stops being able to say the answer: 113.00 / 1.13 is 100 exactly
-    # as a fraction and 99.99999999999999 as a double.
-    net = gross_or_net / (1 + total_rate) if tax_included else gross_or_net
-
-    breakdown = [(acct_name, rate, net * rate) for acct_name, rate in tt_entries]
-    entry_tax = sum((amount for _, _, amount in breakdown), Fraction(0))
-    return (net, entry_tax, breakdown)
+    return (net, entry_tax,
+            tax_breakdown(lib, entry_ptr, tt_ptr, is_credit_note=is_credit_note))
 
 
-def validate_entry_informational(lib, entry_ptr, declared, breakdown_declared,
+def validate_entry_informational(declared, breakdown_declared, computed,
                                  entry_label):
-    """Q-017: recompute entry_amount/entry_tax/breakdown from the entry's
-    source-of-truth fields (qty/price/tax_table/tax_included) and verify
-    each declared informational field matches.
+    """Q-017: what a page says a line is worth, against what it is worth.
+
+    A comparison and nothing else. The figures come from the caller, which
+    has the whole document and has fitted its lines the way the writer fits
+    them — a line's tax is rounded to make the document's column add up, so
+    what a line is worth on the page is not a property of the line alone.
+    Working one line out here instead is what made a printed yen invoice
+    disagree with itself: the line's own tax is 103.5 and the page states
+    the 104 the book posts.
+
+    Every comparison is exact. These are money, and money in this project is
+    compared as the exact rational it is — a page that states a figure the
+    book does not hold is a page to refuse, not to accept within a cent.
 
     Arguments:
-        lib                  — engine library (load_gnc_engine())
-        entry_ptr            — int pointer to the gnc Entry (post-commit)
         declared             — dict with optional keys 'entry_amount' and
                                'entry_tax' (string values from plaintext);
                                either or both may be absent.
         breakdown_declared   — list of dicts [{account, rate, amount}]; may
                                be empty if no `breakdown:` blocks were
                                present on this entry.
+        computed             — `(amount, tax, breakdown)` for this line, as
+                               the writer would print it.
         entry_label          — human-readable identifier for error messages
                                (e.g. "invoice INV-Q17 entry #1").
 
-    Raises ValueError with a clear message naming the field and the two
-    numbers when any declared informational value disagrees with the
-    recomputed value by more than 0.01.
+    Raises ValueError naming the field and both numbers.
     """
-    computed_amount, computed_tax, computed_breakdown = (
-        compute_entry_informational(lib, entry_ptr)
-    )
+    computed_amount, computed_tax, computed_breakdown = computed
 
     if 'entry_amount' in declared:
         declared_amount = _declared_number(
             declared['entry_amount'], entry_label, 'entry_amount')
-        if not _close(declared_amount, computed_amount):
+        if declared_amount != computed_amount:
             raise ValueError(
-                f'{entry_label}: declared entry_amount {exact_text(declared_amount)} '
-                f'does not match recomputed {exact_text(computed_amount)} '
-                f'(from quantity × price, adjusted for tax_included)'
+                f'{entry_label}: declared entry_amount '
+                f'{exact_text(declared_amount)} does not match '
+                f'{exact_text(computed_amount)}, which is what GnuCash posts '
+                f'for this line — quantity × price, less any discount, net '
+                f'of tax where the price includes it'
             )
 
     if 'entry_tax' in declared:
         declared_tax = _declared_number(
             declared['entry_tax'], entry_label, 'entry_tax')
-        if not _close(declared_tax, computed_tax):
+        if declared_tax != computed_tax:
             raise ValueError(
-                f'{entry_label}: declared entry_tax {exact_text(declared_tax)} does '
-                f'not match recomputed {exact_text(computed_tax)} (from tax_table '
-                f'entries × entry_amount)'
+                f'{entry_label}: declared entry_tax '
+                f'{exact_text(declared_tax)} does not match '
+                f'{exact_text(computed_tax)}, which is the tax GnuCash puts '
+                f'on this line — where a discount falls relative to the tax '
+                f'decides it'
             )
 
     # Breakdown validation: each declared breakdown block must match one
     # of the computed breakdown rows by account name (the canonical key),
-    # and the declared rate + amount must match within tolerance. Counts
-    # must agree too (no missing or extra blocks).
+    # and the declared rate + amount must match. Counts must agree too (no
+    # missing or extra blocks).
     if breakdown_declared:
         if len(breakdown_declared) != len(computed_breakdown):
             raise ValueError(
@@ -340,43 +637,57 @@ def validate_entry_informational(lib, entry_ptr, declared, breakdown_declared,
                     f'numeric rate and amount; got {decl!r}'
                 ) from exc
             # `rate` is stored as decimal fraction internally (0.13) but
-            # serialised as percent (13.0); accept either form.
-            if not (_close(decl_rate, comp_rate * 100, tol=Fraction(1, 1000))
-                    or _close(decl_rate, comp_rate, tol=Fraction(1, 100000))):
+            # serialised as percent (13.0); either form is read, and each
+            # exactly — a rate is a number the file states, not an estimate.
+            if decl_rate != comp_rate * 100 and decl_rate != comp_rate:
                 raise ValueError(
                     f'{entry_label}: breakdown for {acct!r} declares '
                     f'rate {exact_text(decl_rate)} but tax_table stores '
                     f'{exact_text(comp_rate * 100)}%'
                 )
-            if not _close(decl_amount, comp_amount):
+            if decl_amount != comp_amount:
                 raise ValueError(
                     f'{entry_label}: breakdown for {acct!r} declares '
-                    f'amount {exact_text(decl_amount)} but recomputed value is '
-                    f'{exact_text(comp_amount)} (entry_amount × rate)'
+                    f'amount {exact_text(decl_amount)} but the tax GnuCash '
+                    f'sends that account is {exact_text(comp_amount)}'
                 )
 
 
 def validate_invoice_informational(declared, computed_subtotal,
-                                   computed_tax, invoice_label):
+                                   computed_tax, computed_total,
+                                   invoice_label):
     """Q-017: invoice-level totals. `declared` is a dict with optional
     keys invoice_subtotal/invoice_tax_total/invoice_total (or the bill_*
     analogues — caller passes whichever set). Raises ValueError on any
-    mismatch."""
+    mismatch.
+
+    The total is asked for rather than added up here. GnuCash rounds each of
+    the three separately, so `subtotal + tax` can sit a cent off the total it
+    reports — and the writer prints the total it reports, which would then be
+    refused by this, the importer of the command that wrote it.
+
+    Compared exactly, as every figure here is: a page states what a document
+    is worth, and a figure the book does not hold is one to refuse. Held to a
+    cent instead, the page this check exists to catch went through — a
+    document printed by an earlier release states a total exactly one cent
+    under what a tax-included book posts.
+    """
     pairs = [
         ('invoice_subtotal', computed_subtotal),
         ('bill_subtotal',    computed_subtotal),
         ('invoice_tax_total', computed_tax),
         ('bill_tax_total',    computed_tax),
-        ('invoice_total', computed_subtotal + computed_tax),
-        ('bill_total',    computed_subtotal + computed_tax),
+        ('invoice_total', computed_total),
+        ('bill_total',    computed_total),
     ]
     for field, computed in pairs:
         if field in declared:
             decl = _declared_number(declared[field], invoice_label, field)
-            if not _close(decl, computed):
+            if decl != computed:
                 raise ValueError(
-                    f'{invoice_label}: declared {field} {exact_text(decl)} does '
-                    f'not match recomputed {exact_text(computed)} (sum of entries)'
+                    f'{invoice_label}: declared {field} {exact_text(decl)} '
+                    f'does not match {exact_text(computed)}, which is what '
+                    f'GnuCash makes this document worth'
                 )
 
 
@@ -389,7 +700,7 @@ def _render_taxtable_block(lib, tt_ptr) -> str:
     lines = [f'taxtable "{tt_name}"']
     for acct_name, rate in _tax_table_entries(lib, tt_ptr):
         lines.append('\tentry:')
-        lines.append(f'\t\taccount: "{acct_name}"')
+        lines.append(f'\t\taccount: {encode_value_as_string(acct_name)}')
         lines.append(f'\t\trate: {_fmt_rate(rate)}%')
         lines.append('\t\ttype: PERCENT')
     return '\n'.join(lines)
@@ -456,6 +767,10 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
     on the importing side."""
     lib = load_gnc_engine()
 
+    # Every figure below is read with it, so the lines agree with the totals
+    # a credit note states — see `compute_entry_informational`.
+    is_credit_note = 1 if invoice.GetIsCreditNote() else 0
+
     inv_id = invoice.GetID()
     cust = invoice.GetOwner().GetCustomer()
     if cust is None:
@@ -473,12 +788,16 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
     for raw_entry in invoice.GetEntries():
         ent_ptr = int(raw_entry.instance)
         entry_amount, entry_tax, breakdown = compute_entry_informational(
-            lib, ent_ptr
+            lib, ent_ptr, is_credit_note
         )
         entries_data.append((raw_entry, entry_amount, entry_tax, breakdown))
         tt_ptr = lib.gncEntryGetInvTaxTable(ent_ptr)
         if tt_ptr and int(tt_ptr) not in seen_tt:
             seen_tt[int(tt_ptr)] = tt_ptr
+
+    subtotal, tax_total, total = document_totals(lib, invoice)
+    entries_data = entries_fitted_to_the_document(entries_data, tax_total,
+                                                  unit, subtotal)
 
     blocks = []
     for tt_ptr in seen_tt.values():
@@ -489,10 +808,11 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
     # Invoice block
     inv_lines = [
         f'invoice "{inv_id}"',
-        f'\tcustomer_id: "{cust.GetID()}"',
+        f'\tcustomer_id: {encode_value_as_string(cust.GetID())}',
         f'\tcurrency: {currency}',
         f'\tdate_opened: {date_opened}',
     ]
+    inv_lines += credit_note_lines(invoice)
     inv_lines += document_text_lines(invoice)
 
     # Per-entry blocks with informational fields
@@ -515,19 +835,27 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
 
         inv_lines.append('\tentry:')
         inv_lines.append(f'\t\tdate: {date_str}')
-        inv_lines.append(f'\t\tdescription: "{desc}"')
-        inv_lines.append(f'\t\taction: "{action}"')
-        inv_lines.append(f'\t\taccount: "{acct_name}"')
+        inv_lines.append(f'\t\tdescription: {encode_value_as_string(desc)}')
+        inv_lines.append(f'\t\taction: {encode_value_as_string(action)}')
+        inv_lines.append(f'\t\taccount: {encode_value_as_string(acct_name)}')
         inv_lines.append(f'\t\tquantity: {exact_text(qty)}')
         inv_lines.append(f'\t\tprice: {exact_text(price)}')
-        inv_lines.append(f'\t\ttaxable: {"true" if taxable else "false"}')
-        inv_lines.append(f'\t\ttax_included: {"true" if tax_included else "false"}')
+        inv_lines.append(f'\t\ttaxable: {encode_value_as_string(taxable)}')
+        inv_lines.append(
+            f'\t\ttax_included: {encode_value_as_string(tax_included)}')
 
         tt_ptr = lib.gncEntryGetInvTaxTable(ent_ptr)
         if tt_ptr:
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
             if tt_name:
-                inv_lines.append(f'\t\ttax_table: "{tt_name}"')
+                inv_lines.append(f'\t\ttax_table: {encode_value_as_string(tt_name)}')
+
+        # The note and the discount, written exactly as `export` writes them:
+        # a printed plaintext document carries the guids that make it
+        # re-importable, so a field this drops is a field the re-import
+        # removes from the book.
+        inv_lines.extend(entry_notes(lib, ent_ptr))
+        inv_lines.extend(entry_discount(lib, raw_entry, ent_ptr))
 
         # Q-017 informational fields. `breakdown:` is a nested block (one
         # per tax-table entry); matches the existing taxtable entry-block
@@ -541,7 +869,7 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         inv_lines.append(f'\t\tentry_tax: {_fmt_money(entry_tax, unit)}')
         for bd_acct_name, bd_rate, bd_amount in breakdown:
             inv_lines.append('\t\tbreakdown:')
-            inv_lines.append(f'\t\t\taccount: "{bd_acct_name}"')
+            inv_lines.append(f'\t\t\taccount: {encode_value_as_string(bd_acct_name)}')
             inv_lines.append(f'\t\t\trate: {_fmt_rate(bd_rate)}')
             inv_lines.append(f'\t\t\tamount: {_fmt_money(bd_amount, unit)}')
 
@@ -591,14 +919,15 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         if not had_payment:
             inv_lines.append('\tpayment: none')
 
-    # Invoice-level informational totals
-    subtotal = sum((e[1] for e in entries_data), Fraction(0))
-    tax_total = sum((e[2] for e in entries_data), Fraction(0))
+    # Invoice-level informational totals, asked of the document rather than
+    # added up from its lines: GnuCash rounds a document's tax once, so the
+    # two differ by a cent on a tax-included document of several lines and
+    # the posting split follows GnuCash. The lines above were fitted to these.
     inv_lines.append(f'\tinvoice_subtotal: {_fmt_money(subtotal, unit)}')
-    # Q-019: tax_total and grand total are now emitted for drafts too,
-    # computed from each entry's tax_table.
+    # Q-019: tax_total and grand total are emitted for drafts too — these
+    # read the entries, so an unposted document has them before it has splits.
     inv_lines.append(f'\tinvoice_tax_total: {_fmt_money(tax_total, unit)}')
-    inv_lines.append(f'\tinvoice_total: {_fmt_money(subtotal + tax_total, unit)}')
+    inv_lines.append(f'\tinvoice_total: {_fmt_money(total, unit)}')
 
     # Q-019: provisional-tax caveat — invoice-scoped (drafts only),
     # prepended inside the invoice block. The seller `# Issued by:`

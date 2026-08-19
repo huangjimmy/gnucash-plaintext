@@ -827,7 +827,7 @@ class ExportTransactionsUseCase:
         unit = account.GetCommoditySCU() or account.GetCommodity().get_fraction()
         for kind, oid, guid, amount in open_prepayments_for_account(account):
             lines.append('\topen_prepayment:')
-            lines.append(f'\t\t{kind}: "{oid}"')
+            lines.append(f'\t\t{kind}: {encode_value_as_string(oid)}')
             if guid and guid != '0' * 32:
                 lines.append(f'\t\t{kind}_guid: "{guid}"')
             lines.append(f'\t\tamount: {money_text(amount, unit)} {mnemonic}')

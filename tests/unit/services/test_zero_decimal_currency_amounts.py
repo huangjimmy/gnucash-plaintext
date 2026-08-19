@@ -127,6 +127,17 @@ def test_tax_on_a_yen_invoice_reaches_a_whole_yen(tmp_path):
     assert 'invoice_total: 2174' in document, document
     assert '.00' not in document, document
 
+    # And that document reads back into the book it came from. The import
+    # works the whole document out the way the writer did — every line fitted
+    # to the document's tax, which is where 103.5 becomes the 104 the book
+    # posts — and compares the page against that, so a yen invoice matches
+    # exactly rather than surviving on a tolerance.
+    again = CliRunner().invoke(cli, ['import', str(gnucash_file),
+                                     str(printed),
+                                     '--include-business-objects'])
+    assert again.exit_code == 0, again.output
+    assert 'invoice "INV-JPY-HALF": unchanged' in again.output, again.output
+
 
 def test_a_zero_is_written_at_its_currency_s_decimals(tmp_path):
     """Zero is where the engines disagree, so it is pinned on all of them.

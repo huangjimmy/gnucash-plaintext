@@ -5,6 +5,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from infrastructure.pdf.standard_tx import Split, StandardTransaction
 from services.reconcile_preview_reader import AUTOPAY_ACCOUNT, ReconcilePreviewReader
 from services.reconcile_preview_writer import ReconcilePreviewWriter
@@ -91,3 +93,43 @@ def test_cjk_utf8_on_disk(tmp_path):
 
     importable, _ = ReconcilePreviewReader().read(path)
     assert importable[0].description == "自動轉賬 / BOC CREDIT CARD (INT"
+
+
+@pytest.mark.parametrize("description", [
+    r"AUTOPAY C:\name",
+    r'AUTOPAY "INGROUP"',
+    "AUTOPAY\nsecond line",
+    "AUTOPAY\rsecond line",
+    r'both: "C:\name"',
+])
+def test_a_description_comes_back_as_it_went_out(tmp_path, description):
+    """The writer escapes four characters and the reader undoes four.
+
+    They are one pair — nothing else reads this file — so a description
+    holding a backslash or a newline is the writer's whole job: escaped and
+    then unescaped by a rule that does not match, `C:\\name` comes back a
+    character too many, and the transaction the reconciler hands on is not
+    the one the statement carried.
+    """
+    tx = StandardTransaction(
+        post_date=date(2026, 4, 15),
+        description=description,
+        currency="HKD",
+        splits=[
+            Split("Assets:BOC HKD Saving", Decimal("-247.10")),
+            Split("Liabilities:BOCI-0012", Decimal("247.10")),
+        ],
+        source_pdfs=["bochk.pdf"],
+    )
+    path = str(tmp_path / "_reconcile.txt")
+    ReconcilePreviewWriter().write(path, [tx], [], [])
+
+    # One line for the block it heads, whatever the description holds: the
+    # reader takes a key per line, so a raw newline would end it mid-word.
+    written = Path(path).read_text(encoding="utf-8")
+    assert len([ln for ln in written.splitlines()
+                if ln.startswith("2026-")]) == 1, written
+
+    importable, _ = ReconcilePreviewReader().read(path)
+    assert len(importable) == 1, written
+    assert importable[0].description == description

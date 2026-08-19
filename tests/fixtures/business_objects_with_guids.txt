@@ -58,8 +58,12 @@ invoice "INV-001"
 		account: "Income:Sales"
 		quantity: 1
 		price: 100
-		taxable: false
-		tax_included: false
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
 	posted: none
 	payment: none
 
@@ -72,10 +76,15 @@ bill "BILL-001"
 	entry:
 		date: 2026-01-01
 		description: "Supplies"
+		action: ""
 		account: "Expenses:Supplies"
 		quantity: 1
 		price: 50
-		taxable: true
-		tax_included: false
+		taxable: #True
+		tax_included: #False
+		notes: ""
+		billable: #False
+		billable_to: ""
+		payment_type: cash
 	posted: none
 	payment: none

@@ -129,7 +129,7 @@ class TestAccountBalanceWithPrefix:
         bal = result.balances[0]
         assert bal.account_path == "Assets:Bank:Checking"
         assert bal.currency == "CAD"
-        assert float(bal.amount) == pytest.approx(3420.00)
+        assert bal.amount == Fraction(3420)
 
     def test_single_hkd_leaf(self, temp_gnucash_account_balance):
         """Single HKD leaf: balance in HKD."""
@@ -144,7 +144,7 @@ class TestAccountBalanceWithPrefix:
         bal = result.balances[0]
         assert bal.account_path == "Assets:Bank:HKD"
         assert bal.currency == "HKD"
-        assert float(bal.amount) == pytest.approx(8700.00)
+        assert bal.amount == Fraction(8700)
 
     def test_parent_single_currency_recursive_total(self, temp_gnucash_account_balance):
         """Expenses:Food (all CAD) shows recursive sum of Groceries + Dining."""
@@ -159,7 +159,7 @@ class TestAccountBalanceWithPrefix:
         bal = result.balances[0]
         assert bal.account_path == "Expenses:Food"
         assert bal.currency == "CAD"
-        assert float(bal.amount) == pytest.approx(80.00)  # 50 + 30
+        assert bal.amount == Fraction(80)   # 50 + 30
 
     def test_parent_single_currency_hkd(self, temp_gnucash_account_balance):
         """Income:HKDIncome (all HKD) shows recursive sum of sub-accounts."""
@@ -175,7 +175,7 @@ class TestAccountBalanceWithPrefix:
         assert bal.account_path == "Income:HKDIncome"
         assert bal.currency == "HKD"
         # Income accounts: -400 (Freelance) + -600 (Dividends) = -1000
-        assert float(bal.amount) == pytest.approx(-1000.00)
+        assert bal.amount == Fraction(-1000)
 
     def test_nonexistent_prefix_raises_value_error(self, temp_gnucash_account_balance):
         """Typo in account prefix should raise ValueError, not return empty result."""
@@ -216,8 +216,9 @@ class TestAccountBalanceWithPrefix:
         bal = result.balances[0]
         assert bal.account_path == "Assets:Bank"
         assert bal.currency == "CAD"
-        expected = 3420.00 + 8700.00 * 0.17  # 4899.00
-        assert float(bal.amount) == pytest.approx(expected)
+        # 3420 CAD + 8700 HKD at 0.17 — exactly, since a rate is a ratio and
+        # 0.17 is 17/100, not the double nearest to it.
+        assert bal.amount == Fraction(3420) + Fraction(8700) * Fraction(17, 100)
 
     def test_as_of_date_cutoff(self, temp_gnucash_account_balance):
         """Balance as of 2024-01-31 excludes June transactions."""
@@ -228,7 +229,7 @@ class TestAccountBalanceWithPrefix:
         finally:
             repo.close()
 
-        assert float(result.balances[0].amount) == pytest.approx(500.00)
+        assert result.balances[0].amount == Fraction(500)
 
     def test_no_consolidated_cad_without_fx(self, temp_gnucash_account_balance):
         """consolidated_cad is None when no fx_rates provided."""
@@ -259,7 +260,7 @@ class TestAccountBalanceWithPrefix:
 
         assert result.consolidated_cad is not None
         expected = Fraction(3420) + Fraction(8700) * Fraction(17, 100)
-        assert abs(float(result.consolidated_cad) - float(expected)) < 0.01
+        assert result.consolidated_cad == expected
 
 
 # ---------------------------------------------------------------------------
@@ -293,9 +294,9 @@ class TestAccountBalanceWithChildren:
         food = next(b for b in result.balances if b.account_path == "Expenses:Food")
         groceries = next(b for b in result.balances if b.account_path == "Expenses:Food:Groceries")
         dining = next(b for b in result.balances if b.account_path == "Expenses:Food:Dining")
-        assert float(food.amount) == pytest.approx(80.00)
-        assert float(groceries.amount) == pytest.approx(50.00)
-        assert float(dining.amount) == pytest.approx(30.00)
+        assert food.amount == Fraction(80)
+        assert groceries.amount == Fraction(50)
+        assert dining.amount == Fraction(30)
 
     def test_assets_bank_with_fx_and_children(self, temp_gnucash_account_balance, tmp_path):
         """Assets:Bank with FX + children: bank total + each sub-account in CAD."""
@@ -323,7 +324,7 @@ class TestAccountBalanceWithChildren:
             )
 
         bank = next(b for b in result.balances if b.account_path == "Assets:Bank")
-        assert float(bank.amount) == pytest.approx(3420 + 8700 * 0.17)
+        assert bank.amount == Fraction(3420) + Fraction(8700) * Fraction(17, 100)
 
     def test_hkd_leaf_fx_metadata(self, temp_gnucash_account_balance, tmp_path):
         """Non-CAD leaf shows share_price and original amount when FX provided."""
@@ -343,6 +344,6 @@ class TestAccountBalanceWithChildren:
 
         bal = result.balances[0]
         assert bal.original_currency == "HKD"
-        assert float(bal.original_amount) == pytest.approx(8700.00)
+        assert bal.original_amount == Fraction(8700)
         assert bal.share_price == Fraction(17, 100)
-        assert float(bal.amount) == pytest.approx(1479.00)
+        assert bal.amount == Fraction(1479)

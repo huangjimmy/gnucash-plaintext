@@ -1,0 +1,108 @@
+# A book whose entry rows use every column GnuCash's invoice and bill
+# windows offer, so an export that drops one is a failing test rather than a
+# silent loss.
+#
+# Most books never touch these: a discount, a note on a line, a bill line
+# marked billable. That is exactly why they went missing — no fixture set
+# them, so every writer could omit them and every test still passed.
+#
+# Every name and number here is invented.
+
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-EVERY"
+	name: "Every Field Ltd"
+	currency: CAD
+
+vendor "V-EVERY"
+	name: "Every Field Supply"
+	currency: CAD
+
+# A discounted line, with the two choices that decide what the figure means:
+# 10 per cent, taken before tax.
+invoice "INV-EVERY-001"
+	customer_id: "C-EVERY"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Consulting, February"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 10
+		price: 100
+		taxable: false
+		tax_included: false
+		notes: "Agreed rate for the first quarter, per \"Schedule A\""
+		discount: 10
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2026-02-01
+		due: 2026-03-03
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-EVERY-001"
+		accumulate: true
+
+# A bill line carrying an action, a note, and the two columns only a bill
+# window has: billable, and how it was paid.
+bill "BILL-EVERY-001"
+	vendor_id: "V-EVERY"
+	currency: CAD
+	date_opened: 2026-02-05
+	entry:
+		date: 2026-02-05
+		description: "Parts for the Henderson job"
+		action: "Material"
+		account: "Expenses:Supplies"
+		quantity: 4
+		price: 25
+		taxable: false
+		tax_included: false
+		notes: "Re-bill to the customer at cost"
+		billable: true
+		billable_to: "C-EVERY"
+		payment_type: card
+	posted:
+		date: 2026-02-05
+		due: 2026-03-07
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-EVERY-001"
+		accumulate: true

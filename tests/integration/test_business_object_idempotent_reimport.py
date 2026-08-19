@@ -261,8 +261,12 @@ class TestReimportUpdatesFields:
             f"create a duplicate. Got:\n{text}"
         )
         block = _block_for(text, 'customer "C001"')
-        assert _field_in_block(block, 'active') == 'false', (
-            "Expected active: false after re-import; got block:\n" + "\n".join(block)
+        # Written `#False`, read from `false`: the file above spells it the
+        # way a person does and the export spells it the way the format
+        # does, which is the pair this asserts.
+        assert _field_in_block(block, 'active') == '#False', (
+            "Expected active: #False after re-import; got block:\n"
+            + "\n".join(block)
         )
 
 

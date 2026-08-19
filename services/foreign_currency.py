@@ -1035,7 +1035,26 @@ def _require_basis_collected(selling_split, basis, basis_guid: str) -> None:
     `cost_basis_force: true` on the selling split overrides it, for the case
     where the user knows the money is in hand and the record simply has not
     been marked paid yet.
+
+    It is read first, before any of the reasons below to return early. Read
+    where it is *used*, a mistyped one on a split this function lets past —
+    a settled lot, a payable, an overpayment — was never looked at, so the
+    same typo was named on one sale and ignored on the next. A flag a file
+    states is read wherever the file states it.
     """
+    # Read as a word, like every other flag a ledger carries: compared
+    # against a list of the truthy spellings, `cost_basis_force: treu` was
+    # silently *not* forced, and the sale then failed with a message telling
+    # its author to add the key they had already added.
+    #
+    # Imported here rather than at the top for the reason given above
+    # `is_a_bank_paid_orphan`: `gnucash_importer` reads this module.
+    from services.gnucash_importer import _a_yes_or_no
+
+    forced = _a_yes_or_no(
+        get_custom_metadata(selling_split).get(COST_BASIS_FORCE_KEY, 'false'),
+        COST_BASIS_FORCE_KEY, 'a split')
+
     account = basis.GetAccount()
     if account is None or account.GetType() != ACCT_TYPE_RECEIVABLE:
         return
@@ -1066,9 +1085,7 @@ def _require_basis_collected(selling_split, basis, basis_guid: str) -> None:
     balance = lot.get_balance()
     if Fraction(balance.num(), balance.denom()) == 0:      # settled
         return
-    forced = str(get_custom_metadata(selling_split).get(COST_BASIS_FORCE_KEY, '')
-                 ).strip().lower()
-    if forced in ('true', '1', 'yes'):
+    if forced:
         return
     currency = split_commodity(basis)
     raise Exception(
@@ -1098,11 +1115,19 @@ def _require_stated_cost(selling_split, basis, basis_guid: str) -> None:
         return
     sold = abs(_fraction(selling_split.GetAmount()))
     stated = abs(_fraction(selling_split.GetValue()))
-    expected = basis_cost * sold
-    if abs(stated - expected) <= Fraction(1, 200):        # half a cent
-        return
     currency = split_commodity(selling_split)
     base_unit = transaction.GetCurrency().get_fraction()
+    # Rounded the way the engine rounds before comparing, and then compared
+    # exactly. `basis_cost × sold` is a rate times a quantity and lands
+    # between cents; the value on the split is what GnuCash booked, which is
+    # that figure rounded to the currency's smallest unit. Held apart by half
+    # a cent instead — the width of one rounding — the check was an epsilon
+    # standing in for arithmetic nobody had done, and it forgave a sale
+    # valued half a cent off its basis on purpose as readily as one off by
+    # accident.
+    expected = numeric_to_fraction(to_money(basis_cost * sold, base_unit))
+    if stated == expected:
+        return
     raise Exception(
         f'this split sells {_format(sold, smallest_unit(selling_split))} '
         f'{currency} valued at '

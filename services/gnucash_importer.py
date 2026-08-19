@@ -42,6 +42,16 @@ from gnucash.gnucash_core_c import (
     xaccTransSetIsClosingTxn,
 )
 
+from infrastructure.gnucash.entry_fields import (
+    DEFAULT_DISCOUNT_HOW,
+    DEFAULT_DISCOUNT_TYPE,
+    DEFAULT_PAYMENT_TYPE,
+    DISCOUNT_HOWS,
+    DISCOUNT_TYPES,
+    PAYMENT_TYPES,
+    billable_to,
+    set_billable_to,
+)
 from infrastructure.gnucash.kvp import (
     KNOWN_ACCOUNT_METADATA_KEYS,
     KNOWN_BILL_METADATA_KEYS,
@@ -1826,11 +1836,6 @@ def _attach_existing_tx_as_posted(invoice_or_bill, existing_tx, ar_ap_account,
     invoice_or_bill.CommitEdit()
 
 
-def _is_falsy(val: str) -> bool:
-    """Return True if val is a recognised falsy string (case-insensitive)."""
-    return val.strip().lower() in _FALSY_STRINGS
-
-
 ACCT_TYPE_MAP = {
     "Asset": ACCT_TYPE_ASSET,
     "Other Assets": ACCT_TYPE_ASSET,         # README wording for a plain asset
@@ -2217,8 +2222,8 @@ def _customer_matches_directive(customer, directive: 'PlaintextDirective') -> bo
     # of date, because nothing would be done about it.
     if not _named_address_matches(customer, md):
         return False
-    if 'active' in md and bool(customer.GetActive()) != (
-            not _is_falsy(md['active'])):
+    if 'active' in md and bool(customer.GetActive()) != _is_active(
+            md, 'a customer block'):
         return False
     return _named_custom_metadata_matches(
         customer, md, KNOWN_CUSTOMER_METADATA_KEYS)
@@ -2237,11 +2242,262 @@ def _vendor_matches_directive(vendor, directive: 'PlaintextDirective') -> bool:
         return False
     if not _named_address_matches(vendor, md):
         return False
-    if 'active' in md and bool(vendor.GetActive()) != (
-            not _is_falsy(md['active'])):
+    if 'active' in md and bool(vendor.GetActive()) != _is_active(
+            md, 'a vendor block'):
         return False
     return _named_custom_metadata_matches(
         vendor, md, KNOWN_VENDOR_METADATA_KEYS)
+
+
+def _a_word_gnucash_knows(table: dict, word, key: str, where: str) -> int:
+    """The engine value for `word`, or a refusal naming what is allowed.
+
+    Refused rather than passed through: the setters take any integer, and a
+    value GnuCash has no name for is warned about on every read
+    (`asked to translate unknown amount type 0`) and silently rewritten on
+    save — an entry written with 0 came back as 2. A file naming a word this
+    project does not know would therefore import as a *different* discount
+    from the one it asked for, which is worse than not importing at all.
+
+    `str(word)` because a bare number in a file arrives as an `int`:
+    `decode_value_from_string` reads `payment_type: 1` as the integer 1, and
+    the same refusal has to answer it. Left as it came, the lookup raised
+    `'int' object has no attribute 'strip'` and the run reported that instead
+    of the two words the key takes.
+    """
+    known = table.get(str(word).strip().lower())
+    if known is None:
+        raise ValueError(
+            f'{key}: "{word}" is not one of {", ".join(sorted(table))} '
+            f'on {where}')
+    return known
+
+
+_TRUTHY_STRINGS = {'true', '1', 'yes'}
+
+
+def _a_yes_or_no(value, key: str, where: str) -> bool:
+    """True or false, or a refusal naming the key and both spellings.
+
+    Every boolean this format carries is read here, so a typo gets one
+    answer wherever it lands. Read as "not one of the falsy words" — which is
+    how most of them were read — a typo went through as **true**, the costly
+    direction on every key that has one: `billable: treu` re-billed a line to
+    a customer, and `auto_apply_credit: treu` spent the owner's credit
+    against a document the file never asked to settle that way. Beside them
+    `taxable: treu` compared against the string `true` and read as false, and
+    `payment_type: cassh` was refused by name, so one typo had three answers
+    depending on which key it landed in.
+    """
+    word = str(value).strip().lower()
+    if word in _TRUTHY_STRINGS:
+        return True
+    if word in _FALSY_STRINGS:
+        return False
+    raise ValueError(
+        f'{key}: "{value}" is neither true nor false on {where}. '
+        f'It takes {", ".join(sorted(_TRUTHY_STRINGS))} or '
+        f'{", ".join(sorted(_FALSY_STRINGS))}')
+
+
+def _is_a_credit_note(metadata) -> bool:
+    """`credit_note:` on an invoice or bill block, read as a word.
+
+    GnuCash's Business → New Credit Note makes a `gncInvoice` carrying this
+    flag, with its lines stored negated: a credit note for 200.00 holds a
+    quantity of −2 at 100.00 and posts Sales +200.00 against A/R −200.00,
+    the mirror of an invoice. Measured on 5.10.
+
+    So the quantities in a ledger are the ones the book holds either way,
+    and this one key decides which direction the same document posts. A
+    block that leaves it out is an ordinary document, which is what every
+    ledger written before it said.
+    """
+    return _a_yes_or_no(metadata.get('credit_note', 'false'),
+                        'credit_note', 'an invoice or bill block')
+
+
+def _is_active(metadata, where: str) -> bool:
+    """`active:` on an owner block, read as a word."""
+    return _a_yes_or_no(metadata['active'], 'active', where)
+
+
+def _paid_from_credit(metadata) -> bool:
+    """`from_credit:` on a payment block, read as a word.
+
+    One function rather than the same expression at six call sites: two of
+    them order the payments and four apply them, and a spelling that ordered
+    a block as cash and then applied it as credit would settle a document
+    twice over.
+    """
+    return _a_yes_or_no(metadata.get('from_credit', 'false'),
+                        'from_credit', 'a payment block')
+
+
+#: The keys each side of an entry owns. `GncEntry` holds both sets, and
+#: GnuCash shows each only in the window it belongs to: no bill window has a
+#: discount column, and no invoice window has Billable or Payment.
+_INVOICE_ONLY_ENTRY_KEYS = ('discount', 'discount_type', 'discount_how')
+_BILL_ONLY_ENTRY_KEYS = ('billable', 'billable_to', 'payment_type')
+
+
+def _refuse_the_other_sides_keys(md: dict, side: str) -> None:
+    """A key of the other kind of document is refused, not passed over.
+
+    Each setter reads only its own side's keys, so `discount: 10` on a bill
+    entry would be read by nothing: the import exits 0, the book stores no
+    discount, the export writes no discount line, and every later run reports
+    `unchanged`. That is the silence these keys were reserved to end — and
+    sharper than an invented key, because a reader has just been told these
+    are real keys of this format.
+    """
+    if side == 'invoice':
+        named = [key for key in _BILL_ONLY_ENTRY_KEYS if key in md]
+        theirs, mine, window = 'a bill entry', 'an invoice entry', 'invoice'
+    else:
+        named = [key for key in _INVOICE_ONLY_ENTRY_KEYS if key in md]
+        theirs, mine, window = 'an invoice entry', 'a bill entry', 'bill'
+    if named:
+        raise ValueError(
+            f'{", ".join(named)}: {"is a key" if len(named) == 1 else "are keys"} '
+            f'of {theirs}, not {mine}. GnuCash\'s {window} window has no such '
+            f'column, so the value would be stored nowhere. Remove the line, '
+            f'or move it to the document it describes')
+
+
+def _the_discount_figure(md: dict):
+    """The `discount:` figure as a GncNumeric, or a refusal naming the key.
+
+    Named as a refusal rather than let out as `decimal.ConversionSyntax`.
+    These keys used to be unknown on an entry block, and an unknown key there
+    was neither stored nor reported — entries carry no custom metadata — so a
+    ledger that used `discount:` for a sentence of its own imported without
+    complaint and lost it. Now the key means something, and a file carrying
+    the old shape has to be told what happened rather than shown an exception
+    from the decimal module.
+    """
+    stated = md.get('discount', '0')
+    try:
+        return string_to_gnc_numeric_quantity(str(stated))
+    except Exception as unreadable:
+        raise ValueError(
+            f'discount: "{stated}" is not a number. This key sets the '
+            f'discount on an invoice line, and takes a figure — '
+            f'`discount: 10` with `discount_type: percent` or '
+            f'`discount_type: value`. It was ignored by earlier versions, so '
+            f'a ledger using it for something else needs the line '
+            f'renamed') from unreadable
+
+
+def _entry_fields_named(md: dict, side: str) -> dict:
+    """Every entry field beyond the eight, resolved before an entry exists.
+
+    Resolved first, and all at once, for two reasons.
+
+    **A refusal must land before `Entry(book)`.** Every other way this line
+    can be refused — an account the book has not got, a tax table it has not
+    got — is resolved before the entry is created, so a refused line leaves
+    no half-built `GncEntry` in an open edit, attached to nothing.
+
+    **An unnamed key means GnuCash's default, not "leave it alone".** An
+    entry is never patched: a document being re-imported has all its entries
+    destroyed and rebuilt from the block, so there is nothing left to leave
+    alone — an entry block describes the whole line. `action:` has always
+    worked this way. Reading each key with `in` instead looked like the rest
+    of the format and was not: a block that named `price` and no note kept
+    the note when nothing else differed, and dropped it the moment some other
+    field made the document rebuild. One keystroke decided whether a note
+    survived, and the run said `updated` without saying what had gone.
+
+    The defaults are GnuCash's own, measured on 5.10 by importing a ledger
+    that names none of these keys: an empty note, a discount of 0, `percent`,
+    `pretax`, not billable, `cash`. The comparison that decides `unchanged`
+    resolves the same block through here, so a book differing from its
+    defaults is seen and reported rather than quietly kept.
+    """
+    _refuse_the_other_sides_keys(md, side)
+    where = 'an invoice entry' if side == 'invoice' else 'a bill entry'
+    fields = {
+        'notes': str(md.get('notes', '')),
+        # The two tax flags read the same way `billable:` does. Read as
+        # `== 'true'`, `taxable: treu` imported as **not taxable** — the
+        # costlier direction, and costlier still now that the flag decides
+        # `entry_tax:`, every `breakdown:` block and the document's totals:
+        # a page printed after the typo agrees with itself and re-imports
+        # `unchanged` against a book that dropped the tax.
+        'taxable': _a_yes_or_no(md['taxable'], 'taxable', where),
+        'tax_included': _a_yes_or_no(
+            md.get('tax_included', 'false'), 'tax_included', where),
+    }
+    if side == 'invoice':
+        fields['discount'] = _the_discount_figure(md)
+        fields['discount_type'] = _a_word_gnucash_knows(
+            DISCOUNT_TYPES, md.get('discount_type', DEFAULT_DISCOUNT_TYPE),
+            'discount_type', 'an invoice entry')
+        fields['discount_how'] = _a_word_gnucash_knows(
+            DISCOUNT_HOWS, md.get('discount_how', DEFAULT_DISCOUNT_HOW),
+            'discount_how', 'an invoice entry')
+    else:
+        fields['billable'] = _a_yes_or_no(
+            md.get('billable', 'false'), 'billable', 'a bill entry')
+        # The id as the file wrote it, not the customer behind it: this same
+        # resolution runs in the comparison, which has no book to look one up
+        # in and is comparing what the export wrote against what the entry
+        # holds. `_the_customer_billed` turns it into an owner, on the import
+        # path only, before the entry exists.
+        fields['billable_to'] = str(md.get('billable_to', ''))
+        fields['payment_type'] = _a_word_gnucash_knows(
+            PAYMENT_TYPES, md.get('payment_type', DEFAULT_PAYMENT_TYPE),
+            'payment_type', 'a bill entry')
+    return fields
+
+
+def _the_customer_billed(book, customer_id: str, bill_id: str):
+    """The customer a line is re-billed to, or `None` where it names nobody.
+
+    Refused by name where the book has no such customer, and refused here
+    rather than at the setter, so it lands before `Entry(book)` like every
+    other way this line can be refused — a bill whose chargeback customer is
+    a typo leaves no half-built entry behind.
+    """
+    if not customer_id:
+        return None
+    customer = book.CustomerLookupByID(customer_id)
+    if customer is None:
+        raise ValueError(
+            f'billable_to: "{customer_id}" on bill {bill_id} names no '
+            f'customer in this book. The key re-bills the line to a '
+            f'customer, so it takes a customer id — the same one a '
+            f'`customer` block declares')
+    return customer
+
+
+def _apply_entry_fields(entry, fields: dict, side: str, billed_to=None) -> None:
+    """Write what `_entry_fields_named` resolved onto a fresh entry.
+
+    Written whatever the block said, defaults included, so the discount type
+    and how are always a value GnuCash has a name for. Left unset they are 0,
+    which the engine warns about on every read and rewrites on save.
+
+    `billed_to` is the customer `_the_customer_billed` found, and `None` is
+    written as deliberately as a customer is: an entry rebuilt from a block
+    naming nobody must hold nobody, and the block is the whole of the line.
+    """
+    from infrastructure.gnucash.engine import load_gnc_engine
+
+    entry.SetNotes(fields['notes'])
+    if side == 'invoice':
+        entry.SetInvTaxable(fields['taxable'])
+        entry.SetInvTaxIncluded(fields['tax_included'])
+        entry.SetInvDiscount(fields['discount'])
+        entry.SetInvDiscountType(fields['discount_type'])
+        entry.SetInvDiscountHow(fields['discount_how'])
+    else:
+        entry.SetBillTaxable(fields['taxable'])
+        entry.SetBillTaxIncluded(fields['tax_included'])
+        entry.SetBillable(fields['billable'])
+        entry.SetBillPayment(fields['payment_type'])
+        set_billable_to(load_gnc_engine(), int(entry.instance), billed_to)
 
 
 def _gnc_numeric_equals(num, value_str: str) -> bool:
@@ -2252,6 +2508,138 @@ def _gnc_numeric_equals(num, value_str: str) -> bool:
     what the importer would write.
     """
     return num.equal(string_to_gnc_numeric_quantity(value_str))
+
+
+def _refuse_figures_that_are_not_the_books(record, directive, is_bill: bool):
+    """Check a page's stated figures against the document the book holds.
+
+    `entry_amount:`, `entry_tax:`, each `breakdown:` block and the three
+    document totals are what a printed document says a line and a document
+    are worth. They are not part of what makes a document `unchanged` — they
+    are derived, and a ledger need not carry them — so a page whose figures
+    disagree with the book matched on everything else and returned before
+    anything read them.
+
+    What that let through is the case the figures exist for: a document
+    printed by an earlier release, whose totals were quantity × price added
+    up, re-imported into a book that posts something else and reported
+    `unchanged`, with `bill_total: 300.00` against an A/P split of 300.01
+    and nothing said.
+
+    What the file states is read first, and a file stating nothing is left
+    alone without the book being asked anything. A ledger carries these
+    figures only if it was printed — the export writes none — so working
+    them out regardless made every ordinary re-import pay for a comparison
+    it would not make, and made one of them fail: a credit note exports as
+    an ordinary block, and its lines and its totals come back with opposite
+    signs, so the fit refused a document the file had said nothing about.
+    """
+    from infrastructure.gnucash.engine import load_gnc_engine as _load
+    from services.bill_renderer import compute_bill_entry_informational
+    from services.invoice_renderer import (
+        compute_entry_informational,
+        document_totals,
+        entries_fitted_to_the_document,
+        validate_entry_informational,
+        validate_invoice_informational,
+    )
+
+    word = 'bill' if is_bill else 'invoice'
+    entry_type = (DirectiveType.BILL_ENTRY if is_bill
+                  else DirectiveType.INVOICE_ENTRY)
+
+    stated_by_line = []
+    for child in directive.children:
+        if child.type != entry_type:
+            continue
+        stated_by_line.append((
+            child,
+            {k: child.metadata[k] for k in ('entry_amount', 'entry_tax')
+             if k in child.metadata},
+            [dict(block.metadata.items()) for block in child.children
+             if block.type == DirectiveType.TAX_BREAKDOWN],
+        ))
+    declared_totals = {
+        k: directive.metadata[k]
+        for k in (f'{word}_subtotal', f'{word}_tax_total', f'{word}_total')
+        if k in directive.metadata
+    }
+    if not declared_totals and not any(
+            declared or breakdown
+            for _child, declared, breakdown in stated_by_line):
+        return
+
+    lib = _load()
+    entries = list(record.GetEntries())
+    unit = record.GetCurrency().get_fraction()
+    # Read with the document's flag, as the writer read it: a credit note
+    # holds its lines negated and states them positive, so asking without it
+    # would compare the page against the mirror of what it says.
+    is_credit_note = 1 if record.GetIsCreditNote() else 0
+
+    # Worked out for the document rather than a line at a time, and fitted as
+    # the writer fits it: a line's tax is rounded to make the document's
+    # column add up, so the figure on the page is the fitted one and this is
+    # what it is compared against. Read line by line instead, a printed
+    # single-line yen invoice states its document's 104 against a line of
+    # 103.5, and the two only agreed within a tolerance.
+    figures = [
+        compute_bill_entry_informational(lib, int(raw.instance),
+                                         is_credit_note) if is_bill
+        else compute_entry_informational(lib, int(raw.instance),
+                                         is_credit_note)
+        for raw in entries
+    ]
+    subtotal, tax_total, total = document_totals(lib, record)
+    fitted = entries_fitted_to_the_document(
+        [(raw, amount, tax, breakdown)
+         for raw, (amount, tax, breakdown) in zip(entries, figures)],
+        tax_total, unit, subtotal)
+
+    # Each block against the line it describes, found by matching rather than
+    # by counting. GnuCash keeps a document's entries in its own order —
+    # `gncInvoiceAddEntry` inserts by date, then date entered, then
+    # description — so the third block of a file need not be the third line
+    # of the book, and a figure judged against the wrong line refuses the
+    # wrong entry by number or passes where two lines happen to agree.
+    matches = (_entry_matches_bill_directive if is_bill
+               else _entry_matches_invoice_directive)
+    unpaired = list(range(len(entries)))
+    for index, (child, declared, breakdown_declared) in enumerate(
+            stated_by_line, 1):
+        found = next((position for position in unpaired
+                      if matches(entries[position], child)), None)
+        # A block stating no figures takes its line out of the running all
+        # the same. Skipped before the pairing, it left its own line free
+        # for a later block to be judged against: two lines alike in every
+        # compared field, on a page where only the second states a tax, and
+        # the second block matched the *first* line — refused against a
+        # figure that belongs to the line above the one it describes.
+        if found is not None:
+            unpaired.remove(found)
+        if not declared and not breakdown_declared:
+            continue
+        if found is None:
+            # Said rather than skipped. Every path here has either just
+            # compared the document against this file or built its lines from
+            # it, so a block that matches no line is not a state a ledger can
+            # reach — and passing over it silently is the silence this
+            # function exists to end.
+            raise ValueError(
+                f'{word} {directive.props["id"]!r} entry #{index}: this block '
+                f'states what its line is worth, and the document holds no '
+                f'line matching it')
+        _raw, amount, tax, breakdown = fitted[found]
+        validate_entry_informational(
+            declared, breakdown_declared, (amount, tax, breakdown),
+            entry_label=f'{word} {directive.props["id"]!r} entry #{index}',
+        )
+
+    if declared_totals:
+        validate_invoice_informational(
+            declared_totals, subtotal, tax_total, total,
+            invoice_label=f'{word} {directive.props["id"]!r}',
+        )
 
 
 def _entry_matches_invoice_directive(entry, ed: 'PlaintextDirective') -> bool:
@@ -2270,9 +2658,24 @@ def _entry_matches_invoice_directive(entry, ed: 'PlaintextDirective') -> bool:
         return False
     if not _gnc_numeric_equals(entry.GetInvPrice(), md['price']):
         return False
-    if bool(entry.GetInvTaxable()) != (md['taxable'] == 'true'):
+    # Every field beyond the account and the figures, read through the same
+    # resolution the import writes — so an unnamed key is compared against
+    # the default the rebuild would give it, not passed over, and a word is
+    # read as a word on both sides. Left out of the comparison entirely, a
+    # file that changed a discount imported as `unchanged` and the book kept
+    # the old figure.
+    fields = _entry_fields_named(md, 'invoice')
+    if bool(entry.GetInvTaxable()) != fields['taxable']:
         return False
-    if bool(entry.GetInvTaxIncluded()) != (md['tax_included'] == 'true'):
+    if bool(entry.GetInvTaxIncluded()) != fields['tax_included']:
+        return False
+    if (entry.GetNotes() or '') != fields['notes']:
+        return False
+    if not entry.GetInvDiscount().equal(fields['discount']):
+        return False
+    if entry.GetInvDiscountType() != fields['discount_type']:
+        return False
+    if entry.GetInvDiscountHow() != fields['discount_how']:
         return False
     # The table as the writer and the exporter see it: both act on the table
     # itself, not on the flag — `import_bill` sets it whenever the block names
@@ -2300,10 +2703,39 @@ def _entry_matches_bill_directive(entry, ed: 'PlaintextDirective') -> bool:
     leaving them out cost the other half: untaxing a line in the ledger and
     importing again reported `unchanged` and left it taxed.
     """
+    from infrastructure.gnucash.engine import load_gnc_engine
+
     md = ed.metadata
     if entry.GetDate().strftime("%Y-%m-%d") != md['date']:
         return False
     if entry.GetDescription() != md['description']:
+        return False
+    # Compared like an invoice's: one `GncEntry` field, shown in the bill
+    # window's Action column too. Absent from this comparison while the
+    # writer set it, an edited action would have imported as `unchanged`.
+    if entry.GetAction() != md.get('action', ''):
+        return False
+    # Read through the resolution the import writes, as the invoice side is:
+    # an unnamed key is compared against the default the rebuild gives it.
+    fields = _entry_fields_named(md, 'bill')
+    if (entry.GetNotes() or '') != fields['notes']:
+        return False
+    if bool(entry.GetBillable()) != fields['billable']:
+        return False
+    # The customer the line is re-billed to, read the way the export writes
+    # it. Left out, a bill whose chargeback customer the ledger had changed
+    # answered "already matches", and the run reported `unchanged` while the
+    # book kept the old one.
+    #
+    # A line charged back to a *job* matches neither a stated customer nor
+    # nobody, so it is a difference like any other: the rebuild that follows
+    # replaces it with what the file says, which is the only way a ledger can
+    # fix such a line. Refusing here instead left a book that could be
+    # neither exported nor re-imported.
+    customer, other_owner = billable_to(load_gnc_engine(), int(entry.instance))
+    if other_owner or customer != fields['billable_to']:
+        return False
+    if entry.GetBillPayment() != fields['payment_type']:
         return False
     acct = entry.GetBillAccount()
     if acct is None or get_account_full_name(acct) != md['account']:
@@ -2312,14 +2744,13 @@ def _entry_matches_bill_directive(entry, ed: 'PlaintextDirective') -> bool:
         return False
     if not _gnc_numeric_equals(entry.GetBillPrice(), md['price']):
         return False
-    if bool(entry.GetBillTaxable()) != (md['taxable'] == 'true'):
+    if bool(entry.GetBillTaxable()) != fields['taxable']:
         return False
     # `tax_included:` is optional on a bill line and defaults to false, which
-    # is the default the writer above applies. Asked for outright, the
+    # is the default the resolution applies. Asked for outright, the
     # comparison raised `KeyError: 'tax_included'` on every bill line that
     # leaves it off — which is most of them.
-    if bool(entry.GetBillTaxIncluded()) != (
-            md.get('tax_included', 'false') == 'true'):
+    if bool(entry.GetBillTaxIncluded()) != fields['tax_included']:
         return False
     # The table as the writer and the exporter see it: both act on the table
     # itself, not on the flag — `import_bill` sets it whenever the block names
@@ -2385,10 +2816,8 @@ def _cash_before_credit(payment_dirs):
     order too, which is why the comparison that decides whether a file
     changed anything reads them this way rather than as the file wrote them.
     """
-    cash = [pay for pay in payment_dirs
-            if _is_falsy(str(pay.metadata.get('from_credit', 'false')))]
-    credit = [pay for pay in payment_dirs
-              if not _is_falsy(str(pay.metadata.get('from_credit', 'false')))]
+    cash = [pay for pay in payment_dirs if not _paid_from_credit(pay.metadata)]
+    credit = [pay for pay in payment_dirs if _paid_from_credit(pay.metadata)]
     return cash + credit
 
 
@@ -2400,7 +2829,9 @@ def _asks_for_credit(directive) -> bool:
     other way round, as a payment block naming the credit it spent, and
     carries no flag.
     """
-    return not _is_falsy(str(directive.metadata.get('auto_apply_credit', 'false')))
+    return _a_yes_or_no(
+        directive.metadata.get('auto_apply_credit', 'false'),
+        'auto_apply_credit', 'an invoice or bill block')
 
 
 def _split_came_from_credit(split) -> bool:
@@ -2636,7 +3067,7 @@ def _single_payment_matches(split, pd) -> bool:
     """
     md = pd.metadata
     tx = split.GetParent()
-    if not _is_falsy(str(md.get('from_credit', 'false'))):
+    if _paid_from_credit(md):
         # A credit block names no account, because nothing paid out of one.
         # The split it names is the whole of what it claims, so matching it
         # is matching that split — which is the one in this document's lot.
@@ -4254,7 +4685,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
     AP has the opposite sign convention so we pass `-amount`; see Q-014
     notes in `CLAUDE.md` for the accounting reasoning.
     """
-    if not _is_falsy(str(pay_dir.metadata.get('from_credit', 'false'))):
+    if _paid_from_credit(pay_dir.metadata):
         _apply_credit_payment_directive(record, pay_dir, book, is_bill)
         return
 
@@ -6622,6 +7053,11 @@ def _invoice_non_payment_matches(invoice, directive: 'PlaintextDirective') -> bo
     md = directive.metadata
     if invoice.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
         return False
+    # Which way the document posts. Left out of the comparison, a ledger that
+    # turned an invoice into a credit note imported as `unchanged` and the
+    # book kept posting it the other way round.
+    if bool(invoice.GetIsCreditNote()) != _is_a_credit_note(md):
+        return False
     if not _document_text_matches(invoice, md):
         return False
     if not _named_custom_metadata_matches(invoice, md, KNOWN_INVOICE_METADATA_KEYS):
@@ -6728,6 +7164,14 @@ def _is_only_unpost_diff(invoice_or_bill, directive: 'PlaintextDirective',
     # the comparison since we already know those differ in the expected way.
     if invoice_or_bill.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
         return False
+    # Which way the document posts, as the two `*_non_payment_matches`
+    # comparisons read it. This path unposts and returns without rebuilding,
+    # so a flag it does not compare is a flag it never writes: a file saying
+    # "unpost this, and it is an ordinary invoice" was answered `updated`
+    # with the book still holding a credit note, and the next export
+    # contradicted the file just imported.
+    if bool(invoice_or_bill.GetIsCreditNote()) != _is_a_credit_note(md):
+        return False
     # Presence, and named keys only — the same rule the two
     # `*_non_payment_matches` comparisons keep, because this one decides
     # whether a `posted: none` edit can take the fast path that preserves the
@@ -6755,6 +7199,8 @@ def _bill_non_payment_matches(bill, directive: 'PlaintextDirective') -> bool:
     shape, uses the bill entry getters and AP account."""
     md = directive.metadata
     if bill.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
+        return False
+    if bool(bill.GetIsCreditNote()) != _is_a_credit_note(md):  # as an invoice
         return False
     if not _document_text_matches(bill, md):
         return False
@@ -7017,10 +7463,21 @@ class GnuCashImporter:
 
         commodity_table = book.get_table()
 
-        placeholder = directive.metadata.get('placeholder', False)
+        # Read as words, like every other flag a ledger carries. The exporter
+        # writes `#True`/`#False`, which `decode_value_from_string` knows; a
+        # person writes `true`/`false`, which it does not, so a bare `false`
+        # arrived as the *string* `'false'` and SWIG refused the account
+        # outright — "Python object passed to a gboolean argument was not
+        # True or False", with the account then missing from the book and
+        # everything naming it failing after it.
+        placeholder = _a_yes_or_no(
+            directive.metadata.get('placeholder', 'false'),
+            'placeholder', 'an open block')
         code = directive.metadata.get('code', "")
         description = directive.metadata.get('description', "")
-        tax_related = directive.metadata.get('tax_related', False)
+        tax_related = _a_yes_or_no(
+            directive.metadata.get('tax_related', 'false'),
+            'tax_related', 'an open block')
         namespace = directive.metadata['commodity.namespace']
         mnemonic = directive.metadata['commodity.mnemonic']
 
@@ -7197,7 +7654,8 @@ class GnuCashImporter:
             # un-close the books (the exporter emits `closing: #True` on
             # closing entries).
             _closing = directive.metadata.get('closing')
-            if _closing is not None and not _is_falsy(str(_closing)):
+            if _closing is not None and _a_yes_or_no(
+                    _closing, 'closing', 'a transaction block'):
                 xaccTransSetIsClosingTxn(transaction.instance, True)
 
             _restore_txn_type(transaction, directive)
@@ -7958,7 +8416,8 @@ class GnuCashImporter:
         # the file says nothing about it. Into a fresh book, which is what a
         # rebuild is, every owner starts active and the two agree.
         if 'active' in directive.metadata:
-            customer.SetActive(not _is_falsy(directive.metadata['active']))
+            customer.SetActive(_is_active(directive.metadata,
+                                          'a customer block'))
 
         _merge_custom_metadata(customer, directive.metadata,
                                KNOWN_CUSTOMER_METADATA_KEYS)
@@ -8005,7 +8464,7 @@ class GnuCashImporter:
         vendor.CommitEdit()
 
         if 'active' in directive.metadata:
-            vendor.SetActive(not _is_falsy(directive.metadata['active']))
+            vendor.SetActive(_is_active(directive.metadata, 'a vendor block'))
 
         _merge_custom_metadata(vendor, directive.metadata,
                                KNOWN_VENDOR_METADATA_KEYS)
@@ -8134,6 +8593,11 @@ class GnuCashImporter:
             migrated = _move_slot_keys_that_became_fields(
                 existing, KNOWN_INVOICE_METADATA_KEYS)
             if _invoice_matches_directive(existing, directive, book):
+                # Matching on every field it is compared by does not make the
+                # figures on the page right — they are derived, and nothing
+                # above reads them.
+                _refuse_figures_that_are_not_the_books(
+                    existing, directive, is_bill=False)
                 # `updated` where a slot key was moved onto its field: the
                 # document matches its file, and the book is not the book it
                 # was a moment ago. Reported `unchanged`, the run had nothing
@@ -8149,6 +8613,12 @@ class GnuCashImporter:
                     f"Invoice {inv_id}: only difference is posted→posted:none; "
                     f"minimal unpost (entry GUIDs preserved)"
                 )
+                # Checked here too: these two paths take a document whose
+                # lines the file agrees with and change one thing about it,
+                # so a page stating figures the book contradicts would go
+                # through on the strength of the payment it also appended.
+                _refuse_figures_that_are_not_the_books(
+                    existing, directive, is_bill=False)
                 require_cost_basis_unused(book, existing, 'invoice', inv_id)
                 _emit_orphan_warning_before_unpost(
                     existing, 'invoice', inv_id, on_orphan_warning)
@@ -8161,6 +8631,8 @@ class GnuCashImporter:
                     f"appended payment(s); applying incrementally (posting/entry/"
                     f"existing-payment GUIDs preserved)"
                 )
+                _refuse_figures_that_are_not_the_books(
+                    existing, directive, is_bill=False)
                 # `added_pays` arrives cash-before-credit from the classifier,
                 # so appending the two in one edit settles the invoice the way
                 # writing them into a fresh file does.
@@ -8202,17 +8674,20 @@ class GnuCashImporter:
                 old_entry.Destroy()
         invoice.BeginEdit()
         invoice.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
+        # Before the entries and well before the posting, which is what reads
+        # it: `gncInvoicePostToAccount` decides the splits' direction from
+        # the flag, so a document that becomes a credit note afterwards keeps
+        # an invoice's posting.
+        invoice.SetIsCreditNote(_is_a_credit_note(directive.metadata))
 
         if 'billing_id' in directive.metadata:
             invoice.SetBillingID(directive.metadata['billing_id'])
         if 'notes' in directive.metadata:
             invoice.SetNotes(directive.metadata['notes'])
 
-        entry_index = 0
         credit_blocks = []
         for entry_directive in directive.children:
             if entry_directive.type == DirectiveType.INVOICE_ENTRY:
-                entry_index += 1
                 # Everything that can refuse the line is resolved before the
                 # entry exists, so a refusal leaves no half-built `GncEntry`
                 # in an open edit, attached to nothing — the shape
@@ -8228,6 +8703,10 @@ class GnuCashImporter:
                         book, entry_directive.metadata['tax_table'],
                         'invoice', directive.props['id'])
                     if 'tax_table' in entry_directive.metadata else None)
+                # And these three: a discount that is not a number, a word
+                # GnuCash has no name for, and a key belonging to a bill.
+                inv_fields = _entry_fields_named(
+                    entry_directive.metadata, 'invoice')
 
                 entry = Entry(book)
                 entry.BeginEdit()
@@ -8243,42 +8722,20 @@ class GnuCashImporter:
                 entry.SetInvAccount(inv_acct)
                 entry.SetQuantity(string_to_gnc_numeric_quantity(entry_directive.metadata['quantity']))
                 entry.SetInvPrice(string_to_gnc_numeric_quantity(entry_directive.metadata['price']))
-                entry.SetInvTaxable(entry_directive.metadata['taxable'] == 'true')
-                entry.SetInvTaxIncluded(entry_directive.metadata['tax_included'] == 'true')
+                # `taxable:` and `tax_included:` are set with the rest of the
+                # fields below, having been read there as words rather than
+                # compared against the string `true`.
                 if inv_tax_table is not None:
                     entry.SetInvTaxTable(inv_tax_table)
+                _apply_entry_fields(entry, inv_fields, 'invoice')
                 invoice.AddEntry(entry)
                 entry.CommitEdit()
 
-                # Q-017: validate informational fields against recompute
-                # (entry_amount, entry_tax, and any `breakdown:` sub-blocks).
-                # Renderer emits these; if a user tampered with the rendered
-                # file before re-import, fail loudly here.
-                breakdown_declared = [
-                    dict(child.metadata.items())
-                    for child in entry_directive.children
-                    if child.type == DirectiveType.TAX_BREAKDOWN
-                ]
-                informational = {
-                    k: entry_directive.metadata[k]
-                    for k in ('entry_amount', 'entry_tax')
-                    if k in entry_directive.metadata
-                }
-                if informational or breakdown_declared:
-                    from infrastructure.gnucash.engine import (
-                        load_gnc_engine as _load,
-                    )
-                    from services.invoice_renderer import (
-                        validate_entry_informational,
-                    )
-                    validate_entry_informational(
-                        _load(), int(entry.instance),
-                        informational, breakdown_declared,
-                        entry_label=(
-                            f'invoice {directive.props["id"]!r} entry '
-                            f'#{entry_index}'
-                        ),
-                    )
+                # Q-017's informational fields — `entry_amount:`,
+                # `entry_tax:` and the `breakdown:` blocks — are checked once
+                # the document is whole, below: a line's tax is fitted to the
+                # document's, so what the page states cannot be judged while
+                # the lines after it do not exist yet.
             elif entry_directive.type == DirectiveType.POSTED:
                 ar_acct_name = entry_directive.metadata['ar_account']
                 ar_account = find_account(book.get_root_account(), ar_acct_name)
@@ -8290,7 +8747,13 @@ class GnuCashImporter:
                 post_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
                 due_date = datetime.strptime(entry_directive.metadata['due'], "%Y-%m-%d")
                 memo = entry_directive.metadata['memo']
-                accumulate = entry_directive.metadata['accumulate'] == 'true'
+                # Read as a word, as the entry flags are: compared against the
+                # string `true`, `accumulate: True` posted with its splits
+                # unaccumulated — one document answering the same spelling two
+                # ways on adjacent blocks.
+                accumulate = _a_yes_or_no(
+                    entry_directive.metadata['accumulate'], 'accumulate',
+                    'a posted block')
 
                 # If the directive links an existing tx as the posted tx
                 # (mirrors Q-016's payment `txn_guid:` linkage), attach
@@ -8334,8 +8797,7 @@ class GnuCashImporter:
                 # written above a cash block took the whole document and the
                 # cash below it landed as a prepayment nobody asked for. The
                 # file says the same thing whichever order it is written in.
-                if not _is_falsy(str(entry_directive.metadata.get(
-                        'from_credit', 'false'))):
+                if _paid_from_credit(entry_directive.metadata):
                     credit_blocks.append(entry_directive)
                 else:
                     _apply_payment_directive(invoice, entry_directive, book,
@@ -8351,7 +8813,7 @@ class GnuCashImporter:
         # remaining balance from existing credit. A `from_credit:` block does
         # not come through here: it names the credit to spend and divides
         # that one itself.
-        if not _is_falsy(str(directive.metadata.get('auto_apply_credit', 'false'))):
+        if _asks_for_credit(directive):
             if invoice.GetPostedTxn() is None:
                 raise Exception(
                     f'Invoice {inv_id}: auto_apply_credit requires a posted: '
@@ -8361,35 +8823,14 @@ class GnuCashImporter:
 
         invoice.CommitEdit()
 
-        # Q-017: invoice-level informational totals. Recompute by summing
-        # the entries' source-of-truth fields and compare against the
-        # declared totals. Renderer emits these; mismatch is an error.
-        declared_totals = {
-            k: directive.metadata[k]
-            for k in ('invoice_subtotal', 'invoice_tax_total', 'invoice_total')
-            if k in directive.metadata
-        }
-        if declared_totals:
-            from infrastructure.gnucash.engine import (
-                load_gnc_engine as _load,
-            )
-            from services.invoice_renderer import (
-                compute_entry_informational,
-                validate_invoice_informational,
-            )
-            _lib = _load()
-            subtotal = Fraction(0)
-            tax_total = Fraction(0)
-            for raw_entry in invoice.GetEntries():
-                amount, tax, _ = compute_entry_informational(
-                    _lib, int(raw_entry.instance)
-                )
-                subtotal += amount
-                tax_total += tax
-            validate_invoice_informational(
-                declared_totals, subtotal, tax_total,
-                invoice_label=f'invoice {directive.props["id"]!r}',
-            )
+        # Q-017: every figure the page states — each line's `entry_amount:`,
+        # `entry_tax:` and `breakdown:` blocks, and the three document totals
+        # — against the document that now exists. One call for the whole of
+        # it, because a line's tax is fitted to the document's and cannot be
+        # judged before its siblings exist. The same check runs on the paths
+        # that change nothing, where a stale page used to walk straight past.
+        _refuse_figures_that_are_not_the_books(invoice, directive,
+                                               is_bill=False)
 
         _merge_custom_metadata(invoice, directive.metadata,
                                KNOWN_INVOICE_METADATA_KEYS)
@@ -8448,6 +8889,9 @@ class GnuCashImporter:
             migrated = _move_slot_keys_that_became_fields(
                 existing, KNOWN_BILL_METADATA_KEYS)
             if _bill_matches_directive(existing, directive, book):
+                # As the invoice side, and for the same reason.
+                _refuse_figures_that_are_not_the_books(
+                    existing, directive, is_bill=True)
                 # As the invoice side: a migration is a change to save for.
                 if migrated:
                     logging.debug(f"Bill {bill_id}: slot keys migrated to fields")
@@ -8459,6 +8903,10 @@ class GnuCashImporter:
                     f"Bill {bill_id}: only difference is posted→posted:none; "
                     f"minimal unpost (entry GUIDs preserved)"
                 )
+                # As on the invoice side: a page changing one thing still has
+                # to state the figures the book holds for everything else.
+                _refuse_figures_that_are_not_the_books(
+                    existing, directive, is_bill=True)
                 require_cost_basis_unused(book, existing, 'bill', bill_id)
                 _emit_orphan_warning_before_unpost(
                     existing, 'bill', bill_id, on_orphan_warning)
@@ -8471,6 +8919,8 @@ class GnuCashImporter:
                     f"appended payment(s); applying incrementally (posting/entry/"
                     f"existing-payment GUIDs preserved)"
                 )
+                _refuse_figures_that_are_not_the_books(
+                    existing, directive, is_bill=True)
                 # Already cash-before-credit, as on the invoice side above.
                 for pay_dir in added_pays:
                     _apply_payment_directive(existing, pay_dir, book,
@@ -8510,6 +8960,8 @@ class GnuCashImporter:
                 old_entry.Destroy()
         bill.BeginEdit()
         bill.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
+        bill.SetIsCreditNote(   # before the posting, as the invoice sets it
+            _is_a_credit_note(directive.metadata))
 
         # As the invoice writes them. Read and compared but never written,
         # `notes:` went to the slot, `GetNotes()` stayed empty, and the
@@ -8536,24 +8988,37 @@ class GnuCashImporter:
                         book, entry_directive.metadata['tax_table'],
                         'bill', directive.props['id'])
                     if 'tax_table' in entry_directive.metadata else None)
+                # And these three: a word GnuCash has no name for, and a key
+                # belonging to an invoice.
+                bill_fields = _entry_fields_named(
+                    entry_directive.metadata, 'bill')
+                # Before `Entry(book)`, with the account and the tax table,
+                # so a chargeback customer the book has not got leaves no
+                # half-built entry behind.
+                billed_to = _the_customer_billed(
+                    book, bill_fields['billable_to'], directive.props['id'])
 
                 entry = Entry(book)
                 entry.BeginEdit()
                 entry.SetDate(datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d"))
                 entry.SetDescription(entry_directive.metadata['description'])
+                # One action field on a `GncEntry`, shown in the Action column
+                # of the bill window as well as the invoice window — measured
+                # on 5.10, `Material` written, saved and read back. Left
+                # unwritten for a long time on the belief that bills had none,
+                # which dropped it from every bill this tool imported.
+                entry.SetAction(entry_directive.metadata.get('action', ''))
                 entry.SetBillAccount(bill_acct)
                 entry.SetQuantity(string_to_gnc_numeric_quantity(entry_directive.metadata['quantity']))
                 entry.SetBillPrice(string_to_gnc_numeric_quantity(entry_directive.metadata['price']))
-                entry.SetBillTaxable(entry_directive.metadata['taxable'] == 'true')
-                # Mirror the invoice-side wiring (SetInvTaxIncluded): a bill
-                # entry's `tax_included: true` means the entered price already
-                # contains the tax, so GnuCash must back the net out at post
-                # time (net = gross / (1 + total_rate)). `tax_included` is
-                # optional on bill entries — default false (tax added on top).
-                entry.SetBillTaxIncluded(
-                    entry_directive.metadata.get('tax_included', 'false') == 'true')
+                # `taxable:` and `tax_included:` are set with the rest of the
+                # fields below. A bill entry's `tax_included: true` means the
+                # entered price already contains the tax, so GnuCash backs the
+                # net out at post time (net = gross / (1 + total_rate)); the
+                # key is optional here and defaults to false, tax on top.
                 if bill_tax_table is not None:
                     entry.SetBillTaxTable(bill_tax_table)
+                _apply_entry_fields(entry, bill_fields, 'bill', billed_to)
                 # `bill` is a Bill, so AddEntry dispatches to gncBillAddEntry,
                 # which sets the entry's bill-side owner pointer. GnuCash then
                 # persists the bill-side tax flags (b-taxable / b-taxincluded);
@@ -8561,6 +9026,14 @@ class GnuCashImporter:
                 # and over-tax the bill.
                 bill.AddEntry(entry)
                 entry.CommitEdit()
+
+                # `entry_amount:`, `entry_tax:` and the `breakdown:` blocks
+                # are checked below, once every line of the bill exists — a
+                # line's tax is fitted to the document's, so the page cannot
+                # be judged a line at a time. Nothing read them at all until
+                # now: a page printed by an earlier release, whose figures
+                # were quantity × price, re-imported reporting `unchanged`
+                # against a book that posts something else.
             elif entry_directive.type == DirectiveType.POSTED:
                 ap_acct_name = entry_directive.metadata['ap_account']
                 ap_account = find_account(book.get_root_account(), ap_acct_name)
@@ -8572,7 +9045,9 @@ class GnuCashImporter:
                 post_date = datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d")
                 due_date = datetime.strptime(entry_directive.metadata['due'], "%Y-%m-%d")
                 memo = entry_directive.metadata['memo']
-                accumulate = entry_directive.metadata['accumulate'] == 'true'
+                accumulate = _a_yes_or_no(   # a word, as on the invoice side
+                    entry_directive.metadata['accumulate'], 'accumulate',
+                    'a posted block')
 
                 declared_posted_guid = entry_directive.metadata.get('posted_txn_guid')
                 linked_tx = None
@@ -8605,8 +9080,7 @@ class GnuCashImporter:
                         record_cost_bases(book, posting_txn)
             elif entry_directive.type == DirectiveType.PAYMENT:
                 # After the cash, for the reason given on the invoice side.
-                if not _is_falsy(str(entry_directive.metadata.get(
-                        'from_credit', 'false'))):
+                if _paid_from_credit(entry_directive.metadata):
                     credit_blocks.append(entry_directive)
                 else:
                     _apply_payment_directive(bill, entry_directive, book,
@@ -8619,8 +9093,7 @@ class GnuCashImporter:
         # Q-015: symmetric to the invoice side — consume vendor credit lots.
         # A `from_credit:` block does not come through here: it names the
         # credit to spend and divides that one itself.
-        if not _is_falsy(
-                str(directive.metadata.get('auto_apply_credit', 'false'))):
+        if _asks_for_credit(directive):
             if bill.GetPostedTxn() is None:
                 raise Exception(
                     f'Bill {bill_id}: auto_apply_credit requires a posted: '
@@ -8633,6 +9106,12 @@ class GnuCashImporter:
             _apply_owner_credit(bill)
 
         bill.CommitEdit()
+
+        # Every figure the page states, as on the invoice side. Unread until
+        # now: a page saying `bill_total: 300.00` imported quietly against an
+        # A/P split of 300.01.
+        _refuse_figures_that_are_not_the_books(bill, directive, is_bill=True)
+
         _merge_custom_metadata(bill, directive.metadata,
                                KNOWN_BILL_METADATA_KEYS)
         logging.debug(
