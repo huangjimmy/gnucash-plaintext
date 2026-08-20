@@ -81,6 +81,73 @@ def test_the_refusal_can_be_forced(tmp_path):
     assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
 
 
+def test_a_mistyped_override_is_refused_by_name(tmp_path):
+    """As every other flag in a ledger is. Compared against a list of the
+    truthy spellings, `cost_basis_force: treu` was silently *not* forced —
+    and the sale then failed with the unpaid-receivable message, which tells
+    its author to add the key they had just added."""
+    runner = CliRunner()
+    book, basis = _unpaid_invoice_book(runner, tmp_path)
+    sale = Path(_sale_against(tmp_path, basis, forced=True,
+                              name='mistyped.txt'))
+    sale.write_text(sale.read_text().replace('cost_basis_force: true',
+                                             'cost_basis_force: treu'))
+
+    result = _run(runner, 'import', str(book), str(sale))
+
+    message = result.output + str(result.exception)
+    assert 'cost_basis_force' in message, message
+    assert 'neither true nor false' in message, message
+    assert 'unpaid receivable' not in message, message
+
+
+def test_a_mistyped_override_is_named_even_where_it_would_change_nothing(
+        tmp_path):
+    """The flag is read before every reason this check has to return early —
+    a settled lot, a payable, an overpayment — so a typo is named wherever a
+    file states it. Read where it is used, the same typo was refused on a
+    sale against an unpaid invoice and ignored on a sale against a paid one,
+    which is the reader learning the rule from whichever sale they wrote
+    first."""
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    assert _run(runner, 'import', '--new', str(book),
+                'tests/fixtures/fx_invoice_usd_paid_from_usd_bank.txt',
+                '--include-business-objects', '--fx-rates',
+                RATES).exit_code == 0
+    basis = re.search(r'\b([0-9a-f]{32})\b', _balances(runner, book)).group(1)
+    sale = Path(_sale_against(tmp_path, basis, forced=True, name='paid.txt'))
+    sale.write_text(sale.read_text().replace('cost_basis_force: true',
+                                             'cost_basis_force: treu'))
+
+    result = _run(runner, 'import', str(book), str(sale))
+
+    message = result.output + str(result.exception)
+    assert 'cost_basis_force' in message, message
+    assert 'neither true nor false' in message, message
+
+
+def test_the_override_takes_every_spelling_of_true(tmp_path):
+    """The other half of making it strict: a key that stopped accepting what
+    it always accepted would be worse than the typo it now catches."""
+    for spelling in ('True', '1', 'yes'):
+        runner = CliRunner()
+        # A book of its own per spelling: `import --new` will not write over
+        # one already there.
+        where = tmp_path / spelling
+        where.mkdir()
+        book, basis = _unpaid_invoice_book(runner, where)
+        sale = Path(_sale_against(where, basis, forced=True,
+                                  name=f'{spelling}.txt'))
+        sale.write_text(sale.read_text().replace(
+            'cost_basis_force: true', f'cost_basis_force: {spelling}'))
+
+        result = _run(runner, 'import', str(book), str(sale))
+
+        assert result.exit_code == 0, f'{spelling}: {result.output}'
+        assert 'error:' not in result.output, f'{spelling}: {result.output}'
+
+
 def test_selling_is_allowed_once_the_invoice_is_paid(tmp_path):
     """Paid into a USD bank: the money is in hand, the lot is closed, and the
     basis is sellable with no override."""

@@ -36,13 +36,120 @@ the right answer for a figure that is genuinely not in the document.
 
 from fractions import Fraction
 
+from infrastructure.gnucash.engine import safe_ctypes_string
+from infrastructure.gnucash.entry_fields import (
+    billable_to,
+    discount_how_word,
+    discount_type_word,
+    payment_word,
+)
 from infrastructure.gnucash.kvp import get_custom_metadata, held_value
 from infrastructure.gnucash.utils import (
+    encode_value_as_string,
+    exact_text,
     format_amount_for_commodity,
     money_text,
     numeric_to_fraction,
 )
 from services.plaintext_addresses import LEGACY_ADDRESS_KEYS, address_key
+
+
+def entry_notes(lib, entry_ptr) -> list:
+    """The note an entry carries of its own, beside the document's `notes:`.
+
+    Written whether or not there is one, like every other field of an entry:
+    an export says what the book holds, and a reader comparing a ledger
+    against GnuCash's window should not have to know that a missing line
+    means an empty note. An empty one reads back as empty, so the round trip
+    is the same either way.
+
+    Escaped, because the reader unescapes: `decode_value_from_string` runs
+    `unescape_string` on every quoted value, turning an escaped quote into a
+    quote and a doubled backslash into one. Written raw, a note holding
+    either came back shorter than it went out, and the comparison that
+    decides `unchanged` reads this same field — so such a document never
+    matched, and each import unposted it, destroyed and rebuilt its entries
+    and posted it again under a new transaction, on every run.
+    """
+    note = safe_ctypes_string(lib.gncEntryGetNotes, entry_ptr) or ''
+    return [f'\t\tnotes: {encode_value_as_string(note)}']
+
+
+def entry_discount(lib, raw_entry, entry_ptr) -> list:
+    """The discount on an invoice line: the figure and its two choices.
+
+    The figure alone says nothing — 10 off and 10 per cent off are different
+    documents — so `discount_type:` says which it is and `discount_how:` says
+    whether it lands before tax, after it, or at the same time. Written in
+    GnuCash's own words, from `infrastructure/gnucash/entry_fields`, which are
+    the words its XML file holds.
+
+    All three are written, a line with no discount included: what GnuCash
+    holds for an untouched entry is `0`, `percent` and `pretax` — measured on
+    5.10 — and an export states them rather than leaving a reader to know
+    that. The two words are only meaningful beside a non-zero figure, and
+    saying them costs nothing when the figure is zero.
+
+    A bill line has none: GnuCash's bill window has no discount column, and
+    the engine's discount accessors are the invoice side's.
+    """
+    amount = lib.gncEntryGetInvDiscount(entry_ptr)
+    figure = numeric_to_fraction(amount) if amount.denom else 0
+
+    # A word each, always. Zero is not a value either enum takes, and GnuCash
+    # rewrites it to `percent` / `pretax` on save — which is what an unnamed
+    # key imports as too, so `discount_type_word` answers with that rather
+    # than nothing. Leaving the line out for a zero would omit the key in the
+    # one case where the reader supplies a different value, and the next
+    # import of this export would then rebuild the document: unposting a
+    # posted one and replacing its posting transaction, on every run.
+    return [
+        f'\t\tdiscount: {exact_text(figure)}',
+        f'\t\tdiscount_type: {discount_type_word(raw_entry.GetInvDiscountType())}',
+        f'\t\tdiscount_how: {discount_how_word(raw_entry.GetInvDiscountHow())}',
+    ]
+
+
+def bill_entry_flags(lib, entry_ptr) -> list:
+    """`billable:`, `billable_to:` and `payment_type:` — the bill's columns.
+
+    A line marked billable is re-billed to a customer, `billable_to:` names
+    which one, and the payment type says whether that shows as cash or on a
+    card. All three survive a save — measured on 3.8 and 5.10 — so a ledger
+    without them describes a bill the book does not hold.
+
+    All three are written whatever they hold. GnuCash's own defaults for an
+    untouched bill line are `false`, nobody and `cash` — measured on 5.10 —
+    and an export states them, so a ledger says what the bill window shows
+    rather than leaving a reader to know which absent line means which
+    default.
+    """
+    billable = bool(lib.gncEntryGetBillable(entry_ptr))
+    # A line charged back to one of the customer's *jobs* — GnuCash's other
+    # chargeback target — is refused here rather than written as the customer
+    # behind it, which would come back as a customer chargeback and quietly
+    # change the book. Refused where the line is known, because an export
+    # writes a whole book and "a line somewhere" is not something a reader
+    # can go and find; the document around it is named by the caller.
+    customer, other_owner = billable_to(lib, entry_ptr)
+    if other_owner:
+        from use_cases.export_transactions import UnwritableFigureError
+
+        line = safe_ctypes_string(lib.gncEntryGetDescription, entry_ptr) or ''
+        raise UnwritableFigureError(
+            f'the line {line!r} is billable to {other_owner!r}, which is a '
+            f'job — this format states a customer, and there is no key for a '
+            f'job. Writing the customer behind it would come back as a '
+            f'different chargeback than the book holds, so nothing is '
+            f'written. Change the line\'s chargeback to the customer itself '
+            f'in GnuCash, and it exports and prints like any other')
+    # `cash` for a value the engine has no word for, as the import reads an
+    # unnamed key: omitting the line where the reader supplies a value is how
+    # an export of a book comes back as a different book.
+    return [f'\t\tbillable: {encode_value_as_string(billable)}',
+            f'\t\tbillable_to: {encode_value_as_string(customer)}',
+            f'\t\tpayment_type: '
+            f'{payment_word(lib.gncEntryGetBillPayment(entry_ptr))}']
 
 
 def owner_block_lines(kind: str, owner, known_keys, with_guid: bool = False,
@@ -71,10 +178,10 @@ def owner_block_lines(kind: str, owner, known_keys, with_guid: bool = False,
     lines = [f'{kind} "{owner.GetID()}"']
     if with_guid:
         lines.append(f'\tguid: "{owner.GetGUID().to_string()}"')
-    lines.append(f'\tname: "{owner.GetName()}"')
+    lines.append(f'\tname: {encode_value_as_string(owner.GetName())}')
     lines.append(f'\tcurrency: {owner.GetCurrency().get_mnemonic()}')
     if not owner.GetActive():
-        lines.append('\tactive: false')
+        lines.append('\tactive: #False')
 
     for index, value in enumerate((addr.GetAddr1(), addr.GetAddr2(),
                                    addr.GetAddr3(), addr.GetAddr4())):
@@ -83,15 +190,16 @@ def owner_block_lines(kind: str, owner, known_keys, with_guid: bool = False,
         # is the one a book old enough to have the address there wrote.
         value = held_value(owner, value, LEGACY_ADDRESS_KEYS[index], held)
         if value:
-            lines.append(f'\t{address_key(index)}: "{value}"')
+            lines.append(
+                f'\t{address_key(index)}: {encode_value_as_string(value)}')
     email = held_value(owner, addr.GetEmail(), 'email', held)
     if email:
-        lines.append(f'\temail: "{email}"')
+        lines.append(f'\temail: {encode_value_as_string(email)}')
 
     if with_custom_keys:
         for key, value in sorted(held.items()):
             if key not in known_keys:
-                lines.append(f'\t{key}: "{value}"')
+                lines.append(f'\t{key}: {encode_value_as_string(value)}')
     return lines
 
 
@@ -103,13 +211,17 @@ def document_text_lines(document):
     its own importer cannot match: the document is rebuilt on every run, which
     for a posted one means unposting it — destroying the posting transaction
     and orphaning its payments — and posting it again.
+
+    Escaped for the reason `entry_notes` is: the reader unescapes every
+    quoted value, so a note or a billing id holding a quote or a backslash
+    came back changed and the document never compared `unchanged`.
     """
     lines = []
     for key, value in (('billing_id', document.GetBillingID()),
                        ('notes', document.GetNotes())):
         value = held_value(document, value, key)
         if value:
-            lines.append(f'\t{key}: "{value}"')
+            lines.append(f'\t{key}: {encode_value_as_string(value)}')
     return lines
 
 
@@ -132,10 +244,10 @@ def posted_block_lines(document, account_key: str, account_name: str):
         '\tposted:',
         f'\t\tdate: {document.GetDatePosted().strftime("%Y-%m-%d")}',
         f'\t\tdue: {document.GetDateDue().strftime("%Y-%m-%d")}',
-        f'\t\t{account_key}: "{account_name}"',
-        f'\t\tmemo: "{posting.GetDescription()}"',
+        f'\t\t{account_key}: {encode_value_as_string(account_name)}',
+        f'\t\tmemo: {encode_value_as_string(posting.GetDescription())}',
         f'\t\tposted_txn_guid: "{posting.GetGUID().to_string()}"',
-        '\t\taccumulate: true',
+        '\t\taccumulate: #True',
     ]
 
 
@@ -267,9 +379,9 @@ def payment_block_lines(transaction, in_lot_split, bank_account: str,
         return [
             '\tpayment:',
             f'\t\tamount: {payment_amount_text(in_lot_split, where)}',
-            '\t\tfrom_credit: true',
+            '\t\tfrom_credit: #True',
             f'\t\tcredit_dated: {transaction.GetDate().strftime("%Y-%m-%d")}',
-            f'\t\tmemo: "{in_lot_split.GetMemo() or ""}"',
+            f'\t\tmemo: {encode_value_as_string(in_lot_split.GetMemo() or "")}',
             f'\t\ttxn_guid: "{transaction.GetGUID().to_string()}"',
             f'\t\ttxn_split_guid: "{in_lot_split.GetGUID().to_string()}"',
         ]
@@ -277,15 +389,15 @@ def payment_block_lines(transaction, in_lot_split, bank_account: str,
         '\tpayment:',
         f'\t\tdate: {transaction.GetDate().strftime("%Y-%m-%d")}',
         f'\t\tamount: {payment_amount_text(in_lot_split, where)}',
-        f'\t\tbank_account: "{bank_account}"',
-        f'\t\tmemo: "{memo}"',
+        f'\t\tbank_account: {encode_value_as_string(bank_account)}',
+        f'\t\tmemo: {encode_value_as_string(memo)}',
     ]
     # The cheque number, where the payment carries one. The export wrote it
     # and the printed block did not, so a document read into a fresh book —
     # where the guids name nothing and the payment is made from the block —
     # lost it.
     if num:
-        lines.append(f'\t\tnum: "{num}"')
+        lines.append(f'\t\tnum: {encode_value_as_string(num)}')
     lines += [
         f'\t\ttxn_guid: "{transaction.GetGUID().to_string()}"',
         f'\t\ttxn_split_guid: "{in_lot_split.GetGUID().to_string()}"',

@@ -92,7 +92,7 @@ def test_active_flag_roundtrip_customer(tmp_path):
     exported = export_biz(runner, gf)
     # Customer "2" is inactive in the fixture
     assert 'customer "2"' in exported
-    assert '	active: false' in exported
+    assert '	active: #False' in exported
 
 
 def test_active_flag_roundtrip_vendor(tmp_path):
@@ -102,7 +102,7 @@ def test_active_flag_roundtrip_vendor(tmp_path):
     import_fixture(runner, gf)
     exported = export_biz(runner, gf)
     assert 'vendor "V002"' in exported
-    assert '	active: false' in exported
+    assert '	active: #False' in exported
 
 
 def test_active_customer_has_no_active_field(tmp_path):
@@ -250,7 +250,7 @@ def test_archive_customer_active_no_invoices(tmp_path):
             in_cust1 = True
         elif in_cust1 and line and line[0:1] not in (' ', '\t'):
             break
-        elif in_cust1 and 'active: false' in line:
+        elif in_cust1 and 'active: #False' in line:
             found_active_false = True
     assert found_active_false, "Archived customer must have active: false in export"
 
@@ -327,7 +327,7 @@ def test_archive_vendor_with_bills(tmp_path):
             in_v001 = True
         elif in_v001 and line and line[0:1] not in (' ', '\t'):
             break
-        elif in_v001 and 'active: false' in line:
+        elif in_v001 and 'active: #False' in line:
             found_active_false = True
     assert found_active_false, "Archived vendor must have active: false in export"
 
@@ -484,7 +484,7 @@ def test_archive_customer_by_guid_active(tmp_path):
     exported = export_biz(runner, gf)
     # Customer "1" still present, just inactive
     assert 'customer "1"' in exported
-    assert "active: false" in exported
+    assert "active: #False" in exported
 
 
 def test_archive_customer_by_guid_not_found(tmp_path):

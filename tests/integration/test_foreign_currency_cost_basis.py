@@ -726,7 +726,7 @@ def test_an_overpayment_retargeted_into_the_lot_opens_the_credits_basis(tmp_path
     # than out of a bank.
     exported = _export_text(runner, book, tmp_path / 'out.txt')
     second_block = exported.split('invoice "INV-USD-SECOND"')[1]
-    assert 'from_credit: true' in second_block, second_block
+    assert 'from_credit: #True' in second_block, second_block
     assert 'bank_account:' not in second_block.split('payment:')[1], second_block
 
 
@@ -795,7 +795,7 @@ def test_a_bare_retarget_dividing_a_credit_carries_its_cost(tmp_path):
     # cost — 1.4, not the 1.37 this invoice was raised at.
     exported = _export_text(runner, book, tmp_path / 'out.txt')
     block = exported.split('invoice "INV-USD-THIRD"')[1]
-    assert 'from_credit: true' in block, block
+    assert 'from_credit: #True' in block, block
 
     # The row for the deposit is what the division left: 60.00 still owed
     # back, at the 1.4 it arrived at. INV-USD-THIRD's own 1.37 row beneath it
@@ -906,7 +906,7 @@ def test_naming_a_credits_split_by_guid_spends_it_like_any_other(tmp_path):
     # Recorded as what it was: a credit spent, not a bank payment.
     after = _export_text(runner, book, tmp_path / 'out.txt')
     block = after.split('invoice "INV-USD-NAMED"')[1]
-    assert 'from_credit: true' in block, block
+    assert 'from_credit: #True' in block, block
 
     # And spent, so the credit is no longer currency the book holds — the same
     # answer the bare spelling gives on the same move.
@@ -1809,7 +1809,7 @@ def test_a_bill_spending_a_parked_vendor_claim_records_it_as_credit(tmp_path):
 
     exported = _export_text(runner, book, tmp_path / 'out.txt')
     block = exported.split('bill "BILL-USD-SECOND"')[1]
-    assert 'from_credit: true' in block, block
+    assert 'from_credit: #True' in block, block
     assert 'bank_account:' not in block.split('payment:')[1], block
 
     # The claim was spent, so it is no longer currency the book is owed, and

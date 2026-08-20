@@ -111,7 +111,7 @@ def test_a_credit_reads_the_same_on_either_side_of_the_day_it_arrived(tmp_path):
                            ('bill "BILL-SAME"', '20.00'),
                            ('bill "BILL-AFTER"', '30.00')):
         block = _block(exported, header)
-        assert 'from_credit: true' in block, block
+        assert 'from_credit: #True' in block, block
         assert f'amount: {amount}' in block, block
         assert 'credit_dated: 2026-01-10' in block, block
         assert 'bank_account:' not in block, block

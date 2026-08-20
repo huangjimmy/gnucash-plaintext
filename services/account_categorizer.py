@@ -333,34 +333,6 @@ class AccountCategorizer:
         visit(root_account)
         return placeholders
 
-    def is_balanced_transaction(
-        self,
-        splits: List,
-        tolerance_numerator: int = 0
-    ) -> bool:
-        """
-        Check if splits balance (sum to zero).
-
-        Args:
-            splits: List of Split objects
-            tolerance_numerator: Tolerance for rounding (default 0 = exact)
-
-        Returns:
-            True if balanced within tolerance
-        """
-        if not splits:
-            return True
-
-        # Sum all split values
-        total_num = 0
-
-        for split in splits:
-            value = split.GetValue()
-            total_num += value.num()
-
-        # Check if within tolerance
-        return abs(total_num) <= tolerance_numerator
-
     def categorize_split_accounts(
         self,
         splits: List

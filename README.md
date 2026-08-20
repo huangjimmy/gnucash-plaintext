@@ -385,6 +385,15 @@ customers and vendors, invoices and bills:
 | `key: ""` | clear the field — and for a custom key, remove it |
 | *(the line is absent)* | say nothing: the book keeps what it has |
 
+**What a quoted value may hold.** Four characters are written with a backslash before
+them: `\"` for a quote, `\\` for a backslash, `\n` for a newline and `\r` for a
+carriage return. The first two would otherwise change the value — a line is read from
+its first quote to its last, and the reader undoes escapes — and the last two would
+break the *block*, since the reader takes one key per line and a raw newline would
+offer the rest of the value to the parser as a key of its own. So a value may hold a
+newline, and the line it is written on stays one line. A backslash before anything
+else is left as it is, both characters kept.
+
 **`open` is the exception, and it is not a partial-update rule at all.** An `open`
 for an account the book already has is a no-op: the account is found by name and the
 block is skipped whole, so neither `description: "…"` nor `description: ""` nor any
@@ -411,6 +420,25 @@ splits — are different, and deliberately: the block is the whole truth about t
 removing a line removes it from the book. A block with **no** lines at all is refused
 rather than obeyed, because a file cut short by a failed write looks exactly like one
 that meant it.
+
+**`credit_note:` is the one key on a document block that the table above does not
+hold for.** It says which direction the document posts, and there is no third state
+between an invoice and a credit note — so a block that leaves it out is an ordinary
+invoice or bill, and a block on a credit note that leaves it out turns it into one.
+That is a difference the comparison reports and the re-import acts on, unlike every
+other unnamed key. It matters most for a ledger written before this release, which
+names the key nowhere: re-importing one flips every credit note in it to an ordinary
+document and reposts it the other way round. Export with this release first.
+
+**An `entry:` line carries that same rule down to its keys**, which is the other
+place the table does not hold. A re-imported invoice or bill has its entries
+destroyed and rebuilt from the blocks, an entry having no identity in a ledger to
+patch, so a key the line does not name has nothing to leave alone: it means the value
+GnuCash gives a fresh entry — an empty note, no discount, `percent`, `pretax`, not
+billable, `cash`, and an empty `action:`. Editing one field of a line means writing
+the rest of that line too, and an export writes every key for exactly that reason.
+The keys and their defaults are listed under
+[Print an invoice](#print-an-invoice-pdf-html-or-plaintext).
 
 #### Reserved fields per object type
 
@@ -475,9 +503,9 @@ that meant it.
 
 #### An address
 
-An address is a list of lines, and a value in this format is one line — there is no
-escape for a newline, and a quoted value does not span lines. So each line is its own
-key, with the line's number in brackets, counting from zero:
+An address is a list, and a list is written one line per key, with the line's number
+in brackets, counting from zero. How many lines there are depends on whose address it
+is — see below — but the syntax is the same either way:
 
 ```
 customer "C-001"
@@ -1120,9 +1148,12 @@ bill "BILL-2026-001"
     memo: "Payment for BILL-2026-001"
 ```
 
-> **Note:** GnuCash does not persist `taxable: false` for bill entries — the
-> field is omitted in the XML file and defaults to `true` on reload. Exported
-> bills therefore always show `taxable: true` regardless of what was imported.
+A bill entry's `taxable:` round-trips as written, `false` included. It once
+did not, and the cause was this project's: a vendor bill was handled with the
+customer-invoice class, so the entry carried an invoice pointer and GnuCash
+writes the bill-side flags only for an entry that has a bill. Handled as a
+`Bill`, both flags survive a save — `tests/fixtures/business_objects_only.txt`
+is an export carrying `taxable: false` on every bill entry in it.
 
 #### Your own company info: the `company` directive
 
@@ -2084,7 +2115,7 @@ Output composition is `-o file.ext` (single combined file), `-o dir/` (one file 
 
 An id that is unique and holds no separator — which is nearly all of them — names its file exactly as it always did.
 
-**Plaintext format (Q-017)**: `--format plaintext` emits the same canonical plaintext syntax used by `export`, populated with **informational** totals — `entry_amount` and `entry_tax` per line, repeatable `breakdown:` sub-blocks showing which tax account got which dollar (audit-friendly for combined HST = GST + PST), and invoice-level `invoice_subtotal`, `invoice_tax_total`, `invoice_total`. The exporter never emits these (round-trip stays minimal); the renderer does. On re-import the values are recomputed from the source-of-truth fields (`quantity × price × tax_table`) and the importer errors loudly on any mismatch — so you get tamper detection automatically when sharing rendered plaintext files. Draft (unposted) invoices emit only `invoice_subtotal` since per-entry tax requires posting.
+**Plaintext format (Q-017)**: `--format plaintext` emits the same canonical plaintext syntax used by `export`, populated with **informational** totals — `entry_amount` and `entry_tax` per line, repeatable `breakdown:` sub-blocks showing which tax account got which dollar (audit-friendly for combined HST = GST + PST), and invoice-level `invoice_subtotal`, `invoice_tax_total`, `invoice_total`. The exporter never emits these (round-trip stays minimal); the renderer does. On re-import every one of them is asked of GnuCash again — what it makes the line worth and what it makes the document worth — and a page whose figures are not the book's is refused, naming the field and both numbers. So a rendered plaintext file carries its own tamper detection. A draft carries all three totals too: they are computed from the entries, so an unposted document has them before it has splits.
 
 **Free text of your own, without a template of your own.** GnuCash's page has no row for two things people want on a document, so two rows are added to it and nothing else:
 
@@ -2093,7 +2124,7 @@ An id that is unique and holds no separator — which is nearly all of them — 
 
 The report builds its page in Scheme and has no template file to edit, so these go in as one more row of the block they belong beside — added to what GnuCash drew, never woven into how it draws it.
 
-One key is one printed line, for the reason an [address](#an-address) is written a line per key: a value here is one line, and there is no escape for a newline. These are ordinary custom keys rather than a reserved list, so they are numbered from one without brackets — the brackets on an address mark a key the format itself owns. They print exactly as written; nothing is interpreted, so "a different website for wholesale customers" is something you write on the customer rather than a template you maintain:
+One key is one row of the block, so another line means another key. These are ordinary custom keys rather than a reserved list, so they are numbered from one without brackets — the brackets on an address mark a key the format itself owns. They print exactly as written; nothing is interpreted, so "a different website for wholesale customers" is something you write on the customer rather than a template you maintain:
 
 ```
 company
@@ -2154,7 +2185,59 @@ In rising order of effort:
 
 So a field this format carries that GnuCash's page has no row for — an unposted document's `due_date:` is the one such case — prints only if your own report prints it. It round-trips through the ledger either way.
 
-**The `action:` field on invoice entries** is optional. Omitting the line is equivalent to `action: ""` — the entry's action is set to empty. If you want to preserve a non-empty action (e.g. "Hours") across re-imports, you must include `action: "Hours"` in the directive every time; the importer treats each entry directive as the full source of truth, not a partial patch.
+**The `action:` field** is optional, on an invoice entry and on a bill entry alike — one entry field, shown in the Action column of both windows. Omitting the line is equivalent to `action: ""` — the entry's action is set to empty. To keep a non-empty action such as `Hours` across re-imports, name it every time; an entry block is the full source of truth for its line, not a partial patch, for the reason given below the table.
+
+**Every other column those windows have**, optional in a file and always written by an export:
+
+| key | where | what it is |
+|---|---|---|
+| `notes: "…"` | invoice, bill | the note on that line, beside the document's own `notes:` |
+| `discount: 10` | invoice | the discount figure |
+| `discount_type: percent \| value` | invoice | whether that figure is a percentage or an amount |
+| `discount_how: pretax \| sametime \| posttax` | invoice | where the discount falls relative to tax |
+| `billable: true` | bill | the line is to be re-billed to a customer |
+| `billable_to: "C001"` | bill | which customer — GnuCash's chargeback project |
+| `payment_type: cash \| card` | bill | how a billable line was paid |
+
+A file naming none of them still imports: an entry GnuCash has never been asked about holds an empty note, no discount, `percent`, `pretax`, not billable, billable to nobody and `cash`, and those are what an entry written without the keys gets. An export states every one of them rather than leaving them out, so a ledger says what the invoice window and the bill window show, and a reader does not have to know which absent line stands for which default.
+
+`billable_to:` takes a customer id — the same one a `customer` block declares — and an id the book has not got is refused by name rather than dropped. `billable_to: ""` is a line billable to nobody, which is what an untouched line holds. GnuCash also lets a line be charged back to one of that customer's **jobs**, and this format has no key for a job: a book holding one is refused by `export --include-business-objects` and by `print-bill --format plaintext`, naming the line, because writing the customer behind the job would read back as a customer chargeback and quietly change the book.
+
+**A flag is written `#True` or `#False`** — the same `#` that marks `#None` and `#3/4`, and the only spelling that is actually a boolean. A bare `true` is the *string* `"true"`, which is why `taxable: True` once read as false and `placeholder: false` once killed the account it was on. Every writer here spells every flag that way, and there is a test over a real export that says so.
+
+**Reading is looser, because a person writes by hand**: `true`, `1` or `yes`, and `false`, `0` or `no`, in any case, are all read as the flag they look like, so a ledger written by hand or by an earlier release imports unchanged. Any *other* word is refused, naming the key and both sets of spellings, rather than read as one or the other — `taxable: treu` is a typo a document keeps no trace of otherwise, since it decides the line's tax, every `breakdown:` block and the three totals, so a page printed afterwards agrees with itself and re-imports against a book that dropped the tax.
+
+The flags are `taxable:`, `tax_included:` and `billable:` on an `entry:`, `accumulate:` on a `posted:` block, `credit_note:` and `auto_apply_credit:` on a document, `from_credit:` on a payment, `active:` on a customer or vendor, `closing:` on a transaction, `placeholder:` and `tax_related:` on an `open` block, and `cost_basis_force:` on a split.
+
+**An `entry:` block describes the whole line**, which is the one place this format departs from "an absent key says nothing" — and it applies to every key of the block, `action:` included. An entry has no identity of its own in a ledger, so re-importing a document destroys its entries and rebuilds them from the blocks: there is no entry left for an unnamed key to say nothing about. An unnamed key therefore means the default above, and the comparison that decides `unchanged` reads those same defaults, so a book that differs from them is reported rather than silently kept. Editing one field of a line means writing the rest of that line too — which is what an exported ledger already carries.
+
+A key belonging to the other kind of document is refused rather than passed over: `discount:` on a bill entry names a column GnuCash's bill window has not got, and would otherwise be read by nothing, stored nowhere, and reported as `unchanged` on every later run.
+
+The words are GnuCash's own — they are what it writes in its file — and a word outside those lists is refused by name rather than imported as something else. A discount needs all three keys to mean one thing: 10 off and 10 per cent off are different documents, and the same 10 per cent lands differently either side of tax.
+
+The bill key is `payment_type:` and not `payment:` because a bill block already carries `payment:` blocks, each one a payment made against the bill. `payment_type:` sits on an `entry:` and says how that single line was paid.
+
+A bill has no discount: GnuCash's bill window has no such column.
+
+**A credit note is `credit_note: true` on the block**, and everything else about it reads as any other document's. GnuCash's Business → New Credit Note makes one — a `gncInvoice` with a flag, storing its lines negated:
+
+```
+invoice "CN-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-03-05
+	credit_note: true
+	entry:
+		date: 2026-03-05
+		description: "Two days of work, returned"
+		account: "Income:Sales"
+		quantity: -2
+		price: 100
+```
+
+Measured on 5.10: that document's own totals answer **+200.00**, and it posts `Income:Sales` +200.00 against the receivable −200.00 — the mirror of the invoice it reverses. So the quantities a ledger states are the ones the book holds either way, a printed page states the same positive figures a person sees in the window, and this one key is the whole of the difference. It is written first on the block because it is what the rest of the block means: the same lines and the same accounts post the other way round.
+
+A block that leaves the key out is an ordinary invoice or bill, which is what every ledger written before it said. A vendor credit note is the same key on a `bill` block. `print-invoice`/`print-bill` draw one in every format, and `export --include-business-objects` writes it like any other document.
 
 **Back-compat**: the original `--invoice-id <ID>` flag is still accepted and behaves as a single-value alias for a positional ID.
 

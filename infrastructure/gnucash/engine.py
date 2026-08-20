@@ -48,6 +48,15 @@ class GncNumericC(ctypes.Structure):
     _fields_ = [('num', ctypes.c_int64), ('denom', ctypes.c_int64)]
 
 
+class GncAccountValueC(ctypes.Structure):
+    """Mirrors the C GncAccountValue: {Account *account, gnc_numeric value}.
+
+    What `gncEntryGetDocTaxValues` hands back, one per account a line's tax
+    reaches — the same figures its posting splits carry.
+    """
+    _fields_ = [('account', ctypes.c_void_p), ('value', GncNumericC)]
+
+
 class GList(ctypes.Structure):
     """GLib GList structure for safe traversal of lists returned by GnuCash C functions.
 
@@ -143,6 +152,23 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncEntryGetBillTaxable',
             'gncEntryGetBillTaxIncluded',
             'gncEntryGetBillTaxTable',
+            # The fields an entry carries beyond the eight this format used
+            # to write, and what GnuCash makes a line and a document worth.
+            'gncEntryGetNotes',
+            'gncEntryGetInvDiscount',
+            'gncEntryGetBillable',
+            'gncEntryGetBillPayment',
+            'gncEntryGetBillTo',
+            'gncEntrySetBillTo',
+            'gncOwnerNew',
+            'gncOwnerFree',
+            'gncEntryGetDocValue',
+            'gncEntryGetDocTaxValue',
+            'gncEntryGetDocTaxValues',
+            'gncAccountValueDestroy',
+            'gncInvoiceGetTotal',
+            'gncInvoiceGetTotalSubtotal',
+            'gncInvoiceGetTotalTax',
             # Whose money a payment split is. A payment block reaches a split
             # by guid, and without these there is no way to tell one owner's
             # money from another's — so a book would import with the check
@@ -288,7 +314,79 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncEntryGetInvTaxIncluded.argtypes     = [ctypes.c_void_p]
     lib.gncEntryGetInvTaxTable.restype         = ctypes.c_void_p
     lib.gncEntryGetInvTaxTable.argtypes        = [ctypes.c_void_p]
+    # The note an entry carries of its own, beside the document's, and the
+    # discount figure. Both are shown in GnuCash's invoice window and both
+    # survive a save, so a ledger that omits them describes a document the
+    # book does not hold. The two discount *choices* — what the figure means
+    # and where it falls relative to tax — are read through SWIG, being plain
+    # ints with no const-type trouble.
+    lib.gncEntryGetNotes.restype               = ctypes.c_char_p
+    lib.gncEntryGetNotes.argtypes              = [ctypes.c_void_p]
+    lib.gncEntryGetInvDiscount.restype         = GncNumericC
+    lib.gncEntryGetInvDiscount.argtypes        = [ctypes.c_void_p]
+    # What the line is worth, asked of the engine that posts it. A discount
+    # is applied by three different rules — measured on 5.10, 10 × 100 less
+    # 10% against a 10% tax table posts 900 + 90 `pretax`, 900 + 100
+    # `sametime` and 890 + 100 `posttax` — and only these functions know
+    # which. Arithmetic of this project's own printed 1000 + 100 for all
+    # three, so a document handed to a customer named a total the book
+    # contradicted.
+    #
+    # `(entry, round, is_cust_doc, is_cn)` in GnuCash's own header, which
+    # this project spells out: round to the currency's smallest unit as
+    # posting does, `is_cust_doc` selects the invoice side or the bill side
+    # of the entry, and the last is the credit-note flag — `is_credit_note`
+    # everywhere above here, because `cn` is a word in nobody's vocabulary.
+    lib.gncEntryGetDocValue.restype            = GncNumericC
+    lib.gncEntryGetDocValue.argtypes           = [ctypes.c_void_p,
+                                                  ctypes.c_int, ctypes.c_int,
+                                                  ctypes.c_int]
+    lib.gncEntryGetDocTaxValue.restype         = GncNumericC
+    lib.gncEntryGetDocTaxValue.argtypes        = [ctypes.c_void_p,
+                                                  ctypes.c_int, ctypes.c_int,
+                                                  ctypes.c_int]
+    # A GList of `GncAccountValue*` — the tax each account receives, the
+    # figures the posting splits carry. `(entry, is_cust_doc, is_credit_note)`.
+    lib.gncEntryGetDocTaxValues.restype        = ctypes.c_void_p
+    lib.gncEntryGetDocTaxValues.argtypes       = [ctypes.c_void_p,
+                                                  ctypes.c_int, ctypes.c_int]
+    # That list belongs to whoever asked for it — it is built fresh, not the
+    # entry's own — and this is what frees it.
+    lib.gncAccountValueDestroy.restype         = None
+    lib.gncAccountValueDestroy.argtypes        = [ctypes.c_void_p]
+    # And what the document is worth, which is not the sum of its lines.
+    # GnuCash rounds a document's tax once rather than line by line —
+    # measured on 5.10, a bill of three 100.00 lines at 15% tax-included
+    # posts 260.88 + 39.13 = 300.01, where the rounded per-line tax adds to
+    # 39.12. These three answer what its posting splits carry, for a draft as
+    # well as a posted document, since they read the entries either way.
+    lib.gncInvoiceGetTotal.restype             = GncNumericC
+    lib.gncInvoiceGetTotal.argtypes            = [ctypes.c_void_p]
+    lib.gncInvoiceGetTotalSubtotal.restype     = GncNumericC
+    lib.gncInvoiceGetTotalSubtotal.argtypes    = [ctypes.c_void_p]
+    lib.gncInvoiceGetTotalTax.restype          = GncNumericC
+    lib.gncInvoiceGetTotalTax.argtypes         = [ctypes.c_void_p]
     # ── Bill entry ───────────────────────────────────────────────────────────
+    # `Billable?` and `Payment` are the two columns a bill window has and an
+    # invoice window does not: a line marked billable is re-billed to a
+    # customer, and the payment decides whether that shows as cash or card.
+    lib.gncEntryGetBillable.restype            = ctypes.c_int
+    lib.gncEntryGetBillable.argtypes           = [ctypes.c_void_p]
+    lib.gncEntryGetBillPayment.restype         = ctypes.c_int
+    lib.gncEntryGetBillPayment.argtypes        = [ctypes.c_void_p]
+    # The owner a billable line is re-billed to. `gncEntrySetBillTo` copies
+    # what it is handed — measured on 3.8 and 5.10, the billto still reads
+    # back after the owner passed to it is freed — so the one `gncOwnerNew`
+    # allocates is freed rather than parked for the entry's lifetime.
+    lib.gncEntryGetBillTo.restype              = ctypes.c_void_p
+    lib.gncEntryGetBillTo.argtypes             = [ctypes.c_void_p]
+    lib.gncEntrySetBillTo.restype              = None
+    lib.gncEntrySetBillTo.argtypes             = [ctypes.c_void_p,
+                                                  ctypes.c_void_p]
+    lib.gncOwnerNew.restype                    = ctypes.c_void_p
+    lib.gncOwnerNew.argtypes                   = []
+    lib.gncOwnerFree.restype                   = None
+    lib.gncOwnerFree.argtypes                  = [ctypes.c_void_p]
     lib.gncEntryGetBillPrice.restype           = GncNumericC
     lib.gncEntryGetBillPrice.argtypes          = [ctypes.c_void_p]
     lib.gncEntryGetBillTaxable.restype         = ctypes.c_int

@@ -1,0 +1,495 @@
+# A discount lands by three different rules, and each one posts a different
+# pair of figures. GnuCash's invoice window offers all three in the Discount
+# Type / Discount How columns, and a printed document has to state what the
+# book posts rather than what quantity × price would be.
+#
+# Measured on GnuCash 5.10 for the lines below — 10 × 100.00 discounted 10
+# per cent, taxed at 10 per cent:
+#
+#   pretax     900.00 + 90.00 tax    discount first, tax on what is left
+#   sametime   900.00 + 100.00 tax   both figured on the full 1000.00
+#   posttax    890.00 + 100.00 tax   tax first, discount on the sum of both
+#
+# INV-DISCOUNT-INCLUDED is the fourth rule that changes a figure: a price
+# that already contains the tax, discounted by a value rather than a rate.
+# INV-DISCOUNT-TWO-TAXES splits one discounted line's tax across two
+# accounts, which is where a per-table-entry breakdown has to agree with the
+# posting splits account by account.
+#
+# Every name and number here is invented.
+
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Sales Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Local Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-DISCOUNT"
+	name: "Discount Customer"
+	currency: CAD
+
+vendor "V-DISCOUNT"
+	name: "Discount Vendor"
+	currency: CAD
+
+taxtable "ONE RATE"
+	entry:
+		account: "Liabilities:Sales Tax"
+		rate: 10.0%
+		type: PERCENT
+
+taxtable "TWO RATES"
+	entry:
+		account: "Liabilities:Sales Tax"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Local Tax"
+		rate: 8.0%
+		type: PERCENT
+
+# One account named twice in a table — a base rate and a surcharge booked to
+# the same place, which GnuCash allows. It merges them when it computes what
+# each account receives, so a page listing a row per table entry has to merge
+# them too or both rows claim the whole 12.00.
+taxtable "TWICE TO ONE ACCOUNT"
+	entry:
+		account: "Liabilities:Sales Tax"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Sales Tax"
+		rate: 7.0%
+		type: PERCENT
+
+invoice "INV-ONE-ACCOUNT-TWICE"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Taxed twice into one account"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "TWICE TO ONE ACCOUNT"
+	posted:
+		date: 2026-02-01
+		due: 2026-03-03
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-ONE-ACCOUNT-TWICE"
+		accumulate: true
+
+# Three lines taxed by three accounts, where GnuCash's own totalling and the
+# lines' own roundings part company. Measured on 5.10: the lines hold
+# 0.6294, 0.6000 and 0.1998 of tax, which round to 0.63 + 0.60 + 0.20 = 1.43,
+# while the document's tax is also 1.43 — the sum of what each account
+# receives, 0.24 + 0.48 + 0.71, each rounded once across all three lines, and
+# those are the figures its posting splits carry.
+2026-01-01 open Liabilities:Tax A
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax B
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax C
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+# Two lines whose tax splits evenly between two accounts and lands on a half
+# cent each way. Per line, 1.10 at 5% + 5% is 0.055 to each account — so a
+# page that rounds each line's own breakdown gives one account 0.06 and the
+# other 0.05, twice over, and shows 0.12 against 0.10. The book rounds each
+# account once across the document: 0.11 and 0.11, which is what its splits
+# hold and what the page has to state.
+taxtable "TWO EVEN RATES"
+	entry:
+		account: "Liabilities:Sales Tax"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Local Tax"
+		rate: 5.0%
+		type: PERCENT
+
+# One line, two tax accounts, and a half-unit owed to each: the case that
+# tells GnuCash's two possible roundings apart.
+#
+# 1.10 at 5% + 5% owes 0.055 to each account. Rounded per account, that is
+# 0.06 + 0.06 = 0.12; rounded once over the document's whole tax, it is
+# round(0.11) = 0.11. Measured on 5.10, `gncInvoiceGetTotalTax` answers 0.12
+# and the posting splits carry 0.06 to each account — so a document's tax is
+# the sum of its accounts', each rounded once, which is what
+# `entries_fitted_to_the_document` computes. Every other document here reads
+# the same either way, so without this one that model is assumed rather than
+# pinned.
+invoice "INV-ONE-LINE-TWO-HALVES"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "A line owing half a cent to each of two accounts"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1.10
+		taxable: true
+		tax_included: false
+		tax_table: "TWO EVEN RATES"
+	posted:
+		date: 2026-02-05
+		due: 2026-03-07
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-ONE-LINE-TWO-HALVES"
+		accumulate: true
+
+# Two lines alike in every field a comparison reads — same date, same
+# description, same everything — so a block cannot be told from its twin by
+# looking at it. The fit still parts them: each line owes 0.055 to each
+# account, each account rounds to 0.11 across the two, and the odd unit goes
+# to the first, so the page states 0.12 for one line and 0.10 for the other.
+# That is what makes a block paired with the wrong twin visible.
+invoice "INV-TWIN-LINES"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "A line and its twin"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1.10
+		taxable: true
+		tax_included: false
+		tax_table: "TWO EVEN RATES"
+	entry:
+		date: 2026-02-01
+		description: "A line and its twin"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1.10
+		taxable: true
+		tax_included: false
+		tax_table: "TWO EVEN RATES"
+	posted:
+		date: 2026-02-05
+		due: 2026-03-07
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWIN-LINES"
+		accumulate: true
+
+invoice "INV-EVEN-SPLIT"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "First half-cent line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1.10
+		taxable: true
+		tax_included: false
+		tax_table: "TWO EVEN RATES"
+	entry:
+		date: 2026-02-02
+		description: "Second half-cent line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1.10
+		taxable: true
+		tax_included: false
+		tax_table: "TWO EVEN RATES"
+	posted:
+		date: 2026-02-05
+		due: 2026-03-07
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-EVEN-SPLIT"
+		accumulate: true
+
+taxtable "THREE RATES"
+	entry:
+		account: "Liabilities:Tax A"
+		rate: 1.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax B"
+		rate: 2.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax C"
+		rate: 3.0%
+		type: PERCENT
+
+invoice "INV-THREE-ACCOUNTS"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "First odd line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 10.49
+		taxable: true
+		tax_included: false
+		tax_table: "THREE RATES"
+	entry:
+		date: 2026-02-02
+		description: "Second odd line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 10.00
+		taxable: true
+		tax_included: false
+		tax_table: "THREE RATES"
+	entry:
+		date: 2026-02-03
+		description: "Third odd line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 3.33
+		taxable: true
+		tax_included: false
+		tax_table: "THREE RATES"
+	posted:
+		date: 2026-02-05
+		due: 2026-03-07
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-THREE-ACCOUNTS"
+		accumulate: true
+
+taxtable "FIFTEEN"
+	entry:
+		account: "Liabilities:Sales Tax"
+		rate: 15.0%
+		type: PERCENT
+
+# A bill has no discount column, so what it tests is the other half of the
+# same rule: GnuCash rounds each line to the cent as it posts it, and a page
+# that sums exact fractions and rounds the total once says something else.
+# Three lines of 100.00 tax-included at 15 per cent post 86.96 of expense
+# each — 260.88 — where 300.00 / 1.15 rounded once is 260.87.
+bill "BILL-TAX-INCLUDED"
+	vendor_id: "V-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "First delivery"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: true
+		tax_table: "FIFTEEN"
+	entry:
+		date: 2026-02-01
+		description: "Second delivery"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: true
+		tax_table: "FIFTEEN"
+	entry:
+		date: 2026-02-01
+		description: "Third delivery"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: true
+		tax_table: "FIFTEEN"
+	posted:
+		date: 2026-02-01
+		due: 2026-03-03
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-TAX-INCLUDED"
+		accumulate: true
+
+# A second bill for the same vendor, so a selection can hold one credit note
+# and something else — which is the shape the printers' filter exists for.
+bill "BILL-PLAIN"
+	vendor_id: "V-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "An ordinary delivery"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 40
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-03-03
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-PLAIN"
+		accumulate: true
+
+invoice "INV-DISCOUNT-PRETAX"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Ten hours, discounted before tax"
+		account: "Income:Sales"
+		quantity: 10
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "ONE RATE"
+		discount: 10
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2026-02-01
+		due: 2026-03-03
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-DISCOUNT-PRETAX"
+		accumulate: true
+
+invoice "INV-DISCOUNT-SAMETIME"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Ten hours, discount and tax together"
+		account: "Income:Sales"
+		quantity: 10
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "ONE RATE"
+		discount: 10
+		discount_type: percent
+		discount_how: sametime
+	posted:
+		date: 2026-02-01
+		due: 2026-03-03
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-DISCOUNT-SAMETIME"
+		accumulate: true
+
+invoice "INV-DISCOUNT-POSTTAX"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Ten hours, discounted after tax"
+		account: "Income:Sales"
+		quantity: 10
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "ONE RATE"
+		discount: 10
+		discount_type: percent
+		discount_how: posttax
+	posted:
+		date: 2026-02-01
+		due: 2026-03-03
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-DISCOUNT-POSTTAX"
+		accumulate: true
+
+invoice "INV-DISCOUNT-INCLUDED"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Ten hours at a price that includes the tax"
+		account: "Income:Sales"
+		quantity: 10
+		price: 110
+		taxable: true
+		tax_included: true
+		tax_table: "ONE RATE"
+		discount: 100
+		discount_type: value
+		discount_how: pretax
+	posted:
+		date: 2026-02-01
+		due: 2026-03-03
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-DISCOUNT-INCLUDED"
+		accumulate: true
+
+invoice "INV-DISCOUNT-TWO-TAXES"
+	customer_id: "C-DISCOUNT"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Ten hours taxed by two accounts"
+		account: "Income:Sales"
+		quantity: 10
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "TWO RATES"
+		discount: 10
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2026-02-01
+		due: 2026-03-03
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-DISCOUNT-TWO-TAXES"
+		accumulate: true

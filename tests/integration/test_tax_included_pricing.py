@@ -126,7 +126,7 @@ def test_tax_included_invoice_draft_plaintext_backs_out_net_and_tax(tmp_path):
     assert r.exit_code == 0, f'print-invoice: {r.output}'
     text = out.read_text()
 
-    assert 'tax_included: true' in text, f'flag not rendered:\n{text}'
+    assert 'tax_included: #True' in text, f'flag not rendered:\n{text}'
     assert 'entry_amount: 1000.00' in text, f'net back-out wrong:\n{text}'
     assert 'entry_tax: 120.00' in text, f'tax wrong:\n{text}'
     assert 'account: "Liabilities:Tax:GST"' in text
@@ -183,7 +183,7 @@ def test_tax_included_bill_draft_plaintext_backs_out_net_and_tax(tmp_path):
     assert r.exit_code == 0, f'print-bill: {r.output}'
     text = out.read_text()
 
-    assert 'tax_included: true' in text, f'flag not rendered:\n{text}'
+    assert 'tax_included: #True' in text, f'flag not rendered:\n{text}'
     assert 'entry_amount: 1000.00' in text, f'net back-out wrong:\n{text}'
     assert 'entry_tax: 120.00' in text, f'tax wrong:\n{text}'
     assert 'account: "Liabilities:Tax:GST"' in text
@@ -257,7 +257,7 @@ def test_tax_included_invoice_survives_export_reimport(tmp_path):
     # fields (incl. `tax_included: true`) rather than the print-only
     # informational totals; preservation of the 1000/50/70/1120 semantics
     # is proven below via the re-imported posting splits.
-    assert 'tax_included: true' in exported_text, exported_text
+    assert 'tax_included: #True' in exported_text, exported_text
     assert 'price: 280' in exported_text and 'quantity: 4' in exported_text, (
         exported_text)
 
@@ -311,7 +311,7 @@ def test_tax_included_bill_survives_export_reimport(tmp_path):
     # Export carries `tax_included: true` (source-of-truth); the
     # 1000/50/70/1120 AP semantics are proven below via the re-imported
     # posting splits.
-    assert 'tax_included: true' in exported_text, exported_text
+    assert 'tax_included: #True' in exported_text, exported_text
     assert 'price: 280' in exported_text and 'quantity: 4' in exported_text, (
         exported_text)
 

@@ -2,6 +2,92 @@
 
 ## Unreleased
 
+### An invoice or bill line carries every column GnuCash gives it
+
+**A ledger used to lose a line's discount, its note, and a bill line's action, billable flag, chargeback customer and payment.** An entry was written with eight fields, and GnuCash's windows offer more than eight: the discount and the two choices that say what it means, a note per line, and — on a bill — whether the line is re-billed to a customer, which customer, and whether it was paid in cash or on a card. All of them survive a save in GnuCash, so a ledger that omitted them described a document the book did not hold, and re-importing that ledger took them out of the book.
+
+```
+	entry:
+		date: 2026-02-01
+		description: "Consulting, February"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 10
+		price: 100
+		taxable: false
+		tax_included: false
+		notes: "Agreed rate for the first quarter"
+		discount: 10
+		discount_type: percent
+		discount_how: pretax
+```
+
+`discount_type` is `percent` or `value`, `discount_how` is `pretax`, `sametime` or `posttax`, and a bill line adds `billable: true`, `billable_to: "C001"` and `payment_type: cash|card`. Those are GnuCash's own words, the ones it writes in its file, and a word outside them is refused by name — the engine accepts any number there, warns about it on every read, and silently rewrites it on save, so a file asking for something GnuCash cannot name would have imported as a different discount from the one it asked for.
+
+**`billable_to:` is what makes `billable:` worth carrying**, and it names a customer id — the same one a `customer` block declares. A line marked billable to nobody is one GnuCash cannot offer when that customer's invoice is raised, so carrying the flag without its target would have been half the field. An id the book has not got is refused by name. GnuCash also lets a line be charged back to one of that customer's **jobs**, which this format has no key for: a book holding one is refused by `export --include-business-objects` and by `print-bill --format plaintext`, naming the line, rather than written as the customer behind the job — which would read back as a customer chargeback and quietly change the book.
+
+**A file naming none of the new keys imports as it always did, and an export states them anyway.** An entry GnuCash has never been asked about holds an empty note, no discount, `percent`, `pretax`, not billable, billable to nobody and `cash`; an export writes each of those out rather than leaving the line off, so a ledger says what the invoice window and the bill window show and a reader does not have to know which absent line stands for which default.
+
+**An `entry:` block describes the whole line**, every key of it, `action:` included. Re-importing a document destroys its entries and rebuilds them from the blocks — an entry has no identity in a ledger to patch — so an unnamed key means the default rather than "leave it alone", and the comparison that decides `unchanged` reads the same defaults. Editing one field of a line means writing the rest of that line too, which an exported ledger already carries.
+
+**Export before re-importing a ledger written by an earlier release.** Such a ledger names none of these keys, so importing it into a book whose lines carry a note, a discount, a billable flag or an action clears them, exactly as it always did for `action:`. On a posted document the clearing costs more than the fields: the document is unposted, its entries destroyed and rebuilt, and posted again under a new posting transaction. An export taken with this release carries every key, and re-imports as `unchanged`.
+
+**A key belonging to the other kind of document is refused by name.** `discount:` on a bill entry, `billable:` or `payment_type:` on an invoice entry: GnuCash's window for that document has no such column, so the value would be read by nothing, stored nowhere, and reported `unchanged` on every later run — the same silence these keys were reserved to end.
+
+**A printed invoice states what the book posts for a discounted line.** `entry_amount:`, `entry_tax:`, each `breakdown:` block and the three `invoice_*` totals were computed here as quantity × price, which ignores the discount — so a document handed to a customer said 1000.00 while its own A/R split said 990.00, and `--format pdf`, drawn by GnuCash's own report, printed the right figure beside the wrong one from the same command. Every figure is read from `gncEntryGetDocValue`, `gncEntryGetDocTaxValue` and `gncEntryGetDocTaxValues` now — the functions GnuCash posts from — because a discount lands by three different rules. Measured on 5.10, 10 × 100.00 less 10 per cent against a 10 per cent tax table:
+
+| `discount_how` | posted |
+|---|---|
+| `pretax` | 900.00 + 90.00 tax |
+| `sametime` | 900.00 + 100.00 tax |
+| `posttax` | 890.00 + 100.00 tax |
+
+**A page whose figures are not the book's is refused, on a bill as on an invoice, and whether or not anything else about it changed.** `print-bill --format plaintext` states `entry_amount:`, `entry_tax:`, a `breakdown:` per tax account and three `bill_*` totals, and the import read none of them — the bill half of that check was never wired. Nor did the invoice half fire on a document that matched in every other way: those figures are derived, so they are not part of what makes a document `unchanged`, and the run returned before anything looked at them. So a page printed by an earlier release re-imported quietly against a book that posts something else. Every figure is compared exactly, the per-line ones included: the import works the document out the way the writer did, fitting each line's tax to the document's, so what it compares against is the figure the page states rather than the line read on its own.
+
+**A refused figure abandons the whole run, and the book on disk keeps everything.** A line's tax cannot be judged before its siblings exist — it is fitted to the document's — so the check runs once the document has been committed, where the per-entry half used to run inside the entry loop. On a file that states a wrong figure *and* changes something else, the document is therefore unposted, its entries rebuilt and its payments re-applied in memory before the figure is looked at. None of that is written: the refusal is raised out of the business-object pass, above the only save, so the run exits non-zero having saved nothing — not that document, and not the objects that came before it. Correct the file and import it again.
+
+**And a printed document's columns add up.** A line's tax is rounded to fit the document's stated tax rather than on its own: three 100.00 lines at 15 per cent tax-included are 13.0434… of tax each, and rounded separately they print 13.04 apiece against a stated 39.13 — a column a reader cannot add. Fitted, one line carries the odd cent and the column reads as a column, each `breakdown:` block adding to its own line the same way. GnuCash's own page prints no per-line tax at all, so nothing here disagrees with it; the figures a book holds — the subtotal, the tax and the total — are the engine's own either way.
+
+**A printed document's totals are the document's own**, `gncInvoiceGetTotalSubtotal`, `gncInvoiceGetTotalTax` and `gncInvoiceGetTotal`, rather than its lines added up — GnuCash rounds a document's tax once, not line by line. A bill of three 100.00 lines at 15 per cent tax-included posts 260.88 + 39.13 = **300.01**, where the rounded per-line tax adds to 39.12 and the page said 300.00 against its own A/P split of 300.01. This affects invoices and bills alike, and a document with one line or with figures that round exactly is unchanged.
+
+**No figure is compared to another within a tolerance any more.** A page's `entry_amount:`, `entry_tax:`, each `breakdown:` amount and rate, and the three document totals are compared exactly, as the transaction side of the ledger always was. A cent of slack forgave a page stating a total the book contradicted — which is the whole of what these figures are for — and it forgave it in the one shape that actually occurs, a document printed by an earlier release sitting exactly one cent under a tax-included book. A ledger that states a figure now states the book's figure.
+
+`AccountCategorizer.is_balanced_transaction` is gone with the same sweep. It took a `tolerance_numerator`, and behind that a worse fault — it added each split's numerator while ignoring the denominator under it, so a half and a hundredth counted the same — but no command ever called it, so neither fault could be reached and there was nothing to fix. Code no scenario reaches is deleted here rather than corrected.
+
+The same went for a cost-basis sale, where `abs(stated − expected) <= half a cent` stood in for arithmetic nobody had done. `basis_cost × quantity` can land between cents, and the value on the split is what GnuCash booked — that figure rounded to the currency's unit — so the rounding is performed and the two compared exactly. A ledger this tool wrote states the figure the engine booked, so it is unaffected; a hand-written one that rounded a tie the other way is not, and that is under Breaking below.
+
+**A credit note is carried, by one key on the block.** GnuCash's Business → New Credit Note makes a `gncInvoice` with a flag, storing its lines negated, and nothing else about it differs — so `credit_note: true` is the whole of what a ledger has to say:
+
+```
+invoice "CN-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-03-05
+	credit_note: true
+	entry:
+		date: 2026-03-05
+		description: "Two days of work, returned"
+		account: "Income:Sales"
+		quantity: -2
+		price: 100
+```
+
+Measured on 5.10: that document's own totals answer +200.00 — positive, like an invoice's — and it posts `Income:Sales` +200.00 against the receivable −200.00, the mirror of the invoice it reverses. The quantities a ledger states are the ones the book holds either way, so nothing is reinterpreted on the way back in, and every figure a printed page states is read with the flag, which is what makes its column agree with its total. A vendor credit note is the same key on a `bill` block.
+
+**Every command handles one**: `export --include-business-objects` writes the key, `print-invoice`/`print-bill` draw the document in all three formats, and `import` reads it — into a fresh book as readily as into the one it came from. Written without the key, as an earlier release wrote it, a credit note rebuilt as an ordinary invoice and posted against the receivable the wrong way round with nothing saying so; that is the defect this closes.
+
+A block that leaves the key out is an ordinary document, which is what every ledger written before this release said, so no existing file reads differently.
+
+**A quoted value may hold a newline, and every value a writer writes is escaped.** `\"`, `\\`, `\n` and `\r` are the four escapes, and the last two are new. Values, and every reference is a value: `customer_id:`, `vendor_id:` and `tax_table:` are escaped like any other. What is **not** escaped is the block header that declares the name — `customer "…"`, `invoice "…"`, `taxtable "…"` — because a header is read by a regex that takes what sits between the quotes verbatim. The two agree for any name that fits on a line: the header pattern is anchored at the end, so it captures everything between the first quote and the last exactly as written, and unescaping the reference recovers that same text — checked against a name holding a backslash before a quote, where both sides read `A\"B`. What still cannot be carried is a name holding a newline, since the header line would end mid-name; that limit is the header's, and predates this release. The business-object writers — customer and vendor blocks, invoice and bill blocks, every `description:`, `action:`, `memo:`, `num:`, `notes:` and custom key on them — wrote their values raw, while the reader has always unescaped what it read. So a value holding a backslash came back a character short, and one holding a newline broke the block it was written in: the reader takes one key per line, so the tail of the note became a key of its own and the export was a file its own importer could not read. `export`'s transaction half has always escaped, which is why this showed on documents; the two side-file writers — the reconcile preview and the ready-to-import file — escaped quotes alone, and go through the same encoder now.
+
+Because the comparison that decides `unchanged` reads those same fields, a value that came back changed made its document rebuild on every import — a posted one unposted, its entries destroyed and posted again under a new transaction, every run, for as long as the value held a backslash.
+
+**One ledger reads differently than it used to, and it is worth checking for.** `\n` and `\r` mean a newline and a carriage return now, and they meant nothing before — the reader kept both characters. The writers that produced those files wrote their values raw, so a customer note, a description or a memo holding `see C:\notes` or `Order\ref` was exported exactly like that, and re-importing it now puts a newline where the `\n` was. `grep -nE '\\[nr]' ledger.txt` finds every such line; a value that meant a literal backslash wants it doubled, `C:\\notes`. Everything else is unchanged: `\\` has always meant one backslash, `\"` a quote, and a backslash before anything else is still left alone with both characters kept.
+
+**A `_reconcile.txt` left over from the last release reads differently too.** That file is written and read by one pair, and the pair moved together: the writer escaped the quote alone and now escapes all four, and the reader undid the quote alone and now undoes all four. A file written before this release therefore holds its descriptions raw, so one containing `C:\name` comes back as `C:`, a newline, and `ame` — the ledger case above, in a file the ledger advice does not cover. They are regenerated from the statement PDFs, so the fix is to regenerate rather than to edit: re-run the reconcile step and the file is written in the new spelling. A `ready-to-import.txt` is not affected in this direction — `import` has always unescaped what it read, so the writer's change corrects that side rather than reinterpreting it.
+
+**A bill entry's `action:` is written now**, on both `export` and `print-bill --format plaintext`. It was left out on the belief that GnuCash stored the action on the invoice side only; an entry given `Material`, saved and reopened, reads back `Material`.
+
 ### A printed PDF is the page GnuCash prints
 
 **`print-invoice` and `print-bill` lay their PDF out with WebKit, the engine GnuCash's own Print Invoice button prints with.** WeasyPrint laid it out before, and a second engine reading the same HTML is a second answer to a question GnuCash has already answered — measured on one page: WebKit paints 97 rectangles and WeasyPrint none, because the table borders come from the HTML-4 presentational attributes GnuCash's report writes (`border`, `cellpadding`, `bgcolor`) which WeasyPrint does not implement. A printed invoice had no lines round anything.
@@ -58,6 +144,39 @@ Neither setting is part of the plaintext format: no export writes the footer or 
 
 
 ### Breaking: changes that affect ledgers and scripts that worked before
+
+**A bill line charged back to a job cannot be exported**, and is refused rather than written without its chargeback: `export --include-business-objects` and `print-bill --format plaintext` refuse and name the line. GnuCash's Bill window offers a customer or one of that customer's jobs as the chargeback target; `billable_to:` states a customer and this format has no key for a job. Such a line used to export with no chargeback line at all, and the re-import cleared it — so this replaces a silent loss with a refusal. Two ways past it: `export` without `--include-business-objects` still writes the whole transaction half of the book, or change the line's chargeback to the customer itself in GnuCash, which this format does carry.
+
+**`credit_note:` is reserved on an `invoice` or `bill` block, and used to be a custom key.** A document block does carry custom metadata, so a ledger using that name for something of its own stored it in the document's slot and got it back on export. The same ledger now sets GnuCash's flag with it and posts the document the other way round, and a value that is neither true nor false is refused by name. Nothing else changes for a book that never used the name.
+
+**A ledger exported from a book holding a credit note now carries `credit_note: true`**, where an earlier release wrote that document as an ordinary `invoice` or `bill` block. A ledger written by an earlier release therefore describes the credit notes in it as ordinary documents, and re-importing one clears the flag and reposts the document the other way round — the same shape as every other key this release adds, and worth an export with this release before re-importing an old file.
+
+**A sale must value what it sells at exactly what its cost basis makes it worth.** The check allowed half a cent either way; it rounds `basis_cost × quantity` the way the engine rounds and compares exactly now. Say that product works out to 1.005 — a figure no split can hold and no file may state, which is why it is rounded at all: the book makes the sale worth 1.01, half away from zero. A file stating `value: "1.00"` beside it was accepted before, being within half a cent, and is refused now with both figures named. A ledger this tool wrote is unaffected, since the value it states is the one the engine booked.
+
+**`taxable: True`, `taxable: 1` and `taxable: yes` mean true now, and used to mean false.** The flag was compared against the string `true`, and a line is decoded before it is compared — `True` arrives as a boolean, `1` as an integer, neither equal to `"true"` — so all three read as **not taxable**, and so did `tax_included:` on an `entry:` block and `accumulate:` on a `posted:` block written the same ways. They are read as words now, so such a line becomes taxable: its tax, every `breakdown:` block, the document's three totals and its posting transaction all change, and the run reports `updated`. A `posted:` block spelled that way accumulates as it asked to, so its posting transaction carries one split per account where it used to carry one per line. Worth looking for before importing an existing ledger:
+
+```bash
+grep -niE '(taxable|tax_included|accumulate): *(#?true|1|yes)$' ledger.txt
+```
+
+`#?true` because `taxable: #True` had the same defect and is the likelier spelling to find: `#True` is what an export already wrote for `placeholder:` and `tax_related:`, so a hand-written file following that style decodes to a `bool` and lost the same comparison. `-i` because the reading is case-insensitive now and `TRUE` and `Yes` were as broken as `True` was. It over-matches by one spelling: a line reading exactly `true`, lower case, always meant true and still does — every *other* line it finds was doing nothing before and does something now. Only `taxable:`, `tax_included:` and `accumulate:` are affected; `billable:` is one of the keys this release adds, so no ledger written before it can carry one.
+
+**Every flag an export writes is now `#True` or `#False`**, where nine of the twelve were written as bare `true`/`false`. `#` is this format's mark for a value that is not a string — `#None`, `#3/4`, `#100` — and a bare `true` is not a boolean at all: it decodes to the string `"true"`. That single fact is under most of this release's boolean bugs, `taxable: True` reading as false and `placeholder: false` killing the account it sat on among them. `taxable:`, `tax_included:`, `billable:`, `accumulate:`, `active:`, `credit_note:` and `from_credit:` therefore change spelling in exported and printed ledgers; `placeholder:`, `tax_related:` and `closing:` were already written this way. Nothing changes for reading — a ledger spelling them as words imports exactly as before — so the practical effect is that an export re-imported still reports `unchanged`, and a diff of two exports across this release shows those lines moving.
+
+**A mistyped boolean is refused, wherever it is.** Every flag a ledger carries reads `true`/`1`/`yes` or `false`/`0`/`no` — and `#True`/`#False`, which is what they are written as — and anything else is named: `taxable:`, `tax_included:` and `billable:` on an `entry:`, `accumulate:` on a `posted:` block, `credit_note:` and `auto_apply_credit:` on a document, `from_credit:` on a payment, `active:` on a customer or vendor, `closing:` on a transaction, `placeholder:` and `tax_related:` on an `open` block, and `cost_basis_force:` on a split. A typo used to get whichever answer the key happened to be read with, and each was the costly one. Four — `active:`, `closing:`, `from_credit:` and `auto_apply_credit:` — read anything that was not a falsy word as **true**, so `auto_apply_credit: treu` spent the owner's credit against a document the file never asked to settle that way. Four more — `taxable:`, `tax_included:`, `accumulate:` and `cost_basis_force:` — compared against the truthy words and read a typo as **false**, so `cost_basis_force: treu` was silently *not* forced and the sale failed telling its author to add the key they had just added. And `placeholder:` and `tax_related:` got neither answer: they reached GnuCash as the string that was typed.
+
+**An `open` block takes `placeholder: false` now, and used to refuse the account.** Those two keys were read straight off the decoder, which knows `#True`/`#False` — what an export writes — and not `true`/`false`, what a person writes. A bare `false` arrived as the *string* `"false"` and GnuCash refused it: `Failed to create account …: Python object passed to a gboolean argument was not True or False`, with the account then missing from the book and everything naming it failing after it. A hand-written ledger spelling these as words imports now; `#True`/`#False` mean what they always did. `taxable: treu` used to import as **not taxable** — the costly direction, and costlier now that the flag decides the line's tax, every `breakdown:` block and the document's totals, so a page printed after the typo agreed with itself and re-imported `unchanged` against a book that had quietly dropped the tax. `accumulate: treu` used to post a split per line where the document asked for one per account, which is what the ledger then exported and re-imported as `unchanged`. `billable:` is new here and takes the same words for the same reason.
+
+**Seven keys on an `entry:` block are reserved now, and used to be ignored.** `notes:`, `discount:`, `discount_type:`, `discount_how:`, `billable:`, `billable_to:` and `payment_type:` write GnuCash's own entry fields from this release. An entry block has never carried custom metadata, so a key it did not recognise was neither stored nor reported — a ledger using one of these for something of its own imported cleanly and dropped the value in silence. The same ledger now writes it into the book, and where the value does not fit the field the import is refused by name rather than reinterpreted:
+
+```
+discount: "agreed in January" is not a number. This key sets the discount on an
+invoice line, and takes a figure — `discount: 10` with `discount_type: percent`
+or `discount_type: value`. It was ignored by earlier versions, so a ledger using
+it for something else needs the line renamed
+```
+
+`discount_type:`, `discount_how:` and `payment_type:` take GnuCash's own words — `percent`/`value`, `pretax`/`sametime`/`posttax`, `cash`/`card` — and any other word is refused the same way. `billable:` takes `true`/`1`/`yes` or `false`/`0`/`no` and refuses anything else, rather than reading an unknown word as "not false" and re-billing a line to a customer nobody named. Nothing here changes a book that never used these key names.
 
 **`import` exits non-zero when it reports an error.** A run that collected per-object errors used to print `Errors: N` and still exit 0, so `gnucash-plaintext import book.gnucash ledger.txt && next-step` ran the next step over a partly-imported book — and the same command with `--include-business-objects` exited 1, so one file got two answers depending on a flag. The exit code now follows what the summary says. Scripts that chained on success will stop where they previously continued, which is the point; a script that wants the old behaviour should test the summary itself rather than the exit code.
 

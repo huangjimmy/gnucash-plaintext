@@ -318,7 +318,9 @@ class TestFxRates:
         from services.fx_rates import FxRates
         fx = FxRates({"HKD": 0.172})
         result = fx.to_cad(Fraction(1000), "HKD")
-        assert abs(float(result) - 172.0) < 0.01
+        # 1000 × 0.172, exactly. The rate is read as the ratio 43/250, so
+        # there is nothing here for a window to cover.
+        assert result == Fraction(172)
 
     def test_to_cad_cad_is_one(self):
         from services.fx_rates import FxRates

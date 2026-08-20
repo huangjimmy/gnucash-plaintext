@@ -1,0 +1,47 @@
+# Selling part of a holding bought at a rate with three decimals.
+#
+# 100.00 USD at 1.405 CAD/USD costs 140.50 CAD — a whole number of cents, so
+# the basis is booked as stated and its cost per unit is the 1.405 this file
+# wrote. Selling 33.00 USD of it costs 33 × 1.405 = 46.365 CAD, which is half
+# a cent, and money rounds away from zero: the sale is worth 46.37.
+#
+# So a file has one figure it may state for that split, and 46.36 is not it.
+# The check allowed either while it forgave half a cent; the expected figure
+# is rounded the engine's way and compared exactly now.
+#
+# This file is the purchase only. The sale that measures against it is
+# `fx_sell_part_of_a_lot_at_its_basis.txt`, which names the basis this one
+# opens.
+#
+# Verified by tests/integration/test_a_sale_is_valued_at_its_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "Buy 100 USD at 1.405"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.405"
+		value: "140.50"
+	Assets:Bank -140.50 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-140.50"

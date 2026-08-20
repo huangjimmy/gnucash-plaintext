@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from infrastructure.gnucash.utils import escape_string
 from infrastructure.pdf.standard_tx import Split, StandardTransaction
 from services.gnucash_fuzzy_matcher import MatchResult, MatchStatus
 from services.reconcile_preview_writer import DOC_LINK_BASE
@@ -76,7 +77,17 @@ def _assert_no_autopay(tx: StandardTransaction) -> None:
 
 
 def _write_live(f, tx: StandardTransaction, doc_link_base: str) -> None:
-    desc = tx.description.replace('"', '\\"')
+    # The four escapes the reader undoes, not a quote-only replace:
+    # `unescape_string` reverses all four, and a description holding a
+    # backslash or a newline came back changed — the block these writers
+    # emit is imported, so what it writes has to survive that.
+    #
+    # `escape_string` itself, rather than slicing the quotes back off
+    # `encode_value_as_string`: the encoder is that function plus a pair of
+    # quotes, so taking them off again is the same call with a detour — and
+    # a detour that only lines up for a `str`, since a description of `None`
+    # encodes as `#None` and came back out of the slice as `Non`.
+    desc = escape_string(tx.description)
     f.write(f'{tx.post_date.strftime("%Y-%m-%d")} * "{desc}"\n')
     if tx.guid:
         f.write(f'\tguid: "{tx.guid}"\n')
@@ -91,7 +102,17 @@ def _write_live(f, tx: StandardTransaction, doc_link_base: str) -> None:
 def _write_commented_tx(
     f, tx: StandardTransaction, explicit_doc_link: str, doc_link_base: str
 ) -> None:
-    desc = tx.description.replace('"', '\\"')
+    # The four escapes the reader undoes, not a quote-only replace:
+    # `unescape_string` reverses all four, and a description holding a
+    # backslash or a newline came back changed — the block these writers
+    # emit is imported, so what it writes has to survive that.
+    #
+    # `escape_string` itself, rather than slicing the quotes back off
+    # `encode_value_as_string`: the encoder is that function plus a pair of
+    # quotes, so taking them off again is the same call with a detour — and
+    # a detour that only lines up for a `str`, since a description of `None`
+    # encodes as `#None` and came back out of the slice as `Non`.
+    desc = escape_string(tx.description)
     f.write(f';; {tx.post_date.strftime("%Y-%m-%d")} * "{desc}"\n')
     if tx.guid:
         f.write(f';;     guid: "{tx.guid}"\n')
