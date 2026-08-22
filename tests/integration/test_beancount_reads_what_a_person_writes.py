@@ -307,7 +307,7 @@ class TestDirectivesAnotherToolAnnotated:
     key another editor wrote — fava's `name:` and `color:` on accounts — could
     land anywhere in a block. Read only until the first key this tool does not
     keep, what it cost depended on where the person typed it: a file refused
-    for metadata it carries, or a note, a document link, an account's own unit
+    for metadata it carries, or a note, a receipt link, an account's own unit
     or a commodity's fraction dropped without a word.
 
     The posting-level walk already read the whole block; the commodity, the
@@ -333,7 +333,7 @@ class TestDirectivesAnotherToolAnnotated:
         assert result.exit_code == 0, result.output
         assert 'Transactions: 1' in result.output, result.output
 
-    def test_the_notes_and_the_document_link_survive(self, tmp_path):
+    def test_the_notes_and_the_receipt_link_survive(self, tmp_path):
         book = self._imported(tmp_path)
 
         repo = GnuCashRepository(str(book))

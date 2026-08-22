@@ -82,4 +82,4 @@ and in the **Status** column below.
 | [Q-033](Q-033-natural-account-type-strings-rejected.md) | Natural Receivable/Payable account-type strings are rejected, silently dropping accounts | high | closed |
 | [Q-034](Q-034-uncached-ctypes-library-loads-degrade-import-performance.md) | Uncached ctypes library loads and account-name walks degrade import performance linearly with transaction count | medium | closed |
 | [Q-035](Q-035-usd-multi-currency-invoices-and-bills-unsupported.md) | No multi-currency support — foreign-currency invoices, bills, payments and conversions are written wrong, silently | high | closed |
-| [Q-036](Q-036-printed-documents-are-not-gnucashs-page.md) | A printed invoice was this project's own page, and stated the book's valuation of a foreign-currency document as the amount owed | high | closed |
+| [Q-036](Q-036-printed-pages-were-not-gnucashs-own.md) | A printed invoice was this project's own page, and stated the book's valuation of a foreign-currency invoice as the amount owed | high | closed |

@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Set the two free-text boxes carried by a printed document.
+"""Set the two free-text boxes carried by a printed page.
 
 GnuCash's report options give the pair as **Printable Invoice → Display →
 Extra Notes** and **Printable Invoice → Layout → CSS**. `set-invoice-style`
-writes both from the command line and keeps both in the book, so a document
+writes both from the command line and keeps both in the book, so a page
 printed from a script carries the footer and the styling with no GnuCash
 window open anywhere.
 """
@@ -21,7 +21,7 @@ from use_cases.set_invoice_style import execute_set_invoice_style
 @click.command()
 @click.argument('gnucash_file', type=click.Path(exists=True))
 @click.option('--note', default=None,
-              help='The footer under a printed document — GnuCash\'s '
+              help='The footer under a printed page — GnuCash\'s '
                    'Display → Extra Notes. Pass "" for no footer.')
 @click.option('--css', 'css_file', default=None,
               type=click.Path(exists=True, dir_okay=False),

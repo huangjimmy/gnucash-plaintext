@@ -28,6 +28,7 @@ from infrastructure.gnucash.utils import (
     money_text,
     number_in_string_format_is_1,
     numeric_to_fraction,
+    qof_pointer,
     to_string_with_decimal_point_placed,
 )
 from repositories.gnucash_repository import GnuCashRepository
@@ -39,6 +40,7 @@ from services.foreign_currency import (
 )
 from services.gnucash_importer import (
     ORPHANED_BY_UNPOST_KEY,
+    _lot_guid_str,
     is_a_bank_paid_orphan,
 )
 
@@ -142,7 +144,7 @@ def _owner_of_a_bank_paid_orphan(splits, lib):
         buffer = ctypes.create_string_buffer(256)
         owner_ptr = ctypes.cast(buffer, ctypes.c_void_p)
         if lib.gncOwnerGetOwnerFromLot(
-                ctypes.c_void_p(int(getattr(lot, 'instance', lot))),
+                ctypes.c_void_p(qof_pointer(lot)),
                 owner_ptr) != 1:
             continue
         kind = {2: 'customer', 4: 'vendor'}.get(lib.gncOwnerGetType(owner_ptr))
@@ -220,13 +222,13 @@ class ExportResult:
 def bank_paid_orphan_share_of(account):
     """{lot pointer: signed amount} an unpost loosened that no credit paid.
 
-    A lot an unpost abandoned is live, holds no document and names an owner —
+    A lot an unpost abandoned is live, names no invoice and does name an owner —
     the three things an owner's credit is — so every listing of credits would
     report what is in it as the owner's to spend. For the part a bank paid it
     is not: that is a settlement waiting to be put back, which is what all
     three settlement spellings say when a file tries to spend it.
 
-    A *share* and not a verdict on the lot, because one document can be
+    A *share* and not a verdict on the lot, because one invoice can be
     settled both ways — a bank block and a `from_credit:` block, which is what
     `_cash_before_credit` orders — and unposting marks every split in the lot.
     Excluding the whole lot then hid credit the settling paths still allow:
@@ -244,7 +246,7 @@ def bank_paid_orphan_share_of(account):
         lot = split.GetLot()
         if lot is None or not is_a_bank_paid_orphan(split):
             continue
-        key = int(getattr(lot, 'instance', lot))
+        key = qof_pointer(lot)
         share[key] = share.get(key, Fraction(0)) + numeric_to_fraction(
             split.GetAmount())
     return share
@@ -272,7 +274,7 @@ def lot_holdings_of(account):
         lot = split.GetLot()
         if lot is None:
             continue
-        key = int(getattr(lot, 'instance', lot))
+        key = qof_pointer(lot)
         balance, earliest = held.get(key, (Fraction(0), None))
         balance += numeric_to_fraction(split.GetAmount())
         parent = split.GetParent()
@@ -1201,7 +1203,7 @@ class ExportTransactionsUseCase:
             # asserting the thing the mark contradicts.
             #
             # What the split becomes on the way back is loose: in no lot, whose
-            # money nothing claims to know. That is what it is — the document
+            # money nothing claims to know. That is what it is — what
             # it settled is unposted, and nobody's credit has been invented.
             if _lot_ptr and not is_a_bank_paid_orphan(split):
                 _inv = _lib.gncInvoiceGetInvoiceFromLot(_lot_ptr)
@@ -1235,6 +1237,15 @@ class ExportTransactionsUseCase:
                             except AttributeError:
                                 pass
                             lines.append(f'\t\tlot_owner: {_lo}')
+                            # And which of the owner's credits it is. An
+                            # owner may hold several, so `lot_owner:` alone
+                            # left the import to choose — the oldest open lot
+                            # the split would reduce — and a book rebuilt
+                            # from this file put a settlement on a different
+                            # credit from the one it came off.
+                            _lg = _lot_guid_str(_lot_ptr)
+                            if _lg and _lg != '0' * 32:
+                                lines.append(f'\t\tlot_guid: "{_lg}"')
         except AttributeError:
             pass
 
@@ -1245,12 +1256,21 @@ class ExportTransactionsUseCase:
         # from the live lot state via the block above.
         # Q-035: `orphaned_by_unpost` never leaves the book either. It is the
         # unpost's own note about a lot it abandoned — true of this book only,
-        # and only until the document is rebuilt. Written into a file it would
+        # and only until that record is rebuilt. Written into a file it would
         # come back as an ordinary custom key on whatever split the file lands
         # on, and a split so marked is read as *not* an owner's credit — so a
         # settlement really spent from a credit would skip taking the basis
         # off, which is the thing that note exists to get right.
-        _q014_reserved_split = {'lot_owner', 'guid', ORPHANED_BY_UNPOST_KEY}
+        # `lot_guid` with them: it became a reserved key in this release, so
+        # a book written before it may hold one as an ordinary custom slot,
+        # and the slot is not dropped by the migration that handles a key
+        # which has since become a field. Emitted from both, a split carried
+        # two `lot_guid:` lines — the live lot's and the stale slot's, the
+        # stale one last, which is the one a re-import reads. Well-formed,
+        # it puts the settlement on a credit the book never named; malformed,
+        # the export refuses to re-import at all.
+        _q014_reserved_split = {'lot_owner', 'lot_guid', 'guid',
+                                ORPHANED_BY_UNPOST_KEY}
         custom_split_meta = get_custom_metadata(split)
         for key, value in sorted(custom_split_meta.items()):
             if key in _q014_reserved_split:

@@ -1,4 +1,4 @@
-"""A printed document whose payment converted currency.
+"""A printed page whose payment converted currency.
 
 A USD invoice settled into an HKD bank moved two figures — 100.00 USD off the
 receivable and 780.00 HKD into the bank — and one of them cannot be worked out
@@ -6,9 +6,9 @@ from the other. The plaintext format has `settled_amount:` / `share_price:` for
 exactly that, and a `payment:` block that states neither is refused when the
 payment has to be made rather than pointed at.
 
-That refusal is what a printed document meets in a book that never held the
+That refusal is what a printed page meets in a book that never held the
 deposit, and this pins it: the run stops and says which figure is missing. It
-is the honest answer for a document handed to somebody else — the block is a
+is the honest answer for a page handed to somebody else — the block is a
 record of a settlement, and the rate it converted at is not on the page.
 
 Read back into its own book the guids resolve and no rate is needed, which is

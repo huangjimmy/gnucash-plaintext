@@ -1,0 +1,36 @@
+# A second customer's invoice, paid the same day, for the same figure, into
+# the same account, with the same memo — and its own guid, naming a transaction
+# this book does not hold.
+#
+# Two customers each paying 100.00 into one account on one day is ordinary, and
+# a printed invoice carries the guid of the book it came from, so both blocks
+# reach the duplicate-payment guard with everything it compares identical. What
+# separates them is only that they are different invoices' money.
+customer "C-OTHER"
+	name: "Other Customer"
+	currency: CAD
+
+invoice "INV-OTHER"
+	customer_id: "C-OTHER"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-OTHER"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		account: "Assets:Bank"
+		memo: "Paid"
+		txn_guid: "feedfacefeedfacefeedfacefeedface"

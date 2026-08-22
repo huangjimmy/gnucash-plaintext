@@ -35,7 +35,7 @@ if [ "$(id -u)" = 0 ]; then
     echo "   'docker run' does not."
 fi
 
-# `pypdf` is test-only: a printed document is a PDF, and the only honest way to
+# `pypdf` is test-only: a printed page is a PDF, and the only honest way to
 # check that its text can be selected and copied is to read the text back out
 # of it. Installed here beside weasyprint rather than added to ten Dockerfiles.
 echo "Installing package..."

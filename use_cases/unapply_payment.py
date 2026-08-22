@@ -4,7 +4,7 @@ This is the non-destructive inverse of applying a payment. It detaches a
 payment's AR/AP split from the record's posted lot, so the lot reopens — the
 invoice returns to **Outstanding** (or partially-paid if other payments remain)
 — and re-homes that freed split to a user-named account (`--to`). The
-invoice/bill document is untouched and stays **posted**; the bank/income
+invoice or bill itself is untouched and stays **posted**; the bank/income
 transaction is never deleted. Only the freed split's *account* changes (its
 amount is unchanged, so the transaction stays balanced).
 

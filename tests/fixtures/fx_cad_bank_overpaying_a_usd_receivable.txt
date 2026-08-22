@@ -1,5 +1,5 @@
 # 274.00 CAD out of the bank against a 100.00 USD invoice — 200.00 USD of
-# receivable closed, so 100.00 USD more than the document is owed.
+# receivable closed, so 100.00 USD more than the invoice is owed.
 #
 # The transaction's currency is CAD and the receivable's is USD, so the residue
 # this leaves is a USD credit parked on a USD account under a CAD transaction:

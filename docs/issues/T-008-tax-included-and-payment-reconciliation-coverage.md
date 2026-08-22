@@ -44,12 +44,12 @@ segfault the ctypes helper was originally added for — verified on Ubuntu 20.04
 
 - overpayment / partial payment on a **taxed** invoice/bill (payment applied
   against the tax-inclusive total);
-- settling one document with a **mix** of a fresh `ApplyPayment` and a linked
+- settling one invoice with a **mix** of a fresh `ApplyPayment` and a linked
   existing bank tx (`txn_guid:`), then `unapply-payment` (single / `--all`) and
   re-link — on the bill side (`--all` and multi-partial bill unapply were
   uncovered);
-- a vendor/customer **credit consumed across two documents** (second goes
-  partial when the credit runs out) and credit + cash settling two documents;
+- a vendor/customer **credit consumed across two invoices** (second goes
+  partial when the credit runs out) and credit + cash settling two invoices;
 - credit **owner attribution** across several vendors/customers;
 - refund tests asserted only that the credit lot closed, not that the cash
   actually moved or that no expense/income was touched.

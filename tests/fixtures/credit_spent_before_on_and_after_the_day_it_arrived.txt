@@ -1,6 +1,6 @@
-# Four documents settled out of an owner's credit, on either side of the day
+# Four invoices settled out of an owner's credit, on either side of the day
 # the credit arrived — the customer's on 2026-01-10 and the vendor's the same
-# day, each 50.00 left over from a 150.00 payment against a 100.00 document.
+# day, each 50.00 left over from a 150.00 payment against a 100.00 invoice.
 #
 #   INV-SAME / BILL-SAME    20.00, posted the day the credit landed (boundary)
 #   INV-AFTER / BILL-AFTER  200.00, posted three weeks later
@@ -8,7 +8,7 @@
 # The first takes 20.00 and closes; the second takes the last 30.00 and stays
 # open for the remaining 170.00 — a credit consumed whole, which leaves no
 # residual behind for anything to notice it by. The export has to say
-# `from_credit: true` on all four while the documents the bank really paid —
+# `from_credit: true` on all four while the invoices the bank really paid —
 # INV-001 and BILL-001 — keep their `bank_account:`, `date:` and the 50.00
 # those payments left over on the day they were made.
 #

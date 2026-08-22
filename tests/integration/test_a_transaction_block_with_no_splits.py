@@ -4,7 +4,7 @@
 is the source of truth for the splits: one absent from it is removed. That is
 the model, and it is what lets a person delete a split by deleting a line.
 
-The same question the document blocks raised: nothing tells "the writer
+The same question the invoice blocks raised: nothing tells "the writer
 removed a split" from "the writer's file stops here". A block truncated after
 its header — which still parses, since a transaction needs only its date, flag
 and description — would leave the transaction with no splits at all, and a

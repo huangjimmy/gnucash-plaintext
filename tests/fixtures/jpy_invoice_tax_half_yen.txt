@@ -13,13 +13,13 @@
 #   Income:Sales JPY                  -2070 JPY
 #
 # and `print-invoice --format plaintext` writes `entry_tax: 104` /
-# `invoice_total: 2174` on the document the customer receives.
+# `invoice_total: 2174` on the invoice the customer receives.
 #
 # Three things are worth seeing here. Every figure is a whole yen — nothing
 # reads 104.00, because a hundredth of a yen does not exist. The rounding is
 # GnuCash's own: the engine posts 104 for this tax split, so the tool is
 # agreeing with the ledger rather than deciding the direction itself. And the
-# printed document is computed from the entry's tax_table, independently of the
+# printed invoice is computed from the entry's tax_table, independently of the
 # splits, so the two figures matching is the check that matters — an invoice
 # that says 103 while the books say 104 would be sent to a customer as such.
 #

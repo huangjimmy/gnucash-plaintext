@@ -1,13 +1,13 @@
-"""A printed document states the whole payment, not only its own share.
+"""A printed page states the whole payment, not only its own share.
 
-A payment can be larger than the document it settles: 250.00 against a 100.00
+A payment can be larger than the invoice it settles: 250.00 against a 100.00
 invoice settles it and leaves 150.00 as the customer's credit. `amount:` is
-this document's own slice — it has to be, because one deposit can settle
-several documents and the bank figure would over-report every one of them — so
+this invoice's own slice — it has to be, because one deposit can settle
+several invoices and the bank figure would over-report every one of them — so
 the residue is stated separately, as `prepayment:`.
 
-The ledger export has always written it. A printed document did not, and a
-printed document is re-importable: the guids in it are what let its own book
+The ledger export has always written it. A printed page did not, and a
+printed page is re-importable: the guids in it are what let its own book
 relink rather than pay twice, and in any other book they name nothing and the
 payment is made from the block. Made from a block saying only `amount: 100`,
 the run entered a 100.00 bank movement for money that moved 250.00, left the
@@ -16,8 +16,8 @@ customer's 150.00 credit uncreated, marked the invoice settled and exited 0.
 Nothing about it was loud. `_check_declared_prepayment` returns at once when
 the key is absent, on the reasoning that `amount:` says how much was paid and
 GnuCash carves the residue out of it — true of the export's block, where
-`amount:` is the bank figure's whole share of this document, and not of a
-block whose payment was bigger than the document.
+`amount:` is the bank figure's whole share of this page, and not of a
+block whose payment was bigger than the page.
 """
 
 from pathlib import Path
@@ -118,7 +118,7 @@ class TestReadIntoABookThatNeverHeldTheDeposit:
         block's figure against a *bank* split, and the bank holds the whole
         250.00 while `amount:` states the 100.00 that settled the invoice. Read
         as 100.00 the second run matched nothing: the payment looked different
-        from the file that wrote it, the document was unposted and rebuilt, the
+        from the file that wrote it, the invoice was unposted and rebuilt, the
         rebuild could not find its own orphan, the duplicate guard could not
         see the deposit — and a second 250.00 landed in the bank. Exit 0, and
         again on every read after that.

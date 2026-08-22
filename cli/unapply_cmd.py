@@ -5,13 +5,13 @@
 Peels a payment off a still-**posted** invoice/bill: the payment's AR/AP split
 is detached from the record's lot (so the invoice returns to Outstanding, or
 partially-paid if other payments remain) and re-homed to `--to <account>`. The
-invoice/bill document is untouched and stays posted; the bank/income
+invoice or bill itself is untouched and stays posted; the bank/income
 transaction is never deleted — only the freed split's account changes.
 
 This is NOT unpost: `unpost-invoices` / `unpost-bills` drop the record to Draft
-and destroy the posting transaction. Use unapply-payment when the document is
+and destroy the posting transaction. Use unapply-payment when the record is
 correct but a payment was applied to the wrong invoice (or wasn't a payment at
-all) and you need to peel it back without touching the document.
+all) and you need to peel it back without touching that record.
 
 `--to` is required: the freed money had some prior account the apply step
 overwrote and we never recorded, and money no longer applied to an invoice is a
@@ -93,7 +93,7 @@ def unapply_payment(gnucash_file, record_id, to_account_name, txn_guids,
         state = 'Outstanding' if result.remaining_balance != 0 else 'fully paid'
         click.echo(f'   {kind} lot balance now '
                    f'{money_text(Fraction(abs(result.remaining_balance)), result.unit)} '
-                   f'({state}); document still posted.')
+                   f'({state}); it is still posted.')
         return
 
     # Error statuses → exit non-zero with a clear message.

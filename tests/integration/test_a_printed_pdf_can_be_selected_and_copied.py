@@ -11,7 +11,7 @@ look for what the page says. Asserting on the HTML instead would prove nothing
 about the PDF, which is the artefact that leaves the building.
 
 The figures are asserted too, because the same run proves them: this invoice is
-2 hours at C$100.00 with GST 5% + PST 7%, so the page owes C$224.00.
+2 hours at C$100.00 with GST 5% + PST 7%, so it owes C$224.00.
 """
 
 import time
@@ -47,7 +47,7 @@ def book(tmp_path):
 
 
 def _text_of(pdf_path):
-    """Everything a reader would get from selecting the whole document.
+    """Everything a reader would get from selecting the whole page.
 
     Whitespace is collapsed because a PDF's line breaks are the layout's, not
     the text's: `Amount Due` sits in a narrow cell and comes back as `Amount`
@@ -128,11 +128,11 @@ class TestThePrintingPageRunsNoScript:
     A report interpolates book text into the page it draws — a customer's
     name, an entry description, a logo filename — so a field it does not
     escape is script executing while an invoice is printed. Nothing about
-    laying a document out needs scripting, and the page comes out the same
+    laying a page out needs scripting, and the page comes out the same
     without it.
 
     Asserted through the service that lays pages out, on a page written here:
-    a document GnuCash drew has no script to run, which is the point, so
+    a page GnuCash drew has no script to run, which is the point, so
     there is nothing in one to assert against.
     """
 
@@ -140,6 +140,10 @@ class TestThePrintingPageRunsNoScript:
                                                                  tmp_path):
         from infrastructure.pdf.printing import laid_out_by_webkit
 
+        # `document.write` is the DOM's, and the spelling is what makes this
+        # assertion mean anything: renamed to something JavaScript does not
+        # define, the script throws instead of writing and the assertion
+        # below passes with scripting fully enabled.
         page = ('<html><body><p>PRINTED BY THE REPORT</p>'
                 '<script>document.write("WRITTEN BY A SCRIPT")</script>'
                 '</body></html>')
@@ -163,7 +167,7 @@ class TestTheCharactersReachThePdf:
     stayed green.
 
     Latin-1-range letters rather than the CJK of
-    `test_a_printed_document_keeps_its_characters`: no image ships a CJK
+    `test_a_printed_page_keeps_its_characters`: no image ships a CJK
     font, so that one can say nothing about a PDF, while `Café Ltée` is
     drawn by the fonts every image has.
     """
@@ -177,7 +181,7 @@ class TestTheCharactersReachThePdf:
         book = tmp_path / 'accented.gnucash'
         made = CliRunner().invoke(cli, [
             'import', '--new', str(book),
-            'tests/fixtures/a_document_in_more_than_ascii.txt',
+            'tests/fixtures/an_invoice_in_more_than_ascii.txt',
             '--include-business-objects'])
         assert made.exit_code == 0, made.output
 
@@ -203,7 +207,7 @@ class TestOnADisplayTheCallerAlreadyHas:
     desktop looks like from inside this function.
     """
 
-    def test_the_document_is_printed_on_it(self, tmp_path, monkeypatch):
+    def test_the_page_is_printed_on_it(self, tmp_path, monkeypatch):
         from infrastructure.pdf.printing import a_display, laid_out_by_webkit
 
         with a_display() as (_, arranged):
@@ -246,12 +250,12 @@ class TestWhenTheEngineIsNotThere:
         assert 'No module named' in str(told.value), told.value
 
 
-class TestSeveralDocumentsInOnePdf:
-    """Two documents in one file, one per page.
+class TestSeveralInvoicesInOnePdf:
+    """Two pages in one file, one per page.
 
     The shell they are wrapped in is built here — the pages are rendered
     separately and joined — so a swallowed `<body>` or a lost page break shows
-    up as a page that reads blank or as two documents printed on top of each
+    up as a page that reads blank or as two pages printed on top of each
     other.
     """
 

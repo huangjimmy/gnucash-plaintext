@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Lay a rendered document out with WebKit — the engine GnuCash prints with.
+"""Lay a rendered page out with WebKit — the engine GnuCash prints with.
 
 GnuCash's Print Invoice button hands its report's HTML to WebKit and prints
 that, so a page laid out any other way is a second answer to a question
@@ -54,7 +54,7 @@ from gi.repository import GLib, Gtk, WebKit2  # noqa: E402
 
 #: A page that never finishes loading must not hang a print run for ever, and
 #: this guard has to fire before the parent's — a sentence naming WebKit beats
-#: one naming a killed subprocess. The parent gives a document 90 seconds; a
+#: one naming a killed subprocess. The parent gives a page 90 seconds; a
 #: page takes 0.42–0.60 of one, measured on 5.10 under a ten-version sweep.
 GIVE_UP_AFTER = 60
 
@@ -62,7 +62,7 @@ GIVE_UP_AFTER = 60
 def _print(source: str, target: str, fmt: str) -> int:
     view = WebKit2.WebView()
     # No JavaScript. GnuCash's report interpolates book text into the page —
-    # a customer's name, an entry description, a document's notes, the logo
+    # a customer's name, an entry description, an invoice's notes, the logo
     # filename — and a field the report does not escape is then script that
     # runs while an invoice is being printed, with `fetch` and the rest of a
     # browser to send what is on the page somewhere. GnuCash's own viewer
@@ -92,7 +92,7 @@ def _print(source: str, target: str, fmt: str) -> int:
         # No paper size named, so the sheet is the one GTK derives from the
         # reader's locale — A4 nearly everywhere, US Letter under `en_US` and
         # `en_CA` — which is the sheet GnuCash starts from on the same
-        # machine. Naming one printed every reader's document on the author's
+        # machine. Naming one printed every reader's page on the author's
         # paper, and a book that prints Letter here and A4 from GnuCash is
         # the mismatch this path exists to remove.
         operation = WebKit2.PrintOperation.new(webview)

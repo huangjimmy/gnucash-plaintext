@@ -165,11 +165,11 @@ class TestATransactionWithNoAmount:
         assert result.existing is None, result.existing
 
 
-class TestTheDocumentLinkOnAMerge:
+class TestTheDocLinkOnAMerge:
     def test_the_books_own_link_is_kept_when_the_import_has_none(self, book):
         """A statement re-read without its PDF to hand must not blank the link
         an earlier import recorded — that link is how the entry is traced back
-        to the document it came from."""
+        to the receipt it came from."""
         path, accts = book
 
         result = _matcher(path).match(_tx(
@@ -180,7 +180,7 @@ class TestTheDocumentLinkOnAMerge:
         assert result.merged_tx.source_pdfs == ['boci-2026-04.pdf'], \
             result.merged_tx.source_pdfs
 
-    def test_a_second_document_is_carried_across_too(self, book):
+    def test_a_second_receipt_is_carried_across_too(self, book):
         """An entry can be evidenced by two — a statement and a receipt — and
         keeping only the first loses the one a reader went looking for."""
         path, accts = book

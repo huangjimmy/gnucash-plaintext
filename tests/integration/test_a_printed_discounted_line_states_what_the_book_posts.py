@@ -9,7 +9,7 @@ ledger, so the disagreement is reachable from a file.
 Measured on GnuCash 5.10, 10 × 100.00 discounted 10 per cent against a 10 per
 cent tax table: `pretax` posts 900.00 + 90.00, `sametime` posts 900.00 +
 100.00, and `posttax` posts 890.00 + 100.00. Quantity × price said
-1000.00 + 100.00 for all three, so a document handed to a customer stated
+1000.00 + 100.00 for all three, so an invoice handed to a customer stated
 1000.00 while its own A/R split said 990.00 — and `--format pdf`, drawn by
 GnuCash's own report, printed the right figure beside the wrong one from the
 same command.
@@ -30,7 +30,7 @@ from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 LEDGER = 'tests/fixtures/discounted_lines_taxed_three_ways.txt'
 
-DOCUMENTS = (
+INVOICES = (
     'INV-DISCOUNT-PRETAX',
     'INV-DISCOUNT-SAMETIME',
     'INV-DISCOUNT-POSTTAX',
@@ -48,10 +48,10 @@ def book(tmp_path_factory):
     return path
 
 
-def _printed(book, tmp_path, document):
-    out = tmp_path / f'{document}.txt'
+def _printed(book, tmp_path, invoice):
+    out = tmp_path / f'{invoice}.txt'
     result = CliRunner().invoke(cli, [
-        'print-invoice', str(book), document, '--format', 'plaintext',
+        'print-invoice', str(book), invoice, '--format', 'plaintext',
         '--output', str(out)])
     assert result.exit_code == 0, result.output
     return out.read_text(encoding='utf-8')
@@ -67,16 +67,16 @@ def _printed_bill(book, tmp_path):
 
 
 def _stated(printed, key):
-    """The figure a printed document states for `key`, as an exact Fraction."""
+    """The figure a printed invoice states for `key`, as an exact Fraction."""
     for line in printed.splitlines():
         bare = line.strip()
         if bare.startswith(f'{key}:'):
             return Fraction(bare.split(':', 1)[1].strip())
-    raise AssertionError(f'{key}: is not in the printed document:\n{printed}')
+    raise AssertionError(f'{key}: is not in the printed invoice:\n{printed}')
 
 
 def _posting_splits(book_path, memo):
-    """`{account full name: amount}` for the transaction a document posted."""
+    """`{account full name: amount}` for the transaction an invoice posted."""
     from gnucash import Query, Split
 
     from infrastructure.gnucash.utils import get_account_full_name
@@ -102,29 +102,29 @@ def _posting_splits(book_path, memo):
 
 
 class TestTheTotalAndTheReceivable:
-    @pytest.mark.parametrize('document', DOCUMENTS)
+    @pytest.mark.parametrize('invoice', INVOICES)
     def test_the_printed_total_is_the_receivable_the_book_holds(
-            self, book, tmp_path, document):
-        printed = _printed(book, tmp_path, document)
-        splits = _posting_splits(book, document)
+            self, book, tmp_path, invoice):
+        printed = _printed(book, tmp_path, invoice)
+        splits = _posting_splits(book, invoice)
 
         assert _stated(printed, 'invoice_total') == \
             splits['Assets:Accounts Receivable']
 
-    @pytest.mark.parametrize('document', DOCUMENTS)
+    @pytest.mark.parametrize('invoice', INVOICES)
     def test_and_the_subtotal_is_what_reached_the_income_account(
-            self, book, tmp_path, document):
-        printed = _printed(book, tmp_path, document)
-        splits = _posting_splits(book, document)
+            self, book, tmp_path, invoice):
+        printed = _printed(book, tmp_path, invoice)
+        splits = _posting_splits(book, invoice)
 
         assert _stated(printed, 'invoice_subtotal') == \
             -splits['Income:Sales']
 
-    @pytest.mark.parametrize('document', DOCUMENTS)
+    @pytest.mark.parametrize('invoice', INVOICES)
     def test_and_the_tax_total_is_what_reached_the_tax_accounts(
-            self, book, tmp_path, document):
-        printed = _printed(book, tmp_path, document)
-        splits = _posting_splits(book, document)
+            self, book, tmp_path, invoice):
+        printed = _printed(book, tmp_path, invoice)
+        splits = _posting_splits(book, invoice)
         taxes = -sum((amount for name, amount in splits.items()
                       if name.startswith('Liabilities:')), Fraction(0))
 
@@ -134,7 +134,7 @@ class TestTheTotalAndTheReceivable:
 class TestEachRuleSeparately:
     """The three rules, stated as the figures rather than read off the book.
 
-    The tests above would pass on a document whose splits were wrong in the
+    The tests above would pass on an invoice whose splits were wrong in the
     same way as its printed page. These say which figures are right, and are
     the measurement the module docstring reports.
     """
@@ -205,7 +205,7 @@ class TestTheBreakdownPerTaxAccount:
         # And the rate on that one row is the two rates together.
         assert 'rate: 12' in printed, printed
 
-    def test_the_blocks_sum_to_the_tax_the_document_states(
+    def test_the_blocks_sum_to_the_tax_the_invoice_states(
             self, book, tmp_path):
         printed = _printed(book, tmp_path, 'INV-DISCOUNT-TWO-TAXES')
 
@@ -216,21 +216,21 @@ class TestTheBreakdownPerTaxAccount:
 class TestSeveralLinesAndSeveralTaxAccounts:
     """Where the two roundings can disagree, and the only shape that shows it.
 
-    GnuCash totals a document's tax per *account* across every line, rounding
+    GnuCash totals an invoice's tax per *account* across every line, rounding
     each account once — so with several lines and several accounts its figure
     need not be what the lines round to on their own. One line or one account
-    hides that: they coincide. Measured on 5.10, this document's lines hold
+    hides that: they coincide. Measured on 5.10, this invoice's lines hold
     0.6294, 0.6000 and 0.1998 of tax and its accounts receive 0.24, 0.48 and
     0.71 — 1.43 either way here, and the page has to state figures that add
     to it and match the splits account by account.
     """
 
-    DOCUMENT = 'INV-THREE-ACCOUNTS'
+    INVOICE = 'INV-THREE-ACCOUNTS'
 
-    def test_the_tax_column_adds_to_the_document_and_matches_the_splits(
+    def test_the_tax_column_adds_to_the_invoice_and_matches_the_splits(
             self, book, tmp_path):
-        printed = _printed(book, tmp_path, self.DOCUMENT)
-        splits = _posting_splits(book, self.DOCUMENT)
+        printed = _printed(book, tmp_path, self.INVOICE)
+        splits = _posting_splits(book, self.INVOICE)
 
         per_line = [Fraction(line.split(':', 1)[1].strip())
                     for line in printed.splitlines()
@@ -246,8 +246,8 @@ class TestSeveralLinesAndSeveralTaxAccounts:
 
     def test_and_each_account_is_what_its_split_received(
             self, book, tmp_path):
-        printed = _printed(book, tmp_path, self.DOCUMENT)
-        splits = _posting_splits(book, self.DOCUMENT)
+        printed = _printed(book, tmp_path, self.INVOICE)
+        splits = _posting_splits(book, self.INVOICE)
 
         # Every `breakdown:` block on the page, summed per account.
         found = {}
@@ -267,7 +267,7 @@ class TestSeveralLinesAndSeveralTaxAccounts:
         """Two lines of 1.10 taxed 5% + 5%: each line owes 0.055 to each
         account. Rounding a line's own breakdown gives one account 0.06 and
         the other 0.05 on both lines — 0.12 against 0.10 — while the book
-        rounds each account once across the document and posts 0.11 each.
+        rounds each account once across the invoice and posts 0.11 each.
         The page has to state the book's figures, so the fit works per
         account first and hands each account's total out over the lines."""
         printed = _printed(book, tmp_path, 'INV-EVEN-SPLIT')
@@ -285,15 +285,15 @@ class TestSeveralLinesAndSeveralTaxAccounts:
         assert _stated(printed, 'invoice_tax_total') == Fraction(22, 100)
 
     def test_and_the_page_reads_back_into_its_own_book(self, book, tmp_path):
-        page = tmp_path / f'{self.DOCUMENT}-again.txt'
-        page.write_text(_printed(book, tmp_path, self.DOCUMENT),
+        page = tmp_path / f'{self.INVOICE}-again.txt'
+        page.write_text(_printed(book, tmp_path, self.INVOICE),
                         encoding='utf-8')
 
         again = CliRunner().invoke(cli, ['import', str(book), str(page),
                                          '--include-business-objects'])
 
         assert again.exit_code == 0, again.output
-        assert f'invoice "{self.DOCUMENT}": unchanged' in again.output, \
+        assert f'invoice "{self.INVOICE}": unchanged' in again.output, \
             again.output
 
 
@@ -328,7 +328,7 @@ class TestTheBillSideOfTheSameRule:
 
     def test_and_the_tax_is_what_reached_the_tax_account(self, book, tmp_path):
         """39.13, not the 39.12 the three rounded lines add to: GnuCash
-        rounds a document's tax once, and the split follows GnuCash."""
+        rounds an invoice's tax once, and the split follows GnuCash."""
         printed = self._printed_bill(book, tmp_path)
         splits = _posting_splits(book, 'BILL-TAX-INCLUDED')
 
@@ -341,7 +341,7 @@ class TestTheBillSideOfTheSameRule:
             self, book, tmp_path):
         """Three lines whose tax is 13.0434… each. Rounded on their own they
         print 13.04 apiece and add to 39.12, against a stated 39.13 — a
-        column a reader cannot add. The lines are fitted to the document's
+        column a reader cannot add. The lines are fitted to the invoice's
         figure instead, so one of them carries the odd cent."""
         printed = self._printed_bill(book, tmp_path)
 
@@ -377,13 +377,13 @@ class TestTheBillSideOfTheSameRule:
 
 
 class TestAPrintedPageReadIntoAFreshBook:
-    """A page carries its figures to a book that has never seen the document.
+    """A page carries its figures to a book that has never seen the invoice.
 
     Every other re-import test reads a page back into the book it was printed
     from, where the writer and the importer walk the same list in the same
-    order. A fresh book orders a document by GnuCash's own comparison — date,
+    order. A fresh book orders an invoice by GnuCash's own comparison — date,
     then date entered, then description — and stamps its own date entered, so
-    the fit has to reach the same answer from the document's own content
+    the fit has to reach the same answer from the invoice's own content
     rather than from a line's position in a list.
     """
 
@@ -393,22 +393,22 @@ class TestAPrintedPageReadIntoAFreshBook:
                 if line.strip().startswith(('entry_amount:', 'entry_tax:',
                                             'amount:', 'invoice_', 'bill_'))]
 
-    @pytest.mark.parametrize('document', ['INV-THREE-ACCOUNTS',
+    @pytest.mark.parametrize('invoice', ['INV-THREE-ACCOUNTS',
                                           'INV-DISCOUNT-TWO-TAXES',
                                           'INV-DISCOUNT-PRETAX'])
     def test_the_page_states_the_same_figures_from_either_book(
-            self, book, tmp_path, document):
-        printed = _printed(book, tmp_path, document)
-        page = tmp_path / f'{document}-page.txt'
+            self, book, tmp_path, invoice):
+        printed = _printed(book, tmp_path, invoice)
+        page = tmp_path / f'{invoice}-page.txt'
         page.write_text(printed, encoding='utf-8')
 
-        fresh = tmp_path / f'{document}-fresh.gnucash'
+        fresh = tmp_path / f'{invoice}-fresh.gnucash'
         assert CliRunner().invoke(cli, [
             'import', '--new', str(fresh), LEDGER,
             '--include-business-objects']).exit_code == 0
         # `updated` rather than `unchanged`: the page names the posting
         # transaction of the book it was printed from, which this one has
-        # not got, so the document is rebuilt. What has to survive that is
+        # not got, so the invoice is rebuilt. What has to survive that is
         # the figures.
         again = CliRunner().invoke(cli, ['import', str(fresh), str(page),
                                          '--include-business-objects'])
@@ -416,7 +416,7 @@ class TestAPrintedPageReadIntoAFreshBook:
 
         second = tmp_path / 'second'
         second.mkdir(exist_ok=True)
-        assert self._figures(_printed(fresh, second, document)) == \
+        assert self._figures(_printed(fresh, second, invoice)) == \
             self._figures(printed)
 
     def test_a_three_line_bill_likewise(self, book, tmp_path):
@@ -451,9 +451,9 @@ class TestAPageThatDisagreesWithTheBook:
     against an A/P split of 300.01 and nothing said.
     """
 
-    def _refused(self, book, tmp_path, document, command, source, wanted):
-        out = tmp_path / f'{document}-edited.txt'
-        printed = _printed(book, tmp_path, document) if command == \
+    def _refused(self, book, tmp_path, invoice, command, source, wanted):
+        out = tmp_path / f'{invoice}-edited.txt'
+        printed = _printed(book, tmp_path, invoice) if command == \
             'print-invoice' else _printed_bill(book, tmp_path)
         assert source in printed, (source, printed)
         out.write_text(printed.replace(source, wanted, 1), encoding='utf-8')
@@ -490,14 +490,14 @@ class TestAPageThatDisagreesWithTheBook:
 
 
 class TestTheWholeBookOfThem:
-    """Every document in this fixture, exported and read back.
+    """Every invoice in this fixture, exported and read back.
 
     The classes above take one page at a time; this is the run they all
     assume works. A credit note's figures have a file of their own —
-    `tests/integration/test_a_credit_note_is_carried_like_any_document.py`.
+    `tests/integration/test_a_credit_note_is_carried_like_any_invoice.py`.
     """
 
-    def test_a_book_of_ordinary_documents_exports_and_re_imports(
+    def test_a_book_of_ordinary_invoices_exports_and_re_imports(
             self, tmp_path):
         book = tmp_path / 'ordinary.gnucash'
         assert CliRunner().invoke(cli, ['import', '--new', str(book), LEDGER,
@@ -516,30 +516,30 @@ class TestTheWholeBookOfThem:
             again.output
 
 
-class TestReadingThePrintedDocumentBack:
-    @pytest.mark.parametrize('document', DOCUMENTS)
-    def test_a_printed_document_re_imports_unchanged(
-            self, book, tmp_path, document):
-        """The import recomputes every informational figure and refuses a
-        document whose figures disagree, so this is the same check from the
+class TestReadingThePrintedPageBack:
+    @pytest.mark.parametrize('invoice', INVOICES)
+    def test_a_printed_invoice_re_imports_unchanged(
+            self, book, tmp_path, invoice):
+        """The import recomputes every informational figure and refuses
+        an invoice whose figures disagree, so this is the same check from the
         other side — and it would fail on a page printed from the old
         arithmetic against a book posted by GnuCash."""
-        printed = tmp_path / f'{document}-again.txt'
-        printed.write_text(_printed(book, tmp_path, document),
+        printed = tmp_path / f'{invoice}-again.txt'
+        printed.write_text(_printed(book, tmp_path, invoice),
                            encoding='utf-8')
 
         again = CliRunner().invoke(cli, ['import', str(book), str(printed),
                                          '--include-business-objects'])
 
         assert again.exit_code == 0, again.output
-        assert f'invoice "{document}": unchanged' in again.output, again.output
+        assert f'invoice "{invoice}": unchanged' in again.output, again.output
 
 
-class TestWhichRoundingADocumentsTaxIs:
-    """A document's tax is the sum of its accounts', each rounded once.
+class TestWhichRoundingAnInvoicesTaxIs:
+    """An invoice's tax is the sum of its accounts', each rounded once.
 
-    The alternative reading — one rounding of the whole document's tax —
-    gives the same answer for almost every document, which is why it has to
+    The alternative reading — one rounding of the whole invoice's tax —
+    gives the same answer for almost every invoice, which is why it has to
     be asked of a case that parts them. One line of 1.10 taxed 5% + 5% owes
     0.055 to each account:
 
@@ -548,9 +548,9 @@ class TestWhichRoundingADocumentsTaxIs:
 
     Measured on 5.10: `gncInvoiceGetTotalTax` answers **0.12** and the posting
     splits carry 0.06 to each account. That is the model
-    `entries_fitted_to_the_document` computes, and the `stated !=
-    document_tax` refusal it ends with is what would fire if some version
-    ever answered the other way — so this is the document that would fire it.
+    `entries_fitted_to_the_page` computes, and the `stated !=
+    invoice_tax` refusal it ends with is what would fire if some version
+    ever answered the other way — so this is the invoice that would fire it.
     """
 
     @pytest.fixture
@@ -622,12 +622,12 @@ class TestTwoLinesAlikeInEveryField:
         # `taxtable` blocks and those have `entry:` sub-blocks of their own —
         # counted from the top of the file, the first two entries here are
         # the tax table's and nothing is stripped at all.
-        kept, entries_seen, dropping, in_document = [], 0, False, False
+        kept, entries_seen, dropping, in_invoice = [], 0, False, False
         for line in printed.splitlines():
             bare = line.strip()
             if bare.startswith('invoice "'):
-                in_document = True
-            if in_document and bare == 'entry:':
+                in_invoice = True
+            if in_invoice and bare == 'entry:':
                 entries_seen += 1
             if entries_seen == 1 and bare.startswith(
                     ('entry_amount:', 'entry_tax:', 'breakdown:')):

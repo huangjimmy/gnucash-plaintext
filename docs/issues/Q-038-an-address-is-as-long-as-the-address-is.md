@@ -34,7 +34,7 @@ book custom metadata: {'addr5': 'CANADA', 'addr6': 'Attn: Accounts Payable'}
 
 It round-trips through the export perfectly and never reaches the address, so
 a test asserting the ledger's own round trip passes while the printed invoice
-shows four lines. The file says one thing and the document shows another.
+shows four lines. The file says one thing and the page shows another.
 
 **C.** A block naming one line:
 
@@ -86,7 +86,7 @@ mixed them did not mean the same line twice.
 
 **Why a fifth line on an owner is refused.** There is nowhere in the book to
 put it. Accepting it filed it where nothing prints it, which is D above: the
-ledger and the document disagreeing with no word said.
+ledger and the page disagreeing with no word said.
 
 ## Where it lives
 

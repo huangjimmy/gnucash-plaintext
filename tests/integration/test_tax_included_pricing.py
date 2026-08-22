@@ -165,7 +165,7 @@ def test_tax_included_invoice_draft_html_backs_out_net_and_tax(tmp_path):
         f'PST 7% of the backed-out 1,000.00:\n{html[-2500:]}')
     assert '>C$1,120.00<' in html, f'gross total missing:\n{html[-2500:]}'
     assert is_in_progress(html), (
-        f'an unposted document is drawn as in progress:\n{html}')
+        f'an unposted invoice is drawn as in progress:\n{html}')
 
 
 # ── Draft render: bill ─────────────────────────────────────────────

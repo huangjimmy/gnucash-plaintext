@@ -1,10 +1,10 @@
 """Q-019: drafts (cash-basis OR plain accrual) carry full tax info.
 
 GnuCash only materialises tax splits at posting time. Its own page prices an
-unposted document from the entries' tax tables and states the tax as one
+unposted invoice or bill from the entries' tax tables and states the tax as one
 total, so the HTML needs nothing from this project; the plaintext render does
 its own arithmetic through `compute_entry_informational` and marks the figures
-provisional, because a plaintext document is re-imported and its numbers are
+provisional, because a plaintext page is re-imported and its numbers are
 checked against a recomputation.
 """
 import time
@@ -95,7 +95,7 @@ def test_cash_basis_unposted_invoice_html_prices_its_tax(tmp_path):
     posted yet.
 
     One row per tax account, each named: a filer reclaims the GST and not the
-    PST, and a document stating only their sum does not tell them which is
+    PST, and a page stating only their sum does not tell them which is
     which. GnuCash's report writes them that way when asked
     (`Display/Use Detailed Tax Summary`), and it is asked.
     """

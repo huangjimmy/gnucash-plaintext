@@ -346,10 +346,10 @@ def _import_into_fresh_book(runner, tmp_path, fixture_name):
 
 def test_a_cash_basis_invoice_is_drawn_like_any_other_unposted_one(tmp_path):
     """`cash_basis: true` is the issuer's tax classification, and GnuCash's
-    page has no notion of it: an unposted document is priced from its entries
+    page has no notion of it: an unposted invoice is priced from its entries
     and marked in progress, whether the flag is there or not.
 
-    Its dates come from the posting, so an unposted document carries none —
+    Its dates come from the posting, so an unposted invoice carries none —
     the `due_date:` key still round-trips through the format, and no longer
     reaches the printed page.
     """
@@ -367,7 +367,7 @@ def test_a_cash_basis_invoice_is_drawn_like_any_other_unposted_one(tmp_path):
 
 def test_an_invoice_without_the_flag_is_drawn_the_same_way(tmp_path):
     """The other half of the pair: with no `cash_basis:` key at all, an
-    unposted document is drawn exactly as the one above is. That the two
+    unposted invoice is drawn exactly as the one above is. That the two
     pages agree is the point — the flag is private to the issuer."""
     runner = CliRunner()
     gnc = _import_into_fresh_book(

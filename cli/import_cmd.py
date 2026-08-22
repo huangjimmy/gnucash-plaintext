@@ -473,6 +473,29 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             if include_business_objects and not dry_run:
                 _warn_open_prepayment_mismatches(all_directives, repo.book)
 
+            # A `payment:` block's memo is the payment transaction's, so a
+            # file that corrects one changes a transaction and leaves the
+            # invoice alone — counted here with the transactions, above the
+            # summary that states the figure and above `has_changes`, so a
+            # run whose only change is a memo says so and saves. Read from
+            # the invoice and bill paths, which report one line apiece and have no way
+            # to say "a transaction moved".
+            # Minus the ones the transaction pass already reported: under
+            # `--strategy update` it reports every transaction the file
+            # names, and one transaction changed is one transaction
+            # changed however many parts of the file describe it. Minus
+            # the ones it created, too — a memo written onto a transaction
+            # this run made is part of making it, and counting it here
+            # reported `Transactions: 1` beside `Updated: 1` for a book
+            # where nothing had been updated at all.
+            from services.gnucash_importer import (
+                TRANSACTIONS_A_MEMO_CORRECTED,
+            )
+            result.updated_count += len(
+                TRANSACTIONS_A_MEMO_CORRECTED
+                - getattr(result, 'updated_transaction_guids', set())
+                - getattr(result, 'new_transaction_guids', set()))
+
             # Display results
             click.echo("")
             click.echo("Import Summary:")

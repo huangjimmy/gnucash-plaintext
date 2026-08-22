@@ -6,7 +6,7 @@
 # figures or the 150.00 is not entered at all.
 #
 # Accounts come from payment_roundtrip_accounts.txt, so the same printed
-# document can be read into a fresh book built from that file alone.
+# page can be read into a fresh book built from that file alone.
 customer "C-OVER"
 	name: "Overpaying Customer"
 	currency: CAD

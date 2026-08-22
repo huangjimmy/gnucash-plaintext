@@ -56,9 +56,32 @@ def transaction_under_construction(book):
                 transaction.CommitEdit()
 
 
+def qof_instance(obj):
+    """What SWIG wants: the instance behind a wrapper, or the thing itself.
+
+    ``Account.GetLotList()`` returns a raw ``SwigPyObject`` pointer on GnuCash
+    3.8, 4.4, 4.8, 4.13, 5.5, 5.10, 5.13 and 5.14, and a wrapped ``GncLot`` on
+    5.15 and 5.16 — measured on all ten
+    (``tests/research/a_lot_can_be_named_probe.py``). ``int()`` refuses the
+    wrapper outright, so a reader written against either half raises on the
+    other while eight builds agree with each other, and the same three words
+    were written out at fifteen call sites, each free to get it wrong on its
+    own.
+
+    So the difference is answered here, and asked for in the two shapes its
+    callers need: this one for a SWIG call, ``qof_pointer`` for ctypes.
+    """
+    return getattr(obj, 'instance', obj)
+
+
+def qof_pointer(obj) -> int:
+    """What ctypes wants: the same instance as an integer."""
+    return int(qof_instance(obj))
+
+
 def wrap_invoice_or_bill(raw):
     """Wrap a ``gncInvoice`` QOF query result as the correct SWIG class:
-    ``Bill`` for a vendor-owned document, ``Invoice`` for a customer-owned one.
+    ``Bill`` for a vendor-owned record, ``Invoice`` for a customer-owned one.
 
     GnuCash stores customer invoices and vendor bills in one ``gncInvoice`` QOF
     type; only the Python class decides whether ``AddEntry`` / ``RemoveEntry``
@@ -514,6 +537,30 @@ def unescape_string(s: str) -> str:
     return ''.join(out)
 
 
+class NumberAsWritten(int):
+    """A whole number decoded from a file, carrying the digits it was written with.
+
+    `int('00000000000000000000000000000022')` is 22, and the digits the
+    file wrote are gone with it — `0000…0022` and `22` decode alike. That
+    matters where the value is not really a number: a `guid:` written
+    without quotes is all-digit hex, and read as a number it can neither be
+    used nor quoted back in a message, because nothing is left to quote.
+
+    So the digits stay on the value. Readers that want the number are
+    unaffected — this *is* an `int`, and compares, hashes and arithmetics
+    as one — and a reader that needs the text the file carried asks for
+    `.source`.
+    """
+
+    # No `__slots__`: `int` is a variable-length type, and a subclass of one
+    # cannot declare a non-empty set — `TypeError: nonempty __slots__ not
+    # supported for subtype of 'int'`, measured on Python 3.9 and 3.13.
+    def __new__(cls, source: str):
+        made = super().__new__(cls, source)
+        made.source = source
+        return made
+
+
 def decode_value_from_string(s: str):
     """
     Decode value from plaintext string representation.
@@ -542,7 +589,7 @@ def decode_value_from_string(s: str):
     if s.startswith('#'):
         s_no_hash = s[1:].strip()
         if s_no_hash.isnumeric():
-            return int(s_no_hash)
+            return NumberAsWritten(s_no_hash)
         try:
             return float(s_no_hash)
         except ValueError:
@@ -553,8 +600,10 @@ def decode_value_from_string(s: str):
     else:
         # Bare integer (e.g. fraction: 100) or bare float (e.g. fraction: 1)
         # All unquoted non-keyword values in the plaintext format are numbers.
+        # The digits stay on the value: an unquoted `guid:` is all-digit hex
+        # and `int` of it keeps none of what makes it a guid.
         if s.lstrip('-').isnumeric():
-            return int(s)
+            return NumberAsWritten(s)
         try:
             return float(s)
         except ValueError:

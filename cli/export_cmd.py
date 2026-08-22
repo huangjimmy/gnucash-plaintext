@@ -73,20 +73,20 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
             business_objects_output = ""
             # Held rather than raised, so the transactions section is still
             # formatted and its own offenders gathered. Each half names every
-            # one of its own, but the documents were written first and refused
+            # one of its own, but the business objects were written first and refused
             # before the other list existed — so a book with an unwritable
             # payment amount and an unwritable split named only the payment,
             # and the reader who corrected it met the split on the next run.
             # Two runs to learn two figures, out of a guard whose purpose is
             # that a book is not fixed one run at a time.
-            documents_refusal = None
+            business_objects_refusal = None
             if include_business_objects:
                 click.echo("Exporting business objects...")
                 business_use_case = ExportBusinessObjectsUseCase(repo.book)
                 try:
                     business_objects_output = business_use_case.execute()
                 except UnwritableFigureError as exc:
-                    documents_refusal = exc
+                    business_objects_refusal = exc
 
             # Create use case
             use_case = ExportTransactionsUseCase(repo)
@@ -128,12 +128,12 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
             except UnwritableFigureError as exc:
                 transactions_refusal = exc
 
-            if documents_refusal is not None or transactions_refusal is not None:
+            if business_objects_refusal is not None or transactions_refusal is not None:
                 # Both, where both found something: one pass over the book
                 # tells the reader everything there is to correct in it.
                 raise UnwritableFigureError('\n'.join(
                     str(refusal) for refusal
-                    in (documents_refusal, transactions_refusal)
+                    in (business_objects_refusal, transactions_refusal)
                     if refusal is not None))
 
             # UTF-8 stated rather than taken from the locale. Without it,

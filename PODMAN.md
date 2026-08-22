@@ -1,6 +1,6 @@
 # Podman Compatibility Guide
 
-This document explains how to use gnucash-plaintext with Podman instead of Docker.
+This page explains how to use gnucash-plaintext with Podman instead of Docker.
 
 ## Compatibility Status
 

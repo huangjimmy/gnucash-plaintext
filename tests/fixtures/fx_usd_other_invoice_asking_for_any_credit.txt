@@ -1,8 +1,8 @@
 # A different invoice for the same customer, asking for whatever credit they
-# have, while another document's settlement sits loose from an unpost.
+# have, while another invoice's settlement sits loose from an unpost.
 #
-# `AutoApplyPayments` searches for open, documentless, owner-attached lots and
-# will take this one as readily as the rebuilt document's own — both name the
+# `AutoApplyPayments` searches for open, owner-attached lots naming nothing and
+# will take this one as readily as the rebuilt invoice's own — both name the
 # same customer. What it must not do is have a bank's payment written down as
 # a credit applied, which would take the account and the date it arrived by out
 # of the export and the basis off currency the bank still holds.

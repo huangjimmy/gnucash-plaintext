@@ -19,22 +19,22 @@
 
 (define (an-ambiguous-report-renderer which)
   (lambda (report-obj)
-    (let* ((document (gnc:make-html-document))
+    (let* ((page (gnc:make-html-document))
            (options (gnc:report-options report-obj))
            (invoice (gnc:option-value
                       (gnc:lookup-option options "General" "Invoice Number"))))
-      (gnc:html-document-set-title! document "A Name Two Reports Answer To")
+      (gnc:html-document-set-title! page "A Name Two Reports Answer To")
       (gnc:html-document-add-object!
-        document
+        page
         (gnc:make-html-text
           (gnc:html-markup-p
             (string-append "A REPORT NAMED LIKE ANOTHER: " which))
           (gnc:html-markup-p
-            (string-append "document: "
+            (string-append "invoice: "
                            (if (and invoice (not (null? invoice)))
                                (gncInvoiceGetID invoice)
                                "none")))))
-      document)))
+      page)))
 
 ;; The options generator both share. Declared both ways GnuCash has had, for
 ;; the reason `a_report_of_your_own.scm` explains.

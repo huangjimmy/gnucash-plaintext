@@ -1,4 +1,4 @@
-# Income Statement Feature — Design Document
+# Income Statement Feature — Design Note
 
 **Feature branch**: `feature/income-statement`
 **Created**: 2026-03-18

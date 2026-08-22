@@ -306,17 +306,17 @@ def establishes_cost_basis(split) -> bool:
     Currency only: shares are counted in units and priced, not converted, so a
     security establishes nothing however its account is typed. And a business
     account moved against its normal direction counts only when it is a
-    prepayment — a lot with no document against it — since the same shape is
+    prepayment — a lot with no invoice or bill against it — since the same shape is
     otherwise a settlement, money that has already gone.
 
     A business account can be raised on either side, but only one of them
     unconditionally. Its normal direction — a debit on a receivable, a credit
-    on a payable — is what the document owes and always establishes a basis.
+    on a payable — is what the record owes and always establishes a basis.
     The opposite direction is a prepayment *or* a settlement, which look
     identical as figures: a 200 USD payment against a 100 USD invoice leaves
     two A/R credits, one settling the invoice and one the customer's money
     held and owed back. Only the second is currency the book still has, and
-    what separates them is the lot — a settlement belongs to the document it
+    what separates them is the lot — a settlement belongs to the invoice it
     settles, a prepayment to nothing yet — so that side is gated on
     `_is_prepayment`. Counting only the normal direction opened a basis for
     100 USD of the 200 the bank held; counting both offered currency already
@@ -365,8 +365,8 @@ def _raises_a_foreign_balance(split, account, amount: Fraction) -> bool:
         if not raises_the_balance:
             # The other side of a business account is currency held only when
             # it is a prepayment — a customer's overpayment, or one made to a
-            # vendor — which sits in a lot of its own with no document against
-            # it. The same shape is otherwise a settlement: money that has
+            # vendor — which sits in a lot of its own with no invoice or bill
+            # against it. The same shape is otherwise a settlement: money that has
             # gone, which would open a basis for currency the book no longer
             # has.
             #
@@ -380,8 +380,8 @@ def _raises_a_foreign_balance(split, account, amount: Fraction) -> bool:
         # owed to a vendor on a payable — but not everything shaped like it.
         # A refund is a debit on a receivable too, and it sends the customer's
         # money back rather than bringing any in. The lot separates them: a
-        # posting sits in the lot its own document owns, while a refund
-        # settles an owner lot no document owns, exactly as on the opposite
+        # posting sits in the lot its own invoice owns, while a refund
+        # settles an owner lot no invoice owns, exactly as on the opposite
         # side. Returning True for the shape alone offered a third 100.00 USD
         # for a prepayment that had already been refunded.
         return not _is_prepayment(split)
@@ -405,7 +405,7 @@ def _currency_arrived_elsewhere(split) -> bool:
     — nothing else brings it in, and this credit carries the basis.
 
     Business accounts are not consulted: the settling split beside an
-    overpayment is on the same receivable, and is the document's money, not a
+    overpayment is on the same receivable, and is the invoice's money, not a
     second arrival. That also keeps this from asking about a split whose own
     answer would ask back.
     """
@@ -440,10 +440,10 @@ def _is_prepayment(split) -> bool:
 
     That is what tells a prepayment from a settlement: both move a business
     account against its normal direction, but a settlement belongs to the
-    document it settles, and a prepayment belongs to nothing yet.
+    record it settles, and a prepayment belongs to nothing yet.
 
-    Except where an unpost is what took the document away. That leaves a live
-    lot holding no document — the same three facts a prepayment has — and
+    Except where an unpost is what took that record away. That leaves a live
+    lot naming nothing — the same three facts a prepayment has — and
     reading it as one had the FX layer offer an orphaned settlement as currency
     the book holds, listed as a basis at the rate of the day it settled, while
     every settlement path refused to call the same split a credit. Measured on

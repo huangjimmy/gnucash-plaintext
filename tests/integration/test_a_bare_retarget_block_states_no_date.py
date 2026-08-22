@@ -6,7 +6,7 @@ round-trip fixture in this suite writes one that way.
 
 The comparison that decides whether a payment block matches a split in the lot
 learned to fall through to the block's own fields when the guid resolves to
-nothing, so that a printed document could be re-read in a book that never held
+nothing, so that a printed invoice could be re-read in a book that never held
 its transactions. That fall-through reads `date:` and `amount:` — which a
 retarget block is not required to state, and usually does not.
 

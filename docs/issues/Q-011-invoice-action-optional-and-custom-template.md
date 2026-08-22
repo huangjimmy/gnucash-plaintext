@@ -6,8 +6,8 @@ severity: low
 status: closed
 ---
 
-> **The printed page has since changed ([Q-036](Q-036-printed-documents-are-not-gnucashs-page.md)).**
-> A PDF or HTML document is drawn by GnuCash's own Printable Invoice, which decides its own
+> **The printed page has since changed ([Q-036](Q-036-printed-pages-were-not-gnucashs-own.md)).**
+> A PDF or HTML page is drawn by GnuCash's own Printable Invoice, which decides its own
 > columns — an entry's `action:` fills its Action column, and the column is drawn whether or not
 > anything fills it. `--template` and the XSLT it took are gone with the second renderer they
 > drove; the `action:` field being optional, which is the rest of this issue, is unchanged.

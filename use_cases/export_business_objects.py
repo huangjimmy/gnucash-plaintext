@@ -43,13 +43,14 @@ from services.plaintext_addresses import (
 )
 from services.plaintext_blocks import (
     bill_entry_flags,
-    document_text_lines,
     entry_discount,
     entry_notes,
     owner_block_lines,
     payment_amount_text,
+    payment_memo_of,
     payment_residue,
     payment_residue_text,
+    record_text_lines,
     split_was_applied_from_credit,
 )
 from use_cases.export_transactions import (
@@ -92,28 +93,28 @@ def _payment_amount_text(split, where='') -> str:
 
 
 def _split_was_applied_from_credit(split) -> bool:
-    """Q-015: True iff this split settled its document out of the owner's
+    """Q-015: True iff this split settled its invoice or bill out of the owner's
     credit rather than being paid to it.
 
     The split says so itself, because the import that applied the credit
     wrote it there. Nothing else in the book can answer it: once applied, a
-    consumed credit's split sits in the document's lot exactly as a bank
+    consumed credit's split sits in the record's lot exactly as a bank
     payment's split does, GnuCash keeps no record of the lot it came from,
     and on the day a deposit is taken and an invoice raised against it even
     the dates are the same.
 
     Two things were tried before this and both misread ordinary books. Asking
     the *transaction* whether it still touches a leftover credit lot gives one
-    answer for every document that transaction settles — so the invoice a bank
-    transfer paid claimed a credit had paid it — and says no for a credit
+    answer for every invoice and bill that transaction settles — so the invoice
+    a bank transfer paid claimed a credit had paid it — and says no for a credit
     consumed to the last cent, which leaves no residual behind. Asking whether
-    the transaction predates the document's posting is right for every case
+    the transaction predates the posting is right for every case
     but the same-day one, where a genuine payment cannot be told from an
     application by any figure in the book.
 
     Lives in `services.plaintext_blocks` now, with the block writers whose
     choice it is: the renderers need the same answer, and asked only here they
-    printed a credit-settled document as paid from the bank the credit had
+    printed a credit-settled invoice as paid from the bank the credit had
     arrived through.
     """
     return split_was_applied_from_credit(split)
@@ -123,11 +124,11 @@ class ExportBusinessObjectsUseCase:
     def __init__(self, book: Book):
         self.book = book
         self._lib = load_gnc_engine()
-        # Which document's figures are being written, for a refusal to name.
+        # Whose figures are being written, for a refusal to name.
         # Without it the message had only the account, and a book with many
         # payments gave the reader nothing to find the offender by.
-        self._document_being_written = ''
-        # Every document the format cannot write, not just the first. The
+        self._being_written = ''
+        # Every invoice and bill the format cannot write, not just the first. The
         # transaction export and the beancount export both gather them and
         # refuse once, on the reasoning that a book of thousands should not be
         # fixed one run at a time; this raised on the first, so a book with
@@ -190,7 +191,7 @@ class ExportBusinessObjectsUseCase:
     def execute(self) -> str:
         """Return the complete business-objects plaintext block.
 
-        Refuses once, naming every document the format cannot write, rather
+        Refuses once, naming every invoice and bill the format cannot write, rather
         than on the first — the rule the transaction and beancount exports
         already keep, and for the reason they give: a book of thousands should
         not be fixed one run at a time. Invoices and bills are gathered
@@ -428,19 +429,19 @@ class ExportBusinessObjectsUseCase:
         tables = iterate_glist(lib, glist_ptr, process_tax_table)
         return '\n\n'.join(tables)
 
-    def _refusal_naming_its_document(self, exc) -> str:
-        """The refusal, with the document it came out of named once.
+    def _refusal_naming_its_source(self, exc) -> str:
+        """The refusal, with the invoice or bill it came out of named once.
 
         An export writes a whole book, so a sentence about "this line" or
         "this amount" leaves a reader nothing to find. Some refusals are
-        built with the document in them already — the payment ones take
-        `_document_being_written` as an argument — so it is added only where
-        it is missing, rather than naming the same document twice.
+        built with that name in them already — the payment ones take
+        `_being_written` as an argument — so it is added only where
+        it is missing, rather than naming the same one twice.
         """
         said = str(exc)
-        if (self._document_being_written
-                and self._document_being_written not in said):
-            return f'{self._document_being_written}: {said}'
+        if (self._being_written
+                and self._being_written not in said):
+            return f'{self._being_written}: {said}'
         return said
 
     # ── Invoices ─────────────────────────────────────────────────────────────
@@ -470,18 +471,18 @@ class ExportBusinessObjectsUseCase:
 
         invoice_strings = []
         for inv, cust in invoices:
-            # Which document the figures below belong to, for the refusal to
+            # Which invoice the figures below belong to, for the refusal to
             # name. The message otherwise had only the account, and a book
             # with many payments gave the reader nothing to find it by.
-            self._document_being_written = f'invoice "{inv.GetID()}"'
+            self._being_written = f'invoice "{inv.GetID()}"'
             try:
                 invoice_strings.append('\n'.join(
                     self._invoice_lines(inv, cust, guid_for_ptr, lib)))
             except UnwritableFigureError as exc:
-                # Collected, and this document written nowhere: a partial
-                # document would re-import as an edit that silently drops
+                # Collected, and this invoice written nowhere: a partial
+                # block would re-import as an edit that silently drops
                 # whatever could not be written.
-                self._refusals.append(self._refusal_naming_its_document(exc))
+                self._refusals.append(self._refusal_naming_its_source(exc))
         return '\n\n'.join(invoice_strings)
 
     def _invoice_lines(self, inv, cust, guid_for_ptr, lib) -> list:
@@ -495,13 +496,13 @@ class ExportBusinessObjectsUseCase:
             f'	currency: {inv.GetCurrency().get_mnemonic()}',
             f'	date_opened: {inv.GetDateOpened().strftime("%Y-%m-%d")}',
         ]
-        # Written before anything else about the document, because it is what
+        # Written before anything else about the invoice, because it is what
         # the rest of it means: the same quantities and the same accounts
         # post the other way round. Without it a credit note rebuilt in a
         # fresh book as an ordinary invoice, and the export is what a book is
         # reconstructed from.
         lines += credit_note_lines(inv)
-        lines += document_text_lines(inv)
+        lines += record_text_lines(inv)
 
         custom_meta = {k: v for k, v
                        in (get_custom_metadata(inv) or {}).items()
@@ -510,7 +511,7 @@ class ExportBusinessObjectsUseCase:
             lines.append(f'	{k}: {encode_value_as_string(v)}')
 
         for raw_entry in inv.GetEntries():
-            lines += self._format_inv_entry(lib, raw_entry)
+            lines += self._format_inv_entry(lib, raw_entry, guid_for_ptr)
 
         # posted block — always emitted; "none" sentinel when not posted
         posted_txn = inv.GetPostedTxn()
@@ -558,7 +559,7 @@ class ExportBusinessObjectsUseCase:
 
         return lines
 
-    def _format_inv_entry(self, lib, raw_entry) -> list:
+    def _format_inv_entry(self, lib, raw_entry, guid_for_ptr) -> list:
         ptr = int(raw_entry.instance)
 
         desc   = safe_ctypes_string(lib.gncEntryGetDescription, ptr)
@@ -578,6 +579,10 @@ class ExportBusinessObjectsUseCase:
 
         lines = [
             '	entry:',
+            # Which line this is, so a re-import updates it rather than
+            # destroying every line and building new ones.
+            # Written first, as an invoice block writes its own guid.
+            f'		guid: "{guid_for_ptr(ptr)}"',
             f'		date: {date_str}',
             f'		description: {encode_value_as_string(desc)}',
             f'		action: {encode_value_as_string(action)}',
@@ -601,7 +606,7 @@ class ExportBusinessObjectsUseCase:
 
         return lines
 
-    def _format_bill_entry(self, lib, raw_entry) -> list:
+    def _format_bill_entry(self, lib, raw_entry, guid_for_ptr) -> list:
         """Format one bill (vendor invoice) entry as plaintext lines.
 
         `action:` is written here as it is for an invoice. A `GncEntry` has
@@ -628,6 +633,7 @@ class ExportBusinessObjectsUseCase:
 
         lines = [
             '	entry:',
+            f'		guid: "{guid_for_ptr(ptr)}"',   # as an invoice line writes it
             f'		date: {date_str}',
             f'		description: {encode_value_as_string(desc)}',
         ]
@@ -659,7 +665,7 @@ class ExportBusinessObjectsUseCase:
         return lines
 
     def _format_credit_payment(self, txn, in_lot_ar_ap_split) -> list:
-        """Format the slice of an owner's credit that settled this document.
+        """Format the slice of an owner's credit that settled this invoice or bill.
 
         A credit is applied by moving currency the book already has: GnuCash
         writes no transaction for it, reduces the split the credit sits on to
@@ -670,12 +676,12 @@ class ExportBusinessObjectsUseCase:
         `credit_dated:` names.
 
         The block records the outcome rather than the request. Re-importing it
-        attaches this exact split to this document's lot, where re-running the
+        attaches this exact split to that record's lot, where re-running the
         `auto_apply_credit:` that produced it would apply whatever credit the
         book has at the time, which is not necessarily this one.
         """
         amount = _payment_amount_text(in_lot_ar_ap_split,
-                                      self._document_being_written)
+                                      self._being_written)
         return [
             '	payment:',
             f'		amount: {amount}',
@@ -703,15 +709,17 @@ class ExportBusinessObjectsUseCase:
         # and memo. ApplyPayment stores the memo on the splits (not on
         # the transaction description, which is set to the owner name).
         bank_name = ''
-        pay_memo  = ''
         for i in range(txn.CountSplits()):
             split = txn.GetSplit(i)
             acct  = split.GetAccount()
             atype = gc.xaccAccountGetType(acct.instance)
             if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
                 bank_name = get_account_full_name(acct)
-                pay_memo  = split.GetMemo() or ''
                 break
+        # The memo off the split the import writes it to, which is not the
+        # bank side where one payment settles several invoices: they share
+        # that split and each block says what its own portion was for.
+        pay_memo = payment_memo_of(txn, in_lot_ar_ap_split)
 
         # This record's payment amount is its OWN allocation — the AR/AP split
         # in this invoice/bill's lot (`in_lot_ar_ap_split`) — NOT the bank-side
@@ -722,7 +730,7 @@ class ExportBusinessObjectsUseCase:
         # Format at the AR/AP account's own smallest unit, exactly (no float).
         in_lot_ar_ap_split.GetAccount().GetCommodity()
         pay_amt_str = _payment_amount_text(in_lot_ar_ap_split,
-                                          self._document_being_written)
+                                          self._being_written)
 
         # Q-015 / Q-016: prepayment residual — what this payment left over
         # when it was made. Worked out by `payment_residue`, which the printed
@@ -761,7 +769,7 @@ class ExportBusinessObjectsUseCase:
         if prepay > 0:
             lines.append(
                 f'		prepayment: '
-                f'{payment_residue_text(prepay, in_lot_ar_ap_split, self._document_being_written)}')
+                f'{payment_residue_text(prepay, in_lot_ar_ap_split, self._being_written)}')
         return lines
 
     # ── Bills (vendor invoices) ───────────────────────────────────────────────
@@ -779,7 +787,7 @@ class ExportBusinessObjectsUseCase:
         all_invoices = [wrap_invoice_or_bill(r) for r in q.run()]
         q.destroy()
 
-        # Export all vendor bills, including unposted. Asked of every document
+        # Export all vendor bills, including unposted. Asked of every one
         # in the book, customer invoices included: `GetVendor()` answers None
         # for one rather than raising, on all ten supported builds — measured,
         # and the same reason the two print commands carry no guard here.
@@ -797,13 +805,13 @@ class ExportBusinessObjectsUseCase:
         guid_for_ptr = self._guid_for_ptr_factory()
         bill_strings = []
         for inv, vendor in bills:
-            self._document_being_written = f'bill "{inv.GetID()}"'
+            self._being_written = f'bill "{inv.GetID()}"'
             try:
                 bill_strings.append('\n'.join(
                     self._bill_lines(inv, vendor, guid_for_ptr, lib)))
             except UnwritableFigureError as exc:
                 # As the invoice side collects them, and for the same reason.
-                self._refusals.append(self._refusal_naming_its_document(exc))
+                self._refusals.append(self._refusal_naming_its_source(exc))
         return '\n\n'.join(bill_strings)
 
     def _bill_lines(self, inv, vendor, guid_for_ptr, lib) -> list:
@@ -821,7 +829,7 @@ class ExportBusinessObjectsUseCase:
         # As the invoice block writes them: a bill has both, the bill
         # comparison reads `GetNotes()`, and an export that did not carry
         # them could not be read back into the same bill.
-        lines += document_text_lines(inv)
+        lines += record_text_lines(inv)
 
         # Filtered, as the owner blocks are: a key that has since become a
         # field of its own is still in the slot of a book written before.
@@ -832,7 +840,7 @@ class ExportBusinessObjectsUseCase:
             lines.append(f'	{k}: {encode_value_as_string(v)}')
 
         for raw_entry in inv.GetEntries():
-            lines += self._format_bill_entry(lib, raw_entry)
+            lines += self._format_bill_entry(lib, raw_entry, guid_for_ptr)
 
         # posted block — always emitted; "none" sentinel when not posted
         posted_txn = inv.GetPostedTxn()

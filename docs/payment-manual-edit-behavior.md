@@ -6,11 +6,13 @@ This project models plaintext as the source of truth, with `import` and `export`
 - another tool (a QFX importer, a third-party reporting utility, a script using `gnucash_core_c` directly) modifies the `.gnucash` file behind our back,
 - the user opens the `.txt` plaintext file in a text editor and deletes / changes a `payment:` or `entry:` block before re-importing.
 
-None of these are "supported" workflows in the sense that round-trip is guaranteed, but they all happen. This document records what `gnucash-plaintext import` does in each divergence scenario so the user knows what to expect.
+None of these are "supported" workflows in the sense that round-trip is guaranteed, but they all happen. This note records what `gnucash-plaintext import` does in each divergence scenario so the user knows what to expect.
 
 ## Plaintext-side edits
 
-Direct edits to the `.txt` file before re-import are well-tested by the Q-015 integration suites — re-importing always reconciles the book to whatever the plaintext now says, either via the Q-015 add-payment fast path (entries / payments / posted block all match, only new `payment:` blocks appended) or via the destructive rebuild path with an orphan-payment warning emitted to stderr for every bank-side payment about to be detached. See `tests/integration/test_incremental_payment_reimport.py` and `tests/integration/test_importer_destructive_orphan.py` for the full matrix.
+Direct edits to the `.txt` file before re-import are well-tested by the Q-015 integration suites — re-importing reconciles the book to whatever the plaintext now says, either via the Q-015 add-payment fast path (entries / payments / posted block all match, only new `payment:` blocks appended) or via the destructive rebuild path with an orphan-payment warning emitted to stderr for every bank-side payment about to be detached. See `tests/integration/test_incremental_payment_reimport.py` and `tests/integration/test_importer_destructive_orphan.py` for the full matrix.
+
+**One edit is refused rather than reconciled**: a change to what a **posted** invoice's or bill's lines say — a description, a quantity, a price, a tax table, a line added or removed. Rebuilding a posted one would unpost it, destroy and rebuild its lines, post it again under a new transaction, and leave its payments settling a transaction that no longer exists. The message names the way through — `unpost-invoices <book> <id>` (or `unpost-bills`), then the import. Everything else about a posted invoice or bill still reconciles: its notes, its billing id, its custom keys, and an appended `payment:` block.
 
 ## Book-side edits (GnuCash UI or external tools)
 
@@ -52,5 +54,5 @@ Q-016 made every bank-tx and per-split GUID round-trip natively. The scenarios a
 - Every `payment:` block carries `txn_guid:` (the bank tx) and `txn_split_guid:` (the specific AR/AP-side split that belongs to this invoice/bill). The fresh-book importer attaches that exact split to the invoice's posted lot — no inference, no order-dependence, no destructive rebuild needed.
 - The one-bank-transaction-covering-multiple-invoices shape (which used to require the Q-015 `prepayment:` + `auto_apply_credit:` workaround) round-trips natively: each invoice's `payment:` block claims its own `txn_split_guid:`.
 
-The divergence-recovery scenarios in this document are still correct — they document what the importer does when the book and the plaintext genuinely differ. Q-016 is about the *no-divergence* case (clean round-trip) being deterministic; the manual-edit scenarios continue to fall through to the rebuild path with the orphan warning.
+The divergence-recovery scenarios in this note are still correct — they document what the importer does when the book and the plaintext genuinely differ. Q-016 is about the *no-divergence* case (clean round-trip) being deterministic; the manual-edit scenarios continue to fall through to the rebuild path with the orphan warning.
 

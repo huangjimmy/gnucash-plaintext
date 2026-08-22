@@ -2,9 +2,14 @@ invoice "INV-CREDIT-OVERPAID"
 	customer_id: "C001"
 	currency: CAD
 	date_opened: 2026-02-01
+	# An invoice field, not a line: enough to make the invoice differ so the
+	# credit block is read, without changing an `entry:` — which an import
+	# refuses under a posting, and would refuse before reaching the block
+	# this fixture exists to have refused.
+	notes: "corrected"
 	entry:
 		date: 2026-02-01
-		description: "B, corrected"
+		description: "B"
 		action: "Hours"
 		account: "Income:Sales"
 		quantity: 1

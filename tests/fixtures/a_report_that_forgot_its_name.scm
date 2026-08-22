@@ -9,7 +9,7 @@
 ;; registered template, so one nameless template made `(string=? #f "…")`
 ;; raise for any `--report <name>` afterwards in the same process — the reader
 ;; asks for `Fancy Invoice` and is told
-;; "GnuCash could not render the document: (wrong-type-arg …)", about a
+;; "GnuCash could not render the page: (wrong-type-arg …)", about a
 ;; mistake in a file of theirs somewhere else entirely.
 ;;
 ;; The second report is here because the nameless one cannot be drawn at all:
@@ -20,15 +20,15 @@
 ;; the nameless one — which is the regression.
 
 (define (a-report-that-did-name-itself-renderer report-obj)
-  (let ((document (gnc:make-html-document)))
-    (gnc:html-document-set-title! document "A Report That Did Name Itself")
+  (let ((page (gnc:make-html-document)))
+    (gnc:html-document-set-title! page "A Report That Did Name Itself")
     (gnc:html-document-add-object!
-      document
+      page
       (gnc:make-html-text
         (gnc:html-markup-p "A REPORT THAT DID NAME ITSELF")))
-    document))
+    page))
 
-;; The document arrives through `General / Invoice Number`, so a report that
+;; The invoice arrives through `General / Invoice Number`, so a report that
 ;; is going to be drawn has to declare it — both ways GnuCash has had, for the
 ;; reason `a_report_of_your_own.scm` explains. Without it the legacy option
 ;; API looks the name up, gets `#f`, and fails in `vector-ref`.

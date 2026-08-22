@@ -1,12 +1,12 @@
 """Editing a line of an invoice in the ledger and importing again must land.
 
-Re-importing asks of every document "does the book already say this?", and
+Re-importing asks of every invoice "does the book already say this?", and
 answers field by field. A field left out of that comparison is one a person
 can change in the ledger, import, and see reported `unchanged` — the invoice
-keeps the old figure, the document is not rebuilt, and nothing says so. On a
+keeps the old figure, the invoice is not rebuilt, and nothing says so. On a
 priced line that is a wrong invoice.
 
-So every field of an invoice line is edited here, one per document, and each
+So every field of an invoice line is edited here, one per invoice, and each
 has to come back changed.
 """
 

@@ -13,11 +13,11 @@
 #
 # Each also carries a key the format has no setter for, kept in a slot beside
 # the object. A block that names no such key is not a block asking for the
-# slot to be emptied — which is what a printed document carries, and what
+# slot to be emptied — which is what a printed invoice carries, and what
 # made reading one back a delete.
 #
 # What this fixture produces: two owners whose addresses come back as
-# addresses, and whose extra key survives a printed document.
+# addresses, and whose extra key survives a printed invoice.
 #
 # Verified by tests/integration/test_an_owners_address_survives_a_round_trip.py.
 2026-01-01 commodity CAD

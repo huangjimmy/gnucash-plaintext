@@ -2,7 +2,7 @@
 # invoice's unpost left loose — with an ordinary bank block naming the account
 # and the date the money arrived.
 #
-# The split it lands on is marked, but with the *other* document's guid, so
+# The split it lands on is marked, but with the *other* invoice's guid, so
 # nothing here is this invoice's own orphan. What decides is not whose orphan
 # it is: a bank paid that money and the split never said otherwise, so it is a
 # settlement waiting to be put back rather than the customer's credit. Called a

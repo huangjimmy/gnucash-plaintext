@@ -11,7 +11,7 @@ find which — if any — the totals follow:
 * **all** — every split whose account is denominated in that currency
 * **cash** — asset and liability accounts only, excluding receivable/payable
 * **owed-in** — cash, plus receivable/payable counted in their normal
-  direction only (what a document owes the book, not what the book owes back)
+  direction only (what an invoice owes the book, not what the book owes back)
 * **in-less-sold** — what every basis brought in, less every split naming one
 
 Measured:

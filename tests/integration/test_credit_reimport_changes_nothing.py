@@ -1,6 +1,6 @@
-"""Re-importing a book's own export leaves a credit-settled document alone.
+"""Re-importing a book's own export leaves a credit-settled invoice alone.
 
-An export describes a credit that settled a document as a payment block
+An export describes a credit that settled an invoice as a payment block
 carrying `from_credit: true`; a hand-written file asks for the same thing with
 `auto_apply_credit: true` on the header. Both have to read as "already done"
 against a book where it is done, or importing a book's own export walks the
@@ -8,7 +8,7 @@ destructive path: unpost, rebuild, and a warning that the bank-side payment
 has been orphaned.
 
 The shape that matters is a credit only partly spent — 50.00 of credit, 30.00
-of it settling the document, 20.00 still the owner's. A credit spent to the
+of it settling the invoice, 20.00 still the owner's. A credit spent to the
 last cent leaves no residual behind, which is the one case a lot-shape
 heuristic gets right by accident.
 """
@@ -116,7 +116,7 @@ def test_a_partly_spent_credit_reads_as_already_applied(tmp_path):
     # book written by an earlier version has credits applied and no key on
     # the splits that applied them, and re-importing the file that asked for
     # them must still find nothing to do — the alternative is an unpost and
-    # rebuild, which re-runs the application and leaves documents whose lot
+    # rebuild, which re-runs the application and leaves invoices whose lot
     # GnuCash drops on load.
     _strip_the_recorded_fact(book)
     for fixture in ('q015_aac_inv002_partial_credit.txt',
@@ -125,7 +125,7 @@ def test_a_partly_spent_credit_reads_as_already_applied(tmp_path):
         assert 'orphaned' not in result.output, result.output
         assert '1 unchanged' in result.output, result.output
 
-    # Each owner still has the 20.00 the document did not take.
+    # Each owner still has the 20.00 the invoice did not take.
     prepayments = runner.invoke(cli, ['find-prepayments', str(book)])
     assert prepayments.exit_code == 0, prepayments.output
     assert 'Found 2 open pre-payment credits' in prepayments.output, prepayments.output

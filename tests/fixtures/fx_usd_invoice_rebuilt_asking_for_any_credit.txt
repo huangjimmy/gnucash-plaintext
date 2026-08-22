@@ -5,7 +5,7 @@
 # No payment block on purpose. With one, the settlement is re-attached before
 # any credit is looked for and there is nothing left to apply; without one, the
 # lot is open when `auto_apply_credit: true` hands the choice to GnuCash, which
-# searches for open, documentless, owner-attached lots. That is exactly what
+# searches for open, owner-attached lots naming nothing. That is exactly what
 # this invoice's own unpost left a moment earlier, so the engine can hand the
 # invoice back the settlement it already had, with nothing in the file asking
 # for it. Put back is not spent: called a credit applied, the export loses the

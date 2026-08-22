@@ -65,7 +65,7 @@ def _credit_amounts(book):
     """{transaction description: amount as an exact Fraction} of every unspent
     credit split.
 
-    A credit is a receivable split still in a lot no document owns — read
+    A credit is a receivable split still in a lot no invoice owns — read
     from the book itself, so a listing that miscounts cannot make the test
     agree with it.
 
@@ -170,7 +170,7 @@ def _lots_on(book, account_name):
 
 
 def _outstanding(book, invoice_id):
-    """What the document's lot still says it is owed."""
+    """What the invoice's lot still says it is owed."""
     from gnucash import Query
 
     from infrastructure.gnucash.utils import wrap_invoice_or_bill
@@ -182,10 +182,10 @@ def _outstanding(book, invoice_id):
         query.search_for('gncInvoice')
         query.set_book(repo.book)
         for raw in query.run():
-            document = wrap_invoice_or_bill(raw)
-            if document.GetID() != invoice_id:
+            invoice = wrap_invoice_or_bill(raw)
+            if invoice.GetID() != invoice_id:
                 continue
-            lot = document.GetPostedLot()
+            lot = invoice.GetPostedLot()
             query.destroy()
             return None if lot is None else str(lot.get_balance())
         query.destroy()
@@ -207,12 +207,12 @@ def test_a_block_naming_its_split_walks_each_account_once(tmp_path, monkeypatch)
     """The guards before a move share one reading of the account's lots.
 
     Asking whether a lot is still the account's means walking the account's
-    whole lot list — one lot per document ever posted on a receivable, and a
+    whole lot list — one lot per invoice ever posted on a receivable, and a
     `GList` node built in Python for each. Three guards run back to back
     before a `txn_split_guid:` block moves anything: whose money the split is,
-    whether it already settles another document, and whether it sits in an
+    whether it already settles another invoice, and whether it sits in an
     owner's credit. Each asked the account again, so re-importing an export of
-    a long-lived book cost the product of its documents and its history — the
+    a long-lived book cost the product of its invoices and its history — the
     shape the retarget's own candidate search was corrected for, in the same
     change, and left in the guards beside it.
 
@@ -313,7 +313,7 @@ def test_claiming_more_than_the_split_carries_is_refused(tmp_path):
     assert 'what the split holds' in result.output, result.output
 
 
-def test_one_owners_credit_cannot_settle_anothers_document(tmp_path):
+def test_one_owners_credit_cannot_settle_anothers_invoice(tmp_path):
     """Beta's invoice cannot be paid out of Acme's credit.
 
     The block addresses a credit by guid, and a guid copied out of a large
@@ -343,7 +343,7 @@ def test_a_retarget_cannot_take_another_owners_split_either(tmp_path):
     """The same guard on the ordinary `txn_guid:` retarget.
 
     A payment block naming a bank account attaches the split its guids point
-    at to this document's lot, which is the same move a credit block makes and
+    at to this invoice's lot, which is the same move a credit block makes and
     was open to the same mistake: Gamma's invoice settled out of Acme's money.
     """
     runner = CliRunner()
@@ -362,7 +362,7 @@ def test_a_retarget_cannot_take_another_owners_split_either(tmp_path):
     assert '50.00' in prepayments.output, prepayments.output
 
 
-def test_a_credit_smaller_than_the_document_owes_pays_what_it_can(tmp_path):
+def test_a_credit_smaller_than_the_invoice_owes_pays_what_it_can(tmp_path):
     """50.00 of credit against a 200.00 invoice settles 50.00 of it.
 
     Part-paying is what a payment usually does, and a credit is a payment.
@@ -392,12 +392,12 @@ def test_a_credit_smaller_than_the_document_owes_pays_what_it_can(tmp_path):
     assert _outstanding(book, 'INV-CREDIT-PARTIAL') == '15000/100'
 
 
-def test_a_credit_bigger_than_the_document_pays_what_it_owes(tmp_path):
+def test_a_credit_bigger_than_the_invoice_pays_what_it_owes(tmp_path):
     """50.00 of credit meeting a 30.00 invoice settles it and leaves 20.00.
 
     Attaching the whole split would take the lot to −20.00, where the invoice
     reads neither settled nor open and the customer's 20.00 disappears from
-    `find-prepayments` — it lists lots no document owns, and that money would
+    `find-prepayments` — it lists lots no invoice owns, and that money would
     be inside one that does. GnuCash divides a credit itself, so it is asked
     to, and the block ends up meaning what a reader would take it to mean.
     """
@@ -483,7 +483,7 @@ def test_a_retarget_naming_only_a_transaction_is_guarded_too(tmp_path):
     """Dropping `txn_split_guid:` must not drop the check with it.
 
     A payment block naming just `txn_guid:` retargets the transaction's
-    counter split into this document's lot — the same move, one line shorter,
+    counter split into this invoice's lot — the same move, one line shorter,
     and it went unguarded: another customer's invoice settled out of this
     payment, with the payer's credit gone and the book still owing it.
 
@@ -508,19 +508,19 @@ def test_a_retarget_naming_only_a_transaction_is_guarded_too(tmp_path):
     assert 'C-OTHER' in result.output, result.output
 
 
-def test_a_credit_on_a_document_that_owes_nothing_is_refused(tmp_path):
+def test_a_credit_on_a_invoice_that_owes_nothing_is_refused(tmp_path):
     """Cash settled it in full, so there is nothing for a credit to settle.
 
     With the invoice already paid the credit has no room: attaching it whole
     takes the lot to −50.00, and dividing it applies nothing. The file is
-    saying something about this document that is not true of it.
+    saying something about this invoice that is not true of it.
     """
     runner = CliRunner()
     book = _book_with_a_credit(runner, tmp_path)
     txn_guid, split_guid = _credit_split(book)
 
     result = _import_fixture(runner, book, tmp_path,
-                             'credit_payment_on_a_document_owing_nothing.txt',
+                             'credit_payment_on_an_invoice_owing_nothing.txt',
                              txn_guid, split_guid)
     assert result.exit_code != 0, result.output
     assert 'owes nothing' in result.output, result.output
@@ -570,7 +570,7 @@ def test_the_credit_the_block_names_is_the_one_that_is_spent(tmp_path):
 def test_a_credit_in_a_lot_spanning_three_transactions_is_named_by_its_own_split(tmp_path):
     """A lot's splits span transactions, so the reading has to be per-split.
 
-    One document settled 40.00 and 30.00 off two deposits and 30.00 out of the
+    One invoice settled 40.00 and 30.00 off two deposits and 30.00 out of the
     customer's standing credit, then unposted: all three splits are marked, but
     only the two the bank paid are orphans. What is left to list is the 30.00
     that came from credit — and it has to be named by *its* transaction.
@@ -652,7 +652,7 @@ def test_a_rebuild_takes_its_own_orphan_over_a_loose_sibling(tmp_path):
     transaction that also carries the second customer's untouched portion.
 
     Both are things the mover could place, and only the mark says which was
-    ever this document's. Taking the loose one settles this invoice out of the
+    ever this invoice's. Taking the loose one settles this invoice out of the
     other customer's money and abandons its own settlement — and nothing
     refuses it, because with one loose split there is no ambiguity to see.
     What the reader gets instead is a demand to declare a `prepayment:` for
@@ -713,6 +713,11 @@ def test_a_rebuild_takes_its_own_orphan_over_a_loose_sibling(tmp_path):
     edited = tmp_path / 'alpha_edited.txt'
     edited.write_text((FIXTURES / 'alpha_rebuilt_naming_only_the_transaction.txt')
                       .read_text().replace('TXN_GUID', txn_guid))
+    # The edit changes a line, and a line under a posting is not changed by an
+    # import — the unpost is a step of its own now. It is what orphans this
+    # invoice's settlement, which is the state the rest of this test is about.
+    assert runner.invoke(cli, ['unpost-invoices', str(book),
+                               'INV-TWO-A']).exit_code == 0
     rebuilt = runner.invoke(cli, ['import', str(book), str(edited),
                                   '--include-business-objects'])
     assert rebuilt.exit_code == 0, rebuilt.output
@@ -732,7 +737,7 @@ def test_a_rebuild_takes_its_own_orphan_over_a_loose_sibling(tmp_path):
     # With both settled, unposting one leaves its portion orphaned on a
     # transaction whose other portion still settles Beta's invoice. The listing
     # has to be told which split it is about: taking whichever AR split came
-    # last found Beta's, whose lot still holds a document, and Alpha's money
+    # last found Beta's, whose lot still holds an invoice, and Alpha's money
     # was then reported by nothing — while every refusal about it asks for a
     # guid. The figure is the orphan's own 100.00, not the deposit's 220.00.
     assert runner.invoke(cli, ['unpost-invoices', str(book),
@@ -768,8 +773,8 @@ def test_a_rebuild_takes_its_own_orphan_over_a_loose_sibling(tmp_path):
 
     # Unpost the other one too and the deposit carries two orphans, which is
     # two rows. Reported once it named whichever came last, and the other
-    # document's money was listed nowhere — while every refusal about it asks
-    # the reader for a guid. This is why the mark stores a document guid
+    # invoice's money was listed nowhere — while every refusal about it asks
+    # the reader for a guid. This is why the mark stores an invoice guid
     # rather than `true`.
     assert runner.invoke(cli, ['unpost-invoices', str(book),
                                'INV-TWO-B']).exit_code == 0
@@ -832,11 +837,11 @@ def test_a_rebuild_takes_its_own_orphan_over_a_loose_sibling(tmp_path):
     assert 'not available for any guid' not in mixed.output, mixed.output
 
 
-def test_one_deposit_can_settle_two_owners_documents(tmp_path):
+def test_one_deposit_can_settle_two_owners_invoices(tmp_path):
     """The guard must not refuse the shape it was written beside.
 
-    One bank deposit settling several documents is an ordinary thing, and
-    when those documents belong to different owners each block names its own
+    One bank deposit settling several invoices is an ordinary thing, and
+    when those invoices belong to different owners each block names its own
     split. Asking the *transaction* whose money it is answers for the first
     owned split it finds, so Beta's invoice was refused for being Alpha's —
     while the split Beta's block names is Beta's, and is what decides.
@@ -884,16 +889,16 @@ def test_one_deposit_can_settle_two_owners_documents(tmp_path):
     assert _outstanding(book, 'INV-TWO-A') == '0/100'
     assert _outstanding(book, 'INV-TWO-B') == '0/100'
 
-    # And once both portions are spent, a third document naming that deposit
-    # has nothing left to take. Every split on it settles a document that
+    # And once both portions are spent, a third invoice naming that deposit
+    # has nothing left to take. Every split on it settles an invoice that
     # reads as paid, so moving one would settle this invoice by leaving that
-    # document unpaid — with every figure in the book still balancing, which
+    # invoice unpaid — with every figure in the book still balancing, which
     # is what makes it worth refusing rather than reporting afterwards.
     #
     # Same owner as the first invoice, so the owner guard has nothing to say:
     # what is wrong is that the money is spent, not whose it was.
     spent = tmp_path / 'third.txt'
-    spent.write_text((FIXTURES / 'third_document_names_a_spent_deposit.txt')
+    spent.write_text((FIXTURES / 'third_invoice_names_a_spent_deposit.txt')
                      .read_text().replace('TXN_GUID', txn_guid))
     refused = runner.invoke(cli, ['import', str(book), str(spent),
                                   '--include-business-objects'])
@@ -901,7 +906,7 @@ def test_one_deposit_can_settle_two_owners_documents(tmp_path):
     # The message has to name what is actually wrong. Both splits are there;
     # what they are not is free, and a reader told "no non-bank split" would go
     # looking for one that is in front of them.
-    assert 'already settles a document' in refused.output, refused.output
+    assert 'already settles an invoice or a bill' in refused.output, refused.output
     assert 'txn_split_guid' in refused.output, refused.output
     assert 'expected a non-' not in refused.output, refused.output
     # And it names only what can be the obstacle. A split holding an owner's
@@ -919,13 +924,13 @@ def test_one_deposit_can_settle_two_owners_documents(tmp_path):
     # remedy for the guard.
     outright = tmp_path / 'outright.txt'
     outright.write_text(
-        (FIXTURES / 'third_document_naming_a_spent_split_outright.txt')
+        (FIXTURES / 'third_invoice_naming_a_spent_split_outright.txt')
         .read_text().replace('TXN_GUID', txn_guid)
         .replace('SPLIT_A', splits['-10000/100']))
     named = runner.invoke(cli, ['import', str(book), str(outright),
                                 '--include-business-objects'])
     assert named.exit_code != 0, named.output
-    assert "another document's lot" in named.output, named.output
+    assert "another invoice's or bill's lot" in named.output, named.output
     assert 'Unpick it there first' in named.output, named.output
     assert _outstanding(book, 'INV-TWO-A') == '0/100'
     assert _outstanding(book, 'INV-TWO-B') == '0/100'
@@ -966,9 +971,9 @@ def test_one_deposit_can_settle_two_owners_documents(tmp_path):
     assert 'already settles' not in empty.output, empty.output
 
     # And a file may not write the note an unpost keeps for itself. It says a
-    # split is not an owner's credit, and names a document — which is how a
+    # split is not an owner's credit, and names an invoice — which is how a
     # rebuild picks its own orphan out of a transaction carrying several — so
-    # a file stating it could choose which credit a document spends, past the
+    # a file stating it could choose which credit an invoice spends, past the
     # guard above. The export never writes it; nor may a file.
     stated = tmp_path / 'stated_note.txt'
     stated.write_text(
@@ -1102,7 +1107,7 @@ def test_dividing_a_credit_that_belongs_to_no_lot_is_refused(tmp_path):
     """A credit with no owner lot cannot be divided without losing the rest.
 
     Attaching such a split whole is fine — that is how a rebuilt book settles
-    its documents. Dividing one is not: what is left stays in no lot, and
+    its invoices. Dividing one is not: what is left stays in no lot, and
     `find-prepayments` walks lots, so the owner's remaining money would be
     visible nowhere at all.
     """
@@ -1249,7 +1254,7 @@ def test_dividing_a_credit_on_an_account_kept_finer_than_the_cent(tmp_path):
 def test_the_order_the_blocks_are_written_in_does_not_decide_the_book(tmp_path):
     """Credit written above the cash reads the same as cash written above it.
 
-    A credit takes what the document still owes, and what it owes depends on
+    A credit takes what the invoice still owes, and what it owes depends on
     the cash beside it — so a credit divided at the moment its own line is
     read takes the whole 30.00 invoice, and the 20.00 of cash below it lands
     as a prepayment nobody asked for. The file says the same thing either way
@@ -1269,15 +1274,15 @@ def test_the_order_the_blocks_are_written_in_does_not_decide_the_book(tmp_path):
     assert _credit_amounts(book) == {'Acme': Fraction(-40)}
 
 
-def test_cash_and_credit_on_one_document_read_the_same_every_time(tmp_path):
+def test_cash_and_credit_on_one_invoice_read_the_same_every_time(tmp_path):
     """Appended together, and read again, in either order.
 
-    Two paths reach the same document: a file that builds it, and a file that
+    Two paths reach the same invoice: a file that builds it, and a file that
     appends payments to one the book already has. Credit waits for cash on the
     first; it has to on the second too, or the same two blocks settle the
     invoice differently depending on whether it existed yet.
 
-    And a document carrying both kinds has to read as unchanged when its own
+    And an invoice carrying both kinds has to read as unchanged when its own
     file comes back — the lot holds cash before credit whatever order the file
     is written in, so a comparison made position by position calls the file a
     change and rebuilds it: the cash payment orphaned, a new one minted, and
@@ -1313,7 +1318,7 @@ def test_cash_appended_below_a_credit_already_applied_is_added_not_rebuilt(tmp_p
     """The rest of the money arrives later, and the credit stays where it is.
 
     An export writes the credit block first, so a user appends the cash at the
-    tail — and the document already holds the credit. Reading the file's
+    tail — and the invoice already holds the credit. Reading the file's
     blocks cash-first while the lot holds only the credit paired the two
     wrongly, so an ordinary append became an unpost and rebuild: the orphan
     warning, fresh entry guids, and on a foreign-currency invoice whose basis
@@ -1336,15 +1341,15 @@ def test_cash_appended_below_a_credit_already_applied_is_added_not_rebuilt(tmp_p
     assert _outstanding(book, 'INV-MIX') == '0/100'
 
 
-def test_a_document_a_credit_was_divided_into_is_not_rebuilt(tmp_path):
+def test_a_invoice_a_credit_was_divided_into_is_not_rebuilt(tmp_path):
     """A file naming the credit at its pre-division size is refused.
 
-    Dividing settles the document with the split the file named and parks
+    Dividing settles the invoice with the split the file named and parks
     what is left as a new one, so afterwards that split carries what it took
     — 30.00, not the 50.00 the file was written with. A file still claiming
     50.00 is describing a book that no longer exists, and is refused for
     saying so rather than rebuilt against figures nothing holds. Nothing
-    reaches the file on disk: the document is still settled and the customer
+    reaches the file on disk: the invoice is still settled and the customer
     still has what the division left them.
     """
     runner = CliRunner()
@@ -1355,6 +1360,12 @@ def test_a_document_a_credit_was_divided_into_is_not_rebuilt(tmp_path):
                            txn_guid, split_guid).exit_code == 0
     assert _outstanding(book, 'INV-CREDIT-OVERPAID') == '0/100'
 
+    # Unposted first, so the credit block is reached at all: a posted
+    # invoice takes a `payment:` block and nothing else, so the edited
+    # invoice field this file also carries would be refused before the
+    # block this test wants refused is read.
+    assert runner.invoke(cli, ['unpost-invoices', str(book),
+                               'INV-CREDIT-OVERPAID']).exit_code == 0
     edited = _import_fixture(runner, book, tmp_path,
                              'credit_payment_bigger_than_the_invoice_edited.txt',
                              txn_guid, split_guid)
@@ -1362,7 +1373,10 @@ def test_a_document_a_credit_was_divided_into_is_not_rebuilt(tmp_path):
     assert 'does not match the credit split' in edited.output, edited.output
     assert 'what the export writes back' in edited.output, edited.output
 
-    assert _outstanding(book, 'INV-CREDIT-OVERPAID') == '0/100'
+    # The invoice is unposted — the step above did that, out loud — and
+    # the refused import changed nothing else: the credit still holds what
+    # the division left the customer, rather than having been divided
+    # again against a figure the book has not held since.
     assert _credit_amounts(book) == {'Acme': Fraction(-20)}
 
 
@@ -1375,7 +1389,7 @@ def test_a_total_the_account_cannot_hold_is_not_posted(tmp_path):
     between two of an account's units reconciles with nothing.
 
     GnuCash rounds it. A 30.05 total posted to a receivable kept to the tenth
-    becomes 30.10, so the document is owed a figure it was never issued for,
+    becomes 30.10, so the invoice is owed a figure it was never issued for,
     every payment afterwards is measured against the rounded one, and nothing
     in the book disagrees. Which unit an account is kept to is the user's to
     set and this tool round-trips it; what it will not do is write an amount
@@ -1406,7 +1420,7 @@ def test_a_total_the_account_cannot_hold_is_not_posted(tmp_path):
 def test_a_coarse_account_takes_a_total_it_can_hold(tmp_path):
     """The unit is not the objection — landing between two of them is.
 
-    The same receivable kept to the tenth, and a document totalling 30.10:
+    The same receivable kept to the tenth, and an invoice totalling 30.10:
     that is a figure the account holds exactly, so it posts, and a credit
     settles it to the last unit with no rounding anywhere.
     """
@@ -1435,9 +1449,9 @@ def test_the_export_of_a_divided_credit_can_be_edited_and_re_imported(tmp_path):
     """The remedy the refusal names has to work.
 
     A file naming the credit at its pre-division size cannot rebuild the
-    document — that is what the refusal is for. The export names the other
+    invoice — that is what the refusal is for. The export names the other
     thing, the split the division minted at what it took, and editing *that*
-    file has to go through: refusing it too would leave the document
+    file has to go through: refusing it too would leave the invoice
     permanently uneditable, with the refusal pointing at a way out that is
     itself refused.
     """
@@ -1451,9 +1465,16 @@ def test_the_export_of_a_divided_credit_can_be_edited_and_re_imported(tmp_path):
     exported = tmp_path / 'out.txt'
     assert runner.invoke(cli, ['export', str(book), str(exported),
                                '--include-business-objects']).exit_code == 0
+    # Through the unpost the refusal names: a posted invoice takes a
+    # `payment:` block and nothing else, an invoice field included. The
+    # subject here is that the export of a divided credit survives the
+    # round trip, which is what the import after the unpost measures.
     edited = tmp_path / 'edited.txt'
     edited.write_text(exported.read_text().replace(
-        'description: "B"', 'description: "B, corrected"'))
+        'invoice "INV-CREDIT-OVERPAID"\n',
+        'invoice "INV-CREDIT-OVERPAID"\n\tnotes: "corrected"\n'))
+    assert runner.invoke(cli, ['unpost-invoices', str(book),
+                               'INV-CREDIT-OVERPAID']).exit_code == 0
     result = runner.invoke(cli, ['import', str(book), str(edited),
                                  '--include-business-objects'])
     assert result.exit_code == 0, result.output
@@ -1569,12 +1590,20 @@ def test_the_payable_side_orders_and_refuses_the_same_way(tmp_path):
     edited.write_text(
         (FIXTURES / 'bill_credit_written_before_the_cash.txt').read_text()
         .replace('TXN_GUID', txn_guid).replace('SPLIT_GUID', split_guid)
-        .replace('description: "M"', 'description: "M, corrected"'))
+        .replace('\tcurrency: CAD\n', '\tcurrency: CAD\n\tnotes: "corrected"\n'))
+    # Unposted first, so the run reaches the credit block at all: a posted
+    # invoice takes a `payment:` block and nothing else, so an edited
+    # invoice field is refused before the block this test wants refused
+    # is ever read.
+    assert runner.invoke(cli, ['unpost-bills', str(book),
+                               'BILL-CREDIT-FIRST']).exit_code == 0
+    after_the_unpost = _credit_amounts(book)
     refused = runner.invoke(cli, ['import', str(book), str(edited),
                                   '--include-business-objects'])
     assert refused.exit_code != 0, refused.output
     assert 'does not match the credit split' in refused.output, refused.output
-    assert _outstanding(book, 'BILL-CREDIT-FIRST') == '0/100'
+    # Unposted by the step above, and nothing further by the refusal.
+    assert _credit_amounts(book) == after_the_unpost
 
 
 def test_a_credit_owned_by_its_lot_is_guarded_by_the_shorter_block_too(tmp_path):
@@ -1610,7 +1639,7 @@ def test_a_sub_cent_prepayment_residual_survives_its_own_export(tmp_path):
     """`prepayment:` states 20.005, like the `amount:` above it.
 
     Written at the currency's two places, the residual said 20.00 for a lot
-    holding 20.005 — and both readers compare it exactly, so the document read
+    holding 20.005 — and both readers compare it exactly, so the invoice read
     as changed on the way back: the orphan warning, an unpost, and then the
     rebuild's own check refusing over the same five thousandths.
     """
@@ -1671,7 +1700,7 @@ def test_an_unlotted_split_of_a_single_owner_payment_is_still_guarded(tmp_path):
 
 
 def test_a_credit_already_spent_cannot_be_spent_again(tmp_path):
-    """A split in a document's lot settled that one and is not the owner's."""
+    """A split in an invoice's lot settled that one and is not the owner's."""
     runner = CliRunner()
     book = _book_with_a_credit(runner, tmp_path)
     # The split that settled INV-001 lives in INV-001's lot.
@@ -1704,7 +1733,7 @@ def test_a_credit_already_spent_cannot_be_spent_again(tmp_path):
                              'credit_payment_of_an_already_spent_split.txt',
                              settled[0], settled[1])
     assert result.exit_code != 0, result.output
-    assert 'already in a document' in result.output, result.output
+    assert 'already in another invoice' in result.output, result.output
 
 
 def test_a_credit_block_states_the_memo_the_split_keeps(tmp_path):
@@ -1712,7 +1741,7 @@ def test_a_credit_block_states_the_memo_the_split_keeps(tmp_path):
 
     The memo is written last, after the division has committed, so that the
     credit left behind keeps the memo it arrived with rather than one about
-    settling this document. That puts the call outside any edit this code
+    settling this invoice. That puts the call outside any edit this code
     opened — `xaccSplitSetMemo` opens and commits its own, which is what makes
     it safe, and this is the test that says so rather than leaving it to be
     read off the C source.
@@ -1743,7 +1772,7 @@ def test_a_credit_block_states_the_memo_the_split_keeps(tmp_path):
 
 
 def test_a_credit_sees_cash_that_arrived_by_retarget(tmp_path):
-    """What the document owes counts a retargeted payment too.
+    """What the invoice owes counts a retargeted payment too.
 
     Cash blocks are applied before credit ones, so a credit takes what is left
     after them — and how the cash got there cannot change that figure. A block
@@ -1794,7 +1823,7 @@ def test_a_deposit_the_account_cannot_express_is_not_divided(tmp_path):
     deposit's own, which need not be a whole number of the units the receivable
     is kept to: 50.05 onto an account kept to the tenth.
 
-    Both halves land on that account. 30.10 settles the document and 19.95 is
+    Both halves land on that account. 30.10 settles the invoice and 19.95 is
     left, which `SetAmount` rounds to 20.00 on its way in — so the halves sum
     to 50.10 against the 50.05 that was there, GnuCash answers the difference
     with an Imbalance split, and the credit parked is not the figure the file
@@ -1982,7 +2011,7 @@ def test_a_bare_txn_guid_on_a_shared_deposit_is_refused(tmp_path):
 def test_a_divided_credit_keeps_the_memo_it_arrived_with(tmp_path):
     """The memo the file states belongs to the part that was spent.
 
-    A block's `memo:` describes settling *this* document, so it goes on the
+    A block's `memo:` describes settling *this* invoice, so it goes on the
     split that settled it — and the credit left behind keeps the memo it
     arrived with, because it is still the same money sitting on the same
     account waiting to be spent. Which means the memo has to be written after
@@ -2022,9 +2051,9 @@ def test_a_divided_credit_keeps_the_memo_it_arrived_with(tmp_path):
 
 
 def test_a_second_retargeted_payment_is_measured_against_what_is_left(tmp_path):
-    """Two `txn_guid:` blocks on one document, and the second sees the first.
+    """Two `txn_guid:` blocks on one invoice, and the second sees the first.
 
-    A retargeted split is in its document's lot for every purpose except the
+    A retargeted split is in its invoice's lot for every purpose except the
     lot's own split list, which does not show it until the book has been
     written and read back. Measured against `lot.get_balance()`, the second
     block on a 100.00 invoice reads it as still owing the whole 100.00 though
@@ -2063,7 +2092,7 @@ def test_a_second_retargeted_payment_is_measured_against_what_is_left(tmp_path):
 def test_a_file_stating_what_a_division_leaves_is_not_warned_about(tmp_path):
     """The `open_prepayment:` check reads what the book holds, not what a lot says.
 
-    A file carries an account's open credits alongside the documents that spend
+    A file carries an account's open credits alongside the invoices that spend
     them, and the import compares the two. That comparison runs before the book
     is saved, over lots whose split lists have not caught up: moving a split
     with `xaccSplitSetLot` does not take it out of the lot it came from as far
@@ -2094,18 +2123,18 @@ def test_a_file_stating_what_a_division_leaves_is_not_warned_about(tmp_path):
     assert 'amount: 20.00 CAD' in exported.read_text(), exported.read_text()
 
 
-def test_a_document_overpaid_by_a_bare_retarget_can_still_be_edited(tmp_path):
+def test_a_invoice_overpaid_by_a_bare_retarget_can_still_be_edited(tmp_path):
     """The splits a division made are not the file being ambiguous.
 
     A block naming only `txn_guid:` with a `prepayment:` divides the
-    transaction: the part that settles the document, and the residue parked as
+    transaction: the part that settles the invoice, and the residue parked as
     the owner's credit. So the transaction that carried one receivable split
     now carries two — and asked again on a later edit, "which of these would
-    this block move?" reads as unanswerable and the document is refused.
+    this block move?" reads as unanswerable and the invoice is refused.
 
     It is answerable. The residue is in a lot already; the only split a
     retarget could place is one that is in none. Counting the placed ones made
-    a document overpaid this way uneditable for good, with the remedy — name
+    an invoice overpaid this way uneditable for good, with the remedy — name
     the split — reachable only by re-exporting.
     """
     runner = CliRunner()
@@ -2124,9 +2153,15 @@ def test_a_document_overpaid_by_a_bare_retarget_can_still_be_edited(tmp_path):
                                '--include-business-objects']).exit_code == 0
     assert _outstanding(book, 'INV-TWO-RETARGETS') == '0/100'
 
-    # Now edit something else about the document and import it again.
+    # Now edit the invoice and import it again, through the unpost the
+    # refusal names: the subject is whether an overpaid invoice can be
+    # edited at all, and what a posted one takes is a `payment:` block.
     edited = tmp_path / 'edited.txt'
-    edited.write_text(base.replace('description: "B"', 'description: "B, corrected"'))
+    edited.write_text(base.replace(
+        'invoice "INV-TWO-RETARGETS"\n',
+        'invoice "INV-TWO-RETARGETS"\n\tnotes: "corrected"\n'))
+    assert runner.invoke(cli, ['unpost-invoices', str(book),
+                               'INV-TWO-RETARGETS']).exit_code == 0
     again = runner.invoke(cli, ['import', str(book), str(edited),
                                 '--include-business-objects'])
     assert again.exit_code == 0, again.output
@@ -2174,17 +2209,17 @@ def test_the_loose_half_of_a_divided_credit_is_still_its_owners(tmp_path):
     """A split with no lot, beside one that names an owner, is that owner's.
 
     Dividing a credit makes two halves of one transaction: the part that
-    settled a document, which belongs to that document's lot, and the credit
+    settled an invoice, which belongs to that invoice's lot, and the credit
     left over, which sits in a lot of its owner's. Exported and read into a
     fresh book, the first arrives with no lot and no `lot_owner:` — the export
-    derives that line from live lot state and a document's lot is not an
+    derives that line from live lot state and an invoice's lot is not an
     owner's — while the second brings its owner with it.
 
     Asked about the loose half alone, the book says nothing: it is in no lot,
     and its transaction carries more than one receivable split, so the
     transaction cannot answer for it either. But the book is not silent here
     the way a shared deposit is. The credit beside it names the owner, and both
-    halves came out of one credit, so another owner's document naming the loose
+    halves came out of one credit, so another owner's invoice naming the loose
     half by guid is naming money the book can show is not theirs.
     """
     runner = CliRunner()
@@ -2217,7 +2252,7 @@ def test_two_credits_on_two_accounts_answer_for_the_loose_half_together(tmp_path
 
     The credit beside a loose half answers for it only where it is the one
     credit there. Two of them naming two owners answer nothing — neither can
-    be shown to be the credit that half came out of — and a document naming
+    be shown to be the credit that half came out of — and an invoice naming
     that half proceeds, the way it does beside a shared deposit.
 
     Which accounts they are on does not enter into it. One bank entry can
@@ -2254,10 +2289,10 @@ def test_two_credits_on_two_accounts_answer_for_the_loose_half_together(tmp_path
 
 
 def test_retargeting_onto_a_lot_already_past_zero_says_what_is_wrong(tmp_path):
-    """A document owing less than nothing is refused for owing nothing.
+    """An invoice owing less than nothing is refused for owing nothing.
 
     `txn_split_guid:` names a split outright and attaches it without comparing
-    it to what the document owes, so a lot can already be past zero by the time
+    it to what the invoice owes, so a lot can already be past zero by the time
     a later block is read. What is still owed is then negative, and the residual
     a retarget computes from it — the transaction's amount less what the payment
     can take — comes out *larger* than the transaction: 50.00 against −20.00

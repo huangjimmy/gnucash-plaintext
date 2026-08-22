@@ -1,7 +1,7 @@
 # One deposit covering two customers, written with a bank split per customer
 # so each portion carries its own memo and its own figure. That is what lets a
 # payment block name one portion and not the other, and it is the shape where
-# one transaction can end up carrying an unpost's mark for one document while
+# one transaction can end up carrying an unpost's mark for one invoice while
 # still holding money that settled another.
 customer "C-SHARE-A"
 	name: "Alpha Share"

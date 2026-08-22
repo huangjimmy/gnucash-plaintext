@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """The Scheme interpreter, loaded once and declared once.
 
-Rendering a document asks GnuCash's own report to draw it, and that report is
+Rendering a page asks GnuCash's own report to draw it, and that report is
 Scheme — so a Guile interpreter has to exist in this process. This module owns
 loading libguile and declaring its signatures, for the same reason
 `infrastructure/gnucash/engine.py` owns GnuCash's: a second `CDLL` elsewhere is
@@ -159,7 +159,7 @@ def load_guile():
     if lib is None:  # pragma: no cover - every supported image ships guile
         raise GuileUnavailableError(
             'libguile could not be loaded, so GnuCash\'s own invoice report '
-            'cannot be run and a document cannot be rendered. '
+            'cannot be run and a page cannot be rendered. '
             + (f'GnuCash is linked against {tried[0]} and it is not installed'
                if tried else 'Nothing on this machine names one')
             + '. Install guile — `dnf install guile` on Fedora, '

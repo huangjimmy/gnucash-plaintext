@@ -1,7 +1,7 @@
 """A payment block whose `txn_guid:` is mistyped must not pay the same money twice.
 
 A guid that resolves to nothing has two readings, and the block cannot tell
-them apart on its own: a document being rebuilt into a fresh book, where the
+them apart on its own: an invoice being rebuilt into a fresh book, where the
 bank transaction genuinely is not there yet, and a retarget against the book
 that holds it, where the guid is simply wrong. The first must be allowed —
 `print-invoice` names the transactions so the same book relinks rather than

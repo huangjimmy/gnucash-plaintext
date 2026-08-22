@@ -112,7 +112,7 @@ class TestWhatIsNotEdited:
         The `before` file is all `taxable: true`, so re-importing it never
         meets a line that is untaxed *and* names a tax table — which is the
         combination a comparison can disagree with the writer about. On a
-        posted document that disagreement is not a wrong number: it unposts,
+        posted bill that disagreement is not a wrong number: it unposts,
         destroys the posting, orphans the payments and rebuilds, every run.
         """
         again = CliRunner().invoke(cli, [

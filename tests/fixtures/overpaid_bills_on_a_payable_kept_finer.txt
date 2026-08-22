@@ -6,7 +6,7 @@
 # hold — which is what a book coming from the GnuCash GUI can carry and what a
 # printed `payment:` block has to refuse rather than round.
 #
-# Two of them, because a run refused on its first document cannot be told from
+# Two of them, because a run refused on its first bill cannot be told from
 # a run that wrote nothing at all.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"

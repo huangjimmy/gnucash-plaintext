@@ -1,7 +1,7 @@
-"""Fitting a document's lines to the figure the book holds.
+"""Fitting a page's lines to the figure the book holds.
 
-A printed document states a tax per line and a tax for the document, and the
-book holds only the second: GnuCash rounds a document's tax once, and an
+A printed page states a tax per line and a tax for the page, and the
+book holds only the second: GnuCash rounds a page's tax once, and an
 accumulated posting carries no per-line tax split. Rounded on their own the
 lines need not add to the whole — three lines of 13.0434… print 13.04 apiece
 against a stated 39.13 — so `figures_that_add_up` fits them to it.
@@ -22,7 +22,7 @@ def _cents(*values):
 
 class TestTheColumnAddsUp:
     def test_three_lines_of_a_third_of_a_cent(self):
-        """13.0434… × 3, against a document tax of 39.13."""
+        """13.0434… × 3, against a page tax of 39.13."""
         parts = [Fraction(1304347826087, 100000000000)] * 3
 
         fitted = figures_that_add_up(parts, Fraction(3913, 100), 100)
@@ -58,7 +58,7 @@ class TestTheColumnAddsUp:
 
 
 class TestALineWhoseFigureIsNegative:
-    """A document mixing signs — a negative quantity beside a positive one.
+    """A page mixing signs — a negative quantity beside a positive one.
 
     Truncating toward zero rather than flooring leaves a negative part with a
     remainder in (-1, 0], which sorts as the *largest* and takes the spare
@@ -77,7 +77,7 @@ class TestALineWhoseFigureIsNegative:
         assert sum(fitted, Fraction(0)) == Fraction(1305, 100)
         assert fitted == [Fraction(1305, 100), Fraction(0)]
 
-    def test_a_document_of_negative_lines_still_adds_up(self):
+    def test_a_page_of_negative_lines_still_adds_up(self):
         parts = [Fraction(-1304, 100), Fraction(-13043, 1000)]
 
         fitted = figures_that_add_up(parts, Fraction(-2608, 100), 100)
@@ -107,10 +107,10 @@ class TestWhichLinesTakeTheOddUnits:
         assert fitted[2] == 0
         assert sum(fitted, Fraction(0)) == Fraction(2)
 
-    def test_every_line_flooring_to_nothing_still_adds_to_the_document(self):
-        """Two ¥10 lines at 5 per cent: half a yen each, and a document tax
+    def test_every_line_flooring_to_nothing_still_adds_to_the_page(self):
+        """Two ¥10 lines at 5 per cent: half a yen each, and a page tax
         of ¥1. Both floor to nothing, so a rule that would not raise a line
-        sitting at zero left the column at nothing while the document said 1
+        sitting at zero left the column at nothing while the page said 1
         — and the import recomputes the same fit, so nothing contradicts the
         page."""
         parts = [Fraction(1, 2), Fraction(1, 2)]
@@ -127,12 +127,12 @@ class TestWhichLinesTakeTheOddUnits:
 
         assert sum(fitted, Fraction(0)) == Fraction(1, 100)
 
-    def test_a_document_carrying_no_tax_at_all_is_left_alone(self):
+    def test_a_page_carrying_no_tax_at_all_is_left_alone(self):
         parts = [Fraction(0), Fraction(0)]
 
         assert figures_that_add_up(parts, Fraction(0), 100) == [0, 0]
 
-    def test_the_three_line_document_that_was_measured(self):
+    def test_the_three_line_page_that_was_measured(self):
         """The figures from the probe: three lines of one tax account, whose
         own rounded total is 1.43 — two lines take a unit and the exact one
         takes none."""

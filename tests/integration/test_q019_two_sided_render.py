@@ -1,7 +1,7 @@
 """Q-019: invoice / bill rendering shows BOTH sides.
 
-Both documents are drawn by GnuCash's own Printable Invoice report, which puts
-the document's owner on one side and the seller — us, from the book's Business
+Both pages are drawn by GnuCash's own Printable Invoice report, which puts
+the record's owner on one side and the seller — us, from the book's Business
 → Company options — on the other. A bill is a vendor's invoice, so the owner
 there is the vendor; one report draws both and neither side is invented here.
 
@@ -107,7 +107,7 @@ def test_invoice_html_renders_both_customer_and_company(tmp_path):
 
     html = readable(out_html.read_text())
 
-    # Customer side: the document's owner, in the report's client block.
+    # Customer side: the invoice's owner, in the report's client block.
     assert 'client-name">Beta Industries<' in html, (
         f'customer name must head the client block; HTML:\n{html}'
     )
@@ -167,7 +167,7 @@ def test_bill_html_renders_both_vendor_and_company(tmp_path):
     with us in the company block.
 
     The figures are checked too (4×50 = 200, GST 5% + PST 7% = 24.00), so this
-    covers Q-019's draft tax on bills: the document is unposted, and GnuCash
+    covers Q-019's draft tax on bills: the bill is unposted, and GnuCash
     prices an unposted one from its entries and says it is in progress.
     """
     runner = CliRunner()
@@ -182,7 +182,7 @@ def test_bill_html_renders_both_vendor_and_company(tmp_path):
 
     html = readable(out_html.read_text())
 
-    # Vendor side: the document's owner, in the report's client block.
+    # Vendor side: the bill's owner, in the report's client block.
     assert 'client-name">Office Depot Wholesale<' in html, (
         f'vendor name must head the client block; HTML:\n{html}'
     )
@@ -200,7 +200,7 @@ def test_bill_html_renders_both_vendor_and_company(tmp_path):
         f'7% of C$200.00, under its own name; HTML:\n{html}')
     assert '>C$224.00<' in html, f'grand total; HTML:\n{html[-2000:]}'
     assert is_in_progress(html), (
-        f'an unposted document is drawn as in progress; HTML:\n{html}')
+        f'an unposted bill is drawn as in progress; HTML:\n{html}')
 
 
 def test_bill_plaintext_emits_seller_and_vendor_headers(tmp_path):

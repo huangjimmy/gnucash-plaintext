@@ -1,7 +1,7 @@
 # One bank entry that both takes Alpha's advance in and sends a vendor's
 # prepayment out, netting 50.00 through the bank. Alpha's advance has already
-# been divided: 40.00 of it settled a document — so that half arrives loose,
-# the export writing no `lot_owner:` for a split in a document's lot — and
+# been divided: 40.00 of it settled an invoice — so that half arrives loose,
+# the export writing no `lot_owner:` for a split in an invoice's lot — and
 # 60.00 is left as credit.
 #
 # Two credit lots sit beside the loose half, on two different accounts, naming

@@ -169,7 +169,7 @@ class TestAnAddressTypedIntoGnuCash:
             'addr[6]: "c/o The Front Desk"'
 
 
-class TestThePrintedDocument:
+class TestThePrintedPage:
     """The reader's copy, which is the point of holding an address at all.
 
     Three writers state a company address — the ledger export, `print-invoice`
@@ -179,7 +179,7 @@ class TestThePrintedDocument:
     """
 
     @pytest.fixture
-    def book_with_a_document(self, tmp_path):
+    def book_with_a_page(self, tmp_path):
         path = tmp_path / 'printed.gnucash'
         ledger = tmp_path / 'ledger.txt'
         ledger.write_text(
@@ -191,11 +191,11 @@ class TestThePrintedDocument:
         assert made.exit_code == 0, made.output
         return path
 
-    def test_it_carries_every_line_of_the_address(self, book_with_a_document,
+    def test_it_carries_every_line_of_the_address(self, book_with_a_page,
                                                   tmp_path):
         out = tmp_path / 'inv.txt'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book_with_a_document), 'INV-PRINT-001',
+            'print-invoice', str(book_with_a_page), 'INV-PRINT-001',
             '--format', 'plaintext', '--output', str(out)])
 
         assert result.exit_code == 0, result.output
@@ -629,10 +629,10 @@ class TestAnObjectThatHasNoAddress:
     """An invoice has no address, so `addr1` on one is a key like any other.
 
     The rules above belong to the blocks that own an address — `company`,
-    `customer`, `vendor`. Applied everywhere, a document's own `addr1` was
+    `customer`, `vendor`. Applied everywhere, an invoice's own `addr1` was
     read as a line of an address it does not have: a later block naming
     `addr[0]` deleted it as a superseded copy, and a key spelled with a wild
-    index was refused for asking too much of an address the document does not
+    index was refused for asking too much of an address the invoice does not
     have.
     """
 
@@ -661,7 +661,7 @@ class TestAnObjectThatHasNoAddress:
     def test_its_own_addr1_survives_a_block_naming_the_other_spelling(
             self, tmp_path):
         path = self._a_book_with_an_invoice(tmp_path, {'addr1': 'mine'})
-        # A whole block: a document is rebuilt from its own, so one without
+        # A whole block: a page is rebuilt from its own, so one without
         # `entry:` lines is refused rather than read as an edit.
         later = _write(tmp_path, 'later.txt',
                        _AN_INVOICE.replace('INV-PRINT-001', 'INV-DOC-001')
@@ -687,7 +687,7 @@ class TestAnAddressGnuCashCannotHold:
     """A customer's address is a `GncAddress` — four fields, and there is no
     fifth to set. Accepting a fifth line put it in the object's custom
     metadata, where it round-tripped through the ledger and never appeared on
-    an invoice: the file said one thing and the printed document showed
+    an invoice: the file said one thing and the printed page showed
     another."""
 
     @pytest.mark.parametrize('block', ['customer', 'vendor'])

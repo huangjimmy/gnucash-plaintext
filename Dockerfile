@@ -33,7 +33,7 @@ RUN apt-get update && \
         # display and a machine printing from a script has none, and `xauth`
         # so that display takes a cookie rather than any local connection.
         python3-gi gir1.2-gtk-3.0 xvfb xauth && \
-    # A printed document is laid out by WebKit, the engine GnuCash's own
+    # A printed page is laid out by WebKit, the engine GnuCash's own
     # Print Invoice button uses. Its library is here already — GnuCash
     # depends on it — but not its typelib, and `import gi` needs both. The
     # 4.1 API is what a GnuCash 5 build carries and 4.0 what a 4.x one does,

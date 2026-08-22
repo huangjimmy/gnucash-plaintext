@@ -1,6 +1,6 @@
 # A 100.00 USD invoice, and a 200.00 USD bank transaction sitting loose in the
 # book — the shape a bank feed leaves behind, before anything says which
-# document it pays.
+# invoice it pays.
 #
 # Attaching it with `txn_guid:` + `prepayment: 100` is the retarget path, which
 # reaches the overpayment mechanic by a different route than the

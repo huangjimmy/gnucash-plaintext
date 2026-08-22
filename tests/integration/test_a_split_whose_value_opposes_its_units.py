@@ -144,11 +144,10 @@ class TestTheBeancountExport:
     def test_the_release_notes_say_a_whole_book_is_refused(self):
         """A book that is right and a format that cannot hold it — there is
         no remedy inside GnuCash, so a reader has to be told."""
-        from pathlib import Path
-
-        text = Path('RELEASE_NOTES.md').read_text()
-        unreleased = text[text.index('## Unreleased'):]
-        unreleased = unreleased[:unreleased.index('\n## ', 1)]
+        # The release this refusal was written up in, named — as the sister
+        # test for a split with no units names it, and for the same reason.
+        from tests.integration.release_notes_sections import notes_for
+        unreleased = notes_for('v0.4.0')
 
         assert '**A value opposing its units**' in unreleased, unreleased
 

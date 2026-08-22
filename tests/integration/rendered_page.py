@@ -2,7 +2,7 @@
 
 The page is GnuCash's own Printable Invoice, so its wording is GnuCash's and it
 is not identical across the ten supported builds. A test that pins one build's
-spelling is a test that says the other nine print the document wrong.
+spelling is a test that says the other nine print the page wrong.
 
 What differs is small and known: 3.8 writes `cellspacing="0"` where 5.x writes
 `"0.0"`, and spells its ellipsis `...` where 5.x uses `…`. The wording, the
@@ -27,7 +27,7 @@ def readable(text: str) -> str:
 
 
 def is_in_progress(text: str) -> bool:
-    """Whether the page says the document is not posted yet.
+    """Whether the page says the invoice is not posted yet.
 
     `Invoice in progress…` on 5.x, `Invoice in progress...` on 3.8 — the same
     sentence with the ellipsis spelled differently.

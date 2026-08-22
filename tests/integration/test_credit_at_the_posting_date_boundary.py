@@ -1,16 +1,16 @@
 """A credit spent before, on, and after the day it arrived — one book.
 
-Which of a document's payments came out of the owner's credit cannot be worked
+Which of an invoice's payments came out of the owner's credit cannot be worked
 out from the book afterwards. Once applied, a consumed credit's split sits in
-the document's lot exactly as a bank payment's split does; GnuCash keeps no
-record of the lot it came from; and on the day a deposit is taken and a
-document raised against it, even the dates agree. So the import writes the
+the invoice's lot exactly as a bank payment's split does; GnuCash keeps no
+record of the lot it came from; and on the day a deposit is taken and an
+invoice raised against it, even the dates agree. So the import writes the
 fact down as it applies the credit, and the export reads it.
 
 This is the case that says whether that works, all in one book: a customer and
-a vendor, each overpaid by 50.00 on 2026-01-10, and each spending it across a
-document posted that same day and one posted three weeks later — with the
-document the bank really paid sitting beside them, which must go on saying so.
+a vendor, each overpaid by 50.00 on 2026-01-10, and each spending it across an
+invoice posted that same day and one posted three weeks later — with the
+invoice the bank really paid sitting beside them, which must go on saying so.
 """
 
 from pathlib import Path

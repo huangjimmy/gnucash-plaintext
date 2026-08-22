@@ -7,7 +7,7 @@
 # owes. Nothing in the file says otherwise.
 #
 # `lot_owner:` is what says otherwise. With it the debit settles the owner lot
-# no document owns — a refund — and establishes nothing
+# no invoice owns — a refund — and establishes nothing
 # (fx_refund_usd_prepayment.txt). It is the same rule the credit side already
 # runs on, and it runs in both directions or neither.
 #

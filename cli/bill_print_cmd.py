@@ -4,7 +4,7 @@ CLI command for printing GnuCash vendor bills.
 
 Q-019: parallel to cli/invoice_print_cmd.py. A bill is a vendor's invoice —
 one `gncInvoice` type and one GnuCash report — so the page is
-drawn exactly as an invoice's is, with the vendor as the document's owner.
+drawn exactly as an invoice's is, with the vendor as the bill's owner.
 
 Output formats: pdf, html, plaintext. The plaintext format reuses the
 canonical bill block syntax (already understood by `import`) with
@@ -19,7 +19,7 @@ from pathlib import Path
 import click
 from gnucash import Query
 
-from cli._document_files import file_names
+from cli._printed_file_names import file_names
 from cli._warnings import said_once
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
 from infrastructure.pdf.printing import (
@@ -32,9 +32,9 @@ from services.bill_renderer import (
     render_to_html,
     render_to_plaintext,
 )
-from services.document_pages import combine_pages
 from services.gnucash_importer import _swig_invoice_guid_str
 from services.invoice_renderer import read_book_company_info
+from services.printed_pages import combine_pages
 from use_cases.export_transactions import UnwritableFigureError
 
 
@@ -45,13 +45,13 @@ def _all_bills(book):
     results = []
     for r in q.run():
         bill = wrap_invoice_or_bill(r)
-        # Vendor bills only (skip customer invoices). Asked of every document
+        # Vendor bills only (skip customer invoices). Asked of every record
         # in the book, customer invoices included: `GetVendor()` answers None
         # for one rather than raising, on all ten supported builds — measured,
         # and the reason the `except Exception` that used to wrap this is gone.
         # It could not be reached to be right or wrong, and a bare `except`
         # over a call whose failure would mean the book cannot be read is one
-        # that would have quietly dropped documents instead.
+        # that would have quietly dropped bills instead.
         vendor = bill.GetOwner().GetVendor()
         if vendor is not None:
             results.append(bill)
@@ -121,7 +121,7 @@ def _write_combined(bills, book, fmt, company_info, output, session=None,
             for b in bills
         ]
         # UTF-8 stated — see `invoice_print_cmd._write_combined` for what the
-        # locale's answer costs on a document whose owner is not named in
+        # locale's answer costs on a page whose owner is not named in
         # ASCII.
         output_path.write_text('\n'.join(parts), encoding='utf-8')
         return
@@ -137,7 +137,7 @@ def _write_combined(bills, book, fmt, company_info, output, session=None,
         return
 
     # Laid out by WebKit, the engine GnuCash's own Print Bill button uses —
-    # the same action as an invoice's Print Invoice, relabelled per document.
+    # the same action as an invoice's Print Invoice, relabelled per page.
     # `--format` is a `click.Choice`, and `html` and `plaintext` have returned
     # above, so what is left is one of the printable ones.
     output_path.write_bytes(laid_out_by_webkit(combined, fmt))

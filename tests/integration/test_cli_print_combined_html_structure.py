@@ -1,19 +1,19 @@
 """Combined-output HTML structure tests for print-invoice / print-bill.
 
-When several documents are rendered into one HTML or PDF file, each is a whole
+When several pages are rendered into one HTML or PDF file, each is a whole
 page of GnuCash's own — its own `<!DOCTYPE>`, `<html>`, `<head>` and `<body>` —
 and concatenating them gives a file with three of each, which is malformed as
-HTML and as XML both. `services/document_pages.combine_pages` takes them apart
+HTML and as XML both. `services/printed_pages.combine_pages` takes them apart
 and rebuilds one shell: one `<head>`, kept once so the pages stay styled, and
-each document's body inside a `<div>` that breaks the page after it.
+each page's body inside a `<div>` that breaks the page after it.
 
 Two regressions caught by these tests, from when the stripping was done tag by
 tag in each print command:
 
   1. `inner.replace('<html>', '')` never matched a real opening tag, which
      carries attributes — every fragment kept its wrapper and the combined
-     file had one `<html` per document plus the outer one.
-  2. The per-document `<!DOCTYPE>` declarations were not removed either, so
+     file had one `<html` per page plus the outer one.
+  2. The per-page `<!DOCTYPE>` declarations were not removed either, so
      they ended up scattered through the body.
 
 Tests assert structural counts rather than XML well-formedness: the pages are
@@ -129,10 +129,10 @@ def _assert_one_outer_shell(html):
     )
 
 
-def test_one_document_is_the_same_page_whichever_way_it_is_written(tmp_path):
-    """`-o invoice.html` and `-o dir/` must produce the same document.
+def test_one_page_is_the_same_page_whichever_way_it_is_written(tmp_path):
+    """`-o invoice.html` and `-o dir/` must produce the same page.
 
-    The combining path is taken for *one* document as well as for several —
+    The combining path is taken for *one* page as well as for several —
     `-o file.html` and `-o file.pdf` go through it whatever the count — while
     `-o dir/` writes what GnuCash drew, untouched. So the two are the same
     page rebuilt and the same page verbatim, and anything the rebuild drops
@@ -201,7 +201,7 @@ def test_the_combined_page_keeps_the_reports_styling(tmp_path):
     dropping the head — which stripping tag by tag does, and which every
     assertion above is silent about — gives a combined file that is
     structurally perfect and prints in a browser's defaults, where the same
-    documents printed one at a time come out styled. So the rules that lay the
+    pages printed one at a time come out styled. So the rules that lay the
     page out are looked for, not merely the shell around them.
     """
     runner = CliRunner()

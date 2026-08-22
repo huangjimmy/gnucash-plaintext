@@ -7,7 +7,7 @@ be about *this* payment: two customers each paying 100.00 into the same
 account on the same day is ordinary bookkeeping, and a date and an amount do
 not tell them apart.
 
-Read that loosely, rebuilding one document from a printed file into a book
+Read that loosely, rebuilding one invoice from a printed file into a book
 that happens to hold the other customer's deposit is refused outright — and
 the remedy offered is to hand-edit a file this tool generated.
 

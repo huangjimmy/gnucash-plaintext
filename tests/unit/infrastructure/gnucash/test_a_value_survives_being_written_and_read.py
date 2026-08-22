@@ -4,7 +4,7 @@ The writers put a value between quotes and the reader slices a line from its
 first quote to its last and unescapes what is between. That pair has to be
 symmetric or a book and its ledger disagree quietly: the comparison that
 decides `unchanged` reads the same field, so a value that comes back changed
-makes its document rebuild on every import — and a posted one is unposted,
+makes its invoice rebuild on every import — and a posted one is unposted,
 its entries destroyed, and posted again under a new transaction each time.
 
 Three characters need escaping and the third is the one that used to be
@@ -86,7 +86,7 @@ class TestWhyTheReaderScansRatherThanReplaces:
     def test_the_two_spellings_whose_meaning_changed(self):
         r"""`\n` and `\r` meant nothing before this release and mean a
         newline and a carriage return now. A ledger written by an earlier
-        release — whose document writers wrote values raw — can hold `C:\new`
+        release — whose invoice writers wrote values raw — can hold `C:\new`
         meaning a path, and it reads as a newline from here. RELEASE_NOTES
         says so and says how to find it; this is the behaviour it describes.
         """

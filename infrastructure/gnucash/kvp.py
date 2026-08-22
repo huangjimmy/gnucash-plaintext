@@ -97,6 +97,14 @@ KNOWN_SPLIT_METADATA_KEYS = frozenset({
     # only fire via the custom-KVP fallback (also emitted on the txn
     # itself as `owner:` / `txn_type:`).
     'lot_owner',
+    # Which of the owner's credits this split belongs to. `lot_owner:` says
+    # whose it is and an owner may hold several, so without this the import
+    # chose — the oldest open lot the split would reduce — and a refund
+    # written against one deposit came off another. Read from the live lot on
+    # export and acted on by `_attach_lot_owner_split`, never stored in a
+    # slot: a lot's identity is the lot's, and a split saying it is one that
+    # would go on saying it after the lot had changed.
+    'lot_guid',
     # Q-016: every split serialises its own GUID as `guid:` (matching
     # the convention used at the transaction/customer/invoice level —
     # self-identification, not a foreign reference). An invoice/bill
@@ -137,7 +145,7 @@ KNOWN_VENDOR_METADATA_KEYS = frozenset({
 KNOWN_INVOICE_METADATA_KEYS = frozenset({
     'guid', 'customer_id', 'customer_guid', 'currency', 'date_opened',
     'billing_id', 'notes', 'posted', 'payment',
-    # Which direction the document posts, and a field of its own — left out
+    # Which direction it posts, and a field of its own — left out
     # of this set it went to the custom slot as well, so the export wrote
     # `credit_note:` twice, once from the field and once from the slot.
     'credit_note',

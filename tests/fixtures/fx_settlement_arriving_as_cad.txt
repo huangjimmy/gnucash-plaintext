@@ -5,7 +5,7 @@
 # receivable split against its normal direction with no foreign-currency split
 # beside it — which is, line for line, the shape of a prepayment that arrives
 # converted (fx_prepayment_arriving_as_cad.txt). The one difference is the
-# lot: a prepayment names its owner and belongs to a lot no document owns,
+# lot: a prepayment names its owner and belongs to a lot no invoice owns,
 # while these two hand-written splits belong to no lot at all.
 #
 # What this fixture produces: `fx-balances` lists one basis, the receivable's

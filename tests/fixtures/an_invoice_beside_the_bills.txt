@@ -1,7 +1,7 @@
 # A customer invoice in the same book as the vendor bills.
 #
 # GnuCash keeps invoices and bills in one `gncInvoice` type, told apart by
-# their owner, so `print-bill` asks every document in the book whether it has
+# their owner, so `print-bill` asks every record in the book whether it has
 # a vendor. Asked of a customer invoice, `GetOwner().GetVendor()` answers None
 # rather than raising — which is why `_all_bills` needs no `except` around it,
 # and why that claim has to be made against a book that actually holds one.

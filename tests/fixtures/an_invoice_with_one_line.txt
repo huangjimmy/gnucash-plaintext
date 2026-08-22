@@ -2,7 +2,7 @@
 #
 # What this fixture produces: INV-CUT, posted, with a single line.
 #
-# Verified by tests/integration/test_a_document_block_with_no_lines.py.
+# Verified by tests/integration/test_an_invoice_block_with_no_lines.py.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"

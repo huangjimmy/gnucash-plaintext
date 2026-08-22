@@ -1,4 +1,4 @@
-"""What the child that lays a document out is told about the reader's locale.
+"""What the child that lays a page out is told about the reader's locale.
 
 Exactly one thing is forced on it: GTK's *message* catalogue. The child asks
 GTK for a printer by name, and `Print to File` is a `gtk30` msgid — a French

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Laying a rendered document out as a PDF, the way GnuCash lays one out.
+"""Laying a rendered page out as a PDF, the way GnuCash lays one out.
 
 GnuCash's Print Invoice button hands its report's HTML to WebKit and prints
 that, so a page laid out any other way answers a question GnuCash has already
@@ -11,9 +11,9 @@ printed invoice had no lines round anything.
 
 Here rather than in `services/`, because everything in it is an adapter to
 something outside this process: an X server, a child interpreter, the
-reader's locale. `services/document_pages.py` keeps the part that is about
-documents — taking several rendered pages and making one printable HTML of
-them — and `webkit_page.py` beside this is the child that does the printing.
+reader's locale. `services/printed_pages.py` keeps the part that is about
+the pages themselves — taking several rendered ones and making one printable
+HTML of them — and `webkit_page.py` beside this is the child that prints.
 """
 import contextlib
 import os
@@ -34,15 +34,15 @@ class PdfEngineUnavailableError(RuntimeError):
 _CHILD = 'infrastructure.pdf.webkit_page'
 _PROJECT = Path(__file__).resolve().parent.parent.parent
 
-#: How long a single document may take to lay out, start to finish — the
+#: How long a single page may take to lay out, start to finish — the
 #: child, and everything inside the command it is run by: a stale `DISPLAY`,
 #: `xvfb-run` waiting on a server. Without it a print run hung with no output
 #: and nothing to interrupt but Ctrl-C.
 #:
 #: Measured on 5.10, under the load of a ten-version sweep: one page takes
-#: **0.42–0.60 seconds**, and two hundred documents in one combined print
+#: **0.42–0.60 seconds**, and two hundred pages in one combined print
 #: take 2.1. So this is a ceiling for something being wrong rather than a
-#: limit any document meets.
+#: limit any page meets.
 GIVE_UP_AFTER = 90
 
 #: And how long *arranging a display* may take, across every attempt rather
@@ -144,7 +144,7 @@ def _ran(command: list, env: dict):
         with contextlib.suppress(subprocess.TimeoutExpired):
             started.wait(timeout=WAIT_FOR_A_SERVER_TO_DIE)
         raise PdfEngineUnavailableError(
-            f'laying the document out did not finish within '
+            f'laying the page out did not finish within '
             f'{GIVE_UP_AFTER} seconds, so the print was given up on. WebKit '
             f'needs a display, and a display that never comes up — a stale '
             f'DISPLAY naming a server that is gone, an X server that will '
@@ -164,8 +164,8 @@ def a_display():
       nothing else holds, and killed on the way out. **This is the ordinary
       path**, ahead of the wrapper, because it is the one that can be shared:
       a server started here lasts as long as the block, so `-o out/` over
-      fifty documents starts one. `xvfb-run` cannot be shared that way — it
-      wraps a *command*, so fifty documents are fifty servers;
+      fifty pages starts one. `xvfb-run` cannot be shared that way — it
+      wraps a *command*, so fifty pages are fifty servers;
     * `xvfb-run` without `Xvfb` — kept as a fallback for a machine that has
       the wrapper and hides the server behind it, which none of the ten
       supported images is.
@@ -187,12 +187,12 @@ def a_display():
             # `-a` is the wrapper picking a free display number itself, and
             # the wrapper owns the server's lifetime — which is why this is a
             # command prefix rather than an environment, and why it cannot be
-            # shared across documents.
+            # shared across pages.
             yield ['xvfb-run', '-a'], None
             return
 
         raise PdfEngineUnavailableError(
-            'a printed document is laid out by WebKit, the engine GnuCash '
+            'a printed page is laid out by WebKit, the engine GnuCash '
             'itself prints with, and WebKit needs a display: install Xvfb '
             'and xauth (`apt install xvfb xauth`, `dnf install '
             'xorg-x11-server-Xvfb xorg-x11-xauth`, `zypper install '
@@ -300,7 +300,7 @@ def a_display():
                 f'no X server would start on any of the {tried} display '
                 f'numbers tried between :99 and :129 within '
                 f'{STOP_LOOKING_FOR_A_DISPLAY_AFTER} seconds, so WebKit has '
-                f'nowhere to draw the document' if tried else
+                f'nowhere to draw the page' if tried else
                 'every display number from :99 to :129 is held by a lock '
                 'file in /tmp, so there is none left to start an X server '
                 'on for WebKit to draw into')
@@ -330,7 +330,7 @@ def a_display():
 def laid_out_by_webkit(html: str, fmt: str = 'pdf', on=None) -> bytes:
     """`html` as `fmt`, printed the way GnuCash prints, as bytes.
 
-    Bytes rather than a file, because both print commands lay every document
+    Bytes rather than a file, because both print commands lay every page
     out before they touch the destination — a run that cannot lay one out
     must leave no half-written directory behind, which is the rule
     `_write_per_invoice` and `_write_combined` already follow for rendering.
@@ -341,8 +341,8 @@ def laid_out_by_webkit(html: str, fmt: str = 'pdf', on=None) -> bytes:
     `a_display` for the three ways one is arranged.
 
     `on` is a display already arranged by the caller, so a run printing fifty
-    documents starts one X server rather than fifty. Left out, one is
-    arranged for this document alone.
+    pages starts one X server rather than fifty. Left out, one is
+    arranged for this page alone.
     """
     import tempfile
 
@@ -366,7 +366,7 @@ def laid_out_by_webkit(html: str, fmt: str = 'pdf', on=None) -> bytes:
         #
         # `%PDF-` and not a magic per format, because `PRINTABLE` has one
         # entry and the measurement above is why: a second format would need
-        # its own bytes here, and would be rejected as "wrote no document"
+        # its own bytes here, and would be rejected as "wrote no page"
         # until it got them.
         laid_out = printed.read_bytes() if printed.exists() else b''
         if done.returncode == 0 and laid_out.startswith(b'%PDF-'):
@@ -381,9 +381,9 @@ def laid_out_by_webkit(html: str, fmt: str = 'pdf', on=None) -> bytes:
         # warning printed after the real message would otherwise be the whole
         # of what a reader is told.
         raise PdfEngineUnavailableError(
-            'WebKit could not lay the document out: '
+            'WebKit could not lay the page out: '
             + (done.stderr.strip() or 'no reason given')
-            + '. A printed document is laid out by WebKit, the engine GnuCash '
+            + '. A printed page is laid out by WebKit, the engine GnuCash '
               'itself prints with. A DISPLAY naming a server that is gone '
               'fails here too, the bindings checking it as they are imported '
               '— otherwise what is missing is the bindings themselves: '
@@ -395,8 +395,8 @@ def laid_out_by_webkit(html: str, fmt: str = 'pdf', on=None) -> bytes:
     # Exit 0 and nothing that reads as a PDF. No supported build does this
     # for a PDF — it is what asking GTK for PostScript or SVG does, which is
     # why neither is offered — but a printed run that returned an empty
-    # document rather than a sentence would be the worst answer available.
+    # page rather than a sentence would be the worst answer available.
     raise PdfEngineUnavailableError(  # pragma: no cover - see above
-        f'WebKit reported success and wrote no document — '
+        f'WebKit reported success and wrote no page — '
         f'{len(laid_out)} bytes, and not a PDF — so there is nothing to '
         f'print')

@@ -3,10 +3,10 @@
 # The other print fixtures are sparse — a customer with no address, no company
 # block — so the page they draw is a grid of totals with empty boxes around
 # it, and a test reading that page cannot tell a missing address from a
-# stylesheet that never applied. This one carries what a real document
+# stylesheet that never applied. This one carries what a real invoice
 # carries: a seller with an address and registration numbers, a customer with
 # an address, a posted invoice with a described line, and dates written the
-# book's way — and a vendor with a posted bill, the other document a book
+# book's way — and a vendor with a posted bill, the other invoice a book
 # prints.
 #
 # Every name, number and address here is invented.
@@ -90,7 +90,7 @@ invoice "INV-WHOLE-001"
 		memo: "INV-WHOLE-001"
 		accumulate: true
 
-# A bill as well, because a document's styling is set on the book and applies
+# A bill as well, because an invoice's styling is set on the book and applies
 # to both — and one of two near-identical print paths is where a setting that
 # reaches only invoices would hide.
 vendor "V-WHOLE"

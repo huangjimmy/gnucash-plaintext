@@ -1,6 +1,6 @@
 [project]
 name = "gnucash-plaintext"
-version = "0.3.3"
+version = "0.4.0"
 description = "GnuCash Plaintext - Convert between GnuCash and human-readable plaintext format"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -84,7 +84,7 @@ source = ["cli", "services", "infrastructure", "use_cases", "repositories"]
 omit = [
     "tests/*",
     "*/tests/*",
-    # The module that lays a document out with WebKit runs as its own
+    # The module that lays a page out with WebKit runs as its own
     # process — `python3 -m infrastructure.pdf.webkit_page`, under an X
     # server — so nothing pytest measures ever executes a line of it, and
     # counted it reads as 0% of a file every printed PDF goes through. What

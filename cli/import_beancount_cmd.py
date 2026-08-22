@@ -44,7 +44,7 @@ def import_beancount(gnucash_file, beancount_file, gnucash_path, beancount_path,
     using the metadata, preserving:
     - Original account names (with spaces and special characters)
     - Account GUIDs, types, and properties
-    - Transaction GUIDs, notes, and document links
+    - Transaction GUIDs, notes, and receipt links
     - Split-level memo and action fields
 
     IMPORTANT: This only works with beancount files exported from GnuCash.

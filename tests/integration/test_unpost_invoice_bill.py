@@ -194,13 +194,22 @@ class TestReimportPathUnpostsAndPreservesEntryGuids:
         )
 
 
-class TestReimportFullRebuildChurnsEntryGuids:
-    """For comparison: when the directive ALSO modifies an entry (not
-    just the posted block), the importer goes through the full
-    destroy-and-rebuild path. Entry GUIDs change. This is the
-    behavioural difference vs the minimal-unpost path."""
+class TestAnEntryChangeUnderAPostingIsRefused:
+    """The destroy-and-rebuild path this class used to document is gone.
 
-    def test_invoice_rebuild_with_entry_change_changes_entry_guids(self, tmp_path):
+    It ran whenever a directive modified a line of a posted invoice, and
+    gave every line a new GUID on the way — the old assertion here was that
+    the GUIDs *changed*, with a note saying that if it ever stopped firing,
+    the rebuild had been removed. It has been: a posted invoice's
+    transaction is derived from its lines, so changing one is refused and
+    `unpost-invoices` is the step that says so.
+
+    What that buys is this class's new subject: the entry GUIDs survive,
+    because nothing was destroyed.
+    """
+
+    def test_the_entry_keeps_its_guid_because_nothing_is_rebuilt(
+            self, tmp_path):
         runner = CliRunner()
         gnc = _setup_book_with(runner, tmp_path, _fixture('q010_invoice_posted'))
         before = _entry_guids_for_invoice(runner, gnc, "INV-001")
@@ -209,16 +218,12 @@ class TestReimportFullRebuildChurnsEntryGuids:
         edited = _fixture('q010_invoice_posted').replace('\t\tquantity: 1\n', '\t\tquantity: 2\n')
         r = _import(runner, gnc, _write(tmp_path / "edited.txt",
                                         ACCOUNTS + "\n" + edited))
-        assert r.exit_code == 0, r.output
-        assert 'invoice "INV-001": updated' in r.output, r.output
 
-        after = _entry_guids_for_invoice(runner, gnc, "INV-001")
-        assert after != before, (
-            "Full-rebuild path (entries changed) is expected to give the "
-            f"entry a new GUID; before={before}, after={after}. If this "
-            "assertion fires, the destroy-and-rebuild path may have been "
-            "removed — re-check the import_invoice flow."
-        )
+        message = r.output + str(r.exception)
+        assert r.exit_code != 0, message
+        assert 'is posted, and this file changes it' in message, message
+        assert 'unpost-invoices' in message, message
+        assert _entry_guids_for_invoice(runner, gnc, "INV-001") == before
 
 
 # ── Path B: `unpost-invoices` / `unpost-bills` CLI commands ──────────────────

@@ -289,7 +289,7 @@ def test_an_update_that_writes_a_prepayment_puts_it_in_its_owner_s_lot(tmp_path)
     """`lot_owner:` has to mean the same thing on both ways in.
 
     A receivable credit is a prepayment — currency owed back, and a cost basis
-    — when it sits in an owner lot no document owns, and `lot_owner:` is what
+    — when it sits in an owner lot no invoice owns, and `lot_owner:` is what
     puts it there. Only the create path acted on it, so an update that wrote
     such a split dropped the line silently: the split landed in no lot, read
     as a settlement, and the currency the same file gives a basis through

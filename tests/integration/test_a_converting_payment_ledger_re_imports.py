@@ -2,15 +2,15 @@
 
 Re-importing a file the book was built from is how every correction in this
 format is made, so a ledger that imports once and is refused the second time is
-a ledger that can never be edited. The comparison that decides whether a
-document already matches its file is what stands between the two: judged
-different, the document is rebuilt, and rebuilding a settled one has to unpost
+a ledger that can never be edited. The comparison that decides whether an
+invoice already matches its file is what stands between the two: judged
+different, the invoice is rebuilt, and rebuilding a settled one has to unpost
 it.
 
 A converting payment is the shape most likely to be misjudged, because the
-block states two figures — `amount:` in the document's currency and
+block states two figures — `amount:` in the invoice's currency and
 `settled_amount:` (or `share_price:`) in the bank's — and comparing the wrong
-one against the wrong split makes every such document differ from the file that
+one against the wrong split makes every such invoice differ from the file that
 wrote it.
 
 The third-currency fixtures are all of that shape, and each was imported once

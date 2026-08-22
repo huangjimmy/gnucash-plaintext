@@ -1,8 +1,8 @@
 # A different invoice for the same customer, spending — as a credit — the
-# settlement another document's unpost left loose.
+# settlement another invoice's unpost left loose.
 #
 # Nothing here is this invoice's own orphan: the mark on that split names the
-# other document. Whose orphan it is decides nothing, though. A bank paid that
+# other invoice. Whose orphan it is decides nothing, though. A bank paid that
 # money and the split never said otherwise, so it is a settlement waiting to be
 # put back rather than the customer's credit, and calling it one takes the
 # basis off currency the bank still holds.

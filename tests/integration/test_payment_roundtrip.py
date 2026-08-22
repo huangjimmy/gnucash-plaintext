@@ -351,6 +351,70 @@ def test_txn_guid_invalid_format_fails(tmp_path):
         f"Error must mention 'invalid guid'. Got:\n{r.output}"
 
 
+def test_a_malformed_txn_split_guid_is_refused_on_a_invoice_that_matches(
+        tmp_path):
+    """Even where nothing else about the invoice differs.
+
+    `txn_split_guid:` names which split of the payment settles this
+    invoice. On an invoice that matches its file the payment comparison
+    answers on `txn_guid:` and never reads it, so a mistyped one was read
+    by nothing: not stored, not acted on, `unchanged` reported, and the
+    same silence on every later run. That is the case `lot_guid:` refuses
+    for in this release, and the two lines say the same kind of thing.
+    """
+    runner = CliRunner()
+    gf = tmp_path / "book.gnucash"
+    import_new(runner, gf, write_fixture(tmp_path, "bank.txt",
+                                         accounts_plus(BANK_INVOICE)))
+    guid = get_guid(runner, gf, "Assets:Bank")
+    good = invoice_fixture(guid)
+    assert import_into(runner, gf, write_fixture(tmp_path, "inv.txt",
+                                                 good)).exit_code == 0
+
+    mistyped = good.replace(f'txn_guid: {guid}',
+                            f'txn_guid: {guid}\n    txn_split_guid: "zzz"')
+    assert 'txn_split_guid' in mistyped, mistyped
+    r = import_into(runner, gf, write_fixture(tmp_path, "again.txt", mistyped))
+
+    assert r.exit_code != 0, r.output
+    assert "invalid guid" in r.output.lower(), r.output
+
+
+def test_txn_guid_written_without_quotes_and_all_digits(tmp_path):
+    """The form this release legalised, on the key the docs use it for.
+
+    An unquoted all-digit value arrives as a number carrying the digits it
+    was written with, and every guid-bearing key reads those digits — a
+    split's, a line's, a transaction's, an account's, `lot_guid:`,
+    `posted_txn_guid:`. A payment block's two guids read the value itself
+    instead, and `int` has no `.strip()`, so the block that
+    `docs/invoice-payment-reconciliation.md` documents with exactly this
+    literal crashed rather than retargeting.
+    """
+    runner = CliRunner()
+    gf = tmp_path / "book.gnucash"
+    import_new(runner, gf, write_fixture(tmp_path, "bank.txt",
+                                         accounts_plus(BANK_INVOICE)))
+    guid = get_guid(runner, gf, "Assets:Bank")
+    # A book whose bank transaction is named by an all-digit guid: forced
+    # through the transaction block, then named unquoted by the payment.
+    digits = '22222222222222222222222222222222'
+    renamed = accounts_plus(BANK_INVOICE).replace(
+        '2026-01-15 * "E-transfer from Acme"',
+        f'2026-01-15 * "E-transfer from Acme"\n  guid: "{digits}"')
+    assert digits in renamed and guid, renamed
+    import_new(runner, tmp_path / "digits.gnucash",
+               write_fixture(tmp_path, "bank2.txt", renamed))
+    gf = tmp_path / "digits.gnucash"
+
+    r = import_into(runner, gf, write_fixture(tmp_path, "inv.txt",
+                                              invoice_fixture(digits)),
+                    biz=True)
+
+    assert 'AttributeError' not in r.output, r.output
+    assert 'strip' not in r.output, r.output
+
+
 def test_txn_guid_uuid_with_hyphens(tmp_path):
     """txn_guid in UUID-with-hyphens form must resolve to the same transaction."""
     runner = CliRunner()

@@ -57,6 +57,23 @@ class GncAccountValueC(ctypes.Structure):
     _fields_ = [('account', ctypes.c_void_p), ('value', GncNumericC)]
 
 
+class GncGuidC(ctypes.Structure):
+    """Mirrors the C GncGUID: sixteen raw bytes.
+
+    What `qof_collection_lookup_entity` is asked for, and what
+    `guid_from_hex` builds out of the 32 hex characters a file writes.
+    """
+    _fields_ = [('data', ctypes.c_uint8 * 16)]
+
+
+def guid_from_hex(guid_norm: str) -> GncGuidC:
+    """A `GncGuidC` from 32 lowercase hex characters."""
+    guid = GncGuidC()
+    for i in range(16):
+        guid.data[i] = int(guid_norm[i * 2:i * 2 + 2], 16)
+    return guid
+
+
 class GList(ctypes.Structure):
     """GLib GList structure for safe traversal of lists returned by GnuCash C functions.
 
@@ -153,7 +170,7 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncEntryGetBillTaxIncluded',
             'gncEntryGetBillTaxTable',
             # The fields an entry carries beyond the eight this format used
-            # to write, and what GnuCash makes a line and a document worth.
+            # to write, and what GnuCash makes a line and a whole page worth.
             'gncEntryGetNotes',
             'gncEntryGetInvDiscount',
             'gncEntryGetBillable',
@@ -182,8 +199,9 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncOwnerGetType',
             'gncOwnerGetGUID',
             'guid_to_string_buff',
-            # Dividing a payment bigger than the document it settles. Absent,
-            # an overpayment would take the document's own lot past zero and
+            'qof_instance_get_guid',
+            # Dividing a payment bigger than the invoice it settles. Absent,
+            # an overpayment would take that invoice's lot past zero and
             # leave the owner's money where nothing can spend it.
             'xaccSplitSetAccount',
             'gnc_lot_new',
@@ -192,14 +210,29 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncOwnerInitCustomer',
             'gncOwnerInitVendor',
             'gncOwnerAttachToLot',
-            # Which book everything else is about. Rendering a document asks
+            # Which book everything else is about. Rendering a page asks
             # GnuCash's own report to draw it, and the report resolves the
-            # document from a guid against the *current* book — the Python
+            # invoice from a guid against the *current* book — the Python
             # bindings open a session without making it current, so this says
             # so. Declared here like every other pointer-taking call: passed
             # as a Python int with no argtypes, the session pointer would be
             # truncated to 32 bits.
             'gnc_set_current_session',
+            # Whether a guid is free. A line, a split and an invoice are each
+            # reached only through their collection, so without these a check
+            # for "does this book already hold that guid" answers yes about
+            # an account and no about the line the file is naming.
+            'qof_book_get_collection',
+            'qof_collection_lookup_entity',
+            # And giving one to a lot the import creates, so a split can say
+            # which of an owner's credits it settles.
+            'qof_instance_set_guid',
+            'gnc_lot_begin_edit',
+            'gnc_lot_commit_edit',
+            'xaccAccountLookup',
+            'gncEntryGetBill',
+            'gncEntrySetBill',
+            'gncEntrySetInvoice',
         ]
 
     missing = [f for f in required_functions if not hasattr(lib, f)]
@@ -233,7 +266,7 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncTaxTableEntryGetAmount.argtypes     = [ctypes.c_void_p]
     # ── The book's own answer to "which report prints an invoice" ────────────
     # File → Properties → Business has it, and GnuCash reads it when its own
-    # Print Invoice button draws a document. Asked here rather than assuming a
+    # Print Invoice button draws a page. Asked here rather than assuming a
     # report, so a book that names one is printed the way its owner set it up
     # without anyone repeating it on the command line. `None` when nobody has
     # set one, which is a book GnuCash prints with its own built-in default.
@@ -282,6 +315,12 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncOwnerGetGUID.argtypes               = [ctypes.c_void_p]
     lib.guid_to_string_buff.restype            = ctypes.c_char_p
     lib.guid_to_string_buff.argtypes           = [ctypes.c_void_p, ctypes.c_char_p]
+    # And whose guid to write into that buffer. Read for a line, a lot and
+    # an invoice, none of which the bindings give a `GetGUID` (CLAUDE.md
+    # §13) — often enough per import that opening the library per call was
+    # worth ending.
+    lib.qof_instance_get_guid.restype          = ctypes.c_void_p
+    lib.qof_instance_get_guid.argtypes         = [ctypes.c_void_p]
     # Putting an owner on a lot: a credit's lot is where the book records whose
     # money it is, and a lot without one is money nothing can apply or refund.
     # A GncOwner has to be built from the Customer/Vendor first — handing the
@@ -314,9 +353,9 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncEntryGetInvTaxIncluded.argtypes     = [ctypes.c_void_p]
     lib.gncEntryGetInvTaxTable.restype         = ctypes.c_void_p
     lib.gncEntryGetInvTaxTable.argtypes        = [ctypes.c_void_p]
-    # The note an entry carries of its own, beside the document's, and the
+    # The note an entry carries of its own, beside the invoice's, and the
     # discount figure. Both are shown in GnuCash's invoice window and both
-    # survive a save, so a ledger that omits them describes a document the
+    # survive a save, so a ledger that omits them describes an invoice the
     # book does not hold. The two discount *choices* — what the figure means
     # and where it falls relative to tax — are read through SWIG, being plain
     # ints with no const-type trouble.
@@ -329,7 +368,7 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     # 10% against a 10% tax table posts 900 + 90 `pretax`, 900 + 100
     # `sametime` and 890 + 100 `posttax` — and only these functions know
     # which. Arithmetic of this project's own printed 1000 + 100 for all
-    # three, so a document handed to a customer named a total the book
+    # three, so a page handed to a customer named a total the book
     # contradicted.
     #
     # `(entry, round, is_cust_doc, is_cn)` in GnuCash's own header, which
@@ -354,12 +393,12 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     # entry's own — and this is what frees it.
     lib.gncAccountValueDestroy.restype         = None
     lib.gncAccountValueDestroy.argtypes        = [ctypes.c_void_p]
-    # And what the document is worth, which is not the sum of its lines.
-    # GnuCash rounds a document's tax once rather than line by line —
+    # And what the whole is worth, which is not the sum of its lines.
+    # GnuCash rounds the tax once rather than line by line —
     # measured on 5.10, a bill of three 100.00 lines at 15% tax-included
     # posts 260.88 + 39.13 = 300.01, where the rounded per-line tax adds to
     # 39.12. These three answer what its posting splits carry, for a draft as
-    # well as a posted document, since they read the entries either way.
+    # well as a posted one, since they read the entries either way.
     lib.gncInvoiceGetTotal.restype             = GncNumericC
     lib.gncInvoiceGetTotal.argtypes            = [ctypes.c_void_p]
     lib.gncInvoiceGetTotalSubtotal.restype     = GncNumericC
@@ -397,8 +436,8 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncEntryGetBillTaxTable.argtypes       = [ctypes.c_void_p]
     # ── Split, transaction and lot ───────────────────────────────────────────
     # Lots are how this project reads and writes ownership of money: a credit
-    # sits in a lot of the owner's, a settlement in one the document owns, and
-    # dividing a payment that covers more than its document owes moves one into
+    # sits in a lot of the owner's, a settlement in one an invoice owns, and
+    # dividing a payment that covers more than that invoice owes moves one into
     # the other. Declared here for the reason the owner lookups above are — a
     # signature that lives beside its caller is one the next caller does
     # without, and a pointer passed with no argtypes is truncated to 32 bits on
@@ -435,7 +474,7 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.xaccAccountGetLotList.restype          = ctypes.c_void_p
     lib.xaccAccountGetLotList.argtypes         = [ctypes.c_void_p]
     # A split's amount is in its *account's* commodity, which is not the
-    # transaction's on a foreign document settled from a base-currency bank.
+    # transaction's on a foreign invoice settled from a base-currency bank.
     lib.xaccAccountGetCommodity.restype        = ctypes.c_void_p
     lib.xaccAccountGetCommodity.argtypes       = [ctypes.c_void_p]
     # And the unit that account is kept to, which is not the commodity's
@@ -451,8 +490,8 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.xaccAccountGetType.argtypes            = [ctypes.c_void_p]
     lib.gncInvoiceGetInvoiceFromLot.restype    = ctypes.c_void_p
     lib.gncInvoiceGetInvoiceFromLot.argtypes   = [ctypes.c_void_p]
-    # The date format every date on a printed page that is *not* the
-    # document's own is written in. A process-wide setting: GnuCash's GUI
+    # The date format every date on a printed page that is *not* the posted
+    # or due date is written in. A process-wide setting: GnuCash's GUI
     # writes it at startup from its own preference, and nothing does in a
     # process that only loaded the library, so it sits at its compiled
     # default of `QOF_DATE_FORMAT_LOCALE` and the printing machine's locale
@@ -461,6 +500,53 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.qof_date_format_set.argtypes           = [ctypes.c_int]
     lib.qof_date_format_get.restype            = ctypes.c_int
     lib.qof_date_format_get.argtypes           = []
+    # ── Whether a guid is free ───────────────────────────────────────────────
+    # `gncEntryLookup`, `xaccSplitLookup` and their siblings are macros in
+    # GnuCash's headers, so no library exports one and ctypes cannot call
+    # them. What each expands to is this pair, taking the QOF type as a
+    # string — so one declaration answers for every collection. Forcing a
+    # guid GnuCash already gave to another object is how a book gets two
+    # objects with one guid, and a collection is a hash of them: the loser
+    # is unreachable.
+    lib.qof_book_get_collection.restype        = ctypes.c_void_p
+    lib.qof_book_get_collection.argtypes       = [ctypes.c_void_p,
+                                                  ctypes.c_char_p]
+    lib.qof_collection_lookup_entity.restype   = ctypes.c_void_p
+    lib.qof_collection_lookup_entity.argtypes  = [ctypes.c_void_p,
+                                                  ctypes.POINTER(GncGuidC)]
+    # An account by guid, asked of every guid a file forces on an object it
+    # creates — which since a line carries one is once per line of every
+    # invoice restored, so opening the library for it each time was worth ending.
+    lib.xaccAccountLookup.restype              = ctypes.c_void_p
+    lib.xaccAccountLookup.argtypes             = [ctypes.POINTER(GncGuidC),
+                                                  ctypes.c_void_p]
+    # A line's bill-side owner pointer, which decides whether GnuCash writes
+    # its bill-side tax flags at all (CLAUDE.md §8). SWIG's `Entry` has no
+    # `SetBill`, measured on 5.10.
+    lib.gncEntryGetBill.restype                = ctypes.c_void_p
+    lib.gncEntryGetBill.argtypes               = [ctypes.c_void_p]
+    lib.gncEntrySetBill.restype                = None
+    lib.gncEntrySetBill.argtypes               = [ctypes.c_void_p,
+                                                  ctypes.c_void_p]
+    # And the invoice pointer, cleared when a bill's line is repaired: the
+    # writer emits a reference per pointer and the reader adds the entry
+    # once per reference, so a line holding both is listed twice.
+    lib.gncEntrySetInvoice.restype             = None
+    lib.gncEntrySetInvoice.argtypes            = [ctypes.c_void_p,
+                                                  ctypes.c_void_p]
+    # ── Naming a lot ─────────────────────────────────────────────────────────
+    # A credit lot takes the guid its file names, so a split can say which of
+    # an owner's credits it belongs to and a restored book holds the same
+    # lots it came from. Bracketed like every other write: a forced guid
+    # marks nothing dirty, so a session whose only change is one saves
+    # nothing (tests/research/a_lot_can_be_named_probe.py).
+    lib.qof_instance_set_guid.restype          = None
+    lib.qof_instance_set_guid.argtypes         = [ctypes.c_void_p,
+                                                  ctypes.POINTER(GncGuidC)]
+    lib.gnc_lot_begin_edit.restype             = None
+    lib.gnc_lot_begin_edit.argtypes            = [ctypes.c_void_p]
+    lib.gnc_lot_commit_edit.restype            = None
+    lib.gnc_lot_commit_edit.argtypes           = [ctypes.c_void_p]
 
 
 @lru_cache(maxsize=1)

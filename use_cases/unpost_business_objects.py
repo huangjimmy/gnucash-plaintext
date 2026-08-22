@@ -40,7 +40,12 @@ from infrastructure.gnucash.engine import (
     load_gnc_engine,
     safe_ctypes_string,
 )
-from infrastructure.gnucash.utils import money_text, numeric_to_fraction
+from infrastructure.gnucash.utils import (
+    money_text,
+    numeric_to_fraction,
+    qof_instance,
+    qof_pointer,
+)
 from services.foreign_currency import require_cost_basis_unused
 from services.gnucash_importer import (
     _find_bill_by_guid,
@@ -130,7 +135,7 @@ class OrphanPayment:
                               # means the bank account, which is where the
                               # figure came from before an orphan's own split
                               # could be the one reported: on a foreign
-                              # document settled from a base-currency bank the
+                              # invoice settled from a base-currency bank the
                               # two are different money, and naming the bank
                               # beside a USD figure describes an account that
                               # never held it.
@@ -488,7 +493,7 @@ def _owner_from_an_orphans_lot(lib, transaction, book):
         lot = split.GetLot()
         if lot is None:
             continue
-        raw = ctypes.c_void_p(int(getattr(lot, 'instance', lot)))
+        raw = ctypes.c_void_p(qof_pointer(lot))
         if lib.gncOwnerGetOwnerFromLot(raw, owner_p) != 1:
             continue
         kind = lib.gncOwnerGetType(owner_p)
@@ -510,9 +515,9 @@ def _owner_from_an_orphans_lot(lib, transaction, book):
 def _marked_orphan_split_ptrs(transaction) -> set:
     """Raw pointers of the splits an unpost left loose on this transaction.
 
-    One transaction can carry several — a deposit covering two documents, both
-    since unposted — and it can carry one among splits that still settle other
-    documents, which is why the shape checks below have to be told which split
+    One transaction can carry several — a deposit covering two invoices, both
+    since unposted — and it can carry one among splits that still settle
+    others, which is why the shape checks below have to be told which split
     the row is about rather than taking whichever came last.
     """
     from services.gnucash_importer import is_a_bank_paid_orphan
@@ -647,24 +652,30 @@ def find_prepayments_in_book(book: Book,
             # business.
             orphan_share = bank_paid_orphan_share_of(acct)
             held = lot_holdings_of(acct)
-            for raw_lot in acct.GetLotList():
+            for held_lot in acct.GetLotList():
+                # Through `qof_instance`, because this list holds wrapped
+                # `GncLot`s on some builds and raw pointers on others — and
+                # as the instance rather than the integer, because the SWIG
+                # calls below take a `GNCLot *` and refuse an int.
+                raw_lot = qof_instance(held_lot)
                 lot = GncLot(instance=raw_lot)
                 # Criterion 2: no invoice attached.
                 if _gc.gncInvoiceGetInvoiceFromLot(raw_lot):
                     continue
                 # Q-035: what an unpost loosened and a bank had paid comes off
-                # first. Such a lot is live, holds no document and names an
+                # first. Such a lot is live, names no invoice, and names an
                 # owner — every test here passes — but that money is a
                 # settlement waiting to be put back, not the owner's to spend,
                 # and all three settlement spellings refuse it as credit.
                 # Subtracted rather than disqualifying the lot, since one lot
                 # can hold a bank-settled split and a credit-settled one both.
                 #
-                # `getattr(..., 'instance', ...)`: `GetLotList` yields raw
-                # pointers on some GnuCash versions and `GncLot` wrappers on
-                # others — measured, 5.10 gives pointers and 5.15, 4.4 and 3.8
-                # give wrappers, which `int()` refuses outright.
-                lot_key = int(getattr(raw_lot, 'instance', raw_lot))
+                # `qof_pointer`: `GetLotList` yields raw pointers on GnuCash
+                # 3.8, 4.4, 4.8, 4.13, 5.5, 5.10, 5.13 and 5.14, and `GncLot`
+                # wrappers on 5.15 and 5.16, which `int()` refuses outright.
+                # Measured on all ten
+                # (tests/research/a_lot_can_be_named_probe.py).
+                lot_key = qof_pointer(raw_lot)
 
                 # Criterion 3: nonzero balance (unconsumed credit). The balance
                 # is an exact rational, so "nonzero" is exactly that — no
@@ -686,7 +697,7 @@ def find_prepayments_in_book(book: Book,
 
                 # Identify the credit by a split that is *part of* it. The
                 # first in the lot is the ordinary answer, but a lot can hold a
-                # bank-settled split beside a credit-settled one — a document
+                # bank-settled split beside a credit-settled one — an invoice
                 # paid part in cash and part out of credit, then unposted — and
                 # `_cash_before_credit` puts the cash in first. Reporting that
                 # one names the credit's remaining balance against the bank
@@ -731,7 +742,7 @@ def find_prepayments_in_book(book: Book,
                 # raises rather than converting. The same idiom the rest of
                 # the tree uses for this.
                 got = lib.gncOwnerGetOwnerFromLot(
-                    int(getattr(raw_lot, 'instance', raw_lot)), owner_ptr)
+                    qof_pointer(raw_lot), owner_ptr)
                 if got != 1:
                     got = lib.gncOwnerGetOwnerFromTxn(tx_ptr, owner_ptr)
                 owner_id = ''
@@ -1035,7 +1046,7 @@ def find_orphan_payments_in_book(book: Book,
                     if this_owner_id:
                         tx_owner_source = 'another_lot'
             # Not filtered here. One transaction can hold two owners' orphans
-            # — a deposit covering two customers, both documents since
+            # — a deposit covering two customers, both invoices since
             # unposted — and the answer above is the transaction's, which is
             # one of them at best. Each row asks its own split below; filtering
             # on the transaction's answer hid the second owner's money
@@ -1044,9 +1055,9 @@ def find_orphan_payments_in_book(book: Book,
 
             # Criterion 3: payment shape — one AR/AP split, one elsewhere.
             #
-            # Q-035: a deposit covering two documents has several AR splits,
+            # Q-035: a deposit covering two invoices has several AR splits,
             # and taking whichever came last could report the wrong one — the
-            # split still settling the *other* document, whose lot holds an
+            # split still settling the *other* one, whose lot holds an
             # invoice, so criterion 4 below skips the transaction and the
             # orphan is listed nowhere. Where the unpost marked one, that is
             # the split this row is about, whatever order they come in.
@@ -1058,12 +1069,12 @@ def find_orphan_payments_in_book(book: Book,
             # choose.
             #
             # And one row per orphan, not per transaction: a deposit whose
-            # portions settled two documents, both since unposted, carries two
+            # portions settled two invoices, both since unposted, carries two
             # marked splits and is two orphans. Reported once it named the
-            # last of them, and the other document's money was listed nowhere
+            # last of them, and the other one's money was listed nowhere
             # while every refusal about it asked for a guid — the same "listed
             # by no command" hole, one split further in. It is why the mark
-            # stores a document guid rather than `true`.
+            # stores an invoice's guid rather than `true`.
             marked = _marked_orphan_split_ptrs(tx)
             ar_candidates = []
             bank_s = None
@@ -1081,28 +1092,28 @@ def find_orphan_payments_in_book(book: Book,
             # Every marked split is its own row; with none marked the
             # transaction is a roundtripped orphan and answers as one row from
             # whichever receivable split it has.
-            def _in_a_documentless_lot(split_ptr):
+            def _in_a_lot_naming_nothing(split_ptr):
                 lot = lib.xaccSplitGetLot(split_ptr)
                 return bool(lot) and not lib.gncInvoiceGetInvoiceFromLot(lot)
 
             # Where anything is marked, the marked splits are the rows and
-            # nothing else is. Merging in the unmarked-but-documentless ones
-            # looked like it closed a gap and re-opened the one the mark exists
-            # for: an owner's parked credit is documentless too — that is
-            # finding 10 entire — so a deposit that settled a document and
-            # parked a credit listed the credit as an orphan as well, at the
+            # nothing else is. Merging in the unmarked ones whose lot names
+            # nothing looked like it closed a gap and re-opened the one the
+            # mark exists for: an owner's parked credit names nothing either —
+            # that is finding 10 entire — so a deposit that settled an invoice
+            # and parked a credit listed the credit as an orphan as well, at the
             # bank's whole figure, and the same money was offered by
             # `find-prepayments` to spend and by this to clean up.
             #
-            # The cost is a legacy shape: a deposit settling two documents,
+            # The cost is a legacy shape: a deposit settling two invoices,
             # one unposted by an earlier version and one under this, lists
             # only the newer. Under-reporting a book that cannot be marked is
-            # the lesser of the two, and unposting the older document again
+            # the lesser of the two, and unposting the older one again
             # under this version gives it a mark.
             reported_splits = [s for s in ar_candidates if int(s) in marked]
             if not reported_splits:
                 # The first that is *orphaned*, not simply the first. Criterion
-                # 4 below drops a split whose lot still holds a document, so
+                # 4 below drops a split whose lot still names an invoice, so
                 # taking the first outright made the whole transaction vanish
                 # whenever that one came first — hiding a genuine orphan
                 # beside it. Reachable without a mark: a book unposted by an
@@ -1110,7 +1121,7 @@ def find_orphan_payments_in_book(book: Book,
                 # only one was unposted.
                 reported_splits = [
                     s for s in ar_candidates
-                    if _in_a_documentless_lot(s) or not lib.xaccSplitGetLot(s)
+                    if _in_a_lot_naming_nothing(s) or not lib.xaccSplitGetLot(s)
                 ][:1]
 
             for ar_s in reported_splits:
@@ -1148,8 +1159,8 @@ def find_orphan_payments_in_book(book: Book,
                 memo_raw = lib.xaccSplitGetMemo(bank_s)
                 memo = memo_raw.decode('utf-8', errors='replace') if memo_raw else ''
                 # The orphaned split's own figure where the unpost named one:
-                # on a deposit covering two documents the bank side is the
-                # whole 220, and reporting that for one document's orphaned
+                # on a deposit covering two invoices the bank side is the
+                # whole 220, and reporting that for one invoice's orphaned
                 # 100 names money the rest of which settles the other.
                 reported_s = ar_s if int(ar_s) in marked else bank_s
                 amt = lib.xaccSplitGetAmount(reported_s)
@@ -1163,7 +1174,7 @@ def find_orphan_payments_in_book(book: Book,
                                if desc_raw else '')
                 # Of the account the reported figure is *on*, not of the
                 # transaction. A split's amount is in its account's commodity,
-                # and the two part company on a foreign document settled from a
+                # and the two part company on a foreign invoice settled from a
                 # base-currency bank: a USD receivable paid out of a CAD bank
                 # has a CAD transaction, so a −100.00 USD orphan read out under
                 # the transaction's currency reported "100.00 CAD" — the wrong
@@ -1214,14 +1225,14 @@ def find_orphan_payments_in_book(book: Book,
                     # "deleting this guid destroys money that is not this
                     # row's", and a portion nobody has claimed yet counts:
                     # deleting a deposit covering Alpha and Beta while only
-                    # Alpha's document exists takes Beta's money out of the
+                    # Alpha's invoice exists takes Beta's money out of the
                     # bank, and re-importing Alpha puts back less than it took.
                     shares_its_transaction=len(ar_candidates) > 1,
                     # Only where naming the bank would be wrong about the
                     # money. This is a bank-side listing and says so; the
                     # figure is the orphan's own, which on an ordinary book is
                     # the bank's currency too. It parts company on a foreign
-                    # document settled from a base-currency bank, and there
+                    # invoice settled from a base-currency bank, and there
                     # "USD 100.00 in Assets:Bank" names an account that never
                     # held a dollar of it.
                     amount_account=(
@@ -1286,7 +1297,7 @@ def _execute_unpost(book: Book, ids: List[str], by_guid: bool,
         # holds.
         require_cost_basis_unused(book, rec, kind, rid)
         # Q-035: the lot survives the unpost holding whatever settled the
-        # document, and a lot holding no document is what an owner's credit
+        # record, and a lot naming nothing is what an owner's credit
         # looks like. Written down here, or a later import re-attaching the
         # orphan reads it as credit being spent and takes the cost basis off
         # currency the bank really paid.

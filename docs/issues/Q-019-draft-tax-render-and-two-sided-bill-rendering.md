@@ -6,11 +6,11 @@ severity: medium
 status: closed
 ---
 
-> **The printed page has since changed ([Q-036](Q-036-printed-documents-are-not-gnucashs-page.md)).**
+> **The printed page has since changed ([Q-036](Q-036-printed-pages-were-not-gnucashs-own.md)).**
 > `print-bill`, the plaintext seller header and the draft tax figures in plaintext stand. The HTML
-> and PDF page is GnuCash's own Printable Invoice: it puts the document's owner in one block and
+> and PDF page is GnuCash's own Printable Invoice: it puts the record's owner in one block and
 > the seller in the other — a bill is a vendor's invoice, so the vendor is its owner — rather than
-> the "Bill From" / "Bill To" headings this project chose, it prices an unposted document from
+> the "Bill From" / "Bill To" headings this project chose, it prices an unposted one from
 > its entries itself, and it states tax as one total rather than as named GST and PST rows.
 
 ## Three related gaps in the rendering surface
@@ -71,7 +71,7 @@ The generic GST 5% + PST 7% and single 10% Sales Tax tables (rather than Ontario
 | `services/invoice_renderer.py` | `invoice_to_xml`: compute draft tax from entries via `compute_entry_informational`, emit `<tax-lines>` + `<draft-tax-notice/>`. `render_to_plaintext`: drop `if not is_draft:` gates, prepend `# Issued by:` seller header from `company_info`, prepend `# Tax figures are provisional` caveat on drafts. New helper `_render_seller_header`. |
 | `services/invoice.xslt` | New XSLT template renders `<draft-tax-notice/>` as a muted italic row under tax-lines. |
 | `services/plaintext_parser.py` | `parse_iterable` skips lines whose `lstrip()` starts with `#` so rendered caveat lines round-trip through re-import. |
-| `services/bill_renderer.py` | New module: `bill_to_xml`, `render_to_html`, `render_to_plaintext`, `compute_bill_entry_informational`, `_read_bill_tax_label`. Uses Bill-side SWIG getters per CLAUDE.md. (A `render_to_pdf` was written here and on the invoice side and never called: `print-bill` and `print-invoice` build their own combined HTML — one shell around several documents — and hand that to weasyprint, so a per-document PDF helper had no caller. Both deleted.) |
+| `services/bill_renderer.py` | New module: `bill_to_xml`, `render_to_html`, `render_to_plaintext`, `compute_bill_entry_informational`, `_read_bill_tax_label`. Uses Bill-side SWIG getters per CLAUDE.md. (A `render_to_pdf` was written here and on the invoice side and never called: `print-bill` and `print-invoice` build their own combined HTML — one shell around several pages — and hand that to weasyprint, so a per-page PDF helper had no caller. Both deleted.) |
 | `services/bill.xslt` | New XSLT, mirrors `invoice.xslt` with Bill From/Bill To roles swapped. |
 | `cli/bill_print_cmd.py` | New `print-bill` Click command — same flag surface as `print-invoice`. |
 | `cli/main.py` | Register `print-bill`. |

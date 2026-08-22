@@ -1,12 +1,12 @@
 # Multi-currency: invoicing, billing, and holding foreign currency
 
-The book reports in CAD. This document is the worked reference for everything that happens when money is denominated in something else: invoicing a US customer, being billed by a US vendor, paying either across a currency boundary, holding the USD that results, and selling it.
+The book reports in CAD. This guide is the worked reference for everything that happens when money is denominated in something else: invoicing a US customer, being billed by a US vendor, paying either across a currency boundary, holding the USD that results, and selling it.
 
 Every figure below was produced by running the commands against a real GnuCash book — the transactions are copied out of `export` output, and the errors out of the importer.
 
 **Scope.** Nothing in the design is specific to USD and CAD: a cost basis at a cost, identified by a split guid, works the same in whatever currency the book reports in. Most of the worked examples below are USD against a CAD book, because that is the shape a reader is likeliest to be holding.
 
-**A third currency is covered.** A document in one currency settled into a bank in another — a USD invoice paid into an HKD account, a CAD invoice paid into one — is tested end to end, and so is spending what such a settlement brought in. Three currencies are in play there and each is priced separately: the document's, the bank's, and the CAD the book reports in. What that costs the author is one more rate — `--fx-rates` must carry the **bank's** currency as well as the document's, since the CAD value of what landed cannot be worked out from the document's rate alone, and a file missing it is refused by name rather than settled at a guess.
+**A third currency is covered.** An invoice in one currency settled into a bank in another — a USD invoice paid into an HKD account, a CAD invoice paid into one — is tested end to end, and so is spending what such a settlement brought in. Three currencies are in play there and each is priced separately: the invoice's, the bank's, and the CAD the book reports in. What that costs the author is one more rate — `--fx-rates` must carry the **bank's** currency as well as the invoice's, since the CAD value of what landed cannot be worked out from the invoice's rate alone, and a file missing it is refused by name rather than settled at a guess.
 
 ---
 
@@ -317,7 +317,7 @@ which imports as `Income:FX Gain -5.00 CAD` — a 5.00 CAD gain, because a liabi
 
 ---
 
-## Currency that arrives without a document
+## Currency that arrives without an invoice
 
 ```
 2026-01-10 * "Buy 100 USD at 1.35"
@@ -339,7 +339,7 @@ Each receiving split establishes its own basis — 100 USD at 1.35 and 100 USD a
 
 ### Prepayments, refunds, and the lot
 
-A customer's overpayment is a borrowing: currency held and owed back, sellable like any other. A settlement is the same shape — both move a receivable against its normal direction, both are a credit of 100.00 USD — and what separates them is the **lot**. A settlement belongs to the document it settles; a prepayment belongs to a lot no document owns. Neither the direction nor the figures can tell them apart, which is why the lot decides.
+A customer's overpayment is a borrowing: currency held and owed back, sellable like any other. A settlement is the same shape — both move a receivable against its normal direction, both are a credit of 100.00 USD — and what separates them is the **lot**. A settlement belongs to the invoice it settles; a prepayment belongs to a lot no invoice owns. Neither the direction nor the figures can tell them apart, which is why the lot decides.
 
 A payment written as a `payment:` block gets that lot from the engine. A prepayment written as an ordinary transaction has to name its owner:
 
@@ -378,7 +378,7 @@ Without `lot_owner:`, a hand-written credit belongs to no lot, which is how a se
 
 That receivable's basis was opened when the invoice was raised, so counting the credit as well would offer 200.00 USD from a book holding none.
 
-**A refund is the mirror, and it needs `lot_owner:` for the same reason.** It is a debit on the receivable — the direction that normally establishes a basis — but it sends the customer's own money back rather than bringing any in. Naming the owner puts it in the lot no document owns, which is what marks it a refund, and it then establishes nothing; counting it because debits are the normal direction offered a third 100.00 USD that had already left the book.
+**A refund is the mirror, and it needs `lot_owner:` for the same reason.** It is a debit on the receivable — the direction that normally establishes a basis — but it sends the customer's own money back rather than bringing any in. Naming the owner puts it in the lot no invoice owns, which is what marks it a refund, and it then establishes nothing; counting it because debits are the normal direction offered a third 100.00 USD that had already left the book.
 
 Naming no owner, it is read as a receivable raised by hand and does establish one — because that is the other thing those three lines are, exactly as a lot-less credit is read as a settlement. Neither side guesses: the file says which it is, or it gets the reading its shape gives it.
 
@@ -406,7 +406,7 @@ Rebuilding a payment, GnuCash copies the source split's stored figures onto ever
 
 The payable side is the mirror. What the book overpaid a vendor is its own currency sitting with them, at what it cost to send, and a later bill spending 40.00 of it leaves 60.00 that is still the book's at that same cost.
 
-Applying a credit is asked for with `auto_apply_credit: true` and nothing else. What the *export* then says is which credit settled the document, in a payment block that names it rather than a bank account — a block to read, not one to write:
+Applying a credit is asked for with `auto_apply_credit: true` and nothing else. What the *export* then says is which credit settled the invoice, in a payment block that names it rather than a bank account — a block to read, not one to write:
 
 ```
 	payment:
@@ -417,9 +417,9 @@ Applying a credit is asked for with `auto_apply_credit: true` and nothing else. 
 		txn_split_guid: "…"
 ```
 
-A credit bigger than the document is divided the way a bank transfer bigger than the document it pays has always been: the named split settles what is owed, and the rest is parked as the owner's credit in a lot of its own, carrying what is left of the cost the credit was acquired at. Two shapes are refused rather than divided: a credit in no lot, since nothing records whose the leftover would be and every listing of credits reads lots (`lot_owner:` gives it an owner first), and a block on a document that owes nothing, since there is nothing left for the credit to settle.
+A credit bigger than the invoice is divided the way a bank transfer bigger than the invoice it pays has always been: the named split settles what is owed, and the rest is parked as the owner's credit in a lot of its own, carrying what is left of the cost the credit was acquired at. Two shapes are refused rather than divided: a credit in no lot, since nothing records whose the leftover would be and every listing of credits reads lots (`lot_owner:` gives it an owner first), and a block on an invoice that owes nothing, since there is nothing left for the credit to settle.
 
-`credit_dated:` is the day the currency arrived, not a day anything was paid — applying a credit writes no transaction, so the book has no date for it to state. That the split settled a document out of credit at all is recorded on it when the credit is applied (`applied_from_credit`), because nothing about the split afterwards distinguishes it from a bank payment's, and where a deposit is taken and a document raised against it the same day, not even the dates do. Re-importing that block attaches the same split to the same lot, which keeps the basis where the book put it; asking for the application again instead would let the engine choose a different credit, and re-applying one already applied leaves documents whose lots GnuCash drops on load, taking their basis with them.
+`credit_dated:` is the day the currency arrived, not a day anything was paid — applying a credit writes no transaction, so the book has no date for it to state. That the split settled an invoice out of credit at all is recorded on it when the credit is applied (`applied_from_credit`), because nothing about the split afterwards distinguishes it from a bank payment's, and where a deposit is taken and an invoice raised against it the same day, not even the dates do. Re-importing that block attaches the same split to the same lot, which keeps the basis where the book put it; asking for the application again instead would let the engine choose a different credit, and re-applying one already applied leaves invoices whose lots GnuCash drops on load, taking their basis with them.
 
 ### Securities are not foreign currency
 
@@ -583,7 +583,7 @@ This tool keeps books; it does not support trading a position the book does not 
 | a basis with no balance recorded | `cost basis <guid> has no balance recorded — the split was not written by this tool, so how much of its USD is still unsold is not known and cannot be assumed to be all of it…` |
 | a `payment:` block spending a foreign account whose bases still have a balance | `this bill pays 100.00 USD out of 'Assets:Bank:USD', whose cost bases still have 200.00 USD of balance between them, and spending that has to say which cost basis it comes out of. A payment block cannot — GnuCash writes its bank split. Write the settlement as an ordinary transaction with cost_basis_split_guid: on the bank line and attach it with txn_guid: / txn_split_guid:` |
 | a settlement into a foreign bank with no rate for **that bank's** currency | `this invoice is in USD and settles into HKD, so valuing the cash needs the HKD/CAD rate on 2026-02-25, which the rates file does not carry: …` |
-| a CAD document settled into a foreign bank | `invoice INV-…: this payment settles a CAD invoice into a HKD account. Nothing is realized — CAD does not move against itself — and what the HKD cost belongs to that account, recorded where the currency was bought, not to this invoice. Settle it from a CAD account, or record the HKD purchase as its own transaction.` |
+| a CAD invoice settled into a foreign bank | `invoice INV-…: this payment settles a CAD invoice into a HKD account. Nothing is realized — CAD does not move against itself — and what the HKD cost belongs to that account, recorded where the currency was bought, not to this invoice. Settle it from a CAD account, or record the HKD purchase as its own transaction.` |
 
 The first of those three is the one most likely to meet an existing ledger, and it is asked of **every** foreign bank rather than only one in a third currency — paying a USD bill out of a USD bank whose bases still have a balance reaches none of the cross-currency arithmetic and drifts just the same, so the question is asked before it. A foreign account gets its first basis as soon as something opens one, and a settlement landing in it is one such thing; README's foreign-currency section shows the ordinary transaction that replaces the payment block.
 
@@ -604,7 +604,7 @@ Measured on a book holding 200.00 USD across two bases: a file carrying an invoi
 
 ## Worked example: buy USD, borrow USD, sell some of each
 
-The whole cycle for currency that arrives without a document, start to finish.
+The whole cycle for currency that arrives without an invoice, start to finish.
 
 **1. Buy 100 USD at 1.35 and borrow 100 USD at 1.30.** Two transactions, no rates file needed — each states its own rate as `share_price`:
 

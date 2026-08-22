@@ -21,7 +21,7 @@ description, split memos, FITID — is preserved.
 
 The companion `txn_split_guid:` field names the *specific* AR/AP-side split that belongs to this invoice/bill. It's optional in hand-written plaintext (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order) but is **always** emitted on export so a round-tripped book reconstructs bit-for-bit on a fresh re-import — including the shape where one bank transaction covers several invoices or bills, each claiming one specific AR/AP-side split via its own `txn_split_guid:`.
 
-This document describes:
+This guide describes:
 
 - [Workflow: Import bank feed first, then reconcile invoices](#workflow-import-bank-feed-first-then-reconcile-invoices)
 - Vendor bills (Accounts Payable) are covered in [docs/bill-payment-reconciliation.md](bill-payment-reconciliation.md)
@@ -118,7 +118,7 @@ A single import call can carry both the standalone bank transaction directive an
 
 ## Cash-basis sales (Q-018): same-day post + pay
 
-Cash-basis tax filers recognize revenue when cash is received, not when an invoice is posted. They still issue normal invoices (the billing document and the tax-method classification are separate concerns), but they typically want each sale's posted date to match the cash-receipt date so the books and the tax filing align.
+Cash-basis tax filers recognize revenue when cash is received, not when an invoice is posted. They still issue normal invoices (the invoice they issue and the tax-method classification are separate concerns), but they typically want each sale's posted date to match the cash-receipt date so the books and the tax filing align.
 
 The mechanic is just the bank-feed-first workflow above with three constraints applied:
 
@@ -169,7 +169,7 @@ For the **posted** path above, customer-facing rendering is unchanged — the ex
 
 ### Unposted cash-basis invoices (waiting for cash to arrive)
 
-In a cash-basis workflow the invoice posts only when cash arrives. Before that, the document still needs to be sent to the customer — they're being billed and haven't paid yet. When `cash_basis: true` is set on an unposted invoice, `print-invoice` renders an **UNPAID** badge (instead of DRAFT, which is the default for unposted invoices) so the customer-facing PDF reads as a real bill rather than a work-in-progress draft.
+In a cash-basis workflow the invoice posts only when cash arrives. Before that, the invoice still needs to be sent to the customer — they're being billed and haven't paid yet. When `cash_basis: true` is set on an unposted invoice, `print-invoice` renders an **UNPAID** badge (instead of DRAFT, which is the default for unposted invoices) so the customer-facing PDF reads as a real bill rather than a work-in-progress draft.
 
 Because the `posted:` block is absent on an unposted invoice (there's no `posted.due` to read from), an optional `due_date: YYYY-MM-DD` field can be added directly to the invoice header to supply the customer-facing due date:
 
@@ -252,23 +252,30 @@ block. A few syntactic rules are worth noting:
 |---|---|---|
 | Quoted hex (`"317c8ae6…"`) | yes (preferred) | yes |
 | Unquoted mixed hex (`317c8ae6…f23`, has letters) | yes | no |
-| Unquoted all-digit (e.g. `22222222222222222222222222222222`) | **no — error** | n/a |
+| Unquoted all-digit (e.g. `22222222222222222222222222222222`) | yes | no |
 | UUID-with-hyphens (`317c8ae6-e008-4c33-951d-052b9f1b9f23`) | yes | no |
 
-**Why all-digit unquoted is rejected**: the plaintext parser auto-converts
-all-digit field values to Python integers, which silently loses leading
-zeros. `00000000000000000000000000000022` and `22` would both decode to the
-number `22`, making the original digit count unrecoverable. The importer
-raises a clear error asking you to quote the value:
+**All-digit unquoted, and why it needed anything said about it**: the
+plaintext parser decodes an unquoted all-digit value as a number, and a
+number keeps none of what makes a guid — `00000000000000000000000000000022`
+and `22` are both `22`, leading zeros and digit count gone. So a value
+decoded that way carries the characters it was written with
+(`NumberAsWritten` in `infrastructure/gnucash/utils.py`), and the guid read
+from it is the one in the file. All-digit hex is no more ambiguous than the
+mixed hex the row above accepts; the ambiguity was in the decoding, not in
+the format.
+
+What is refused is a value that is not a guid at all, and the message names
+what the file wrote:
 
 ```
-guid must be a quoted string (got int 22…22); unquoted all-digit values
-are auto-converted to a number and lose their digit count.
-Quote the guid: e.g. guid: "00000000000000000000000000000022"
+Invalid GUID format: '22'
 ```
 
-The exporter always emits quoted form, so this only matters for hand-written
-files.
+No remedy is suggested, because none can be: `22` is two characters, and
+every guid an error could propose — padding it to 32 in one base or another
+— is one nobody wrote. Storing an object under a padded guess is worse than
+refusing.
 
 ---
 
@@ -360,19 +367,26 @@ thing. Common cases:
 |---|---|
 | `txn_guid` does not exist in the book | `invoice "X": txn_guid '…' not found in book` |
 | `txn_guid` is not a valid GUID/UUID string | `Invalid GUID format: 'hello'` |
-| `txn_guid` is unquoted and all-digit | `guid must be a quoted string (got int …)` |
+| `txn_guid` is too short or too long to be a guid, quoted or not | `Invalid GUID format: '22'` |
 | Invoice has `posted: none` with a `payment:` block | `invoice "X": cannot have payment: blocks on an unposted invoice` |
 | Invoice was created but not posted (no posted: block) | `invoice "X": has no posted lot — must be posted before payment` |
 | The transaction has no split outside `bank_account` | `invoice "X": tx '…' has no split outside 'Assets:Bank' to settle it with` |
-| Every split outside `bank_account` already settles a document | `invoice "X": every split of tx '…' outside 'Assets:Bank' already settles a document — retargeting one would leave that document unpaid with no figure disagreeing` |
+| Every split outside `bank_account` already settles an invoice or a bill | `invoice "X": every split of tx '…' outside 'Assets:Bank' already settles an invoice or a bill — retargeting one would leave that unpaid with no figure disagreeing` |
 | Several splits could settle it and the block names only `txn_guid:` | `invoice "X": tx '…' carries 2 splits that are not 'Assets:Bank' and could each settle this invoice` |
 | `bank_account` names an account no split is on | as the row above: with no split matching the name, every split counts as "not the bank", so a two-split deposit reads as ambiguous. Check `bank_account:` for a typo before adding `txn_split_guid:` |
-| `from_credit:` names a split an unpost left loose that a bank had paid — any document's, not only this one's | `invoice "X": the split txn_split_guid names is a settlement a bank paid, left loose when the document it settled was unposted — no credit was spent on it` |
+| `from_credit:` names a split an unpost left loose that a bank had paid — any invoice's, not only this one's | `invoice "X": the split txn_split_guid names is a settlement a bank paid, left loose when the invoice or bill it settled was unposted — no credit was spent on it` |
 | A split states `orphaned_by_unpost:` | `the split on 'Assets:…': \`orphaned_by_unpost:\` is not a key a file may state on a transaction or a split` |
 | A transaction states `orphaned_by_unpost:` (on either arm — a new transaction, or one named by `guid:` under `--strategy update`) | `the transaction dated 2026-04-03: \`orphaned_by_unpost:\` is not a key a file may state on a transaction or a split` |
-| A bare `txn_guid:` block's `amount:` covers neither what the split carries nor what the document owes | `invoice "X": this block says 100.00 arrived, but the split it would move on tx '…' carries 60.00 and the invoice is owed 100.00 — so taking it would leave the invoice part-paid out of money this file does not describe` |
+| A bare `txn_guid:` block's `amount:` covers neither what the split carries nor what the invoice owes | `invoice "X": this block says 100.00 arrived, but the split it would move on tx '…' carries 60.00 and the invoice is owed 100.00 — so taking it would leave the invoice part-paid out of money this file does not describe` |
 | A bare `txn_guid:` block's `amount:` is not a number | `invoice "X": payment amount must be a number, got 'one hundred'` |
-| `txn_split_guid:` names a split that already settles another document | `invoice "X": the split txn_split_guid '…' names is in another document's lot — it settles that one, and moving it here would leave that document unpaid` |
+| `txn_split_guid:` names a split that already settles another invoice | `invoice "X": the split txn_split_guid '…' names is in another invoice's or bill's lot — it settles that one, and moving it here would leave it unpaid` |
+| The file changes what a **posted** invoice's lines say, without saying `posted: none` | `invoice "X": this invoice is posted, and this file changes it. … Unpost it first — unpost-invoices <book> X — and import this file after.` |
+| Two `entry:` blocks name one `guid:`, or a block names a line that is another invoice's | `invoice "X": two lines name guid …` / `invoice "X": guid … is an existing invoice or bill line in this book, not a line of this one` |
+| Two split blocks name one `guid:`, or a block names a split the book holds elsewhere | `two splits name guid …` / `guid … is an existing split in this book, not a split of this transaction on this account` |
+| `lot_guid:` names a lot that is another owner's, closed, on another account, a posted invoice's, or not a lot at all | `customer 'C001': lot_guid … names another owner's credit` (and one message per case) |
+| `lot_guid:` with no `lot_owner:` beside it | `lot_guid … names a credit, and nothing on this split says it is one` |
+| A split sitting in a lot is given another account | `the split … is in lot … and this file gives it another account` |
+| A split sitting in a lot is named by no block of its transaction | `the split … is in lot … and no block of this transaction names it` |
 
 ### Cross-reference errors
 

@@ -5,8 +5,8 @@
 # either must be the same book, and a file refused under one spelling must be
 # refused under the other.
 #
-# It carries the other document's memo because it describes the other
-# document's movement — which is what a reader hand-writing a second block
+# It carries the other invoice's memo because it describes the other
+# invoice's movement — which is what a reader hand-writing a second block
 # against money the book already holds would copy. The duplicate guard matches
 # on the memo, so a block that named a different one would be a different
 # payment and rightly not compared.

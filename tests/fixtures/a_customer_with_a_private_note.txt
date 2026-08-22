@@ -2,7 +2,7 @@
 # hand the customer: what the book's owner writes about them.
 #
 # Custom keys round-trip, so the export has to carry them. `print-invoice` is
-# the other thing that renders an owner — and that document goes to the
+# the other thing that renders an owner — and that page goes to the
 # customer.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"

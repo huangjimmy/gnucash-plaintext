@@ -1,8 +1,8 @@
-"""A document refused late discards the transactions that imported before it.
+"""An invoice refused late discards the transactions that imported before it.
 
 `--include-business-objects` reads the file in one pass and saves the book
 once, at the end. The invoice and bill pass runs after the standalone
-transactions have been built in memory, so a document refused there takes them
+transactions have been built in memory, so an invoice refused there takes them
 with it — the save is never reached.
 
 That is the documented all-or-nothing guarantee working: a file lands in full
@@ -72,7 +72,7 @@ class TestTheTransactionAboveIt:
         assert not _has_the_transaction(book)
 
     def test_without_the_flag_the_transaction_lands(self, book):
-        """The document is not read at all, so nothing refuses it."""
+        """The invoice is not read at all, so nothing refuses it."""
         result = CliRunner().invoke(cli, ['import', str(book), LEDGER])
 
         assert result.exit_code == 0, result.output

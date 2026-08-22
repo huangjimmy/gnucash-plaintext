@@ -1,6 +1,6 @@
 """Two refusals that fire on re-importing an edited block, and what they say.
 
-A document is rebuilt from its block, so what a block leaves out is not left
+An invoice is rebuilt from its block, so what a block leaves out is not left
 alone — it is unmade. Both of these are the same shape: an edit that reads as
 an instruction to destroy something, where a truncated or half-corrected file
 looks exactly the same.
@@ -36,7 +36,7 @@ def book_with_the_invoice(tmp_path):
 
 
 class TestABlockThatDroppedItsLines:
-    """The document has entries; the file states none."""
+    """The invoice has entries; the file states none."""
 
     LEDGER = str(FIXTURES / 'an_invoice_block_with_its_lines_dropped.txt')
 
@@ -121,7 +121,7 @@ class TestABlockThatDroppedItsSplits:
 
 
 class TestAnOwnerWhoseCurrencyWasEdited:
-    """The book holds CAD documents; the file says the owner is in USD."""
+    """The book holds CAD invoices; the file says the owner is in USD."""
 
     LEDGER = str(FIXTURES / 'a_customer_whose_currency_was_edited.txt')
 

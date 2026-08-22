@@ -1,4 +1,4 @@
-"""Write the footer and the CSS a printed document carries onto the book.
+"""Write the footer and the CSS a printed page carries onto the book.
 
 GnuCash's report options give the pair as **Layout → CSS** and **Display →
 Extra Notes**, and until now setting either meant opening GnuCash, which is no
@@ -28,7 +28,7 @@ def execute_set_invoice_style(book, css=None, note=None) -> list:
     * `OFF_THE_BOOK` takes the setting off, so the report's own footer and
       styling print again — `--clear-note` and `--clear-css`;
     * any string is stored, `''` included, which for the footer means a
-      document printed with no footer at all.
+      page printed with no footer at all.
     """
     changed = []
     for value, slot, what in ((css, CSS_SLOT, 'css'),

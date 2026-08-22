@@ -14,7 +14,7 @@
 # already gone out the door.
 #
 # What separates a refund from an invoice posting: a posting sits in the lot
-# its invoice owns, a refund settles an owner lot that no document owns.
+# its invoice owns, a refund settles an owner lot that no invoice owns.
 #
 # Verified by tests/integration/test_foreign_currency_cost_basis.py.
 2026-01-01 open Assets

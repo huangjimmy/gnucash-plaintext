@@ -165,10 +165,10 @@ def test_what_is_left_of_the_credit_comes_back_with_its_cost(tmp_path):
 def test_a_credit_spent_to_the_last_cent_keeps_no_basis(tmp_path):
     """Nothing is carved, and the whole of it is spent, so nothing is left.
 
-    A credit consumed in full moves into the document's lot as one split,
+    A credit consumed in full moves into the invoice's lot as one split,
     never shrinking. Watching only for a split that got smaller left that one
     still carrying the balance and cost of currency it had just spent — inert
-    while it sits in a document's lot, and a stated balance on a settlement
+    while it sits in an invoice's lot, and a stated balance on a settlement
     the moment anything reads the file.
     """
     runner = CliRunner()
@@ -208,10 +208,10 @@ def test_the_remainder_is_told_apart_from_a_settlement_of_its_own_size(tmp_path)
     50.00 invoice carves the credit into 50.00 applied and 100.00 remaining,
     and that remainder is exactly the size of the settlement sitting next to
     it. Picking by size, the settlement can be reached first and handed the
-    credit's balance and cost, which nothing then reads: its lot belongs to a
-    document, so it is no basis. The customer's real 100.00 is left with no recorded balance,
-    the book reports 150.00 available against 250.00 held, and selling that
-    credit is refused for having no balance recorded.
+    credit's balance and cost, which nothing then reads: its lot belongs to an
+    invoice, so it is no basis. The customer's real 100.00 is left with no
+    recorded balance, the book reports 150.00 available against 250.00 held,
+    and selling that credit is refused for having no balance recorded.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -233,7 +233,7 @@ def test_the_remainder_is_told_apart_from_a_settlement_of_its_own_size(tmp_path)
     text = exported.read_text()
 
     # The split that settled the first invoice holds nothing: it is money that
-    # has gone, and its lot belongs to a document.
+    # has gone, and its lot belongs to an invoice.
     settlement = text.split('Assets:Accounts Receivable USD -100.00 USD')[1]
     settlement = settlement.split('\n\tAssets')[0].split('\n\tIncome')[0]
     assert 'cost_basis_balance' not in settlement, settlement
@@ -279,7 +279,7 @@ def _the_credit_split(book):
                     continue
                 # The credit, not the split that settled the invoice: both
                 # are −100.00 on the same day, and what separates them is
-                # that a settlement's lot belongs to a document.
+                # that a settlement's lot belongs to an invoice.
                 lot = split.GetLot()
                 if lot is not None and gc.gncInvoiceGetInvoiceFromLot(lot):
                     continue

@@ -1,5 +1,8 @@
-# Alpha's invoice again, edited — the entry description differs, so the import
-# unposts and rebuilds it — and this time naming only the transaction.
+# Alpha's invoice again, edited — the entry description differs — and this time
+# naming only the transaction. The invoice is unposted by `unpost-invoices`
+# before this file is imported: a line under a posting cannot be changed by an
+# import, which is what makes the unpost a step somebody takes rather than one
+# that happens to them.
 #
 # That transaction now carries two splits the mover could weigh: the 100.00
 # Alpha's own unpost has just orphaned, and Beta's 120.00, still loose because

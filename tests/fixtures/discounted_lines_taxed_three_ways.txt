@@ -1,6 +1,6 @@
 # A discount lands by three different rules, and each one posts a different
 # pair of figures. GnuCash's invoice window offers all three in the Discount
-# Type / Discount How columns, and a printed document has to state what the
+# Type / Discount How columns, and a printed invoice has to state what the
 # book posts rather than what quantity × price would be.
 #
 # Measured on GnuCash 5.10 for the lines below — 10 × 100.00 discounted 10
@@ -130,7 +130,7 @@ invoice "INV-ONE-ACCOUNT-TWICE"
 # Three lines taxed by three accounts, where GnuCash's own totalling and the
 # lines' own roundings part company. Measured on 5.10: the lines hold
 # 0.6294, 0.6000 and 0.1998 of tax, which round to 0.63 + 0.60 + 0.20 = 1.43,
-# while the document's tax is also 1.43 — the sum of what each account
+# while the invoice's tax is also 1.43 — the sum of what each account
 # receives, 0.24 + 0.48 + 0.71, each rounded once across all three lines, and
 # those are the figures its posting splits carry.
 2026-01-01 open Liabilities:Tax A
@@ -150,7 +150,7 @@ invoice "INV-ONE-ACCOUNT-TWICE"
 # cent each way. Per line, 1.10 at 5% + 5% is 0.055 to each account — so a
 # page that rounds each line's own breakdown gives one account 0.06 and the
 # other 0.05, twice over, and shows 0.12 against 0.10. The book rounds each
-# account once across the document: 0.11 and 0.11, which is what its splits
+# account once across the invoice: 0.11 and 0.11, which is what its splits
 # hold and what the page has to state.
 taxtable "TWO EVEN RATES"
 	entry:
@@ -166,11 +166,11 @@ taxtable "TWO EVEN RATES"
 # tells GnuCash's two possible roundings apart.
 #
 # 1.10 at 5% + 5% owes 0.055 to each account. Rounded per account, that is
-# 0.06 + 0.06 = 0.12; rounded once over the document's whole tax, it is
+# 0.06 + 0.06 = 0.12; rounded once over the invoice's whole tax, it is
 # round(0.11) = 0.11. Measured on 5.10, `gncInvoiceGetTotalTax` answers 0.12
-# and the posting splits carry 0.06 to each account — so a document's tax is
+# and the posting splits carry 0.06 to each account — so an invoice's tax is
 # the sum of its accounts', each rounded once, which is what
-# `entries_fitted_to_the_document` computes. Every other document here reads
+# `entries_fitted_to_the_invoice` computes. Every other invoice here reads
 # the same either way, so without this one that model is assumed rather than
 # pinned.
 invoice "INV-ONE-LINE-TWO-HALVES"

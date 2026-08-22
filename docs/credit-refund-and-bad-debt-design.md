@@ -1,4 +1,4 @@
-# Bad Debt and Return of Credit — Design Document
+# Bad Debt and Return of Credit — Design Note
 
 **Feature branch**: `feature/credit-refund-bad-debt`
 **Created**: 2026-06-03
@@ -86,7 +86,7 @@ Rejected alternative: a dedicated `write_off:` block. It would duplicate the ent
 
 ### 2. Clearing a credit reuses the `transaction:` directive and the existing `lot_owner:` split KVP
 
-A credit isn't attached to a document, and clearing it *is* just a normal ledger transaction (a counter account + an AR/AP split). So instead of a new top-level block or a new split field, reuse the existing `transaction:` directive and the existing per-split `lot_owner:` KVP — the Q-014 orphan-lot KVP — extended to carry the owner guid:
+A credit isn't attached to an invoice, and clearing it *is* just a normal ledger transaction (a counter account + an AR/AP split). So instead of a new top-level block or a new split field, reuse the existing `transaction:` directive and the existing per-split `lot_owner:` KVP — the Q-014 orphan-lot KVP — extended to carry the owner guid:
 
 ```
 2026-02-15 * "Refund of overpayment to Acme"
@@ -148,7 +148,7 @@ When there is no open lot to reduce, the same primitives **create** a new lot (`
 
 This path is **verified on all ten supported builds** (GnuCash 3.8 through 5.16) for full refund, partial refund, vendor bad debt, forfeit, standalone-credit create-then-settle, and export → fresh re-import — no version gate needed — and the 45-test Q-014 orphan/payment-roundtrip suite still passes, so folding orphan reconstruction into the same path didn't regress it.
 
-Customer *bad debt against an invoice* (decision 1) is different — it closes the invoice's own document lot via the existing invoice `ApplyPayment` path (just with an expense transfer account), which does not invoke the buggy lot-netting and works on every version.
+Customer *bad debt against an invoice* (decision 1) is different — it closes the invoice's own posted lot via the existing invoice `ApplyPayment` path (just with an expense transfer account), which does not invoke the buggy lot-netting and works on every version.
 
 ### 6. Round-trip / export
 
@@ -270,6 +270,6 @@ C vendor bad debt:        credit created  AP=+50 bank=-50  lot bal=+50 splits=1 
                           after write-off  AP=  0 bank=-50  baddebt=+50  lot bal=0 splits=2 closed
 ```
 
-(In every case the offsetting split joins the existing lot — splits 1 → 2 — and the balance moves to 0 for a full clear or to the residual for a partial.) Invoice/bill *payments* — including an invoice bad-debt write-off — are unaffected on all versions regardless, because they close the document's own lot and never net two lots.
+(In every case the offsetting split joins the existing lot — splits 1 → 2 — and the balance moves to 0 for a full clear or to the residual for a partial.) Invoice/bill *payments* — including an invoice bad-debt write-off — are unaffected on all versions regardless, because they close the invoice's own lot and never net two lots.
 
 **Round-trip verified**: a standalone credit created via `lot_owner`, cleared, exported, and re-imported into a fresh book reaches the same settled state, and the exporter emits `lot_owner: …:guid`. The `open_prepayment:` summary survives the same cycle (parsed and ignored on import; warns on a tampered value).

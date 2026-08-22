@@ -6,7 +6,7 @@
 #
 # Taking such a key off has to land, and has to be said: a block that leaves
 # the line out is not asking for anything, because most blocks name only what
-# they are changing and a printed document names less than that. Writing the
+# they are changing and a printed invoice names less than that. Writing the
 # slot from the block regardless made every partial block a delete; writing it
 # only when the block named something meant the last key could never be
 # removed. Naming it empty says which was meant.
@@ -15,7 +15,7 @@
 #
 # Each names the key empty, which is how a key is taken off. Leaving the
 # line out says nothing about it — most blocks name only what they are
-# changing, and a printed document names less than that.
+# changing, and a printed invoice names less than that.
 #
 # What this fixture produces: the same objects, with the key removed.
 #

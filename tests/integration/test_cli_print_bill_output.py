@@ -94,7 +94,7 @@ class TestPlaintext:
 
 
 class TestHtml:
-    def test_two_bills_combine_into_one_document(self, tmp_path):
+    def test_two_bills_combine_into_one_page(self, tmp_path):
         """One outer shell, whatever the per-bill fragments carry.
 
         Each fragment is a whole page of GnuCash's, with its own DOCTYPE,
@@ -233,7 +233,7 @@ class TestABookThatAlsoHoldsInvoices:
     """The ordinary book, for anyone who both invoices and bills.
 
     GnuCash keeps invoices and bills in one `gncInvoice` type, so `print-bill`
-    asks every document whether it has a vendor. `GetOwner().GetVendor()`
+    asks every record whether it has a vendor. `GetOwner().GetVendor()`
     answers None for a customer invoice rather than raising, which is why
     `_all_bills` needs no `except` around it — but a book of bills only never
     asks the question, so nothing here executed that call on an invoice on any
@@ -264,7 +264,7 @@ class TestABookThatAlsoHoldsInvoices:
     def test_every_bill_still_prints(self, tmp_path):
         gnc = self._mixed_book(tmp_path)
         out = tmp_path / 'all.txt'
-        # `'*'` rather than either bill's id: the point is that every document
+        # `'*'` rather than either bill's id: the point is that every record
         # in the book is offered to the vendor test, invoice included.
         result = CliRunner().invoke(cli, [
             'print-bill', str(gnc), '*', '--format', 'plaintext',

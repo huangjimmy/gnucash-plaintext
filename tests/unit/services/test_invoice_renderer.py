@@ -52,7 +52,7 @@ def _frame_slot(key: str, children) -> ET.Element:
 
 def _build_gnucash_xml(company: dict) -> bytes:
     """
-    Build a minimal .gnucash XML document with the given company fields.
+    Build a minimal .gnucash XML file with the given company fields.
 
     company keys: name, id, phone, email, url, address (multi-line string)
     """
@@ -213,7 +213,7 @@ class TestReadBookCompanyInfoCompressed:
 #
 # `_render_seller_header` builds the `# Issued by: ...` comment that
 # the plaintext invoice renderer puts at the top of each rendered
-# document. Unit-tested here because it's pure-Python (no GnuCash
+# page. Unit-tested here because it's pure-Python (no GnuCash
 # session) and the format is what recipients see byte-for-byte.
 
 class TestRenderSellerHeader:

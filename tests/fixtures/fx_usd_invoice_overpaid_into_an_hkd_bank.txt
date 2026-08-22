@@ -3,7 +3,7 @@
 # Three currencies meet in one settlement entry. The invoice carries 100.00 USD
 # at the 1.40 it was booked at; the customer sent 1,560.00 HKD, worth 268.32 CAD
 # at 0.172; and 200.00 USD of receivable is cleared by it, so 100.00 USD more
-# than the document is owed and stays behind as a credit.
+# than the invoice is owed and stays behind as a credit.
 #
 # What the credit is worth is the question this shape asks. It was not received
 # at the invoice's rate — nothing about 1.40 was paid — it was received at what

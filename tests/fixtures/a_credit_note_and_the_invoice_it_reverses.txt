@@ -1,0 +1,164 @@
+# A credit note beside the invoice it reverses, and a vendor one beside its
+# bill — the four invoices whose posting directions have to differ.
+#
+# A credit note is a GnuCash invoice like any other: a `gncInvoice` carrying
+# a flag, with its lines stored negated. Measured on 5.10, a credit note for
+# 200.00 holds a quantity of -2 at 100.00, its own totals answer +200.00, and
+# it posts Income:Sales +200.00 against the receivable -200.00 — the mirror of
+# the invoice above it. So the only thing this file says differently is
+# `credit_note: true`; the quantities are what the book holds either way.
+#
+# Every name and number here is invented.
+
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Sales Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+# Taxed and discounted on purpose: a credit note reversing a taxed invoice is
+# the ordinary case, and it is the only thing that asks `gncEntryGetDocTaxValue`
+# and `gncEntryGetDocTaxValues` what a credit note's line is worth. Untaxed,
+# those two are never reached with a figure at all, and whether GnuCash negates
+# an invoice's tax the same way it negates the line's would be an assumption.
+taxtable "SALES TAX"
+	entry:
+		account: "Liabilities:Sales Tax"
+		rate: 10.0%
+		type: PERCENT
+
+customer "C-CN"
+	name: "Reversal Ltd"
+	currency: CAD
+
+vendor "V-CN"
+	name: "Reversal Supply"
+	currency: CAD
+
+invoice "INV-CN-001"
+	customer_id: "C-CN"
+	currency: CAD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Two days of work"
+		account: "Income:Sales"
+		quantity: 2
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "SALES TAX"
+		discount: 10
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2026-03-01
+		due: 2026-03-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-CN-001"
+		accumulate: true
+
+# The reversal of the invoice above: the same line, stored negated, and the
+# one key that says which direction it posts.
+invoice "CN-001"
+	customer_id: "C-CN"
+	currency: CAD
+	date_opened: 2026-03-05
+	credit_note: true
+	entry:
+		date: 2026-03-05
+		description: "Two days of work, returned"
+		account: "Income:Sales"
+		quantity: -2
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "SALES TAX"
+		discount: 10
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2026-03-05
+		due: 2026-04-04
+		ar_account: "Assets:Accounts Receivable"
+		memo: "CN-001"
+		accumulate: true
+
+bill "BILL-CN-001"
+	vendor_id: "V-CN"
+	currency: CAD
+	date_opened: 2026-03-02
+	entry:
+		date: 2026-03-02
+		description: "Four boxes of parts"
+		account: "Expenses:Supplies"
+		quantity: 4
+		price: 25
+		taxable: true
+		tax_included: false
+		tax_table: "SALES TAX"
+	posted:
+		date: 2026-03-02
+		due: 2026-04-01
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-CN-001"
+		accumulate: true
+
+# A vendor's credit note — GnuCash makes one from the bill window.
+bill "VCN-001"
+	vendor_id: "V-CN"
+	currency: CAD
+	date_opened: 2026-03-06
+	credit_note: true
+	entry:
+		date: 2026-03-06
+		description: "Two boxes returned"
+		account: "Expenses:Supplies"
+		quantity: -2
+		price: 25
+		taxable: true
+		tax_included: false
+		tax_table: "SALES TAX"
+	posted:
+		date: 2026-03-06
+		due: 2026-04-05
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "VCN-001"
+		accumulate: true

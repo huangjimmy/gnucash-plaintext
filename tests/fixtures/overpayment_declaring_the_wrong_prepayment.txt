@@ -1,6 +1,6 @@
 # An overpayment whose `prepayment:` says the wrong figure.
 #
-# `prepayment:` states the credit a payment beyond the document leaves behind.
+# `prepayment:` states the credit a payment beyond the invoice leaves behind.
 # On the `txn_guid:` routes this tool carves the residue itself and compares
 # the figure exactly; on this one GnuCash carves it, and nothing read the
 # declaration at all — so `prepayment: 50` on a payment that leaves 100.00

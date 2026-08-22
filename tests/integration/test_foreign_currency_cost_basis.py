@@ -411,7 +411,7 @@ def test_refunding_a_prepayment_opens_no_basis(tmp_path):
     An invoice posting and a refund are both debits on the receivable. The
     posting brings in currency the customer owes; the refund sends the
     customer's own money back. The lot is what separates them — a posting sits
-    in the lot its invoice owns, a refund settles an owner lot no document
+    in the lot its invoice owns, a refund settles an owner lot no invoice
     owns — and counting every debit offered 100.00 USD that had already left.
 
     The prepayment itself is one lump written twice, and is listed once: the
@@ -559,7 +559,7 @@ def test_a_refund_naming_no_lot_reads_as_the_receivable_it_resembles(tmp_path):
     """`lot_owner:` decides on the debit side too, not only the credit side.
 
     A refund and a receivable raised by hand are the same three lines. What
-    separates them is the lot — a refund settles the owner lot no document
+    separates them is the lot — a refund settles the owner lot no invoice
     owns — so a debit naming none is read as a receivable and establishes a
     basis, exactly as a credit naming none is read as a settlement and does
     not. Neither side guesses, and neither side is stricter than the other.
@@ -671,7 +671,7 @@ def test_an_overpayment_retargeted_into_the_lot_opens_the_credits_basis(tmp_path
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
 
-    # An overpaid document stays editable. Unposting to rebuild it leaves the
+    # An overpaid invoice stays editable. Unposting to rebuild it leaves the
     # transaction carrying two splits a retarget could place — the settlement
     # just orphaned, and the residue this same invoice parked — so counted
     # together they read as ambiguous, and an ordinary edit becomes
@@ -681,6 +681,11 @@ def test_an_overpayment_retargeted_into_the_lot_opens_the_credits_basis(tmp_path
     edited.write_text(
         Path('tests/fixtures/fx_usd_overpaid_invoice_edited.txt')
         .read_text().replace('TXN_GUID', txn_guid))
+    # The edit revises a line, and a line under a posting is changed by
+    # unposting first — which is also what orphans the settlement this test
+    # then watches the rebuild take back.
+    assert runner.invoke(cli, ['unpost-invoices', str(book),
+                               'INV-USD-RETARGET']).exit_code == 0
     again = runner.invoke(cli, ['import', str(book), str(edited),
                                 '--include-business-objects', '--fx-rates', RATES])
     assert again.exit_code == 0, again.output
@@ -731,7 +736,7 @@ def test_an_overpayment_retargeted_into_the_lot_opens_the_credits_basis(tmp_path
 
 
 def test_a_bare_retarget_dividing_a_credit_carries_its_cost(tmp_path):
-    """A credit bigger than the document it settles, named the short way.
+    """A credit bigger than the invoice it settles, named the short way.
 
     The whole-split move and the division are different code, and only the
     first was covered for this spelling. Dividing, what is left over keeps the
@@ -814,7 +819,7 @@ def test_a_bare_retarget_dividing_a_credit_carries_its_cost(tmp_path):
 def test_naming_a_credits_split_by_guid_spends_it_like_any_other(tmp_path):
     """The third spelling, which must answer as the other two do.
 
-    `txn_split_guid:` says *which* split settles the document, not where the
+    `txn_split_guid:` says *which* split settles the invoice, not where the
     money came from — so a guid landing on an owner's parked credit spends
     that credit, and the accounting follows the split rather than the wording.
 
@@ -921,8 +926,8 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
     """The mirror of the case above, and the one that outlives the process.
 
     Unposting leaves the lot on the account holding whatever settled the
-    document, and a lot holding no document is exactly what an owner's credit
-    looks like — live, documentless, owner attached, nothing in the book
+    invoice, and a lot holding no invoice is exactly what an owner's credit
+    looks like — live, naming nothing, owner attached, nothing in the book
     telling them apart. That state is saved to the file, so the import that
     finds it may be days later and knows nothing of the unpost that made it.
 
@@ -931,7 +936,7 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
     it holds — and the export would write that bank payment as
     `from_credit: true`, losing the account and the date the money came from.
 
-    So the unpost writes down what it orphaned, and names the document it
+    So the unpost writes down what it orphaned, and names the invoice it
     orphaned it from. Driven here through the `unpost-invoices` command, which
     is the one-step route into the state and shares no memory at all with the
     import that comes after it.
@@ -980,14 +985,14 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
                                RATES]).exit_code == 0
 
     # Unposted on its own, as a person would from the command line. The 100.00
-    # that settled the invoice is now sitting in a lot naming no document.
+    # that settled the invoice is now sitting in a lot naming no invoice.
     unposted = runner.invoke(cli, ['unpost-invoices', str(book),
                                    'INV-USD-RETARGET'])
     assert unposted.exit_code == 0, unposted.output
 
     # Exported from that state — which is where a person stops, looks at the
     # orphan warning, and dumps the book — the note stays behind. It is true of
-    # this book and only until the document is rebuilt, and a file carrying it
+    # this book and only until the invoice is rebuilt, and a file carrying it
     # would land it on whatever split it was imported onto, where it would say
     # "not an owner's credit" about a split that is one.
     mid = _export_text(runner, book, tmp_path / 'mid.txt')
@@ -1002,7 +1007,7 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
         _split_kvp(book, settling_guid)
 
     # And nothing offers it as money to spend. The lot it sits in passes every
-    # test a credit passes — live, no document, owner attached — so both
+    # test a credit passes — live, no invoice, owner attached — so both
     # listings have to ask the same question the settling paths ask, or the
     # tool advertises a credit and then refuses every attempt to use it.
     #
@@ -1112,7 +1117,7 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
     assert 'orphaned_by_unpost' not in exported, exported
 
     # And the note is gone from the split, not merely filtered out of the
-    # file: the rebuild put it back in a document's lot, so it is a settlement
+    # file: the rebuild put it back in an invoice's lot, so it is a settlement
     # again and nothing it carries should still call it an orphan.
     assert 'orphaned_by_unpost' not in _split_kvp(book, settling_guid), \
         _split_kvp(book, settling_guid)
@@ -1128,7 +1133,7 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
     # And the same holds when the engine does the choosing rather than the
     # file. Edited again and asking for whatever credit the customer has, with
     # no payment block of its own: the unpost orphans the settlement, and
-    # `auto_apply_credit: true` has GnuCash search for open, documentless,
+    # `auto_apply_credit: true` has GnuCash search for open, naming nothing,
     # owner-attached lots — which is exactly what it has just been left. The
     # engine may well hand the invoice its own settlement back; what it must
     # not do is have that recorded as a credit spent, because no credit was.
@@ -1136,6 +1141,10 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
     edited.write_text(
         Path('tests/fixtures/fx_usd_invoice_rebuilt_asking_for_any_credit.txt')
         .read_text())
+    # As above: the revision changes a line, so the unpost is its own step —
+    # and it is the unpost that leaves the orphan this test is about.
+    assert runner.invoke(cli, ['unpost-invoices', str(book),
+                               'INV-USD-RETARGET']).exit_code == 0
     revised = runner.invoke(cli, ['import', str(book), str(edited),
                                   '--include-business-objects', '--fx-rates', RATES])
     assert revised.exit_code == 0, revised.output
@@ -1146,17 +1155,17 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
     assert 'from_credit' not in block, block
 
     # Read off the split, not out of the file. The engine's own
-    # `gnc_lot_add_split` put it back in the document's lot, which is the one
+    # `gnc_lot_add_split` put it back in the invoice's lot, which is the one
     # route in that does not pass `_attach_split_to_lot`, so the note has to
     # come off here too — and the export filter would hide a stale one.
     assert 'orphaned_by_unpost' not in _split_kvp(book, settling_guid), \
         _split_kvp(book, settling_guid)
 
 
-def test_an_orphan_partly_spent_elsewhere_stops_being_that_documents_own(tmp_path):
+def test_an_orphan_partly_spent_elsewhere_stops_being_that_invoices_own(tmp_path):
     """What a credit carve does to the mark, and what it must not do.
 
-    An orphaned settlement is a credit like any other to every document but
+    An orphaned settlement is a credit like any other to every invoice but
     the one it was orphaned from — so another invoice may spend part of it.
     GnuCash applies what it needs and carves the rest into a new split, and in
     doing so copies the source split's whole slot frame onto the splits it
@@ -1166,12 +1175,12 @@ def test_an_orphan_partly_spent_elsewhere_stops_being_that_documents_own(tmp_pat
     Measured on GnuCash 5.10, 4.13, 4.4, 3.8 and 5.15, the two halves come out
     differently. The carved remainder gets an empty slot frame — no mark, and
     no basis either. The *applied* part keeps the source split's guid and its
-    slots, so it arrives still marked as the first document's orphan, though
-    it is now the second document's settlement.
+    slots, so it arrives still marked as the first invoice's orphan, though
+    it is now the second invoice's settlement.
 
     Left there, the mark describes a split that no longer matches it — the
     thing every stored key in this area is corrected for — and the first
-    document's rebuild would be reading state about a settlement that has
+    invoice's rebuild would be reading state about a settlement that has
     since been spent on somebody else's invoice.
     """
     runner = CliRunner()
@@ -1225,7 +1234,7 @@ def test_an_orphan_partly_spent_elsewhere_stops_being_that_documents_own(tmp_pat
     exported = _export_text(runner, book, tmp_path / 'carved.txt')
 
     # The 40.00 that was applied is INV-USD-SMALL's settlement now, and no
-    # longer anything of the document it was orphaned from. It keeps the
+    # longer anything of the invoice it was orphaned from. It keeps the
     # source split's guid and its slots across the engine's rebuild, so the
     # mark arrives on it and has to be taken off — measured on GnuCash 5.10,
     # 4.13, 4.4, 3.8 and 5.15, it is there without that.
@@ -1235,7 +1244,7 @@ def test_an_orphan_partly_spent_elsewhere_stops_being_that_documents_own(tmp_pat
         _split_kvp(book, applied_guid)
 
     # And it is not a credit applied. A bank paid that 40.00; the engine only
-    # moved it. Stamped otherwise, the document it settled exports as
+    # moved it. Stamped otherwise, the invoice it settled exports as
     # `from_credit:` with no account and no date — the money's origin gone,
     # which is what the mark is for. The reading that decides this happens
     # after the basis rewrite above, so the rewrite has to leave the mark in
@@ -1260,7 +1269,7 @@ def test_an_orphan_partly_spent_elsewhere_stops_being_that_documents_own(tmp_pat
     assert 'orphaned_by_unpost' in _split_kvp(book, remainder_guid), \
         _split_kvp(book, remainder_guid)
     # And no basis was invented for it on the way: a bank-paid orphan carries
-    # none, the document's posting split holds it.
+    # none, the invoice's posting split holds it.
     assert 'cost_basis_balance' not in _split_kvp(book, remainder_guid), \
         _split_kvp(book, remainder_guid)
 
@@ -1294,16 +1303,16 @@ def test_an_orphan_partly_spent_elsewhere_stops_being_that_documents_own(tmp_pat
 def test_dividing_a_bank_paid_orphan_leaves_the_rest_a_bank_payment(tmp_path):
     """The tool's own division has to answer as the engine's carve does.
 
-    A document takes 40.00 of a 100.00 settlement an unpost left loose and
+    An invoice takes 40.00 of a 100.00 settlement an unpost left loose and
     declares the 60.00 it leaves. That 60.00 is what the 100.00 was — money a
     bank paid, waiting to be put back — so the mark goes forward onto it, and
-    no basis opens: the basis of the document that deposit settled is on that
-    document's posting split, and pricing the residue at this invoice's rate
+    no basis opens: the basis of the invoice that deposit settled is on that
+    invoice's posting split, and pricing the residue at this invoice's rate
     reports a gain the customer's money never made.
 
     The predicate has to be read *before* the division, which is what makes
     this worth a test of its own: dividing puts the source split into the
-    document's lot, and being in a lot is exactly what stops it being an
+    invoice's lot, and being in a lot is exactly what stops it being an
     orphan, so asking afterwards always answers no.
     """
     runner = CliRunner()
@@ -1372,7 +1381,7 @@ def test_dividing_a_bank_paid_orphan_leaves_the_rest_a_bank_payment(tmp_path):
 
     # And restoring that export into a fresh book does not offer it either.
     # The undivided orphan is kept loose by omitting `lot_owner:`; a divided
-    # one leaves a residue the settling document's own `prepayment:` figure
+    # one leaves a residue the settling invoice's own `prepayment:` figure
     # would have parked in a fresh owner lot on the way back in — an ordinary,
     # unmarked credit, spendable, which is the harm the omission is for.
     restored = tmp_path / 'restored.gnucash'
@@ -1387,7 +1396,7 @@ def test_dividing_a_bank_paid_orphan_leaves_the_rest_a_bank_payment(tmp_path):
 def test_an_orphans_figure_is_reported_in_its_own_currency(tmp_path):
     """A split's amount is in its account's commodity, not its transaction's.
 
-    They agree on an ordinary payment and part company on a foreign document
+    They agree on an ordinary payment and part company on a foreign invoice
     settled from a base-currency bank: 137.00 CAD out of the bank closing
     100.00 USD of receivable, on a transaction whose currency is CAD. Reporting
     the receivable's figure under the transaction's currency called 100.00 USD
@@ -1457,7 +1466,7 @@ def test_a_foreign_credit_is_listed_in_its_own_currency(tmp_path):
     are USD and it runs normally. The mixed-currency silence it can also take
     is pinned directly in `test_what_a_payment_can_take.py`, there being no
     file that reaches it: the shape needs a bank-feed transaction whose other
-    side is in neither the document's currency nor the bank's.
+    side is in neither the invoice's currency nor the bank's.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -1502,13 +1511,13 @@ def test_a_foreign_credit_is_listed_in_its_own_currency(tmp_path):
     assert 'CAD 100.00' not in listed.output, listed.output
 
 
-def test_another_documents_orphan_is_still_a_bank_payment(tmp_path):
+def test_another_invoices_orphan_is_still_a_bank_payment(tmp_path):
     """Whose orphan it is does not make it credit; how it was paid does.
 
-    `unpost-invoices` leaves a document unposted and present, with its bank
+    `unpost-invoices` leaves an invoice unposted and present, with its bank
     settlement loose in a lot of the customer's — and a *different* invoice for
     that customer can name the same deposit with an ordinary bank block. The
-    mark on that split names the other document, so nothing about it is this
+    mark on that split names the other invoice, so nothing about it is this
     invoice's own orphan.
 
     What settles it is the fact the split carries: a bank paid that money and
@@ -1578,14 +1587,14 @@ def test_another_documents_orphan_is_still_a_bank_payment(tmp_path):
                                '--verify-costs']).exit_code == 0
 
 
-def test_another_documents_orphan_is_not_credit_to_the_other_spellings(tmp_path):
+def test_another_invoices_orphan_is_not_credit_to_the_other_spellings(tmp_path):
     """The same answer whichever of the three ways reaches the split.
 
     A bank-paid orphan is a settlement waiting to be put back, and that does
-    not change because a *different* document is the one asking. The bank
+    not change because a *different* invoice is the one asking. The bank
     spelling is covered above; these are the two that ask for credit by name —
     a `from_credit:` block, and `auto_apply_credit:` where the engine chooses.
-    Both search out exactly what an unpost leaves: a live, documentless lot
+    Both search out exactly what an unpost leaves: a live, naming nothing lot
     with the owner still on it.
     """
     runner = CliRunner()
@@ -1632,7 +1641,7 @@ def test_another_documents_orphan_is_not_credit_to_the_other_spellings(tmp_path)
         _export_text(runner, book, tmp_path / 'mid.txt'),
         'Assets:Accounts Receivable USD -100.00 USD')
 
-    # Named outright as a credit by a document that never owned it.
+    # Named outright as a credit by an invoice that never owned it.
     as_credit = tmp_path / 'as_credit.txt'
     as_credit.write_text(
         Path('tests/fixtures/fx_usd_other_invoice_calling_an_orphan_a_credit.txt')
@@ -1667,7 +1676,7 @@ def test_an_unposted_bills_orphan_is_not_read_as_a_vendor_credit(tmp_path):
 
     A bill credits its payable and the payment debits it — the mirror of the
     receivable, and the side where a wrong sign is invisible in the figures:
-    the document reads settled and the money reappears somewhere else
+    the invoice reads settled and the money reappears somewhere else
     (CLAUDE.md finding 7). This path both writes and strips a cost basis, so
     an error here is the quiet kind.
 

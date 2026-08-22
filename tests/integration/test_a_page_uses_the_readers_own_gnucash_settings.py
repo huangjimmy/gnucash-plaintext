@@ -1,6 +1,6 @@
 """A printed page is drawn with the reader's GnuCash settings, not defaults.
 
-Three things decide what a printed document looks like: the book, the report,
+Three things decide what a printed page looks like: the book, the report,
 and the settings made in GnuCash. `print-invoice` read the book and the report
 and never the settings — the command embeds the library and draws the report,
 while GnuCash *starts* by reading a user configuration, `gnc_load_scm_config`
@@ -52,19 +52,19 @@ from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 FIXTURES = Path('tests/fixtures')
 
-#: A whole document, not a sparse one: a seller with an address and
+#: A whole invoice, not a sparse one: a seller with an address and
 #: registration numbers, a customer with an address, a posted invoice with a
 #: described line, dates written the book's way. A page drawn from a book
 #: missing those is boxes around nothing, and a test reading it cannot tell an
 #: empty address from a stylesheet that never applied.
 LEDGER = str(FIXTURES / 'a_book_that_prints_a_whole_invoice.txt')
-DOCUMENT = 'INV-WHOLE-001'
+INVOICE = 'INV-WHOLE-001'
 A_BILL = 'BILL-WHOLE-001'
 
 #: The invoice's `notes:`, printed only where `Display/Invoice Notes` is on —
 #: which `print-invoice` sets on GnuCash's own invoice reports and a saved
 #: configuration carries only if saved with the switch on.
-THE_DOCUMENTS_NOTES = 'Net 30. Quoted 2026-07-01.'
+THE_INVOICES_NOTES = 'Net 30. Quoted 2026-07-01.'
 
 #: The shape GnuCash writes, from `gnc:save-style-sheet-options` in
 #: `html-style-sheet.scm`: find the template, generate its options, restore the
@@ -193,7 +193,7 @@ def book(tmp_path):
 def _printed(book, tmp_path):
     out = tmp_path / 'page.html'
     result = CliRunner().invoke(cli, [
-        'print-invoice', str(book), DOCUMENT,
+        'print-invoice', str(book), INVOICE,
         '--format', 'html', '--output', str(out)])
     assert result.exit_code == 0, result.output
     return out.read_text(encoding='utf-8')
@@ -222,7 +222,7 @@ class TestWhatTheReaderSet:
         stays GnuCash's — no page is drawn anywhere in `print-invoice`."""
         page = _printed(book, tmp_path)
 
-        assert DOCUMENT in page, page[:1500]
+        assert INVOICE in page, page[:1500]
         assert 'class="entries-table"' in page, page[:1500]
 
 
@@ -281,23 +281,23 @@ class TestAReportSavedInGnuCash:
     Layout → CSS box is a *report* option, not a stylesheet one.
     """
 
-    def test_it_can_be_named_and_draws_the_document(self, book, saved_report,
+    def test_it_can_be_named_and_draws_the_page(self, book, saved_report,
                                                     tmp_path):
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out),
             '--report', 'A Report Saved In GnuCash'])
 
         assert result.exit_code == 0, result.output
-        assert DOCUMENT in out.read_text(encoding='utf-8')
+        assert INVOICE in out.read_text(encoding='utf-8')
 
     def test_and_the_css_it_carries_is_on_the_page(self, book, saved_report,
                                                    tmp_path):
-        """Which is how a reader's own CSS reaches a printed document."""
+        """Which is how a reader's own CSS reaches a printed page."""
         out = tmp_path / 'page.html'
         assert CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out),
             '--report', 'A Report Saved In GnuCash']).exit_code == 0
 
@@ -308,7 +308,7 @@ class TestAReportSavedInGnuCash:
                                                           tmp_path):
         """And not with the switches `print-invoice` sets elsewhere.
 
-        The three display switches — the document's `notes:`, the seller's
+        The three display switches — the invoice's `notes:`, the seller's
         `contact:`, tax per account — go on the reports `print-invoice` and
         `print-bill` advertise, to show fields the ledger carries and GnuCash
         ships hidden. A saved configuration carries the choices a reader made
@@ -316,7 +316,7 @@ class TestAReportSavedInGnuCash:
         would override choices made deliberately on a configured page.
 
         So a saved configuration prints as saved: `Display/Invoice Notes` was
-        not among the options saved below, and the document's `notes:` stay
+        not among the options saved below, and the invoice's `notes:` stay
         off the page — while the Printable Invoice, drawn by the same book a
         line later, prints the same `notes:` because the switch goes on
         there.
@@ -328,12 +328,12 @@ class TestAReportSavedInGnuCash:
         """
         out = tmp_path / 'page.html'
         assert CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out),
             '--report', 'A Report Saved In GnuCash']).exit_code == 0
 
-        assert THE_DOCUMENTS_NOTES not in out.read_text(encoding='utf-8')
-        assert THE_DOCUMENTS_NOTES in _printed(book, tmp_path)
+        assert THE_INVOICES_NOTES not in out.read_text(encoding='utf-8')
+        assert THE_INVOICES_NOTES in _printed(book, tmp_path)
 
 
 class TestTheReportTheBookPrintsWith:
@@ -385,7 +385,7 @@ class TestTheReportTheBookPrintsWith:
 
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out)])
 
         assert result.exit_code == 0, result.output
@@ -408,7 +408,7 @@ class TestTheReportTheBookPrintsWith:
 
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out)])
 
         assert result.exit_code == 0, result.output
@@ -439,12 +439,12 @@ class TestTheReportTheBookPrintsWith:
 
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out)])
 
         assert result.exit_code == 0, result.output
         assert 'display switches' not in result.output, result.output
-        assert DOCUMENT in out.read_text(encoding='utf-8')
+        assert INVOICE in out.read_text(encoding='utf-8')
 
         # And what *is* said about that page names the report the way the
         # reader knows it. Tax Invoice has neither the company block nor the
@@ -454,11 +454,11 @@ class TestTheReportTheBookPrintsWith:
         assert f'Tax Invoice ({TAX_INVOICE_GUID})' in result.output, \
             result.output
 
-    def test_and_one_that_draws_no_document_prints_too(self, book,
+    def test_and_one_that_draws_nothing_prints_too(self, book,
                                                        _a_saved_report,
                                                        tmp_path):
         """A registered report with no `General / Invoice Number` option
-        cannot be told which document to draw. Typed on the command line
+        cannot be told which invoice to draw. Typed on the command line
         that is a sentence; named by the *book* it is the Printable Invoice,
         for the reason an unregistered guid is — the setting was made in File
         → Properties, and the refusal would quote a guid nobody typed here.
@@ -466,23 +466,23 @@ class TestTheReportTheBookPrintsWith:
         GnuCash's own chooser cannot offer such a report, so a book reaching
         this was written by hand or by another tool.
         """
-        _a_saved_report(A_REPORT_THAT_DRAWS_NO_DOCUMENT)
+        _a_saved_report(A_REPORT_THAT_DRAWS_NOTHING)
         time.sleep(1.1)
         self._the_book_names(book, A_REPORTLESS_GUID, 'Account Summary')
 
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out)])
 
         assert result.exit_code == 0, result.output
-        assert DOCUMENT in out.read_text(encoding='utf-8')
+        assert INVOICE in out.read_text(encoding='utf-8')
         # And said as what it is. All three ways a book's report fails end
         # with the Printable Invoice drawing, so the sentence is the only
         # thing that separates them — and "nothing is registered under that
         # guid, look in the saved-report files" would send this reader to a
         # file that is there and is not the problem.
-        assert 'prints no document' in result.output, result.output
+        assert 'prints no invoice or bill' in result.output, result.output
         assert 'nothing is registered' not in result.output, result.output
 
     def test_one_this_gnucash_does_not_have_still_prints(self, book,
@@ -494,7 +494,7 @@ class TestTheReportTheBookPrintsWith:
         does not, and neither does a colleague. Refusing there would stop the
         book printing anywhere but on one machine — over a setting made in
         File → Properties rather than on this command line, so the refusal
-        would name a guid nobody typed. The document draws with GnuCash's own
+        would name a guid nobody typed. The page draws with GnuCash's own
         report instead, and the run says so.
         """
         time.sleep(1.1)
@@ -503,12 +503,12 @@ class TestTheReportTheBookPrintsWith:
 
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out)])
 
         assert result.exit_code == 0, result.output
         page = out.read_text(encoding='utf-8')
-        assert DOCUMENT in page, page[:1500]
+        assert INVOICE in page, page[:1500]
         assert 'class="entries-table"' in page, page[:1500]
         assert 'deadbeef' in result.output, result.output
 
@@ -527,7 +527,7 @@ class TestTheReportTheBookPrintsWith:
 
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out),
             '--report', 'Printable Invoice'])
 
@@ -587,7 +587,7 @@ THE_SAME_GUID_IN_CAPS = \
                                       '"A Report Saved In Caps"')
 
 
-#: A report that registers and cannot be told which document to draw: its
+#: A report that registers and cannot be told which invoice to draw: its
 #: options carry no `General / Invoice Number`. GnuCash's own chooser offers
 #: only reports hooked to `'invoice`, all of which have the option, so a book
 #: naming this was written by hand or by another tool.
@@ -596,10 +596,10 @@ THE_SAME_GUID_IN_CAPS = \
 #: 4.x/5.x, `gnc:new-options` on 3.8 — asked of the build rather than
 #: inferred from its version.
 A_REPORTLESS_GUID = '4d5e6f708192a3b4c5d6e7f809a1b2c3'
-A_REPORT_THAT_DRAWS_NO_DOCUMENT = '''
+A_REPORT_THAT_DRAWS_NOTHING = '''
 (gnc:define-report
   'version 1
-  'name "A Report With No Document Option"
+  'name "A Report With No Invoice Option"
   'report-guid "4d5e6f708192a3b4c5d6e7f809a1b2c3"
   'menu-path (list gnc:menuname-custom)
   'options-generator (lambda ()
@@ -640,7 +640,7 @@ class TestWhenTwoReportsAnswerToOneName:
 
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out),
             '--report', A_NAME_TWO_CONFIGURATIONS_ANSWER_TO])
 
@@ -652,7 +652,7 @@ class TestWhenTwoReportsAnswerToOneName:
             self, book, _a_saved_report, tmp_path):
         """A guid the book names has two ways to fail — no match, and more
         than one — and both are a setting made in File → Properties rather
-        than on this command line. The document draws either way."""
+        than on this command line. The page draws either way."""
         _a_saved_report(A_REPORT_SAVED_IN_GNUCASH + THE_SAME_GUID_IN_CAPS)
         time.sleep(1.1)
         TestTheReportTheBookPrintsWith()._the_book_names(
@@ -660,11 +660,11 @@ class TestWhenTwoReportsAnswerToOneName:
 
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out)])
 
         assert result.exit_code == 0, result.output
-        assert DOCUMENT in out.read_text(encoding='utf-8')
+        assert INVOICE in out.read_text(encoding='utf-8')
         # The sentence covers both ways the lookup declines, this being the
         # one where the configuration *is* on the machine — twice — so
         # "nothing is registered under it" alone would send the reader
@@ -677,7 +677,7 @@ class TestTwoStylesheetsForOnePage:
     """A book carrying CSS, and a saved configuration carrying CSS.
 
     The book wins: `set-invoice-style` writes onto the options the
-    configuration generated, so the setting made for the book's own documents
+    configuration generated, so the setting made for the book's own invoices
     is the one on the page. `--clear-css` takes the book's back off and
     leaves the configuration's, which is the way back for a reader who set
     the styling in GnuCash's dialog and wants it.
@@ -695,7 +695,7 @@ class TestTwoStylesheetsForOnePage:
 
         out = tmp_path / 'page.html'
         assert CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out),
             '--report', 'A Report Saved In GnuCash']).exit_code == 0
 
@@ -717,7 +717,7 @@ class TestTwoStylesheetsForOnePage:
 
         out = tmp_path / 'page.html'
         assert CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out),
             '--report', 'A Report Saved In GnuCash']).exit_code == 0
 
@@ -792,7 +792,7 @@ class TestThePdfIsDrawnTheWayGnuCashDrawsIt:
                                               tmp_path):
         out = tmp_path / 'with-borders.pdf'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'pdf', '--output', str(out)])
 
         assert result.exit_code == 0, result.output
@@ -807,14 +807,14 @@ class TestThePdfIsDrawnTheWayGnuCashDrawsIt:
         images run in, US Letter under `en_US` or `en_CA`.
 
         Nothing here names a paper size. Naming one printed every reader's
-        document on the author's paper, and a book that prints Letter here
+        page on the author's paper, and a book that prints Letter here
         and A4 from GnuCash is the mismatch this path exists to remove — the
         same mismatch WeasyPrint produced from the other direction, laying
         the page out on its own default rather than the machine's.
         """
         out = tmp_path / 'sheet.pdf'
         assert CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'pdf', '--output', str(out)]).exit_code == 0
 
         box = re.search(rb'/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)',
@@ -852,7 +852,7 @@ class TestAMachineWithNoGnuCashConfiguration:
     failure mode is silent in the other direction: a probe that starts
     reporting an absent file, or an unbound `gnc-build-userdata-path` landing
     in the same `catch` as an unreadable file, is three stderr lines per
-    printed document — on the stream a dropped GST number is reported on —
+    printed page — on the stream a dropped GST number is reported on —
     and every other test in this file would still pass.
 
     `scripts/test.sh` runs with `HOME=/tmp/home`, so the clean state is the
@@ -870,7 +870,7 @@ class TestAMachineWithNoGnuCashConfiguration:
 
         out = tmp_path / 'page.html'
         result = CliRunner().invoke(cli, [
-            'print-invoice', str(book), DOCUMENT,
+            'print-invoice', str(book), INVOICE,
             '--format', 'html', '--output', str(out)])
 
         assert result.exit_code == 0, result.output
@@ -879,11 +879,11 @@ class TestAMachineWithNoGnuCashConfiguration:
 
 
 class TestWhenTheFileIsUnusable:
-    def test_a_broken_one_does_not_cost_the_document(self, book,
+    def test_a_broken_one_does_not_cost_the_page(self, book,
                                                      a_fresh_process,
                                                      tmp_path):
         """The reader may not know the file is there, it is not this
-        document's fault, and the page can still be drawn from what did
+        invoice's fault, and the page can still be drawn from what did
         load.
 
         `a_fresh_process` because without it this asserts nothing: the flag
@@ -900,13 +900,13 @@ class TestWhenTheFileIsUnusable:
         out = tmp_path / 'page.html'
         try:
             result = CliRunner().invoke(cli, [
-                'print-invoice', str(book), DOCUMENT,
+                'print-invoice', str(book), INVOICE,
                 '--format', 'html', '--output', str(out)])
         finally:
             path.unlink(missing_ok=True)
 
         assert result.exit_code == 0, result.output
-        assert DOCUMENT in out.read_text(encoding='utf-8')
+        assert INVOICE in out.read_text(encoding='utf-8')
 
     def test_and_the_reader_is_told_which_file(self, book, a_fresh_process,
                                                tmp_path):
@@ -926,7 +926,7 @@ class TestWhenTheFileIsUnusable:
         out = tmp_path / 'page.html'
         try:
             result = CliRunner().invoke(cli, [
-                'print-invoice', str(book), DOCUMENT,
+                'print-invoice', str(book), INVOICE,
                 '--format', 'html', '--output', str(out)])
         finally:
             path.unlink(missing_ok=True)
