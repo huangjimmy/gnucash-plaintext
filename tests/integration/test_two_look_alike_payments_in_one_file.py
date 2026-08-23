@@ -6,7 +6,7 @@ import created moments ago is not money the book had, it is money this file is
 entering.
 
 Two installments of the same size on the same day, stating no memo, are one
-document's ordinary shape — and read into a book that never held their guids,
+invoice's ordinary shape — and read into a book that never held their guids,
 which is the case the whole branch exists for, the second block found the
 payment the first had just minted and the run was refused. The message then
 named a transaction created seconds earlier, appearing in no file, and told

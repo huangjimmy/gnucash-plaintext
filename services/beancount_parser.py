@@ -264,7 +264,7 @@ def _metadata_line(stripped: str) -> bool:
     Read only until the first key it does not keep, a foreign line hid every
     key below it, and what that cost depended on where the person typed it: a
     file refused for a `gnucash-guid` it plainly carries, or a note, a
-    document link, an account's own unit or a commodity's fraction dropped
+    receipt link, an account's own unit or a commodity's fraction dropped
     without a word.
 
     The test is the shape of a metadata line, which no directive and no

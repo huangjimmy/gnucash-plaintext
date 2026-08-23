@@ -8,7 +8,7 @@
 # see reported `unchanged`: the payment in the book keeps the old figure, and
 # nothing says so.
 #
-# One payment per invoice, because the comparison pairs a document's payments
+# One payment per invoice, because the comparison pairs an invoice's payments
 # off against its blocks and stops at the first that does not match.
 #
 # invoice_payments_before_an_edit.txt is this file before the edits.

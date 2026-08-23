@@ -6,10 +6,10 @@ would hit `posting_txn.CountSplits()` on a None object and crash. Real
 user incident: their frontend asked the API to render a draft invoice
 and got a 500 with a NoneType AttributeError.
 
-An unposted document reaches GnuCash's own Printable Invoice like any
+An unposted invoice reaches GnuCash's own Printable Invoice like any
 other, and GnuCash prices it from its entries and marks it "Invoice in
 progress...". No status is decided here and no badge is drawn here; what
-this pins is that the document is rendered rather than dropped, and that
+this pins is that the invoice is rendered rather than dropped, and that
 what the page says about it is what the entries say.
 """
 
@@ -120,13 +120,13 @@ class TestPrintInvoiceOnUnpostedNoLongerCrashes:
 
 
 class TestRenderedDraftInvoice:
-    """The page GnuCash draws for an unposted document: priced from its
+    """The page GnuCash draws for an unposted invoice: priced from its
     entries, marked as in progress, and carrying no payments."""
 
     def test_it_is_marked_as_not_yet_posted(self, gnc_with_draft_invoice):
         html = _render_invoice_html(gnc_with_draft_invoice, "INV-DRAFT-001")
         assert is_in_progress(html), (
-            f"An unposted document is drawn as in progress.\nHTML:\n{html}"
+            f"An unposted invoice is drawn as in progress.\nHTML:\n{html}"
         )
 
     def test_entry_rows_present(self, gnc_with_draft_invoice):
@@ -140,18 +140,18 @@ class TestRenderedDraftInvoice:
         """Priced from the entries: 100 x $15 + 5 x $20 = $1,600.00."""
         html = _render_invoice_html(gnc_with_draft_invoice, "INV-DRAFT-001")
         assert '>C$1,600.00<' in html, (
-            f"An unposted document is priced from its entries.\nHTML:\n{html}"
+            f"An unposted invoice is priced from its entries.\nHTML:\n{html}"
         )
 
     def test_nothing_has_been_paid_on_it(self, gnc_with_draft_invoice):
-        """A document that is not posted cannot have been paid, so the whole
+        """An invoice that is not posted cannot have been paid, so the whole
         of it is still due and no payment row is drawn."""
         html = _render_invoice_html(gnc_with_draft_invoice, "INV-DRAFT-001")
         assert 'Payment' not in html, html
 
 
 class TestPostedInvoicesStillWork:
-    """Regression guard: a posted document is still drawn, with what it is
+    """Regression guard: a posted invoice is still drawn, with what it is
     for and what is still owed on it."""
 
     def test_posted_invoice_renders_as_owed_in_full(self, tmp_path):

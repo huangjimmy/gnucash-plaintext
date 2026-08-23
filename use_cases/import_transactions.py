@@ -12,7 +12,12 @@ from typing import Dict, List
 from repositories.gnucash_repository import GnuCashRepository
 from services.conflict_resolver import ConflictResolver, ResolutionStrategy
 from services.foreign_currency import begin_import_run
-from services.gnucash_importer import GnuCashImporter, begin_lot_attachments
+from services.gnucash_importer import (
+    GnuCashImporter,
+    begin_lot_attachments,
+    note_what_the_file_states,
+    the_guid_a_block_names,
+)
 from services.ledger_validator import LedgerValidator
 from services.plaintext_parser import DirectiveType, PlaintextParser
 from services.transaction_matcher import TransactionMatcher
@@ -24,6 +29,16 @@ class ImportResult:
     def __init__(self):
         self.imported_count = 0
         self.updated_count = 0
+        # The transactions `--strategy update` reported under that figure.
+        # A `payment:` block correcting one of their memos adds to the same
+        # figure, and one transaction changed is one transaction changed.
+        self.updated_transaction_guids: set = set()
+        # And the ones this run created, which are counted as transactions
+        # imported: a memo written onto one of them by a `payment:` block
+        # is part of creating it, not a later change to it. `import --new`
+        # reported `Transactions: 1` beside `Updated: 1` for a book where
+        # one transaction was made and none was touched afterwards.
+        self.new_transaction_guids: set = set()
         # Counted, and not only for the summary: what the run changed is what
         # decides whether the book is saved, and a file that declares a
         # commodity and nothing else changed the book without any of the other
@@ -343,6 +358,12 @@ class ImportTransactionsUseCase:
         parser = PlaintextParser()
         parser.parse_file(input_path)
 
+        # What only the whole file can say about a payment: the memo its
+        # transaction section gives each split, and how many invoices
+        # settle from each transaction. Read here because the book cannot
+        # answer either while the run is still building it.
+        note_what_the_file_states(parser.root_directive.children)
+
         if parser.errors:
             # Normalise parser (syntax) errors into the same {'error': ...} shape
             # the transaction/account failure paths use, so result.errors is
@@ -443,16 +464,24 @@ class ImportTransactionsUseCase:
                         f"--strategy update requires a guid: field on every transaction "
                         f"(transaction on {date_str} \"{desc}\" has none)"
                     )
-                guid = child.metadata['guid']
+                # As the book spells it: the map is keyed by the canonical
+                # form, and a hyphenated, upper-case or unquoted all-digit
+                # guid is the same guid written another way.
+                guid = the_guid_a_block_names(child.metadata)
                 if guid not in existing_guid_map:
                     raise ValueError(f"Transaction GUID {guid!r} not found in book")
 
             for child in tx_directives:
-                guid = child.metadata['guid']
+                guid = the_guid_a_block_names(child.metadata)
                 existing_tx = existing_guid_map[guid]
                 try:
                     importer.update_transaction(existing_tx, child, book)
                     result.updated_count += 1
+                    # Which transactions this pass has already reported, so
+                    # a `payment:` block correcting one of their memos is
+                    # not counted a second time under the same figure.
+                    result.updated_transaction_guids.add(
+                        existing_tx.GetGUID().to_string())
                 except Exception as e:
                     logging.error(f"Failed to update transaction {guid}: {e}")
                     result.errors.append({'transaction': child.props, 'error': str(e)})
@@ -464,7 +493,9 @@ class ImportTransactionsUseCase:
                 try:
                     # Check for match by GUID if present (non-UPDATE strategies)
                     if 'guid' in child.metadata:
-                        guid = child.metadata['guid']
+                        # As the book spells it, for the reason the update
+                        # strategy gives above.
+                        guid = the_guid_a_block_names(child.metadata)
                         if guid in existing_guid_map:
                             _date = child.props.get('date', '?')
                             _desc = child.props.get('tx_desc') or '(no description)'
@@ -541,6 +572,12 @@ class ImportTransactionsUseCase:
                     # Create transaction
                     tx = importer.create_transaction(child, book)
                     result.imported_count += 1
+                    # Counted here, so a `payment:` block writing a memo
+                    # onto a transaction this run created is not counted
+                    # again as one it updated.
+                    if tx is not None:
+                        result.new_transaction_guids.add(
+                            tx.GetGUID().to_string())
                     result.new_transactions.append(tx)
 
                 except Exception as e:

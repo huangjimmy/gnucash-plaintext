@@ -1,12 +1,12 @@
 # Six invoices, one line each, so that one edit can be made to each field.
 #
-# Re-importing a ledger asks of every document "does the book already say
+# Re-importing a ledger asks of every invoice "does the book already say
 # this?", and answers per field. A field left out of that comparison is a
 # field a person can edit in the ledger, import, and see reported `unchanged`
 # — the invoice keeps the old figure, and nothing says so.
 #
 # One line per invoice rather than six lines on one, because the comparison
-# stops at the first line that differs: six documents ask six questions, one
+# stops at the first line that differs: six invoices ask six questions, one
 # entry field each.
 #
 # invoice_lines_after_an_edit.txt is this file with one field changed in each.

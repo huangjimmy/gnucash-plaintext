@@ -2,7 +2,7 @@
 # for a settlement that realizes nothing, and the form that used to slip
 # through: the refusal only spoke when the block carried split lines.
 #
-# The document is already in the base currency, so it realizes nothing: a
+# The invoice is already in the base currency, so it realizes nothing: a
 # receivable holding CAD does not appreciate against CAD. What the HKD cost is
 # a question about the bank account, answered where currency is bought.
 #

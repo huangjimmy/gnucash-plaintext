@@ -2,7 +2,7 @@
 
 GnuCash keeps one — `Business` → `Fancy Date Format` → `custom`, which its
 File → Properties → Business dialog writes — and reads it when it draws a
-document: `invoice.scm` calls `gnc:options-fancy-date`, whose fallback when
+page: `invoice.scm` calls `gnc:options-fancy-date`, whose fallback when
 the option is absent is `qof-date-format-get`, the *application's* preference.
 That preference is GSettings, not the file, so a book with no format of its
 own is dated by whoever prints it.
@@ -70,7 +70,7 @@ def book(tmp_path):
 class TestThePrintedPage:
     """What the reader actually sees, drawn by GnuCash's own report."""
 
-    def test_the_document_is_dated_the_way_the_book_says(self, book,
+    def test_the_invoice_is_dated_the_way_the_book_says(self, book,
                                                          tmp_path):
         out = tmp_path / 'inv.html'
         result = CliRunner().invoke(cli, [
@@ -96,20 +96,20 @@ class TestThePrintedPage:
 
     # Every format the docs promise is consistent, and what each prints. The
     # invoice is dated 2026-03-09 and due 2026-04-09; the entry is the same
-    # day. `docs/dates-on-printed-documents.md` states this table, so it is
+    # day. `docs/dates-on-printed-pages.md` states this table, so it is
     # pinned here rather than left as prose someone measured once.
-    @pytest.mark.parametrize('fmt,document,due', [
+    @pytest.mark.parametrize('fmt,posted,due', [
         ('%Y-%m-%d', '2026-03-09', '2026-04-09'),
         ('%m/%d/%Y', '03/09/2026', '04/09/2026'),
         ('%d/%m/%Y', '09/03/2026', '09/04/2026'),
         ('%d.%m.%Y', '09.03.2026', '09.04.2026'),
     ])
-    def test_one_format_on_the_whole_page(self, tmp_path, fmt, document, due):
-        """The point of stating it: one document, one way of writing dates.
+    def test_one_format_on_the_whole_page(self, tmp_path, fmt, posted, due):
+        """The point of stating it: one page, one way of writing dates.
 
         GnuCash's own GUI gives you this because it pushes its date setting
         into QOF at startup and every date then agrees. A process that only
-        loaded the library sets nothing, so the document's dates came off the
+        loaded the library sets nothing, so the invoice's own dates came off the
         book and the entry rows off whoever's machine was running the
         command. The book decides both now.
         """
@@ -130,9 +130,9 @@ class TestThePrintedPage:
         assert result.exit_code == 0, result.output
         page = out.read_text(encoding='utf-8')
 
-        assert document in page, page[:3000]              # the document's date
+        assert posted in page, page[:3000]                # the posted date
         assert due in page, page[:3000]                   # its due date
-        assert f'<td>{document}</td>' in page, page[-3000:]   # the entry row
+        assert f'<td>{posted}</td>' in page, page[-3000:]   # the entry row
         # and nothing left reading the machine's way
         assert '03/09/26' not in page, page[-3000:]
         assert 'no date style' not in result.output, result.output
@@ -142,7 +142,7 @@ class TestThePrintedPage:
 
         `qof_date_format_set` takes a style, not a format string — US, UK, CE
         or ISO — so the entry rows cannot be made to read `09 March 2026`.
-        The document still prints, with its own dates that way, and the run
+        The invoice still prints, with its own dates that way, and the run
         says which dates could not follow so nobody has to work out why one
         page has two formats.
         """
@@ -154,8 +154,19 @@ class TestThePrintedPage:
         assert result.exit_code == 0, result.output
         assert 'no date style for' in result.output, result.output
         assert '%Y-%m-%d' in result.output, result.output   # what would work
+        # Word for word, because README and docs/dates-on-printed-pages.md
+        # both print this warning as output a reader will see, and the doc
+        # says outright that everything it quotes came from a real run. A
+        # substring check let the sentence be reworded in the code and leave
+        # both copies quoting a message the program no longer prints.
+        assert ("which GnuCash has no date style for — the posted date and "
+                "the due date will read that way and every other date on the "
+                "page will follow this machine's locale. For one format "
+                "throughout, use one of: "
+                "%Y-%m-%d, %d.%m.%Y, %d/%m/%Y, %m/%d/%Y") in result.output, \
+            result.output
 
-    def test_it_reaches_the_documents_own_dates_and_not_the_entry_dates(
+    def test_it_reaches_the_invoices_own_dates_and_not_the_entry_dates(
             self, book, tmp_path):
         """Which dates it governs, measured — because it is not all of them.
 
@@ -174,18 +185,18 @@ class TestThePrintedPage:
             '--output', str(out)]).exit_code == 0
         page = out.read_text(encoding='utf-8')
 
-        # The document's own two dates, in the book's format.
+        # The invoice's own two dates, in the book's format.
         assert '09 March 2026' in page, page[:3000]
         assert '09 April 2026' in page, page[:3000]
         # The entry's date, in the table, untouched by it.
         assert '<td>03/09/26</td>' in page, page[-3000:]
 
     def test_and_not_the_way_it_would_have_been_without_one(self, tmp_path):
-        """The same document in a book that names no format.
+        """The same invoice in a book that names no format.
 
         The difference is the point — the fallback is the machine's own
         preference, which is the whole objection: it is not a property of the
-        book, so it is not a property of the document either. Both sides are
+        book, so it is not a property of the invoice either. Both sides are
         asserted all the same. "Not `09 March 2026`" alone is satisfied by a
         page with no dates on it, which would be a defect rather than a
         fallback, and the run these containers give is `03/09/26`.
@@ -242,7 +253,7 @@ class TestTheBookOption:
                 if errors.exists() and errors.read_text().strip():
                     message = errors.read_text().strip()[:200]
                     errors.unlink()
-                    raise gr.DocumentNotRenderedError(message)
+                    raise gr.PageNotRenderedError(message)
 
             gr._dialect(run, work)
             run(f'''(call-with-output-file "{out}"

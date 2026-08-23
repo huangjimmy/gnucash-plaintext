@@ -8,13 +8,13 @@ status: closed
 
 ## Problem
 
-There was no way to take a payment *off* an invoice/bill while leaving the document posted. Removing a payment via re-import falls through to the destructive unpost-rebuild-repost path, which drops the record to Draft and detaches everything — wrong when the document is correct and only the payment is misplaced. The motivating case: an income/deposit transaction was linked to an invoice but turned out not to belong to it. You can't delete the transaction (the money really moved), and unpost-then-repost is not the right move; the right move is to revert to the state *before that payment was applied* — still **posted**, just **not paid** (or partially paid if other payments remain).
+There was no way to take a payment *off* an invoice/bill while leaving the record posted. Removing a payment via re-import falls through to the destructive unpost-rebuild-repost path, which drops the record to Draft and detaches everything — wrong when the record is correct and only the payment is misplaced. The motivating case: an income/deposit transaction was linked to an invoice but turned out not to belong to it. You can't delete the transaction (the money really moved), and unpost-then-repost is not the right move; the right move is to revert to the state *before that payment was applied* — still **posted**, just **not paid** (or partially paid if other payments remain).
 
 This is a distinct operation from unpost/void:
 
 | | unapply-payment | unpost / void |
 |---|---|---|
-| document | untouched, stays **posted** | drops to **Draft** |
+| invoice or bill | untouched, stays **posted** | drops to **Draft** |
 | posting tx / lot | kept (lot just reopens) | destroyed |
 | the payment | detached → re-homed, kept | orphaned bank tx |
 
@@ -26,7 +26,7 @@ A new `unapply-payment` CLI command, sibling to `unpost-invoices`:
 gnucash-plaintext unapply-payment <book> <id> --to <account> [--txn <guid> | --all] [--bill] [--by-guid]
 ```
 
-It detaches a payment's AR/AP split from the record's posted lot (`gnc_lot_remove_split`, probed safe on all 10 GnuCash builds) so the lot reopens — invoice returns to Outstanding, or partially-paid if other payments remain — and re-homes the freed split to `--to <account>` (`xaccSplitSetAccount`; the amount is unchanged so the transaction stays balanced). The document stays posted; the bank/income transaction is never deleted.
+It detaches a payment's AR/AP split from the record's posted lot (`gnc_lot_remove_split`, probed safe on all 10 GnuCash builds) so the lot reopens — invoice returns to Outstanding, or partially-paid if other payments remain — and re-homes the freed split to `--to <account>` (`xaccSplitSetAccount`; the amount is unchanged so the transaction stays balanced). The record stays posted; the bank/income transaction is never deleted.
 
 Key decisions:
 

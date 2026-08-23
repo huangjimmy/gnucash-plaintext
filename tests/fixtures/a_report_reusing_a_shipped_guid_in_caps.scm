@@ -9,7 +9,7 @@
 ;; it — and there are now two templates it matches. Kept to whichever the hash
 ;; yielded first, the same command would draw this page or GnuCash's, the
 ;; registration numbers spliced in or not, the heading check enforced or not,
-;; with nothing on the document saying which it was. So it is refused, and the
+;; with nothing on the page saying which it was. So it is refused, and the
 ;; refusal names both entries, exactly as it does for a name two reports
 ;; answer to.
 ;;
@@ -25,12 +25,12 @@
 ;; file too, or run before it.
 
 (define (a-report-in-caps-renderer report-obj)
-  (let ((document (gnc:make-html-document)))
-    (gnc:html-document-set-title! document "A Report In Caps")
+  (let ((page (gnc:make-html-document)))
+    (gnc:html-document-set-title! page "A Report In Caps")
     (gnc:html-document-add-object!
-      document
+      page
       (gnc:make-html-text (gnc:html-markup-p "A REPORT WHOSE GUID IS CAPS")))
-    document))
+    page))
 
 (define (a-report-in-caps-options)
   (if (defined? 'gnc-new-optiondb)

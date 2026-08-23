@@ -87,6 +87,29 @@ def _posted_lot_balance(gf, bill_id):
         repo.close()
 
 
+def _posting_guid(gf, bill_id):
+    """The transaction a bill is booked through, which a rebuild
+    destroys and replaces with one GnuCash mints."""
+    from gnucash import Query
+
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(str(gf))
+    repo.open()
+    try:
+        q = Query()
+        q.search_for('gncInvoice')
+        q.set_book(repo.book)
+        bill = next((wrap_invoice_or_bill(r) for r in q.run()
+                     if wrap_invoice_or_bill(r).GetID() == bill_id), None)
+        q.destroy()
+        assert bill is not None, f'{bill_id!r} not found'
+        posting = bill.GetPostedTxn()
+        assert posting is not None, f'{bill_id!r} not posted'
+        return posting.GetGUID().to_string()
+    finally:
+        repo.close()
+
+
 def _bank_tx_count(gf):
     from repositories.gnucash_repository import GnuCashRepository
     repo = GnuCashRepository(str(gf))
@@ -356,7 +379,15 @@ bill "BILL-HERO-1120"
 \t\taccumulate: true
 \tpayment: none
 '''
+    # Settling from the owner's credit is a payment, and a posted bill
+    # takes a payment without being rebuilt: its posting transaction is the
+    # one the book was booked through, before and after. Rebuilt instead,
+    # every balance below still passes while the posting is destroyed and
+    # another minted, which is invisible to a test that reads only figures.
+    posting_before = _posting_guid(gf, 'BILL-HERO-1120')
+
     r = _import(runner, gf, settle_from_credit, 'settle.txt', tmp_path)
     assert r.exit_code == 0, f'settle-from-credit import: {r.output}'
+    assert _posting_guid(gf, 'BILL-HERO-1120') == posting_before
     assert _posted_lot_balance(gf, 'BILL-HERO-1120') == 0.00, 'settled from credit'
     assert _vendor_credit_total(gf, 'V-HERO') == 80.00, '1200 credit − 1120 bill = 80'

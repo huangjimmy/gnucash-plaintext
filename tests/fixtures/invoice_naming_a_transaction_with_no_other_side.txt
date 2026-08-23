@@ -2,7 +2,7 @@
 # retarget — every split of it is on `Assets:Bank`.
 #
 # Nothing is spoken for here; there is simply nothing there, and a message
-# about splits that already settle documents would describe a book this is not.
+# about splits that already settle invoices would describe a book this is not.
 invoice "INV-NO-OTHER-SIDE"
 	customer_id: "C-TWO-A"
 	currency: CAD

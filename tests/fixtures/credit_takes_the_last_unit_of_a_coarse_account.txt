@@ -1,4 +1,4 @@
-# A receivable kept to the tenth, and a document that totals a whole number of
+# A receivable kept to the tenth, and an invoice that totals a whole number of
 # those tenths: 30.10 posts exactly, so nothing is rounded anywhere. A 30.00
 # cash payment leaves 0.10 owed — one whole unit of this account — and a credit
 # takes it.

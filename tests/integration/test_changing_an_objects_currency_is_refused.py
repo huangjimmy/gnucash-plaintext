@@ -7,11 +7,11 @@ reported `unchanged`, the book kept the currency the object was created with,
 and the next export wrote that currency back over the edit. The ledger and the
 book then disagreed for good, with the ledger losing and nothing said.
 
-Applying it is not a small edit. An owner's currency is what their documents
-are raised in, and a posted invoice's is what its receivable splits are
-denominated in — changing either means re-raising the documents, which is a
+Applying it is not a small edit. An owner's currency is what their invoices
+and bills are raised in, and a posted invoice's is what its receivable splits
+are denominated in — changing either means re-raising them, which is a
 decision rather than a field. So the file is refused, and says which two
-currencies it is between.
+currencies it is between, in the words that fit the kind it is refusing.
 """
 
 from pathlib import Path
@@ -31,7 +31,10 @@ MOVED = {
     'C-CCY': str(FIXTURES / 'owners_with_the_customer_in_usd.txt'),
     'V-CCY': str(FIXTURES / 'owners_with_the_vendor_in_usd.txt'),
     'INV-CCY': str(FIXTURES / 'owners_with_the_invoice_in_usd.txt'),
+    'BILL-CCY': str(FIXTURES / 'owners_with_the_bill_in_usd.txt'),
 }
+ALL_CAD = {'C-CCY': 'CAD', 'V-CCY': 'CAD',
+           'INV-CCY': 'CAD', 'BILL-CCY': 'CAD'}
 
 
 def _currencies(book):
@@ -65,10 +68,8 @@ def book(tmp_path):
 
 
 class TestTheBookIsInCadFirst:
-    def test_all_three_are(self, book):
-        assert _currencies(book) == {
-            'C-CCY': 'CAD', 'V-CCY': 'CAD', 'INV-CCY': 'CAD',
-        }, _currencies(book)
+    def test_all_four_are(self, book):
+        assert _currencies(book) == ALL_CAD, _currencies(book)
 
 
 class TestEditingItToUsd:
@@ -97,6 +98,27 @@ class TestEditingItToUsd:
                     if oid in line and 'CAD' in line and 'USD' in line]
         assert refusals, result.output
 
+    @pytest.mark.parametrize('oid,says', [
+        ('C-CCY', "a customer's invoices and bills are raised in"),
+        ('V-CCY', "a vendor's invoices and bills are raised in"),
+        ('INV-CCY', "this invoice's lines and its posting are denominated"),
+        ('BILL-CCY', "this bill's lines and its posting are denominated"),
+    ])
+    def test_it_says_what_that_kinds_currency_is(self, book, oid, says):
+        """The sentence has to fit the kind it is refusing.
+
+        One sentence served all four kinds by naming what they hold
+        generically, and a rename of that word left the owner sentence
+        addressed to a record: *"A currency is what an invoice's invoices and
+        bills are raised in … raise the new ones under an invoice."* Every
+        other assertion here reads the two currency codes, which that text
+        still carried, so the run stayed green while the sentence stopped
+        meaning anything.
+        """
+        result = self._again(book, oid)
+
+        assert says in result.output, result.output
+
     @pytest.mark.parametrize('oid', list(MOVED))
     def test_it_does_not_report_itself_unchanged(self, book, oid):
         result = self._again(book, oid)
@@ -109,9 +131,7 @@ class TestEditingItToUsd:
     def test_the_book_is_left_as_it_was(self, book, oid):
         self._again(book, oid)
 
-        assert _currencies(book) == {
-            'C-CCY': 'CAD', 'V-CCY': 'CAD', 'INV-CCY': 'CAD',
-        }, _currencies(book)
+        assert _currencies(book) == ALL_CAD, _currencies(book)
 
     def test_the_same_currency_is_not_a_change(self, book):
         """The ordinary re-import still reports unchanged."""

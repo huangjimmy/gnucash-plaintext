@@ -2,7 +2,7 @@
 ;;
 ;; Scheme is parentheses, and one too few is what a first `.scm` most often
 ;; has. `(load …)` then raises, and this tool used to answer "GnuCash could
-;; not render the document: (misc-error …)", pointing the reader at the
+;; not render the page: (misc-error …)", pointing the reader at the
 ;; invoice they asked for rather than at the file they wrote.
 ;;
 ;; The closing paren of `gnc:define-report` is missing, deliberately.

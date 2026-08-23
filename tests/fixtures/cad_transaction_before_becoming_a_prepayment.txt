@@ -3,7 +3,7 @@
 # The test that uses this rewrites the receipt into the customer's USD
 # prepayment — the money arrived as CAD, so the receivable credit is the only
 # record of the currency owed — and re-imports it with `--strategy update`.
-# The credit is a prepayment because it sits in an owner lot no document owns,
+# The credit is a prepayment because it sits in an owner lot no invoice owns,
 # and `lot_owner:` is what puts it there, so an update that drops that line
 # leaves a split the same file would have made a cost basis through `--new`.
 #

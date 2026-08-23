@@ -3,12 +3,12 @@
 `print-invoice` and `print-bill` write `txn_guid:` / `txn_split_guid:` naming
 the *source* book's transactions. Read into a different book those resolve to
 nothing by construction, and the payment is created from the block instead —
-which is what makes a printed document readable anywhere.
+which is what makes a printed invoice readable anywhere.
 
 The second import is the one that matters. The payment now in the book carries
 a guid GnuCash minted; the file still names the source book's. If the
 comparison that decides "unchanged" treats an unresolvable guid as
-authoritative, the document reads as out of date on every run: it is unposted,
+authoritative, the invoice reads as out of date on every run: it is unposted,
 its posting destroyed and its payment orphaned, and the rebuild then meets the
 orphan it just made and refuses — leaving the book untouched and the command
 unable to succeed ever again.
@@ -71,7 +71,7 @@ class TestTheSecondImport:
 
 class TestAndAThird:
     def test_the_file_keeps_reading(self, book):
-        """A document that can be read once and never again is worse than one
+        """An invoice that can be read once and never again is worse than one
         that cannot be read at all: the failure arrives later, on a book that
         has already been built from it."""
         runner = CliRunner()

@@ -106,7 +106,7 @@ measured on the wrong side of two builds.
 - `convert_qfx.py` - reference for QFX parsing requirements
 - `ledger.py` - reference for update workflow requirements
 - `reference_file*.txt` - sample data for understanding format
-- `.claude/` - Claude CLI directory
+- `.claude/` - Claude CLI directory, an agent's own state — **except `.claude/settings.json`**, which is tracked (`.gitignore` says `.claude/*` and then `!.claude/settings.json`) because it is what wires the `PreToolUse` guards that refuse a shell file-edit and an unscoped kill. `tests/unit/test_the_kill_guard_allows_one_id.py` reads it to assert both are still named, and `scripts/test-all-versions-parallel.sh` rsyncs that one file into all ten containers so the assertion has something to read. Re-ignoring or deleting it turns that test red.
 
 ### Repository Layout
 - `cli/` - Click-based CLI commands; `cli/main.py` is the entry point
@@ -161,6 +161,7 @@ measured on the wrong side of two builds.
 4. **Running pytest / python directly** - All tests must run via `./scripts/test.sh` in Docker so they hit a real GnuCash install
 5. **Skipping lint before commit** - Run `./scripts/fix-lint.sh --unsafe` before staging, not after the pre-commit hook rejects you
 6. **Editing a file from the shell** - `sed -i`, `perl -i`, a `python3 - <<EOF … write_text()` heredoc, `cat > file`: every one of these applies substitutions nobody reviewed, usually across several files in one call. Read the file, then Edit it; create one with Write. `scripts/refuse-bash-file-edits.sh` blocks the shell forms outright (wired in `.claude/settings.json`), and reading — `sed -n`, `grep`, `awk` to stdout — is untouched
+7. **Killing anything you did not name** - this machine runs containers and processes that are not this project's. `docker ps -q | xargs docker kill` killed the author's web server, up since May, along with the ten test containers it meant. `scripts/refuse-unscoped-kills.sh` allows **one id, named, one per command** — `docker kill gnucash-dev-debian13`, `kill 1757608`, a signal being fine (`kill -9`, `kill -s TERM`, and `kill -0` to ask whether a pid is alive) — and refuses every other shape: `$( )`, `xargs`, `pkill`/`killall`, a negative pid (a process *group*), two ids, two kills in one command, `prune`, `compose down`, `docker-compose down`, and a kill inside a string handed to `bash -c` or `eval`. A kill is read at a command position — the start, after `|`, `;`, `&`, `(`, `)`, `{`, `&&`, `||` or a `find`'s `-exec`, and behind a path, a shell keyword (`do`, `then`, `while`, `if`, …) or one of the words that run another command (`sudo`, `doas`, `env`, `time`, `timeout`, `nice`, `ionice`, `stdbuf`, `nohup`, `setsid`, `xargs`, `exec`) with whatever arguments of their own they carry. So `for p in $(pgrep -f pytest); do kill $p; done` is the incident written longhand and is refused as such, as are `sudo -u jimmy kill -- -PID`, `case x in *) kill …`, `{ pkill …; }` and `find … -exec kill {} \;`. An environment assignment is a position too (`VAR=v pkill …`), as is a backquote. A program handed to a shell as a string is refused whole, with `-c` wherever the words before it put it (`bash -lc`, `bash -x -c`, `bash -o pipefail -c`). Docker's flags are read past, so `docker compose -f x.yml down` is refused like `docker compose down`. What that costs is reading: after a runner word, `sudo cat /tmp/kill` and `… | xargs grep -n kill` are refused as kills — drop the runner word, `grep -rn kill scripts/` passes. **It is a seatbelt, not a sandbox: the goal is not to close every loophole.** A quoted command word (`'pkill' -f x`) defeats any guard that reads text, and exotic spellings nobody types are answered by saying so rather than by another alternation — each one is a chance to refuse something real, which widening this has twice done (`docker image rm gnucash-dev:debian13`, `docker rm -f a b`). A shape it wrongly refuses is a defect; a shape nobody would type getting past it is not. Reading is allowed for the asking — `docker stop --help` and `docker kill -h` name nothing to kill and pass, since the reader looking one up is usually the one who just met a refusal — and every `"command"` field of the payload is judged, so a decoy can add a refusal and cannot hide one. A sweep rarely needs stopping at all: `scripts/test.sh` runs every container with `--rm`, so an abandoned one clears itself within minutes. Kill the detached `git commit` by its own pid and let its children finish
 
 ## Commit Messages Are Not Hard-Wrapped
 
@@ -383,6 +384,27 @@ supersedes the earlier belief that GnuCash could not persist
 `bill_taxable = false`; the real cause was handling bills with the
 customer-invoice class.
 
+**A book already holding such a line is repaired on import**, and the repair
+is not `AddEntry`. Editing an invoice rebuilt every line until Q-038, so a
+pointer-less entry was healed by accident on the first re-import; lines are
+edited in place now and `AddEntry` is called only for a line being created,
+so nothing heals it. Such a bill compares unequal against its own exported
+ledger on every run — `updated` for ever while unposted, refused with
+"unpost-bills first" once posted, and that unpost does not fix the pointer
+either. Measured on 5.10, in `tests/research/a_legacy_bills_entry_owner_probe.py`:
+
+| call | result |
+|---|---|
+| `gncBillAddEntry` on a pointer-less entry | returns early only when the pointer already names this bill, so it sets the pointer **and** adds a second reference to the bill's list |
+| `gncEntrySetBill` alone | pointer set, list untouched — but the entry still carries its **invoice** pointer, the writer emits a reference per pointer, and the reloaded bill lists the one entry **twice** |
+| `gncEntrySetBill` + `gncEntrySetInvoice(entry, NULL)` | one entry, and the `b-taxable` / `b-taxincluded` written beside it survive the save |
+
+SWIG has no `Entry.SetBill` or `Entry.SetInvoice` on any supported build, so
+both are ctypes, declared in `infrastructure/gnucash/engine.py`.
+`_give_the_line_its_bill_pointer` does it inside the entry's own
+`BeginEdit`/`CommitEdit`, which is what finally carries the flags to disk
+(finding 11).
+
 ### 9. `xaccSplitSetLot` does not put the split in the lot's split list
 
 Discovered 2026-08-05 while opening a cost basis for the credit a retargeted
@@ -421,9 +443,9 @@ unavoidable, walk the *account's* splits and filter by `split.GetLot()`.
 Discovered 2026-08-06 while working out which splits a `txn_guid:` retarget may
 move.
 
-`gncInvoiceUnpost` detaches the document from its lot, but does **not** destroy
+`gncInvoiceUnpost` detaches the invoice from its lot, but does **not** destroy
 the lot or empty it. The lot stays on the account, still listed by
-`xaccAccountGetLotList`, still holding whatever splits settled the document, and
+`xaccAccountGetLotList`, still holding whatever splits settled the invoice, and
 `gncOwnerGetOwnerFromLot` still names the owner — because unposting re-attaches
 the owner to it.
 
@@ -433,7 +455,7 @@ still in the account's lot list, `gncInvoiceGetInvoiceFromLot` returns NULL, and
 the owner reads back as the invoice's customer.
 
 **Consequence**: a lot abandoned by an unpost and an owner's parked prepayment
-lot are the same thing as far as the book is concerned — live, documentless,
+lot are the same thing as far as the book is concerned — live, naming nothing,
 owner-attached. No property of either tells them apart, so code that must
 distinguish them has to *record* the unpost rather than interrogate the lot
 afterwards.
@@ -443,13 +465,13 @@ orphan still in the abandoned lot, so the import that meets it may be days
 later in another process — and the standalone `unpost-invoices` /
 `unpost-bills` commands reach the state in one step with no import around them
 at all. `services/gnucash_importer.py` writes `orphaned_by_unpost` on each
-orphaned split, valued with the guid of the document that was unposted, from
+orphaned split, valued with the guid of the invoice that was unposted, from
 `mark_splits_orphaned_by_unpost()`; both the importer's rebuild path and
 `use_cases/unpost_business_objects.py` call it immediately before
-`Unpost(False)`, while the lot still names the document.
+`Unpost(False)`, while the lot still names the invoice.
 
 Valued with a guid rather than `true` because a rebuild has to find the split
-that was settling *it*: one transaction can carry orphans from two documents,
+that was settling *it*: one transaction can carry orphans from two records,
 and "which of these was mine" is then answerable without the file saying so.
 
 The key never leaves the book, and never enters one from a file. It is filtered
@@ -468,16 +490,16 @@ come out differently — measured on GnuCash 5.10, 4.13, 4.4, 3.8 and 5.15:
 | carved remainder (a new split) | empty — no mark, no basis |
 
 So the applied part is where the key survives into a state that no longer
-matches it: it is another document's settlement now, not the first document's
+matches it: it is another invoice's settlement now, not the first invoice's
 orphan. `_mark_applied_from_credit` drops it alongside the basis keys. Nothing
 is stripped from the remainder, because nothing arrives on it.
 
 All three matter, and the import half is the sharpest. A split carrying the key
 reads as *not* an owner's credit, so a settlement genuinely spent from a credit
-would skip taking the basis off; and because a mark naming a document is
+would skip taking the basis off; and because a mark naming an invoice is
 *preferred* over everything else placeable — which is how a rebuild finds its
-own orphan — a file stating one could choose which of an owner's two credits a
-document spends, past the guard that exists to stop split order deciding that.
+own orphan — a file stating one could choose which of an owner's two credits an
+invoice spends, past the guard that exists to stop split order deciding that.
 On a foreign book those carry different costs, so it would pick the gain too.
 
 What turns on the difference: moving a split out of a credit lot spends the
@@ -488,7 +510,7 @@ less than its bank has, and the export writing that bank payment as
 `from_credit:` with no account and no date.
 
 **What makes an orphan credit is how it was paid, not whose it is.** The mark
-names a document so a rebuild can find the settlement that was its own, but
+names an invoice so a rebuild can find the settlement that was its own, but
 whether the money is anybody's *credit* is a separate question, and the split
 answers it: a settlement that came out of credit carries `applied_from_credit`,
 and that survives the unpost.
@@ -496,10 +518,10 @@ and that survives the unpost.
 - marked, and came from credit → credit still, loose again and spendable by
   anyone the owner owes;
 - marked, and never came from credit → a bank paid it, and it is a settlement
-  waiting to be put back, whichever document's unpost loosened it;
-- unmarked, in a live documentless owner lot → an ordinary parked credit.
+  waiting to be put back, whichever invoice's unpost loosened it;
+- unmarked, in a live owner lot naming nothing → an ordinary parked credit.
 
-Reading the mark as "not credit to this document, credit to everyone else"
+Reading the mark as "not credit to this invoice, credit to everyone else"
 looks right and is not: `unpost-invoices B` then a file settling A off B's
 deposit is one step, and it strips the basis off currency the bank still holds
 while exporting a block that named an account and a date as `from_credit:`
@@ -519,22 +541,22 @@ Scoping any one of them to the record reopens the hole in that spelling alone,
 which is how the three came to disagree in the first place.
 
 **Nothing in a file represents the mark**, so it cannot travel: a file may not
-state it (that would let a file steer which credit a document spends), and the
+state it (that would let a file steer which credit an invoice spends), and the
 export filters it out. What must not travel either is `lot_owner:` on such a
 split — that line is a file saying "this is an owner's credit, put it in a lot
 of theirs", and restoring an export into a fresh book then rebuilt a bank's
 payment as spendable credit. So the export omits it for a bank-paid orphan, and
 the split comes back loose: in no lot, nobody's credit invented. That is what
-it is, the document it settled being unposted.
+it is, the invoice it settled being unposted.
 
 **Books unposted by an earlier version carry no mark**, and there is no way to
 add one after the fact: an abandoned lot and a parked credit are the same three
 facts, which is the whole finding. Such an orphan therefore reads as a credit.
 Measured what that costs: the settlement split carries no cost basis of its own
-— the basis sits on the document's posting split — so nothing is stripped and
+— the basis sits on the invoice's posting split — so nothing is stripped and
 `fx-balances` still matches the bank. What changes is the label: the export
 writes the bank payment as `from_credit:` with no account and no date.
-Unposting the document again under this version writes the mark and restores
+Unposting the invoice again under this version writes the mark and restores
 the right answer.
 
 Every path that can consume such a lot honours it, not just the one that reads
@@ -548,8 +570,8 @@ it most obviously:
   meant to be settled through it;
 - `auto_apply_credit: true`, via `_mark_applied_from_credit` — and this one
   matters most, because the *engine* chooses. `AutoApplyPayments` searches for
-  open, documentless, owner-attached lots, which is what the rebuild's own
-  unpost left a moment earlier, so a re-imported document with no payment block
+  open, owner-attached lots naming nothing, which is what the rebuild's own
+  unpost left a moment earlier, so a re-imported invoice with no payment block
   is handed its own settlement back. Measured on GnuCash 5.10: without the
   check it exports as `from_credit: true` + `credit_dated:`, with no
   `bank_account:` and no date — the money's origin gone, with nothing in the
@@ -573,7 +595,7 @@ What that cost: every change to a custom key on an object the book already held 
 
 The same rule applies to every business object, not just customers: `import_customer`, `import_vendor`, `import_invoice` and `import_bill` all bracket the write now.
 
-**Corollary for `set_custom_metadata(obj, {})`**: an empty dict is how the slot is emptied. That is not the same as "write it whenever the file names none", which was tried and is worse: the slot is written from a *block*, most blocks are partial — a person names what they are changing, a printed document carries less than that — and replacing the slot wholesale made every one of them a delete.
+**Corollary for `set_custom_metadata(obj, {})`**: an empty dict is how the slot is emptied. That is not the same as "write it whenever the file names none", which was tried and is worse: the slot is written from a *block*, most blocks are partial — a person names what they are changing, a printed page carries less than that — and replacing the slot wholesale made every one of them a delete.
 
 So the slot is merged rather than replaced, and follows the rule the address lines follow:
 
@@ -602,9 +624,9 @@ A split whose `<split:account>` element is missing is not a book this tool can w
 
 **And a rule for the suite**: a test may not feed the loader a corrupt book. A segfault does not fail a test, it kills the interpreter, taking the other 2025 tests in that run with it and leaving `./scripts/coverage.sh` unable to report a union at all — which is how this was found. The measurement lives here and in the module docstring of `tests/integration/test_finding_a_transaction_by_its_amount.py`, and is asserted nowhere. Version-gating it with `skipif` was the alternative and was refused: the suite has no version-gated test in it, deliberately — the union model is that every version runs everything — and the first one would be guarding GnuCash's own loader rather than any behaviour of this tool.
 
-### 13. A document has no `GetGUID`, and `Invoice` is not on the `gnucash` package
+### 13. An invoice has no `GetGUID`, and `Invoice` is not on the `gnucash` package
 
-Discovered 2026-08-11 while comparing the document a payment already settles against the one being paid.
+Discovered 2026-08-11 while comparing the invoice a payment already settles against the one being paid.
 
 Finding 5 above says SWIG `Invoice.GetGUID()` is "missing on some platforms". It is missing on **all** of them. Probed on every supported build — 3.8, 4.4, 4.8, 4.13, 5.5, 5.10, 5.13, 5.14, 5.15, 5.16:
 
@@ -616,32 +638,32 @@ Finding 5 above says SWIG `Invoice.GetGUID()` is "missing on some platforms". It
 | `hasattr(Invoice, 'GetOwnerType')` | `True` |
 | `gnucash_core_c.gncInvoiceGetInvoiceFromLot` | present |
 
-`Customer` and `Vendor` *do* carry `GetGUID` — `gnucash_importer.py` reads both that way and the suite passes on all ten — so the absence is a property of the document classes, not of the bindings in general. `add_methods_with_prefix('gncInvoice')` picks up what the C header names `gncInvoice*`, and the guid accessor is not one of those.
+`Customer` and `Vendor` *do* carry `GetGUID` — `gnucash_importer.py` reads both that way and the suite passes on all ten — so the absence is a property of the invoice classes, not of the bindings in general. `add_methods_with_prefix('gncInvoice')` picks up what the C header names `gncInvoice*`, and the guid accessor is not one of those.
 
-**So a document's identity is read through ctypes, and `_swig_invoice_guid_str(record)` is the one way to do it**: `qof_instance_get_guid` + `guid_to_string_buff`, off `record.instance`. It takes anything with an `.instance`, including the raw pointer out of `gncInvoiceGetInvoiceFromLot` once `wrap_invoice_or_bill` has wrapped it.
+**So an invoice's identity is read through ctypes, and `_swig_invoice_guid_str(record)` is the one way to do it**: `qof_instance_get_guid` + `guid_to_string_buff`, off `record.instance`. It takes anything with an `.instance`, including the raw pointer out of `gncInvoiceGetInvoiceFromLot` once `wrap_invoice_or_bill` has wrapped it.
 
-The failure this hides is quiet, because the two obvious spellings fail differently. `Invoice(instance=raw).GetGUID()` raises `AttributeError`, and a `try`/`except` around it — which is how these lookups are usually written here — swallows that into "no answer", so the comparison silently says *not the same document* for every document. `from gnucash import Invoice` raises `ImportError` inside the same `try` and reads the same way.
+The failure this hides is quiet, because the two obvious spellings fail differently. `Invoice(instance=raw).GetGUID()` raises `AttributeError`, and a `try`/`except` around it — which is how these lookups are usually written here — swallows that into "no answer", so the comparison silently says *not the same invoice* for every invoice. `from gnucash import Invoice` raises `ImportError` inside the same `try` and reads the same way.
 
-### 14. Render every document before opening any destination
+### 14. Render every invoice before opening any destination
 
 Not a GnuCash finding — a rule this repo learned twice, once per command family.
 
-Formatting can refuse. A split holding a figure finer than its currency cannot be written as plaintext, and a printed `payment:` block states its amount at the unit its account is kept to and refuses the same figures the export refuses. So the write step can raise partway through, and where the file was already open, or the earlier documents already on disk, what is left behind is a partial answer that reads as a whole one:
+Formatting can refuse. A split holding a figure finer than its currency cannot be written as plaintext, and a printed `payment:` block states its amount at the unit its account is kept to and refuses the same figures the export refuses. So the write step can raise partway through, and where the file was already open, or the earlier invoices and bills already on disk, what is left behind is a partial answer that reads as a whole one:
 
 - `export` opened the target, then rendered — so an export that refused had already truncated yesterday's ledger, leaving a 0-byte file where a good one had been;
-- `print-invoice`/`print-bill` with `-o out/` wrote each document inside the loop — so a refusal left the documents before the offender in the directory and the ones after it missing, with nothing saying which.
+- `print-invoice`/`print-bill` with `-o out/` wrote each invoice inside the loop — so a refusal left the invoices and bills before the offender in the directory and the ones after it missing, with nothing saying which.
 
-Both now build the complete output first and touch the destination only once it exists in full; the per-document form makes the directory only when there is something to put in it. `_write_combined` was always right, because it concatenates into a list before writing — which is why the combined form never showed the defect and the per-document form did.
+Both now build the complete output first and touch the destination only once it exists in full; the per-invoice form makes the directory only when there is something to put in it. `_write_combined` was always right, because it concatenates into a list before writing — which is why the combined form never showed the defect and the per-invoice form did.
 
 ### 15. Dates: two settings decide them, and one is a process global the GUI fills in
 
 Discovered 2026-08-15, from a user printing with a report of their own.
 
-A date on a printed document comes from one of two places, and which one depends on *which* date it is:
+A date on a printed page comes from one of two places, and which one depends on *which* date it is:
 
 | date | written by | reads |
 |---|---|---|
-| the document's posted date and due date | `gnc-print-time64 date (gnc:options-fancy-date book)` | a **book option** — `("Business" ("Fancy Date Format" "custom"))`, via `gnc:fancy-date-info` |
+| the invoice's posted date and due date | `gnc-print-time64 date (gnc:options-fancy-date book)` | a **book option** — `("Business" ("Fancy Date Format" "custom"))`, via `gnc:fancy-date-info` |
 | every entry's date, every payment's date, "printed on" | `qof-print-date` | a **process global**, `qof_date_format_get()` |
 
 **The process global is the trap.** GnuCash's GUI sets it at startup from its GSettings preference. A process that only loaded the library sets nothing, so it holds its compiled default `QOF_DATE_FORMAT_LOCALE` (`4`) and those dates follow the *locale of whoever ran the command*. Measured on 5.10, 4.13 and 3.8: it reads `4` in this tool's process no matter what the GnuCash preference says, and setting that preference — through GSettings' keyfile backend, since the images have neither dconf nor a session bus — changes nothing on the page. **`Edit → Preferences → Date/Time` does not reach anything this project prints.**
@@ -682,6 +704,33 @@ and in the saved XML the book's is one slot whose value spans lines.
 
 `services/plaintext_addresses.py` holds the parsing and the limit now, so there is one answer to "which line is this key" and one place that knows a `GncAddress` has four of them.
 
+### 17. `Account.GetLotList()` hands back two different things, and the version decides which
+
+Discovered 2026-08-20 while giving a credit lot an identity.
+
+The same call yields a raw `SwigPyObject` pointer on some builds and a wrapped `GncLot` on others. Measured on all ten, from a book holding one credit lot:
+
+| GnuCash | `type(acct.GetLotList()[0]).__name__` |
+|---|---|
+| 3.8, 4.4, 4.8, 4.13, 5.5, 5.10, 5.13, 5.14 | `SwigPyObject` |
+| 5.15, 5.16 | `GncLot` |
+
+It is a version boundary — 5.14 raw, 5.15 wrapped — not a distribution's doing, and `int()` refuses the wrapper outright (`TypeError: int() argument must be … not 'GncLot'`). So a reader written against either half raises on the other, and a suite run on Debian says nothing about it: eight of the ten agree with each other.
+
+`infrastructure/gnucash/utils.py` answers it once, in the two shapes callers need — `qof_instance(obj)` for a SWIG call, `qof_pointer(obj)` for ctypes — and every reader asks. The three words were written out at fifteen call sites before that, each free to get it wrong on its own, and one of the comments beside them recorded the version split backwards. The ctypes route is unaffected either way: `xaccAccountGetLotList` through `iterate_glist` hands back plain integers on every build, and that is what the importer's lot search and the export use.
+
+### 18. Forcing a guid marks nothing dirty, so a run that only forces one saves nothing
+
+Discovered 2026-08-20, from a lot that kept its old guid across a save.
+
+`qof_instance_set_guid` moves the entity in its collection and changes the instance, and that is all: it does not mark the instance dirty, and nothing marks the book dirty either. `qof_session_save` then writes **nothing** — not the object, not the file — while the new guid reads back for the rest of the session, so the run looks as though it worked.
+
+Measured on 5.10, in one book: a lot given a guid inside `gnc_lot_begin_edit` / `gnc_lot_commit_edit` and nothing else came back from a save and a reload with its **original** guid; the same guid, in a session where something else had written to the book, came back as the forced one — the XML backend rewrites the whole file, so the change goes out with everything else.
+
+The bracket is not what makes it persist, which is the trap: a real write somewhere in the session is. `_force_the_lot_guid` is safe because it only ever names a lot the import has just created and is about to put a split in. A command that meant to *rename* something and did nothing else would report success and change nothing on disk.
+
+This is finding 11 one level up — there the object was not serialised, here the file is not written at all.
+
 ---
 
-**Last Updated**: 2026-08-15
+**Last Updated**: 2026-08-22

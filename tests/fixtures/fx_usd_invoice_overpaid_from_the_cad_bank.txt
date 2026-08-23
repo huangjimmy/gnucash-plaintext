@@ -1,7 +1,7 @@
 # The invoice, attached to the CAD payment that overpays it, declaring the
 # 100.00 USD it leaves the customer.
 #
-# Every figure here is the document's own money: the split the retarget moves
+# Every figure here is the invoice's own money: the split the retarget moves
 # is the −200.00 USD receivable side, 274.00 being its CAD *value* rather than
 # its amount. So `amount: 200` and `prepayment: 100` are both USD, and the
 # fall-short check compares like with like. (The mixed-currency case, where it

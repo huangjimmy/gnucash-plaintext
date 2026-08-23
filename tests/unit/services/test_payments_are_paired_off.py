@@ -1,8 +1,8 @@
-"""Pairing a document's payments against the blocks that describe them.
+"""Pairing an invoice's payments against the blocks that describe them.
 
 The importer asks one question of a file: does it describe the book it is
 being imported into? For payments that is a pairing — every payment the
-document holds has to be a payment the file states, and what the file states
+invoice holds has to be a payment the file states, and what the file states
 beyond them is what is being added.
 
 Taking each payment's first match answers a different question. Where one block
@@ -70,7 +70,7 @@ def test_a_payment_no_block_describes_goes_unpaired():
     """A payment the file does not state is left unpaired, not forced onto one.
 
     The caller compares `claimed` against how many payments there are, so one
-    short is what tells it the file does not describe this document.
+    short is what tells it the file does not describe this invoice.
     """
     described = FakeBlock('describes the first only', {'first'})
 

@@ -118,7 +118,7 @@ Transactions follow beancount format with GnuCash metadata:
 **Transaction metadata (optional):**
 - `gnucash-guid`: Unique identifier for transaction matching
 - `gnucash-notes`: Transaction notes
-- `gnucash-doclink`: Link to external document
+- `gnucash-doclink`: Link to an external file
 
 **Posting metadata (optional):**
 - `gnucash-memo`: Split memo

@@ -1,12 +1,12 @@
-"""The footer and the CSS a printed document carries, as the book holds them.
+"""The footer and the CSS a printed page carries, as the book holds them.
 
 GnuCash's report options give the pair as **Layout → CSS**, the styling of a
-printed page, and **Display → Extra Notes**, the sentence printed under a
-document. Both are report options in GnuCash and neither has a book-level home
+printed page, and **Display → Extra Notes**, the sentence printed at the foot
+of it. Both are report options in GnuCash and neither has a book-level home
 there, so the two slots below are opened beside `Company GST Number` in the
 `Business` frame.
 
-The book, because a printed document belongs to a book: a laptop, a server and
+The book, because a printed page belongs to a book: a laptop, a server and
 a build printing one book produce one page, and a setting kept in the book
 travels with the file rather than with the machine `set-invoice-style` was run
 on.

@@ -174,11 +174,12 @@ class TestWorthRealMoney:
         with a brokerage account meets this on the first export after
         upgrading, and the way out is the plaintext export.
         """
-        from pathlib import Path
-
-        text = Path('RELEASE_NOTES.md').read_text()
-        unreleased = text[text.index('## Unreleased'):]
-        unreleased = unreleased[:unreleased.index('\n## ', 1)]
+        # The release this refusal was written up in, named: the whole file
+        # lets a note outlive the behaviour it describes, and "the newest
+        # section" would need the sentence copied into every release after
+        # this one.
+        from tests.integration.release_notes_sections import notes_for
+        unreleased = notes_for('v0.4.0')
 
         assert ('refuses a whole book over a split whose value the format '
                 'cannot state') in unreleased, unreleased

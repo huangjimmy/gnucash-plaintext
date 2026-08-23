@@ -68,8 +68,52 @@ def _book(tmp_path, name='book.gnucash'):
     return path
 
 
+def _unposted_book(tmp_path, name='unposted.gnucash'):
+    """A book whose two invoices were never posted.
+
+    The tests below edit a line and read it back, and a line under a posting
+    is not edited by an import — the posting is derived from it. So the
+    scenario is an unposted invoice, made unposted from the start rather
+    than unposted halfway through: an `unpost-invoices` dropped between the
+    setup and the edit would be the test arranging its own subject away.
+
+    What a *posted* invoice does with an edited line is asserted where that
+    is the subject — `test_business_object_idempotent_reimport.py` and
+    `test_importer_destructive_orphan.py`, which read the refusal and check
+    the book was left alone.
+    """
+    ledger = tmp_path / 'unposted-source.txt'
+    ledger.write_text(_without_the_posted_blocks(
+        Path(LEDGER).read_text(encoding='utf-8')), encoding='utf-8')
+    book = tmp_path / name
+    made = CliRunner().invoke(cli, ['import', '--new', str(book), str(ledger),
+                                    '--include-business-objects'])
+    assert made.exit_code == 0, made.output
+    return book
+
+
+def _without_the_posted_blocks(text):
+    """The same ledger saying `posted: none`, for a book just unposted.
+
+    Line by line: an `entry:` block has a `date:` of its own, so a pattern
+    that reaches into a `posted:` block reaches into the lines as well.
+    """
+    kept, dropping = [], False
+    for line in text.split('\n'):
+        if line == '\tposted:':
+            kept.append('\tposted: none')
+            dropping = True
+            continue
+        if dropping:
+            if line.startswith('\t\t'):
+                continue
+            dropping = False
+        kept.append(line)
+    return '\n'.join(kept)
+
+
 def _entries(book_path):
-    """Every entry in the book, wrapped, by the document it belongs to."""
+    """Every entry in the book, wrapped, by the invoice it belongs to."""
     from gnucash import Query
     from gnucash.gnucash_business import Entry
 
@@ -121,7 +165,7 @@ class TestWhatTheImportPutsInTheBook:
 
     def test_and_its_discount_with_both_choices(self, imported):
         """A figure alone is ambiguous: 10 off and 10 per cent off are
-        different documents, and the same 10 per cent lands differently on
+        different invoices, and the same 10 per cent lands differently on
         either side of tax."""
         from infrastructure.gnucash.entry_fields import (
             DISCOUNT_HOWS,
@@ -303,13 +347,15 @@ class TestTheyAreFieldsAndNotMetadata:
 class TestAnEntryBlockDescribesTheWholeLine:
     """An unnamed key means GnuCash's default, not "leave it alone".
 
-    An entry is never patched: a document being re-imported has every entry
-    destroyed and rebuilt from its block, so there is nothing left to leave
-    alone. `action:` has always worked this way, and README says so.
+    An entry block is the whole line: every field is written from it,
+    defaults included, so a line comes out of an import holding what its
+    block says and nothing it held before — which is what a line built from
+    scratch holds, and the two paths must not differ. `action:` has always
+    worked this way, and README says so.
 
     Read with `in`, the five new keys did neither one thing nor the other. A
     block naming `price` and no note kept the note while nothing else
-    differed, and dropped it the moment the price made the document rebuild —
+    differed, and dropped it the moment the price made the invoice rebuild —
     one keystroke deciding whether the note survived, and the run saying
     `updated` without saying what had gone.
     """
@@ -319,7 +365,8 @@ class TestAnEntryBlockDescribesTheWholeLine:
     def _ledger_with(self, tmp_path, name, replacement):
         ledger = tmp_path / name
         source, wanted = replacement
-        text = Path(LEDGER).read_text(encoding='utf-8')
+        text = _without_the_posted_blocks(
+            Path(LEDGER).read_text(encoding='utf-8'))
         assert source in text, source
         ledger.write_text(text.replace(source, wanted), encoding='utf-8')
         return ledger
@@ -327,8 +374,8 @@ class TestAnEntryBlockDescribesTheWholeLine:
     def test_changing_one_field_reports_the_unnamed_ones_as_a_difference(
             self, tmp_path):
         """The note is gone after the rebuild — and the run says `updated`
-        rather than reporting a document it left alone."""
-        book = _book(tmp_path)
+        rather than reporting an invoice it left alone."""
+        book = _unposted_book(tmp_path)
         edited = self._ledger_with(
             tmp_path, 'edited.txt',
             ('\t\tnotes: "Agreed rate for the first quarter, '
@@ -346,7 +393,7 @@ class TestAnEntryBlockDescribesTheWholeLine:
             self, tmp_path):
         """The other half, and the one a book pays for daily: the defaults
         the comparison reads have to be the defaults the import writes, or
-        every ordinary ledger would rebuild its documents on every run."""
+        every ordinary ledger would rebuild its invoices on every run."""
         book = tmp_path / 'ordinary.gnucash'
         made = CliRunner().invoke(cli, ['import', '--new', str(book),
                                         self.ORDINARY,
@@ -373,9 +420,18 @@ class TestEditingOneOfThemInTheLedger:
     """
 
     def _after_editing(self, tmp_path, source, wanted):
-        book = _book(tmp_path)
+        """Unpost first, then edit — which is what the import now requires.
+
+        A posted invoice's transaction is derived from its lines, so
+        changing a line means the posting has to be made again. Doing that
+        silently from an import is what these tests used to assert; it is
+        refused now, and `unpost-invoices` / `unpost-bills` are the step
+        that says out loud what is about to happen.
+        """
+        book = _unposted_book(tmp_path)
         edited = tmp_path / 'edited.txt'
-        text = Path(LEDGER).read_text(encoding='utf-8')
+        text = _without_the_posted_blocks(
+            Path(LEDGER).read_text(encoding='utf-8'))
         assert source in text, source
         edited.write_text(text.replace(source, wanted, 1), encoding='utf-8')
 
@@ -457,7 +513,7 @@ class TestEditingOneOfThemInTheLedger:
         assert line['billable'] is True
 
 
-class TestAKeyOfTheOtherDocument:
+class TestAKeyOfTheOtherKind:
     """`discount:` on a bill, `billable:` on an invoice: refused by name.
 
     Each side's setter reads only its own keys, so one of these would be read
@@ -524,13 +580,18 @@ class TestALineBilledToAJob:
     point is a book GnuCash can hand over, not one it wrote.
     """
 
-    def _billed_to_a_job(self, tmp_path):
+    def _billed_to_a_job(self, tmp_path, posted=True):
         import ctypes
 
         from gnucash import Query
         from gnucash.gnucash_business import Entry, Job
 
-        book_path = _book(tmp_path, 'job.gnucash')
+        # `posted=False` for the two tests that put the chargeback right
+        # from a ledger: that changes a line, which is not done under a
+        # posting, so the scenario is an unposted bill rather than one
+        # unposted halfway through the test.
+        book_path = (_book(tmp_path, 'job.gnucash') if posted
+                     else _unposted_book(tmp_path, 'job.gnucash'))
         repo = GnuCashRepository(str(book_path))
         repo.open(SessionMode.NORMAL)
         try:
@@ -571,7 +632,7 @@ class TestALineBilledToAJob:
 
         assert result.exit_code != 0, result.output
         # An export is the whole book, so a sentence about "a line" with
-        # nothing to find it by is not an answer. The document, the line and
+        # nothing to find it by is not an answer. The invoice, the line and
         # the job it names, all three.
         assert 'bill "BILL-EVERY-001"' in result.output, result.output
         assert 'Parts for the Henderson job' in result.output, result.output
@@ -594,7 +655,7 @@ class TestALineBilledToAJob:
         assert 'J-EVERY' in result.output, result.output
 
     def test_the_rest_of_the_book_is_still_refused_as_one(self, tmp_path):
-        """One document's refusal withholds the export, as any other does —
+        """One invoice's refusal withholds the export, as any other does —
         the file a book is rebuilt from is all of it or none."""
         book = self._billed_to_a_job(tmp_path)
         ledger = tmp_path / 'out.txt'
@@ -606,12 +667,15 @@ class TestALineBilledToAJob:
     def test_but_a_ledger_can_still_put_it_right(self, tmp_path):
         """The writer refuses; the *import* answers. A comparison's question
         is whether the entry matches the file, and a job matches neither a
-        stated customer nor nobody — so the document rebuilds and the ledger
+        stated customer nor nobody — so the invoice rebuilds and the ledger
         replaces the chargeback. Refused there too, such a book could be
         neither exported nor re-imported, and the GUI was the only way out."""
-        book = self._billed_to_a_job(tmp_path)
+        book = self._billed_to_a_job(tmp_path, posted=False)
+        ledger = tmp_path / 'put-right.txt'
+        ledger.write_text(_without_the_posted_blocks(
+            Path(LEDGER).read_text(encoding='utf-8')), encoding='utf-8')
 
-        result = CliRunner().invoke(cli, ['import', str(book), LEDGER,
+        result = CliRunner().invoke(cli, ['import', str(book), str(ledger),
                                           '--include-business-objects'])
 
         assert result.exit_code == 0, result.output
@@ -622,8 +686,11 @@ class TestALineBilledToAJob:
     def test_and_then_it_exports(self, tmp_path):
         """Which is the point of the round trip above: the book is writable
         again once the ledger has put the chargeback back to a customer."""
-        book = self._billed_to_a_job(tmp_path)
-        assert CliRunner().invoke(cli, ['import', str(book), LEDGER,
+        book = self._billed_to_a_job(tmp_path, posted=False)
+        put_right = tmp_path / 'put-right.txt'
+        put_right.write_text(_without_the_posted_blocks(
+            Path(LEDGER).read_text(encoding='utf-8')), encoding='utf-8')
+        assert CliRunner().invoke(cli, ['import', str(book), str(put_right),
                                         '--include-business-objects']
                                   ).exit_code == 0
         ledger = tmp_path / 'after.txt'
@@ -691,7 +758,7 @@ class TestAValueWrittenAsANumber:
         """The costlier direction, and the costliest key: read as
         `== 'true'`, `taxable: treu` imported as **not taxable**, and the
         flag decides the line's tax, every `breakdown:` block and the
-        document's totals — so a page printed afterwards agreed with itself
+        invoice's totals — so a page printed afterwards agreed with itself
         and re-imported `unchanged` against a book that had dropped the
         tax."""
         result, _ = self._imported(tmp_path, 'taxable: false',
@@ -723,7 +790,7 @@ class TestAValueWrittenAsANumber:
         """`True` decodes to a boolean and `1` to an integer, and the flag
         used to be compared against the string `true` — so both read as
         **not taxable**, on a key that decides the line's tax and every
-        figure the document states."""
+        figure the invoice states."""
         result, book = self._imported(tmp_path, 'taxable: false',
                                       'taxable: True')
 
@@ -756,8 +823,8 @@ class TestANoteWithAQuoteInIt:
 
     The reader unescapes every quoted value, so a note written raw came back
     a character shorter — and the comparison that decides `unchanged` reads
-    that same note. A posted document was therefore unposted, its entries
-    destroyed and rebuilt and the document posted again under a new
+    that same note. A posted invoice was therefore unposted, its entries
+    destroyed and rebuilt and the invoice posted again under a new
     transaction, on every import, for as long as the note held a quote.
     """
 
@@ -876,7 +943,7 @@ class TestANoteTypedOnTwoLines:
 
     def test_and_re_importing_it_changes_nothing(self, tmp_path):
         """The comparison reads the note too, so a note that came back
-        changed would rebuild the document on every run — unposting it,
+        changed would rebuild the invoice on every run — unposting it,
         destroying its entries and posting it again."""
         book = self._book_with_the_note(tmp_path)
         ledger = self._exported(book, tmp_path)
@@ -897,12 +964,12 @@ class TestARefusedLineLeavesTheBookAsItWas:
     so a refused line leaves no half-built entry in an open edit attached to
     nothing. The three words and the discount figure are resolved there too.
 
-    The document being re-imported has had its entries destroyed by then, so
-    what makes this safe is that nothing is saved: the refusal reaches the
-    command, which writes no file.
+    The lines before the refused one have been written by then — edited in
+    place, or created — so what makes this safe is that nothing is saved:
+    the refusal reaches the command, which writes no file.
     """
 
-    def test_the_document_still_holds_every_field(self, tmp_path):
+    def test_the_invoice_still_holds_every_field(self, tmp_path):
         book = _book(tmp_path)
         before = _entries(book)
 
@@ -994,16 +1061,16 @@ class TestWhatThePrintersWrite:
 
     Three commands write an `entry:` block, and each one used to assemble it
     itself. A field added to one and forgotten in the other two is how a
-    printed document came to say less than the ledger about the same line, so
+    printed invoice came to say less than the ledger about the same line, so
     the three share `services/plaintext_blocks.py` and this asks each printer
-    for the document the export test above reads.
+    for the invoice the export test above reads.
     """
 
-    def _printed(self, tmp_path, command, document):
+    def _printed(self, tmp_path, command, invoice):
         book = _book(tmp_path)
-        out = tmp_path / f'{document}.txt'
+        out = tmp_path / f'{invoice}.txt'
         result = CliRunner().invoke(cli, [
-            command, str(book), document, '--format', 'plaintext',
+            command, str(book), invoice, '--format', 'plaintext',
             '--output', str(out)])
         assert result.exit_code == 0, result.output
         return out.read_text(encoding='utf-8')
@@ -1029,9 +1096,9 @@ class TestWhatThePrintersWrite:
                          'payment_type: card'):
             assert expected in printed, (expected, printed)
 
-    def test_a_printed_document_reads_back_into_a_book_unchanged(
+    def test_a_printed_invoice_reads_back_into_a_book_unchanged(
             self, tmp_path):
-        """A printed document is a file a person imports, so the lines it
+        """A printed invoice is a file a person imports, so the lines it
         carries have to be the lines the importer already agrees with."""
         book = _book(tmp_path)
         out = tmp_path / 'printed.txt'
@@ -1080,7 +1147,7 @@ class TestTheRoundTrip:
                                          '--include-business-objects'])
 
         assert again.exit_code == 0, again.output
-        # By the line each document prints, not by the word "updated": the
+        # By the line each invoice prints, not by the word "updated": the
         # summary carries an `Updated:` label whatever happens, so searching
         # the whole output for it fails on a run where nothing changed.
         assert 'invoice "INV-EVERY-001": unchanged' in again.output, \

@@ -1,8 +1,8 @@
-# A receivable kept only to the tenth, and a document owed a figure finer
+# A receivable kept only to the tenth, and an invoice owed a figure finer
 # than that. Rounding what the credit takes to the nearest tenth rounds it
 # up — 30.05 owed becomes 30.10 taken — and the lot lands past zero, which is
 # the state dividing a credit exists to avoid. Taking the tenth below leaves
-# the document open for the difference, which is what it is owed.
+# the invoice open for the difference, which is what it is owed.
 2026-01-01 open Assets
 	type: Asset
 	commodity.namespace: "CURRENCY"

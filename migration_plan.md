@@ -23,7 +23,7 @@
 
 ## Executive Summary
 
-This document outlines the migration plan for refactoring the gnucash-plaintext project from a collection of scripts to a well-architected, maintainable CLI application using clean architecture principles.
+This plan outlines the migration for refactoring the gnucash-plaintext project from a collection of scripts to a well-architected, maintainable CLI application using clean architecture principles.
 
 ### Goals
 
@@ -2214,6 +2214,6 @@ gnucash-plaintext update --help
 
 ---
 
-**Document Version**: 1.0
+**Plan Version**: 1.0
 **Last Updated**: 2026-02-14
 **Next Review**: After Phase 0 completion

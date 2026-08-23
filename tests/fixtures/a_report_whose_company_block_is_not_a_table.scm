@@ -15,27 +15,27 @@
 ;; not a place to put anything.
 
 (define (a-report-with-a-textual-block-renderer report-obj)
-  (let* ((document (gnc:make-html-document))
+  (let* ((page (gnc:make-html-document))
          (options (gnc:report-options report-obj))
          (invoice (gnc:option-value
                     (gnc:lookup-option options "General" "Invoice Number")))
          (seller (gnc:make-html-text
                    (gnc:html-markup-p "MY COMPANY, WRITTEN OUT AS TEXT")))
          (entries (gnc:make-html-table)))
-    (gnc:html-document-set-title! document "A Report With A Textual Block")
+    (gnc:html-document-set-title! page "A Report With A Textual Block")
     ;; The block, with no table in it.
     (gnc:html-document-add-object!
-      document (gnc:make-html-div/markup "company-table" seller))
+      page (gnc:make-html-div/markup "company-table" seller))
     ;; And a table below it that is nothing to do with the seller.
     (gnc:html-table-append-row! entries (list "THE LINE ITEMS TABLE"))
     (gnc:html-table-append-row!
       entries
-      (list (string-append "document: "
+      (list (string-append "invoice: "
                            (if (and invoice (not (null? invoice)))
                                (gncInvoiceGetID invoice)
                                "none"))))
-    (gnc:html-document-add-object! document entries)
-    document))
+    (gnc:html-document-add-object! page entries)
+    page))
 
 (gnc:define-report
   'version 1

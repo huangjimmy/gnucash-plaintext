@@ -34,8 +34,8 @@ from infrastructure.gnucash.utils import FLAG_KEYS
 #: imported and exported, and the export is what is read below.
 LEDGERS = [
     'tests/fixtures/entries_with_every_field.txt',
-    'tests/fixtures/a_document_whose_lines_share_an_account.txt',
-    'tests/fixtures/a_credit_note_and_the_document_it_reverses.txt',
+    'tests/fixtures/an_invoice_whose_lines_share_an_account.txt',
+    'tests/fixtures/a_credit_note_and_the_invoice_it_reverses.txt',
     'tests/fixtures/business_objects.txt',
 ]
 
@@ -79,8 +79,8 @@ def test_every_flag_an_export_writes_is_a_typed_literal(tmp_path, ledger):
         f'{wrong}\n{text[:2000]}')
 
 
-@pytest.mark.parametrize('document', ['INV-EVERY-001', 'BILL-EVERY-001'])
-def test_and_so_is_every_flag_a_printed_document_writes(tmp_path, document):
+@pytest.mark.parametrize('invoice', ['INV-EVERY-001', 'BILL-EVERY-001'])
+def test_and_so_is_every_flag_a_printed_invoice_writes(tmp_path, invoice):
     """The printers assemble their own blocks, which is how they came to
     disagree with `export` about the same line before."""
     book = tmp_path / 'printed.gnucash'
@@ -89,17 +89,17 @@ def test_and_so_is_every_flag_a_printed_document_writes(tmp_path, document):
         'tests/fixtures/entries_with_every_field.txt',
         '--include-business-objects']).exit_code == 0
     page = tmp_path / 'page.txt'
-    command = 'print-invoice' if document.startswith('INV') else 'print-bill'
+    command = 'print-invoice' if invoice.startswith('INV') else 'print-bill'
     assert CliRunner().invoke(cli, [
-        command, str(book), document, '--format', 'plaintext',
+        command, str(book), invoice, '--format', 'plaintext',
         '--output', str(page)]).exit_code == 0
 
     written = _flags_written(page.read_text(encoding='utf-8'))
 
-    assert written, f'no flags on the printed {document}'
+    assert written, f'no flags on the printed {invoice}'
     wrong = [(key, value) for key, value in written
              if value not in ('#True', '#False')]
-    assert not wrong, f'{document}: {wrong}'
+    assert not wrong, f'{invoice}: {wrong}'
 
 
 def test_the_list_is_not_quietly_empty(tmp_path):
@@ -119,8 +119,8 @@ def test_the_list_is_not_quietly_empty(tmp_path):
     # the asking. No export writes either.
     #
     # `from_credit:` is written, by both the export and the printers, but
-    # only for a document a credit settled — which none of these hold.
-    # `test_printing_a_credit_settled_document.py` and
+    # only for an invoice a credit settled — which none of these hold.
+    # `test_printing_a_credit_settled_invoice.py` and
     # `test_credit_reimport_changes_nothing.py` are where its spelling is
     # asserted.
     assert FLAG_KEYS - seen == {'auto_apply_credit', 'cost_basis_force',

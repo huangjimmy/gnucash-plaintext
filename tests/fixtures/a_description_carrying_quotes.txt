@@ -2,8 +2,8 @@
 #
 # A double quote ends a beancount string, a semicolon starts a comment, and a
 # backslash escapes whatever follows it. All three turn up in ordinary text — a
-# supplier named in quotes, a note with a clause in it, a Windows path in a
-# document link. Written into the export raw, the file this tool produced could
+# supplier named in quotes, a note with a clause in it, a Windows path in an
+# invoice link. Written into the export raw, the file this tool produced could
 # not be read by this tool: the description ran to the first inner quote and
 # the rest of the line was not a header, so the parse refused, and a refused
 # parse takes the whole ledger rather than one entry.

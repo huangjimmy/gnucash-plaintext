@@ -5,7 +5,7 @@
 # be put back — so what is left over after this invoice takes its 40.00 is
 # still that. Dividing it must leave the remaining 60.00 marked as the
 # settlement it is, and must not open a cost basis for it: the basis of the
-# document that deposit settled sits on that document's posting split, and
+# invoice that deposit settled sits on that invoice's posting split, and
 # pricing the residue at *this* invoice's rate would report a gain the
 # customer's money never made.
 #

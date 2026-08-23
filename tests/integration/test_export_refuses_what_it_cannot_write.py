@@ -128,7 +128,7 @@ def _book_with_an_offender_on_each_side():
     """A sub-cent payment amount *and* an unrelated sub-cent bank split.
 
     One offender for each half of `--include-business-objects`: the payment
-    figure the documents section writes, and an ordinary split the
+    figure the invoices section writes, and an ordinary split the
     transactions section writes. Nothing links them, so a run that names only
     one is a run that stopped at the first list.
     """
@@ -397,7 +397,7 @@ class TestTheBusinessObjectsHalf:
 
         The same split is in the transaction section too, and that refusal
         would satisfy an assertion on `50.005` alone — so this asserts the one
-        string only the business-objects guard writes, and the document it
+        string only the business-objects guard writes, and the invoice it
         now names.
         """
         path = _book_with_a_sub_cent_payment()
@@ -470,9 +470,9 @@ class TestSeveralOffenders:
 class TestAnOffenderOnEachSide:
     """Both lists are gathered, so the book is still fixed in one pass.
 
-    Each half gathers its own offenders, but the documents are written first
+    Each half gathers its own offenders, but the invoices are written first
     and refused before the transactions section was ever formatted — so a book
-    with one of each named only the document, and the reader who corrected it
+    with one of each named only the invoice, and the reader who corrected it
     met the split on the next run. Two runs to learn two figures, out of a
     guard whose whole purpose is that a book of thousands is not fixed one run
     at a time.
@@ -486,7 +486,7 @@ class TestAnOffenderOnEachSide:
                 '--include-business-objects'])
 
             assert result.exit_code != 0, result.output
-            # The payment, from the documents half...
+            # The payment, from the invoices half...
             assert 'invoice "INV-FINE-OVER"' in result.output, result.output
             assert '30.005' in result.output, result.output
             # ...and the ordinary split, from the transactions half.
@@ -508,17 +508,17 @@ class TestAnOffenderOnEachSide:
                 os.unlink(path)
 
 
-class TestSeveralOffendingDocuments:
+class TestSeveralOffendingInvoices:
     """The business-objects half gathers them too.
 
-    It refused on the first document, so a book with several unwritable
+    It refused on the first invoice, so a book with several unwritable
     payment amounts took one run per payment — and since the business objects
     are written before the transactions section, that book's transaction-level
     offenders were never reported at all. The same principle as the
     transaction export above, which had the opposite behaviour.
     """
 
-    def test_both_documents_are_named_in_a_single_run(self, tmp_path):
+    def test_both_invoices_are_named_in_a_single_run(self, tmp_path):
         path = _book_with_two_sub_cent_payments()
         try:
             result = CliRunner().invoke(cli, [
@@ -534,7 +534,7 @@ class TestSeveralOffendingDocuments:
                 os.unlink(path)
 
     def test_both_figures_are_shown(self, tmp_path):
-        """Naming the documents is not enough to go and fix them by."""
+        """Naming the invoices is not enough to go and fix them by."""
         path = _book_with_two_sub_cent_payments()
         try:
             result = CliRunner().invoke(cli, [
@@ -548,7 +548,7 @@ class TestSeveralOffendingDocuments:
                 os.unlink(path)
 
     def test_nothing_is_written(self, tmp_path):
-        """Collecting them does not mean writing the documents that were fine."""
+        """Collecting them does not mean writing the invoices that were fine."""
         path = _book_with_two_sub_cent_payments()
         out = tmp_path / 'out.txt'
         try:

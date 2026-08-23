@@ -50,7 +50,7 @@ When Num is set, the exporter always writes two quoted strings; the second is `"
 
 `TransactionMatcher.get_signature` is extended from a 3-tuple to a 5-tuple. `get_signature_for_plaintext`, `has_duplicate_signature`, `find_duplicates`, and `get_duplicate_count` accept and pass through the two new fields. All three discriminators (`doc_link`, `tx_num`, `owner`) meet the same criteria the matcher's docstring already requires — explicit, user-set or business-module-set, faithfully round-tripped:
 
-- `doc_link` — explicit author-set link to a receipt or external document. Round-tripped via `SetDocLink`/`GetDocLink`.
+- `doc_link` — explicit author-set link to a receipt or external file. Round-tripped via `SetDocLink`/`GetDocLink`.
 - `tx_num` — free-text `Transaction.GetNum()`. Users may store check numbers, statement refs, payee tags, workflow codes — GnuCash itself doesn't prescribe semantics.
 - `owner` — `vendor:V001` / `customer:C001`. Set by GnuCash's business module on invoice/bill posting transactions and payments; round-tripped via the `owner:` metadata line. The matcher reads it via `gncOwnerGetOwnerFromTxn` (C-level), with a custom-KVP slot fallback for plaintext-roundtripped transactions (which carry owner in KVP because `gncOwnerCopyOnTxn` is a no-op from Python in GnuCash 5.x — see `infrastructure/gnucash/kvp.py:38-46`).
 

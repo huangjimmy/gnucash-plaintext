@@ -91,6 +91,23 @@ def _bank_tx_guids(gf, account_name='Assets.Bank'):
         repo.close()
 
 
+def _assert_refused_as_posted(result, command):
+    """An entry edit under a posted invoice is refused, not carried out.
+
+    These four paths used to unpost, rebuild and repost, and the test below
+    them asserted the warning that came with it. There is nothing to warn
+    about now: the import does not touch the invoice, so no payment is
+    orphaned and nothing is written. `unpost-invoices` / `unpost-bills`
+    still warn, and `test_unpost_invoice_bill.py` is where that is asserted.
+    """
+    message = result.output + str(result.exception)
+    assert result.exit_code != 0, message
+    assert 'is posted, and this file changes it' in message, message
+    assert command in message, message
+    assert 'orphan' not in result.output.lower(), (
+        f"Nothing was unposted, so nothing was orphaned:\n{result.output}")
+
+
 def _assert_orphan_warning(output, payment_guid):
     """Per Q-014's per-record warning shape, the user must see the
     payment GUID and the word 'orphan' (or equivalent) so they can
@@ -110,10 +127,9 @@ def _assert_orphan_warning(output, payment_guid):
 
 # -- invoice: each destructive path warns + does not duplicate orphans ----
 
-def test_reimport_entry_modify_on_paid_invoice_warns_and_does_not_duplicate(tmp_path):
-    """INV-DEST-EMOD-100: modify the entry description on a paid invoice
-    must trigger destructive rebuild + orphan warning; re-running it must
-    not accumulate orphans."""
+def test_reimport_entry_modify_on_paid_invoice_is_refused(tmp_path):
+    """INV-DEST-EMOD-100: modifying the entry description on a paid invoice
+    is refused, and the payment that settled it is left where it was."""
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
 
@@ -123,54 +139,73 @@ def test_reimport_entry_modify_on_paid_invoice_warns_and_does_not_duplicate(tmp_
     assert len(original_payment_guids) == 1
 
     r = _import(runner, gf, 'q015_dest_inv_entrymod_v2.txt', tmp_path, alias='v2.txt')
-    assert r.exit_code == 0, f'v2: {r.output}'
-    _assert_orphan_warning(r.output, next(iter(original_payment_guids)))
-    orphans_after_one = _orphan_count(runner, gf)
-    assert orphans_after_one >= 1
+    _assert_refused_as_posted(r, 'unpost-invoices')
 
-    # Idempotency: re-running the SAME v2 must not produce more orphans.
+    # The payment is still the one it was, settling the same posting.
+    assert _bank_tx_guids(gf) == original_payment_guids
+    assert _orphan_count(runner, gf) == 0
+
+    # And it refuses the same way every time — the idempotency this used to
+    # need was the idempotency of a rebuild that no longer happens.
     r = _import(runner, gf, 'q015_dest_inv_entrymod_v2.txt', tmp_path,
                 alias='v2_again.txt')
-    assert r.exit_code == 0
-    assert _orphan_count(runner, gf) == orphans_after_one, (
-        f'orphan count drifted on idempotent re-run: '
-        f'{orphans_after_one} -> {_orphan_count(runner, gf)}'
-    )
+    _assert_refused_as_posted(r, 'unpost-invoices')
+    assert _orphan_count(runner, gf) == 0
 
 
-def test_reimport_entry_added_on_paid_invoice_warns(tmp_path):
-    """INV-DEST-EADD-105: adding a second entry to a paid invoice triggers
-    destructive rebuild and an orphan warning."""
+def test_reimport_entry_added_on_paid_invoice_is_refused(tmp_path):
+    """INV-DEST-EADD-105: adding a second entry to a paid invoice is a
+    changed set of lines, so it is refused like any other."""
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
 
     r = _import(runner, gf, 'q015_dest_inv_entryadd_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_inv_entryadd_v2.txt', tmp_path, alias='v2.txt')
-    assert r.exit_code == 0
-    _assert_orphan_warning(r.output, original_payment_guid)
+    _assert_refused_as_posted(r, 'unpost-invoices')
 
 
-def test_reimport_entry_removed_on_paid_invoice_warns(tmp_path):
-    """INV-DEST-ERM-110: removing an entry from a paid invoice triggers
-    destructive rebuild and an orphan warning."""
+def test_reimport_entry_removed_on_paid_invoice_is_refused(tmp_path):
+    """INV-DEST-ERM-110: removing a line from a paid invoice, likewise."""
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
 
     r = _import(runner, gf, 'q015_dest_inv_entryrm_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_inv_entryrm_v2.txt', tmp_path, alias='v2.txt')
+    _assert_refused_as_posted(r, 'unpost-invoices')
+
+
+def test_reimport_posted_block_change_on_paid_invoice_is_refused(tmp_path):
+    """INV-DEST-POSTCHG-115: changing the posted memo of a *posted* invoice
+    is refused rather than rebuilt through.
+
+    The rebuild it used to trigger is the destructive one this file is
+    about: the posting destroyed, the payment left settling a transaction
+    that no longer exists, and a warning about it — all from one edited
+    word, reported as `updated`. A posted invoice takes a `payment:`
+    block and nothing else; the rest is asked for out loud with
+    `unpost-invoices`, and the orphan warning belongs to that command.
+    """
+    runner = CliRunner()
+    gf = _setup_book(runner, tmp_path)
+
+    r = _import(runner, gf, 'q015_dest_inv_postedchg_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    _assert_orphan_warning(r.output, original_payment_guid)
+    before = _bank_tx_guids(gf)
+
+    r = _import(runner, gf, 'q015_dest_inv_postedchg_v2.txt', tmp_path, alias='v2.txt')
+
+    assert r.exit_code != 0, r.output
+    assert 'unpost-invoices' in r.output, r.output
+    # Nothing was unposted, so nothing was orphaned.
+    assert _bank_tx_guids(gf) == before, (before, _bank_tx_guids(gf))
 
 
-def test_reimport_posted_block_change_on_paid_invoice_warns(tmp_path):
-    """INV-DEST-POSTCHG-115: changing the posted memo triggers destructive
-    rebuild and an orphan warning."""
+def test_and_the_orphan_warning_comes_from_the_unpost_it_names(tmp_path):
+    """Where the warning belongs: the command that does the unposting."""
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
 
@@ -178,9 +213,11 @@ def test_reimport_posted_block_change_on_paid_invoice_warns(tmp_path):
     assert r.exit_code == 0
     original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
-    r = _import(runner, gf, 'q015_dest_inv_postedchg_v2.txt', tmp_path, alias='v2.txt')
-    assert r.exit_code == 0
-    _assert_orphan_warning(r.output, original_payment_guid)
+    unposted = runner.invoke(cli, ['unpost-invoices', str(gf),
+                                   'INV-DEST-POSTCHG-115'])
+
+    assert unposted.exit_code == 0, unposted.output
+    _assert_orphan_warning(unposted.output, original_payment_guid)
 
 
 def test_reimport_posted_none_on_paid_invoice_warns(tmp_path):
@@ -240,19 +277,16 @@ def test_reimport_payment_removed_on_paid_invoice_warns(tmp_path):
 
 # -- bill counterparts ----------------------------------------------------
 
-def test_reimport_entry_modify_on_paid_bill_warns(tmp_path):
-    """BILL-DEST-EMOD-140: bill entry modify triggers destructive rebuild
-    and orphan warning."""
+def test_reimport_entry_modify_on_paid_bill_is_refused(tmp_path):
+    """BILL-DEST-EMOD-140: the bill half, naming `unpost-bills`."""
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
 
     r = _import(runner, gf, 'q015_dest_bill_entrymod_v1.txt', tmp_path, alias='v1.txt')
     assert r.exit_code == 0
-    original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
     r = _import(runner, gf, 'q015_dest_bill_entrymod_v2.txt', tmp_path, alias='v2.txt')
-    assert r.exit_code == 0
-    _assert_orphan_warning(r.output, original_payment_guid)
+    _assert_refused_as_posted(r, 'unpost-bills')
 
 
 def test_reimport_posted_none_on_paid_bill_warns(tmp_path):
@@ -272,9 +306,11 @@ def test_reimport_posted_none_on_paid_bill_warns(tmp_path):
 
 # -- negative controls ----------------------------------------------------
 
-def test_reimport_entry_modify_on_unpaid_invoice_does_not_warn(tmp_path):
-    """INV-DEST-UNPAID-150: if there are no payments to orphan, the
-    destructive rebuild should run quietly (no orphan warning)."""
+def test_reimport_entry_modify_on_unpaid_invoice_is_refused_too(tmp_path):
+    """INV-DEST-UNPAID-150: having nothing to orphan does not make the edit
+    safe. The invoice is posted, so its transaction is derived from the line
+    being changed, and it is refused like a paid one — with nothing said
+    about orphans, because there are none either way."""
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
 
@@ -282,10 +318,7 @@ def test_reimport_entry_modify_on_unpaid_invoice_does_not_warn(tmp_path):
     assert r.exit_code == 0
 
     r = _import(runner, gf, 'q015_dest_unpaid_v2.txt', tmp_path, alias='v2.txt')
-    assert r.exit_code == 0
-    assert 'orphan' not in r.output.lower(), (
-        f"Unpaid invoice re-import must NOT mention 'orphan'. Output:\n{r.output}"
-    )
+    _assert_refused_as_posted(r, 'unpost-invoices')
 
 
 def test_identical_reimport_does_not_warn(tmp_path):

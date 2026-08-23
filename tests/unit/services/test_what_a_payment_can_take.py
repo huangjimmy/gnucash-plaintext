@@ -1,7 +1,7 @@
-"""How much of what a document owes a payment can actually take.
+"""How much of what an invoice owes a payment can actually take.
 
 Floored to the unit the account is kept to, never rounded up: rounding up
-settles more than is owed and takes the lot past zero, where the document reads
+settles more than is owed and takes the lot past zero, where the invoice reads
 neither settled nor open and the owner's money is inside a lot they cannot
 spend from.
 
@@ -49,7 +49,7 @@ def test_a_residue_finer_than_one_unit_leaves_nothing_to_take():
     """Which is what the refusal beside it is for.
 
     Taken as zero and applied anyway, the division writes a 0.00 split into the
-    document's lot, tagged as though a credit had been spent on it, while the
+    invoice's lot, tagged as though a credit had been spent on it, while the
     credit itself is untouched — and the export writes that split back out as
     `amount: 0.00`, a file this importer then refuses.
     """
@@ -109,13 +109,13 @@ def test_a_payment_is_not_judged_against_a_figure_in_another_currency():
 
     A block naming only its transaction is what a bank feed's transactions are
     attached with, and the side that is not the bank can be an Imbalance split
-    in the bank's currency rather than the document's. `amount:` is written in
-    the document's money. Compared anyway, a 74.00 of one currency reads as
+    in the bank's currency rather than the invoice's. `amount:` is written in
+    the invoice's money. Compared anyway, a 74.00 of one currency reads as
     falling short of a 100.00 of another and the file is refused for a
     shortfall that exists only in the arithmetic.
 
     Driven directly because no file reaches it: it needs a transaction whose
-    other side is in neither the document's currency nor the bank's, which is
+    other side is in neither the invoice's currency nor the bank's, which is
     a book this tool does not write.
     """
     receivable = FakeAccountIn(100, 'USD')

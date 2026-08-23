@@ -6,7 +6,7 @@
 ;; indistinguishable from them, so `--report "A Report Of Your Own"` finds it.
 ;;
 ;; Deliberately not a copy of an invoice report — it prints one unmistakable
-;; sentence and the document's id — because what the test is asking is "did
+;; sentence and the invoice's id — because what the test is asking is "did
 ;; *my* report draw this page", and a page that looks like GnuCash's cannot
 ;; answer that.
 ;;
@@ -23,13 +23,13 @@
 ;; whichever one you are on.
 
 (define (a-report-of-your-own-renderer report-obj)
-  (let* ((document (gnc:make-html-document))
+  (let* ((page (gnc:make-html-document))
          (options (gnc:report-options report-obj))
          (invoice (gnc:option-value
                     (gnc:lookup-option options "General" "Invoice Number"))))
-    (gnc:html-document-set-title! document "A Report Of Your Own")
+    (gnc:html-document-set-title! page "A Report Of Your Own")
     (gnc:html-document-add-object!
-      document
+      page
       (gnc:make-html-text
         (gnc:html-markup-p
           "THIS PAGE WAS DRAWN BY A REPORT OF MY OWN")
@@ -46,11 +46,11 @@
             (gnc:option-value
               (gnc:lookup-option options "Display" "Extra Notes"))))
         (gnc:html-markup-p
-          (string-append "document: "
+          (string-append "invoice: "
                          (if (and invoice (not (null? invoice)))
                              (gncInvoiceGetID invoice)
                              "none")))))
-    document))
+    page))
 
 ;; The guid is written in upper case on purpose. `uuidgen` on macOS prints
 ;; upper case, so a `.scm` naturally says `'report-guid "B0DC…"` — and the

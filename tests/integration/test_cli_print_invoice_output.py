@@ -2,7 +2,7 @@
 
 Its sibling file prints one invoice to PDF and otherwise covers refusals, so
 the plaintext and HTML renderers, the per-file output mode and the combining
-of several invoices into one document were code no test ran (T-009). The bill side is covered the same way, in
+of several invoices into one page were code no test ran (T-009). The bill side is covered the same way, in
 `test_cli_print_bill_output.py`; the two commands are separate implementations
 of the same shape and neither stands in for the other.
 """
@@ -60,7 +60,7 @@ class TestPlaintext:
 
 
 class TestHtml:
-    def test_several_invoices_combine_into_one_document(self, book, tmp_path):
+    def test_several_invoices_combine_into_one_page(self, book, tmp_path):
         """One outer shell, whatever the per-invoice fragments carry."""
         out = tmp_path / 'all.html'
         result = CliRunner().invoke(cli, [

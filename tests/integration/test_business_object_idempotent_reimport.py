@@ -458,9 +458,17 @@ class TestPostedToPostedReimport:
     Q-010 must handle when the existing record is posted:
 
       1. directive matches existing      → 'unchanged' (no-op)
-      2. directive entry differs         → unpost, rebuild, repost → 'updated'
+      2. directive entry differs         → refused, naming `unpost-invoices`
       3. directive posted block differs  → unpost, rebuild, repost → 'updated'
       4. directive sets posted: none     → unpost, leave unposted   → 'updated'
+
+    Scenario 2 changed. A posted invoice's transaction is derived from its
+    lines, so editing a line means the posting has to be made again — and
+    doing that from an import did it silently: unposted the invoice,
+    destroyed and rebuilt every line, posted it again under a **new**
+    transaction, and left whatever had settled it pointing at a transaction
+    that no longer existed. The invoice is unposted first now, by a command
+    that says so.
     """
 
     def test_posted_invoice_no_change_is_unchanged(self, tmp_path):
@@ -478,35 +486,41 @@ class TestPostedToPostedReimport:
         text = _exported_biz_text(runner, tmp_path, gnc)
         assert _count_blocks(text, 'invoice "INV-001"') == 1
 
-    def test_posted_invoice_entry_change_unposts_and_reposts(self, tmp_path):
-        """Editing an entry on a posted invoice must trigger Unpost → rebuild
-        → PostToAccount, and report 'updated'. The new posted state must
-        match the directive (quantity 2, not 1)."""
+    def test_posted_invoice_entry_change_is_refused(self, tmp_path):
+        """Editing a line under a posted invoice is refused, and the refusal
+        names the command that unposts it. The book is left exactly as it
+        was — the quantity is still 1."""
         runner = CliRunner()
         fixture = _fixture('q010_invoice_posted')
         gnc = _setup_book_with(runner, tmp_path, fixture)
         edited = fixture.replace('\t\tquantity: 1\n', '\t\tquantity: 2\n')
         r = _import(runner, gnc, _write(tmp_path / "edited.txt",
                                         ACCOUNTS + "\n" + edited))
-        assert r.exit_code == 0, r.output
-        assert 'invoice "INV-001": updated' in r.output, (
-            f"Posted-invoice entry edit must report 'updated' (unpost-repost "
-            f"cycle). Got:\n{r.output}"
-        )
+        message = r.output + str(r.exception)
+        assert r.exit_code != 0, message
+        assert 'is posted, and this file changes it' in message, message
+        assert 'unpost-invoices' in message, message
+
         text = _exported_biz_text(runner, tmp_path, gnc)
         block = _block_for(text, 'invoice "INV-001"')
-        # Verify the rebuilt entry has quantity 2 (not 1) and is still posted.
-        assert any('quantity: 2' in line for line in block), (
-            "Rebuilt entry must show quantity: 2:\n" + "\n".join(block)
-        )
+        assert any('quantity: 1' in line for line in block), (
+            "The refused import must leave the line alone:\n"
+            + "\n".join(block))
         assert any('posted:' in line and 'none' not in line for line in block), (
-            "Invoice must remain posted after edit:\n" + "\n".join(block)
-        )
+            "and must leave it posted:\n" + "\n".join(block))
 
-    def test_posted_invoice_memo_change_reposts(self, tmp_path):
-        """Editing the posted-block memo must trigger Unpost → repost with
-        the new memo. The posting transaction's description (set from
-        memo) is the externally-observable signal."""
+    def test_posted_invoice_memo_change_is_refused_until_it_is_unposted(
+            self, tmp_path):
+        """Rewriting the posted-block memo means unposting and posting
+        again, so it is asked for out loud or not at all.
+
+        A posted invoice takes a `payment:` block and nothing else. Every
+        other change destroys the posting transaction the book has booked
+        and mints another, which nothing in the figures shows: the
+        balances are the same, and a reconciliation or a statement line
+        that named the old one now names nothing. Done quietly on the
+        strength of one edited word, that is a `Updated: 1` and no more.
+        """
         runner = CliRunner()
         fixture = _fixture('q010_invoice_posted')
         gnc = _setup_book_with(runner, tmp_path, fixture)
@@ -516,13 +530,35 @@ class TestPostedToPostedReimport:
         )
         r = _import(runner, gnc, _write(tmp_path / "memo_edit.txt",
                                         ACCOUNTS + "\n" + edited))
-        assert r.exit_code == 0, r.output
-        assert 'invoice "INV-001": updated' in r.output, r.output
+
+        assert r.exit_code != 0, r.output
+        assert 'unpost-invoices' in r.output, r.output
+        # And the book is untouched: the posting still says what it said.
         text = _exported_biz_text(runner, tmp_path, gnc)
         block = _block_for(text, 'invoice "INV-001"')
-        assert any('Invoice INV-001 (corrected)' in line for line in block), (
-            "Posted memo must be rewritten on re-import:\n" + "\n".join(block)
+        assert any('memo: "Invoice INV-001"' in line for line in block), \
+            "\n".join(block)
+
+    def test_and_goes_through_once_it_has_been_unposted(self, tmp_path):
+        """The way the refusal names, end to end."""
+        runner = CliRunner()
+        fixture = _fixture('q010_invoice_posted')
+        gnc = _setup_book_with(runner, tmp_path, fixture)
+        edited = fixture.replace(
+            'memo: "Invoice INV-001"',
+            'memo: "Invoice INV-001 (corrected)"',
         )
+        unposted = runner.invoke(cli, ['unpost-invoices', str(gnc), 'INV-001'])
+        assert unposted.exit_code == 0, unposted.output
+
+        r = _import(runner, gnc, _write(tmp_path / "memo_edit.txt",
+                                        ACCOUNTS + "\n" + edited))
+
+        assert r.exit_code == 0, r.output
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        block = _block_for(text, 'invoice "INV-001"')
+        assert any('Invoice INV-001 (corrected)' in line for line in block), \
+            "\n".join(block)
 
     def test_posted_invoice_to_posted_none_unposts(self, tmp_path):
         """Going from posted → posted: none on re-import is a real change:
@@ -557,20 +593,24 @@ class TestPostedToPostedReimport:
             f"{r.output}"
         )
 
-    def test_posted_bill_entry_change_unposts_and_reposts(self, tmp_path):
+    def test_posted_bill_entry_change_is_refused(self, tmp_path):
+        """The bill half of the same rule, naming `unpost-bills`."""
         runner = CliRunner()
         fixture = _fixture('q010_bill_posted')
         gnc = _setup_book_with(runner, tmp_path, fixture)
         edited = fixture.replace('\t\tquantity: 1\n', '\t\tquantity: 3\n')
         r = _import(runner, gnc, _write(tmp_path / "edited.txt",
                                         ACCOUNTS + "\n" + edited))
-        assert r.exit_code == 0, r.output
-        assert 'bill "BILL-001": updated' in r.output, r.output
+        message = r.output + str(r.exception)
+        assert r.exit_code != 0, message
+        assert 'is posted, and this file changes it' in message, message
+        assert 'unpost-bills' in message, message
+
         text = _exported_biz_text(runner, tmp_path, gnc)
         block = _block_for(text, 'bill "BILL-001"')
-        assert any('quantity: 3' in line for line in block), (
-            "Rebuilt bill entry must show quantity: 3:\n" + "\n".join(block)
-        )
+        assert any('quantity: 1' in line for line in block), (
+            "The refused import must leave the line alone:\n"
+            + "\n".join(block))
 
     def test_posted_bill_to_posted_none_unposts(self, tmp_path):
         runner = CliRunner()
@@ -912,23 +952,52 @@ class TestObjectBlockGuidValidation:
         guid = _field_in_block(_block_for(text, 'customer "C001"'), 'guid', strip_quotes=True)
         assert guid == "b2b3b2b3b2b3b2b3b2b3b2b3b2b3b2b4"
 
-    def test_unquoted_all_digit_guid_errors_with_clear_message(self, tmp_path):
-        """Unquoted all-digit guids are lossy (parser converts to int) — must
-        be rejected with a message asking the user to quote."""
+    def test_unquoted_all_digit_guid_works_too(self, tmp_path):
+        """All-digit hex is as unambiguous as mixed hex, and reads alike.
+
+        The parser turns an unquoted number into an `int`, and `int` of
+        `00000000000000000000000000000022` is 22 — the digit count gone
+        with the quotes. That is a fact about the parser, not about the
+        format, so the value keeps the digits it was written with and the
+        guid is the ones in the file.
+        """
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, "")
+        wrote = '00000000000000000000000000000022'
+        ok = (
+            'customer "C001"\n'
+            f'\tguid: {wrote}\n'
+            '\tname: "Acme"\n'
+            '\tcurrency: CAD\n'
+        )
+        r = _import(runner, gnc, _write(tmp_path / "ok.txt", ok))
+        assert r.exit_code == 0, (
+            f"Unquoted all-digit guid must be accepted:\n{r.output}"
+        )
+        text = _exported_biz_text(runner, tmp_path, gnc)
+        guid = _field_in_block(_block_for(text, 'customer "C001"'), 'guid', strip_quotes=True)
+        assert guid == wrote
+
+    def test_a_guid_too_short_to_be_one_is_refused_as_written(self, tmp_path):
+        """And what it is refused for is what the file says, not a number.
+
+        `guid: 22` is two characters, not a guid, and the message names
+        the two characters. Read as the number 22 there was nothing to
+        name: every remedy the error could offer was a guid nobody wrote —
+        padded to 32 characters in one base or another, and stored under
+        that, the object would carry a guid chosen by the padding.
+        """
         runner = CliRunner()
         gnc = _setup_book_with(runner, tmp_path, "")
         bad = (
             'customer "C001"\n'
-            '\tguid: 22222222222222222222222222222222\n'
+            '\tguid: 22\n'
             '\tname: "Acme"\n'
             '\tcurrency: CAD\n'
         )
         r = _import(runner, gnc, _write(tmp_path / "bad.txt", bad))
-        assert r.exit_code != 0, "Unquoted all-digit guid must error"
-        out = r.output.lower()
-        assert "quote" in out or "string" in out, (
-            f"Error must hint at quoting; got:\n{r.output}"
-        )
+        assert r.exit_code != 0, "A guid of two characters must error"
+        assert "'22'" in r.output, r.output
 
     def test_malformed_guid_errors(self, tmp_path):
         """guid: 'hello' must surface as an invalid-format error."""
@@ -1643,21 +1712,35 @@ class TestUnpostedToPostedTransition:
             f"Posting an unposted invoice should report 'updated':\n{r.output}"
         )
 
-    def test_posted_invoice_notes_change_unposts_and_reposts(self, tmp_path):
-        """Q-010: posted invoices ARE editable via re-import (unpost → edit
-        → repost), matching what GnuCash's UI itself supports. Adding a
-        notes field to a posted invoice triggers the unpost-repost cycle
-        and the new notes appear in the exported invoice."""
+    def test_posted_invoice_notes_change_needs_the_unpost_asked_for(
+            self, tmp_path):
+        """A posted invoice is editable through re-import, in two steps.
+
+        Adding a `notes:` line to a posted invoice used to unpost it,
+        rebuild it and post it again — the posting transaction destroyed
+        and another minted, on the strength of a line of prose that has
+        nothing to do with the posting. A posted invoice takes a
+        `payment:` block and nothing else; everything else says so first,
+        and the two-step route puts the invoice back on the posting it
+        already had.
+        """
         runner = CliRunner()
         gnc = _setup_book_with(runner, tmp_path, _INVOICE_POSTED)
         with_notes = _INVOICE_POSTED.replace(
             'invoice "INV-001"\n',
             'invoice "INV-001"\n\tnotes: "Updated after the fact"\n',
         )
-        r = _import(runner, gnc, _write(tmp_path / "with_notes.txt",
-                                        ACCOUNTS + "\n" + with_notes))
+        path = _write(tmp_path / "with_notes.txt", ACCOUNTS + "\n" + with_notes)
+
+        refused = _import(runner, gnc, path)
+        assert refused.exit_code != 0, refused.output
+        assert 'unpost-invoices' in refused.output, refused.output
+
+        unposted = runner.invoke(cli, ['unpost-invoices', str(gnc), 'INV-001'])
+        assert unposted.exit_code == 0, unposted.output
+        r = _import(runner, gnc, path)
+
         assert r.exit_code == 0, r.output
-        assert 'invoice "INV-001": updated' in r.output, r.output
         text = _exported_biz_text(runner, tmp_path, gnc)
         block = _block_for(text, 'invoice "INV-001"')
         assert any('Updated after the fact' in line for line in block), (

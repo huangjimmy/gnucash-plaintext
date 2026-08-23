@@ -52,6 +52,7 @@ invoice "INV-001"
 	currency: CAD
 	date_opened: 2026-01-01
 	entry:
+		guid: "ee55ee55ee55ee55ee55ee55ee55ee55"
 		date: 2026-01-01
 		description: "Service"
 		action: "Hours"
@@ -74,6 +75,7 @@ bill "BILL-001"
 	currency: CAD
 	date_opened: 2026-01-01
 	entry:
+		guid: "ff66ff66ff66ff66ff66ff66ff66ff66"
 		date: 2026-01-01
 		description: "Supplies"
 		action: ""

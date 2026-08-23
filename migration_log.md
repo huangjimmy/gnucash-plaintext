@@ -8,7 +8,7 @@
 
 ## How to Use This Log
 
-This document tracks daily progress, decisions, and blockers during the migration. Each entry should include:
+This log tracks daily progress, decisions, and blockers during the migration. Each entry should include:
 
 - **Date**: When the work was done
 - **Phase**: Which phase from `migration_plan.md`
@@ -166,11 +166,11 @@ def test_transaction_matcher(temp_gnucash_file):
 **User Feedback**:
 - Questioned: "Why separate strategy doc? Isn't strategy part of the plan?"
 
-**Decision Made**: ✅ **Integrate co-existence strategy into main plan document**
+**Decision Made**: ✅ **Integrate co-existence strategy into the main plan**
 
 **Rationale**:
 - Strategy is intrinsic to how we execute the migration
-- Having it in the same document makes it easier to reference during each phase
+- Having it in the same file makes it easier to reference during each phase
 - Reduces documentation fragmentation
 - One source of truth
 
@@ -195,7 +195,7 @@ Content covers:
 **Impact**:
 - ✅ Clear guidance for each phase on handling old code
 - ✅ Reduces confusion during development
-- ✅ One document to maintain
+- ✅ One file to maintain
 - ✅ Easier to track what gets deleted when
 
 ---

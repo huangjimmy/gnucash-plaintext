@@ -10,13 +10,13 @@ which key it landed in:
 - read as "not one of the falsy words" — `auto_apply_credit:`, `from_credit:`,
   `active:`, `closing:`, `billable:` — a typo read as **true**, which is the
   costly direction on each of them: `auto_apply_credit: treu` spends the
-  owner's credit against a document the file never asked to settle that way;
+  owner's credit against an invoice the file never asked to settle that way;
 - and `payment_type:` was refused by name, which is what the rest do now.
 
 `accumulate:` is the one whose effect is visible in the book, so it is what
 the first two classes here measure: two lines against one account, merged
 into one split when the flag is read and posted a split each when it is not.
-A document of one line posts the same transaction either way. The rest are
+An invoice of one line posts the same transaction either way. The rest are
 one refusal apiece — the key named, and both sets of spellings offered.
 """
 
@@ -32,11 +32,11 @@ from infrastructure.gnucash.utils import wrap_invoice_or_bill
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 LEDGER = str(Path('tests/fixtures') /
-             'a_document_whose_lines_share_an_account.txt')
+             'an_invoice_whose_lines_share_an_account.txt')
 
 
-def _splits_of_the_posting(book_path, document):
-    """How many splits the document's posting transaction carries."""
+def _splits_of_the_posting(book_path, invoice):
+    """How many splits the invoice's posting transaction carries."""
     repo = GnuCashRepository(str(book_path))
     repo.open(SessionMode.READ_ONLY)
     try:
@@ -45,14 +45,14 @@ def _splits_of_the_posting(book_path, document):
         q.set_book(repo.book)
         for raw in q.run():
             record = wrap_invoice_or_bill(raw)
-            if record.GetID() == document:
+            if record.GetID() == invoice:
                 posted = record.GetPostedTxn()
-                assert posted is not None, f'{document} is not posted'
+                assert posted is not None, f'{invoice} is not posted'
                 answer = len(posted.GetSplitList())
                 q.destroy()
                 return answer
         q.destroy()
-        raise AssertionError(f'no document named {document!r}')
+        raise AssertionError(f'no invoice named {invoice!r}')
     finally:
         repo.close()
 
@@ -166,7 +166,7 @@ class TestAWordThatIsNeither:
     Each of these is a key a different part of the importer reads, and each
     read the word its own way. `auto_apply_credit:` is the one that costs
     most — read as "not false", the typo below applied the owner's credit to
-    the document, and the export afterwards wrote `from_credit:` payment
+    the invoice, and the export afterwards wrote `from_credit:` payment
     blocks for money the file never asked to move.
     """
 

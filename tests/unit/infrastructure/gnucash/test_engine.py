@@ -277,7 +277,7 @@ class TestVerifyCtypesFunctions:
         """The owner lookups are checked at load, not when a payment needs them.
 
         A payment block reaches a split by guid, and the check that stops one
-        owner's credit settling another owner's document rests entirely on
+        owner's credit settling another owner's invoice rests entirely on
         these four. An engine without them has to fail before a book is
         opened: failing later would mean books that imported clean and read
         as though they had been checked.

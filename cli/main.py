@@ -42,7 +42,7 @@ from cli.validate_cmd import validate_ledger
 from infrastructure.guile import GuileUnavailableError
 from infrastructure.pdf.printing import PdfEngineUnavailableError
 from repositories.gnucash_repository import BookUnavailableError
-from services.gnucash_report import DocumentNotRenderedError
+from services.gnucash_report import PageNotRenderedError
 
 
 class _Cli(click.Group):
@@ -51,7 +51,7 @@ class _Cli(click.Group):
 
     Each of these is already written as a sentence for a person to read — a
     book that will not open, a machine with no Scheme interpreter to draw an
-    invoice with, one with no PDF engine to lay the page out, a document
+    invoice with, one with no PDF engine to lay the page out, a page
     GnuCash's report declined to draw. Commands that wrap the call print it
     themselves; the ones that do not would let it out as a traceback, and a
     refusal a reader cannot read tells them nothing about what to do next.
@@ -61,13 +61,13 @@ class _Cli(click.Group):
     def invoke(self, ctx):
         try:
             return super().invoke(ctx)
-        except (BookUnavailableError, DocumentNotRenderedError,
+        except (BookUnavailableError, PageNotRenderedError,
                 GuileUnavailableError, PdfEngineUnavailableError) as e:
             raise click.ClickException(str(e)) from e
 
 
 @click.group(cls=_Cli)
-@click.version_option(version='0.3.3', prog_name='gnucash-plaintext')
+@click.version_option(version='0.4.0', prog_name='gnucash-plaintext')
 def cli():
     """
     GnuCash Plaintext - Work with GnuCash files in plaintext format.

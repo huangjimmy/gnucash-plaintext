@@ -1,5 +1,5 @@
 # The shape a bank feed leaves: the money is in, the other side is Imbalance,
-# and no document owns it yet. 50.05 is a figure the receivable it will be
+# and no invoice owns it yet. 50.05 is a figure the receivable it will be
 # moved onto cannot hold — that account is kept to the tenth.
 2026-01-01 open Imbalance-CAD
 	type: Bank

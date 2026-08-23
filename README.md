@@ -327,7 +327,7 @@ This is asked of every foreign bank, not only one in a third currency. Paying a 
 
 A foreign account has no basis on it until something opens one: currency bought or borrowed into it, or a settlement landing in it. Until then there is nothing to measure against and a payment out of it is ordinary. **A ledger that imported cleanly before may now be refused**, because settling into a foreign account is itself what opens the basis.
 
-The way to spend a basis balance is the way every other foreign disposal is written — an ordinary transaction whose bank split names its basis, attached to the document by `txn_guid:` / `txn_split_guid:`:
+The way to spend a basis balance is the way every other foreign disposal is written — an ordinary transaction whose bank split names its basis, attached to the invoice by `txn_guid:` / `txn_split_guid:`:
 
 ```
 2026-03-01 * "Pay BILL-USD-001"
@@ -401,7 +401,7 @@ custom key changes anything. An `open` creates an account or does nothing. To ch
 one that exists, use `rename-account` or edit it in GnuCash.
 
 Leaving a line out is not an instruction, because most blocks are partial. A person
-editing a name writes the name; `print-invoice --format plaintext` writes a document
+editing a name writes the name; `print-invoice --format plaintext` writes one
 block, not a transcript of the book; an export taken before a field existed has no
 line for it. A block that named only what it was changing used to empty everything it
 did not name.
@@ -421,14 +421,15 @@ removing a line removes it from the book. A block with **no** lines at all is re
 rather than obeyed, because a file cut short by a failed write looks exactly like one
 that meant it.
 
-**`credit_note:` is the one key on a document block that the table above does not
-hold for.** It says which direction the document posts, and there is no third state
-between an invoice and a credit note — so a block that leaves it out is an ordinary
-invoice or bill, and a block on a credit note that leaves it out turns it into one.
-That is a difference the comparison reports and the re-import acts on, unlike every
-other unnamed key. It matters most for a ledger written before this release, which
-names the key nowhere: re-importing one flips every credit note in it to an ordinary
-document and reposts it the other way round. Export with this release first.
+**`credit_note:` is the one key on an `invoice` or `bill` block that the table above
+does not hold for.** It says which direction that block posts, and there is no third
+state between an invoice and a credit note — so a block that leaves it out is an
+ordinary invoice or bill, and a block on a credit note that leaves it out turns it
+into one. That is a difference the comparison reports and the re-import acts on,
+unlike every other unnamed key. It matters most for a ledger written before this
+release, which names the key nowhere: re-importing one flips every credit note in it
+to an ordinary invoice and reposts it the other way round. Export with this release
+first.
 
 **An `entry:` line carries that same rule down to its keys**, which is the other
 place the table does not hold. A re-imported invoice or bill has its entries
@@ -1161,7 +1162,11 @@ A single book-level `company` directive round-trips the seller identity
 `print-invoice` / `print-bill` head the page with. These are GnuCash's own
 **File → Properties → Business** options — they were rendered before but never
 exported or imported, so a roundtrip into a fresh book used to lose them. The
-directive has no id and no date; it is master data for the whole book:
+directive has no id, no date and no `guid:`; it is master data for the whole
+book. There is nothing for a guid to pick out: the block writes the book's own
+Business options, a book holds one set of them, and the book is the one named
+on the command line. A second `company` block in a file writes the same slots
+again rather than describing a second company.
 
 ```
 company
@@ -1191,26 +1196,26 @@ one free-text box, and `addr[0]` upwards writes as many lines as you put in it.
 The keys work as [An address](#an-address) describes — the number is the line's
 position, a line you do not name is left alone, and `addr[4]: ""` empties one.
 
-`date_format` **decides how the document's own dates are printed on an invoice or bill** — the posted date and the due date, the two at the top of the page. It is an `strftime` format: `%d %B %Y` gives `09 March 2026`, `%Y-%m-%d` gives `2026-03-09`, `%m/%d/%y` gives `03/09/26`. It is native too, and GnuCash calls it the **Fancy Date Format** — File → Properties → Business in the GUI, stored under that option's `custom` sub-key. GnuCash's own invoice reports read it when they draw (`gnc:options-fancy-date` in `options.scm` reads exactly that sub-key), so setting it here changes the page `print-invoice` and `print-bill` produce. What GnuCash's *dialog* does with an option this tool wrote is not something the test suite can reach — the containers have no GUI — so it is not claimed here: if you set the format in GnuCash and want it to survive, put it in the ledger too.
+`date_format` **decides how the invoice's own dates are printed on an invoice or bill** — the posted date and the due date, the two at the top of the page. It is an `strftime` format: `%d %B %Y` gives `09 March 2026`, `%Y-%m-%d` gives `2026-03-09`, `%m/%d/%y` gives `03/09/26`. It is native too, and GnuCash calls it the **Fancy Date Format** — File → Properties → Business in the GUI, stored under that option's `custom` sub-key. GnuCash's own invoice reports read it when they draw (`gnc:options-fancy-date` in `options.scm` reads exactly that sub-key), so setting it here changes the page `print-invoice` and `print-bill` produce. What GnuCash's *dialog* does with an option this tool wrote is not something the test suite can reach — the containers have no GUI — so it is not claimed here: if you set the format in GnuCash and want it to survive, put it in the ledger too.
 
-**It applies to the page, not to the ledger.** `--format html` and `--format pdf` are the rendered document a reader receives, and that is what `date_format` decides. `--format plaintext` writes dates as `YYYY-MM-DD` whatever the book says, because that output is this format — it has to be re-importable, and a date this tool cannot parse back is not a ledger. So a book set to `%d.%m.%Y` prints `09.03.2026` on the invoice and `2026-03-09` in the plaintext of the same document, on purpose.
+**It applies to the page, not to the ledger.** `--format html` and `--format pdf` are the rendered page a reader receives, and that is what `date_format` decides. `--format plaintext` writes dates as `YYYY-MM-DD` whatever the book says, because that output is this format — it has to be re-importable, and a date this tool cannot parse back is not a ledger. So a book set to `%d.%m.%Y` prints `09.03.2026` on the invoice and `2026-03-09` in the plaintext of the same invoice, on purpose.
 
-**One page, one format.** A document has dates in two places — its own posted and due dates at the top, and then each entry's date, each payment's date, and "printed on". GnuCash writes the first pair from the book's format and the rest from a process-wide date setting, which its GUI fills in at startup from its preference. This tool fills it in from your `date_format`, so both halves agree and a printed page reads one way throughout.
+**One page, one format.** An invoice has dates in two places — its own posted and due dates at the top, and then each entry's date, each payment's date, and "printed on". GnuCash writes the first pair from the book's format and the rest from a process-wide date setting, which its GUI fills in at startup from its preference. This tool fills it in from your `date_format`, so both halves agree and a printed page reads one way throughout.
 
 **Four formats can be matched exactly**, because GnuCash's date setting takes a style rather than a format string:
 
-| `date_format` | document date | entry row | "printed on" |
+| `date_format` | posted date | entry row | "printed on" |
 |---|---|---|---|
 | `%Y-%m-%d` | `2026-03-09` | `2026-03-09` | `2026-08-15` |
 | `%m/%d/%Y` | `03/09/2026` | `03/09/2026` | `08/15/2026` |
 | `%d/%m/%Y` | `09/03/2026` | `09/03/2026` | `15/08/2026` |
 | `%d.%m.%Y` | `09.03.2026` | `09.03.2026` | `15.08.2026` |
 
-**Any other format is still yours to set, and the run tells you what it cost.** `date_format: "%d %B %Y"` gives you `09 March 2026` on the document's own dates — there is no style for it, so the entry rows keep following the locale of the machine printing, and you get a page with two formats on it. That is a legitimate thing to want and it is not silent:
+**Any other format is still yours to set, and the run tells you what it cost.** `date_format: "%d %B %Y"` gives you `09 March 2026` on the invoice's own dates — there is no style for it, so the entry rows keep following the locale of the machine printing, and you get a page with two formats on it. That is a legitimate thing to want and it is not silent:
 
 ```
-⚠ the book's date_format is '%d %B %Y', which GnuCash has no date style for — the document's
-  date and due date will read that way and every other date on the page will follow this
+⚠ the book's date_format is '%d %B %Y', which GnuCash has no date style for — the posted
+  date and the due date will read that way and every other date on the page will follow this
   machine's locale. For one format throughout, use one of: %Y-%m-%d, %d.%m.%Y, %d/%m/%Y, %m/%d/%Y
 ```
 
@@ -1218,7 +1223,7 @@ If you want a format outside those four on *every* date, write the report — a 
 
 Note that GnuCash's **Edit → Preferences → Date/Time** does not affect this command: that preference is read by the GnuCash GUI at startup, and `print-invoice` is not the GUI. Measured on 5.10 — setting it changed nothing on the page. The book is what decides here.
 
-Everything in this section was measured on GnuCash 5.10, 4.13 and 3.8. **[docs/dates-on-printed-documents.md](docs/dates-on-printed-documents.md)** is the worked guide: a complete ledger you can run, the page it produces, the export it round-trips through, what to do for a format outside the four, and the tests that prove each of it.
+Everything in this section was measured on GnuCash 5.10, 4.13 and 3.8. **[docs/dates-on-printed-pages.md](docs/dates-on-printed-pages.md)** is the worked guide: a complete ledger you can run, the page it produces, the export it round-trips through, what to do for a format outside the four, and the tests that prove each of it.
 
 `gst` and `pst` are **registration numbers GnuCash has no field for** — there is
 only one generic `Company ID`. This tool stores them as extra Business slots
@@ -1294,6 +1299,20 @@ Every exported `posted:` block carries a `posted_txn_guid:` line — the GUID of
 
 `posted_txn_guid:` is optional on hand-authored plaintext. When absent, the importer falls back to `PostToAccount` (the original code path) — fine for plaintext that doesn't also include a matching standalone `*` block for the posting tx.
 
+#### A payment's `memo:` belongs to its transaction
+
+The `date:`, `amount:`, `bank_account:` and `memo:` of a `payment:` block are the payment **transaction's**, not the invoice's — GnuCash writes them onto the splits `ApplyPayment` makes, and nothing about the invoice or the bill holds them. So correcting one word of a memo and re-importing changes that transaction, and the run reports it under `Updated:` with the transactions while the invoice itself reads `unchanged`. The invoice has not moved: its posting transaction keeps its guid, its lines keep theirs, and the payment goes on settling the lot it was already in.
+
+The memo is the **settling split's** — the receivable or payable split in this invoice's lot, the one `txn_split_guid:` names — and that is the split every writer reads it back from, so a correction lands where the next export looks for it. One block describes one settlement, so it states the memo of the one split that settlement is: a payment settling two invoices carries a split for each and its blocks name one apiece, and the bank split they share is neither block's. A block naming no split — hand-written, and free to — states that same settling split's memo; only where the invoice has none in that transaction is it the split its `bank_account:` names.
+
+**The bank split follows**, and only where it still holds what the settling split held: that is how `ApplyPayment` leaves the two sides of a payment, and keeping them together is the difference between correcting a memo and breaking one in half. It does not follow on a payment settling several records, whose bank split is shared and whose wording a bank feed gave it. Everything else on the transaction — the other invoice's portion, a wire fee, the residue of an overpayment — is nobody's block to rewrite, whatever memo it happens to carry.
+
+**A payment is written out twice** — as its invoice's `payment:` block and as the transaction that block names — and where the two disagree about a split's memo, **the block wins**. It is the invoice's own statement about its own settlement, and it is the line a reader corrects. Two of them cannot state one split's memo between them: each names its own settlement with `txn_split_guid:`, and a block naming only the transaction on a payment that settles several is refused for that reason before any memo is read.
+
+A ledger written by an earlier release is the one file whose halves disagree by construction — its block carries the bank split's wording while naming the receivable one, which is what that release exported. Such a block is recognised by its memo being the one the file gives the bank split, and it changes nothing. The same recognition makes one deliberate edit a no-op: setting a settling split's memo to the words the bank split already carries is read as a block of that older shape, so say it on the transaction's own split instead. Written there, the first block would put its wording on it and the last would put its own over the top, and which survived would be decided by the order the invoices and bills appear in. Two blocks naming the **same** split with different memos are still refused, naming both: that is one split and one memo, whatever else the file says.
+
+Nothing wrote it before. A block naming `txn_guid:` matches its payment on that guid alone, so a corrected memo left the invoice matching, the run said `unchanged` and `Updated: 0`, and the correction was dropped without a word.
+
 An invoice or bill with **multiple partial payments** can have multiple `payment:` blocks — one per payment transaction:
 
 ```
@@ -1349,7 +1368,33 @@ To find which bills are still outstanding, render a whole vendor at once with `p
 * The new payment block has no `txn_guid:` — the importer calls `ApplyPayment` to create a fresh bank-side transaction.
 * The new payment block has `txn_guid: "..."` pointing at a pre-existing bank transaction (e.g. one already loaded from a QFX import) — the importer retargets that transaction's counter-split into the invoice's posted lot (the Q-004 mechanism), no new bank transaction created. Original tx GUID, notes, and KVP preserved. Exported payment blocks always include `txn_guid:` and `txn_split_guid:` so the same retarget is reproducible on a fresh re-import; see [Reconciling invoice and bill payments with a bank feed](#reconciling-invoice-and-bill-payments-with-a-bank-feed) below for the multi-invoice variant.
 
-Either way the posting transaction, every entry, and the original bank-side payment transactions already on the invoice's lot are left untouched (same GUIDs throughout) — no orphan is created and the bank balance reflects exactly the payments the user recorded. Any other shape of diff (entry add/remove/modify, posted block change, payment field edited or removed) still takes the GnuCash-UI-equivalent unpost-rebuild-repost path, and any payment-side bank transactions about to be orphaned by that rebuild are listed in the import output with the same warning block `unpost-invoices` / `unpost-bills` emit (see the unpost section below).
+Either way the posting transaction, every entry, and the original bank-side payment transactions already on the invoice's lot are left untouched (same GUIDs throughout) — no orphan is created and the bank balance reflects exactly the payments the user recorded. A payment field edited or removed takes the GnuCash-UI-equivalent unpost-rebuild-repost path, and any payment-side bank transactions about to be orphaned by that rebuild are listed in the import output with the same warning block `unpost-invoices` / `unpost-bills` emit (see the unpost section below). A **changed line, or a changed `posted:` block, on a posted invoice or bill** is refused outright — see below.
+
+#### Changing a posted invoice or bill is refused; recording a payment against it is not
+
+A posted invoice or bill is one the book has already booked: its posting transaction is in the ledger, its A/R or A/P lot holds that posting, and whatever has settled it since sits in the same lot. Rebuilding the invoice from a file would unpost it, destroy and rebuild its lines, post it again under a **new** transaction, and leave those payments settling a transaction that no longer exists.
+
+Which edits an invoice takes depends on whether it is posted, and the two states take opposite ones:
+
+| the invoice or bill is | it takes |
+|---|---|
+| **posted** | a `payment:` block, and nothing else |
+| **unposted** | its lines, its dates, its fields — and no payment at all |
+
+So everything about a posted invoice or bill except its payments is refused: its lines (a description, a quantity, a price, a tax table, a line added or removed), its `posted:` block (the date, the due date, the memo, the A/R or A/P account), its `date_opened:`, its `credit_note:` flag, its `notes:`, its billing id and its custom keys. Each of those means unposting and posting again, and a line of prose that has nothing to do with the posting is no reason to destroy the transaction the book was booked through. The one question is asked with the same predicate that decides whether the invoice is `unchanged` at all, so the two cannot drift apart and let a field through. The message names the way through:
+
+```
+invoice "INV-2026-001": this invoice is posted, and this file changes it —
+its lines, or what its `posted:` block says. […] Unpost it first —
+`unpost-invoices <book> INV-2026-001` — and import this file after, which
+puts it back on the posting it already had.
+```
+
+Two steps, and each one says what it is doing. **The two-step route also keeps more than the one-step rebuild did**: an export is the whole book, so the posting transaction is in its transaction section under the same guid and is restored before the invoices and bills are read — the invoice goes back on the posting it was booked through, rather than a new one nothing else in the world points at.
+
+What still goes through untouched is a `payment:` block — recording money against an invoice the book has booked is what a posted invoice or bill is *for* — including `auto_apply_credit: true`, which asks for the owner's credit to settle it.
+
+**A file that says `posted: none` may change the lines in the same step.** The refusal is about doing it *quietly*: such a file has asked for the unpost out loud, which is exactly what the message would send you away to do. The invoice is unposted, its lines rebuilt, and any payments the unpost orphans are warned about as they are for `unpost-invoices` itself.
 
 #### Overpayment / pre-payment credit: `prepayment:`
 
@@ -1498,21 +1543,21 @@ On import the invoice is posted normally, then `gncInvoiceAutoApplyPayments` run
     txn_split_guid: "f792882e159c4cb0b6bab44ec1479f51"
 ```
 
-Which of a document's payments is a credit is **recorded when the credit is applied**, as `applied_from_credit: "true"` on the split the application moves into the document's lot (visible on that split in the transaction section of an export). It cannot be worked out afterwards: a consumed credit's split sits in the lot exactly as a bank payment's split does, GnuCash keeps no record of the lot it came from, one payment commonly settles the invoice it was made against *and*, months later, a second invoice that took what it left over — and when a deposit is taken and an invoice raised against it the same day, even the dates agree. A split with nothing recorded on it, such as one written in the GnuCash GUI, reads as a payment. The invoice the bank really paid keeps its `bank_account:`, `date:` and `prepayment:` lines.
+Which of an invoice's payments is a credit is **recorded when the credit is applied**, as `applied_from_credit: "true"` on the split the application moves into the invoice's lot (visible on that split in the transaction section of an export). It cannot be worked out afterwards: a consumed credit's split sits in the lot exactly as a bank payment's split does, GnuCash keeps no record of the lot it came from, one payment commonly settles the invoice it was made against *and*, months later, a second invoice that took what it left over — and when a deposit is taken and an invoice raised against it the same day, even the dates agree. A split with nothing recorded on it, such as one written in the GnuCash GUI, reads as a payment. The invoice the bank really paid keeps its `bank_account:`, `date:` and `prepayment:` lines.
 
 `prepayment:` on that bank-paid invoice is what the payment left over **when it was made**, not what is left today: a 150.00 payment against a 100.00 invoice writes `prepayment: 50.00` even after a later invoice has taken 30.00 of it, because a rebuild reaches that payment before the later invoice exists. It is decided by the same recorded fact, so the two cannot disagree.
 
-A credit block names no account, because no bank moved anything: the currency was already in the book, on the split `txn_split_guid:` names. It has no date of its own either — GnuCash records none for applying a credit, writing no transaction for it — so `credit_dated:` gives the date of the transaction the credit arrived in, which on a bill is the day the money was sent to the vendor. `amount:` is this document's own slice, not the credit's full size.
+A credit block names no account, because no bank moved anything: the currency was already in the book, on the split `txn_split_guid:` names. It has no date of its own either — GnuCash records none for applying a credit, writing no transaction for it — so `credit_dated:` gives the date of the transaction the credit arrived in, which on a bill is the day the money was sent to the vendor. `amount:` is this invoice's own slice, not the credit's full size.
 
-Importing one attaches that split to this document's lot, which is what settles it. A credit smaller than the document is an ordinary part-payment and leaves the rest owing. One larger is divided: attaching it whole would take the lot past zero — measured, a 50.00 credit named against a 30.00 invoice leaves the lot at −20.00 with `IsPaid` false and the customer's 20.00 gone from `find-prepayments`, which lists only lots no document owns — so the block divides it, from the figures it names. This is the same thing that happens to a bank transfer bigger than the invoice it pays, and it is done the same way: the named split settles the document with 30.00, and 20.00 is parked as the customer's credit in a lot of its own. The export says `amount: 30.00`, which is what that split took. The engine is not asked to do it: `AutoApplyPayments` takes the owner's open credits in its own order — so a file naming one of two could have the other carved — and divides differently by version, carving the split on GnuCash 5.10 and moving it whole into the document's lot on 4.13 and 3.8.
+Importing one attaches that split to this invoice's lot, which is what settles it. A credit smaller than the invoice is an ordinary part-payment and leaves the rest owing. One larger is divided: attaching it whole would take the lot past zero — measured, a 50.00 credit named against a 30.00 invoice leaves the lot at −20.00 with `IsPaid` false and the customer's 20.00 gone from `find-prepayments`, which lists only lots no invoice owns — so the block divides it, from the figures it names. This is the same thing that happens to a bank transfer bigger than the invoice it pays, and it is done the same way: the named split settles the invoice with 30.00, and 20.00 is parked as the customer's credit in a lot of its own. The export says `amount: 30.00`, which is what that split took. The engine is not asked to do it: `AutoApplyPayments` takes the owner's open credits in its own order — so a file naming one of two could have the other carved — and divides differently by version, carving the split on GnuCash 5.10 and moving it whole into the invoice's lot on 4.13 and 3.8.
 
-A credit **in no lot** can be attached whole but not divided, and the refusal names `lot_owner:` as the remedy: parking what is left over means opening a credit in somebody's name, and a lot is the only thing that records whose a split is — a deposit paying several owners cannot be asked. Attaching such a split whole opens no new credit and stays ordinary. A block on a document that **owes nothing** — cash has already settled it in full — is refused for the same reason it cannot be attached: the lot would go past zero.
+A credit **in no lot** can be attached whole but not divided, and the refusal names `lot_owner:` as the remedy: parking what is left over means opening a credit in somebody's name, and a lot is the only thing that records whose a split is — a deposit paying several owners cannot be asked. Attaching such a split whole opens no new credit and stays ordinary. A block on an invoice that **owes nothing** — cash has already settled it in full — is refused for the same reason it cannot be attached: the lot would go past zero.
 
-**Whose money it is is checked** too, and what is asked depends on what the file names. Where a block names a split, that split's **lot** must belong to this document's owner — one customer's credit cannot settle another's invoice. Where it names only `txn_guid:`, the retarget moves whichever counter split the transaction carries, so the **transaction's** owner is asked instead. The two are deliberately not combined: one deposit can settle documents of several owners at once, each block naming its own portion, and the transaction reports whichever owner GnuCash recorded on it — asking it there would refuse the second document for the first one's owner. A split in no lot has no owner of its own; its transaction answers for it where that transaction carries a single receivable or payable split — a payment GnuCash wrote for one owner — and where it carries several, nothing is refused, because none of them can be shown to be the one. Nor is a transaction off a bank feed, which records no owner and is what the retarget workflow exists to attach.
+**Whose money it is is checked** too, and what is asked depends on what the file names. Where a block names a split, that split's **lot** must belong to this invoice's owner — one customer's credit cannot settle another's invoice. Where it names only `txn_guid:`, the retarget moves whichever counter split the transaction carries, so the **transaction's** owner is asked instead. The two are deliberately not combined: one deposit can settle invoices and bills of several owners at once, each block naming its own portion, and the transaction reports whichever owner GnuCash recorded on it — asking it there would refuse the second invoice for the first one's owner. A split in no lot has no owner of its own; its transaction answers for it where that transaction carries a single receivable or payable split — a payment GnuCash wrote for one owner — and where it carries several, nothing is refused, because none of them can be shown to be the one. Nor is a transaction off a bank feed, which records no owner and is what the retarget workflow exists to attach.
 
-Nothing is re-decided: re-running the original request against a book that has moved on could apply a different credit, and re-applying an already-applied one leaves every document of that owner with a lot GnuCash discards on load (`invoice_postlot_handler: assertion 'lot' failed`), so a rebuilt book came back with nothing paid. Everything the block states is checked — the split must be on the named transaction and on this document's own posted account, carry the amount claimed with the sign a credit has on that side, and still be the owner's to spend — and a block that cannot be honoured is refused rather than half-applied. Writing `from_credit: true` beside a `bank_account:` or a `date:` is refused too, naming the key to drop.
+Nothing is re-decided: re-running the original request against a book that has moved on could apply a different credit, and re-applying an already-applied one leaves every invoice of that owner with a lot GnuCash discards on load (`invoice_postlot_handler: assertion 'lot' failed`), so a rebuilt book came back with nothing paid. Everything the block states is checked — the split must be on the named transaction and on this invoice's own posted account, carry the amount claimed with the sign a credit has on that side, and still be the owner's to spend — and a block that cannot be honoured is refused rather than half-applied. Writing `from_credit: true` beside a `bank_account:` or a `date:` is refused too, naming the key to drop.
 
-A credit larger than one document is drawn down across several: mark each invoice/bill `auto_apply_credit: true` and GnuCash consumes the credit in **posting order** until it runs out. A $150 credit against two $100 documents settles the first in full and leaves the second **$50 outstanding** (its lot open at +$50 for an invoice, −$50 for a bill), with the credit at $0. Because cash applies before credit on each document, that second document can also carry a `payment: amount: 50` — the $50 cash plus the $50 of remaining credit close it. This works identically on the receivable (invoice) and payable (bill) sides, sign-flipped.
+A credit larger than one invoice is drawn down across several: mark each invoice/bill `auto_apply_credit: true` and GnuCash consumes the credit in **posting order** until it runs out. A $150 credit against two $100 invoices settles the first in full and leaves the second **$50 outstanding** (its lot open at +$50 for an invoice, −$50 for a bill), with the credit at $0. Because cash applies before credit on each invoice, that second invoice can also carry a `payment: amount: 50` — the $50 cash plus the $50 of remaining credit close it. This works identically on the receivable (invoice) and payable (bill) sides, sign-flipped.
 
 #### Listing open credits: `find-prepayments`
 
@@ -1604,7 +1649,7 @@ Checked 2 cost basis(es); 1 disagree with their own figures:
 
 #### Disposing of a credit: refund, write-off, or forfeit (`lot_owner:`)
 
-A credit isn't attached to any document, so clearing one is just a normal ledger transaction: a counter account plus an AR/AP split that reduces the owner's open credit lot. Tag that AR/AP split with `lot_owner: kind:id[:guid]` and the importer joins it to the owner's oldest open credit lot. The counter account states the intent — no extra keyword:
+A credit isn't attached to any invoice, so clearing one is just a normal ledger transaction: a counter account plus an AR/AP split that reduces the owner's open credit lot. Tag that AR/AP split with `lot_owner: kind:id[:guid]` and the importer joins it to the owner's oldest open credit lot. The counter account states the intent — no extra keyword:
 
 | Owner + counter account | Operation |
 |---|---|
@@ -1636,6 +1681,18 @@ Write a vendor's $50 credit off as bad debt:
 Details:
 
 - The trailing guid is the **owner's** authoritative key; it is always emitted on export and optional hand-written (`lot_owner: customer:C001` works). When present it must resolve to the same owner as the id — a mismatch is a hard error, never a warning.
+- **`lot_guid:` says which of the owner's credits this is**, on the line below. An owner may hold several — a deposit in January and another in February — and without it the importer chooses: the oldest open lot the split would reduce. So a refund written against February's deposit came off January's, and the export then described two credits the ledger just imported did not.
+
+  ```
+  2026-03-05 * "Refund of the February deposit to Acme"
+    currency.mnemonic: "CAD"
+    Assets:Bank -40.00 CAD
+    Assets:Accounts Receivable 40.00 CAD
+      lot_owner: customer:C001:9f14a498cc894d50931f855a9a31d594
+      lot_guid: "7c2f9a1b5e8d4c3a9016b7d2e4f80523"
+  ```
+
+  Every split in a credit lot carries it on export, the deposit that opened the credit as well as whatever settles it. A block naming none behaves exactly as before, which is what a hand-written file does. A split **already** in a lot is left where it is — an exported credit re-imported over itself must not open a second one — so editing the line to name a different credit is refused rather than quietly doing nothing; moving money between credits is what an invoice's `payment:` block does, naming the split with `txn_split_guid:`. A named lot must be **this owner's**, on **this account**, **open**, and not a posted invoice or bill's — each refused by name, since every one of them is a settlement landing on money the file did not mean. And a `lot_guid:` the book has no lot for is the guid a *credit* opens with, so a book rebuilt from an export holds the credits it came from; on a clearing split it names nothing, and creating the lot would be inventing a credit out of a typo, so it is refused.
 - The `lot_owner:` split's own account fixes the owner type: a `customer` KVP must sit on an AR account and a `vendor` KVP on an AP account, and the importer rejects that mismatch (e.g. a `customer` KVP on an AP split). The counter account is not otherwise constrained on this path — it simply records which of the operations above this is.
 - **Partial** is just a smaller amount — the residual credit stays open; an exact amount closes the lot.
 - If the owner has no open credit to reduce and the split is itself credit-shaped (AR-negative / AP-positive), the importer instead **creates** a new credit lot and attaches the owner — this is how a *standalone* credit (money received with no invoice) is represented in plaintext. A clearing-shaped split with no credit to reduce is an error.
@@ -1658,7 +1715,8 @@ It is informational and derived: the importer rebuilds the credits from the per-
 ### Identity and round-trip: `guid:`, `customer_guid:`, `vendor_guid:`
 
 Every business-object block (`customer`, `vendor`, `taxtable`, `invoice`,
-`bill`) carries a `guid:` field on export. The user-facing id (e.g.
+`bill`) carries a `guid:` field on export, and so does each of an invoice's
+`entry:` lines ([below](#a-lines-own-guid)). The user-facing id (e.g.
 `customer "C001"`) is the human handle; the guid is GnuCash's internal
 primary key. Both are immutable once assigned.
 
@@ -1682,17 +1740,86 @@ fresh one on first import. On subsequent re-imports (after the first export
 has put guids in the file) the importer uses the guid as the precise
 identity key.
 
-**Quote guid values.** Always quote: `guid: "abcd…"`. Mixed-hex unquoted
-forms (`guid: b2b3…b4`) work because the parser treats them as strings,
-but unquoted all-digit values like `guid: 22222222222222222222222222222222`
-are auto-converted to a number and lose their digit count. The exporter
-always emits quoted form.
+**Quoting a guid is optional.** `guid: "abcd…"` is what the exporter
+writes, and unquoted works too, in both of its shapes: mixed hex
+(`guid: b2b3…b4`), which the parser keeps as a string, and all digits
+(`guid: 22222222222222222222222222222222`), which it reads as a number.
+A number keeps none of what makes a guid — `00000000000000000000000000000022`
+and `22` are both 22 — so a value decoded that way carries the characters
+it was written with, and the guid is the ones in the file.
+
+**A guid nothing can parse is refused**, wherever it appears — `guid:
+"hello"`, or `guid: 22`, which is two characters and not a guid. `guid: 0`
+and `guid: 000` with it: a number of zero is the one value that reads as
+*nothing* rather than as a bad guid, and it used to fall through as though
+the block had named none while `guid: "0"` was refused.
+
+Thirty-two zeros is refused too, though it parses: that is GnuCash's **null
+guid**, the value the engine uses to mean *no* guid. Every writer here
+already treats it as absent — an export drops a `lot_owner:` guid and a
+`lot_guid:` that reads that way — so a file naming it asked for something
+the format could take and could not write back: the lot came out of the
+next export with no `lot_guid:` line at all, and the re-import fell back to
+the owner's oldest open credit. It is not
+read as a block naming no guid: a block that names none is matched by
+position, so a guid the reader gave up on would put the block's values on
+whichever object of its kind was left over, and a block creating one would
+get a guid GnuCash minted rather than the one the file asked for. The
+message names the characters the file wrote.
 
 **Cross-references** (`customer_guid:` on invoices, `vendor_guid:` on
 bills) carry the *referenced* object's guid. `customer_id`/`vendor_id`
 keep the file readable; the guid is the authoritative key. When both are
 present they must resolve to the same record — otherwise the importer
 errors with the conflict spelled out.
+
+#### A line's own `guid:`
+
+An `entry:` line carries one too, and it says **which line a block edits**:
+
+```
+invoice "INV-001"
+	entry:
+		guid: "3f7a1c9e5b2d4a08b6c1e0d3a9f45721"
+		date: 2026-01-01
+		description: "Design"
+		...
+```
+
+Editing an invoice rewrites the lines its blocks name and leaves the rest of
+the invoice alone. A line no block names is removed; a block naming no line
+is added. So correcting one word of one description changes that one line,
+and every other line keeps the guid the book gave it — which is what anything
+holding a reference to a line needs, and what makes two consecutive exports of
+an edited ledger comparable at all.
+
+**Hand-written files name none**, and that keeps working: where a block has no
+`guid:` it edits the line in the same position, so the second `entry:` block
+of an invoice edits its second line. Guids come from an export, and a file
+that mixes the two — some lines named, some not — is read guid-first, the
+unnamed blocks taking whichever lines are left over in order.
+
+Two files are refused rather than guessed at:
+
+* **the same guid on two lines of one invoice.** A guid is one line, so the
+  second block would fall through to position and edit some other line, and
+  the invoice would come out of the import stating something the file did
+  not say.
+* **a guid the book gave something else** — another invoice's line, an
+  account, a transaction. Forcing it would leave two objects with one guid,
+  and GnuCash finds an object by looking its guid up in a hash: the loser
+  becomes unreachable. Remove the `guid:` line to add the block as a new line
+  instead.
+
+A guid that is well-formed and simply **not in the book** is neither of those:
+it is the guid the new line asks for, and the line is created with it. That is
+how an invoice is restored into a fresh book with the lines it had.
+
+**The comparison that decides `unchanged` pairs the lines the same way**, so a
+file whose `entry:` blocks were reordered — by hand, by a merge — is the same
+invoice and imports as `unchanged`, on a posted invoice or bill as on an unposted
+one. Two lines that trade only their `guid:` values are a change, and are
+reported as one: which line is which is what a guid says.
 
 #### Re-import semantics: idempotent, per object type
 
@@ -1731,7 +1858,7 @@ For after-the-fact recovery — auditing a book that's already accumulated orpha
 
 #### Unapplying a payment without unposting: `unapply-payment`
 
-When a payment was applied to the wrong invoice (or a deposit turned out not to be a payment at all), you want to peel that payment off **without** touching the document — the invoice stays posted and simply returns to Outstanding. That is different from unpost (which drops the document to Draft and destroys the posting). Use `unapply-payment`:
+When a payment was applied to the wrong invoice (or a deposit turned out not to be a payment at all), you want to peel that payment off **without** touching the invoice — the invoice stays posted and simply returns to Outstanding. That is different from unpost (which drops the invoice to Draft and destroys the posting). Use `unapply-payment`:
 
 ```
 # INV has ONE payment — no selector needed. That payment is detached and
@@ -1755,7 +1882,7 @@ gnucash-plaintext unapply-payment ledger.gnucash INV-2026-001 --all --to "Liabil
 gnucash-plaintext unapply-payment ledger.gnucash BILL-2026-001 --bill --to "Liabilities:Due to vendor"
 ```
 
-What it does: detaches the named payment's AR/AP split from the invoice/bill's posted lot — so the lot reopens (Outstanding, or partially-paid if other payments remain) — and moves that freed split to the account you name with `--to`. The document stays **posted**; the bank/income transaction is **never deleted** (the money still happened); only the freed split's account changes, so the transaction stays balanced.
+What it does: detaches the named payment's AR/AP split from the invoice/bill's posted lot — so the lot reopens (Outstanding, or partially-paid if other payments remain) — and moves that freed split to the account you name with `--to`. The invoice stays **posted**; the bank/income transaction is **never deleted** (the money still happened); only the freed split's account changes, so the transaction stays balanced.
 
 - **`--to` is required**, and accepts **any** account type. The payment's prior account was overwritten when it was applied and isn't recorded, so only you know where the freed money belongs. Money you received that is no longer applied to an invoice is, in accounting terms, a payable you may owe back — typically a liability such as `Liabilities:Due to customer` / `Due to shareholder` (which need not be a GnuCash *A/Payable*-type account); you may equally route it to income, a clearing account, or an asset carried negative. It is your call.
 - **Which payment(s)**: one payment → no selector needed; several → `--txn <bank-tx-guid>` to peel one, **repeat `--txn`** to peel a subset (two of three), or `--all` for every payment. On a multi-payment record, omitting all selectors is an error — never an implicit "all". Payments are identified by transaction GUID, so two payments of the same amount are unambiguous.
@@ -1778,7 +1905,7 @@ Compared to the re-import path:
 
 After a series of unposts, the book may have payment-class bank transactions whose AR/AP-side split's lot is no longer attached to any invoice or bill — orphans. The live `unpost-invoices` / `unpost-bills` flow warns about each orphan it's about to create, but if those messages were missed (a prior session, an inherited book, etc.) the orphans accumulate silently and cause the re-pay-after-unpost duplicate-bank-balance trap.
 
-`find-orphan-payments` scans the book and lists every orphan with its GUID, date, amount, currency, the customer/vendor it was originally paying, and the split memo. One row per orphaned payment, not per transaction: a deposit whose portions settled two documents, both since unposted, carries two orphans and each is its own row, with its own owner read from its own split. The figure is named against the account it is *of* — on a USD document settled out of a CAD bank that is the receivable, and the bank it was paid through is named on the line below. Totals per account at the end. Read-only — the command never deletes or modifies anything; the user picks the cleanup path per orphan.
+`find-orphan-payments` scans the book and lists every orphan with its GUID, date, amount, currency, the customer/vendor it was originally paying, and the split memo. One row per orphaned payment, not per transaction: a deposit whose portions settled two records, both since unposted, carries two orphans and each is its own row, with its own owner read from its own split. The figure is named against the account it is *of* — on a USD invoice settled out of a CAD bank that is the receivable, and the bank it was paid through is named on the line below. Totals per account at the end. Read-only — the command never deletes or modifies anything; the user picks the cleanup path per orphan.
 
 Each row also prints the evidence it was classified on, and prints only what actually held: the engine's `xaccTransGetTxnType(tx) == 'P'`, the `txn_type: P` a previous export wrote, the `orphaned_by_unpost` note this tool writes on the split, and where the owner came from — the split's own lot, `gncOwnerGetOwnerFromTxn`, the exported `owner:` line, or a sibling orphan's lot on the same transaction.
 
@@ -1804,7 +1931,7 @@ Option (a) is withdrawn for a GUID that carries money beyond the row naming it �
 
 Detection criteria (so the user can trust the result). A transaction is examined when **either** reading answers: it is payment-class — `xaccTransGetTxnType(tx) == 'P'`, or the `txn_type: P` a previous export wrote — **or** one of its splits carries the `orphaned_by_unpost` note this tool writes on every split it is about to orphan. Either alone is enough, and the second is what finds a settlement attached by retargeting an existing bank transaction (`txn_guid:`), which is not payment-class and carries no owner backref: before the note existed such a settlement was listed by nothing at all. The note is needed because nothing in the book itself distinguishes the two shapes — unposting leaves the lot on the account, live and owner-attached, exactly like an owner's parked credit (CLAUDE.md finding 10).
 
-Within an examined transaction, every marked split is reported as its own row. Where none is marked — a payment-class transaction on a book unposted by a version of this tool that predates the note — the row is the first AR/AP-side split whose lot has no invoice or bill attached. So a pre-note book lists what it always did; what it cannot do is separate a bank-paid orphan from an owner's credit on the same transaction, and unposting such a document again marks it.
+Within an examined transaction, every marked split is reported as its own row. Where none is marked — a payment-class transaction on a book unposted by a version of this tool that predates the note — the row is the first AR/AP-side split whose lot has no invoice or bill attached. So a pre-note book lists what it always did; what it cannot do is separate a bank-paid orphan from an owner's credit on the same transaction, and unposting such an invoice again marks it.
 
 Each orphan is pinned to a specific customer/vendor, though not to a specific invoice, since the lot → invoice link is destroyed by unpost.
 
@@ -1882,9 +2009,9 @@ The importer looks up the existing bank transaction by `txn_guid:`, finds the sp
 
 `txn_split_guid:` is optional in hand-written plaintext (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order). It is **always** emitted on export so every round-trip is order-independent and unambiguous.
 
-**A `txn_guid:` that names nothing has two readings**, and the block cannot tell them apart on its own: a document being rebuilt into a fresh book, where the bank transaction genuinely is not there yet, and a retarget against the book that holds it, where the guid is simply mistyped. The first has to go through — a printed document carries the guids of the book it came from precisely so that book relinks rather than paying twice, and it still has to be readable elsewhere. The second must not: recording the payment from the block enters money that has already moved.
+**A `txn_guid:` that names nothing has two readings**, and the block cannot tell them apart on its own: an invoice being rebuilt into a fresh book, where the bank transaction genuinely is not there yet, and a retarget against the book that holds it, where the guid is simply mistyped. The first has to go through — a printed page carries the guids of the book it came from precisely so that book relinks rather than paying twice, and it still has to be readable elsewhere. The second must not: recording the payment from the block enters money that has already moved.
 
-What separates them is the book. Where the block's own `date:`, `amount:`, direction, account and `memo:` describe a transaction the book already has, the money is here and the guid is wrong, and the run is refused — naming that transaction, its guid, and the document it already settles, so you can either correct the guid to it or drop `txn_guid:`. A rebuild into a book that never held the money matches nothing and is untouched.
+What separates them is the book. Where the block's own `date:`, `amount:`, direction, account and `memo:` describe a transaction the book already has, the money is here and the guid is wrong, and the run is refused — naming that transaction, its guid, and the invoice it already settles, so you can either correct the guid to it or drop `txn_guid:`. A rebuild into a book that never held the money matches nothing and is untouched.
 
 Two payments can agree on every one of those fields, and then nothing in the file tells them apart: one customer with two invoices for the same figure, paid on the same day into the same account, with the same memo on both bank lines. Give the second its own `memo:` — naming the movement is what a memo is for — and both import. Between two *different* owners the check never fires, because the remedy it offers does not exist there: one customer's receipt cannot settle another's invoice, so a match across owners can only be coincidence.
 
@@ -2035,7 +2162,7 @@ gnucash-plaintext print-invoice mybook.gnucash INV-2026-001 -o invoice.pdf
 
 > **Needs Guile, and for PDF, WebKit.** GnuCash's own report draws the page and that report is Scheme, so a `libguile` has to be installed — most distributions pull it in with `gnucash` itself, but Fedora and openSUSE do not, and there `dnf install guile` / `zypper install guile` is the fix.
 >
-> **A PDF is laid out by WebKit, the engine GnuCash's own Print Invoice button prints with**, so a printed document is the document GnuCash prints rather than a second engine's reading of it. The difference is not cosmetic: GnuCash's report writes its table borders as HTML-4 presentational attributes (`border`, `cellpadding`, `bgcolor`), which WeasyPrint does not implement — measured on one page, 97 rectangles painted against none, so a printed invoice had no lines round anything. The sheet follows the machine's locale, as GnuCash's own does: A4 in most of the world, US Letter under `en_US` and `en_CA`. WebKit's library comes with GnuCash; its Python bindings and an X server for it to draw into do not:
+> **A PDF is laid out by WebKit, the engine GnuCash's own Print Invoice button prints with**, so a printed page is the one GnuCash prints rather than a second engine's reading of it. The difference is not cosmetic: GnuCash's report writes its table borders as HTML-4 presentational attributes (`border`, `cellpadding`, `bgcolor`), which WeasyPrint does not implement — measured on one page, 97 rectangles painted against none, so a printed page had no lines round anything. The sheet follows the machine's locale, as GnuCash's own does: A4 in most of the world, US Letter under `en_US` and `en_CA`. WebKit's library comes with GnuCash; its Python bindings and an X server for it to draw into do not:
 >
 > ```bash
 > apt install python3-gi gir1.2-webkit2-4.1 xvfb xauth   # Debian, Ubuntu (4.0 on the older ones)
@@ -2048,17 +2175,17 @@ gnucash-plaintext print-invoice mybook.gnucash INV-2026-001 -o invoice.pdf
 >
 > **The page is drawn with the GnuCash settings on the machine printing.** GnuCash reads a user configuration at startup — stylesheet settings, and every report configuration saved from a report's options dialog — and `print-invoice` reads the same files before rendering. A stylesheet customised in GnuCash therefore applies to `print-invoice` as well, and a report configuration carrying a customised CSS is drawn by `--report "<the name saved under>"`, with the options held in the configuration. A machine that has never run GnuCash prints at GnuCash's defaults.
 >
-> Those files are Scheme, and reading them evaluates them — which is how a saved configuration works at all. So printing evaluates whatever `stylesheets-2.0`, `saved-reports-2.4` and `saved-reports-2.8` hold under the printing account's GnuCash data directory (`$GNC_DATA_HOME`, else `$XDG_DATA_HOME/gnucash`, else `~/.local/share/gnucash`) — the reader's own files on a personal machine, and whatever that account holds on a shared build server. **`GNUCASH_PLAINTEXT_NO_USER_CONFIG=1` skips the read**, drawing at GnuCash's built-in defaults, which is where a run that wants one page whatever home it has should stand. A file that will not parse is passed over with a warning naming it, rather than costing the document.
+> Those files are Scheme, and reading them evaluates them — which is how a saved configuration works at all. So printing evaluates whatever `stylesheets-2.0`, `saved-reports-2.4` and `saved-reports-2.8` hold under the printing account's GnuCash data directory (`$GNC_DATA_HOME`, else `$XDG_DATA_HOME/gnucash`, else `~/.local/share/gnucash`) — the reader's own files on a personal machine, and whatever that account holds on a shared build server. **`GNUCASH_PLAINTEXT_NO_USER_CONFIG=1` skips the read**, drawing at GnuCash's built-in defaults, which is where a run that wants one page whatever home it has should stand. A file that will not parse is passed over with a warning naming it, rather than costing the invoice.
 >
-> **And with the report the book is set to use.** GnuCash 5 added a **Default Invoice Report** setting to File → Properties → Business. It decides the report GnuCash draws with when the Print Invoice button is pressed on an open invoice, and a book that has never been given one prints with the Printable Invoice. `print-invoice` reads the same setting, so a book set to a different report prints with that report here too, with nothing to repeat on the command line. GnuCash 3.8 and the 4.x line have no such setting, so a book carrying one prints with it on a GnuCash 5 machine and with the Printable Invoice on an older one — with nothing said, because there is no setting there to report. A saved report configuration can be named there, which is how a customised CSS reaches a printed document. Two consequences follow, each written to stderr as it happens: a page drawn by a saved configuration carries the options held in the configuration, so the three switches below stay unset (a combined `Tax` figure in place of one row per tax account, where the configuration was saved with the detailed summary off); and a machine holding no such configuration — a build server, a colleague's laptop — prints with the Printable Invoice rather than refusing, a saved configuration being a file in the GnuCash the configuration was saved from. `--report` overrides the book for a single run.
+> **And with the report the book is set to use.** GnuCash 5 added a **Default Invoice Report** setting to File → Properties → Business. It decides the report GnuCash draws with when the Print Invoice button is pressed on an open invoice, and a book that has never been given one prints with the Printable Invoice. `print-invoice` reads the same setting, so a book set to a different report prints with that report here too, with nothing to repeat on the command line. GnuCash 3.8 and the 4.x line have no such setting, so a book carrying one prints with it on a GnuCash 5 machine and with the Printable Invoice on an older one — with nothing said, because there is no setting there to report. A saved report configuration can be named there, which is how a customised CSS reaches a printed page. Two consequences follow, each written to stderr as it happens: a page drawn by a saved configuration carries the options held in the configuration, so the three switches below stay unset (a combined `Tax` figure in place of one row per tax account, where the configuration was saved with the detailed summary off); and a machine holding no such configuration — a build server, a colleague's laptop — prints with the Printable Invoice rather than refusing, a saved configuration being a file in the GnuCash the configuration was saved from. `--report` overrides the book for a single run.
 
-`--format {pdf,html,plaintext}` selects the output format (defaults to `pdf`). **The PDF and HTML pages are GnuCash's own.** With the setting above left alone they are drawn by GnuCash's **Printable Invoice** — the report its own Print Invoice button uses — so a printed document is the document GnuCash prints: its heading, its columns, its totals, its wording. `--report` and `--report-file` choose another report, a report written from scratch included; see "Changing the page means changing the report that draws it" below. Every supported version renders it, GnuCash 3.8 included; a Guile interpreter runs inside this process and is handed the book this process already has open.
+`--format {pdf,html,plaintext}` selects the output format (defaults to `pdf`). **The PDF and HTML pages are GnuCash's own.** With the setting above left alone they are drawn by GnuCash's **Printable Invoice** — the report its own Print Invoice button uses — so a printed page is the invoice GnuCash prints: its heading, its columns, its totals, its wording. `--report` and `--report-file` choose another report, a report written from scratch included; see "Changing the page means changing the report that draws it" below. Every supported version renders it, GnuCash 3.8 included; a Guile interpreter runs inside this process and is handed the book this process already has open.
 
-What that means for the page: `Invoice #<id>` at the top left, the customer on one side and your company on the other, then Date, Description, Action, Quantity, Unit Price, Discount, Taxable and Total, and Net Price, one row per tax account, Total Price and Amount Due beneath. An unposted document is priced from its entries and marked "Invoice in progress…"; a paid one lists its payments and an amount due of zero. A bill is a vendor's invoice and is drawn by the same report, with the vendor as the document's owner.
+What that means for the page: `Invoice #<id>` at the top left, the customer on one side and your company on the other, then Date, Description, Action, Quantity, Unit Price, Discount, Taxable and Total, and Net Price, one row per tax account, Total Price and Amount Due beneath. An unposted invoice is priced from its entries and marked "Invoice in progress…"; a paid one lists its payments and an amount due of zero. A bill is a vendor's invoice and is drawn by the same report, with the vendor as the invoice's owner.
 
-Three of the report's own switches are set, and nothing else — and only on the reports listed under `--report` below, never on a report loaded with `--report-file`. Each shows a field this format carries and GnuCash ships hidden, so a document printed from a ledger states what the ledger says: the document's `notes:`, the seller's `contact:` (which GnuCash prints as "Please direct all enquiries to …"), and the tax **per account**, so a page states GST and PST by name and by amount rather than adding them into a single `Tax` figure — a filer reclaims the one and not the other, and a Canadian invoice has to state the GST/HST amount, which their sum does not.
+Three of the report's own switches are set, and nothing else — and only on the reports listed under `--report` below, never on a report loaded with `--report-file`. Each shows a field this format carries and GnuCash ships hidden, so an invoice printed from a ledger states what the ledger says: the invoice's `notes:`, the seller's `contact:` (which GnuCash prints as "Please direct all enquiries to …"), and the tax **per account**, so a page states GST and PST by name and by amount rather than adding them into a single `Tax` figure — a filer reclaims the one and not the other, and a Canadian invoice has to state the GST/HST amount, which their sum does not.
 
-### Set the footer and the CSS a printed document carries
+### Set the footer and the CSS a printed page carries
 
 `set-invoice-style` writes the two boxes GnuCash's report options give as **Display → Extra Notes** and **Layout → CSS**, without opening GnuCash:
 
@@ -2086,11 +2213,11 @@ The same `<style>` block is where a stylesheet already set on a book can be read
 
 The book keeps the footer and the CSS, so one book prints one page from a laptop, a server or a build, and `print-invoice` and `print-bill` apply both settings alike. A book holding neither setting prints the footer and styling the report itself carries — GnuCash's default footer reads "Thank you for your patronage!", and `set-invoice-style --note ""` removes the footer.
 
-The footer and the CSS reach **whatever report draws the page**, GnuCash's own reports and a report loaded with `--report-file` alike: `set-invoice-style` wrote each setting onto the book, for every document the book prints. A book carrying a setting therefore **wins over a saved configuration carrying the same one** — a CSS set with `set-invoice-style` replaces the CSS saved into a report configuration, the book being applied after the configuration's options are generated. `--clear-css` takes the book's back off, leaving the configuration's. The three switches above work the other way round — `print-invoice` and `print-bill` set the switches, and only on the reports listed under `--report`.
+The footer and the CSS reach **whatever report draws the page**, GnuCash's own reports and a report loaded with `--report-file` alike: `set-invoice-style` wrote each setting onto the book, for every invoice the book prints. A book carrying a setting therefore **wins over a saved configuration carrying the same one** — a CSS set with `set-invoice-style` replaces the CSS saved into a report configuration, the book being applied after the configuration's options are generated. `--clear-css` takes the book's back off, leaving the configuration's. The three switches above work the other way round — `print-invoice` and `print-bill` set the switches, and only on the reports listed under `--report`.
 
-**Neither is part of the plaintext format.** A ledger says what a book contains, and how a document is styled is not that: nothing exports them and nothing imports them, so two books differing only in styling export the same ledger. They are read and written by this command alone.
+**Neither is part of the plaintext format.** A ledger says what a book contains, and how an invoice is styled is not that: nothing exports them and nothing imports them, so two books differing only in styling export the same ledger. They are read and written by this command alone.
 
-Every figure is in the **document's** currency: a USD invoice on a CAD income account states USD throughout, never the book's valuation of it.
+Every figure is in the **invoice's** currency: a USD invoice on a CAD income account states USD throughout, never the book's valuation of it.
 
 **Multi-invoice selection (Q-017)**: `print-invoice` accepts any combination of positional IDs, glob patterns, a `--from`/`--to` date range, or a `--customer` filter:
 
@@ -2108,16 +2235,18 @@ gnucash-plaintext print-invoice mybook.gnucash 'INV-2026-*' --format plaintext -
 
 Output composition is `-o file.ext` (single combined file), `-o dir/` (one file per invoice), or `-o -` (stdout, plaintext only).
 
-**Into a directory, each file is named after its document** — `INV-2026-001.pdf` — with two adjustments, because a document's id is free text and is being used as a file name:
+**Into a directory, each file is named after its invoice** — `INV-2026-001.pdf` — with two adjustments, because an invoice's id is free text and is being used as a file name:
 
 * **a separator is replaced.** `2026/001` is an ordinary way to number an invoice, and it would otherwise address `q1/2026/001.pdf`, a directory nobody made. It is written as `2026-001.pdf`, in the directory you named. The same applies to anything that would point outside it.
-* **a repeated id takes the document's guid.** GnuCash does not require ids to be unique, and two documents sharing one used to mean one file — the second overwriting the first, while the run reported having written both. Both files are now written as `<id>_<guid>.pdf`; *both* take the guid, so neither is the one that quietly kept the plain name.
+* **a repeated id takes the invoice's guid.** GnuCash does not require ids to be unique, and two invoices sharing one used to mean one file — the second overwriting the first, while the run reported having written both. Both files are now written as `<id>_<guid>.pdf`; *both* take the guid, so neither is the one that quietly kept the plain name.
 
 An id that is unique and holds no separator — which is nearly all of them — names its file exactly as it always did.
 
-**Plaintext format (Q-017)**: `--format plaintext` emits the same canonical plaintext syntax used by `export`, populated with **informational** totals — `entry_amount` and `entry_tax` per line, repeatable `breakdown:` sub-blocks showing which tax account got which dollar (audit-friendly for combined HST = GST + PST), and invoice-level `invoice_subtotal`, `invoice_tax_total`, `invoice_total`. The exporter never emits these (round-trip stays minimal); the renderer does. On re-import every one of them is asked of GnuCash again — what it makes the line worth and what it makes the document worth — and a page whose figures are not the book's is refused, naming the field and both numbers. So a rendered plaintext file carries its own tamper detection. A draft carries all three totals too: they are computed from the entries, so an unposted document has them before it has splits.
+**Plaintext format (Q-017)**: `--format plaintext` emits the same canonical plaintext syntax used by `export` — with one line left out, an `entry:`'s `guid:`, and **informational** totals added — `entry_amount` and `entry_tax` per line, repeatable `breakdown:` sub-blocks showing which tax account got which dollar (audit-friendly for combined HST = GST + PST), and invoice-level `invoice_subtotal`, `invoice_tax_total`, `invoice_total`. The exporter never emits these (round-trip stays minimal); the renderer does. On re-import every one of them is asked of GnuCash again — what it makes the line worth and what it makes the invoice worth — and a page whose figures are not the book's is refused, naming the field and both numbers. So a rendered plaintext file carries its own tamper detection. A draft carries all three totals too: they are computed from the entries, so an unposted invoice or bill has them before it has splits.
 
-**Free text of your own, without a template of your own.** GnuCash's page has no row for two things people want on a document, so two rows are added to it and nothing else:
+**A printed page names no line guids**, where an exported ledger names one under every `entry:`. A page is read into books that are not the one it was printed from, and those hold the same invoice under guids of their own — so naming the source book's would make every line of the page a line the reading book has not got, and a posted invoice or bill there would be refused rather than matched. The page carries the *invoice's* guid and its posting transaction's, which is what relinks a payment; a line's guid names nothing a reader of the page can use.
+
+**Free text of your own, without a template of your own.** GnuCash's page has no row for two things people want on an invoice, so two rows are added to it and nothing else:
 
 * the **seller's** block, under your company's address: your GST and each PST registration number (GnuCash has no field for either — this tool keeps them in book options), followed by the book's `extra_text1:`, `extra_text2:` … lines;
 * the **owner's** block, under the customer or vendor address: *their* `extra_text1:`, `extra_text2:` … lines.
@@ -2136,7 +2265,7 @@ customer "C-001"
   extra_text2: "Account manager: Jane"
 ```
 
-They are ordinary custom keys, so they export and re-import with everything else. Other custom keys are **not** printed: the seller's `fiscal_year_end:` and a customer's `credit_rating:` are the book owner's business, and the document goes to the other party.
+They are ordinary custom keys, so they export and re-import with everything else. Other custom keys are **not** printed: the seller's `fiscal_year_end:` and a customer's `credit_rating:` are the book owner's business, and the invoice goes to the other party.
 
 #### Changing the page means changing the report that draws it
 
@@ -2153,7 +2282,7 @@ In rising order of effort:
 
    `Fancy Invoice` and `Easy Invoice` lay out the same company and client blocks as the default, so everything this tool adds to the seller's block comes with you — **your GST and PST registration numbers** and the `extra_text` lines — and each tax is still named and totalled separately.
 
-   **`Tax Invoice` and `Australian Tax Invoice` carry none of that.** They build their page from their own template with no such blocks, so a document printed with either states neither registration number, and they total tax their own way — a Tax Rate and a Tax Amount column per line, rather than a named GST and PST total. If you are invoicing in Canada, that page is missing something the CRA requires you to state. It still prints — the report is doing what it was written to do — but the run says on stderr that it could not place those lines, naming the first of them, so a document that lost your GST number does not leave silently.
+   **`Tax Invoice` and `Australian Tax Invoice` carry none of that.** They build their page from their own template with no such blocks, so an invoice printed with either states neither registration number, and they total tax their own way — a Tax Rate and a Tax Amount column per line, rather than a named GST and PST total. If you are invoicing in Canada, that page is missing something the CRA requires you to state. It still prints — the report is doing what it was written to do — but the run says on stderr that it could not place those lines, naming the first of them, so an invoice that lost your GST number does not leave silently.
 
    A report registers its **English** name, and GnuCash translates only when it draws its own menus — so a French GnuCash lists `Facture améliorée` for the report that is `Fancy Invoice` here. Naming a report by its guid works in every language.
 
@@ -2168,9 +2297,9 @@ In rising order of effort:
 
    **If you copy one of GnuCash's, give your report a `report-guid` of its own** — `uuidgen` prints one, in any case and with or without its dashes. Keeping the guid you copied is the mistake this warns about twice: registered under a guid GnuCash already has, your report is refused as a duplicate and never registers at all, so `--report` cannot find it by name; registered under that guid in another case, both answer to every spelling of it and `--report <that guid>` is refused as ambiguous. Give it a name of its own too, unless you mean to name it by guid from then on: GnuCash accepts a report that reuses another's *name* — the guids differ, so both register — but two of them then answer to it, and `--report "<that name>"` is refused as ambiguous, for the report you copied as well as yours.
 
-   A report loaded with `--report-file` is handed the document through the `General / Invoice Number` option, which `print-invoice` sets — a report lacking the `General / Invoice Number` option is refused by name, there being no way to tell a report without the option which document to draw. None of the display switches above reaches a report loaded with `--report-file`: `print-invoice` and `print-bill` set the three switches on the reports listed under `--report`, and the layout of a report loaded from a `.scm` file is decided by the `.scm` file.
+   A report loaded with `--report-file` is handed the invoice through the `General / Invoice Number` option, which `print-invoice` sets — a report lacking the `General / Invoice Number` option is refused by name, there being no way to tell a report without the option which invoice to draw. None of the display switches above reaches a report loaded with `--report-file`: `print-invoice` and `print-bill` set the three switches on the reports listed under `--report`, and the layout of a report loaded from a `.scm` file is decided by the `.scm` file.
 
-   **What does reach a report loaded with `--report-file` is what the book carries**: a footer or a stylesheet set with `set-invoice-style` goes on whatever report draws the page, a report from a `.scm` file included. Both settings come from the book — `set-invoice-style` puts each one there, for every document the book prints — so a report declaring an option under one of the names the shipped reports use has the book's value written into it. Those names, every one of which is written:
+   **What does reach a report loaded with `--report-file` is what the book carries**: a footer or a stylesheet set with `set-invoice-style` goes on whatever report draws the page, a report from a `.scm` file included. Both settings come from the book — `set-invoice-style` puts each one there, for every invoice the book prints — so a report declaring an option under one of the names the shipped reports use has the book's value written into it. Those names, every one of which is written:
 
    | setting | section / name |
    |---|---|
@@ -2181,9 +2310,9 @@ In rising order of effort:
 
    The seller's and owner's blocks follow the report's layout rather than being required of the report. A report keeping `make-company-table` and `make-client-table` — the case for a report started from `invoice.scm` — has the registration numbers and `extra_text` lines added to both blocks, as on GnuCash's own page. A report laying the page out some other way has the numbers and lines left out, with no refusal and no warning, where GnuCash's own page would have been refused for the same absence. The layout belongs to the `.scm` file, and the numbers stay on the book (`Business/Company GST Number` and the `extra_text` keys) for the report to read.
 
-   Keeping the block but not a table inside it — the seller written out as text, say — is the case in between, and the run says so on stderr rather than staying quiet: the rows go in at the end of the block's own table, so a block without one has nowhere to hold them. Nothing is refused and the document prints; you are told which lines it could not place.
+   Keeping the block but not a table inside it — the seller written out as text, say — is the case in between, and the run says so on stderr rather than staying quiet: the rows go in at the end of the block's own table, so a block without one has nowhere to hold them. Nothing is refused and the invoice prints; you are told which lines it could not place.
 
-So a field this format carries that GnuCash's page has no row for — an unposted document's `due_date:` is the one such case — prints only if your own report prints it. It round-trips through the ledger either way.
+So a field this format carries that GnuCash's page has no row for — an unposted invoice or bill's `due_date:` is the one such case — prints only if your own report prints it. It round-trips through the ledger either way.
 
 **The `action:` field** is optional, on an invoice entry and on a bill entry alike — one entry field, shown in the Action column of both windows. Omitting the line is equivalent to `action: ""` — the entry's action is set to empty. To keep a non-empty action such as `Hours` across re-imports, name it every time; an entry block is the full source of truth for its line, not a partial patch, for the reason given below the table.
 
@@ -2191,7 +2320,7 @@ So a field this format carries that GnuCash's page has no row for — an unposte
 
 | key | where | what it is |
 |---|---|---|
-| `notes: "…"` | invoice, bill | the note on that line, beside the document's own `notes:` |
+| `notes: "…"` | invoice, bill | the note on that line, beside the block's own `notes:` |
 | `discount: 10` | invoice | the discount figure |
 | `discount_type: percent \| value` | invoice | whether that figure is a percentage or an amount |
 | `discount_how: pretax \| sametime \| posttax` | invoice | where the discount falls relative to tax |
@@ -2205,21 +2334,21 @@ A file naming none of them still imports: an entry GnuCash has never been asked 
 
 **A flag is written `#True` or `#False`** — the same `#` that marks `#None` and `#3/4`, and the only spelling that is actually a boolean. A bare `true` is the *string* `"true"`, which is why `taxable: True` once read as false and `placeholder: false` once killed the account it was on. Every writer here spells every flag that way, and there is a test over a real export that says so.
 
-**Reading is looser, because a person writes by hand**: `true`, `1` or `yes`, and `false`, `0` or `no`, in any case, are all read as the flag they look like, so a ledger written by hand or by an earlier release imports unchanged. Any *other* word is refused, naming the key and both sets of spellings, rather than read as one or the other — `taxable: treu` is a typo a document keeps no trace of otherwise, since it decides the line's tax, every `breakdown:` block and the three totals, so a page printed afterwards agrees with itself and re-imports against a book that dropped the tax.
+**Reading is looser, because a person writes by hand**: `true`, `1` or `yes`, and `false`, `0` or `no`, in any case, are all read as the flag they look like, so a ledger written by hand or by an earlier release imports unchanged. Any *other* word is refused, naming the key and both sets of spellings, rather than read as one or the other — `taxable: treu` is a typo an invoice keeps no trace of otherwise, since it decides the line's tax, every `breakdown:` block and the three totals, so a page printed afterwards agrees with itself and re-imports against a book that dropped the tax.
 
-The flags are `taxable:`, `tax_included:` and `billable:` on an `entry:`, `accumulate:` on a `posted:` block, `credit_note:` and `auto_apply_credit:` on a document, `from_credit:` on a payment, `active:` on a customer or vendor, `closing:` on a transaction, `placeholder:` and `tax_related:` on an `open` block, and `cost_basis_force:` on a split.
+The flags are `taxable:`, `tax_included:` and `billable:` on an `entry:`, `accumulate:` on a `posted:` block, `credit_note:` and `auto_apply_credit:` on an invoice, `from_credit:` on a payment, `active:` on a customer or vendor, `closing:` on a transaction, `placeholder:` and `tax_related:` on an `open` block, and `cost_basis_force:` on a split.
 
-**An `entry:` block describes the whole line**, which is the one place this format departs from "an absent key says nothing" — and it applies to every key of the block, `action:` included. An entry has no identity of its own in a ledger, so re-importing a document destroys its entries and rebuilds them from the blocks: there is no entry left for an unnamed key to say nothing about. An unnamed key therefore means the default above, and the comparison that decides `unchanged` reads those same defaults, so a book that differs from them is reported rather than silently kept. Editing one field of a line means writing the rest of that line too — which is what an exported ledger already carries.
+**An `entry:` block describes the whole line**, which is the one place this format departs from "an absent key says nothing" — and it applies to every key of the block, `action:` included. An unnamed key means the default above, on a line being created and on a line being edited alike: a line comes out of an import holding what its block says and nothing it held before, so a block that stops naming `tax_table:` is a line with no tax table. The comparison that decides `unchanged` reads those same defaults, so a book that differs from them is reported rather than silently kept. Editing one field of a line means writing the rest of that line too — which is what an exported ledger already carries.
 
-A key belonging to the other kind of document is refused rather than passed over: `discount:` on a bill entry names a column GnuCash's bill window has not got, and would otherwise be read by nothing, stored nowhere, and reported as `unchanged` on every later run.
+A key belonging to the other kind of invoice is refused rather than passed over: `discount:` on a bill entry names a column GnuCash's bill window has not got, and would otherwise be read by nothing, stored nowhere, and reported as `unchanged` on every later run.
 
-The words are GnuCash's own — they are what it writes in its file — and a word outside those lists is refused by name rather than imported as something else. A discount needs all three keys to mean one thing: 10 off and 10 per cent off are different documents, and the same 10 per cent lands differently either side of tax.
+The words are GnuCash's own — they are what it writes in its file — and a word outside those lists is refused by name rather than imported as something else. A discount needs all three keys to mean one thing: 10 off and 10 per cent off are different invoices and bills, and the same 10 per cent lands differently either side of tax.
 
 The bill key is `payment_type:` and not `payment:` because a bill block already carries `payment:` blocks, each one a payment made against the bill. `payment_type:` sits on an `entry:` and says how that single line was paid.
 
 A bill has no discount: GnuCash's bill window has no such column.
 
-**A credit note is `credit_note: true` on the block**, and everything else about it reads as any other document's. GnuCash's Business → New Credit Note makes one — a `gncInvoice` with a flag, storing its lines negated:
+**A credit note is `credit_note: true` on the block**, and everything else about it reads as any other invoice's. GnuCash's Business → New Credit Note makes one — a `gncInvoice` with a flag, storing its lines negated:
 
 ```
 invoice "CN-001"
@@ -2235,9 +2364,9 @@ invoice "CN-001"
 		price: 100
 ```
 
-Measured on 5.10: that document's own totals answer **+200.00**, and it posts `Income:Sales` +200.00 against the receivable −200.00 — the mirror of the invoice it reverses. So the quantities a ledger states are the ones the book holds either way, a printed page states the same positive figures a person sees in the window, and this one key is the whole of the difference. It is written first on the block because it is what the rest of the block means: the same lines and the same accounts post the other way round.
+Measured on 5.10: that invoice's own totals answer **+200.00**, and it posts `Income:Sales` +200.00 against the receivable −200.00 — the mirror of the invoice it reverses. So the quantities a ledger states are the ones the book holds either way, a printed page states the same positive figures a person sees in the window, and this one key is the whole of the difference. It is written first on the block because it is what the rest of the block means: the same lines and the same accounts post the other way round.
 
-A block that leaves the key out is an ordinary invoice or bill, which is what every ledger written before it said. A vendor credit note is the same key on a `bill` block. `print-invoice`/`print-bill` draw one in every format, and `export --include-business-objects` writes it like any other document.
+A block that leaves the key out is an ordinary invoice or bill, which is what every ledger written before it said. A vendor credit note is the same key on a `bill` block. `print-invoice`/`print-bill` draw one in every format, and `export --include-business-objects` writes it like any other invoice.
 
 **Back-compat**: the original `--invoice-id <ID>` flag is still accepted and behaves as a single-value alias for a positional ID.
 
@@ -2291,6 +2420,8 @@ When using `--strategy update`, each field is updated only if it is explicitly p
 | `memo: "some text"` | Replaced with new text |
 
 In other words, **omitting a field means "leave it alone"**, while supplying an empty string means "clear it". This applies to both split `memo` and split `action`.
+
+**Which split a block updates is decided by its `guid:`**, the same way the transaction's own guid decides which transaction it is. Position decides only where a block names none, which is what a hand-written file does. Two blocks naming one split are refused: a guid is one split, so the second would fall through to position and put its amount and memo on a split the file never mentioned. So is a block naming a guid the book holds on something that is not a split of that transaction — another transaction's split, an account, a line. **Changing a block's account line moves the split it names**, keeping its guid: recategorising is the commonest edit anyone makes to an exported ledger, and the split used to be destroyed and rebuilt under a guid GnuCash minted. A split sitting in a **lot** is not moved — it is settling an invoice or standing as an owner's credit, and moving it would leave a receivable's lot holding a split that now lives on an expense account. That is refused, naming the lot, and the way to move such money is the invoice's own `payment:` block or `unapply-payment`. A split in a lot that *no* block names is refused rather than removed, for the same reason: one mistyped digit of a `guid:` reads as a new split, and dropping the one it meant would take a settlement out of its invoice's lot while the account's balance stayed put — nothing looking wrong, and the invoice reading unpaid. Every exported split carries one, so a file whose two `Expenses:Dining` blocks were rewritten the other way round updates each split with its own block — where pairing by position moved the amounts between them, reported `Updated: 1`, and left the book contradicting the file that had just been imported into it. Two splits of the same amount are the case that moved in silence: 15.00 for coffee and 15.00 for cake swap their *memos* and nothing else, so no total changes, no balance changes, and no figure looks wrong.
 
 **How conflicts are detected:**
 

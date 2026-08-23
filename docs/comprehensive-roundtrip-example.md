@@ -1,6 +1,6 @@
 # Comprehensive roundtrip example
 
-This document walks through a complete `export` → fresh-book `import --new` cycle for a book that exercises every plaintext surface the project supports: account hierarchy with multiple commodities, customers and vendors, tax tables, invoices and bills in several payment shapes (cash-on-import, partial payment, overpayment with prepayment credit, credit consumption via `auto_apply_credit`, and the multi-invoice-one-bank-tx shape), plus regular bank transactions. After Q-016 the reconstructed book is structurally identical to the source down to per-split GUIDs.
+This walkthrough goes through a complete `export` → fresh-book `import --new` cycle for a book that exercises every plaintext surface the project supports: account hierarchy with multiple commodities, customers and vendors, tax tables, invoices and bills in several payment shapes (cash-on-import, partial payment, overpayment with prepayment credit, credit consumption via `auto_apply_credit`, and the multi-invoice-one-bank-tx shape), plus regular bank transactions. After Q-016 the reconstructed book is structurally identical to the source down to per-split GUIDs.
 
 If you only need the simple "post an invoice, record a payment" workflow, the [README](../README.md) is enough. This doc is the reference for the tricky cases — anything that mixes multiple invoices, customer credits, or pre-existing bank transactions.
 

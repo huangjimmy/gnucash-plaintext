@@ -1,6 +1,6 @@
 # A CAD invoice settled into an HKD bank, in a CAD-base book.
 #
-# The document is already in the base currency, so it realizes nothing: a
+# The invoice is already in the base currency, so it realizes nothing: a
 # receivable holding CAD does not appreciate against CAD. What the HKD cost is
 # a question about the bank account, answered where currency is bought.
 #

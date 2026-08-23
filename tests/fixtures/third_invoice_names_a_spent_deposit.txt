@@ -1,0 +1,32 @@
+# A third invoice, for the same customer as the first, naming the deposit whose
+# portions have both already settled invoices — and naming only the
+# transaction, so nothing says which split it means.
+#
+# There is no split left for it to move: each is in a lot holding an invoice
+# that reads as paid. Taking one anyway would settle this invoice and leave
+# that invoice silently unpaid, with every figure in the book still balancing.
+invoice "INV-TWO-A-SECOND"
+	customer_id: "C-TWO-A"
+	currency: CAD
+	date_opened: 2026-06-01
+	entry:
+		date: 2026-06-01
+		description: "Service A again"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-06-02
+		due: 2026-07-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-TWO-A-SECOND"
+		accumulate: true
+	payment:
+		date: 2026-05-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		memo: "Portion for Alpha"

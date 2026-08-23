@@ -74,6 +74,8 @@ from infrastructure.gnucash.utils import (
     get_account_full_name,
     money_text,
     numeric_to_fraction,
+    qof_instance,
+    qof_pointer,
     to_money,
     transaction_under_construction,
     wrap_invoice_or_bill,
@@ -361,34 +363,97 @@ def _find_transaction_by_guid(book, guid: str):
     return Transaction(instance=raw)
 
 
+def the_guid_a_block_names(metadata, key: str = 'guid') -> Optional[str]:
+    """A block's guid as the book spells it, or None where it names none.
+
+    The one way to ask outside this module. A guid is compared against
+    what the book holds, and the book holds the canonical 32 lowercase hex
+    characters — so a hyphenated one, an upper-case one, and an unquoted
+    all-digit one (a number by the time it is read) are all the same guid
+    and none of them matches a raw comparison. Measured: `--strategy
+    update` refused a transaction the book was holding, saying `Transaction
+    GUID 22 not found in book` to someone who wrote thirty-two characters.
+
+    Raises on a guid nothing can parse, as every reader of one here does.
+    """
+    declared = metadata.get(key)
+    if not _states_a_guid(declared):
+        return None
+    return _normalise_guid(declared)
+
+
+def _states_a_guid(declared) -> bool:
+    """Does a block state a guid at all — as against naming none, or
+    naming one empty?
+
+    Not truthiness, which is what every reader used to ask. An unquoted
+    all-digit value decodes to a number (`NumberAsWritten`), and a number
+    of zero is falsy, so `guid: 0` and `guid: 000` read as blocks naming
+    no guid: they fell through to positional pairing, and a block creating
+    an object got one GnuCash minted. Quoted, `guid: "0"` is refused —
+    the same value answered two ways by its quotes, in a release whose
+    rule is that a guid nothing can parse is refused wherever it appears.
+
+    An absent key states nothing, and `guid: ""` clears it, which is what
+    an empty value means everywhere in this format. Both are "no guid".
+    Everything else is a guid to be read, and `_normalise_guid` says
+    whether it is one: 32 zeros is, and `0` is not.
+    """
+    return declared is not None and declared != ''
+
+
 def _normalise_guid(guid) -> str:
     """Normalise a user-supplied GUID to GnuCash's canonical 32-char lowercase hex.
 
     Accepts:
       - quoted hex string ("b2b3…b4")
       - unquoted mixed hex (b2b3…b4) — the parser keeps it as a string
+      - unquoted all-digit (22222222222222222222222222222222) — the parser
+        makes a number of it, and the number carries the digits it was
+        written with; see `NumberAsWritten`. All-digit hex is as
+        unambiguous as mixed hex, and the only thing that ever stood in
+        its way was `int` throwing the digits away.
       - UUID-with-hyphens
     Rejects:
-      - int / float — these slip in when a user writes an unquoted all-digit
-        guid (e.g. `guid: 22222222222222222222222222222222`). The parser
-        auto-converts to int and the original digit count is lost (so
-        `0000…0022` would be indistinguishable from `22`). Force the user
-        to quote so we keep the literal hex digits.
+      - a number carrying no digits of its own — one built in code rather
+        than read from a file, and a float or a bool however it arrived.
+        There is nothing to read as a guid and nothing to quote back.
       - malformed strings ("hello") via `string_to_guid`
     """
+    written = getattr(guid, 'source', None)
+    if written is not None:
+        guid = written
+
     if isinstance(guid, (int, float, bool)):
+        # No remedy is offered, because none can be: every guid this could
+        # name would be one nobody wrote. Padding the number back to 32
+        # characters guesses that 32 is how many were written — `guid: 22`
+        # is two — and rendering it in hex, of a value read as decimal,
+        # names a different guid again: a file carrying 2222…22 was told
+        # to quote 000001187bdf63db7309fc558e38e38e.
         raise ValueError(
-            f"guid must be a quoted string (got {type(guid).__name__} {guid!r}); "
-            f"unquoted all-digit values are auto-converted to a number and "
-            f"lose their digit count. Quote the guid: e.g. guid: \"{guid:032x}\""
-            if isinstance(guid, int) and 0 <= guid < 2**128
-            else f"guid must be a quoted string (got {type(guid).__name__} {guid!r})"
-        )
+            f"guid must be a quoted string (got {type(guid).__name__} "
+            f"{guid!r}), and this one reached here without the characters "
+            f"it was written with. Quote the value as it stands in the file")
 
     from gnucash.gnucash_core_c import GncGUID, string_to_guid
     if not string_to_guid(guid, GncGUID()):
         raise ValueError(f"Invalid GUID format: {guid!r}")
-    return guid.replace('-', '').lower()
+    normalised = guid.replace('-', '').lower()
+    # Thirty-two zeros parse, and are not a guid: that is GnuCash's null
+    # guid, which the engine uses to mean *no* guid at all. Every writer
+    # here already treats it as absent — the export drops a `lot_owner:`
+    # guid and a `lot_guid:` that reads that way — so reading it as a real
+    # one gave the format a value it could take and could not write back:
+    # a lot stamped with it exported without its `lot_guid:` line, and the
+    # re-import fell back to the oldest open credit, which is the whole
+    # thing that key was added to stop.
+    if normalised == '0' * 32:
+        raise ValueError(
+            f"Invalid GUID format: {guid!r} — that is GnuCash's null guid, "
+            f"which means no guid at all. Name the object's own guid, or "
+            f"leave the line out to let GnuCash assign one")
+    return normalised
 
 
 def _find_customers_by_id(book, id_: str):
@@ -615,22 +680,37 @@ def _find_taxtable_by_guid(book, guid_norm: str):
     return None
 
 
-def _swig_invoice_guid_str(invoice) -> str:
-    """Read an Invoice's GUID via ctypes (qof_instance_get_guid + guid_to_string_buff).
-    SWIG `Invoice.GetGUID()` is missing on some platforms; this works everywhere
-    the invoice has been committed to the book."""
+def _guid_of_a_qof_instance(obj) -> str:
+    """The guid of anything the engine holds, read through ctypes.
+
+    Takes a wrapped object or the raw pointer some getters hand back, through
+    `qof_pointer` — a lot comes out of `xaccAccountGetLotList` with no
+    `.instance` on it, and reading `.instance` unconditionally raised an
+    `AttributeError` inside an export block that catches one, so a credit
+    exported with no `lot_owner:` line at all.
+    """
     import ctypes
-    lib = ctypes.CDLL(None)
-    lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]
-    lib.qof_instance_get_guid.restype = ctypes.c_void_p
-    lib.guid_to_string_buff.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-    lib.guid_to_string_buff.restype = ctypes.c_char_p
+
+    from infrastructure.gnucash.engine import load_gnc_engine
+
+    # The shared loader, not a `CDLL(None)` of its own: this is asked of
+    # every line of every invoice and bill on the way in and out, and each call was
+    # opening the library again. `load_gnc_engine` is cached, declares both
+    # signatures, and does the RTLD_GLOBAL promotion CLAUDE.md §2 requires.
+    lib = load_gnc_engine()
     buf = ctypes.create_string_buffer(40)
-    guid_ptr = lib.qof_instance_get_guid(int(invoice.instance))
+    guid_ptr = lib.qof_instance_get_guid(qof_pointer(obj))
     if not guid_ptr:
         return ''
     lib.guid_to_string_buff(guid_ptr, buf)
     return buf.value.decode('ascii')
+
+
+def _swig_invoice_guid_str(invoice) -> str:
+    """Read an Invoice's GUID via ctypes (qof_instance_get_guid + guid_to_string_buff).
+    SWIG `Invoice.GetGUID()` is missing on every supported build (CLAUDE.md
+    §13); this works everywhere the invoice has been committed to the book."""
+    return _guid_of_a_qof_instance(invoice)
 
 
 def _resolve_existing_or_none(kind: str, id_: str, guid_str: Optional[str],
@@ -729,6 +809,40 @@ def _resolve_cross_reference(kind: str, id_val: Optional[str], guid_val: Optiona
     return matches[0]
 
 
+#: The collections a lookup function of its own does not cover, and the name
+#: each goes by in a refusal. A split, an invoice or bill and a line are as much a
+#: `qof_instance` as an account is, and a guid is unique across all of them.
+_COLLECTIONS_WITHOUT_A_LOOKUP = (
+    (b'Split', 'split'),
+    (b'Lot', 'lot'),
+    (b'gncInvoice', 'invoice or bill'),
+    (b'gncEntry', 'invoice or bill line'),
+)
+
+
+def _entity_in_collection(book, type_name: bytes, guid_norm: str):
+    """The entity of `type_name` this guid names, or None.
+
+    `gncEntryLookup` and its siblings are macros in GnuCash's headers, so no
+    library exports one and ctypes cannot call them. What they expand to is a
+    pair of real functions taking the QOF type as a string — measured present,
+    finding the entry, and finding nothing in the collections it does not
+    belong to, on GnuCash 3.8, 4.4, 5.10 and 5.15
+    (`tests/research/entry_lookup_by_guid_probe.py`).
+    """
+    import ctypes
+
+    from infrastructure.gnucash.engine import guid_from_hex, load_gnc_engine
+
+    lib = load_gnc_engine()
+    collection = lib.qof_book_get_collection(int(book.instance), type_name)
+    if not collection:
+        return None
+    wanted = guid_from_hex(guid_norm)
+    return lib.qof_collection_lookup_entity(
+        collection, ctypes.byref(wanted)) or None
+
+
 def _guid_in_use_anywhere(book, guid_norm: str) -> Optional[str]:
     """Return the kind of entity that already uses guid_norm, or None if free.
 
@@ -736,29 +850,33 @@ def _guid_in_use_anywhere(book, guid_norm: str) -> Optional[str]:
     forcing a freshly-created object's GUID via qof_instance_set_guid, callers
     must ensure the target GUID is not already taken by another entity, or
     the book becomes corrupted.
+
+    Asked in order of cost, because this runs once per guid a file forces —
+    which, since a line carries one, is once per line of every invoice and
+    bill restored. The lookups are all hash lookups; the three owner searches at
+    the end are not, each walking a collection and wrapping every object in
+    it, so nothing reaches them that an earlier answer settles.
     """
     import ctypes
 
     from gnucash.gnucash_core_c import GncGUID, string_to_guid, xaccTransLookup
+
+    from infrastructure.gnucash.engine import guid_from_hex, load_gnc_engine
+
     g = GncGUID()
     if not string_to_guid(guid_norm, g):
         return None
     if xaccTransLookup(g, book.instance) is not None:
         return 'transaction'
 
-    lib = ctypes.CDLL(None)
-    lib.xaccAccountLookup.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    lib.xaccAccountLookup.restype = ctypes.c_void_p
-    lib.string_to_guid.argtypes = [ctypes.c_char_p, ctypes.c_void_p]
-    lib.string_to_guid.restype = ctypes.c_int
-
-    class QofGuid(ctypes.Structure):
-        _fields_ = [("data", ctypes.c_uint8 * 16)]
-    cguid = QofGuid()
-    for i in range(16):
-        cguid.data[i] = int(guid_norm[i*2:i*2+2], 16)
-    if lib.xaccAccountLookup(ctypes.byref(cguid), int(book.instance)):
+    lib = load_gnc_engine()
+    if lib.xaccAccountLookup(ctypes.byref(guid_from_hex(guid_norm)),
+                             int(book.instance)):
         return 'account'
+
+    for type_name, called in _COLLECTIONS_WITHOUT_A_LOOKUP:
+        if _entity_in_collection(book, type_name, guid_norm) is not None:
+            return called
 
     if _find_customer_by_guid(book, guid_norm) is not None:
         return 'customer'
@@ -784,16 +902,11 @@ def _set_object_guid(book, obj, kind: str, id_: str, guid_norm: str) -> None:
             f'line to let GnuCash assign one'
         )
 
-    import ctypes
-    class QofGuid(ctypes.Structure):
-        _fields_ = [("data", ctypes.c_uint8 * 16)]
-    lib = ctypes.CDLL(None)
-    lib.qof_instance_set_guid.argtypes = [ctypes.c_void_p, ctypes.POINTER(QofGuid)]
-    lib.qof_instance_set_guid.restype = None
-    g = QofGuid()
-    for i in range(16):
-        g.data[i] = int(guid_norm[i*2:i*2+2], 16)
-    lib.qof_instance_set_guid(int(obj.instance), ctypes.byref(g))
+    from infrastructure.gnucash.engine import guid_from_hex, load_gnc_engine
+
+    lib = load_gnc_engine()
+    lib.qof_instance_set_guid(qof_pointer(obj),
+                              ctypes.byref(guid_from_hex(guid_norm)))
 
 
 def _retarget_counter_split_to_lot(lib, existing_tx, counter_split,
@@ -814,6 +927,139 @@ def _retarget_counter_split_to_lot(lib, existing_tx, counter_split,
                             int(ar_ap_account.instance))
     _attach_split_to_lot(counter_split, lot)
     existing_tx.CommitEdit()
+
+
+def _lot_guid_str(lot) -> str:
+    """A lot's guid, normalised.
+
+    Takes the raw pointer `xaccAccountGetLotList` and `xaccSplitGetLot` hand
+    back as readily as anything with an `.instance`: a lot has no wrapper
+    carrying its own accessors here.
+    """
+    return _guid_of_a_qof_instance(lot).replace('-', '').lower()
+
+
+def _the_lot_guid_named(metadata) -> Optional[str]:
+    """`lot_guid:` on a split block, normalised, or None where it names none.
+
+    Malformed refuses here rather than being read as "no lot named": a file
+    saying which credit to take, in a spelling nothing can resolve, must not
+    quietly fall back to whichever credit is oldest.
+
+    So does a `lot_guid:` with no `lot_owner:` beside it. The two say
+    different things — `lot_owner:` that this split is an owner's credit,
+    `lot_guid:` which of their credits — and only the first puts the split
+    in a lot at all. Alone, the line would be read by nothing: not stored,
+    not acted on, and `unchanged` on every later run, which is a file asking
+    for something and a book that never heard the question.
+    """
+    declared = metadata.get('lot_guid')
+    if not _states_a_guid(declared):
+        return None
+    if not metadata.get('lot_owner'):
+        # The characters the file wrote, not the value: an unquoted
+        # all-digit guid is a number by the time it reaches here, and a
+        # refusal quoting `22` at a reader who wrote thirty-two of them
+        # names something they cannot find in their file.
+        raise Exception(
+            f'lot_guid {_the_characters_a_block_wrote(metadata, "lot_guid")} '
+            f'names a credit, and nothing on this split '
+            f'says it is one. Add `lot_owner: customer:<id>` (or `vendor:`) '
+            f'beside it, or drop the lot_guid: line')
+    return _normalise_guid(declared)
+
+
+def _refuse_to_destroy_a_split_in_a_lot(split) -> None:
+    """A split no block named may not be destroyed while it is in a lot.
+
+    The same money as `_splits_named_across_the_transaction` refuses to
+    move, lost the same way with none of the protection: a split in a lot
+    is settling an invoice or a bill or standing as an owner's credit, and
+    taking it out leaves that record unpaid and the settlement loose. The account's
+    balance does not move, so nothing on the page looks wrong.
+
+    A block whose `guid:` names nothing in the book is a split being
+    created — which is what a mistyped hex digit looks like, and then the
+    split the block meant is named by nobody and falls in here.
+
+    Through `_lot_is_still_on_its_account`, as every reader of a split's
+    lot pointer here goes: a split can hold a pointer the book has let go
+    of, and asking that pointer its guid to write this message is a
+    question about freed memory.
+    """
+    lot = split.GetLot()
+    if lot is None or not _lot_is_still_on_its_account(split, lot):
+        return
+    raise ValueError(
+        f'the split {split_guid(split)} is in lot {_lot_guid_str(lot)} and '
+        f'no block of this transaction names it. A split in a lot is '
+        f'settling an invoice or a bill or standing as an owner\'s credit, '
+        f'so dropping it here would leave that invoice or bill unpaid with '
+        f'nothing saying so — check the guid: lines against the export, or '
+        f'take it out of the lot first (`unapply-payment`, or its own '
+        f'`payment:` block)')
+
+
+def _refuse_to_move_a_split_between_lots(split, metadata) -> None:
+    """A split in a lot may not be moved to another by a `lot_guid:` edit.
+
+    Which lot a split is in is not something a re-import changes: a split
+    already in one is left alone, because an exported credit carries
+    `lot_owner:` and is in its owner's lot, and re-importing it over itself
+    must not open a second. So an edited `lot_guid:` would do nothing at all
+    while the run reported the transaction updated — the file saying one
+    thing and the book another.
+
+    Moving money between credits is what an invoice's or a bill's `payment:` block does,
+    naming the split with `txn_split_guid:`.
+    """
+    wanted = _the_lot_guid_named(metadata)
+    if not wanted:
+        return
+    # Through `_lot_is_still_on_its_account`: a split can hold a pointer
+    # the book has let go of, and asking it its guid is a question about
+    # freed memory.
+    lot = split.GetLot()
+    held = (_lot_guid_str(lot)
+            if lot is not None and _lot_is_still_on_its_account(split, lot)
+            else '')
+    if held and held != wanted:
+        raise Exception(
+            f'this split is in lot {held} and the file names lot {wanted}. '
+            f'A split is not moved between lots by re-importing it: settle '
+            f'the credit you mean through an invoice\'s or a bill\'s `payment:` block, '
+            f'naming this split with `txn_split_guid:`')
+
+
+def _the_lot_named(book, guid_norm: str):
+    """The lot this guid names, as a pointer, or None.
+
+    `GNC_ID_LOT` is `"Lot"` and the collection answers by guid — measured in
+    `tests/research/a_lot_can_be_named_probe.py`.
+    """
+    return _entity_in_collection(book, b'Lot', guid_norm)
+
+
+def _force_the_lot_guid(lot_ptr, guid_norm: str) -> None:
+    """Give a lot the import has just created the guid its file names.
+
+    Bracketed in `gnc_lot_begin_edit` / `gnc_lot_commit_edit` as every write
+    to the book is. **A forced guid marks nothing dirty**, so a session whose
+    only change was one would save nothing at all and report that it had —
+    measured on 5.10. Here the lot is new and holds a split, so the book is
+    dirty either way; the bracket is what says so at the call site.
+
+    Whether the guid is free is settled before this, where the block is
+    read: a guid the book has on something else is refused there whichever
+    way the split then goes.
+    """
+    from infrastructure.gnucash.engine import guid_from_hex, load_gnc_engine
+
+    lib = load_gnc_engine()
+    lib.gnc_lot_begin_edit(lot_ptr)
+    lib.qof_instance_set_guid(lot_ptr,
+                              ctypes.byref(guid_from_hex(guid_norm)))
+    lib.gnc_lot_commit_edit(lot_ptr)
 
 
 def _parse_lot_owner(value: str):
@@ -842,7 +1088,52 @@ def _parse_lot_owner(value: str):
     return kind, rest.strip(), guid
 
 
-def _attach_lot_owner_split(book, split, split_account, kind, owner_id, owner_guid):
+def _refuse_a_lot_that_is_not_this_owners_credit(
+        lib, lot_ptr, split_account, owner_p, resolved_id, lot_guid,
+        where) -> None:
+    """Refuse a `lot_guid:` that names a lot this split may not join.
+
+    Four ways it can be the wrong lot, and each of them is a settlement
+    landing on money that is not the one the file meant:
+
+    - on another account — a receivable is not the payable beside it;
+    - a posted invoice's or bill's lot, where a bare split would settle it
+      without its own block saying so;
+    - somebody else's, which is one owner's credit paying another's debt;
+    - closed, which is a credit that has already been spent.
+    """
+    from infrastructure.gnucash.engine import iterate_glist
+
+    on_this_account = [
+        ptr for ptr in iterate_glist(
+            lib, lib.xaccAccountGetLotList(int(split_account.instance)),
+            lambda lib, p: p) if ptr]
+    if lot_ptr not in on_this_account:
+        raise Exception(
+            f'{where}: lot_guid {lot_guid} names a lot that is not on '
+            f'{split_account.GetName()!r}')
+    if lib.gncInvoiceGetInvoiceFromLot(lot_ptr):
+        raise Exception(
+            f'{where}: lot_guid {lot_guid} names a posted invoice\'s or '
+            f'bill\'s lot, not a credit. Settle it through its own '
+            f'`payment:` block')
+    if not lib.gncOwnerGetOwnerFromLot(lot_ptr, owner_p):
+        raise Exception(
+            f'{where}: lot_guid {lot_guid} names a lot belonging to nobody')
+    named_id = lib.gncOwnerGetID(owner_p)
+    named_id = named_id.decode('utf-8', errors='replace') if named_id else ''
+    if named_id != resolved_id:
+        raise Exception(
+            f'{where}: lot_guid {lot_guid} names another owner\'s credit '
+            f'({named_id!r})')
+    if lib.gnc_lot_is_closed(lot_ptr):
+        raise Exception(
+            f'{where}: lot_guid {lot_guid} names a credit that is already '
+            f'spent (its lot is closed)')
+
+
+def _attach_lot_owner_split(book, split, split_account, kind, owner_id,
+                            owner_guid, lot_guid=None):
     """Attach an AR/AP split to its owner's business lot — the import side of
     the per-split `lot_owner:` KVP.
 
@@ -851,6 +1142,15 @@ def _attach_lot_owner_split(book, split, split_account, kind, owner_id, owner_gu
     (refund / vendor bad debt / customer forfeit, decided by the counter split's
     account). Otherwise create a new lot and attach the owner — an orphan
     payment being reconstructed (Q-014) or a fresh credit origin.
+
+    **`lot_guid` says which credit**, where the block names one. An owner may
+    hold several, and without it the search above decides: the oldest open lot
+    the split would reduce. So a refund written against February's deposit
+    came off January's, and the export then described two credits the ledger
+    just imported did not. A named lot is checked for being this owner's, on
+    this account, open and not a posted record's, and joined; a guid the book has
+    no lot for names the lot a *credit* is creating, so the identity survives
+    a rebuild into a fresh book.
 
     Done with primitive engine calls, NOT `gncOwnerApplyPaymentSecs(auto_pay=)`,
     whose lot-balancer segfaults on GnuCash 4.4/4.8.
@@ -895,6 +1195,24 @@ def _attach_lot_owner_split(book, split, split_account, kind, owner_id, owner_gu
     owner_buf = ctypes.create_string_buffer(256)
     owner_p = ctypes.cast(owner_buf, ctypes.c_void_p)
 
+    where = f'{kind} {resolved_id!r}'
+    named_lot = None
+    if lot_guid:
+        named_lot = _the_lot_named(book, lot_guid)
+        if named_lot is None:
+            # Not a lot at all, where the book has the guid on something
+            # else: a customer's own guid is the shape this takes, since
+            # `lot_owner:` carries one two lines above.
+            in_use = _guid_in_use_anywhere(book, lot_guid)
+            if in_use is not None:
+                raise Exception(
+                    f'{where}: lot_guid {lot_guid} is an existing {in_use} '
+                    f'in this book, not a lot')
+        else:
+            _refuse_a_lot_that_is_not_this_owners_credit(
+                lib, named_lot, split_account, owner_p, resolved_id,
+                lot_guid, where)
+
     # Find the owner's oldest open non-invoice lot this split would REDUCE
     # (opposite sign). Same-sign or none -> a new lot (origin/orphan).
     best_lot, best_date = None, None
@@ -909,7 +1227,7 @@ def _attach_lot_owner_split(book, split, split_account, kind, owner_id, owner_gu
         if bal_v == 0 or (bal_v > 0) == split_positive:
             continue  # closed/zero, or same sign (this split wouldn't reduce it)
         if lib.gncInvoiceGetInvoiceFromLot(lot_ptr):
-            continue  # invoice/bill document lot, not a credit
+            continue  # a posted invoice's or bill's lot, not a credit
         if not lib.gncOwnerGetOwnerFromLot(lot_ptr, owner_p):
             continue
         oid_raw = lib.gncOwnerGetID(owner_p)
@@ -919,6 +1237,15 @@ def _attach_lot_owner_split(book, split, split_account, kind, owner_id, owner_gu
         when = lib.xaccTransGetDate(lib.xaccSplitGetParent(es)) if es else 0
         if best_lot is None or when < best_date:
             best_lot, best_date = lot_ptr, when
+
+    if lot_guid:
+        # The block named one, so nothing else is a candidate: the named lot
+        # where the book has it, and the create branch below where it has
+        # not — which is a new credit taking that guid, or, for a clearing
+        # split, a guid naming nothing and a refusal. Falling back to the
+        # search would settle against a credit the file did not name, which
+        # is the whole of what naming one is for.
+        best_lot = named_lot
 
     if best_lot is not None:
         # JOIN: settle (part of) an existing credit.
@@ -944,14 +1271,24 @@ def _attach_lot_owner_split(book, split, split_account, kind, owner_id, owner_gu
         # and a fresh credit origin. A clearing-shaped split (opposite sign)
         # with nothing to reduce is an error: we will not mint a phantom lot
         # for a refund/write-off that has no credit to apply against.
+        #
+        # A `lot_guid:` naming no lot in the book does not change that. On a
+        # credit it is the guid the new lot takes, so a book rebuilt from an
+        # export holds the credits it came from. On a clearing it is a guid
+        # that names nothing, and creating the lot would be inventing the
+        # credit out of a typo — the refusal below says so.
         origin_positive = (kind == 'vendor')
         if split_positive != origin_positive:
+            named = (f' (lot_guid {lot_guid} names no lot in this book)'
+                     if lot_guid else '')
             raise Exception(
                 f"{kind} {resolved_id!r} has no open credit for this split to "
                 f"settle on {split_account.GetName()!r}; a clearing must target "
-                f"an existing open credit (none found)")
+                f"an existing open credit (none found){named}")
         new_lot = lib.gnc_lot_new(int(book.instance))
         lib.xaccAccountInsertLot(int(split_account.instance), new_lot)
+        if lot_guid:
+            _force_the_lot_guid(new_lot, lot_guid)
         lib.gnc_lot_add_split(new_lot, int(split.instance))
         attach_buf = ctypes.create_string_buffer(256)
         attach_p = ctypes.cast(attach_buf, ctypes.c_void_p)
@@ -992,10 +1329,11 @@ def _attach_record_owner_to_lot(lib, record, lot_ptr):
 # Cleared at the start of each import by `begin_lot_attachments`.
 _LOTS_HOLDING_UNLISTED_SPLITS = set()
 
-# Written on a split left behind by an unpost. Unposting detaches the document
-# but leaves the lot on the account holding whatever settled it, so nothing
-# about the lot afterwards distinguishes it from an owner's parked credit —
-# both are live, documentless and owner-attached (CLAUDE.md finding 10).
+# Written on a split left behind by an unpost. Unposting detaches the invoice
+# or bill but leaves the lot on the account holding whatever settled it, so
+# nothing about the lot afterwards distinguishes it from an owner's parked
+# credit — both are live, owner-attached, and hold no record of their own
+# (CLAUDE.md finding 10).
 #
 # On the split and not in memory, because the state it describes is in the
 # file: the book is saved with the orphan still sitting in the abandoned lot,
@@ -1003,10 +1341,10 @@ _LOTS_HOLDING_UNLISTED_SPLITS = set()
 # note that lasted one import would have every later one read the orphan as a
 # credit and strip the basis off a settlement the bank really paid.
 #
-# The value is the guid of the document that was unposted, not just `true`, so
-# a rebuild can find the split that used to be its own. On a transaction
-# carrying several — a deposit whose portions settled two documents, both since
-# unposted — "which of these was mine" is answerable, and only that one is
+# The value is the guid of the invoice or bill that was unposted, not just
+# `true`, so a rebuild can find the split that used to be its own. On a
+# transaction carrying several — a deposit whose portions settled two invoices,
+# both since unposted — "which of these was mine" is answerable, and only that one is
 # taken without the file naming it.
 ORPHANED_BY_UNPOST_KEY = 'orphaned_by_unpost'
 
@@ -1043,6 +1381,9 @@ def begin_lot_attachments() -> None:
     """
     _LOTS_HOLDING_UNLISTED_SPLITS.clear()
     _PAYMENTS_THIS_RUN_MADE.clear()
+    TRANSACTIONS_A_MEMO_CORRECTED.clear()
+    _MEMOS_THE_TRANSACTIONS_STATE.clear()
+    _BLOCKS_SETTLING_FROM_A_TRANSACTION.clear()
     _PERSISTED_CURRENCY_FRACTION.clear()
 
 
@@ -1073,11 +1414,33 @@ _PERSISTED_CURRENCY_FRACTION: dict = {}
 #: refusal asks whether the book *already* holds the movement a block
 #: describes, and "already" means before this run: a payment recorded moments
 #: ago from an earlier block in the same file is not money the book had, it is
-#: money this file is entering. Two installments of one document, same day and
+#: money this file is entering. Two installments of one invoice, same day and
 #: same size and same memo, had the second refused against the first — naming
 #: a transaction created seconds earlier that appears in no file, and telling
 #: the reader to correct a guid to it.
 _PAYMENTS_THIS_RUN_MADE: set = set()
+
+#: What this file's **transaction** section states as the memo of each split
+#: it gives a `guid:`. Read once from the file, because whether a
+#: transaction is imported at all depends on the strategy — under the
+#: default one the book already holds is skipped by guid.
+_MEMOS_THE_TRANSACTIONS_STATE: dict = {}
+
+#: How many of this file's `payment:` blocks settle from each transaction.
+#: The book cannot answer it while the run is still building: on the run
+#: that establishes a shared payment, the second invoice is not posted when
+#: the first one's block is read.
+_BLOCKS_SETTLING_FROM_A_TRANSACTION: dict = {}
+
+
+#: Payment transactions whose memo a `payment:` block corrected this run.
+#:
+#: A memo is the transaction's, so correcting one leaves the invoice or bill
+#: unchanged — and a run whose only change is one of these has to save all
+#: the same, and has to say a transaction was updated rather than a record.
+#: Counted here because the invoice and bill paths report one line apiece and
+#: this is not news about either.
+TRANSACTIONS_A_MEMO_CORRECTED: set = set()
 
 
 def _everything_the_lot_holds(lot, account):
@@ -1093,21 +1456,21 @@ def _everything_the_lot_holds(lot, account):
     `_attach_split_to_lot` writes down, and only for those is the account
     walked — the splits themselves still say which lot they are in.
     """
-    wanted = int(getattr(lot, 'instance', lot))
+    wanted = qof_pointer(lot)
     if wanted not in _LOTS_HOLDING_UNLISTED_SPLITS or account is None:
         return [Split(instance=raw) for raw in lot.get_split_list()]
     return [split for split in account.GetSplitList()
             if (split_lot := split.GetLot()) is not None
-            and int(getattr(split_lot, 'instance', split_lot)) == wanted]
+            and qof_pointer(split_lot) == wanted]
 
 
 def mark_splits_orphaned_by_unpost(record) -> None:
     """Note, on each split about to be orphaned, that an unpost orphaned it.
 
     Call immediately *before* `record.Unpost(False)`, while the lot still
-    names the document and still lists what settled it. Afterwards neither is
-    true: the lot holds no document, and a lot holding no document is what an
-    owner's credit looks like.
+    names the invoice or bill and still lists what settled it. Afterwards
+    neither is true: the lot names nothing, and a lot naming nothing is what
+    an owner's credit looks like.
 
     What turns on telling them apart is whether moving a split out spends the
     owner's money. Spending a credit takes the cost basis off the split, since
@@ -1116,9 +1479,9 @@ def mark_splits_orphaned_by_unpost(record) -> None:
     export then writes that bank payment as `from_credit:` with no account and
     no date — the money's origin gone from the file.
 
-    The value is this document's guid, so the rebuild that re-imports it can
+    The value is this record's guid, so the rebuild that re-imports it can
     pick out the split that was settling *it* rather than one abandoned by
-    some other document's unpost.
+    the unpost of some other invoice or bill.
     """
     lot = record.GetPostedLot()
     if lot is None:
@@ -1138,7 +1501,7 @@ def mark_splits_orphaned_by_unpost(record) -> None:
     posting_ptr = int(posting.instance)
     # Not the lot's own list: a settlement this same import attached is not on
     # it (finding 9), and that is the one most likely to be orphaned — the file
-    # settled the document and then something else about it forced the rebuild.
+    # settled the invoice and then something else about it forced the rebuild.
     for split in _everything_the_lot_holds(lot, record.GetPostedAcc()):
         parent = split.GetParent()
         # The posting's own split goes with the posting, which unposting
@@ -1173,14 +1536,14 @@ def is_a_bank_paid_orphan(split) -> bool:
 
 
 def _orphaned_from(split) -> str:
-    """The guid of the document whose unpost left this split, or ''.
+    """The guid of the invoice or bill whose unpost left this split, or ''.
 
     The guid is what a rebuild matches on to find the settlement that was its
     own (`_retarget_choices`). Everything else asks only whether the key is
     there at all: whether the money is anybody's *credit* turns on how it was
     paid — `_split_came_from_credit` — and not on whose unpost loosened it. A
-    bank-paid orphan is a settlement waiting to be put back for every document,
-    not only the one it used to settle.
+    bank-paid orphan is a settlement waiting to be put back for any record at
+    all, not only the one it used to settle.
     """
     return str(get_custom_metadata(split).get(ORPHANED_BY_UNPOST_KEY, '')).strip()
 
@@ -1191,7 +1554,7 @@ def refuse_a_stated_orphan_mark(metadata, where: str) -> None:
     The symmetric half of keeping it out of exports. Nothing this tool writes
     puts the key in a file, so a file carrying one is either hand-written or
     from a book edited elsewhere — and either way it asserts something only the
-    book can know: that *this* document's unpost left *this* split loose.
+    book can know: that *this* record's unpost left *this* split loose.
 
     Asked of a transaction's own metadata as well as its splits'. Everything
     that reads the note reads it off a split, so a copy on the transaction
@@ -1202,10 +1565,10 @@ def refuse_a_stated_orphan_mark(metadata, where: str) -> None:
     Believed, it does the damage the note exists to prevent, twice over. A
     split so marked reads as not an owner's credit, so a settlement genuinely
     spent from a credit keeps a basis for currency it no longer holds. Worse,
-    a mark naming the document is preferred over everything else placeable —
-    which is how a rebuild finds its own orphan — so a file could pick which of
-    an owner's two credits a document spends, past the guard that exists to
-    stop split order deciding that. On a foreign book the two carry different
+    a mark naming the invoice or bill is preferred over everything else
+    placeable — which is how a rebuild finds its own orphan — so a file could
+    pick which of an owner's two credits a record spends, past the guard that
+    exists to stop split order deciding that. On a foreign book the two carry different
     costs, so it would pick the gain as well.
 
     Those two blocks and no others, which is what the message says. Stated in
@@ -1219,17 +1582,17 @@ def refuse_a_stated_orphan_mark(metadata, where: str) -> None:
         raise Exception(
             f'{where}: `{ORPHANED_BY_UNPOST_KEY}:` is not a key a file may '
             f'state on a transaction or a split. It is how unposting records '
-            f'which document it detached a split from, true of one book and '
-            f'only until that document is rebuilt, and no export writes it. '
+            f'which invoice or bill it detached a split from, true of one '
+            f'book and only until that record is rebuilt, and no export writes it. '
             f'Remove the line; to say a split is an owner\'s money, name the '
             f'owner with `lot_owner:`.')
 
 
 def _strip_a_settlements_basis(split) -> None:
-    """Take the cost-basis keys off a split that is settling a document.
+    """Take the cost-basis keys off a split that is settling an invoice or bill.
 
-    A settlement holds no basis: the currency was spent on the document, and
-    what the document is owed in is its own posting split's business. The same
+    A settlement holds no basis: the currency was spent on the invoice, and
+    what that record is owed in is its own posting split's business. The same
     rule `_mark_spent_credit` states for a credit that was applied.
     """
     # Under the current name whichever the book kept it under: a basis written
@@ -1259,7 +1622,7 @@ def _carry_the_orphan_mark(guid: str, residue) -> None:
     readings depending on which of them did the dividing.
 
     Takes the guid rather than the source split, because by the time the
-    residue exists the source is in the document's lot and the mark has come
+    residue exists the source is in the settled record's lot and the mark has come
     off it — the caller reads it before dividing.
     """
     if not guid:
@@ -1278,7 +1641,7 @@ def _forget_orphaned_by_unpost(split) -> None:
     """Take the note off a split that is in a lot again.
 
     Being in a lot is the whole of what makes it no longer an orphan: it is
-    settling a document, or it is parked as somebody's credit, and either way
+    settling an invoice or a bill, or it is parked as somebody's credit, and either way
     the unpost that left it loose is answered. Left on, the key would outlive
     what it describes — and a stored key contradicting the book is what half
     this issue is about.
@@ -1317,12 +1680,12 @@ def _attach_split_to_lot(split, lot) -> None:
     block — carrying a key that outlived what it described.
     """
     gc.xaccSplitSetLot(split.instance, lot.instance)
-    _LOTS_HOLDING_UNLISTED_SPLITS.add(int(getattr(lot, 'instance', lot)))
+    _LOTS_HOLDING_UNLISTED_SPLITS.add(qof_pointer(lot))
     _forget_orphaned_by_unpost(split)
 
 
 def _refuse_if_nothing_owed(owed: Fraction, kind: str, doc_id: str) -> None:
-    """Refuse a payment on a document with nothing left to settle.
+    """Refuse a payment on an invoice or bill with nothing left to settle.
 
     Less than nothing counts as nothing: a lot can be past zero already —
     `txn_split_guid:` names a split outright and attaches it without comparing
@@ -1374,14 +1737,14 @@ def _takeable_from(owed: Fraction, post_account) -> Fraction:
     """How much of `owed` a payment can actually take, given its account.
 
     Floored to the unit the account is kept to, never rounded up: rounding up
-    settles more than is owed and takes the lot past zero, where the document
+    settles more than is owed and takes the lot past zero, where the invoice
     reads neither settled nor open and the owner's money is inside a lot they
     cannot spend from. What the account cannot hold stays owed.
 
     One function because two places need the same answer and a difference
     between them is invisible: what a payment applies, and what a `prepayment:`
     on that payment is checked against. Measured with them apart, on a
-    receivable kept to the tenth — a document owed 30.05 and a 50.00
+    receivable kept to the tenth — an invoice owed 30.05 and a 50.00
     transaction retargeted onto it — the file was made to declare a residual
     of 19.95, passed, and 20.00 was parked. The figure the file asserts and the
     figure the book holds differed by exactly the rounding the assertion exists
@@ -1394,17 +1757,17 @@ def _takeable_from(owed: Fraction, post_account) -> Fraction:
 def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
                            post_account, lot, owed: Fraction, covering: Fraction,
                            kind: str, doc_id: str, from_credit: bool = False) -> None:
-    """One split covering more than its document owes: settle, park the rest.
+    """One split covering more than the record owes: settle, park the rest.
 
-    The shape a payment takes whenever more money arrives than a document is
-    owed — a bank transfer that overpays an invoice, and a credit spent on one
-    smaller than itself. Both settle the document with exactly what it owes
+    The shape a payment takes whenever more money arrives than an invoice or
+    bill is owed — a bank transfer that overpays an invoice, and a credit spent
+    on one smaller than itself. Both settle the record with exactly what it owes
     and leave the remainder as the owner's credit, in a lot of their own; each
     caller has already found the split that covers it, and hands it over.
 
-    What the document owes is floored to the unit its account is kept to,
+    What is owed is floored to the unit the account is kept to,
     never rounded up: rounding up settles more than is owed and takes the lot
-    past zero, where the document reads neither settled nor open and the
+    past zero, where the record reads neither settled nor open and the
     owner's money is inside a lot they cannot spend from. Where less than one
     unit is owed there is nothing to take, and that is said rather than
     written as a split of nothing.
@@ -1417,7 +1780,7 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
     # Nothing owed and something owed but less than a unit both floor to zero,
     # and they are not the same fault. A finer `commodity_scu:` is the remedy
     # for the second and no remedy at all for the first — told to change the
-    # account, a reader whose document is simply paid would be changing it for
+    # account, a reader whose invoice is simply paid would be changing it for
     # a reason that has nothing to do with what is wrong.
     _refuse_if_nothing_owed(owed, kind, doc_id)
     applied = _refuse_if_below_the_accounts_unit(owed, post_account, kind, doc_id)
@@ -1427,7 +1790,7 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
     # split's own amount and need not be a whole number of that account's
     # units. Off a bank feed the split being divided is an Imbalance one, so
     # 50.05 can meet a receivable kept to the tenth: 30.10 settles the
-    # document and 19.95 is left, which `SetAmount` rounds to 20.00 on its way
+    # receivable and 19.95 is left, which `SetAmount` rounds to 20.00 on its way
     # in. The two halves then sum to 50.10 against the 50.05 that was there,
     # GnuCash answers the difference with an Imbalance split, and the credit
     # parked is not the figure the file asserted.
@@ -1454,7 +1817,7 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
                if from_credit else None)
 
     # Read before the division too, and for the same reason as the basis keys
-    # above: dividing puts the split into the document's lot, and being in a
+    # above: dividing puts the split into the record's lot, and being in a
     # lot is exactly what stops it being an orphan — `_attach_split_to_lot`
     # takes the mark off on the way. Asked afterwards, the answer is always no
     # and the branch below is unreachable.
@@ -1473,7 +1836,7 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
         # Dividing a settlement an unpost loosened leaves the rest of that
         # settlement, not a credit. The same rule the engine's own carve
         # follows: the mark goes forward, and no basis opens, because a
-        # bank-paid orphan carries none — the document it settled holds that on
+        # bank-paid orphan carries none — the record it settled holds that on
         # its posting split.
         #
         # Left to the branch below, the residue landed in a fresh owner lot
@@ -1494,7 +1857,7 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
         # lot pointer but does not add it to that lot's split list in memory,
         # so a retargeted payment is invisible to `gnc_lot_get_split_list`
         # until the book is written and read back. Searched for, it was never
-        # found, and a foreign-currency document overpaid by retarget left its
+        # found, and a foreign-currency invoice overpaid by retarget left its
         # residue with no basis at all — the book offering 100.00 USD while
         # its bank held 200.00, and a sale of the rest refused.
         carried_cost = _carried_cost_of(record)
@@ -1545,7 +1908,7 @@ def _carry_basis_to_residue(residue, carried, remainder: Fraction) -> None:
 
 
 def _mark_spent_credit(split) -> None:
-    """Note that this split settled a document out of the owner's credit.
+    """Note that this split settled an invoice or bill out of the owner's credit.
 
     Written down for the same reason the application that produced the block
     wrote it down: nothing about the split afterwards says it came out of
@@ -1563,7 +1926,7 @@ def _mark_spent_credit(split) -> None:
                                'lot_owner')}
     metadata[APPLIED_FROM_CREDIT_KEY] = 'true'
     # As above: both callers reach here with the transaction committed — after
-    # a division, or after the whole split was moved into the document's lot.
+    # a division, or after the whole split was moved into the record's lot.
     transaction = split.GetParent()
     transaction.BeginEdit()
     set_custom_metadata(split, metadata)
@@ -1579,7 +1942,7 @@ def _retarget_with_prepayment_split(lib, book, record, existing_tx,
     `counter_split` is for more money than the invoice/bill's remaining
     balance — a bank-side tx that already exists (e.g. imported from QFX) and
     overpays, or a credit named by a `from_credit:` block that is bigger than
-    the document. We split it into two:
+    the invoice or bill. We split it into two:
 
       * the invoice-portion split: re-account to AR/AP, attach to the
         record's posted lot — closes the lot,
@@ -1592,7 +1955,7 @@ def _retarget_with_prepayment_split(lib, book, record, existing_tx,
     figures for one subtraction is one too many in a money path, and a reader
     would fairly assume the caller's was what got parked.
 
-    Which split covers the document is the caller's to know — the bank path
+    Which split covers the invoice or bill is the caller's to know — the bank path
     finds it as the side that is not the bank, and a `from_credit:` block
     names it by guid — so there is nothing to search for and no way to fail
     to find it.
@@ -1614,7 +1977,7 @@ def _retarget_with_prepayment_split(lib, book, record, existing_tx,
     # Reduce the existing counter-split to the invoice-portion (preserving
     # its sign), retarget it to AR/AP, link it to the invoice lot.
     #
-    # The part that settles the document reaches the smallest unit of the
+    # The part that settles the receivable reaches the smallest unit of the
     # account it lands on — hundredths for CAD, whole units for JPY — through
     # GnuCash's own rounding, which sends a half away from zero. Going through
     # a float and Python's `round` instead lands an exact half-cent on the
@@ -1968,7 +2331,7 @@ def _custom_keys_to_store(md: dict, known: frozenset) -> dict:
 def _merge_slot_keys_named(obj, md: dict, known: frozenset) -> None:
     """Merge the custom keys a block names onto what `obj` already holds.
 
-    As `_merge_custom_metadata` does for an owner or a document, without the
+    As `_merge_custom_metadata` does for an owner, an invoice or a bill, without the
     `BeginEdit`/`CommitEdit` bracket: a split has neither, and is edited
     through the transaction that owns it — which the caller has open.
     """
@@ -1989,7 +2352,7 @@ def _merge_custom_metadata(obj, md: dict, known: frozenset) -> None:
     """The custom keys the block names, merged onto what the object holds.
 
     Same rule as the address, and for the same reason: a block that names no
-    custom key is not asking for the slot to be emptied — a printed document
+    custom key is not asking for the slot to be emptied — a printed page
     carries one, and so does a person correcting a name. Replacing the slot
     wholesale made every partial block a delete.
 
@@ -2051,15 +2414,15 @@ def _move_slot_keys_that_became_fields(obj, known: frozenset) -> bool:
     written by it carries a stale copy — and a comparison that reads the field
     answers "different" on every run, whatever the file says.
 
-    Migrated here rather than by rebuilding the document, which is what
-    reporting the difference used to mean. A posted document judged different
-    is unposted and built again, and unposting one whose settlement drew a cost
+    Migrated here rather than by rebuilding the record, which is what
+    reporting the difference used to mean. A posted invoice or bill judged
+    different is unposted and built again, and unposting one whose settlement drew a cost
     basis down is refused outright: measured, `bill 'BILL-USD-FROM-HKD' cannot
     be unposted`, on the very ledger the book was built from — a file that
     could not be imported at all, with the only way out being to delete a line
     from it.
 
-    Moving it is not a change to the document: the value is the one the book
+    Moving it is not a change to the record: the value is the one the book
     already held, put where this version keeps it. What the file says is
     compared afterwards, against the field, exactly as for a book this version
     wrote.
@@ -2083,7 +2446,7 @@ def _move_slot_keys_that_became_fields(obj, known: frozenset) -> bool:
                               if k not in movable})
     obj.CommitEdit()
     # Said so, because it is a change to the book and the run has to save for
-    # it. Reported as `unchanged` — which the document is, against its file —
+    # it. Reported as `unchanged` — which the record is, against its file —
     # the move happened in memory and was dropped on session end, so the next
     # run did it again and the migration never finished.
     return True
@@ -2108,20 +2471,20 @@ def _named_custom_metadata_matches(obj, md: dict, known: frozenset) -> bool:
     return True
 
 
-def _refuse_a_document_that_would_lose_its_lines(
+def _refuse_a_record_that_would_lose_its_lines(
         existing, directive: 'PlaintextDirective', entry_type, kind: str,
         oid: str) -> None:
-    """A block with no lines, against a document that has some.
+    """A block with no lines, against an invoice or bill that has some.
 
-    A document is rebuilt from its block — the file is the source of truth for
-    the lines, which is what lets a person correct one by editing it. What was
-    missing is any way to tell "the writer restated one line" from "the
-    writer's file stops here": a block truncated after the three fields read
-    unconditionally still parses, and rebuilding from it unposted the document
-    — destroying the posting transaction and orphaning its payments — and left
-    it with no lines at all.
+    An invoice or bill is rebuilt from its block — the file is the source of
+    truth for the lines, which is what lets a person correct one by editing it.
+    What was missing is any way to tell "the writer restated one line" from
+    "the writer's file stops here": a block truncated after the three fields
+    read unconditionally still parses, and rebuilding from it unposted the
+    record — destroying the posting transaction and orphaning its payments —
+    and left it with no lines at all.
 
-    Only when there is something to lose. Creating a document with no lines is
+    Only when there is something to lose. Creating one with no lines is
     still allowed, because nothing is destroyed by it, and a tax table has
     refused the same shape all along.
     """
@@ -2152,10 +2515,12 @@ def _refuse_a_changed_currency(existing, directive: 'PlaintextDirective',
     disagreeing for good, with the ledger losing and nothing said.
 
     Refused rather than applied, because it is not a field. An owner's
-    currency is what their documents are raised in and a posted invoice's is
-    what its receivable splits are denominated in, so changing one means
-    re-raising the documents — a decision, and one this tool will not take
-    from a one-word edit.
+    currency is what their invoices and bills are raised in and a posted
+    invoice's is what its receivable splits are denominated in, so changing one
+    means re-raising them — a decision, and one this tool will not take
+    from a one-word edit. Those are two different sentences, and the refusal
+    picks the one that fits `kind` rather than blurring them into a third
+    that fits neither.
     """
     if existing is None:
         return
@@ -2163,25 +2528,34 @@ def _refuse_a_changed_currency(existing, directive: 'PlaintextDirective',
     stated = (directive.metadata.get('currency') or '').strip()
     if held is None or not stated or held.get_mnemonic() == stated:
         return
+    # An owner's currency and a record's are the same field and mean two
+    # different things, so one sentence cannot say both: an owner is not
+    # raised in a currency, its invoices and bills are, and telling a reader
+    # to "raise the new ones under an invoice" is no instruction at all.
+    if kind in ('customer', 'vendor'):
+        what = (f'what a {kind}\'s invoices and bills are raised in')
+        remedy = f'raise the new ones under a {kind} in {stated}'
+    else:
+        what = f'what this {kind}\'s lines and its posting are denominated in'
+        remedy = f'raise a new {kind} in {stated}'
     raise Exception(
         f'{kind} {oid!r} is in {held.get_mnemonic()} in this book and the '
-        f'file says {stated}. A currency is what a {kind}\'s documents are '
-        f'raised in, so it is not changed by editing the word: raise the new '
-        f'ones under a {kind} in {stated}, or put {held.get_mnemonic()} back.')
+        f'file says {stated}. A currency is {what}, so it is not changed by '
+        f'editing the word: {remedy}, or put {held.get_mnemonic()} back.')
 
 
-def _document_text_matches(document, md: dict) -> bool:
-    """Whether a document's `billing_id:` and `notes:` are what the block says.
+def _record_text_matches(record, md: dict) -> bool:
+    """Whether a record's `billing_id:` and `notes:` are what the block says.
 
     One function, because it is asked in three places — the invoice
     comparison, the bill comparison, and the unpost fast path — and written
     three times they disagreed: two read an absent key as the empty string
     while the writers set the field only when the block names it, so a block
-    that omits `notes:` could never match a document that has them and never
-    converge either. Every re-import then unposted the document, destroyed its
+    that omits `notes:` could never match an invoice that has them and never
+    converge either. Every re-import then unposted the invoice, destroyed its
     posting, orphaned the payments, and built it again.
 
-    `services/plaintext_blocks.document_text_lines` is the writing half of the
+    `services/plaintext_blocks.record_text_lines` is the writing half of the
     same pair.
 
     Through `held_value`, which reads the field and falls back to the slot
@@ -2195,15 +2569,15 @@ def _document_text_matches(document, md: dict) -> bool:
     a line from a file this tool wrote, and the message did not say so.
 
     The migration still happens — the writers set the field, so the first
-    import that touches the document moves it — this only stops the move
+    import that touches the record moves it — this only stops the move
     needing an unpost to get there. The address keys took this fallback first;
-    the document's own text is twenty lines away in the same file and did not.
+    an invoice's own text is twenty lines away in the same file and did not.
     """
     if 'billing_id' in md and held_value(
-            document, document.GetBillingID(), 'billing_id') != md['billing_id']:
+            record, record.GetBillingID(), 'billing_id') != md['billing_id']:
         return False
     return not ('notes' in md and held_value(
-        document, document.GetNotes(), 'notes') != md['notes'])
+        record, record.GetNotes(), 'notes') != md['notes'])
 
 
 def _customer_matches_directive(customer, directive: 'PlaintextDirective') -> bool:
@@ -2284,7 +2658,7 @@ def _a_yes_or_no(value, key: str, where: str) -> bool:
     how most of them were read — a typo went through as **true**, the costly
     direction on every key that has one: `billable: treu` re-billed a line to
     a customer, and `auto_apply_credit: treu` spent the owner's credit
-    against a document the file never asked to settle that way. Beside them
+    against an invoice the file never asked to settle that way. Beside them
     `taxable: treu` compared against the string `true` and read as false, and
     `payment_type: cassh` was refused by name, so one typo had three answers
     depending on which key it landed in.
@@ -2300,6 +2674,791 @@ def _a_yes_or_no(value, key: str, where: str) -> bool:
         f'{", ".join(sorted(_FALSY_STRINGS))}')
 
 
+def _correct_payment_memos(record, directive, book) -> None:
+    """Write a payment block's `memo:` onto the transaction it names.
+
+    **The memo is not the invoice's or the bill's.** `ApplyPayment` puts it on the payment
+    transaction's splits, so changing it changes that transaction and nothing
+    about the invoice or bill has moved.
+
+    **This writes to the book before the record's own refusals run**, and
+    what makes that safe is not local: `import_business_objects` re-raises
+    every per-directive failure and `cli/import_cmd.py` re-raises past
+    `repo.save()`, so a file refused for editing a posted invoice saves
+    nothing at all, this memo included. The transaction path earns the same
+    guarantee itself — every refusal before `BeginEdit` — because its errors
+    *are* collected and the run saves around them. If an invoice's or bill's errors
+    ever become collectable too, this has to move behind the refusals rather
+    than in front of them.
+
+    Nothing wrote it at all before. A block naming `txn_guid:` matches the
+    payment on that guid alone — `_single_payment_matches` returns True there
+    and reads no further — so a corrected memo made the record match, the
+    run reported `unchanged`, and the correction was dropped without a word.
+    Measured: `Updated: 0`, "Nothing to import", and the book still holding
+    the old wording.
+
+    Only for a block naming `txn_guid:`. A memo is otherwise part of what
+    says *which* payment a block describes — two customers paying 100.00 into
+    one account on one day are told apart by it — so a block whose memo has
+    changed matches no payment at all. One naming its transaction matches
+    exactly that one, whatever the memo says.
+    """
+    for child in directive.children:
+        if child.type != DirectiveType.PAYMENT:
+            continue
+        named = child.metadata.get('txn_guid')
+        stated = child.metadata.get('memo')
+        if not named or stated is None:
+            continue
+        transaction = _find_transaction_by_guid(book, _normalise_guid(named))
+        if transaction is None:
+            continue
+        # Only a payment of this record's, so a file cannot rename a
+        # transaction it merely names.
+        if not _settles_this_record(record, transaction):
+            continue
+        target = _the_split_a_block_states(transaction, child.metadata,
+                                           record)
+        if target is None:
+            continue
+        if _the_block_is_stating_the_bank_splits_memo(
+                transaction, target, child.metadata, stated):
+            # Said, not dropped in silence. This is the one wording a
+            # person cannot give a settling split — it is how a ledger an
+            # earlier release wrote is recognised — so a reader who means
+            # it gets `unchanged` and no memo written, which is the very
+            # thing the rest of this reading exists to end. README says
+            # the same under the `memo:` key.
+            _echo_note(
+                f'note: the payment block stating {stated!r} says what the '
+                f'file already gives the bank split, which is how a ledger '
+                f'an earlier release wrote is recognised — so no memo was '
+                f'written. State it on the transaction\'s own split to say '
+                f'it of the settlement.')
+            continue
+        _write_the_payment_memo(
+            transaction, target, stated,
+            _its_counterpart(transaction, target, child.metadata))
+
+
+def _settles_this_record(record, transaction) -> bool:
+    """Does a split of this transaction sit in the record's posted lot?
+
+    Asked of the **splits**, not of the lot. `_attach_split_to_lot` sets a
+    split's lot without appending to the lot's own list — that list is
+    rebuilt from the account when the book is saved and read back
+    (CLAUDE.md §9) — so a lot walked in the session that attached a split
+    does not name it, and the memo of a payment *this run* attached went
+    unwritten. The next import of the same file then wrote it and saved,
+    which is an unchanged ledger changing the book on its second run.
+    """
+    lot = record.GetPostedLot()
+    if lot is None:
+        return False
+    wanted = qof_pointer(lot)
+    for split in transaction.GetSplitList():
+        in_lot = split.GetLot()
+        if in_lot is not None and qof_pointer(in_lot) == wanted:
+            return True
+    return False
+
+
+def _the_split_a_block_states(transaction, metadata, record=None):
+    """The split a `payment:` block states the memo of.
+
+    **The split that settles the invoice or bill** — the one `txn_split_guid:`
+    names, which is the receivable or payable split in that record's lot,
+    and which both writers read the memo back from. One block, one
+    settlement, one split: nothing has to be worked out about how many
+    invoices the payment covers, which is what the earlier answers to this
+    kept getting wrong. A payment settling two invoices carries a split for
+    each and its blocks name one apiece; the bank split they share is
+    neither block's, and the wording a feed gave it stays.
+
+    A block naming no split — hand-written, and free to — states the memo
+    of the split that settles `record` all the same, where that record is
+    in hand and one of this transaction's splits is in its lot. Taking the
+    bank split there instead put the memo where no writer reads it: on the
+    retarget path, which is the bank-feed workflow this whole write exists
+    for, the two sides carry different wordings, so a stated memo landed on
+    the bank side and the next export went on printing the other one.
+
+    Only where neither is available is it the split the block's
+    `bank_account:` names — by account, not "the first that is not a
+    receivable", because a payment carrying a fee has two splits that are
+    neither and the block declares which one it means.
+    """
+    named = metadata.get('txn_split_guid')
+    if _states_a_guid(named):
+        # Malformed raises, as it does wherever this format reads a guid.
+        # Swallowed here it fell back to the settling split and said
+        # nothing, so a file naming which split settles its invoice, in a
+        # spelling nothing can resolve, was answered as if it had named
+        # none. `_refuse_a_payment_guid_nothing_can_parse` reaches it
+        # first on every invoice and bill the book already has; this is the
+        # same answer for the paths that do not go through there.
+        wanted = _normalise_guid(named)
+        return next((split for split in transaction.GetSplitList()
+                     if split_guid(split) == wanted), None)
+    settling = (_the_settlement_in_this_records_lot(record, transaction)
+                if record is not None else None)
+    return settling or _the_bank_split_named(transaction, metadata)
+
+
+def _the_settlement_in_this_records_lot(record, transaction):
+    """The split of this transaction sitting in the record's posted lot.
+
+    Asked of the splits rather than of the lot, for the reason
+    `_settles_this_record` gives: a lot does not list a split attached in
+    the session that attached it (CLAUDE.md §9).
+    """
+    lot = record.GetPostedLot()
+    if lot is None:
+        return None
+    wanted = qof_pointer(lot)
+    for split in transaction.GetSplitList():
+        in_lot = split.GetLot()
+        if in_lot is not None and qof_pointer(in_lot) == wanted:
+            return split
+    return None
+
+
+def _the_bank_split_named(transaction, metadata):
+    """The split on the account a `payment:` block names, or None.
+
+    Read straight from the block rather than through
+    `_payment_xfer_account_name`, which refuses a block naming no account —
+    a `from_credit:` block names none, because no bank moved anything.
+    """
+    from gnucash import gnucash_core_c as gc
+
+    wanted = metadata.get('account') or metadata.get('bank_account') or ''
+    for split in transaction.GetSplitList():
+        account = split.GetAccount()
+        if account is None:
+            continue
+        if wanted and get_account_full_name(account) == wanted:
+            return split
+    if wanted:
+        return None
+    # A block naming no account either: the first split that is not a
+    # receivable or a payable, which is what such a block described before
+    # `bank_account:` was written on every one of them.
+    for split in transaction.GetSplitList():
+        account = split.GetAccount()
+        if account is not None and gc.xaccAccountGetType(
+                account.instance) not in (gc.ACCT_TYPE_RECEIVABLE,
+                                          gc.ACCT_TYPE_PAYABLE):
+            return split
+    return None
+
+
+def _its_counterpart(transaction, target, metadata):
+    """The split that follows the target where it still reads alike.
+
+    `ApplyPayment` writes one memo on both sides of a payment, so
+    correcting the settling split's and leaving the bank's would break in
+    half what GnuCash wrote whole — and the half no file ever shows is the
+    stale one. The counterpart of the settling split is the bank split the
+    block names.
+
+    **A bank split has none.** It is the target only where this invoice or
+    bill has no settlement to write to — `_the_split_a_block_states` reaches for
+    the bank split last, after the split the block names and the settlement
+    in the record's lot — so what would follow it does not exist. Written
+    the other way round, as "of a bank split, the settlement", the lookup
+    returned the target itself and was answered `None` anyway; saying so is
+    the difference between a branch that does nothing and one that reads as
+    though it does.
+
+    Everything else on the transaction is somebody else's: another
+    invoice's portion of a shared wire, a fee, the residue of an
+    overpayment. None of them is this block's to rewrite, whatever memo
+    they happen to carry.
+
+    **And nothing follows on a payment settling several of them**, whose
+    bank split is shared: there is one of it and one memo on
+    it, no single block owns it, and the wording a bank feed gave the
+    wire is what it keeps. Being wrong about that in this direction costs
+    a bank split left saying what it said; in the other it costs one
+    invoice's wording written over the wire itself.
+
+    Asked of the file as well as of the book, because the book cannot
+    answer it while the run is still building: on the run that establishes
+    such a payment the second invoice is not posted when the first
+    one's block is read, so the wire looked like an ordinary one and
+    the first block took its wording.
+    """
+    from gnucash import gnucash_core_c as gc
+
+    from services.plaintext_blocks import settles_more_than_one_record
+
+    # A credit block has no counterpart at all. The transaction it names is
+    # the **deposit** that opened the credit, whose bank line is that
+    # deposit's own — it was written before this invoice existed, and is
+    # the same category as the residue of an overpayment: on the
+    # transaction, and nobody's block to rewrite. `ApplyPayment` writing
+    # both sides of a payment alike, which is what the following is for,
+    # says nothing about it.
+    if _paid_from_credit(metadata):
+        return None
+    if (_BLOCKS_SETTLING_FROM_A_TRANSACTION.get(
+            _normalise_guid(transaction.GetGUID().to_string()), 0) > 1
+            or settles_more_than_one_record(transaction)):
+        return None
+    account = target.GetAccount()
+    settling = account is not None and gc.xaccAccountGetType(
+        account.instance) in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE)
+    if not settling:
+        return None
+    found = _the_bank_split_named(transaction, metadata)
+    if found is None or split_guid(found) == split_guid(target):
+        return None
+    return found
+
+
+def note_what_the_file_states(directives) -> None:
+    """Read the two things about a payment only the whole file can say.
+
+    **What each split's memo is**, from the transaction section. Read from
+    the file rather than as the transactions are imported, because whether
+    one is imported at all depends on the strategy: under the default a
+    transaction the book already holds is skipped by guid, and nothing was
+    written down — so a `payment:` block naming one of its splits met an
+    empty record and wrote whatever it liked over it.
+
+    **How many invoices and bills settle from each transaction**, from the
+    blocks that name one. The book cannot answer that on the run that establishes
+    a shared payment: when the first block is read the second invoice
+    is not posted, nothing of its is in a lot, and the payment looks like
+    an ordinary one settling a single record — so the bank split they
+    share was offered as that block's counterpart and took its wording,
+    which is the thing a shared split is not anybody's block to do.
+    """
+    _MEMOS_THE_TRANSACTIONS_STATE.clear()
+    _BLOCKS_SETTLING_FROM_A_TRANSACTION.clear()
+    for directive in directives:
+        if directive.type == DirectiveType.TRANSACTION:
+            for split in directive.children:
+                declared = split.metadata.get('guid')
+                memo = split.metadata.get('memo')
+                if not _states_a_guid(declared) or memo is None:
+                    continue
+                try:
+                    _MEMOS_THE_TRANSACTIONS_STATE[
+                        _normalise_guid(declared)] = str(memo)
+                except Exception:
+                    continue
+        elif directive.type in (DirectiveType.INVOICE, DirectiveType.BILL):
+            for child in directive.children:
+                if child.type != DirectiveType.PAYMENT:
+                    continue
+                named = child.metadata.get('txn_guid')
+                if not named:
+                    continue
+                try:
+                    wanted = _normalise_guid(named)
+                except Exception:
+                    continue
+                _BLOCKS_SETTLING_FROM_A_TRANSACTION[wanted] = (
+                    _BLOCKS_SETTLING_FROM_A_TRANSACTION.get(wanted, 0) + 1)
+
+
+def _the_block_is_stating_the_bank_splits_memo(
+        transaction, target, metadata, stated: str) -> bool:
+    """Is this block one an earlier release wrote?
+
+    Such a block's `memo:` is the **bank** split's — that is what the
+    export read for it until this release — while its `txn_split_guid:`
+    names the receivable split that settled the invoice, which is what
+    the memo is read from now. A retarget keeps two different memos on
+    those two splits deliberately, so an old ledger of a bank-fed payment
+    says one thing in its transaction section and another in its payment
+    block, and reading the block's as the settling split's made every one
+    of them a file contradicting itself: measured, such a ledger could not
+    be read into a fresh book at all.
+
+    It is told apart by what the file itself says: a block whose memo is
+    the memo the file gives the bank split is describing that split, and
+    the file already states it, so there is nothing here to write.
+
+    Where the two halves disagree in any other way the block wins — it is
+    the invoice's own statement about its own settlement, and the
+    transaction section is the same thing written out again. Deciding it
+    the other way, or refusing, made the ordinary edit impossible: the
+    memo a reader corrects is the one in the invoice's block, forty lines
+    from the transaction's own.
+    """
+    if _MEMOS_THE_TRANSACTIONS_STATE.get(split_guid(target), stated) == stated:
+        return False
+    bank = _the_bank_split_named(transaction, metadata)
+    return (bank is not None
+            and _MEMOS_THE_TRANSACTIONS_STATE.get(split_guid(bank)) == stated)
+
+
+def _write_the_payment_memo(transaction, target, stated: str,
+                            counterpart) -> None:
+    """Write a `payment:` block's memo onto the split it states.
+
+    `target` is `_the_split_a_block_states` — the settlement in this
+    record's lot — which is what both writers read the memo back from,
+    so a correction lands where the next export looks for it.
+
+    `counterpart` follows it, and only where it still holds what the target
+    held: that is how `ApplyPayment` leaves the two sides of a payment, and
+    keeping them together is the difference between correcting a memo and
+    breaking one in half, with the stale half the one no file ever shows. A
+    payment retargeted from a bank feed keeps two different memos
+    deliberately, so a side no block states is left as it is.
+    """
+    was = target.GetMemo() or ''
+    if was == stated:
+        return
+    # By guid, not by identity: `GetSplitList()` hands back a fresh Python
+    # wrapper on every call, so `split is target` is false for the very
+    # split it came from. Measured — the credit half wrote nothing at all,
+    # and the ordinary half only worked through the memo test below.
+    follows = {split_guid(target)}
+    if counterpart is not None and (counterpart.GetMemo() or '') == was:
+        follows.add(split_guid(counterpart))
+    for split in transaction.GetSplitList():
+        if split_guid(split) in follows:
+            split.SetMemo(stated)
+    TRANSACTIONS_A_MEMO_CORRECTED.add(transaction.GetGUID().to_string())
+
+
+def _refuse_editing_a_posted_record(kind: str, doc_id: str) -> None:
+    """A posted invoice or bill is unposted before it is edited, not silently.
+
+    Which edits one takes depends on whether it is posted, and the
+    two states take opposite ones:
+
+    | state | takes |
+    |---|---|
+    | posted | a `payment:` block, and nothing else |
+    | unposted | its lines, its fields, its dates — and no payment |
+
+    Recording a payment against a posted invoice is an edit like any
+    other; it is simply the one an already-booked record is *for*. Every
+    other change means rebuilding what the book has booked, and that is
+    what needs saying out loud first.
+
+    Rebuilding one from a ledger is not a small thing done quietly: it
+    unposts the invoice, destroys every line and builds new ones, posts it
+    again under a **new** transaction, and leaves the payments that settled
+    it attached to a transaction that no longer exists. All of that on the
+    strength of one edited word in one line, reported as `updated`.
+
+    The way through is a command that says what it is doing —
+    `unpost-invoices` / `unpost-bills` — and then this file. Refusing was
+    tried once and removed as a dead end (Q-007), and rightly: there was no
+    unpost command then, so a posted invoice could not be edited at all.
+    There is one now.
+    """
+    command = 'unpost-bills' if kind == 'bill' else 'unpost-invoices'
+    # Naming neither the invoice nor the bill: `import_business_objects`
+    # prefixes every refusal with the one it was raised under, so saying it
+    # here reads it twice.
+    raise ValueError(
+        f'this {kind} is posted, and this file changes it — its lines, or '
+        f'what its `posted:` block says. A posted {kind} is one the book '
+        f'has already booked, and rebuilding it from here would unpost it, '
+        f'destroy and rebuild its lines, post it again under a new '
+        f'transaction, and leave its payments settling a transaction that no '
+        f'longer exists. Unpost it first — `{command} <book> {doc_id}` — and '
+        f'import this file after, which puts it back on the posting it '
+        f'already had. A `payment:` block is the one edit a posted {kind} '
+        f'takes, and an unposted one takes no payment at all.')
+
+
+def _set_the_entry_guid(book, entry, metadata) -> None:
+    """Give a fresh entry the guid its block names, if it names one.
+
+    An entry is the last object in this format that had no identity of its
+    own: every other block — a customer, an invoice, a transaction, a split
+    — carries `guid:`, and an entry did not, so a book rebuilt from an
+    export held lines that were not the lines it came from. A file naming
+    none is unaffected; the entry keeps the guid GnuCash gave it.
+    """
+    declared = metadata.get('guid')
+    if not _states_a_guid(declared):
+        return
+    _set_object_guid(book, entry, 'entry',
+                     str(metadata.get('description', '')),
+                     _normalise_guid(declared))
+
+
+def _entry_guid_str(entry) -> str:
+    """A line's guid, normalised.
+
+    `Entry` has no `GetGUID` — the guid accessor is a QOF macro rather than
+    a `gncEntry*` function, so the bindings pick up neither it nor an
+    invoice's (CLAUDE.md §13). Read the way an invoice's is.
+    """
+    return _swig_invoice_guid_str(entry).replace('-', '').lower()
+
+
+def _entries_paired_with_blocks(book, entry_directives, existing_entries):
+    """`(chosen, orphaned)` — which existing line each block edits.
+
+    **A block names its line with `guid:`, and that is what it edits.** As a
+    split block names its split, and for the same reason: position is what
+    decides where a block names no guid, and nothing else.
+
+    Pairing at all is the point. Every line of an edited invoice used to be
+    destroyed and built again, so a file correcting one word of one
+    description handed both lines guids GnuCash had just minted, and anything
+    that had recorded what they were pointed at nothing. A file the export
+    wrote names each line, so the guids came back — but a hand-written file
+    names none, and that is the file a person edits.
+
+    Two refusals, because the alternative to each is silent:
+
+    - **two blocks naming one guid.** The second would fall through to
+      position and edit some other line, so an invoice would come out of an
+      import stating something the file did not say.
+    - **a guid the book gave something else** — another invoice's line, an
+      account, a transaction. Forcing it makes two objects with one guid, and
+      a collection is a hash of them: the loser is unreachable.
+
+    `chosen[i]` is the line block `i` edits, or `None` where the record has
+    no line for it yet. `orphaned` is every existing line no block named, for
+    the caller to remove and destroy.
+    """
+    held = {_entry_guid_str(entry) for entry in existing_entries}
+    named = set()
+    for directive in entry_directives:
+        declared = directive.metadata.get('guid')
+        if not _states_a_guid(declared):
+            continue
+        # A malformed guid raises here, as it raises in
+        # `_set_the_entry_guid`, which reads this same key on a new line.
+        wanted = _normalise_guid(declared)
+        # Naming neither in either message: the caller prefixes every
+        # refusal with the one it was raised under, and the split side
+        # already reads that way.
+        if wanted in named:
+            raise ValueError(
+                f'two lines name guid {wanted}. A guid is one line — say '
+                f'which line each block is, or remove the guid: line from '
+                f'the one that is new and let GnuCash assign it one')
+        named.add(wanted)
+        if wanted in held:
+            continue
+        in_use = _guid_in_use_anywhere(book, wanted)
+        if in_use is not None:
+            raise ValueError(
+                f'guid {wanted} is an existing {in_use} in this book, not '
+                f'a line of this one. A line of another invoice or bill '
+                f'stays theirs; remove the guid: line to add '
+                f'this as a new line')
+        # Free: the block is a new line and this is the guid it asks for,
+        # which `_set_the_entry_guid` gives it.
+    return _pair_entries(entry_directives, existing_entries)
+
+
+def _the_guid_a_line_block_names(metadata) -> Optional[str]:
+    """A line block's `guid:`, normalised, or None where it names none.
+
+    Never raises: the comparison that decides `unchanged` asks this, and a
+    predicate that raises is one the caller cannot use. A guid nothing can
+    parse is refused before any of this, where the blocks are paired.
+    """
+    declared = metadata.get('guid')
+    if not _states_a_guid(declared):
+        return None
+    try:
+        return _normalise_guid(declared)
+    except Exception:
+        return None
+
+
+def _pair_entries(entry_directives, existing_entries):
+    """`(chosen, orphaned)` — the pairing itself, refusing nothing.
+
+    Its own function because the comparison that decides `unchanged` has to
+    pair the lines the way the rebuild pairs them, and cannot refuse
+    anything while doing it.
+    """
+    by_guid = {_entry_guid_str(entry): entry for entry in existing_entries}
+    chosen = [None] * len(entry_directives)
+    taken = set()
+
+    for index, directive in enumerate(entry_directives):
+        wanted = _the_guid_a_line_block_names(directive.metadata)
+        entry = by_guid.get(wanted) if wanted else None
+        if entry is not None and wanted not in taken:
+            chosen[index] = entry
+            taken.add(wanted)
+
+    spare = [entry for entry in existing_entries
+             if _entry_guid_str(entry) not in taken]
+    for index, already in enumerate(chosen):
+        if already is None and spare and not _the_guid_a_line_block_names(
+                entry_directives[index].metadata):
+            chosen[index] = spare.pop(0)
+    return chosen, spare
+
+
+def _lines_match_their_blocks(record, entry_blocks, is_bill: bool) -> bool:
+    """Does every line block match the line it would edit?
+
+    Paired the way `_entries_paired_with_blocks` pairs them — by `guid:`
+    first, by position only where a block names none — because the two have
+    to agree about which line a block describes.
+
+    Compared by position while the rebuild paired by guid, a file whose
+    blocks were reordered read as a change to every line. On a **posted**
+    invoice that is refused, and the remedy the refusal names does not
+    help: after `unpost-invoices` the rebuild edits each line where it
+    already is, the order never changes, and the next import
+    of the same file is refused again — a file a merge reordered could not
+    be imported at all.
+
+    The mirror is worse because it is silent: two lines that trade only
+    their `guid:` values match in every position, so the run reports
+    `unchanged` over a book asserting the opposite of what the file says
+    about which line is which.
+    """
+    held = list(record.GetEntries())
+    if len(held) != len(entry_blocks):
+        return False
+    chosen, orphaned = _pair_entries(entry_blocks, held)
+    if orphaned or any(entry is None for entry in chosen):
+        return False
+    matches = (_entry_matches_bill_directive if is_bill
+               else _entry_matches_invoice_directive)
+    return all(matches(entry, block)
+               for entry, block in zip(chosen, entry_blocks))
+
+
+def _splits_named_across_the_transaction(book, existing_tx, directive,
+                                         root_account) -> list:
+    """Settle what each block's `guid:` names, once, for the whole
+    transaction, and answer which splits their blocks recategorise.
+
+    The blocks are paired **within one account** below, which is right for a
+    block naming no guid: position decides among that account's splits. It
+    is wrong for the guid, which names a split of the transaction wherever
+    that split currently sits. Two things follow, and both are done here
+    while every split is still in hand:
+
+    - **Recategorising a split keeps its guid.** Changing a block's account
+      line is the commonest edit anyone makes to an exported ledger, and
+      the split it names is moved to the account the block gives it. Left
+      to the per-account pairing, that block found an empty group, built a
+      new split with a guid GnuCash minted, and the old one was destroyed
+      as an orphan of its own group — the identity lost on the one edit
+      this format is written for.
+    - **A guid the book has on something that is not a split of this
+      transaction is refused**: another transaction's split, an account, a
+      line, a lot. Fallen through to position, such a block put its amount
+      and its memo on whichever split of its group was spare, which the
+      file never named, and the run reported `Updated: 1`. A guid the book
+      has nowhere still states no split, as it always did — that is the
+      guid a new split is asking for.
+
+    Two blocks naming one split are refused here rather than per account,
+    because that is where both can be seen: one names `Expenses:Dining`
+    and the other `Assets:Bank`, and each group on its own sees one.
+
+    **Nothing is moved here.** The moves are returned for the caller to
+    make once the transaction is open for editing, and this runs with the
+    other checks before `BeginEdit`, which is what `update_transaction`
+    says about itself: a file it refuses has moved nothing. Moving as it
+    read, one block recategorised a split and a later one refused the
+    file — and the run does not stop at an error, it collects it and saves
+    what else it did, so whether that split reached disk under an account
+    no file asked for rested on `xaccTransRollbackEdit` restoring
+    `split->acc`, which nothing here measures across GnuCash 3.8 to 5.16.
+    """
+    by_guid = {split_guid(split): split
+               for split in existing_tx.GetSplitList()}
+    named = set()
+    moves = []
+    for child in directive.children:
+        declared = child.metadata.get('guid')
+        if not _states_a_guid(declared):
+            continue
+        # Malformed refuses, as `_the_lot_guid_named` and the line blocks
+        # do, rather than being read as "this block names no split". Read
+        # that way it fell through to position — the pairing the guid is
+        # written to end — and the commonest spelling to get here is an
+        # all-digit guid with its quotes dropped, which the parser hands
+        # over as a number.
+        wanted = _normalise_guid(declared)
+        if wanted in named:
+            raise ValueError(
+                f'two splits name guid {wanted}. A guid is one split — say '
+                f'which split each block is, or remove the guid: line from '
+                f'the one that is new and let GnuCash assign it one')
+        named.add(wanted)
+
+        split = by_guid.get(wanted)
+        if split is None:
+            in_use = _guid_in_use_anywhere(book, wanted)
+            if in_use is not None:
+                raise ValueError(
+                    f'guid {wanted} is an existing {in_use} in this book, '
+                    f'not a split of this transaction. Remove the guid: '
+                    f'line to let this block update the split in its place')
+            continue
+
+        wanted_account = child.props.get('account')
+        if not wanted_account:
+            continue
+        if get_account_full_name(split.GetAccount()) == wanted_account:
+            continue
+        account = find_account(root_account, wanted_account)
+        if account is None:
+            raise ValueError(f'Account not found: {wanted_account}')
+        # Not one that is in a lot. Moving the split would leave the lot —
+        # a receivable's or a payable's — holding a split that now lives on
+        # an expense account, and would step past the check that a
+        # `lot_owner:` split is on an account of the right kind. What such
+        # a split is doing is settling an invoice or a bill or standing as
+        # an owner's credit, and moving it is that record's business.
+        # `_lot_is_still_on_its_account` for the reason every reader of a
+        # split's lot pointer here has one: it can be a pointer the book
+        # has let go of.
+        in_lot = split.GetLot()
+        if in_lot is not None and _lot_is_still_on_its_account(split, in_lot):
+            raise ValueError(
+                f'the split {wanted} is in lot {_lot_guid_str(in_lot)} and '
+                f'this file gives it another account. A split in a lot is '
+                f'settling an invoice or a bill or standing as an owner\'s '
+                f'credit — take it out of the lot first (`unapply-payment`, '
+                f'or its own `payment:` block) and move it after')
+        moves.append((split, account))
+    return moves
+
+
+def _splits_grouped_after_the_moves(existing_tx, moves) -> dict:
+    """account name → [splits], each split under the account the file gives it.
+
+    The same grouping the rebuild works from, worked out without moving
+    anything: a split whose block recategorises it is grouped where it is
+    going, so what the file would destroy can be settled — and refused —
+    while the transaction is still untouched.
+    """
+    moving = {split_guid(split): get_account_full_name(account)
+              for split, account in moves}
+    grouped: dict[str, list] = {}
+    for split in existing_tx.GetSplitList():
+        name = (moving.get(split_guid(split))
+                or get_account_full_name(split.GetAccount()))
+        grouped.setdefault(name, []).append(split)
+    return grouped
+
+
+def _move_the_splits_their_blocks_recategorise(moves) -> None:
+    """Make the moves `_splits_named_across_the_transaction` worked out.
+
+    Called with the transaction open for editing, and after every block
+    has been read, so a file that refuses has moved nothing.
+
+    ctypes: `xaccSplitSetAccount` has a SWIG const-type mismatch, as
+    `_retarget_counter_split_to_lot` records.
+    """
+    if not moves:
+        return
+    from infrastructure.gnucash.engine import load_gnc_engine
+
+    lib = load_gnc_engine()
+    for split, account in moves:
+        lib.xaccSplitSetAccount(int(split.instance), int(account.instance))
+
+
+def _splits_paired_with_blocks(split_directives, existing_splits):
+    """`(chosen, orphaned)` — which existing split each block updates.
+
+    **A block names its split with `guid:`, and that is what it updates.**
+    Position decides only where a block names none, which is what it always
+    did: the export has written a guid under every split since Q-016, and
+    this path went on pairing by account and then by the order the blocks
+    happened to sit in. So a file rewritten with its two `Expenses:Dining`
+    blocks the other way round moved the amounts between the two splits and
+    reported `Updated: 1` — the book then contradicting the file that had
+    just been imported into it.
+
+    Two splits of the same amount are the case that moved in silence: 15.00
+    for coffee and 15.00 for cake swap their *memos* and nothing else. No
+    total changes, no balance changes, and no figure looks wrong.
+
+    `chosen[i]` is the split block `i` updates, or `None` where the
+    transaction holds no split for it yet. `orphaned` is every existing
+    split no block named, for the caller to destroy.
+    """
+    by_guid = {split_guid(split): split for split in existing_splits}
+    chosen = [None] * len(split_directives)
+    taken = set()
+
+    for index, directive in enumerate(split_directives):
+        declared = directive.metadata.get('guid')
+        if not _states_a_guid(declared):
+            continue
+        # Malformed raises here too, though the transaction-wide pass has
+        # refused it already: what falls through this one is a spare split,
+        # and a reader deciding for itself that a guid it cannot parse is
+        # no guid is what put a block's amount on a split the file never
+        # named.
+        wanted = _normalise_guid(declared)
+        split = by_guid.get(wanted)
+        if split is None:
+            # A guid this group has no split for is a split being created
+            # under it — the fallback below hands a spare only to a block
+            # naming no guid at all. What a guid may name is settled once
+            # per transaction, before any of this, by
+            # `_splits_named_across_the_transaction`: a split of another
+            # transaction is refused there, and one of this transaction on
+            # another account has been moved into this group by then, so it
+            # is found above.
+            continue
+        chosen[index] = split
+        taken.add(wanted)
+
+    spare = [split for split in existing_splits
+             if split_guid(split) not in taken]
+    for index, already in enumerate(chosen):
+        # A block naming a guid takes no spare, as a line block takes none:
+        # its guid says which split it is, and the book has not got that
+        # one, so it is a split being created — under the guid it asks for.
+        # Handed a spare instead, it updated a split the file never named
+        # and the guid it asked for was nowhere in the book.
+        if (already is None and spare
+                and not _the_guid_a_block_names(split_directives[index])):
+            chosen[index] = spare.pop(0)
+    return chosen, spare
+
+
+def _the_new_splits_guid(book, split, directive, where: str) -> None:
+    """Give a split the update path creates the guid its block names.
+
+    The create path has always done this. Without it here, a block's
+    `guid:` decided which split it matched and then named nothing in the
+    book it made — so a file adding a split under a chosen guid, or
+    restoring one, came back with a guid GnuCash minted instead.
+    """
+    wanted = _the_guid_a_block_names(directive)
+    if wanted:
+        _set_object_guid(book, split, 'split', where, wanted)
+
+
+def _the_guid_a_block_names(directive) -> Optional[str]:
+    """A split block's `guid:`, normalised, or None where it names none.
+
+    A guid nothing can parse raises, as it does everywhere else this
+    format reads one. Answered `None`, it read as a block naming no split:
+    the block took a spare by position, and the split it created carried a
+    guid GnuCash minted rather than the one the file asked for.
+    """
+    declared = directive.metadata.get('guid')
+    if not _states_a_guid(declared):
+        return None
+    return _normalise_guid(declared)
+
+
 def _is_a_credit_note(metadata) -> bool:
     """`credit_note:` on an invoice or bill block, read as a word.
 
@@ -2309,9 +3468,9 @@ def _is_a_credit_note(metadata) -> bool:
     the mirror of an invoice. Measured on 5.10.
 
     So the quantities in a ledger are the ones the book holds either way,
-    and this one key decides which direction the same document posts. A
-    block that leaves it out is an ordinary document, which is what every
-    ledger written before it said.
+    and this one key decides which direction the same record posts. A
+    block that leaves it out is an ordinary invoice or bill, which is what
+    every ledger written before it said.
     """
     return _a_yes_or_no(metadata.get('credit_note', 'false'),
                         'credit_note', 'an invoice or bill block')
@@ -2327,7 +3486,7 @@ def _paid_from_credit(metadata) -> bool:
 
     One function rather than the same expression at six call sites: two of
     them order the payments and four apply them, and a spelling that ordered
-    a block as cash and then applied it as credit would settle a document
+    a block as cash and then applied it as credit would settle an invoice
     twice over.
     """
     return _a_yes_or_no(metadata.get('from_credit', 'false'),
@@ -2342,7 +3501,7 @@ _BILL_ONLY_ENTRY_KEYS = ('billable', 'billable_to', 'payment_type')
 
 
 def _refuse_the_other_sides_keys(md: dict, side: str) -> None:
-    """A key of the other kind of document is refused, not passed over.
+    """A key of the other kind of block is refused, not passed over.
 
     Each setter reads only its own side's keys, so `discount: 10` on a bill
     entry would be read by nothing: the import exits 0, the book stores no
@@ -2362,7 +3521,7 @@ def _refuse_the_other_sides_keys(md: dict, side: str) -> None:
             f'{", ".join(named)}: {"is a key" if len(named) == 1 else "are keys"} '
             f'of {theirs}, not {mine}. GnuCash\'s {window} window has no such '
             f'column, so the value would be stored nowhere. Remove the line, '
-            f'or move it to the document it describes')
+            f'or move it to the block it describes')
 
 
 def _the_discount_figure(md: dict):
@@ -2400,13 +3559,14 @@ def _entry_fields_named(md: dict, side: str) -> dict:
     no half-built `GncEntry` in an open edit, attached to nothing.
 
     **An unnamed key means GnuCash's default, not "leave it alone".** An
-    entry is never patched: a document being re-imported has all its entries
-    destroyed and rebuilt from the block, so there is nothing left to leave
-    alone — an entry block describes the whole line. `action:` has always
+    entry block describes the whole line: every field below is written from
+    it, defaults included, so a line comes out of an import holding what its
+    block says and nothing it held before — which is what a line built from
+    scratch holds, and the two paths must not differ. `action:` has always
     worked this way. Reading each key with `in` instead looked like the rest
     of the format and was not: a block that named `price` and no note kept
     the note when nothing else differed, and dropped it the moment some other
-    field made the document rebuild. One keystroke decided whether a note
+    field made the invoice rebuild. One keystroke decided whether a note
     survived, and the run said `updated` without saying what had gone.
 
     The defaults are GnuCash's own, measured on 5.10 by importing a ledger
@@ -2422,7 +3582,7 @@ def _entry_fields_named(md: dict, side: str) -> dict:
         # The two tax flags read the same way `billable:` does. Read as
         # `== 'true'`, `taxable: treu` imported as **not taxable** — the
         # costlier direction, and costlier still now that the flag decides
-        # `entry_tax:`, every `breakdown:` block and the document's totals:
+        # `entry_tax:`, every `breakdown:` block and the page's totals:
         # a page printed after the typo agrees with itself and re-imports
         # `unchanged` against a book that dropped the tax.
         'taxable': _a_yes_or_no(md['taxable'], 'taxable', where),
@@ -2511,16 +3671,16 @@ def _gnc_numeric_equals(num, value_str: str) -> bool:
 
 
 def _refuse_figures_that_are_not_the_books(record, directive, is_bill: bool):
-    """Check a page's stated figures against the document the book holds.
+    """Check a page's stated figures against the invoice or bill the book holds.
 
     `entry_amount:`, `entry_tax:`, each `breakdown:` block and the three
-    document totals are what a printed document says a line and a document
-    are worth. They are not part of what makes a document `unchanged` — they
+    page totals are what a printed page says a line and the whole record
+    are worth. They are not part of what makes it `unchanged` — they
     are derived, and a ledger need not carry them — so a page whose figures
     disagree with the book matched on everything else and returned before
     anything read them.
 
-    What that let through is the case the figures exist for: a document
+    What that let through is the case the figures exist for: a page
     printed by an earlier release, whose totals were quantity × price added
     up, re-imported into a book that posts something else and reported
     `unchanged`, with `bill_total: 300.00` against an A/P split of 300.01
@@ -2532,14 +3692,14 @@ def _refuse_figures_that_are_not_the_books(record, directive, is_bill: bool):
     them out regardless made every ordinary re-import pay for a comparison
     it would not make, and made one of them fail: a credit note exports as
     an ordinary block, and its lines and its totals come back with opposite
-    signs, so the fit refused a document the file had said nothing about.
+    signs, so the fit refused a record the file had said nothing about.
     """
     from infrastructure.gnucash.engine import load_gnc_engine as _load
     from services.bill_renderer import compute_bill_entry_informational
     from services.invoice_renderer import (
         compute_entry_informational,
-        document_totals,
-        entries_fitted_to_the_document,
+        entries_fitted_to_the_page,
+        record_totals,
         validate_entry_informational,
         validate_invoice_informational,
     )
@@ -2572,16 +3732,16 @@ def _refuse_figures_that_are_not_the_books(record, directive, is_bill: bool):
     lib = _load()
     entries = list(record.GetEntries())
     unit = record.GetCurrency().get_fraction()
-    # Read with the document's flag, as the writer read it: a credit note
+    # Read with the record's own flag, as the writer read it: a credit note
     # holds its lines negated and states them positive, so asking without it
     # would compare the page against the mirror of what it says.
     is_credit_note = 1 if record.GetIsCreditNote() else 0
 
-    # Worked out for the document rather than a line at a time, and fitted as
-    # the writer fits it: a line's tax is rounded to make the document's
+    # Worked out for the whole page rather than a line at a time, and fitted as
+    # the writer fits it: a line's tax is rounded to make the page's
     # column add up, so the figure on the page is the fitted one and this is
     # what it is compared against. Read line by line instead, a printed
-    # single-line yen invoice states its document's 104 against a line of
+    # single-line yen invoice states its own 104 against a line of
     # 103.5, and the two only agreed within a tolerance.
     figures = [
         compute_bill_entry_informational(lib, int(raw.instance),
@@ -2590,14 +3750,14 @@ def _refuse_figures_that_are_not_the_books(record, directive, is_bill: bool):
                                          is_credit_note)
         for raw in entries
     ]
-    subtotal, tax_total, total = document_totals(lib, record)
-    fitted = entries_fitted_to_the_document(
+    subtotal, tax_total, total = record_totals(lib, record)
+    fitted = entries_fitted_to_the_page(
         [(raw, amount, tax, breakdown)
          for raw, (amount, tax, breakdown) in zip(entries, figures)],
         tax_total, unit, subtotal)
 
     # Each block against the line it describes, found by matching rather than
-    # by counting. GnuCash keeps a document's entries in its own order —
+    # by counting. GnuCash keeps the entries in its own order —
     # `gncInvoiceAddEntry` inserts by date, then date entered, then
     # description — so the third block of a file need not be the third line
     # of the book, and a figure judged against the wrong line refuses the
@@ -2621,13 +3781,13 @@ def _refuse_figures_that_are_not_the_books(record, directive, is_bill: bool):
             continue
         if found is None:
             # Said rather than skipped. Every path here has either just
-            # compared the document against this file or built its lines from
+            # compared the record against this file or built its lines from
             # it, so a block that matches no line is not a state a ledger can
             # reach — and passing over it silently is the silence this
             # function exists to end.
             raise ValueError(
                 f'{word} {directive.props["id"]!r} entry #{index}: this block '
-                f'states what its line is worth, and the document holds no '
+                f'states what its line is worth, and this {word} holds no '
                 f'line matching it')
         _raw, amount, tax, breakdown = fitted[found]
         validate_entry_informational(
@@ -2682,7 +3842,7 @@ def _entry_matches_invoice_directive(entry, ed: 'PlaintextDirective') -> bool:
     # one, and `_format_bill_entry` emits it whenever the entry has one. Read
     # only when the entry is taxable, the comparison answered `None` for a
     # line that is untaxed and names a table, while the file said `GST`: a
-    # disagreement no import could settle, so the document was destroyed and
+    # disagreement no import could settle, so the record was destroyed and
     # rebuilt on every run — and on a posted one that unposts it, orphaning
     # the payments each time.
     desired_tt = md.get('tax_table')
@@ -2757,13 +3917,200 @@ def _entry_matches_bill_directive(entry, ed: 'PlaintextDirective') -> bool:
     # one, and `_format_bill_entry` emits it whenever the entry has one. Read
     # only when the entry is taxable, the comparison answered `None` for a
     # line that is untaxed and names a table, while the file said `GST`: a
-    # disagreement no import could settle, so the document was destroyed and
+    # disagreement no import could settle, so the record was destroyed and
     # rebuilt on every run — and on a posted one that unposts it, orphaning
     # the payments each time.
     desired_tt = md.get('tax_table')
     actual_tt_obj = entry.GetBillTaxTable()
     actual_tt = actual_tt_obj.GetName() if actual_tt_obj is not None else None
     return (desired_tt or None) == (actual_tt or None)
+
+
+def _refuse_a_lot_guid_no_owner_can_use(lot_guid, lot_owner_str) -> None:
+    """A `lot_guid:` beside a `lot_owner:` that puts the split in no lot.
+
+    `lot_owner:` is acted on for a customer or a vendor. Anything else —
+    `job:J1`, a kind with no id — attaches nothing, and a `lot_guid:` on
+    such a block is then read by nothing: not stored, not acted on, and
+    `unchanged` on every later run. `_the_lot_guid_named` refuses the line
+    with no owner beside it at all, for exactly that reason, and this is
+    the other way to write the same file.
+
+    Both import paths ask, so the answer does not depend on whether the
+    transaction is being created or edited.
+    """
+    if not lot_guid:
+        return
+    kind, owner_id, _ = _parse_lot_owner(lot_owner_str or '')
+    if kind in ('customer', 'vendor') and owner_id:
+        return
+    raise ValueError(
+        f'lot_guid {lot_guid} names a credit, but lot_owner '
+        f'{lot_owner_str!r} names no customer or vendor for it to belong '
+        f'to, so nothing would put the split in a lot and the line would '
+        f'be read by nothing. Name the owner as `customer:ID` or '
+        f'`vendor:ID`, or remove the lot_guid: line')
+
+
+def _give_the_line_its_bill_pointer(entry, bill) -> None:
+    """Make sure a line being edited carries this bill's owner pointer.
+
+    A `GncEntry` holds two owner pointers and GnuCash's XML writer emits
+    the bill-side tax flags only inside `if (gncEntryGetBill(entry))`
+    (CLAUDE.md §8). A line added through `gncInvoiceAddEntry` — which is
+    what a vendor bill got before `wrap_invoice_or_bill`, and what any book
+    written by such a release still holds — carries the *invoice* pointer,
+    so `b-taxable` and `b-taxincluded` are never written and come back
+    defaulted: measured on 5.10, `taxable: false` reloads as true and
+    `tax_included: true` reloads as false.
+
+    Rebuilding a bill used to heal that by accident, every line being
+    destroyed and added again through the bill's own `AddEntry`. Lines are
+    edited in place now, so nothing heals it: such a bill compares unequal
+    on every run — reported `updated` for ever while unposted, and refused
+    with "unpost-bills first" once posted, which does not fix the pointer
+    either.
+
+    `gncEntrySetBill` sets it without touching the bill's entry list, which
+    is why the repair is not `AddEntry`: `gncBillAddEntry` returns early
+    only when the pointer already names this bill, so on an entry whose
+    pointer is null it would set it *and* add a second reference to the
+    list. SWIG has no `Entry.SetBill`, so this is ctypes.
+
+    **The invoice pointer has to go with it.** The writer emits a reference
+    for each pointer the entry carries, and the reader adds the entry to
+    the bill's list once per reference — so a line left holding both
+    came back listed twice, and the bill's own export then wrote two
+    identical `entry:` blocks for one line. Measured on 5.10: with both
+    pointers set the reloaded bill lists one entry twice; with only the
+    bill pointer it lists it once and the tax flags written beside it
+    survive the save (`a_legacy_bills_entry_owner_probe.py`).
+
+    Called inside the entry's own edit bracket, as every write here is —
+    the flags are written in the same bracket, which is what makes them
+    reach the file at last.
+    """
+    from infrastructure.gnucash.engine import load_gnc_engine
+
+    lib = load_gnc_engine()
+    entry_ptr = qof_pointer(entry)
+    bill_ptr = qof_pointer(bill)
+    if lib.gncEntryGetBill(entry_ptr) == bill_ptr:
+        return
+    lib.gncEntrySetBill(entry_ptr, bill_ptr)
+    lib.gncEntrySetInvoice(entry_ptr, None)
+
+
+def _the_characters_a_block_wrote(metadata, key: str) -> str:
+    """The characters a block wrote for a guid key, stripped, or ''.
+
+    Not the value: an unquoted all-digit guid arrives as a number carrying
+    the digits it was written with, and `int` has no `.strip()`. Every
+    other guid-bearing key reads those digits through `_normalise_guid`;
+    the two on a `payment:` block read the value itself and died on the
+    form this release legalised — `txn_guid: 2222…22`, which is the
+    literal the payment documentation uses.
+    """
+    declared = metadata.get(key)
+    if not _states_a_guid(declared):
+        return ''
+    return str(getattr(declared, 'source', declared)).strip()
+
+
+def _refuse_a_payment_guid_nothing_can_parse(directive) -> None:
+    """A `txn_guid:` or `txn_split_guid:` nothing can parse refuses, before
+    the invoice or bill is compared to the file.
+
+    Read late, or not at all. A record that otherwise matches its file
+    answers on `txn_guid:` and returns, so `txn_split_guid:` was never
+    looked at: the line was read by nothing — not stored, not acted on,
+    `unchanged` reported, and the same silence on every later run. That is
+    the case `_the_lot_guid_named` refuses for in the same release, and a
+    guid a reader mistyped says which split settles which record, which is
+    not a thing to guess at.
+
+    `_normalise_guid` raises it, so the message is the one the format's
+    own table gives — `Invalid GUID format: 'hello'` — wherever a guid is
+    misspelt, rather than a second wording for the same mistake.
+    """
+    for block in directive.children:
+        if block.type != DirectiveType.PAYMENT:
+            continue
+        for key in ('txn_guid', 'txn_split_guid'):
+            declared = block.metadata.get(key)
+            if _states_a_guid(declared):
+                _normalise_guid(declared)
+
+
+def _the_file_names_a_posting_this_book_has(book, directive) -> bool:
+    """Does the `posted:` block's `posted_txn_guid:` name a transaction
+    this book holds *now*?
+
+    Asked before a rebuild unposts, because `gncInvoiceUnpost` destroys the
+    posting transaction: afterwards a guid that named this book's own
+    posting names nothing at all, and the two cases — an invoice being
+    rebuilt where it lives, and one read into a book that never held its
+    transactions — become indistinguishable by the only thing left to ask.
+    """
+    for block in directive.children:
+        if block.type != DirectiveType.POSTED:
+            continue
+        declared = block.metadata.get('posted_txn_guid')
+        if not _states_a_guid(declared):
+            return False
+        return _find_transaction_by_guid(
+            book, _normalise_guid(declared)) is not None
+    return False
+
+
+def _note_a_posting_guid_this_book_has_not_got(declared, kind: str, id_: str,
+                                               was_this_books: bool) -> None:
+    """Say that a `posted_txn_guid:` named nothing here, and a posting was
+    made instead.
+
+    Not an error: a printed page names the *source* book's posting
+    transaction, and reading it somewhere else is what printing one is for.
+    But it was silent, while the payment side has always said the same
+    thing about `txn_guid:` — so the one line of the page that could not
+    be honoured passed without a word, and a reader comparing two books
+    found a posting transaction they had no way to know had been minted
+    here.
+
+    Said once, where the posting is made. A later import of the same file
+    changes nothing and says nothing.
+
+    **Not where this run destroyed the posting itself.** An ordinary edit
+    to a posted invoice — its notes, its due date — unposts it, and
+    `gncInvoiceUnpost` destroys the posting transaction, so by the time the
+    file's guid is looked up it names nothing whatever book this is. Said
+    there, the note would tell a reader that their own ledger names a
+    transaction their book has not got, for what is a supported edit, and
+    the guid it quotes was the book's own moments earlier. The caller asks
+    before unposting, and this stays quiet where the answer was yes.
+
+    **Nor after `unpost-invoices` / `unpost-bills`**, the remedy the
+    line-edit refusal names, though nothing here has to know that: the
+    posting was destroyed in an earlier run and no check could remember
+    it, but an export is the whole book, so the posting transaction is in
+    the ledger's transaction section under the same guid and is created
+    before the invoices and bills are read. By the time the `posted:` block is
+    reached the guid names a transaction this book has — the one it always
+    was — and the record is linked back to it rather than posted afresh.
+    Measured, in `test_a_printed_page_reads_into_another_book.py`.
+
+    So what is left to speak about is a page read where its
+    transactions are not: a printed one, which carries no transaction
+    section at all.
+    """
+    if not _states_a_guid(declared) or was_this_books:
+        return
+    guid = _normalise_guid(declared)
+    logging.warning(
+        'posted_txn_guid %r names no transaction in this book; posting %s '
+        '%r afresh', guid, kind, id_)
+    _echo_note(f'note: posted_txn_guid {guid!r} names no transaction in this '
+               f'book — posting {kind} {id_!r} afresh, under a new '
+               f'transaction of its own. Export from this book to name it.')
 
 
 def _posted_matches_directive(invoice, posted_dir: 'PlaintextDirective',
@@ -2785,16 +4132,34 @@ def _posted_matches_directive(invoice, posted_dir: 'PlaintextDirective',
     if posting_txn.GetDescription() != md['memo']:
         return False
     declared_posted_guid = md.get('posted_txn_guid')
-    return not (declared_posted_guid and posting_txn.GetGUID().to_string() != _normalise_guid(declared_posted_guid))
+    if not _states_a_guid(declared_posted_guid):
+        return True
+    wanted = _normalise_guid(declared_posted_guid)
+    if _normalise_guid(posting_txn.GetGUID().to_string()) == wanted:
+        return True
+    # A guid this book does not hold is not authoritative, which is what the
+    # payment side has always said about `txn_guid:` and this side did not.
+    # A printed page names the *source* book's posting transaction, and
+    # the book that reads it posts one of its own under a guid GnuCash
+    # minted — so read strictly, the invoice was out of date the moment it
+    # arrived, and every re-import of the same unedited file unposted it,
+    # destroyed the posting, orphaned the payment with a warning about it,
+    # and posted it again under a new guid. Measured on a printed invoice
+    # read twice into another book: bdfc62ec… became fb35b412….
+    #
+    # Where the book does hold that transaction, it is a real disagreement:
+    # the file says this record is posted through one transaction and the
+    # book has it posted through another, so the file is out of date.
+    return _find_transaction_by_guid(posting_acct.get_book(), wanted) is None
 
 
 def _apply_owner_credit(record) -> None:
-    """Have the engine apply the owner's credit to this document.
+    """Have the engine apply the owner's credit to this invoice or bill.
 
     What `auto_apply_credit: true` asks for: whichever of the owner's open
     credits the engine reaches for, in its own order. A `from_credit:` block
     does not come here — it names the credit to spend, and one bigger than the
-    document goes through `_settle_from_one_split`, which takes no instruction
+    record goes through `_settle_from_one_split`, which takes no instruction
     from the engine about which credit it is. What the application does to the
     splits — carving a credit, copying stored figures onto everything it makes
     — is put right here, once, rather than at each caller.
@@ -2808,10 +4173,41 @@ def _apply_owner_credit(record) -> None:
     _mark_applied_from_credit(record, lot_before)
 
 
+def _a_credit_is_being_added(record, asks_for_credit: bool) -> bool:
+    """The file asks for the owner's credit and the record has not taken
+    it — one more thing being added, and a payment like any other.
+
+    One question, asked in the three places that turn on it: whether the
+    invoice or bill is `unchanged`, whether the only difference is additions, and
+    whether there is a credit left to apply once they are made. Written out
+    three times instead, they disagreed — the comparison counted a credit
+    request as a difference while the classifier that records a payment
+    without a rebuild counted it as nothing, so the one file that asks for
+    a credit went to the rebuild and its posting was destroyed.
+    """
+    return asks_for_credit and not _record_consumed_credit(record)
+
+
+def _apply_what_the_file_adds(record, added_pays, asks_for_credit, book,
+                              is_bill, fx_rates) -> None:
+    """Record the payments a file adds to an invoice or bill the book has booked.
+
+    Cash first and the owner's credit after, which is the order a file read
+    from scratch applies them and the order the lot ends up holding them
+    in. `added_pays` arrives that way from the classifier; the credit is
+    applied here because it is the one addition that is not a block.
+    """
+    for pay_dir in added_pays:
+        _apply_payment_directive(record, pay_dir, book, is_bill=is_bill,
+                                 fx_rates=fx_rates)
+    if _a_credit_is_being_added(record, asks_for_credit):
+        _apply_owner_credit(record)
+
+
 def _cash_before_credit(payment_dirs):
     """Payment blocks in the order they are applied: cash first, credit after.
 
-    What a credit may take is what the document still owes, so it waits for
+    What a credit may take is what the record still owes, so it waits for
     every payment that moves money. The lot ends up holding them in this
     order too, which is why the comparison that decides whether a file
     changed anything reads them this way rather than as the file wrote them.
@@ -2835,11 +4231,11 @@ def _asks_for_credit(directive) -> bool:
 
 
 def _split_came_from_credit(split) -> bool:
-    """True iff this split settled its document out of the owner's credit.
+    """True iff this split settled its invoice or bill out of the owner's credit.
 
     Recorded on the split when the credit was applied, and read here and by
     the exporter alike. Nothing about the split says it otherwise: once
-    applied, it sits in the document's lot exactly as a bank payment's split
+    applied, it sits in the record's lot exactly as a bank payment's split
     does.
     """
     return str(get_custom_metadata(split).get(APPLIED_FROM_CREDIT_KEY, '')
@@ -2853,11 +4249,11 @@ def _looks_like_consumed_credit(split, this_lot_id: int) -> bool:
     nothing on the splits that applied them, so a book from an earlier
     version would otherwise read as differing from the very file that built
     it — and be unposted and rebuilt, which re-runs the application and
-    leaves documents whose lot GnuCash discards on load.
+    leaves invoices whose lot GnuCash discards on load.
 
     So where nothing is recorded, the old reading stands: the payment has
-    splits in another document's lot (what it was made against) and in a lot
-    no document owns (what it left over). It is the reading this replaced,
+    splits in another record's lot (what it was made against) and in a lot
+    no invoice or bill owns (what it left over). It is the reading this replaced,
     with the faults that made it worth replacing — it says nothing of a
     credit consumed to the last cent — but for these books it is the only
     evidence there is, and it is what they were being read by before.
@@ -2866,7 +4262,7 @@ def _looks_like_consumed_credit(split, this_lot_id: int) -> bool:
     transaction = split.GetParent()
     if transaction is None:
         return False
-    in_other_document = False
+    in_another_records_lot = False
     in_a_credit_lot = False
     for index in range(transaction.CountSplits()):
         other = transaction.GetSplit(index)
@@ -2877,20 +4273,20 @@ def _looks_like_consumed_credit(split, this_lot_id: int) -> bool:
         lot = other.GetLot()
         if lot is None or int(lot) == this_lot_id:
             continue
-        # A lot an unpost abandoned is documentless too, and is not evidence
+        # A lot an unpost abandoned names nothing either, and is not evidence
         # that anything was left over as credit — the last reader of "no
-        # document on the lot" to be brought to the same predicate as the
-        # rest. Left out, a deposit settling three documents with one of them
-        # unposted read the first document's bank settlement as credit
+        # invoice on the lot" to be brought to the same predicate as the
+        # rest. Left out, a deposit settling three invoices with one of them
+        # unposted read the first one's bank settlement as credit
         # consumed, and the file disagreeing with the book forced an
         # unpost-and-rebuild that changed nothing.
         if is_a_bank_paid_orphan(other):
             continue
         if _gc.gncInvoiceGetInvoiceFromLot(lot):
-            in_other_document = True
+            in_another_records_lot = True
         else:
             in_a_credit_lot = True
-    return in_other_document and in_a_credit_lot
+    return in_another_records_lot and in_a_credit_lot
 
 
 def _credit_splits_in_lot(record) -> set:
@@ -2931,7 +4327,7 @@ def _lot_payment_splits(record, asked_for_credit: bool = False):
     and `_payments_only_added_diff` (every held payment is one the file
     states, and what it states besides is what is being added).
 
-    A credit that settled this document is a payment like any other and the
+    A credit that settled this record is a payment like any other and the
     file says so, with a `from_credit: true` block — so its split is counted
     here and matched against that block. The exception is a file that asks
     for the credit instead of describing it, with `auto_apply_credit: true`
@@ -2963,7 +4359,7 @@ def _bank_side_figure_of(md) -> Optional[Fraction]:
     """What a payment block says moved through the bank, or None.
 
     A block states two figures when the payment converts: `amount:` in the
-    document's currency, and how much of the bank's currency that came to —
+    invoice's or bill's own currency, and how much of the bank's currency that came to —
     `settled_amount:` outright, or `share_price:` as the rate to reach it.
     Both spellings are documented and the refusal that asks for one offers
     both, so reading only one makes an answer depend on which word was used.
@@ -2972,13 +4368,13 @@ def _bank_side_figure_of(md) -> Optional[Fraction]:
     `_single_payment_matches` compared `amount:` against the bank split and so
     judged every converting payment different from the file that wrote it —
     100 against 780.00 HKD — which made re-importing an unchanged
-    third-currency ledger rebuild the document, and rebuilding a settled one is
+    third-currency ledger rebuild the record, and rebuilding a settled one is
     refused outright by `require_cost_basis_unused`. Measured on three shapes:
     `invoice 'INV-USD-INTO-HKD' cannot be unposted`, on the second read of the
     file the book was built from.
 
     And the residue, on a block that names a transaction. There `amount:` is
-    this document's own slice and `prepayment:` what the movement left over,
+    this record's own slice and `prepayment:` what the movement left over,
     so the bank moved the two together — the same sum `_apply_payment_directive`
     makes when it rebuilds such a block into a book that has not got the money.
     Read as the slice alone, everything that asks "is this movement already
@@ -3055,8 +4451,10 @@ def _single_payment_matches(split, pd) -> bool:
       - **Retarget (txn_guid)**: only bank_account and the tx GUID itself
         — date/amount/memo on the directive aren't authoritative.
 
-    Memo lives on the bank-side split (see `_format_payment` in the
-    exporter), not on the transaction description.
+    The memo compared is the **settling** split's — `split`, the one in
+    this record's lot, which is what every writer states in a block
+    (`payment_memo_of`) and what the import writes a correction to. It
+    used to be the bank side's, and both writers used to read it there.
 
     Identifying the bank-side split: an overpayment tx has THREE splits —
     bank + AR/AP-in-lot + AR/AP-in-prepayment-lot. We must find the
@@ -3070,7 +4468,7 @@ def _single_payment_matches(split, pd) -> bool:
     if _paid_from_credit(md):
         # A credit block names no account, because nothing paid out of one.
         # The split it names is the whole of what it claims, so matching it
-        # is matching that split — which is the one in this document's lot.
+        # is matching that split — which is the one in this record's lot.
         # Through `_normalise_guid`, as everywhere else a guid is read: a
         # hyphenated or upper-case one names the same split, and reading it
         # raw here would send an identical file down the rebuild path.
@@ -3082,7 +4480,7 @@ def _single_payment_matches(split, pd) -> bool:
         if _normalise_guid(tx.GetGUID().to_string()) != wanted_tx:
             return False
         # The split the file named is the split in the lot even where the
-        # credit was bigger than the document: dividing one settles with the
+        # credit was bigger than the record: dividing one settles with the
         # named split and parks the rest as a new one, so what the file named
         # is what settled it.
         return _normalise_guid(split.GetGUID().to_string()) == wanted_split
@@ -3107,9 +4505,9 @@ def _single_payment_matches(split, pd) -> bool:
             return True
         # A guid the book does not hold is not authoritative here either.
         # `_apply_payment_directive` records such a payment from the block —
-        # that is what makes a printed document readable in another book — so
+        # that is what makes a printed page readable in another book — so
         # the payment now in the book carries a guid GnuCash minted, and the
-        # file still names the source book's. Read as a mismatch, the document
+        # file still names the source book's. Read as a mismatch, the record
         # was out of date on every run: unposted, its posting destroyed and
         # its payment orphaned, and the rebuild then met the orphan it had
         # just made and refused. The file imported once and never again.
@@ -3132,12 +4530,35 @@ def _single_payment_matches(split, pd) -> bool:
     if tx.GetDate().strftime("%Y-%m-%d") != md['date']:
         return False
     # Against the bank's own figure, because the bank's split is what is being
-    # compared. `amount:` alone is the document's currency, so a converting
+    # compared. `amount:` alone is the record's own currency, so a converting
     # payment never matched the transaction it had itself written.
     wanted = _bank_side_figure_of(md)
     if wanted is None or numeric_to_fraction(bank_split.GetAmount().abs()) != wanted:
         return False
-    if (bank_split.GetMemo() or '') != md.get('memo', ''):
+    # Off the split the block states the memo of, which both writers read
+    # it from: the one `txn_split_guid:` names, and otherwise `split` —
+    # the settlement in this record's lot, which is what the block was
+    # written from. Compared against the bank split, a hand-written block
+    # carrying the memo an export printed matched no payment; and a
+    # payment matching no block is a *changed* invoice, so the run
+    # unposted it, rebuilt it, orphaned the bank transaction it already
+    # had and applied the block afresh — two bank transactions for money
+    # that moved once.
+    #
+    # A `txn_split_guid:` this transaction has no split for is the settling
+    # split, the same as if the block had named none. That is not an edge
+    # case: it is every printed page read into another book, for as
+    # long as it exists there. The block names the *source* book's split,
+    # the payment here was made by `ApplyPayment` under guids GnuCash
+    # minted, and the two never meet. Answered "no split", the comparison
+    # said no payment matched, so the record read as changed and was
+    # unposted, rebuilt and posted again under a new transaction — on
+    # every import of the same unedited file. Measured: two identical
+    # imports moved it from bdfc62ec… to fb35b412….
+    named = (_the_split_a_block_states(tx, md)
+             if _states_a_guid(md.get('txn_split_guid')) else None)
+    stating = named or split
+    if (stating.GetMemo() or '') != md.get('memo', ''):
         return False
     if (tx.GetNum() or '') != md.get('num', ''):
         return False
@@ -3158,7 +4579,7 @@ def _single_payment_matches(split, pd) -> bool:
 
 
 def _pair_off_payments(pay_splits, payment_dirs):
-    """Pair each payment the document holds with a block that describes it.
+    """Pair each payment the record holds with a block that describes it.
 
     Returns `(claimed, unclaimed)` — how many splits found a block, and the
     blocks left over in the order the file wrote them.
@@ -3176,7 +4597,7 @@ def _pair_off_payments(pay_splits, payment_dirs):
     So a block is given up again when the split holding it can be paired
     elsewhere. That is Kuhn's augmenting-path search, which finds the largest
     pairing there is, so a pairing is missed only when there genuinely is none.
-    Both lists are a document's payments — a handful — and the cost is the
+    Both lists are one invoice's or bill's payments — a handful — and the cost is the
     product of their lengths.
     """
     claimed_by = {}
@@ -3212,7 +4633,7 @@ def _payments_match_directive(record, payment_dirs, asked_for_credit=False) -> b
     # Matched by searching, as the add-a-payment classifier does: two cash
     # blocks, or two credit blocks, sit in the lot in an order of the lot's
     # own choosing, and reading them off against the file position by
-    # position calls an unchanged document changed and rebuilds it.
+    # position calls an unchanged record changed and rebuilds it.
     claimed, _ = _pair_off_payments(pay_splits, payment_dirs)
     return claimed == len(pay_splits)
 
@@ -3345,10 +4766,10 @@ def _require_the_account_can_hold_the_total(record, ar_ap_account, kind: str,
     the answer.
 
     GnuCash rounds instead. Posting a 30.05 total to a receivable kept to the
-    tenth writes 30.10, so the document is owed a figure it was never issued
+    tenth writes 30.10, so the invoice is owed a figure it was never issued
     for, every payment afterwards is measured against the rounded one, and
     nothing in the book disagrees. An account may be kept to any unit — that is
-    the user's to set, and this tool round-trips it — but a document whose
+    the user's to set, and this tool round-trips it — but an invoice or bill whose
     total lands between two of them belongs to neither.
     """
     commodity = ar_ap_account.GetCommodity()
@@ -3440,13 +4861,13 @@ def _owner_of_a_credit_beside(lib, split, transaction):
     """The owner of a credit lot on this transaction, where exactly one names one.
 
     For the half of a divided credit that has no lot of its own. Dividing makes
-    two splits of one transaction — the part that settled a document, which
-    goes into that document's lot, and the credit left over, which goes into a
+    two splits of one transaction — the part that settled an invoice or bill,
+    which goes into that record's lot, and the credit left over, which goes into a
     lot of its owner's. Exported and read into a fresh book, the first arrives
     loose: the export writes no `lot_owner:` for it, because that line is
-    derived from live lot state and a document's lot is not an owner's. So the
+    derived from live lot state and a posted record's lot is not an owner's. So the
     book knows whose money it is and cannot say — until the credit beside it is
-    asked. Without this, another owner's document could name that split by guid
+    asked. Without this, another owner's invoice could name that split by guid
     and settle out of it, which is the exact slip the guard exists to catch.
 
     Asked **only of a split that says it came out of a credit**. The import
@@ -3458,8 +4879,8 @@ def _owner_of_a_credit_beside(lib, split, transaction):
     their own portion — by guid, the documented spelling — was refused and
     told to check guids that were correct.
 
-    Only a lot **no document owns** answers. A sibling in a document's lot says
-    who that document is for and nothing about the loose split beside it.
+    Only a lot **no invoice or bill owns** answers. A sibling in a posted
+    record's lot says who that record is for and nothing about the loose split beside it.
     Several such lots disagreeing answer nothing either.
     """
     import gnucash.gnucash_core_c as _gc
@@ -3491,10 +4912,10 @@ def _owner_of_a_credit_beside(lib, split, transaction):
         account_ptr = int(account.instance)
         if account_ptr not in live_lots:
             live_lots[account_ptr] = _live_lot_pointers(account)
-        if int(getattr(lot, 'instance', lot)) not in live_lots[account_ptr]:
+        if qof_pointer(lot) not in live_lots[account_ptr]:
             continue
-        if _gc.gncInvoiceGetInvoiceFromLot(getattr(lot, 'instance', lot)):
-            continue                    # a document's lot, not an owner's
+        if _gc.gncInvoiceGetInvoiceFromLot(qof_instance(lot)):
+            continue                    # a posted record's lot, not an owner's
         buffer = ctypes.create_string_buffer(256)
         owner_ptr = ctypes.cast(buffer, ctypes.c_void_p)
         if lib.gncOwnerGetOwnerFromLot(ctypes.c_void_p(int(lot)), owner_ptr) != 1:
@@ -3515,16 +4936,16 @@ def _lot_is_still_on_its_account(split, lot) -> bool:
     `_live_lot_pointers`, which every other reader here goes through.
 
     How a split comes to hold a pointer the book has let go of, within one
-    import: this tool settles a document by attaching a split with
+    import: this tool settles an invoice by attaching a split with
     `xaccSplitSetLot`, which does not add it to the lot's own split list
-    (finding 9). If that same run then unposts the document — a later
+    (finding 9). If that same run then unposts it — a later
     directive in the same file restating it — GnuCash sees a lot whose listed
     splits are only the posting's, empties it, and frees it, while the
     settlement goes on pointing there. It is the reason
     `mark_splits_orphaned_by_unpost` reads the account rather than the lot.
 
-    Not directly tested: constructing it needs one file that both settles a
-    document and restates it, since a save and reload between the two rebuilds
+    Not directly tested: constructing it needs one file that both settles an
+    invoice and restates it, since a save and reload between the two rebuilds
     every lot list from `split->lot` and the pointer stops dangling. The guard
     is one list walk, and what it guards against is a segfault in the middle of
     the money path.
@@ -3532,18 +4953,18 @@ def _lot_is_still_on_its_account(split, lot) -> bool:
     account = split.GetAccount()
     if account is None:
         return False
-    return int(getattr(lot, 'instance', lot)) in _live_lot_pointers(account)
+    return qof_pointer(lot) in _live_lot_pointers(account)
 
 
 def _recorded_owner_of(split):
     """Whose money a split is — ('customer'|'vendor', id) — or None.
 
-    The lot first: an owner's credit sits in a lot of theirs, and a document's
-    lot belongs to whoever the document is for.
+    The lot first: an owner's credit sits in a lot of theirs, and a posted
+    record's lot belongs to whoever that invoice or bill is for.
 
     A split in no lot has no owner of its own, and its transaction answers for
     it only where that transaction carries a single receivable or payable
-    split. One deposit settles documents of several owners at once, and the
+    split. One deposit settles the invoices of several owners at once, and the
     owner GnuCash records on it is whichever of them it happened to record —
     reading that for an unlotted split calls the second owner's money the
     first owner's. Where there is only one such split there is no ambiguity,
@@ -3576,7 +4997,7 @@ def _recorded_owner_of(split):
     owner_ptr = ctypes.cast(buffer, ctypes.c_void_p)
 
     # The lot, and only the lot. A split in no lot is nobody's yet, and the
-    # transaction cannot answer for it: one deposit settles documents of
+    # transaction cannot answer for it: one deposit settles the invoices of
     # several owners at once, so its owner is whichever of them GnuCash
     # recorded, and reading that for an unlotted split calls the second
     # owner's money the first owner's. Where the transaction is the whole of
@@ -3586,7 +5007,7 @@ def _recorded_owner_of(split):
     if lot is None:
         # Not lotted yet, so the lot cannot say. The transaction can, but only
         # where it carries one receivable or payable split: a deposit settling
-        # several owners' documents records whichever owner GnuCash put on it,
+        # several owners' invoices records whichever owner GnuCash put on it,
         # and reading that for an unlotted split calls the second owner's
         # money the first owner's. With a single such split there is no
         # ambiguity, and a payment written by GnuCash for one owner is the
@@ -3637,7 +5058,7 @@ def _refuse_if_not_this_owner(record, theirs, kind: str, doc_id: str, what: str)
         mine = (_OWNER_KINDS.get(owner.GetType()), owner.GetID())
     except Exception:
         return
-    # A document can be owned by a job or an employee, which a lot reports as
+    # An invoice can be owned by a job or an employee, which a lot reports as
     # the customer or vendor behind it — so the two are not comparable and
     # this says nothing about whose money it is. Silence is not a refusal
     # anywhere else in this check, and it is not one here: a job-owned invoice
@@ -3657,7 +5078,7 @@ def _same_commodity(one, other) -> bool:
     """Whether two accounts hold the same currency.
 
     True when the second is not given, which is the caller saying it has no
-    second account to compare — the figures are then both the document's own.
+    second account to compare — the figures are then both the record's own.
     """
     if other is None or one is None:
         return True
@@ -3674,22 +5095,22 @@ def _refuse_a_payment_that_would_fall_short(md, carried: Fraction,
                                             txn_guid: str,
                                             split_account=None) -> None:
     """Refuse where the split found is smaller than both the stated payment
-    and what the document still owes.
+    and what the invoice or bill still owes.
 
     A block naming only its transaction leaves the choice of split to the
     importer, and what that finds is not always the money the file was written
     about: a settlement can have been divided or spent since, leaving a
     different split of the same transaction in its place. Taking it settles
-    the document by however much it happens to carry and stops, which is a
-    quiet way to leave a document part-paid out of somebody else's money.
+    the record by however much it happens to carry and stops, which is a
+    quiet way to leave one part-paid out of somebody else's money.
 
     Measured against *both* figures because a smaller split is ordinary on its
-    own. A document settled by two blocks and then rebuilt meets its own money
+    own. An invoice settled by two blocks and then rebuilt meets its own money
     divided in two, and the block stating the whole 50.00 finds the 20.00 that
-    is left — with the other 30.00 already back in the document's lot, so
+    is left — with the other 30.00 already back in its lot, so
     nothing falls short and nothing is refused. What is refused is the split
     that covers neither: the file says 100.00 arrived, 60.00 is all that is
-    there, and the document is owed the whole 100.00 still.
+    there, and the whole 100.00 is owed still.
 
     Silent where the file states no `amount:`. It is not a required field on
     this spelling, and a block that says nothing about the figure asserts no
@@ -3705,10 +5126,10 @@ def _refuse_a_payment_that_would_fall_short(md, carried: Fraction,
             f'{kind} {doc_id}: payment amount must be a number, got '
             f'{stated!r}') from exc
     # Only where the two figures are the same money. `amount:` is written in
-    # the document's own currency; the split's figure is in the currency of the
+    # the record's own currency; the split's figure is in the currency of the
     # account it sits on, and this spelling exists for bank-feed transactions
     # whose other side can be an Imbalance split in the bank's. Comparing a
-    # USD document's 100 against a CAD split's 137 says nothing in either
+    # USD invoice's 100 against a CAD split's 137 says nothing in either
     # direction, so nothing is said.
     if not _same_commodity(account, split_account):
         return
@@ -3734,8 +5155,8 @@ def _why_nothing_can_move(transaction, bank_acct_name: str, txn_guid: str,
     check that might let you past.
 
     Two things bring a caller here and they are not the same. Usually the
-    transaction's splits are all spoken for: each settles a document that
-    reads as paid, and taking one would leave that document unpaid with every
+    transaction's splits are all spoken for: each settles an invoice or bill that
+    reads as paid, and taking one would leave that record unpaid with every
     figure still balancing. Saying "no non-bank split" — the only thing this
     could report before it knew the difference — sends the reader looking for
     something plainly in front of them. The other is the literal absence,
@@ -3747,8 +5168,9 @@ def _why_nothing_can_move(transaction, bank_acct_name: str, txn_guid: str,
     reader looking for a credit they have not got.
 
     For the first, the remedy is the one the ambiguity refusal names, because
-    the fact underneath is the same: a transaction says which document each of
-    its splits settles only if the file says so, and `txn_split_guid:` says it.
+    the fact underneath is the same: a transaction says which invoice or bill
+    each of its splits settles only if the file says so, and `txn_split_guid:`
+    says it.
     """
     takeable = [split for split in transaction.GetSplitList()
                 if (account := split.GetAccount()) is not None
@@ -3761,8 +5183,8 @@ def _why_nothing_can_move(transaction, bank_acct_name: str, txn_guid: str,
             f'`amount:` and `date:` to have one made.')
     return Exception(
         f'{kind} {doc_id}: every split of tx {txn_guid!r} outside '
-        f'{bank_acct_name!r} already settles a document — retargeting one '
-        f'would leave that document unpaid with no figure disagreeing. Name a '
+        f'{bank_acct_name!r} already settles an invoice or a bill — '
+        f'retargeting one would leave that unpaid with no figure disagreeing. Name a '
         f'transaction that still has money to give, or, if one of these '
         f'splits really belongs to this {kind}, name it outright with '
         f'`txn_split_guid:` and unpick what it is settling now.')
@@ -3793,40 +5215,40 @@ def _retarget_choices(transaction, bank_acct_name: str, own_lot, record):
     The caller takes the first of what comes back as the split to move, and
     hands the whole tier to `_refuse_an_ambiguous_retarget`. Worked out once
     per payment block: walking a receivable's lot list is walking one lot per
-    document the book has ever posted there, and asking it for each question
-    separately made an import cost the product of its documents and the book's
+    invoice the book has ever posted there, and asking it for each question
+    separately made an import cost the product of its invoices and the book's
     history.
 
     The last tier covers two things a file may legitimately name. One is an
-    owner's parked credit, which a document may spend. The other is the
-    rebuild: re-importing a paid document unposts it, which detaches the
-    document but leaves the lot on the account with the split still in it, so
+    owner's parked credit, which an invoice or bill may spend. The other is the
+    rebuild: re-importing a paid one unposts it, which detaches the
+    record but leaves the lot on the account with the split still in it, so
     the split is neither loose nor in the record's new lot. Nothing about the
-    two lots differs — both are live, documentless and owner-attached — and
+    two lots differs — both are live, owner-attached, and name nothing — and
     they do not have to differ here, because both answer the same question the
     same way. What turns on the difference is whether moving the split spends
     a credit; `_sits_in_an_owners_credit` is where that is decided, and it is
     decided by reading what the unpost wrote down rather than by asking the lot.
 
     A lot the account no longer lists belongs with those: the book has let go
-    of it, so it holds no document either, and such a pointer is not one to ask
+    of it, so it names nothing either, and such a pointer is not one to ask
     anything of. It does not have to be asked — a live lot is in its account's
     lot list, so absence from that list is membership rather than dereference.
 
-    What is left after those is a split settling *another* document, in a lot
-    that is live and holds a document reading as paid. Moving it leaves that
-    document silently unpaid with every figure still balancing, and no file
+    What is left after those is a split settling *another* invoice or bill, in a lot
+    that is live and holds one reading as paid. Moving it leaves that
+    record silently unpaid with every figure still balancing, and no file
     asked for it, so nothing is returned and the caller refuses.
 
     The tiers, surest first: the split this record's own unpost abandoned;
     then splits in no lot; then one in this record's own lot; then whatever
-    else is placeable — another document's orphan, or an owner's credit.
+    else is placeable — another record's orphan, or an owner's credit.
 
     The marked orphan leads because it is the only tier that says *this*
-    document. A split in no lot is merely unclaimed, and where a transaction
-    carries both — a deposit covering two documents, one of them being rebuilt
+    record. A split in no lot is merely unclaimed, and where a transaction
+    carries both — a deposit covering two invoices, one of them being rebuilt
     while the other's portion has not been imported yet — taking the loose one
-    settles this document out of the sibling's money and abandons its own
+    settles this one out of the sibling's money and abandons its own
     settlement, with no ambiguity to refuse because only one split is loose.
 
     Returning a tier rather than a split is what lets `_refuse_an_ambiguous_
@@ -3838,7 +5260,7 @@ def _retarget_choices(transaction, bank_acct_name: str, own_lot, record):
     it does reach is.
     """
     # Worked out at most once, and only where a tier needs it: it walks the
-    # account's whole lot list, which is one lot per document the book has ever
+    # account's whole lot list, which is one lot per invoice the book has ever
     # posted there. The ordinary block has a loose split waiting and never
     # reaches a tier that asks.
     computed = []
@@ -3849,19 +5271,19 @@ def _retarget_choices(transaction, bank_acct_name: str, own_lot, record):
                 transaction, bank_acct_name, own_lot))
         return computed[0]
 
-    # A rebuild's own orphan is not a choice between anything: this document
+    # A rebuild's own orphan is not a choice between anything: this record
     # was settled by this split, and the unpost that separated them said so.
-    # Without the tier, a document overpaid by retarget could not be edited —
+    # Without the tier, one overpaid by retarget could not be edited —
     # its transaction carries the orphan *and* the residue it parked, which are
     # two placeable splits and so read as ambiguous, though only one of them
-    # was ever this document's.
+    # was ever this record's.
     #
     # The mark is a KVP read, so which splits could be this record's own is
     # answered before any lot list is walked; only if one is does placeability
     # get asked.
     # Compared only when there is a guid to compare: unmarked splits report ''
     # and a record with no readable guid would report '' too, which would make
-    # every placeable split read as this document's own orphan.
+    # every placeable split read as this record's own orphan.
     guid = _swig_invoice_guid_str(record)
     marked = [split for split in transaction.GetSplitList()
               if guid and _orphaned_from(split) == guid]
@@ -3876,7 +5298,7 @@ def _retarget_choices(transaction, bank_acct_name: str, own_lot, record):
     if loose:
         return loose
 
-    mine_ptr = (int(getattr(own_lot, 'instance', own_lot))
+    mine_ptr = (qof_pointer(own_lot)
                 if own_lot is not None else None)
     # The bank filter every other tier applies. A lot belongs to one account,
     # so a bank split cannot be in this record's receivable lot and the filter
@@ -3887,7 +5309,7 @@ def _retarget_choices(transaction, bank_acct_name: str, own_lot, record):
            if (account := split.GetAccount()) is not None
            and get_account_full_name(account) != bank_acct_name
            and (lot := split.GetLot()) is not None
-           and int(getattr(lot, 'instance', lot)) == mine_ptr]
+           and qof_pointer(lot) == mine_ptr]
     if own:
         return own
 
@@ -3897,13 +5319,13 @@ def _retarget_choices(transaction, bank_acct_name: str, own_lot, record):
 def _placeable_lotted_splits(transaction, bank_acct_name: str, own_lot):
     """The already-lotted splits a retarget may still place.
 
-    A split in a lot holding no document: an owner's parked credit, or what an
-    unpost abandoned. A lot the account no longer lists counts as holding none
+    A split in a lot naming no invoice or bill: an owner's parked credit, or what an
+    unpost abandoned. A lot the account no longer lists counts as naming none
     — the book has let go of it — and is answered by membership rather than by
     handing a pointer the engine may have freed back to the engine.
 
     Excludes this record's own lot, which the caller answers ahead of these and
-    which is never ambiguous — it is the document's own.
+    which is never ambiguous — it is the record's own.
 
     Shared by the mover and by `_refuse_an_ambiguous_retarget`, so the two
     cannot disagree about what could be picked. They did: the guard counted
@@ -3914,7 +5336,7 @@ def _placeable_lotted_splits(transaction, bank_acct_name: str, own_lot):
     book the two can carry different costs, so split order would decide which
     basis was consumed, and with it the gain realized.
     """
-    mine_ptr = (int(getattr(own_lot, 'instance', own_lot))
+    mine_ptr = (qof_pointer(own_lot)
                 if own_lot is not None else None)
     live_lots = {}
     placeable = []
@@ -3925,17 +5347,17 @@ def _placeable_lotted_splits(transaction, bank_acct_name: str, own_lot):
         lot = split.GetLot()
         if lot is None:
             continue                        # offered as a candidate already
-        lot_ptr = int(getattr(lot, 'instance', lot))
+        lot_ptr = qof_pointer(lot)
         if lot_ptr == mine_ptr:
             continue
         # Once per account rather than once per split: the walk is over one lot
-        # per document the book has ever posted there.
+        # per invoice the book has ever posted there.
         account_ptr = int(account.instance)
         if account_ptr not in live_lots:
             live_lots[account_ptr] = _live_lot_pointers(account)
         if lot_ptr not in live_lots[account_ptr]:
-            placeable.append(split)         # destroyed; holds no document
-        elif not gc.gncInvoiceGetInvoiceFromLot(getattr(lot, 'instance', lot)):
+            placeable.append(split)         # destroyed; names nothing
+        elif not gc.gncInvoiceGetInvoiceFromLot(qof_instance(lot)):
             # Asked only of a lot the account still lists, which is what the
             # check above is for: a pointer the book has freed is not one to
             # hand to the engine.
@@ -3946,16 +5368,16 @@ def _placeable_lotted_splits(transaction, bank_acct_name: str, own_lot):
 def _sits_in_an_owners_credit(split) -> bool:
     """Whether moving this split out of its lot spends an owner's credit.
 
-    An owner's credit is a live lot that holds no document and names an owner.
+    An owner's credit is a live lot that names no invoice or bill and does name an owner.
     All three are asked. Live, because a destroyed lot holds nothing and is no
-    pointer to question. No document, because a lot holding one is a document's
-    lot and its splits settle that document. An owner, because a lot can hold
-    no document and belong to nobody — GnuCash opens lots on stock and asset
+    pointer to question. Naming none, because a lot that names one is that
+    record's lot and its splits settle it. An owner, because a lot can name
+    nothing and belong to nobody — GnuCash opens lots on stock and asset
     accounts to match sales against purchases, and stripping the cost basis off
     one of those would take a figure this tool did not put there.
 
     False, too, for a settlement an unpost orphaned, which is otherwise
-    identical: live lot, no document, owner attached. Nothing in the book
+    identical: live lot, naming nothing, owner attached. Nothing in the book
     separates the two, so the unpost writes it down at the time and this reads
     what it wrote (`ORPHANED_BY_UNPOST_KEY`, CLAUDE.md finding 10).
 
@@ -3963,7 +5385,7 @@ def _sits_in_an_owners_credit(split) -> bool:
     whether the money ever came out of credit, which the split says by
     carrying `applied_from_credit` or not. An orphan that did is credit still,
     loose again and spendable by anyone the owner owes; an orphan that did not
-    is a bank's payment waiting to be put back, whichever document's unpost
+    is a bank's payment waiting to be put back, whichever record's unpost
     loosened it. `_apply_credit_payment_directive` reads the same fact off the
     same split for the same reason.
 
@@ -3979,7 +5401,7 @@ def _sits_in_an_owners_credit(split) -> bool:
     if is_a_bank_paid_orphan(split):
         # An unpost loosened this, and it never came out of credit — so a bank
         # paid it, and it is a settlement waiting to be put back rather than
-        # anybody's credit to spend. True whichever document's unpost left it:
+        # anybody's credit to spend. True whichever record's unpost left it:
         # `unpost-invoices B` and then a file settling A off B's deposit is one
         # step and reachable, and calling it a credit there strips the basis
         # off currency the bank still holds and exports a block that named an
@@ -3988,9 +5410,9 @@ def _sits_in_an_owners_credit(split) -> bool:
     account = split.GetAccount()
     if account is None:
         return False
-    if int(getattr(lot, 'instance', lot)) not in _live_lot_pointers(account):
+    if qof_pointer(lot) not in _live_lot_pointers(account):
         return False
-    raw = getattr(lot, 'instance', lot)
+    raw = qof_instance(lot)
     if gc.gncInvoiceGetInvoiceFromLot(raw):
         return False
     from infrastructure.gnucash.engine import load_gnc_engine
@@ -4011,15 +5433,15 @@ def _lot_membership_unchanged():
     """Answer repeated "is this lot still the account's" from one walk.
 
     The guards a settlement runs before it moves anything each ask that, and
-    each answer costs the account's whole lot list — one lot per document ever
+    each answer costs the account's whole lot list — one lot per invoice ever
     posted on a receivable, with a `GList` node built in Python for every one.
     Three guards on the same split therefore walked the same list three times,
     and re-importing an export of a long-lived book paid the product of its
-    documents and its history. `_retarget_choices` was corrected for exactly
+    invoices and its history. `_retarget_choices` was corrected for exactly
     this and the guards beside it were not.
 
     Held open only where nothing can move a split, which is what makes a
-    remembered answer safe: posting a document opens a lot, parking a residue
+    remembered answer safe: posting an invoice opens a lot, parking a residue
     opens another, and `gnc_lot_remove_split` destroys one when its listed
     splits run out — so a memo living across any of those would report a live
     lot as one the book had let go of, and the reader treats that as a lot
@@ -4083,7 +5505,7 @@ def _refuse_an_ambiguous_retarget(bank_acct_name: str, txn_guid: str,
     `txn_split_guid:` is how a file says which, and the shared-deposit
     workflow is written that way already. So this is refused for what the file
     leaves unsaid rather than judged by whose money it is — judging by owner is
-    order-dependent, since a portion already settled into its own document's
+    order-dependent, since a portion already settled into its own record's
     lot names an owner while a portion still loose names nobody, so the same
     file would import or not depending on what ran before it.
 
@@ -4094,10 +5516,10 @@ def _refuse_an_ambiguous_retarget(bank_acct_name: str, txn_guid: str,
     choose between and took the 5.00 fee — a 100.00 invoice reading as settled
     by 5.00, with the receivable split left loose.
 
-    Not every lotted split is a candidate, because most are settling a
-    document and are not the mover's to take. A block that overpays divides
+    Not every lotted split is a candidate, because most are settling an
+    invoice or bill and are not the mover's to take. A block that overpays divides
     its transaction and leaves the residue in a lot, so counting everything
-    made the document it settled uneditable ever after: the same file, with
+    made the record it settled uneditable ever after: the same file, with
     anything else about the invoice changed, came back to a transaction now
     carrying two receivable splits and was refused — with the remedy reachable
     only by re-exporting.
@@ -4123,27 +5545,27 @@ def _refuse_an_ambiguous_retarget(bank_acct_name: str, txn_guid: str,
         f'them it would move is decided by the order they happen to be in, not '
         f'by anything in the file. Add `txn_split_guid:` naming the split this '
         f'{kind.lower()} is paid by; that is how one deposit settles several '
-        f'documents, and how a payment booked net of a fee says which side is '
-        f'the payment.')
+        f'invoices or bills, and how a payment booked net of a fee says which '
+        f'side is the payment.')
 
 
-def _refuse_a_split_settling_another_document(record, split, kind: str,
-                                              doc_id: str,
-                                              named: str) -> None:
-    """Refuse a named split that is already settling somebody else's document.
+def _refuse_a_split_settling_another_record(record, split, kind: str,
+                                            doc_id: str,
+                                            named: str) -> None:
+    """Refuse a named split that already settles somebody else's invoice or bill.
 
     The bare `txn_guid:` spelling cannot reach one — `_placeable_lotted_splits`
-    leaves out any split whose lot holds a document, because moving it settles
-    this document by leaving that one unpaid with every figure still balancing.
+    leaves out any split whose lot names an invoice or bill, because moving it settles
+    this one by leaving that one unpaid with every figure still balancing.
     Naming the split outright reached it unguarded, and this change set is what
     makes that the advertised route: `_why_nothing_can_move` tells the reader
     to "name it outright with `txn_split_guid:` and unpick what it is settling
     now", and the error table says the same. Unpicking is a thing to do to the
-    other document first, not a thing this can do on the reader's behalf.
+    other record first, not a thing this can do on the reader's behalf.
 
-    This record's *own* lot is not another document: re-importing an export
+    This record's *own* lot is not another's: re-importing an export
     names the split already in it, and a rebuild re-attaches its own
-    settlement. Only a lot holding some other document is refused.
+    settlement. Only a lot naming some other invoice or bill is refused.
     """
     lot = split.GetLot()
     if lot is None:
@@ -4154,19 +5576,18 @@ def _refuse_a_split_settling_another_document(record, split, kind: str,
     # (finding 9), so a split can hold a pointer the book has let go of.
     if not _lot_is_still_on_its_account(split, lot):
         return
-    raw = getattr(lot, 'instance', lot)
+    raw = qof_instance(lot)
     other = gc.gncInvoiceGetInvoiceFromLot(raw)
     if not other:
         return
     mine = record.GetPostedLot()
-    if mine is not None and int(getattr(mine, 'instance', mine)) == int(
-            getattr(lot, 'instance', lot)):
+    if mine is not None and qof_pointer(mine) == qof_pointer(lot):
         return
     raise Exception(
         f'{kind} {doc_id}: the split txn_split_guid {named!r} names is in '
-        f'another document\'s lot — it settles that one, and moving it here '
-        f'would leave that document unpaid with every figure in the book still '
-        f'balancing. Unpick it there first (re-import that document without '
+        f'another invoice\'s or bill\'s lot — it settles that one, and moving it here '
+        f'would leave it unpaid with every figure in the book still '
+        f'balancing. Unpick it there first (re-import that one without '
         f'the payment block that claims it), or name money that is not '
         f'already spoken for.')
 
@@ -4176,7 +5597,7 @@ def _refuse_another_owners_split(record, split, kind: str, doc_id: str) -> None:
 
     A payment block reaches its split by guid, and a guid copied out of a
     large export says nothing about whose money it is. Attaching one owner's
-    to another's document leaves that document reading as paid though nobody
+    to another's invoice leaves that invoice reading as paid though nobody
     paid it, and the owner who really paid with no record of what they are
     owed — nothing in the book disagrees afterwards, because every figure in
     it still balances.
@@ -4186,19 +5607,19 @@ def _refuse_another_owners_split(record, split, kind: str, doc_id: str) -> None:
 
 
 def _apply_credit_payment_directive(record, pay_dir, book, is_bill) -> None:
-    """Settle a document out of the owner's existing credit.
+    """Settle an invoice or bill out of the owner's existing credit.
 
     Applying a credit moves no money. The currency is already in the book,
-    sitting on a lot of the owner's that no document owns, and applying it is
-    putting that split in this document's lot — which is what closes the lot
-    and marks the document paid. So the block carries no bank account and no
+    sitting on a lot of the owner's that names no invoice or bill, and applying it is
+    putting that split in this record's lot — which is what closes the lot
+    and marks it paid. So the block carries no bank account and no
     date of its own: it names the split (`txn_guid:` / `txn_split_guid:`), how
-    much of the document that split settles, and the date of the transaction
+    much of the record that split settles, and the date of the transaction
     the credit arrived in, as `credit_dated:`.
 
     What the file states is checked rather than trusted, the way a stated cost
     or a stated balance is: the split must exist on the named transaction, be
-    on this document's own posted account, carry the amount the block claims
+    on this record's own posted account, carry the amount the block claims
     with the sign a credit has on that side, and still be the owner's to spend.
     """
     kind = 'Bill' if is_bill else 'Invoice'
@@ -4219,8 +5640,8 @@ def _apply_credit_payment_directive(record, pay_dir, book, is_bill) -> None:
             f'`credit_dated:` for the date of the transaction the credit '
             f'arrived in.')
 
-    txn_guid = (md.get('txn_guid') or '').strip()
-    split_guid_declared = (md.get('txn_split_guid') or '').strip()
+    txn_guid = _the_characters_a_block_wrote(md, 'txn_guid')
+    split_guid_declared = _the_characters_a_block_wrote(md, 'txn_split_guid')
     if not txn_guid or not split_guid_declared:
         raise Exception(
             f'{kind} {doc_id}: a payment with `from_credit: true` must name '
@@ -4272,7 +5693,7 @@ def _apply_credit_payment_directive(record, pay_dir, book, is_bill) -> None:
             f'{existing_tx.GetDate().strftime("%Y-%m-%d")}')
 
     amount = numeric_to_fraction(target_split.GetAmount())
-    # A credit is on the side a document is not raised on: a customer's is a
+    # A credit is on the side an invoice or bill is not raised on: a customer's is a
     # credit of the receivable, a vendor's a debit of the payable.
     if (amount > 0) != bool(is_bill) or amount == 0:
         raise Exception(
@@ -4302,7 +5723,7 @@ def _apply_credit_payment_directive(record, pay_dir, book, is_bill) -> None:
                 f'export writes back.')
 
     # Membership before dereference, like every other reader here — and this
-    # one sits a line away from `_refuse_a_split_settling_another_document`,
+    # one sits a line away from `_refuse_a_split_settling_another_record`,
     # which asks the same question of the same split under the rule.
     #
     # Both readings walk the account's lot list to answer about one split, and
@@ -4315,11 +5736,11 @@ def _apply_credit_payment_directive(record, pay_dir, book, is_bill) -> None:
                 and gc.gncInvoiceGetInvoiceFromLot(existing_lot)):
             raise Exception(
                 f'{kind} {doc_id}: the split txn_split_guid names is already '
-                f'in a document\'s lot — it settled that one and is not the '
-                f'owner\'s to spend again')
+                f'in another invoice\'s or bill\'s lot — it settled that one '
+                f'and is not the owner\'s to spend again')
         # The third spelling has to answer as the other two do, and this is
         # where it can be told wrong. A split an unpost orphaned looks like an
-        # owner's credit from every angle — live lot, no document, the owner
+        # owner's credit from every angle — live lot, naming nothing, the owner
         # still on it — and `find-prepayments` and the exported
         # `open_prepayment:` block both offer it as spendable, which is how a
         # reader is led to write this block about it.
@@ -4327,33 +5748,33 @@ def _apply_credit_payment_directive(record, pay_dir, book, is_bill) -> None:
         # Whether it really came out of credit is on the split, written when
         # the credit was spent, and it survives the unpost. Where it says so,
         # the file is right and the rebuild proceeds: that is how a
-        # credit-settled document comes back from its own export. Where it
+        # credit-settled invoice comes back from its own export. Where it
         # does not, a bank paid this and the file is asserting something the
-        # book contradicts — and that holds whichever document's unpost
+        # book contradicts — and that holds whichever record's unpost
         # loosened it, which is the same predicate `_sits_in_an_owners_credit`
         # asks of the same split.
         if is_a_bank_paid_orphan(target_split):
             raise Exception(
                 f'{kind} {doc_id}: the split txn_split_guid names is a '
-                f'settlement a bank paid, left loose when the document it '
-                f'settled was unposted — no credit was spent on it. '
+                f'settlement a bank paid, left loose when the invoice or bill '
+                f'it settled was unposted — no credit was spent on it. '
                 f'Unposting leaves the money in a lot of the owner\'s, which '
                 f'is what makes it look like a credit. Drop `from_credit:` '
                 f'and name the transaction with `txn_guid:` to attach it as '
-                f'the bank payment it is, or re-post the document it settled.')
+                f'the bank payment it is, or re-post what it settled.')
         _refuse_another_owners_split(record, target_split, kind, doc_id)
 
-    # A credit bigger than what the document still owes is divided rather than
+    # A credit bigger than what the record still owes is divided rather than
     # attached whole. Attaching it takes the lot past zero — measured, a 50.00
     # credit on a 30.00 invoice leaves the lot at −20.00 with `IsPaid` false
     # and the customer's 20.00 gone from `find-prepayments`, which lists only
-    # lots no document owns. So it is divided here, from the figures the file
+    # lots naming no invoice or bill. So it is divided here, from the figures the file
     # named — through `_settle_from_one_split`, the mechanic an overpaying bank
     # transfer goes through — rather than by asking the engine, which takes no
     # instruction about which credit to spend and carves differently from one
     # version to the next.
     #
-    # What is still owed, not what the document was raised for: cash blocks
+    # What is still owed, not what the record was raised for: cash blocks
     # are applied before credit ones, so a 100.00 invoice with 80.00 of cash
     # on it owes 20.00 by the time a credit block is read, and measuring
     # against the 100.00 let a 50.00 credit in whole.
@@ -4366,9 +5787,9 @@ def _apply_credit_payment_directive(record, pay_dir, book, is_bill) -> None:
             f'{kind.lower()} neither settled nor open and the owner\'s money '
             f'inside its lot where nothing can spend it again.')
     if abs(amount) > outstanding:
-        # A credit bigger than the document it settles is an overpayment by
+        # A credit bigger than the record it settles is an overpayment by
         # another name, and takes the path an overpaying bank transfer has
-        # always taken: the document is settled with what it owes, and the
+        # always taken: the record is settled with what it owes, and the
         # rest becomes the owner's credit in a lot of its own. The only thing
         # this caller contributes is which split — it was named by guid, so
         # there is nothing for the mechanic to find.
@@ -4376,7 +5797,7 @@ def _apply_credit_payment_directive(record, pay_dir, book, is_bill) -> None:
         # Whose money is left over has to be known before any is parked as
         # theirs. A split in no lot has no owner recorded, and where its
         # transaction pays more than one of them, none can be worked out from
-        # it either — attaching the residue to this document's owner would
+        # it either — attaching the residue to this record's owner would
         # hand them a credit that may be somebody else's. Dividing whole is
         # the shape that needs it; taken whole, no new credit is invented.
         if target_split.GetLot() is None:
@@ -4397,7 +5818,7 @@ def _apply_credit_payment_directive(record, pay_dir, book, is_bill) -> None:
         _mark_spent_credit(target_split)
 
     # Last, so that the credit left behind by a division keeps the memo it
-    # arrived with rather than the one written about settling this document.
+    # arrived with rather than the one written about settling this record.
     memo = md.get('memo')
     if memo is not None:
         target_split.SetMemo(memo)
@@ -4407,9 +5828,9 @@ def _the_tax_table_named(book, name: str, kind: str, ident: str):
     """The tax table a line names, or a refusal.
 
     Swallowed, a name the book does not hold left the entry with no table —
-    and the comparison that decides whether a document is up to date reads the
+    and the comparison that decides whether a record is up to date reads the
     name the file states against the table the entry carries, so the two could
-    never agree. A posted document was then unposted, its posting transaction
+    never agree. A posted invoice was then unposted, its posting transaction
     destroyed, its payments orphaned, and the whole thing rebuilt, on every
     import, reported as `updated` with no error at all.
 
@@ -4434,13 +5855,13 @@ def _the_transaction_this_record_orphaned(bank_account, record_guid: str,
     receivable's — so the transaction is what joins them.
 
     Matched on `record_guid`, not on the mark's presence: one deposit can
-    settle two documents, and rebuilding the first marks that transaction
+    settle two invoices, and rebuilding the first marks that transaction
     while its other portion is still money the book independently had. Asked
-    as a bare presence, the first document's mark hid the whole deposit from
-    the second document's duplicate check and the second was paid again —
+    as a bare presence, the first one's mark hid the whole deposit from
+    the second one's duplicate check and the second was paid again —
     measured, two extra bank transactions on a run that exited 0.
 
-    A document settled twice out of one account has two such orphans, and the
+    An invoice settled twice out of one account has two such orphans, and the
     block has to be given its own. `pay_dir` is what says which: the figure it
     states, and the day it states it on.
 
@@ -4448,7 +5869,7 @@ def _the_transaction_this_record_orphaned(bank_account, record_guid: str,
     the split it would move, so a block handed the wrong movement is refused —
     `this block says 60.00 arrived, but the split it would move … carries
     40.00`, on a file that is correct. First-match happens to pair them right
-    while the account's splits are in the order the document lists its
+    while the account's splits are in the order the record lists its
     payments, which is why this looked like it did not matter; measured by
     walking that list the other way, the correction was refused outright.
 
@@ -4470,7 +5891,7 @@ def _the_transaction_this_record_orphaned(bank_account, record_guid: str,
     change which transaction is returned — but the mark is a KVP read, one per
     split of each candidate, where the other two are a subtraction and a date.
     This runs for every payment block whose `txn_guid:` resolves to nothing,
-    which is every block of a printed document read anywhere but its own book,
+    which is every block of a printed page read anywhere but its own book,
     and it walks the whole bank account each time.
     """
     if not record_guid:
@@ -4497,16 +5918,16 @@ def _the_transaction_this_record_orphaned(bank_account, record_guid: str,
     return None
 
 
-def _the_document_a_transaction_settles(transaction):
-    """The posted document this transaction is applied to, or None.
+def _the_record_a_transaction_settles(transaction):
+    """The posted invoice or bill this transaction is applied to, or None.
 
     Read from the lot on the transaction's own receivable/payable split, which
-    is where GnuCash records that a movement settled a document.
+    is where GnuCash records that a movement settled one.
 
-    Asked of the *document* in the lot, not of the lot: a posted document's lot
-    carries no owner of its own — GnuCash attaches one when the document is
+    Asked of the *invoice* in the lot, not of the lot: a posted record's lot
+    carries no owner of its own — GnuCash attaches one when it is
     unposted (CLAUDE.md finding 10) — so `gncOwnerGetOwnerFromLot` answers
-    nothing here, and every owner-reading path in this module skips document
+    nothing here, and every owner-reading path in this module skips such
     lots for that reason. Measured, asking the lot: `theirs=None` on the very
     split that settles the other invoice.
     """
@@ -4522,15 +5943,15 @@ def _the_document_a_transaction_settles(transaction):
         lot = split.GetLot()
         if lot is None:
             continue
-        raw = _gc.gncInvoiceGetInvoiceFromLot(getattr(lot, 'instance', lot))
+        raw = _gc.gncInvoiceGetInvoiceFromLot(qof_instance(lot))
         if not raw:
             continue
         return wrap_invoice_or_bill(raw)
     return None
 
 
-def _settles_another_owners_document(record, transaction) -> bool:
-    """Whether this transaction settles a document belonging to somebody else.
+def _settles_another_owners_record(record, transaction) -> bool:
+    """Whether this transaction settles an invoice or bill belonging to somebody else.
 
     Payments that agree on every field the guard compares are ordinary: two
     invoices for 100.00, paid into one account on one day, carrying whatever
@@ -4541,30 +5962,30 @@ def _settles_another_owners_document(record, transaction) -> bool:
 
     Whose money it is decides it, and it decides it through the remedy. The
     refusal this feeds tells the reader to correct the guid to the transaction
-    it found, and correcting it retargets that movement onto the document in
-    hand. Between two of one owner's documents that is a real operation and may
+    it found, and correcting it retargets that movement onto the record in
+    hand. Between two of one owner's invoices that is a real operation and may
     well be what was meant: their receipt, their invoice, applied to the wrong
     one. Across owners it is not an operation at all — customer A's receipt
     cannot settle customer B's invoice — so a match there can only be a
     coincidence of date, figure and memo, and refusing on it would offer a
     remedy that does not exist.
 
-    Nor "settles any document at all", which looks like the simpler question
+    Nor "settles anything at all", which looks like the simpler question
     and is the wrong one: a mistyped guid naming a movement that already
-    settled *this owner's* other document is the case the guard exists for,
-    and skipping every document's money let that duplicate straight through
+    settled *this owner's* other invoice is the case the guard exists for,
+    and skipping every settled record's money let that duplicate straight through
     again — measured, two extra transactions on the third-currency shape,
-    which is one customer's second document naming the first one's movement.
+    which is one customer's second invoice naming the first one's movement.
 
-    False on silence, as every owner check here is: a document owned by a job
+    False on silence, as every owner check here is: an invoice owned by a job
     reports as the customer behind it, so the two are not comparable, and
-    money in no document's lot is what the guard is for.
+    money in nobody's lot is what the guard is for.
     """
     owner = record.GetOwner()
     mine = (_OWNER_KINDS.get(owner.GetType()), owner.GetID())
     if mine[0] is None or not mine[1]:
         return False
-    other = _the_document_a_transaction_settles(transaction)
+    other = _the_record_a_transaction_settles(transaction)
     if other is None:
         return False
     their_owner = other.GetOwner()
@@ -4579,7 +6000,7 @@ def _a_transaction_matching_the_payment_block(book, pay_dir, bank_account,
     """A transaction the book already holds that this payment block describes.
 
     Asked only where a `txn_guid:` named nothing, to tell a mistyped retarget
-    from a document being rebuilt into a fresh book. The two carry the same
+    from an invoice being rebuilt into a fresh book. The two carry the same
     fields and the same unresolvable guid; the difference is whether the money
     is already here.
 
@@ -4604,7 +6025,7 @@ def _a_transaction_matching_the_payment_block(book, pay_dir, bank_account,
     # The memo too, and it is what makes this about *this* payment. Two
     # customers each paying 100.00 into one account on one day is ordinary,
     # and a date and an amount cannot tell them apart — so rebuilding one
-    # document into a book holding the other's deposit was refused outright,
+    # invoice into a book holding the other's deposit was refused outright,
     # with the message naming somebody else's money and offering to hand-edit
     # a file this tool wrote. A payment block carries a memo to say which
     # movement it is; blocks that state none still match on the other two,
@@ -4632,34 +6053,34 @@ def _a_transaction_matching_the_payment_block(book, pay_dir, bank_account,
             continue
         if stated_memo and (split.GetMemo() or '').strip() != stated_memo:
             continue
-        # And not money that already settles another owner's document.
-        # Everything above can agree between two documents — two customers each
+        # And not money that already settles another owner's invoice or bill.
+        # Everything above can agree between two of them — two customers each
         # paying 100.00 into one account on one day, both printed elsewhere so
         # both guids name nothing, and printed blocks carry whatever memo the
         # payment had. `_PAYMENTS_THIS_RUN_MADE` excuses only what this process
-        # made, so read one file at a time the second document was refused for
+        # made, so read one file at a time the second invoice was refused for
         # the first one's payment: `invoice INV-OTHER: … describes one it
         # already has — 'Spelling Customer' for 100.00`, naming another
         # customer's receipt as the reason this invoice could not be paid.
         #
-        # Another owner's settled document is not the movement this block is
+        # Another owner's settled invoice is not the movement this block is
         # about, whatever the two have in common. This owner's still is — that
         # is the mistyped guid the guard exists for.
-        if _settles_another_owners_document(record, transaction):
+        if _settles_another_owners_record(record, transaction):
             continue
         # With its guid, because the message tells the reader to correct the
         # one in their file to this transaction's — and without it they have
         # to go and run `find-transactions` to act on a hard refusal.
         #
-        # And with the document that movement is already applied to, when it is
+        # And with the invoice or bill that movement is already applied to, when it is
         # applied to one. This owner's two invoices, each genuinely paid the
         # same figure on the same day with the same memo, reach here with
         # nothing left to tell them apart, and the refusal is right — the file
         # says nothing that distinguishes the two movements. What it owes the
         # reader is why: money already settling `invoice "INV-A"` is plainly
-        # not this document's receipt, and the line that says so is the one
+        # not this one's receipt, and the line that says so is the one
         # that sends them to `drop txn_guid:` rather than to the ledger.
-        settled = _the_document_a_transaction_settles(transaction)
+        settled = _the_record_a_transaction_settles(transaction)
         applied = ''
         if settled is not None and settled.GetID():
             kind = ('bill' if settled.GetOwnerType() == _GNC_OWNER_VENDOR
@@ -4709,7 +6130,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
             'tx named by txn_guid:, so the prefix matches)'
         )
 
-    txn_guid = pay_dir.metadata.get('txn_guid', '').strip()
+    txn_guid = _the_characters_a_block_wrote(pay_dir.metadata, 'txn_guid')
     # Whether the block pointed at money at all, kept because `txn_guid` is
     # cleared below when it named nothing — and what `amount:` means further
     # down turns on the difference between a block that names a movement and
@@ -4720,19 +6141,20 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
     # guid it was written against, so both change — and they change for this
     # application, not for the directive, which is the file's record of what
     # was written.
-    named_split = (pay_dir.metadata.get('txn_split_guid') or '').strip()
+    named_split = _the_characters_a_block_wrote(pay_dir.metadata,
+                                                'txn_split_guid')
     # A guid names money the book may already hold, and a book that does not
     # hold it is being told about the payment for the first time — *if* the
     # block says everything needed to make it. A block that only points at a
     # transaction, naming no date or amount of its own, is a reference and
     # nothing else: a guid that resolves to nothing there is a stale or
-    # mistyped reference, and it is refused as one. That is the case a printed document
+    # mistyped reference, and it is refused as one. That is the case a printed page
     # lands in: `print-invoice` and `print-bill` name the transactions so the
     # same book relinks them rather than paying twice, and the same file read
-    # into a fresh book, reconstructing from a document, has nothing to
+    # into a fresh book, reconstructing from that page, has nothing to
     # relink. Refused, the two purposes were exclusive: naming the money
     # duplicated it on re-import into the same book, and not naming it left
-    # the document unreadable anywhere else.
+    # the page unreadable anywhere else.
     # The account through the one resolver the rest of the file uses:
     # `account:` is the canonical key and `bank_account:` the accepted alias,
     # so asking for one spelling made the answer depend on which word the
@@ -4745,14 +6167,14 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
             and _find_transaction_by_guid(book, txn_guid) is None):
         # First: the settlement this record's own rebuild just loosened.
         #
-        # A printed document carries the guids of the book it was printed
+        # A printed page carries the guids of the book it was printed
         # from, so re-imported anywhere else they name nothing. The first such
         # import records the payment from the block, which is right — the money
         # was not here. Editing a field and importing again rebuilds the
-        # document, and the rebuild unposts it, which leaves that payment on
+        # invoice, and the rebuild unposts it, which leaves that payment on
         # the bank account with its splits loose. The guid still names the
         # other book, so the second run met its own orphan: refused as money
-        # already here, and a printed document could be read into a book once
+        # already here, and a printed page could be read into a book once
         # and never corrected.
         #
         # Recording from the block instead is worse, not better — measured, the
@@ -4769,7 +6191,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
         mine = _the_transaction_this_record_orphaned(
             bank_account, _swig_invoice_guid_str(record), pay_dir)
         if mine is not None:
-            # Which movement it reattached, not merely that it did. A document
+            # Which movement it reattached, not merely that it did. An invoice
             # settled twice out of one account has two loose settlements and
             # the block does not say which is its own, so a reader checking
             # what a correction did to their book has nothing else to read —
@@ -4808,7 +6230,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
                 f'guid to that transaction, or drop `txn_guid:` if this '
                 f'payment really is a second one.')
         elif mine is None:
-            # Said, not silent: a stale reference and a document being rebuilt
+            # Said, not silent: a stale reference and an invoice being rebuilt
             # into a book that never held its bank transaction reach here
             # alike, and only the reader can tell which they meant.
             logging.warning(
@@ -4841,9 +6263,9 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
         # `txn_split_guid:` would be one a file walks past by writing one line
         # less, and the transaction is then all there is to judge. Where a
         # split *is* named, that split's own owner is what matters and is
-        # checked below — one deposit settles documents of several owners at
+        # checked below — one deposit settles the invoices of several owners at
         # once, each block naming its own portion, and asking the transaction
-        # there refuses the second document for the first one's owner.
+        # there refuses the second invoice for the first one's owner.
         #
         # A split in no lot is answered for by its transaction where that
         # transaction carries a single receivable or payable split, and by
@@ -4854,15 +6276,15 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
         # Whose money it is is asked of the split that will move, whether the
         # file named it or the retarget found it — one question, one answer.
         # Asked of the whole transaction instead, a deposit whose other portion
-        # had already been settled into its own document's lot named that
-        # document's owner, and the second owner's invoice was refused for the
+        # had already been settled into its own record's lot named that
+        # record's owner, and the second owner's invoice was refused for the
         # first one's money though the split it would move was its own. Which
-        # way round the two documents were imported decided it.
+        # way round the two were imported decided it.
         # Worked out once and carried down. Every question below asks the same
         # one — which split would move — and answering it walks the account's
-        # whole lot list, one lot per document ever posted there. Nothing
+        # whole lot list, one lot per invoice ever posted there. Nothing
         # between here and the move changes the transaction, so asking three
-        # times made an import's cost the product of its documents and the
+        # times made an import's cost the product of its invoices and the
         # book's history, which is the shape `_still_owed` exists to avoid.
         #
         # Inside the branch that uses it, and not above: a block naming its
@@ -4936,7 +6358,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
                     f'invoice/bill\'s posted account is {get_account_full_name(post_acct)!r}'
                 )
             # Whoever the book says that money is with, it is not spendable on
-            # anybody else's document — the guids reach a split directly, and
+            # anybody else's invoice or bill — the guids reach a split directly, and
             # a wrong pair otherwise settles this record out of another
             # owner's payment without a figure anywhere disagreeing.
             # All three read the same lot list to answer about the same split,
@@ -4945,7 +6367,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
                 _refuse_another_owners_split(
                     record, target_split, 'Bill' if is_bill else 'Invoice',
                     record.GetID())
-                _refuse_a_split_settling_another_document(
+                _refuse_a_split_settling_another_record(
                     record, target_split, 'Bill' if is_bill else 'Invoice',
                     record.GetID(), declared_split_guid)
 
@@ -5035,7 +6457,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
             if counter_split is not None else None)
         # Not `lot.get_balance()`: a lot does not count a split attached with
         # `xaccSplitSetLot` until the book has been written and read back, and
-        # that is how an earlier `txn_guid:` block on this same document
+        # that is how an earlier `txn_guid:` block on this same record
         # attached its own. Two retargeted cash blocks would each be measured
         # against the whole total, and the second would read as an overpayment
         # of everything the first had already paid.
@@ -5129,7 +6551,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
         # an oversight. Nothing is being parked here — the split covers what is
         # owed and no more — so there is no figure of this import's making to
         # compare it against. The one file that states it and lands here is a
-        # rebuilt overpaid document, whose residue was parked by the run that
+        # rebuilt overpaid invoice, whose residue was parked by the run that
         # first read it and is still where that run left it; the figure is
         # right, and it is the export that recomputes it. The overpaying branch
         # above checks strictly because there it says what this import is about
@@ -5149,8 +6571,8 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
     num = pay_dir.metadata.get('num', '')
     # What `amount:` means depends on whether the block points at money.
     #
-    # A block naming a transaction states this document's own *slice* of it —
-    # it has to, because one deposit can settle several documents and the bank
+    # A block naming a transaction states this record's own *slice* of it —
+    # it has to, because one deposit can settle several invoices and the bank
     # figure would over-report every one of them — and `prepayment:` states
     # what that movement left over. A block naming none states the payment to
     # make, and `prepayment:` declares what it will leave; twenty-odd fixtures
@@ -5182,7 +6604,7 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
              if posted_account is not None else None)
             or record.GetCurrency().get_fraction())
     # Judged against the currency, like every other booked amount. This is the
-    # figure that settles the document, stated in the document's own currency,
+    # figure that settles the record, stated in that record's own currency,
     # and it was the last place the rule was not applied: `18.191` on a split
     # line is refused, and the same figure on this line was taken, rounded by
     # GnuCash to 18.19 on the way into the splits, and reported `Errors: 0` —
@@ -5255,7 +6677,7 @@ def _carried_cost_of(record):
 def _check_declared_prepayment(record, pay_dir, lot_before, kind) -> None:
     """What the block says is left over has to be what is left over.
 
-    `prepayment:` states the credit a payment beyond the document leaves
+    `prepayment:` states the credit a payment beyond what is owed leaves
     behind. On the `txn_guid:` routes this tool carves the residue itself and
     compares the figure exactly; on this one GnuCash carves it, and nothing
     read the declaration at all — so `prepayment: 50` on a payment that left
@@ -5361,10 +6783,10 @@ def _record_overpaid_basis(record, lot_before) -> None:
 
 
 def _still_owed(record, lot, post_account) -> Fraction:
-    """What this document still owes, counting every payment already on it.
+    """What this invoice or bill still owes, counting every payment already on it.
 
     Its total less what has been paid. The total is the starting point rather
-    than the lot's balance because a document whose posting transaction is
+    than the lot's balance because a record whose posting transaction is
     attached rather than freshly posted has not joined that lot yet.
 
     What has been paid comes from the lot's own splits, which is cheap and is
@@ -5384,15 +6806,15 @@ def _still_owed(record, lot, post_account) -> Fraction:
     The account walk is not free: `GetSplitList()` builds a fresh wrapper for
     every split on the account each time it is called, and a receivable
     carries the whole history of the business. Paying it once per payment
-    block on every document would make an import's cost the product of the two
+    block on every invoice would make an import's cost the product of the two
     — so it is paid only where the cheap answer is known to be wrong, which is
     the handful of lots `_attach_split_to_lot` has touched in this run.
     """
     posting_txn = record.GetPostedTxn()
     posting_guid = posting_txn.GetGUID().to_string() if posting_txn else None
     # What the posting actually put on the account, which on one kept coarser
-    # than the document's total is not that total. Falling back to the total
-    # where there is no posting split to read — a document whose posting
+    # than the record's total is not that total. Falling back to the total
+    # where there is no posting split to read — one whose posting
     # transaction is attached rather than freshly posted reaches here before
     # one exists, and the two agree wherever the account can hold the total.
     posted = _posting_amount_of(record, post_account)
@@ -5401,9 +6823,9 @@ def _still_owed(record, lot, post_account) -> Fraction:
 
     # Signed, against the direction the posting went. A payment carries the
     # opposite sign to the posting and reduces what is owed; anything carrying
-    # the *same* sign — an adjustment raised against the document rather than
+    # the *same* sign — an adjustment raised against the record rather than
     # against a credit lot — adds to it. Summing absolute amounts reads that
-    # second kind as a payment and reports the document as owing less than it
+    # second kind as a payment and reports it as owing less than it
     # does, so a later payment would be taken for an overpayment it is not.
     # No file in this tree produces one today, which is why the arithmetic is
     # written to be right rather than guarded by a test.
@@ -5421,9 +6843,9 @@ def _still_owed(record, lot, post_account) -> Fraction:
 
 
 def _posting_amount_of(record, post_account):
-    """What this document's posting put on its receivable or payable, signed.
+    """What this record's posting put on its receivable or payable, signed.
 
-    The figure every payment on the lot has to cancel. It is the document's own
+    The figure every payment on the lot has to cancel. It is the record's own
     total wherever the account can hold that total, which posting now requires
     — but it is read from the split rather than assumed, because the split is
     what the lot contains and what a payment has to sum to zero against. The
@@ -5434,7 +6856,7 @@ def _posting_amount_of(record, post_account):
     for a record whose posted lot exists, which implies a posting transaction,
     so this is the answer to a question the callers do not ask — kept because
     returning a figure derived from nothing would be worse than saying nothing,
-    and the caller falls back to the document's total.
+    and the caller falls back to the record's total.
     """
     posting_txn = record.GetPostedTxn()
     if posting_txn is None or post_account is None:
@@ -5758,7 +7180,7 @@ APPLIED_FROM_CREDIT_KEY = 'applied_from_credit'
 
 
 def _splits_in_lot(record):
-    """The guids of everything in this document's posted lot, or an empty set.
+    """The guids of everything in this record's posted lot, or an empty set.
 
     Taken before a credit is applied and compared with the same walk after,
     it says which splits the application put there — which nothing else in
@@ -5772,11 +7194,11 @@ def _splits_in_lot(record):
 
 
 def _mark_applied_from_credit(record, lot_before) -> list:
-    """Record on each split that it settled this document out of credit.
+    """Record on each split that it settled this record out of credit.
 
     Whether a payment was a bank payment or a credit applied afterwards is
     not a question the book can be asked later. Once applied, a consumed
-    credit's split sits in the document's lot exactly as a bank payment's
+    credit's split sits in the record's lot exactly as a bank payment's
     split does, and GnuCash keeps no record of the lot it came from — so a
     reader is left inferring it, and on the day a deposit is taken and an
     invoice raised against it there is nothing left to infer from.
@@ -5795,10 +7217,10 @@ def _mark_applied_from_credit(record, lot_before) -> list:
         split = Split(instance=raw)
         if split.GetGUID().to_string() in lot_before:
             continue
-        # `AutoApplyPayments` searches for open, documentless, owner-attached
-        # lots, which is exactly what an unpost leaves behind — this record's
-        # own, so a rebuilt document can be handed back the settlement it
-        # already had, or another document's, which the engine will take just
+        # `AutoApplyPayments` searches for open, owner-attached lots that name
+        # nothing, which is exactly what an unpost leaves behind — this record's
+        # own, so a rebuilt invoice can be handed back the settlement it
+        # already had, or another one's, which the engine will take just
         # as readily since both name the same owner. Either way a bank paid
         # that money and no credit was spent: marking it would call a bank
         # payment a credit applied and take the account and the date it came
@@ -5808,10 +7230,10 @@ def _mark_applied_from_credit(record, lot_before) -> list:
         # `_apply_credit_payment_directive` ask of the same split — how the
         # money was paid, not whose orphan it is.
         if is_a_bank_paid_orphan(split):
-            # It is in a document's lot now, so it is a settlement again — and
+            # It is in a posted record's lot now, so it is a settlement again — and
             # the engine's own `gnc_lot_add_split` put it there, which is the
             # one route into a lot that does not pass `_attach_split_to_lot`.
-            # Cleared here or the split sits in a document's lot still calling
+            # Cleared here or the split sits in that lot still calling
             # itself an orphan.
             #
             # A settlement holds no basis either, whatever brought it here. No
@@ -5832,8 +7254,8 @@ def _mark_applied_from_credit(record, lot_before) -> list:
         metadata = cost_basis_metadata(split)
         metadata[APPLIED_FROM_CREDIT_KEY] = 'true'
         # A settlement holds no basis: this currency has been spent on the
-        # document, whether the credit went whole into it or was carved. Nor
-        # is it any document's orphan — the engine copies the source split's
+        # invoice, whether the credit went whole into it or was carved. Nor
+        # is it anybody's orphan — the engine copies the source split's
         # whole slot frame onto the splits it makes, so a mark can arrive here
         # describing a split this one merely came from.
         for key in (COST_BASIS_BALANCE_KEY, COST_BASIS_COST_KEY,
@@ -5853,7 +7275,7 @@ def _basis_splits_on(account):
     taken again can say which splits changed size and which are new.
 
     A bank-paid orphan is included whether or not it carries a basis. It
-    usually carries none — the basis of a settled document sits on its posting
+    usually carries none — the basis of a settled invoice sits on its posting
     split — so on this reading alone the engine could carve one and the
     remainder would be visited by nothing, arriving unmarked in the same
     abandoned lot and passing every test a credit passes. That is the harm
@@ -6521,9 +7943,9 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     # was the wrong diagnosis: nothing about it is unsupportable, the tool
     # simply had no rate in scope to value the cash with. What it is short of
     # is a number, and it says which one.
-    # A document already in the base currency realizes nothing to measure: its
+    # A record already in the base currency realizes nothing to measure: its
     # receivable holds CAD, and CAD does not appreciate against itself. What
-    # the cash cost is a question about the *bank*, not about this document,
+    # the cash cost is a question about the *bank*, not about this invoice,
     # and it is answered where currency is bought — not here.
     #
     # Refused rather than run through: the posting split is base-currency, so
@@ -6975,8 +8397,8 @@ def _payment_exchange_rate(record, bank_account, pay_dir, is_bill):
         #
         # Worse than under the other spelling, because nothing matched it
         # afterwards either: the comparison reads what the file says against
-        # what the book holds, 780.005 against 780.00, so the document was
-        # judged changed on every import — and a posted document judged
+        # what the book holds, 780.005 against 780.00, so the record was
+        # judged changed on every import — and a posted one judged
         # changed is unposted, its posting destroyed and its payments
         # orphaned, then rebuilt to be judged again on the next run.
         # Through `exact_text`, because `_money_str` writes at the currency's
@@ -7012,13 +8434,20 @@ def _payments_only_added_diff(record, payment_dirs, asked_for_credit=False):
     fewer payments, or any in-place modification of an existing payment.
     """
     pay_splits = _lot_payment_splits(record, asked_for_credit)
-    if len(pay_splits) >= len(payment_dirs):
+    # A credit the file asks for and the record has not taken is one of
+    # the things being added, so it counts here rather than in a case of
+    # its own: `payment: none` with `auto_apply_credit: true` states no
+    # block at all, and read as "nothing added" it fell to the rebuild —
+    # measured, the posting went from 27d566ba… to 42d731b8… while every
+    # balance came out right.
+    if (len(pay_splits) >= len(payment_dirs)
+            and not _a_credit_is_being_added(record, asked_for_credit)):
         return False, []
 
-    # Each payment the document already holds must be one the file states,
+    # Each payment the record already holds must be one the file states,
     # and what the file states beyond them is what is being added. Matched by
     # searching rather than by position: the lot holds cash before credit and
-    # a file may write them either way round, so a document already settled
+    # a file may write them either way round, so an invoice already settled
     # in part by a credit, with the cash appended below it, had its one
     # credit split compared against the file's cash block — and an ordinary
     # append became an unpost and rebuild.
@@ -7028,7 +8457,7 @@ def _payments_only_added_diff(record, payment_dirs, asked_for_credit=False):
     # Returned in the order they must be applied — cash first, credit after —
     # so a caller cannot apply them in the order the file happened to write
     # them. Ordering here rather than at each call site: a second caller that
-    # forgot would settle the document differently for no reason it states.
+    # forgot would settle the record differently for no reason it states.
     return True, _cash_before_credit(unclaimed)
 
 
@@ -7037,14 +8466,15 @@ def _record_consumed_credit(record) -> bool:
 
     Read from what the application wrote on the splits it moved into the
     record's lot, which is the same fact the exporter reads. Worked out from
-    the lots instead — a payment touching both another document's lot and a
+    the lots instead — a payment touching both another record's lot and a
     leftover credit lot — it was right only while a residual survived, and
     said no for a credit consumed to the last cent.
     """
     return bool(_credit_splits_in_lot(record))
 
 
-def _invoice_non_payment_matches(invoice, directive: 'PlaintextDirective') -> bool:
+def _invoice_non_payment_matches(invoice, directive: 'PlaintextDirective',
+                                 counting_a_credit_request: bool = True) -> bool:
     """True iff every non-payment field of an existing customer invoice
     matches the directive: date_opened, billing_id, notes, custom KVP,
     entries (positional by field), and the posted block (or its absence).
@@ -7053,12 +8483,12 @@ def _invoice_non_payment_matches(invoice, directive: 'PlaintextDirective') -> bo
     md = directive.metadata
     if invoice.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
         return False
-    # Which way the document posts. Left out of the comparison, a ledger that
+    # Which way it posts. Left out of the comparison, a ledger that
     # turned an invoice into a credit note imported as `unchanged` and the
     # book kept posting it the other way round.
     if bool(invoice.GetIsCreditNote()) != _is_a_credit_note(md):
         return False
-    if not _document_text_matches(invoice, md):
+    if not _record_text_matches(invoice, md):
         return False
     if not _named_custom_metadata_matches(invoice, md, KNOWN_INVOICE_METADATA_KEYS):
         return False
@@ -7067,16 +8497,21 @@ def _invoice_non_payment_matches(invoice, directive: 'PlaintextDirective') -> bo
     # has been applied. The reverse is not a difference: an export of that
     # same book carries no flag and names the credit in a payment block
     # instead, which the payment comparison below matches split for split.
-    if _asks_for_credit(directive) and not _record_consumed_credit(invoice):
+    #
+    # `counting_a_credit_request` is what tells the two questions apart.
+    # Deciding whether a record is *unchanged*, asking for a credit it
+    # has not consumed is a difference. Deciding whether a posted invoice
+    # may be edited at all, it is not: settling from the owner's credit is
+    # a payment, which is the one edit a posted one takes, and read
+    # as an ordinary edit it refused `auto_apply_credit: true` on the file
+    # that asks for it.
+    if counting_a_credit_request and _a_credit_is_being_added(
+            invoice, _asks_for_credit(directive)):
         return False
 
     entry_dirs = [c for c in directive.children if c.type == DirectiveType.INVOICE_ENTRY]
-    existing_entries = list(invoice.GetEntries())
-    if len(existing_entries) != len(entry_dirs):
+    if not _lines_match_their_blocks(invoice, entry_dirs, is_bill=False):
         return False
-    for entry, ed in zip(existing_entries, entry_dirs):
-        if not _entry_matches_invoice_directive(entry, ed):
-            return False
 
     posted_dirs = [c for c in directive.children if c.type == DirectiveType.POSTED]
     has_posted_none = md.get('posted') == 'none'
@@ -7120,10 +8555,19 @@ def _is_only_added_payment_diff_invoice(invoice, directive):
     """
     if invoice.GetPostedTxn() is None:
         return False, []
-    if not _invoice_non_payment_matches(invoice, directive):
+    # A credit request is not an ordinary edit here either: settling from
+    # the owner's credit is a payment, and this is the path that records a
+    # payment against an invoice the book has booked. Counted as a
+    # difference, `auto_apply_credit: true` failed this classifier and fell
+    # to the rebuild — measured, the posting went from 27d566ba… to
+    # 42d731b8… while every balance stayed right, which is the harm this
+    # release exists to end, reached by the one file that asks for it.
+    if not _invoice_non_payment_matches(invoice, directive,
+                                        counting_a_credit_request=False):
         return False, []
     payment_dirs = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
-    return _payments_only_added_diff(invoice, payment_dirs, _asks_for_credit(directive))
+    return _payments_only_added_diff(invoice, payment_dirs,
+                                     _asks_for_credit(directive))
 
 
 def _is_only_unpost_diff(invoice_or_bill, directive: 'PlaintextDirective',
@@ -7164,7 +8608,7 @@ def _is_only_unpost_diff(invoice_or_bill, directive: 'PlaintextDirective',
     # the comparison since we already know those differ in the expected way.
     if invoice_or_bill.GetDateOpened().strftime("%Y-%m-%d") != md['date_opened']:
         return False
-    # Which way the document posts, as the two `*_non_payment_matches`
+    # Which way it posts, as the two `*_non_payment_matches`
     # comparisons read it. This path unposts and returns without rebuilding,
     # so a flag it does not compare is a flag it never writes: a file saying
     # "unpost this, and it is an ordinary invoice" was answered `updated`
@@ -7176,10 +8620,10 @@ def _is_only_unpost_diff(invoice_or_bill, directive: 'PlaintextDirective',
     # `*_non_payment_matches` comparisons keep, because this one decides
     # whether a `posted: none` edit can take the fast path that preserves the
     # entry guids. Reading an absent key as the empty string, and the slot
-    # wholesale, made it permanently false for any document whose block names
+    # wholesale, made it permanently false for any record whose block names
     # less than the book holds — so the edit fell through to the full destroy
     # and rebuild, losing the guids this path exists to keep.
-    if not _document_text_matches(invoice_or_bill, md):
+    if not _record_text_matches(invoice_or_bill, md):
         return False
     known_keys = KNOWN_BILL_METADATA_KEYS if is_bill else KNOWN_INVOICE_METADATA_KEYS
     if not _named_custom_metadata_matches(invoice_or_bill, md, known_keys):
@@ -7187,14 +8631,11 @@ def _is_only_unpost_diff(invoice_or_bill, directive: 'PlaintextDirective',
 
     entry_type = DirectiveType.BILL_ENTRY if is_bill else DirectiveType.INVOICE_ENTRY
     entry_dirs = [c for c in directive.children if c.type == entry_type]
-    existing_entries = list(invoice_or_bill.GetEntries())
-    if len(existing_entries) != len(entry_dirs):
-        return False
-    matcher = _entry_matches_bill_directive if is_bill else _entry_matches_invoice_directive
-    return all(matcher(entry, ed) for entry, ed in zip(existing_entries, entry_dirs))
+    return _lines_match_their_blocks(invoice_or_bill, entry_dirs, is_bill)
 
 
-def _bill_non_payment_matches(bill, directive: 'PlaintextDirective') -> bool:
+def _bill_non_payment_matches(bill, directive: 'PlaintextDirective',
+                              counting_a_credit_request: bool = True) -> bool:
     """Bill-side counterpart of `_invoice_non_payment_matches` — same
     shape, uses the bill entry getters and AP account."""
     md = directive.metadata
@@ -7202,21 +8643,19 @@ def _bill_non_payment_matches(bill, directive: 'PlaintextDirective') -> bool:
         return False
     if bool(bill.GetIsCreditNote()) != _is_a_credit_note(md):  # as an invoice
         return False
-    if not _document_text_matches(bill, md):
+    if not _record_text_matches(bill, md):
         return False
     if not _named_custom_metadata_matches(bill, md, KNOWN_BILL_METADATA_KEYS):
         return False
 
-    if _asks_for_credit(directive) and not _record_consumed_credit(bill):
+    # As the invoice side, and for the reason it gives.
+    if counting_a_credit_request and _a_credit_is_being_added(
+            bill, _asks_for_credit(directive)):
         return False
 
     entry_dirs = [c for c in directive.children if c.type == DirectiveType.BILL_ENTRY]
-    existing_entries = list(bill.GetEntries())
-    if len(existing_entries) != len(entry_dirs):
+    if not _lines_match_their_blocks(bill, entry_dirs, is_bill=True):
         return False
-    for entry, ed in zip(existing_entries, entry_dirs):
-        if not _entry_matches_bill_directive(entry, ed):
-            return False
 
     posted_dirs = [c for c in directive.children if c.type == DirectiveType.POSTED]
     has_posted_none = md.get('posted') == 'none'
@@ -7245,10 +8684,12 @@ def _is_only_added_payment_diff_bill(bill, directive):
     `_is_only_added_payment_diff_invoice`."""
     if bill.GetPostedTxn() is None:
         return False, []
-    if not _bill_non_payment_matches(bill, directive):
+    if not _bill_non_payment_matches(bill, directive,
+                                     counting_a_credit_request=False):
         return False, []
     payment_dirs = [c for c in directive.children if c.type == DirectiveType.PAYMENT]
-    return _payments_only_added_diff(bill, payment_dirs, _asks_for_credit(directive))
+    return _payments_only_added_diff(bill, payment_dirs,
+                                     _asks_for_credit(directive))
 
 
 def _echo_note(message: str) -> None:
@@ -7302,8 +8743,6 @@ def _said_plainly(error: Exception) -> str:
 
 class GnuCashImporter:
     """Service for importing plaintext directives to GnuCash"""
-
-
 
     @staticmethod
     def create_commodity(directive: PlaintextDirective, book: Book):
@@ -7547,7 +8986,7 @@ class GnuCashImporter:
         # identity across a round trip; without honouring it the importer would
         # mint a fresh one and the guids would drift on every trip.
         declared_guid = directive.metadata.get('guid')
-        if declared_guid:
+        if _states_a_guid(declared_guid):
             _set_object_guid(book, account, 'account', account_fullname,
                              _normalise_guid(declared_guid))
 
@@ -7749,17 +9188,18 @@ class GnuCashImporter:
                 # object payment blocks (or any other downstream reference)
                 # can look this split up by GUID — critical for the
                 # multi-invoice-1-bank-tx case.
+                # A guid nothing can parse refuses, as it does on the update
+                # path and on every other block that carries one. Dropped,
+                # the split was created under a guid GnuCash minted and the
+                # export then contradicted the file that made it — and the
+                # spelling that gets here is an all-digit guid with its
+                # quotes off, which the parser hands over as a number.
                 split_declared_guid = split_directive.metadata.get('guid')
-                if split_declared_guid:
-                    try:
-                        normalised_split_guid = _normalise_guid(
-                            split_declared_guid)
-                    except Exception:
-                        normalised_split_guid = None
-                    if normalised_split_guid:
-                        _set_object_guid(book, split, 'split',
-                                         split_account_str,
-                                         normalised_split_guid)
+                if _states_a_guid(split_declared_guid):
+                    _set_object_guid(book, split, 'split',
+                                     split_account_str,
+                                     _normalise_guid(split_declared_guid))
+
 
                 # Per-split owner KVP `lot_owner: kind:id[:guid]`. An AR/AP
                 # split sitting in an owner's business lot (no invoice) carries
@@ -7774,12 +9214,16 @@ class GnuCashImporter:
                 # valued, both already done above. See
                 # _attach_lot_owner_split / _parse_lot_owner.
                 _lot_owner_str = split_directive.metadata.get('lot_owner', '')
+                # Read whether or not there is an owner beside it, so a
+                # `lot_guid:` on its own is refused rather than ignored.
+                _lot_guid = _the_lot_guid_named(split_directive.metadata)
+                _refuse_a_lot_guid_no_owner_can_use(_lot_guid, _lot_owner_str)
                 if _lot_owner_str:
                     _lo_kind, _lo_id, _lo_guid = _parse_lot_owner(_lot_owner_str)
                     if _lo_kind in ('customer', 'vendor') and _lo_id:
                         _attach_lot_owner_split(
                             book, split, split_account,
-                            _lo_kind, _lo_id, _lo_guid)
+                            _lo_kind, _lo_id, _lo_guid, _lot_guid)
 
                 # Store any non-standard split metadata as KVP slots
                 custom_split_meta = _custom_keys_to_store(
@@ -7823,16 +9267,16 @@ class GnuCashImporter:
         # subsequent invoice/bill `payment: txn_guid:` block can find
         # this tx by GUID. Without this, GnuCash auto-assigns a fresh
         # GUID and roundtrip-into-fresh-book is broken.
+        # Refused rather than dropped, as a split's is one line down and a
+        # line's is in the invoice and bill blocks: a transaction created under a
+        # guid GnuCash minted is the one the next export names, and a
+        # transaction's guid is what `txn_guid:` and `posted_txn_guid:`
+        # resolve against, so losing it costs more than losing a split's.
         declared_guid = directive.metadata.get('guid')
-        if declared_guid:
-            try:
-                guid_norm = _normalise_guid(declared_guid)
-            except Exception:
-                guid_norm = None
-            if guid_norm:
-                _set_object_guid(book, transaction, 'transaction',
-                                 directive.metadata.get('tx_desc', '<tx>'),
-                                 guid_norm)
+        if _states_a_guid(declared_guid):
+            _set_object_guid(book, transaction, 'transaction',
+                             directive.metadata.get('tx_desc', '<tx>'),
+                             _normalise_guid(declared_guid))
 
         # Q-035: a split that picks another split's cost basis is checked
         # against that basis's basis balance and lowers it; a split that
@@ -7877,15 +9321,18 @@ class GnuCashImporter:
         with UPDATE strategy will keep updating the same transaction instead of
         creating duplicates.
 
-        All scalar fields (description, date, num, doc_link, notes, currency) and
-        splits are updated to match the directive. Split matching is by account
-        full-name. Splits for accounts absent from the directive are removed; splits
-        for new accounts are created.
+        All scalar fields (description, date, num, doc_link, notes, currency)
+        and splits are updated to match the directive.
 
-        Note: When two splits in the directive share the same account (e.g. meal + tip
-        both on Expenses:Dining), all of them are applied positionally — each directive
-        entry is matched to the corresponding existing split at the same index for that
-        account. Extra existing splits are removed; extra desired splits are created.
+        **A block updates the split its `guid:` names.** A block naming one
+        the transaction holds on another account moves that split to the
+        account the block gives it, keeping its identity; position decides
+        only among the blocks that name no guid, within one account — which
+        is what tells a meal from a tip when both are on `Expenses:Dining`
+        and neither block names its split. Splits no block names are
+        removed, and blocks naming no existing split are created; a split
+        in a lot is refused rather than moved or removed either way, being
+        an invoice's or bill's settlement or an owner's credit.
 
         Args:
             existing_tx: GnuCash Transaction object to update
@@ -7922,7 +9369,7 @@ class GnuCashImporter:
         # rebuilding from it left the transaction with no splits at all:
         # measured, the transaction was then gone from the book entirely.
         #
-        # Only when there is something to lose, as the document blocks are
+        # Only when there is something to lose, as the invoice and bill blocks are
         # guarded: a transaction with no splits can still be created, since
         # nothing is destroyed by it.
         if (not any(c.type == DirectiveType.SPLIT for c in directive.children)
@@ -7966,9 +9413,75 @@ class GnuCashImporter:
             refuse_a_stated_orphan_mark(
                 split_directive.metadata,
                 f'the split on {split_directive.props.get("account", "?")!r}')
+            # As the create path reads it, and here rather than beside the
+            # attach below: that runs only for a split in no lot whose
+            # owner is a customer or a vendor, so a `lot_guid:` written any
+            # other way reached no reader at all and the run answered
+            # `unchanged` to a file asking for something.
+            _refuse_a_lot_guid_no_owner_can_use(
+                _the_lot_guid_named(split_directive.metadata),
+                split_directive.metadata.get('lot_owner', ''))
 
         root_account = book.get_root_account()
         commodity_table = book.get_table()
+
+        # What each block's `guid:` names, settled across the whole
+        # transaction: a guid two blocks name, or one the book holds on
+        # something that is not a split of this transaction, is refused
+        # here — before `BeginEdit`, with everything else that can refuse.
+        # What it works out is which splits their blocks give another
+        # account; those moves are made inside the edit below.
+        splits_to_move = _splits_named_across_the_transaction(
+            book, existing_tx, directive, root_account)
+
+        # Which block describes which split, and which splits the file
+        # leaves out — the whole plan, settled here rather than as the
+        # rebuild goes, because the rebuild's first act is to move a split
+        # and its later ones can still refuse. A file that refuses has
+        # moved nothing only if every refusal it can raise comes first.
+        desired_by_account: dict[str, list] = {}
+        for child in directive.children:
+            desired_by_account.setdefault(
+                child.props['account'], []).append(child)
+        for acct_name in desired_by_account:
+            if find_account(root_account, acct_name) is None:
+                raise ValueError(f"Account not found: {acct_name}")
+
+        grouped_splits = _splits_grouped_after_the_moves(
+            existing_tx, splits_to_move)
+        pairings = {
+            acct_name: _splits_paired_with_blocks(
+                blocks, grouped_splits.get(acct_name, []))
+            for acct_name, blocks in desired_by_account.items()
+        }
+
+        # Every split the file would destroy, and none of them in a lot:
+        # destroying one that is takes a settlement out of the lot it was
+        # settling while the account's balance stays put, so nothing looks
+        # wrong and the invoice reads unpaid. A file that stops naming an
+        # account altogether loses its splits by the first of these; a
+        # block whose guid is mistyped by one hex digit leaves the split it
+        # meant unnamed, and that is the second.
+        for acct_name, splits in grouped_splits.items():
+            if acct_name not in desired_by_account:
+                for split in splits:
+                    _refuse_to_destroy_a_split_in_a_lot(split)
+        for _, orphaned in pairings.values():
+            for split in orphaned:
+                _refuse_to_destroy_a_split_in_a_lot(split)
+        # And a `lot_guid:` that would move a split from the lot it is in to
+        # another — refused here rather than beside the attach that reads
+        # it, because that runs inside the edit, after a recategorised split
+        # has been moved and a surplus one destroyed. A file that refuses
+        # has moved nothing only if every refusal it can raise comes first.
+        for acct_name, blocks in desired_by_account.items():
+            chosen, _ = pairings[acct_name]
+            for block, split in zip(blocks, chosen):
+                if split is None:
+                    continue
+                if block.metadata.get('lot_owner') and split.GetLot() is None:
+                    continue
+                _refuse_to_move_a_split_between_lots(split, block.metadata)
 
         existing_tx.BeginEdit()
         try:
@@ -8001,7 +9514,7 @@ class GnuCashImporter:
                 if commodity is not None:
                     existing_tx.SetCurrency(commodity)
 
-            # Through the same merge the owner and document blocks use, so
+            # Through the same merge the owner, invoice and bill blocks use, so
             # `key: ""` means one thing in this format rather than two: a key
             # the block does not name is left alone, and a key named empty is
             # removed. Merged with `update` and only the `None` filter, an
@@ -8012,39 +9525,34 @@ class GnuCashImporter:
 
             tx_currency = existing_tx.GetCurrency()
 
-            # Build account-name → [splits] map for existing splits.
-            # Using lists preserves multiple splits that share the same account
-            # (e.g. meal + tip both posted to Expenses:Dining).
-            existing_splits_by_account: dict[str, list] = {}
-            for split in existing_tx.GetSplitList():
-                acct_name = get_account_full_name(split.GetAccount())
-                existing_splits_by_account.setdefault(acct_name, []).append(split)
+            # A split whose block gives it another account is moved there
+            # before the splits are grouped, so it is its own group's to
+            # pair and keeps its guid. Left to the per-account pairing,
+            # that block found an empty group and built a new split. Every
+            # refusal is behind us by here, which is why this is the first
+            # thing the edit does.
+            _move_the_splits_their_blocks_recategorise(splits_to_move)
 
-            # Build account-name → [directives] map for desired splits.
-            desired_by_account: dict[str, list] = {}
-            for child in directive.children:
-                desired_by_account.setdefault(child.props['account'], []).append(child)
-
-            # Validate all desired accounts exist before making any changes
-            for acct_name in desired_by_account:
-                if find_account(root_account, acct_name) is None:
-                    raise ValueError(f"Account not found: {acct_name}")
-
-            # Remove splits for accounts no longer in the directive
-            for acct_name, splits in list(existing_splits_by_account.items()):
+            # Splits for accounts the file no longer names. Refused above
+            # where one is in a lot — nothing here decides anything, it
+            # carries out the plan.
+            for acct_name, splits in grouped_splits.items():
                 if acct_name not in desired_by_account:
                     for split in splits:
                         split.Destroy()
 
-            # Update existing splits or create new ones, matched positionally
-            # within each account group.
+            # Update existing splits or create new ones. Each block updates
+            # the split its `guid:` names; position decides only for a block
+            # that names none — see `_splits_paired_with_blocks`.
             for acct_name, split_directives in desired_by_account.items():
                 split_account = find_account(root_account, acct_name)
                 split_account_currency = split_account.GetCommodity()
-                existing_splits = existing_splits_by_account.get(acct_name, [])
+                chosen, orphaned = pairings[acct_name]
 
-                # Destroy excess existing splits when directive has fewer
-                for surplus in existing_splits[len(split_directives):]:
+                # Every split no block named — the file is the whole truth
+                # about a transaction's splits, as it always was. One in a
+                # lot was refused above, before anything moved.
+                for surplus in orphaned:
                     surplus.Destroy()
 
                 for i, split_directive in enumerate(split_directives):
@@ -8060,12 +9568,19 @@ class GnuCashImporter:
                     else:
                         value = amount
 
-                    if i < len(existing_splits):
-                        split = existing_splits[i]
-                    else:
+                    split = chosen[i]
+                    if split is None:
                         split = Split(book)
                         split.SetParent(existing_tx)
                         split.SetAccount(split_account)
+                        # Under the guid its block asks for, as a line
+                        # created by an invoice's block is. The guid is
+                        # free — `_splits_named_across_the_transaction`
+                        # refused it otherwise — and without this the
+                        # block's `guid:` decided which split it matched
+                        # and then named nothing in the book it made.
+                        _the_new_splits_guid(book, split, split_directive,
+                                             acct_name)
 
                     split.SetAmount(amount)
                     split.SetValue(value)
@@ -8100,13 +9615,17 @@ class GnuCashImporter:
                     # prepayment carries `lot_owner:` and is already in its
                     # owner's lot, so re-importing it over itself must leave
                     # that lot alone rather than open a second one.
+                    # The refusal that goes with this — a `lot_guid:` moving
+                    # a split from one lot to another — is raised before
+                    # `BeginEdit`, with the rest of them.
                     _lot_owner_str = split_directive.metadata.get('lot_owner', '')
                     if _lot_owner_str and split.GetLot() is None:
                         _lo_kind, _lo_id, _lo_guid = _parse_lot_owner(_lot_owner_str)
                         if _lo_kind in ('customer', 'vendor') and _lo_id:
                             _attach_lot_owner_split(
                                 book, split, split_account,
-                                _lo_kind, _lo_id, _lo_guid)
+                                _lo_kind, _lo_id, _lo_guid,
+                                _the_lot_guid_named(split_directive.metadata))
 
                     # Update split-level custom metadata: a key the block names
                     # wins, a key named empty comes off, and a key the block
@@ -8549,8 +10068,18 @@ class GnuCashImporter:
             get_guid_str=_swig_invoice_guid_str,
         )
         _refuse_a_changed_currency(existing, directive, 'invoice', inv_id)
-        _refuse_a_document_that_would_lose_its_lines(
+        _refuse_a_record_that_would_lose_its_lines(
             existing, directive, DirectiveType.INVOICE_ENTRY, 'invoice', inv_id)
+        # Asked before anything unposts: `gncInvoiceUnpost` destroys the
+        # posting transaction, so afterwards a guid naming this book's own
+        # posting names nothing, and the note below could not tell a
+        # rebuild here from a page read into a book that never held it.
+        posting_was_this_books = _the_file_names_a_posting_this_book_has(
+            book, directive)
+        # For an invoice being created as much as one being edited: the
+        # readers below take a guid they cannot parse as a block naming
+        # none, and a payment block's guids are read late or not at all.
+        _refuse_a_payment_guid_nothing_can_parse(directive)
 
         # Validate: posted: none and a real posted: block are contradictory
         has_posted_none = directive.metadata.get('posted') == 'none'
@@ -8584,14 +10113,28 @@ class GnuCashImporter:
         # is gone — that left a permanent dead-end that contradicted the
         # GnuCash UI itself.
         status_on_success = 'created'
+        inv_entry_blocks = [child for child in directive.children
+                            if child.type == DirectiveType.INVOICE_ENTRY]
+        paired_lines = [None] * len(inv_entry_blocks)
+        orphaned_lines = []
         if existing is not None:
+            # Which line each block edits, before anything is written and
+            # before the invoice is compared to the file: a file naming the
+            # same line twice, or a line that is another record's, is a
+            # file to refuse, and every one of the paths below either writes
+            # to the book or answers `unchanged` and returns.
+            paired_lines, orphaned_lines = _entries_paired_with_blocks(
+                book, inv_entry_blocks, list(existing.GetEntries()))
             # Before it is compared to anything, and here rather than inside
             # the comparisons: those are predicates, and a question that
             # writes to the book is one the next caller will ask without
-            # expecting it to. Once per document, where the document is first
+            # expecting it to. Once per invoice, where it is first
             # in hand.
             migrated = _move_slot_keys_that_became_fields(
                 existing, KNOWN_INVOICE_METADATA_KEYS)
+            # A payment block's memo belongs to the payment transaction, so
+            # it is written there and is not a difference in the invoice.
+            _correct_payment_memos(existing, directive, book)
             if _invoice_matches_directive(existing, directive, book):
                 # Matching on every field it is compared by does not make the
                 # figures on the page right — they are derived, and nothing
@@ -8599,7 +10142,7 @@ class GnuCashImporter:
                 _refuse_figures_that_are_not_the_books(
                     existing, directive, is_bill=False)
                 # `updated` where a slot key was moved onto its field: the
-                # document matches its file, and the book is not the book it
+                # invoice matches its file, and the book is not the book it
                 # was a moment ago. Reported `unchanged`, the run had nothing
                 # to save, the move was dropped on session end, and the next
                 # run made it again.
@@ -8613,7 +10156,7 @@ class GnuCashImporter:
                     f"Invoice {inv_id}: only difference is posted→posted:none; "
                     f"minimal unpost (entry GUIDs preserved)"
                 )
-                # Checked here too: these two paths take a document whose
+                # Checked here too: these two paths take a record whose
                 # lines the file agrees with and change one thing about it,
                 # so a page stating figures the book contradicts would go
                 # through on the strength of the payment it also appended.
@@ -8633,17 +10176,47 @@ class GnuCashImporter:
                 )
                 _refuse_figures_that_are_not_the_books(
                     existing, directive, is_bill=False)
-                # `added_pays` arrives cash-before-credit from the classifier,
-                # so appending the two in one edit settles the invoice the way
-                # writing them into a fresh file does.
-                for pay_dir in added_pays:
-                    _apply_payment_directive(existing, pay_dir, book,
-                                             is_bill=False, fx_rates=fx_rates)
+                _apply_what_the_file_adds(
+                    existing, added_pays, _asks_for_credit(directive),
+                    book, is_bill=False, fx_rates=fx_rates)
+                # Again, now the payments are in the lot: a block naming a
+                # transaction the invoice did not settle yet is not this
+                # record's to rename, so the pass at the top skipped the
+                # one this run has just attached.
+                _correct_payment_memos(existing, directive, book)
                 return 'updated'
             status_on_success = 'updated'
             if existing.GetPostedTxn() is not None:
-                logging.debug(f"Invoice {inv_id} is posted but differs; unposting for rebuild")
+                # A payment is the edit a posted invoice takes; every
+                # other change is the one that cannot be done quietly,
+                # because it destroys the posting the book was booked
+                # through and mints another.
+                #
+                # Quietly is the whole of it: a file that says `posted:
+                # none` has asked for the unpost out loud, which is what
+                # the refusal would tell its writer to go and do. So such a
+                # file changes the lines and unposts in one step, and the
+                # payments it orphans are warned about as any unpost's are.
+                # The cost basis first, where there is one: an invoice
+                # whose settlement something else measures against cannot
+                # be unposted at all, so telling its reader to go and run
+                # `unpost-invoices` would send them to a command that
+                # refuses for a reason this one never mentioned.
                 require_cost_basis_unused(book, existing, 'invoice', inv_id)
+                # Anything but a payment, asked as one question — the same
+                # predicate the `unchanged` comparison and the add-a-payment
+                # classifier use, so the three cannot drift apart. Named
+                # field by field instead, the gate listed the lines, the
+                # `posted:` block, the notes and the billing id, and let
+                # `date_opened:`, `credit_note:` and a custom key through to
+                # the rebuild — `credit_note:` deciding which way it
+                # posts, so flipping it re-booked the posting the
+                # other way round and reported `updated`.
+                if not has_posted_none and not _invoice_non_payment_matches(
+                        existing, directive,
+                        counting_a_credit_request=False):
+                    _refuse_editing_a_posted_record('invoice', inv_id)
+                logging.debug(f"Invoice {inv_id} is posted but differs; unposting for rebuild")
                 _emit_orphan_warning_before_unpost(
                     existing, 'invoice', inv_id, on_orphan_warning)
                 existing.Unpost(False)
@@ -8660,23 +10233,25 @@ class GnuCashImporter:
             if must_set_guid is not None:
                 _set_object_guid(book, invoice, 'invoice', inv_id, must_set_guid)
         else:
-            # Existing invoice (unposted now, after the Unpost above if needed):
-            # reuse it, drop its current entries so we can rebuild from the
-            # directive. RemoveEntry is essential before Destroy: gncEntryDestroy
-            # only sets the do_free flag and drops the entry from the
-            # QofCollection — it does NOT detach the entry from the invoice's
-            # internal entry list. Without RemoveEntry, `gncInvoicePostToAccount`
-            # later iterates a list that still contains the now-dangling pointer
-            # and segfaults (reproduced on GnuCash 3.8 / ubuntu20).
+            # Existing invoice (unposted now, after the Unpost above if
+            # needed): reuse it, and edit the line each block named — paired
+            # at the top, while the invoice was still whole.
             invoice = existing
-            for old_entry in list(invoice.GetEntries()):
+            # A line no block named is gone from it. RemoveEntry is
+            # essential before Destroy: gncEntryDestroy only sets the do_free
+            # flag and drops the entry from the QofCollection — it does NOT
+            # detach the entry from the invoice's internal entry list. Without
+            # RemoveEntry, `gncInvoicePostToAccount` later iterates a list
+            # that still contains the now-dangling pointer and segfaults
+            # (reproduced on GnuCash 3.8 / ubuntu20).
+            for old_entry in orphaned_lines:
                 invoice.RemoveEntry(old_entry)
                 old_entry.Destroy()
         invoice.BeginEdit()
         invoice.SetDateOpened(datetime.strptime(directive.metadata['date_opened'], "%Y-%m-%d"))
         # Before the entries and well before the posting, which is what reads
         # it: `gncInvoicePostToAccount` decides the splits' direction from
-        # the flag, so a document that becomes a credit note afterwards keeps
+        # the flag, so one that becomes a credit note afterwards keeps
         # an invoice's posting.
         invoice.SetIsCreditNote(_is_a_credit_note(directive.metadata))
 
@@ -8686,6 +10261,7 @@ class GnuCashImporter:
             invoice.SetNotes(directive.metadata['notes'])
 
         credit_blocks = []
+        line_index = 0
         for entry_directive in directive.children:
             if entry_directive.type == DirectiveType.INVOICE_ENTRY:
                 # Everything that can refuse the line is resolved before the
@@ -8708,7 +10284,16 @@ class GnuCashImporter:
                 inv_fields = _entry_fields_named(
                     entry_directive.metadata, 'invoice')
 
-                entry = Entry(book)
+                entry = paired_lines[line_index]
+                line_index += 1
+                is_a_new_line = entry is None
+                if is_a_new_line:
+                    entry = Entry(book)
+                    # The guid the file names, so a book rebuilt from an
+                    # export holds the same lines it came from and anything
+                    # referring to one still resolves. As a split's `guid:`
+                    # is honoured, and for the same reason.
+                    _set_the_entry_guid(book, entry, entry_directive.metadata)
                 entry.BeginEdit()
                 entry.SetDate(datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d"))
                 entry.SetDescription(entry_directive.metadata['description'])
@@ -8725,16 +10310,21 @@ class GnuCashImporter:
                 # `taxable:` and `tax_included:` are set with the rest of the
                 # fields below, having been read there as words rather than
                 # compared against the string `true`.
-                if inv_tax_table is not None:
-                    entry.SetInvTaxTable(inv_tax_table)
+                # Written whether the block named one or not: a line being
+                # edited keeps whatever it is not given, and a block naming
+                # no `tax_table:` is a line with none — as it is on a line
+                # this file is creating. `None` is a value the setter takes,
+                # measured on 3.8, 4.4, 5.10 and 5.15.
+                entry.SetInvTaxTable(inv_tax_table)
                 _apply_entry_fields(entry, inv_fields, 'invoice')
-                invoice.AddEntry(entry)
+                if is_a_new_line:
+                    invoice.AddEntry(entry)
                 entry.CommitEdit()
 
                 # Q-017's informational fields — `entry_amount:`,
                 # `entry_tax:` and the `breakdown:` blocks — are checked once
-                # the document is whole, below: a line's tax is fitted to the
-                # document's, so what the page states cannot be judged while
+                # the invoice is whole, below: a line's tax is fitted to the
+                # whole page's, so what it states cannot be judged while
                 # the lines after it do not exist yet.
             elif entry_directive.type == DirectiveType.POSTED:
                 ar_acct_name = entry_directive.metadata['ar_account']
@@ -8749,7 +10339,7 @@ class GnuCashImporter:
                 memo = entry_directive.metadata['memo']
                 # Read as a word, as the entry flags are: compared against the
                 # string `true`, `accumulate: True` posted with its splits
-                # unaccumulated — one document answering the same spelling two
+                # unaccumulated — one invoice answering the same spelling two
                 # ways on adjacent blocks.
                 accumulate = _a_yes_or_no(
                     entry_directive.metadata['accumulate'], 'accumulate',
@@ -8763,7 +10353,7 @@ class GnuCashImporter:
                 # AR account double-counted.
                 declared_posted_guid = entry_directive.metadata.get('posted_txn_guid')
                 linked_tx = None
-                if declared_posted_guid:
+                if _states_a_guid(declared_posted_guid):
                     guid_norm = _normalise_guid(declared_posted_guid)
                     linked_tx = _find_transaction_by_guid(book, guid_norm)
                 if linked_tx is not None:
@@ -8773,6 +10363,9 @@ class GnuCashImporter:
                         book, 'invoice', inv_id,
                     )
                 else:
+                    _note_a_posting_guid_this_book_has_not_got(
+                        declared_posted_guid, 'invoice', inv_id,
+                        posting_was_this_books)
                     _attach_posting_rate(
                         invoice, book, directive, DirectiveType.INVOICE_ENTRY,
                         post_date, fx_rates, 'invoice', inv_id)
@@ -8792,9 +10385,9 @@ class GnuCashImporter:
                         record_cost_bases(book, posting_txn)
             elif entry_directive.type == DirectiveType.PAYMENT:
                 # Credit blocks wait for the rest. What a credit may take is
-                # what the document still owes, and that depends on the cash
+                # what the invoice still owes, and that depends on the cash
                 # beside it — applied where its own line falls, a credit
-                # written above a cash block took the whole document and the
+                # written above a cash block took the whole of it and the
                 # cash below it landed as a prepayment nobody asked for. The
                 # file says the same thing whichever order it is written in.
                 if _paid_from_credit(entry_directive.metadata):
@@ -8821,12 +10414,17 @@ class GnuCashImporter:
                 )
             _apply_owner_credit(invoice)
 
+        # And once the payments are in the lot, as the appended-payment path
+        # does it: a transaction this run attached was not the invoice's
+        # when the pass at the top ran, so its memo was not written then.
+        _correct_payment_memos(invoice, directive, book)
+
         invoice.CommitEdit()
 
         # Q-017: every figure the page states — each line's `entry_amount:`,
-        # `entry_tax:` and `breakdown:` blocks, and the three document totals
-        # — against the document that now exists. One call for the whole of
-        # it, because a line's tax is fitted to the document's and cannot be
+        # `entry_tax:` and `breakdown:` blocks, and the three page totals
+        # — against the invoice that now exists. One call for the whole of
+        # it, because a line's tax is fitted to the page's and cannot be
         # judged before its siblings exist. The same check runs on the paths
         # that change nothing, where a stale page used to walk straight past.
         _refuse_figures_that_are_not_the_books(invoice, directive,
@@ -8859,8 +10457,12 @@ class GnuCashImporter:
             get_guid_str=_swig_invoice_guid_str,
         )
         _refuse_a_changed_currency(existing, directive, 'bill', bill_id)
-        _refuse_a_document_that_would_lose_its_lines(
+        _refuse_a_record_that_would_lose_its_lines(
             existing, directive, DirectiveType.BILL_ENTRY, 'bill', bill_id)
+        # Before anything unposts, as the invoice side asks it.
+        posting_was_this_books = _the_file_names_a_posting_this_book_has(
+            book, directive)
+        _refuse_a_payment_guid_nothing_can_parse(directive)
 
         # Validate: posted: none and a real posted: block are contradictory
         has_posted_none = directive.metadata.get('posted') == 'none'
@@ -8885,9 +10487,20 @@ class GnuCashImporter:
         # change) skips the destroy-and-rebuild and preserves entry
         # GUIDs; appended payments hit the Q-015 fast path.
         status_on_success = 'created'
+        bill_entry_blocks = [child for child in directive.children
+                             if child.type == DirectiveType.BILL_ENTRY]
+        paired_lines = [None] * len(bill_entry_blocks)
+        orphaned_lines = []
         if existing is not None:
+            # As the invoice side pairs them, and for the same reason: the
+            # refusals land before the book is written to or the file is
+            # answered `unchanged`.
+            paired_lines, orphaned_lines = _entries_paired_with_blocks(
+                book, bill_entry_blocks, list(existing.GetEntries()))
             migrated = _move_slot_keys_that_became_fields(
                 existing, KNOWN_BILL_METADATA_KEYS)
+            # As the invoice side: the memo is the payment transaction's.
+            _correct_payment_memos(existing, directive, book)
             if _bill_matches_directive(existing, directive, book):
                 # As the invoice side, and for the same reason.
                 _refuse_figures_that_are_not_the_books(
@@ -8921,15 +10534,24 @@ class GnuCashImporter:
                 )
                 _refuse_figures_that_are_not_the_books(
                     existing, directive, is_bill=True)
-                # Already cash-before-credit, as on the invoice side above.
-                for pay_dir in added_pays:
-                    _apply_payment_directive(existing, pay_dir, book,
-                                             is_bill=True, fx_rates=fx_rates)
+                _apply_what_the_file_adds(
+                    existing, added_pays, _asks_for_credit(directive),
+                    book, is_bill=True, fx_rates=fx_rates)
+                # As the invoice side: again, now they are in the lot.
+                _correct_payment_memos(existing, directive, book)
                 return 'updated'
             status_on_success = 'updated'
             if existing.GetPostedTxn() is not None:
-                logging.debug(f"Bill {bill_id} is posted but differs; unposting for rebuild")
+                # As the invoice side: the cost basis first, and a file
+                # saying `posted: none` has asked for the unpost out loud
+                # and is not refused for it.
                 require_cost_basis_unused(book, existing, 'bill', bill_id)
+                # As the invoice side asks it: anything but a payment.
+                if not has_posted_none and not _bill_non_payment_matches(
+                        existing, directive,
+                        counting_a_credit_request=False):
+                    _refuse_editing_a_posted_record('bill', bill_id)
+                logging.debug(f"Bill {bill_id} is posted but differs; unposting for rebuild")
                 _emit_orphan_warning_before_unpost(
                     existing, 'bill', bill_id, on_orphan_warning)
                 existing.Unpost(False)
@@ -8951,11 +10573,12 @@ class GnuCashImporter:
                 _set_object_guid(book, bill, 'bill', bill_id, must_set_guid)
         else:
             # Existing bill (unposted now, after the Unpost above if needed):
-            # reuse it, drop its current entries. `_find_bills_by_id` /
-            # `_find_bill_by_guid` return a Bill, so RemoveEntry dispatches to
-            # gncBillRemoveEntry (correctly clearing the bill's entry list).
+            # reuse it, and edit the line each block named, as the invoice
+            # side does it. `_find_bills_by_id` / `_find_bill_by_guid` return
+            # a Bill, so RemoveEntry dispatches to gncBillRemoveEntry
+            # (correctly clearing the bill's entry list).
             bill = existing
-            for old_entry in list(bill.GetEntries()):
+            for old_entry in orphaned_lines:
                 bill.RemoveEntry(old_entry)
                 old_entry.Destroy()
         bill.BeginEdit()
@@ -8973,6 +10596,7 @@ class GnuCashImporter:
         if 'notes' in directive.metadata:
             bill.SetNotes(directive.metadata['notes'])
         credit_blocks = []
+        line_index = 0
 
         for entry_directive in directive.children:
             if entry_directive.type == DirectiveType.BILL_ENTRY:
@@ -8998,7 +10622,16 @@ class GnuCashImporter:
                 billed_to = _the_customer_billed(
                     book, bill_fields['billable_to'], directive.props['id'])
 
-                entry = Entry(book)
+                entry = paired_lines[line_index]
+                line_index += 1
+                is_a_new_line = entry is None
+                if is_a_new_line:
+                    entry = Entry(book)
+                    # The guid the file names, so a book rebuilt from an
+                    # export holds the same lines it came from and anything
+                    # referring to one still resolves. As a split's `guid:`
+                    # is honoured, and for the same reason.
+                    _set_the_entry_guid(book, entry, entry_directive.metadata)
                 entry.BeginEdit()
                 entry.SetDate(datetime.strptime(entry_directive.metadata['date'], "%Y-%m-%d"))
                 entry.SetDescription(entry_directive.metadata['description'])
@@ -9016,20 +10649,26 @@ class GnuCashImporter:
                 # entered price already contains the tax, so GnuCash backs the
                 # net out at post time (net = gross / (1 + total_rate)); the
                 # key is optional here and defaults to false, tax on top.
-                if bill_tax_table is not None:
-                    entry.SetBillTaxTable(bill_tax_table)
+                # Written whether the block named one or not, as the invoice
+                # side writes it: a line being edited keeps whatever it is
+                # not given, and a block naming no `tax_table:` is a line
+                # with none.
+                entry.SetBillTaxTable(bill_tax_table)
                 _apply_entry_fields(entry, bill_fields, 'bill', billed_to)
                 # `bill` is a Bill, so AddEntry dispatches to gncBillAddEntry,
                 # which sets the entry's bill-side owner pointer. GnuCash then
                 # persists the bill-side tax flags (b-taxable / b-taxincluded);
                 # the customer-invoice Invoice.AddEntry would drop them on save
                 # and over-tax the bill.
-                bill.AddEntry(entry)
+                if is_a_new_line:
+                    bill.AddEntry(entry)
+                else:
+                    _give_the_line_its_bill_pointer(entry, bill)
                 entry.CommitEdit()
 
                 # `entry_amount:`, `entry_tax:` and the `breakdown:` blocks
                 # are checked below, once every line of the bill exists — a
-                # line's tax is fitted to the document's, so the page cannot
+                # line's tax is fitted to the page's, so it cannot
                 # be judged a line at a time. Nothing read them at all until
                 # now: a page printed by an earlier release, whose figures
                 # were quantity × price, re-imported reporting `unchanged`
@@ -9051,7 +10690,7 @@ class GnuCashImporter:
 
                 declared_posted_guid = entry_directive.metadata.get('posted_txn_guid')
                 linked_tx = None
-                if declared_posted_guid:
+                if _states_a_guid(declared_posted_guid):
                     guid_norm = _normalise_guid(declared_posted_guid)
                     linked_tx = _find_transaction_by_guid(book, guid_norm)
                 if linked_tx is not None:
@@ -9061,6 +10700,9 @@ class GnuCashImporter:
                         book, 'bill', bill_id,
                     )
                 else:
+                    _note_a_posting_guid_this_book_has_not_got(
+                        declared_posted_guid, 'bill', bill_id,
+                        posting_was_this_books)
                     _attach_posting_rate(
                         bill, book, directive, DirectiveType.BILL_ENTRY,
                         post_date, fx_rates, 'bill', bill_id)
@@ -9104,6 +10746,9 @@ class GnuCashImporter:
             # carves the split it lives on — so the basis follows what is left,
             # exactly as it does on the receivable side.
             _apply_owner_credit(bill)
+
+        # As the invoice side: once the payments are in the lot.
+        _correct_payment_memos(bill, directive, book)
 
         bill.CommitEdit()
 

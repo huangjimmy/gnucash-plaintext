@@ -2,7 +2,7 @@
 
 The round-trip tests all run over one small book of three plain transactions,
 so the optional metadata the exporter emits — an account's code and
-description, a transaction's document link, a number without a description —
+description, a transaction's receipt link, a number without a description —
 was written by code no test executed (T-009). Each is ordinary: a cheque
 entered before anyone said what it was for, a receipt scanned and linked, an
 account carrying the number it has in the chart of accounts.
@@ -55,7 +55,7 @@ class TestCommodityMetadata:
 
 
 class TestTransactionMetadata:
-    def test_a_document_link_is_carried(self, tmp_path):
+    def test_a_receipt_link_is_carried(self, tmp_path):
         text = _exported(tmp_path)
 
         assert 'gnucash-doclink: "file:///receipts/2024-02-02.pdf"' in text

@@ -1,4 +1,4 @@
-# Statement Import Pipeline — Design Document
+# Statement Import Pipeline — Design Note
 
 **Feature branch**: `feature/statement-import-pipeline`
 **Created**: 2026-05-01

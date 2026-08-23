@@ -12,7 +12,7 @@ the book again — an unchanged re-import writing the book.
 
 Writing the slot wholesale instead would have made every *partial* block a
 delete, and most blocks are partial: a person names what they are changing, a
-printed document carries less than that. So the rule is the one the address
+printed invoice carries less than that. So the rule is the one the address
 lines follow — a key the block does not name says nothing, and a key named
 empty is removed.
 """

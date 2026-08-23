@@ -18,29 +18,29 @@
 ;; Canadian book's invoice with no GST number and no warning.
 
 (define (a-report-from-invoice-scm-renderer report-obj)
-  (let* ((document (gnc:make-html-document))
+  (let* ((page (gnc:make-html-document))
          (options (gnc:report-options report-obj))
          (invoice (gnc:option-value
                     (gnc:lookup-option options "General" "Invoice Number")))
          (company (gnc:make-html-table))
          (client (gnc:make-html-table)))
-    (gnc:html-document-set-title! document "A Report From Invoice Scm")
+    (gnc:html-document-set-title! page "A Report From Invoice Scm")
     (gnc:html-table-append-row! company (list "MY COMPANY BLOCK"))
     (gnc:html-table-append-row! client (list "MY CLIENT BLOCK"))
     (gnc:html-document-add-object!
-      document
+      page
       (gnc:make-html-text
         (gnc:html-markup-p "A PAGE THAT KEPT GNUCASH'S BLOCKS")
         (gnc:html-markup-p
-          (string-append "document: "
+          (string-append "invoice: "
                          (if (and invoice (not (null? invoice)))
                              (gncInvoiceGetID invoice)
                              "none")))))
     (gnc:html-document-add-object!
-      document (gnc:make-html-div/markup "company-table" company))
+      page (gnc:make-html-div/markup "company-table" company))
     (gnc:html-document-add-object!
-      document (gnc:make-html-div/markup "client-table" client))
-    document))
+      page (gnc:make-html-div/markup "client-table" client))
+    page))
 
 (gnc:define-report
   'version 1

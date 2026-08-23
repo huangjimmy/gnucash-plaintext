@@ -130,7 +130,7 @@ class TestAPaymentOnACoarseReceivable:
     units a receivable kept to whole dollars holds. The settling split lands
     on that account and is stored at its unit, so the amount came out 18
     against a value of 18.19 on a same-currency split, and the export wrote
-    `amount: 18` back — a figure the file never stated, on the document it
+    `amount: 18` back — a figure the file never stated, on the invoice it
     was meant to settle.
     """
 
@@ -198,7 +198,7 @@ class TestARateThatReachesTheSameFigure:
     "positive", the rate produced exactly what its twin above produces —
     except that nothing then matched it either: the comparison reads what the
     file says against what the book holds, 780.005 against a rounded 780.00,
-    so the document was judged changed on every import and a posted one is
+    so the invoice was judged changed on every import and a posted one is
     rebuilt to be judged again.
     """
 

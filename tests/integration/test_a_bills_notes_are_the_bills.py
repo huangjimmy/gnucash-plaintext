@@ -93,7 +93,7 @@ class TestTheNotesLand:
 
 
 class TestReImportingAPrintedBill:
-    """The same loop through the door a printed document opens.
+    """The same loop through the door a printed bill opens.
 
     `print-bill --format plaintext` writes the block a reader checks against
     the book, and it names less than the ledger does. With the comparison
@@ -170,7 +170,7 @@ class TestABookThatKeptThemInTheSlot:
     at all, and rebuilding from that export loses the note for good.
 
     The address keys hit this first and the fallback was written for them; the
-    document's own text was twenty lines away in the same file and did not get
+    bill's own text was twenty lines away in the same file and did not get
     it. The state is built here as the previous version left it, because the
     format no longer has a way to say it.
     """
@@ -236,8 +236,8 @@ class TestABookThatKeptThemInTheSlot:
         assert _bill(fresh, 'BILL-PRINT-001')['notes'] == \
             'Two taxes and a payment', _bill(fresh, 'BILL-PRINT-001')
 
-    def test_the_rendered_document_shows_them(self, legacy, tmp_path):
-        """The document a person actually reads, not only the block.
+    def test_the_rendered_bill_shows_them(self, legacy, tmp_path):
+        """The bill a person actually reads, not only the block.
 
         `print-bill --format html` is the bill itself. Reading the field
         alone, it printed the notes line blank on a book that has them.
@@ -250,7 +250,7 @@ class TestABookThatKeptThemInTheSlot:
 
         assert 'Two taxes and a payment' in out.read_text(), out.read_text()
 
-    def test_the_rendered_document_shows_the_address(self, legacy, tmp_path):
+    def test_the_rendered_bill_shows_the_address(self, legacy, tmp_path):
         """The other half of the same read, and the one a bill is sent with."""
         out = tmp_path / 'bill.html'
         rendered = CliRunner().invoke(cli, [
@@ -260,7 +260,7 @@ class TestABookThatKeptThemInTheSlot:
 
         assert 'Alpha Supply Ltd' in out.read_text(), out.read_text()
 
-    def test_the_printed_document_carries_them_too(self, legacy, tmp_path):
+    def test_the_printed_bill_carries_them_too(self, legacy, tmp_path):
         printed = tmp_path / 'printed.txt'
         rendered = CliRunner().invoke(cli, [
             'print-bill', str(legacy), 'BILL-PRINT-001', '--format',

@@ -56,8 +56,18 @@ for version in "${VERSIONS[@]}"; do
     WORKSPACE="$TEMP_BASE/$version"
     echo "  Copying to $WORKSPACE..."
 
-    # Copy entire workspace, excluding large/unnecessary files
-    rsync -a --exclude='.git' \
+    # Copy entire workspace, excluding large/unnecessary files.
+    #
+    # `.claude/settings.json` comes along, and nothing else under `.claude`
+    # does: the file is tracked, and it is what wires the `PreToolUse`
+    # guards that refuse a shell file-edit and an unscoped kill — so a test
+    # that the wiring still names them has nothing to read here without it,
+    # while the rest of that directory is an agent's own state and has no
+    # business in a test container.
+    rsync -a --include='.claude/' \
+             --include='.claude/settings.json' \
+             --exclude='.claude/**' \
+             --exclude='.git' \
              --exclude='__pycache__' \
              --exclude='*.pyc' \
              --exclude='.pytest_cache' \
@@ -66,7 +76,6 @@ for version in "${VERSIONS[@]}"; do
              --exclude='.coverage' \
              --exclude='*.egg-info' \
              --exclude='test_outputs' \
-             --exclude='.claude' \
              "$PROJECT_ROOT/" "$WORKSPACE/"
 done
 echo ""

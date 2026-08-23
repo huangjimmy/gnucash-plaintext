@@ -596,12 +596,12 @@ def test_single_invoice_txn_guid_fresh_roundtrip(tmp_path):
     )
 
 
-def test_retargeting_onto_a_document_that_owes_nothing_says_so(tmp_path):
+def test_retargeting_onto_a_invoice_that_owes_nothing_says_so(tmp_path):
     """A second block claiming a whole bank tx as prepayment is refused.
 
     The invoice is settled in full by the block above it, so by the time the
     retarget is read there is nothing for it to settle: what it would apply is
-    zero, and writing a 0.00 split into the document's lot tagged as its
+    zero, and writing a 0.00 split into the invoice's lot tagged as its
     payment is the state this whole area exists to avoid.
 
     The refusal has to name the cause. Zero applied is also what a residue
@@ -609,7 +609,7 @@ def test_retargeting_onto_a_document_that_owes_nothing_says_so(tmp_path):
     account kept to the tenth — and that one is answered by giving the account
     a finer `commodity_scu:`. Told to do that here, the reader would change
     their account for a reason that has nothing to do with what is wrong: the
-    document owes nothing at all.
+    invoice owes nothing at all.
     """
     runner = CliRunner()
     gf = tmp_path / 'src.gnucash'
@@ -621,7 +621,7 @@ def test_retargeting_onto_a_document_that_owes_nothing_says_so(tmp_path):
     retarget_txn_guid = _bank_tx_guid(gf, 140.0)
 
     inv_path = tmp_path / 'invoice.txt'
-    inv_path.write_text(_fx('retarget_onto_a_document_owing_nothing.txt').format(
+    inv_path.write_text(_fx('retarget_onto_an_invoice_owing_nothing.txt').format(
         retarget_txn_guid=retarget_txn_guid))
     result = runner.invoke(cli, ['import', str(gf), str(inv_path),
                                  '--include-business-objects'])
@@ -642,7 +642,7 @@ def test_two_payments_of_the_same_shape_are_paired_the_only_way_that_works(tmp_p
     block is left with a split it cannot match, and a file that made this book
     reads as a change to it.
 
-    What follows a false "changed" is the expensive part — the document is
+    What follows a false "changed" is the expensive part — the invoice is
     unposted and rebuilt, its payments orphaned and re-made, and on a
     foreign-currency invoice whose basis something measures against, refused
     outright.

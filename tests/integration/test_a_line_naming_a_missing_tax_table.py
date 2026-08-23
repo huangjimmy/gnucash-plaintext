@@ -1,9 +1,9 @@
 """A line naming a tax table the book does not hold is refused.
 
 Swallowed, such a name left the entry with no table at all — and the
-comparison that decides whether a document is already up to date reads the
+comparison that decides whether an invoice is already up to date reads the
 name the *file* states against the table the *entry* carries. Those could then
-never agree, so every re-import of an unchanged ledger found the document out
+never agree, so every re-import of an unchanged ledger found the invoice out
 of date: a posted invoice was unposted, its posting transaction destroyed, its
 payments orphaned and marked, the whole thing rebuilt and re-paid, and the run
 reported `updated` with no error. On every import, forever.

@@ -16,7 +16,7 @@ So the rule is one place per library, and `LOADERS` names them:
 `infrastructure/gnucash/engine.py` for GnuCash's engine, where
 `_setup_lib_restypes` declares its symbols and `verify_ctypes_functions` checks
 at load that the build actually has them, and `infrastructure/guile.py` for
-libguile, which GnuCash's own report needs in-process to draw a document.
+libguile, which GnuCash's own report needs in-process to draw an invoice.
 
 This test is a ratchet. `KNOWN` lists what has not been moved yet, exactly, and
 the test fails both ways: a declaration that is not listed is new debt and is
@@ -73,13 +73,14 @@ KNOWN = {
         'lib.qof_instance_set_kvp',
     },
     'services/gnucash_importer.py': {
-        # GUID plumbing, declared in four places on a bare `CDLL(None)`.
+        # Reading an invoice's guid, declared in two places on a bare
+        # `CDLL(None)`. Writing one no longer is: `_set_object_guid` and
+        # `_force_the_lot_guid` both take `qof_instance_set_guid` off the
+        # cached engine, which is where a call on the per-line path
+        # belongs.
         'ctypes.CDLL',
         'lib.guid_to_string_buff',
         'lib.qof_instance_get_guid',
-        'lib.qof_instance_set_guid',
-        'lib.string_to_guid',
-        'lib.xaccAccountLookup',
     },
     'services/transaction_matcher.py': {
         'lib.gncOwnerGetID',
@@ -258,7 +259,7 @@ def test_only_one_place_puts_a_split_in_an_existing_lot():
 
     A call that reaches past the helper leaves no note, and the readers go on
     believing a short list. That is not a failure anything would show: the
-    figures still balance, the document just reads as owing more than it does.
+    figures still balance, the invoice just reads as owing more than it does.
 
     Searched over the whole tree, not the importer alone, and matching both
     spellings — `gc.xaccSplitSetLot(...)` and a bare `xaccSplitSetLot(...)` off

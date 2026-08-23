@@ -115,21 +115,21 @@ def test_tax_on_a_yen_invoice_reaches_a_whole_yen(tmp_path):
     assert 'Assets:Accounts Receivable JPY 2174 JPY' in text, text
     assert '103.50' not in text and '103.5' not in text, text
 
-    # The document the customer receives says the same, in yen: the invoice
+    # The page the customer receives says the same, in yen: the invoice
     # renderer computes its own tax figures rather than reading the splits.
     printed = tmp_path / 'invoice.txt'
     result = CliRunner().invoke(cli, [
         'print-invoice', str(gnucash_file), 'INV-JPY-HALF',
         '--format', 'plaintext', '-o', str(printed)])
     assert result.exit_code == 0, result.output
-    document = printed.read_text()
-    assert 'entry_tax: 104' in document, document
-    assert 'invoice_total: 2174' in document, document
-    assert '.00' not in document, document
+    page = printed.read_text()
+    assert 'entry_tax: 104' in page, page
+    assert 'invoice_total: 2174' in page, page
+    assert '.00' not in page, page
 
-    # And that document reads back into the book it came from. The import
-    # works the whole document out the way the writer did — every line fitted
-    # to the document's tax, which is where 103.5 becomes the 104 the book
+    # And that page reads back into the book it came from. The import
+    # works the whole page out the way the writer did — every line fitted
+    # to the page's tax, which is where 103.5 becomes the 104 the book
     # posts — and compares the page against that, so a yen invoice matches
     # exactly rather than surviving on a tolerance.
     again = CliRunner().invoke(cli, ['import', str(gnucash_file),

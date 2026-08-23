@@ -5,7 +5,7 @@
 # report reads it (`invoice.scm` calls `gnc:options-fancy-date`). A book
 # without one falls back to the *application's* date preference, which lives
 # in GSettings rather than in the file, so two people printing the same book
-# get differently-dated documents.
+# get differently-dated invoices.
 #
 # `%d %B %Y` rather than something ISO-shaped on purpose: it is unmistakable
 # in a rendered page, and it is not what any of the fallbacks would produce.

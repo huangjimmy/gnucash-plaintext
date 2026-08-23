@@ -24,12 +24,13 @@ from infrastructure.gnucash.utils import (
     to_money,
 )
 from services.plaintext_blocks import (
-    document_text_lines,
     entry_discount,
     entry_notes,
     owner_block_lines,
     payment_block_lines,
+    payment_memo_of,
     posted_block_lines,
+    record_text_lines,
 )
 
 
@@ -87,7 +88,7 @@ def read_book_company_info(file_path):
     # after the first four of them. The book's address is one free-text field
     # and takes as many lines as are typed into it, so reading four was the
     # same truncation the export had — and this is the copy a *printed*
-    # document is drawn from, so a company with a country on line five posted
+    # page is drawn from, so a company with a country on line five posted
     # invoices without it.
     addr_raw = _str_val(biz_el, 'Company Address')
     result['address'] = [line.strip()
@@ -108,14 +109,14 @@ def split_pst_numbers(value) -> list:
 
 def render_to_html(invoice, session, report=None, report_file=None,
                    warn=None) -> str:
-    """The document as HTML, drawn by GnuCash.
+    """The invoice as HTML, drawn by GnuCash.
 
     The page is a GnuCash report, through `services/gnucash_report` — by
     default the Printable Invoice its own Print Invoice button draws. So what
     this prints is what GnuCash prints, and there is no second layout here to
     keep in step with it: the one this project used to carry had its own
     columns, its own tax rows and its own totals, and its totals were wrong
-    for a document in a currency the book is not kept in.
+    for an invoice in a currency the book is not kept in.
 
     `report` picks a different one — by the name GnuCash's GUI lists it under,
     or by template guid — and `report_file` loads a `.scm` first, so a report
@@ -123,25 +124,25 @@ def render_to_html(invoice, session, report=None, report_file=None,
     the page is writing a GnuCash report, which is what GnuCash's own pages
     are.
 
-    `session` is the open session holding the document: GnuCash's report
-    resolves the document from its guid against the *current* book and reads
+    `session` is the open session holding the invoice: GnuCash's report
+    resolves it from its guid against the *current* book and reads
     the book's own options for the company block, so neither a book handle nor
     a company block read out of the file has anything left to say here.
 
     HTML and not a PDF, so a caller — and a test — can read what the page says
     without laying it out. `cli/invoice_print_cmd.py` prints the PDF from
-    this, through WebKit, after every document in the run has been rendered.
+    this, through WebKit, after every page in the run has been rendered.
     """
     from services.gnucash_importer import _swig_invoice_guid_str
     from services.gnucash_report import (
         _extra_text,
         carry_slot_values_onto_the_fields,
-        render_document_html,
+        render_page_html,
     )
 
     carry_slot_values_onto_the_fields(invoice)
     company_extra, owner_extra = _extra_text(invoice)
-    return render_document_html(
+    return render_page_html(
         session, _swig_invoice_guid_str(invoice),
         company_extra=company_extra, owner_extra=owner_extra,
         report=report, report_file=report_file, warn=warn)
@@ -231,7 +232,7 @@ def _tax_table_entries(lib, tt_ptr):
 
 
 def _line_key(raw_entry):
-    """What tells one line of a document from another, wherever it is read.
+    """What tells one line from another, wherever it is read.
 
     Its description and its date — the fields `gncEntryCompare` itself sorts
     on, minus the date entered, which a rebuilt book stamps anew.
@@ -240,18 +241,18 @@ def _line_key(raw_entry):
             raw_entry.GetDate().strftime('%Y-%m-%d'))
 
 
-def entries_fitted_to_the_document(entries_data, document_tax, unit,
-                                   document_subtotal=None):
+def entries_fitted_to_the_page(entries_data, page_tax, unit,
+                               page_subtotal=None):
     """`entries_data` with every tax figure rounded so the columns add up.
 
     Two levels, both of them a column a reader can add: each line's tax to
-    the document's stated tax, and each line's `breakdown:` blocks to that
+    the page's stated tax, and each line's `breakdown:` blocks to that
     line's own tax.
 
-    The **net** column needs no fitting and gets none: a document's subtotal
+    The **net** column needs no fitting and gets none: a page's subtotal
     is the sum of its lines' rounded values — measured on 5.10, three lines
     of 86.96 against a stated 260.88 — so the lines already add to it. It is
-    checked all the same when `document_subtotal` is given, because "needs no
+    checked all the same when `page_subtotal` is given, because "needs no
     fitting" is a claim about GnuCash, and a page whose net column does not
     add to its own subtotal is exactly as wrong as one whose tax column does
     not. Both checks refuse rather than print, since the import recomputes
@@ -259,7 +260,7 @@ def entries_fitted_to_the_document(entries_data, document_tax, unit,
     """
     # Fitted per *account* first, across every line, because that is how the
     # book holds it: each account's tax is rounded once over the whole
-    # document and posted as one split. Fitting each line's tax first and
+    # record and posted as one split. Fitting each line's tax first and
     # splitting it between accounts afterwards makes both columns add up on
     # the page and neither match the book — measured shape: two lines of 1.10
     # taxed 5% + 5%, where each line's 0.055 + 0.055 rounds to 0.06 + 0.05 on
@@ -267,7 +268,7 @@ def entries_fitted_to_the_document(entries_data, document_tax, unit,
     # the book posts 0.11 each.
     #
     # Ties are broken on what a line *is* — its description and date — not on
-    # where it sits: `gncEntryCompare` orders a document by date, then date
+    # where it sits: `gncEntryCompare` orders the lines by date, then date
     # entered, then description, and a rebuilt book stamps its own date
     # entered, so a page keyed on position could disagree with its own
     # re-import by a unit.
@@ -293,16 +294,16 @@ def entries_fitted_to_the_document(entries_data, document_tax, unit,
         fitted.append((raw_entry, amount,
                        sum((row[2] for row in rows), Fraction(0)), rows))
 
-    # What the lines now state, against what the document says it is worth.
-    # They agree because a document's tax *is* the sum of its accounts' —
+    # What the lines now state, against what the page says it is worth.
+    # They agree because the tax *is* the sum of its accounts' —
     # measured on 5.10 — and this fits to those same account totals. A
     # disagreement would mean that model is wrong on some version, and a page
     # whose column does not add to its own total is one to refuse.
     stated = sum((entry_tax for _, _, entry_tax, _ in fitted), Fraction(0))
-    if stated != document_tax:
+    if stated != page_tax:
         from use_cases.export_transactions import UnwritableFigureError
         raise UnwritableFigureError(
-            f'this document is worth {exact_text(document_tax)} in tax and '
+            f'this page is worth {exact_text(page_tax)} in tax and '
             f'its lines account for {exact_text(stated)} — the two are '
             f'GnuCash\'s own figures and no page can state both')
 
@@ -311,12 +312,12 @@ def entries_fitted_to_the_document(entries_data, document_tax, unit,
     # that was the one column of the two where a version rounding it some
     # other way would print a page that does not add up, have the import
     # recompute it identically, and re-import clean.
-    if document_subtotal is not None:
+    if page_subtotal is not None:
         net = sum((amount for _, amount, _, _ in fitted), Fraction(0))
-        if net != document_subtotal:
+        if net != page_subtotal:
             from use_cases.export_transactions import UnwritableFigureError
             raise UnwritableFigureError(
-                f'this document is worth {exact_text(document_subtotal)} '
+                f'this page is worth {exact_text(page_subtotal)} '
                 f'before tax and its lines account for {exact_text(net)} — '
                 f'the two are GnuCash\'s own figures and no page can state '
                 f'both')
@@ -326,8 +327,8 @@ def entries_fitted_to_the_document(entries_data, document_tax, unit,
 def figures_that_add_up(parts, whole, unit, keys=None):
     """`parts` rounded to the currency's unit, summing to `whole` exactly.
 
-    A printed document states a tax per line and a tax for the document, and
-    the book holds only the second: GnuCash rounds a document's tax once, and
+    A printed page states a tax per line and a tax for the whole, and
+    the book holds only the second: GnuCash rounds the tax once, and
     an accumulated posting has no per-line tax split to compare a line
     against. Rounding each line on its own then leaves a column that does not
     add up — measured on 5.10, three 100.00 lines at 15 per cent tax-included
@@ -340,7 +341,7 @@ def figures_that_add_up(parts, whole, unit, keys=None):
     first.
 
     **`whole` is the parts' own sum, rounded to the unit** — that is what
-    `entries_fitted_to_the_document` passes, per tax account, and it is what
+    `entries_fitted_to_the_page` passes, per tax account, and it is what
     keeps this to a single pass. Rounding to nearest puts the whole within
     half a unit of the exact sum, and flooring a part loses less than a unit,
     so the shortfall is never negative and never exceeds the number of parts
@@ -356,7 +357,7 @@ def figures_that_add_up(parts, whole, unit, keys=None):
     # Floored, not truncated: `int()` rounds toward zero, so a negative part
     # would keep a remainder in (-1, 0], sort first as the largest, and take
     # the +1 that belongs to the line with the biggest fraction — a line
-    # whose own tax is -0.001 printing 0.01. Only a document mixing signs
+    # whose own tax is -0.001 printing 0.01. Only a page mixing signs
     # reaches it, a negative quantity beside a positive one.
     floors = [math.floor(value) for value in scaled]
     # Floored like the parts, for the same reason and not because it matters
@@ -369,13 +370,13 @@ def figures_that_add_up(parts, whole, unit, keys=None):
     # `taxable: false` holds no tax and has no `breakdown:` block under it,
     # so a unit landing there states tax the line does not carry and that
     # nothing on the page adds up to. Every part zero is the untaxed
-    # document, where the whole is zero too and nothing moves.
+    # case, where the whole is zero too and nothing moves.
     carrying = [i for i in range(len(parts)) if scaled[i] != 0]
 
     # Largest fractional part first, and by what each part *is* after that —
     # `keys`, see `_line_key`, rather than where it happens to sit. Without
     # them the position stands in, which is only stable while the list is.
-    # Either way the same document allocates the same way every time, which
+    # Either way the same page allocates the same way every time, which
     # is what lets the import recompute what the writer printed.
     tie = keys if keys is not None else list(range(len(parts)))
     remainders = sorted(carrying,
@@ -411,8 +412,8 @@ def tax_breakdown(lib, entry_ptr, tt_ptr, is_cust_doc=1, is_credit_note=0):
     return rows
 
 
-def credit_note_lines(document) -> list:
-    """`credit_note: true` for one, and nothing for an ordinary document.
+def credit_note_lines(record) -> list:
+    """`credit_note: true` for one, and nothing for an ordinary invoice or bill.
 
     GnuCash's Business → New Credit Note makes a `gncInvoice` with a flag
     and its lines stored negated: a credit note for 200.00 holds a quantity
@@ -423,26 +424,26 @@ def credit_note_lines(document) -> list:
     So a ledger states one key and nothing else changes: the quantities are
     already what the book holds, and the figures agree with the totals once
     the flag is passed to `gncEntryGetDocValue`. Written only when it is set,
-    because `credit_note: false` on every ordinary document is a line saying
+    because `credit_note: false` on every ordinary one is a line saying
     nothing about the overwhelming majority of them, and its absence is
-    already what a fresh document holds.
+    already what a fresh one holds.
     """
-    return ['\tcredit_note: #True'] if document.GetIsCreditNote() else []
+    return ['\tcredit_note: #True'] if record.GetIsCreditNote() else []
 
 
-def document_totals(lib, document):
+def record_totals(lib, record):
     """`(subtotal, tax, total)` for an invoice or a bill, as GnuCash has them.
 
-    Not the sum of the per-line figures: GnuCash rounds a document's tax once
+    Not the sum of the per-line figures: GnuCash rounds the tax once
     rather than line by line, so a bill of three 100.00 lines at 15 per cent
     tax-included posts 260.88 + 39.13 = **300.01** while the rounded per-line
     tax adds to 39.12 — measured on 5.10, and the page said 300.00 against
     its own A/P split of 300.01.
 
     Read for a draft too. These compute from the entries, so an unposted
-    document has totals before it has splits.
+    invoice or bill has totals before it has splits.
     """
-    ptr = int(document.instance)
+    ptr = int(record.instance)
 
     def figure(value):
         # `denom` guarded as every other reading here is: a gnc_numeric error
@@ -475,7 +476,7 @@ def _doc_tax_by_account(lib, entry_ptr, is_cust_doc=1, is_credit_note=0):
     # `AccountValueList` rather than handing back the entry's own, and
     # `gncAccountValueDestroy` is what the header says to free it with. Left
     # alone it leaks a node and a value per tax account per entry, on every
-    # export, every printed document and every import that checks one.
+    # export, every printed page and every import that checks one.
     values = lib.gncEntryGetDocTaxValues(entry_ptr, is_cust_doc, is_credit_note)
     try:
         found = {}
@@ -498,8 +499,8 @@ def compute_entry_informational(lib, entry_ptr, is_credit_note=0):
         one tuple per tax-table entry, or [] when the entry isn't
         taxable (or has no tax_table).
 
-    The document's `invoice_subtotal:` and `invoice_tax_total:` are *not*
-    these added up — see `document_totals`, which GnuCash rounds once.
+    The page's `invoice_subtotal:` and `invoice_tax_total:` are *not*
+    these added up — see `record_totals`, which GnuCash rounds once.
 
     Every figure is GnuCash's own, read through `gncEntryGetDocValue`,
     `gncEntryGetDocTaxValue` and `gncEntryGetDocTaxValues` — the functions
@@ -514,7 +515,7 @@ def compute_entry_informational(lib, entry_ptr, is_credit_note=0):
         sametime   posts 900.00 + 100.00 tax  (both off the full amount)
         posttax    posts 890.00 + 100.00 tax  (tax, then discount on the sum)
 
-    `qty × price` said 1000.00 + 100.00 for all three, so a printed document
+    `qty × price` said 1000.00 + 100.00 for all three, so a printed page
     stated a total the book contradicted — and `--format pdf`, drawn by
     GnuCash's own report, disagreed with `--format plaintext` from the same
     command.
@@ -522,18 +523,18 @@ def compute_entry_informational(lib, entry_ptr, is_credit_note=0):
     `is_cust_doc=1`: these are the invoice-side fields. The bill side has
     `compute_bill_entry_informational`, and a bill has no discount.
 
-    `is_credit_note` is the document's credit-note flag, and it belongs here for the
+    `is_credit_note` is the record's credit-note flag, and it belongs here for the
     same reason `is_cust_doc` does — it is what the engine posts from.
     GnuCash stores a credit note's lines negated, so a credit note for 200
     holds a quantity of −2 at 100 and `gncEntryGetDocValue(..., is_credit_note=1)`
-    answers +200: the figure the document's own total states, and the figure
+    answers +200: the figure its own total states, and the figure
     a person typed into the window. Measured on 5.10, against a credit note
     built the way GnuCash's window builds one — flag set and quantity stored
     negative — where the posting splits are Sales +200 and A/R −200.
     """
-    # The net rounded as the engine rounds it, because the document's own
+    # The net rounded as the engine rounds it, because the page's own
     # subtotal is the sum of these — measured, three 86.96 lines and a stated
-    # 260.88. The tax unrounded, because the document's tax is *not* the sum
+    # 260.88. The tax unrounded, because the page's tax is *not* the sum
     # of the rounded lines: GnuCash rounds it once, and the writer fits the
     # lines to it through `figures_that_add_up`.
     value = lib.gncEntryGetDocValue(entry_ptr, 1, 1, is_credit_note)
@@ -555,8 +556,8 @@ def validate_entry_informational(declared, breakdown_declared, computed,
     """Q-017: what a page says a line is worth, against what it is worth.
 
     A comparison and nothing else. The figures come from the caller, which
-    has the whole document and has fitted its lines the way the writer fits
-    them — a line's tax is rounded to make the document's column add up, so
+    has the whole page and has fitted its lines the way the writer fits
+    them — a line's tax is rounded to make the page's column add up, so
     what a line is worth on the page is not a property of the line alone.
     Working one line out here instead is what made a printed yen invoice
     disagree with itself: the line's own tax is 103.5 and the page states
@@ -666,10 +667,10 @@ def validate_invoice_informational(declared, computed_subtotal,
     reports — and the writer prints the total it reports, which would then be
     refused by this, the importer of the command that wrote it.
 
-    Compared exactly, as every figure here is: a page states what a document
+    Compared exactly, as every figure here is: a page states what an invoice
     is worth, and a figure the book does not hold is one to refuse. Held to a
-    cent instead, the page this check exists to catch went through — a
-    document printed by an earlier release states a total exactly one cent
+    cent instead, the page this check exists to catch went through — one
+    printed by an earlier release states a total exactly one cent
     under what a tax-included book posts.
     """
     pairs = [
@@ -687,7 +688,7 @@ def validate_invoice_informational(declared, computed_subtotal,
                 raise ValueError(
                     f'{invoice_label}: declared {field} {exact_text(decl)} '
                     f'does not match {exact_text(computed)}, which is what '
-                    f'GnuCash makes this document worth'
+                    f'GnuCash makes this worth'
                 )
 
 
@@ -795,9 +796,9 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         if tt_ptr and int(tt_ptr) not in seen_tt:
             seen_tt[int(tt_ptr)] = tt_ptr
 
-    subtotal, tax_total, total = document_totals(lib, invoice)
-    entries_data = entries_fitted_to_the_document(entries_data, tax_total,
-                                                  unit, subtotal)
+    subtotal, tax_total, total = record_totals(lib, invoice)
+    entries_data = entries_fitted_to_the_page(entries_data, tax_total,
+                                              unit, subtotal)
 
     blocks = []
     for tt_ptr in seen_tt.values():
@@ -813,7 +814,7 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         f'\tdate_opened: {date_opened}',
     ]
     inv_lines += credit_note_lines(invoice)
-    inv_lines += document_text_lines(invoice)
+    inv_lines += record_text_lines(invoice)
 
     # Per-entry blocks with informational fields
     from infrastructure.gnucash.utils import (
@@ -834,6 +835,15 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         date_str = raw_entry.GetDate().strftime('%Y-%m-%d')
 
         inv_lines.append('\tentry:')
+        # And no `guid:`, which is the one line `export` writes here that a
+        # printed page does not. A page is read into books that are not
+        # the one it was printed from, and those hold this invoice under
+        # guids of their own: naming the source book's, every line of the
+        # page is a line that book has not got, so a posted invoice is
+        # refused rather than matched. Measured — the page carries the
+        # *invoice's* guid and its posting transaction's, which is what
+        # relinks a payment; a line's guid names nothing a reader of the
+        # page can use.
         inv_lines.append(f'\t\tdate: {date_str}')
         inv_lines.append(f'\t\tdescription: {encode_value_as_string(desc)}')
         inv_lines.append(f'\t\taction: {encode_value_as_string(action)}')
@@ -851,7 +861,7 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
                 inv_lines.append(f'\t\ttax_table: {encode_value_as_string(tt_name)}')
 
         # The note and the discount, written exactly as `export` writes them:
-        # a printed plaintext document carries the guids that make it
+        # a printed plaintext page carries the guids that make it
         # re-importable, so a field this drops is a field the re-import
         # removes from the book.
         inv_lines.extend(entry_notes(lib, ent_ptr))
@@ -896,17 +906,20 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
                     continue
                 if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                     continue
-                # bank-side split = the non-AR side; find any (for the account
-                # name + memo only)
+                # bank-side split = the non-AR side; find any (for the
+                # account name only — the memo is `payment_memo_of`'s,
+                # which is not always this split's)
                 bank_name = ''
-                pay_memo = ''
                 for i in range(txn.CountSplits()):
                     sp = txn.GetSplit(i)
                     atype = gc.xaccAccountGetType(sp.GetAccount().instance)
                     if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
                         bank_name = get_account_full_name(sp.GetAccount())
-                        pay_memo = sp.GetMemo() or ''
                         break
+                # Off the split the import writes it to — this invoice's
+                # own where the payment settles several, as `export` reads
+                # it.
+                pay_memo = payment_memo_of(txn, s)
                 # The amount is the block writer's to work out — from `s`, the
                 # AR split in this invoice's own lot, not the bank-side total,
                 # which would over-report when one bank tx pays several
@@ -919,13 +932,13 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         if not had_payment:
             inv_lines.append('\tpayment: none')
 
-    # Invoice-level informational totals, asked of the document rather than
-    # added up from its lines: GnuCash rounds a document's tax once, so the
-    # two differ by a cent on a tax-included document of several lines and
+    # Invoice-level informational totals, asked of the invoice rather than
+    # added up from its lines: GnuCash rounds the tax once, so the
+    # two differ by a cent on a tax-included invoice of several lines and
     # the posting split follows GnuCash. The lines above were fitted to these.
     inv_lines.append(f'\tinvoice_subtotal: {_fmt_money(subtotal, unit)}')
     # Q-019: tax_total and grand total are emitted for drafts too — these
-    # read the entries, so an unposted document has them before it has splits.
+    # read the entries, so an unposted invoice has them before it has splits.
     inv_lines.append(f'\tinvoice_tax_total: {_fmt_money(tax_total, unit)}')
     inv_lines.append(f'\tinvoice_total: {_fmt_money(total, unit)}')
 
@@ -944,7 +957,7 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
 
     seller_header = _render_seller_header(company_info)
     if seller_header:
-        # File-scoped — "this whole rendered document is from Acme".
+        # File-scoped — "this whole rendered page is from Acme".
         blocks.insert(0, seller_header)
 
     return '\n\n'.join(blocks) + '\n'

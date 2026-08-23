@@ -9,9 +9,9 @@ Two shapes reach this. One is a payment GnuCash wrote itself, through
 `gncOwnerApplyPayment`, recognisable by its transaction type and owner
 slots. The other is a settlement attached by retargeting an existing
 bank transaction (`txn_guid:`), which has neither — those are found by
-the note this tool writes on the split when it unposts a document, and
-each such split is its own row, since one deposit can settle several
-documents.
+the note this tool writes on the split when it unposts an invoice or a
+bill, and each such split is its own row, since one deposit can settle
+several of them.
 
 The orphan is harmless on its own — the money still shows as moved
 through the bank — but if the user later re-pays the same invoice
@@ -93,7 +93,7 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
         return
 
     # Counted in transactions, because that is what a guid names and what the
-    # cleanup advice acts on. One deposit settling two documents that are both
+    # cleanup advice acts on. One deposit settling two invoices that are both
     # unposted is two orphaned payments on one transaction, and saying "2
     # transactions" there would invite deleting a guid twice.
     guids = {o.tx_guid for o in orphans}
@@ -121,7 +121,7 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
             side = 'AR/AP-side'
 
         # Named against the account the figure is *of*. For an orphaned
-        # settlement that is the receivable, not the bank: on a USD document
+        # settlement that is the receivable, not the bank: on a USD invoice
         # paid out of a CAD bank the row reads "USD 100.00" beside an account
         # that never held a dollar of it.
         click.echo(
@@ -224,7 +224,7 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
         # Nothing here is safe to delete, and there is no second category to
         # send the reader to. Ending on "for a guid not marked" when no guid
         # qualifies names an option they would go looking for and not find —
-        # on the commonest shape of all, one document overpaid by a retarget,
+        # on the commonest shape of all, one invoice overpaid by a retarget,
         # whose transaction holds the settlement and the parked residue and so
         # is shared by its own two splits.
         click.echo(
@@ -236,7 +236,7 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
     elif shared:
         # Deleting is by transaction, and a transaction here carries more than
         # one owner's money: acting on one row's guid would take the other
-        # portions with it, and re-importing only that document leaves the
+        # portions with it, and re-importing only that invoice leaves the
         # rest gone. Retargeting moves one split and touches nothing else.
         click.echo(
             '  a) NOT for the guids marked below — they carry money beyond')
@@ -261,7 +261,7 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
     if shared:
         click.echo('')
         # What the guid carries beyond the row, rather than beyond the
-        # listing: unpost the second document too and its portion becomes a
+        # listing: unpost the second invoice too and its portion becomes a
         # row of its own, so the listing is then about all of it while the
         # delete still takes both. What a whole-transaction delete costs is
         # measured against the row a reader is acting on.

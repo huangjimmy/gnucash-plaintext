@@ -18,7 +18,7 @@ from pathlib import Path
 import click
 from gnucash import Query
 
-from cli._document_files import file_names
+from cli._printed_file_names import file_names
 from cli._warnings import said_once
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
 from infrastructure.pdf.printing import (
@@ -27,13 +27,13 @@ from infrastructure.pdf.printing import (
     laid_out_by_webkit,
 )
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
-from services.document_pages import combine_pages
 from services.gnucash_importer import _swig_invoice_guid_str
 from services.invoice_renderer import (
     read_book_company_info,
     render_to_html,
     render_to_plaintext,
 )
+from services.printed_pages import combine_pages
 from use_cases.export_transactions import UnwritableFigureError
 
 
@@ -44,13 +44,13 @@ def _all_invoices(book):
     results = []
     for r in q.run():
         inv = wrap_invoice_or_bill(r)
-        # Customer invoices only (skip vendor bills). Asked of every document
+        # Customer invoices only (skip vendor bills). Asked of every record
         # in the book, vendor bills included: `GetCustomer()` answers None for
         # one rather than raising, on all ten supported builds — measured, and
         # the reason the `except Exception` that used to wrap this is gone. It
         # could not be reached to be right or wrong, and a bare `except` over
         # a call whose failure would mean the book cannot be read is one that
-        # would have quietly dropped documents instead.
+        # would have quietly dropped invoices instead.
         cust = inv.GetOwner().GetCustomer()
         if cust is not None:
             results.append(inv)
@@ -96,8 +96,8 @@ def _write_combined(invoices, book, fmt, company_info, output, session=None,
                     report=None, report_file=None):
     """Write all rendered invoices into a single file (or stdout).
 
-    `session` is the open session for `book`: GnuCash's own report resolves a
-    document from its guid against the *current* book, so the renderer has to
+    `session` is the open session for `book`: GnuCash's own report resolves
+    an invoice from its guid against the *current* book, so the renderer has to
     be told which session that is. `report` and `report_file` choose which
     GnuCash report draws the page.
     """
@@ -113,7 +113,7 @@ def _write_combined(invoices, book, fmt, company_info, output, session=None,
         ]
         # Through the byte stream, encoded here: `sys.stdout` takes its
         # encoding from the locale like every other text handle, so
-        # `-o -` and `-o file.txt` would write the same document differently —
+        # `-o -` and `-o file.txt` would write the same page differently —
         # and `-o -` is the form the README pipes back into `import`.
         sys.stdout.buffer.write('\n'.join(parts).encode('utf-8'))
         return
@@ -131,7 +131,7 @@ def _write_combined(invoices, book, fmt, company_info, output, session=None,
         output_path.write_text('\n'.join(parts), encoding='utf-8')
         return
 
-    warn = said_once()          # one sink for the run, not one per document
+    warn = said_once()          # one sink for the run, not one per page
     combined = combine_pages(
         render_to_html(inv, session, report=report, report_file=report_file,
                        warn=warn)
@@ -155,16 +155,16 @@ def _write_per_invoice(invoices, book, fmt, company_info, outdir, session=None,
     made only once there is something to put in it. A printed `payment:` block
     states its amount at the unit its account is kept to and refuses a figure
     the currency cannot hold, so rendering can stop partway through a run —
-    and writing inside the loop left the documents before the offender on disk
+    and writing inside the loop left the pages before the offender on disk
     and the ones after it missing, with nothing on the directory saying which.
     `export` renders in full for the same reason; the combined form below
     already did.
     """
     ext = {'plaintext': 'txt', 'html': 'html', **PRINTABLE}[fmt]
-    warn = said_once()          # one sink for the run, not one per document
+    warn = said_once()          # one sink for the run, not one per page
     # Named before anything is rendered, because a name can be a reason not to
     # start: an id is free text and is about to be joined to a path. See
-    # `cli/_document_files.py` for what a separator and a repeated id each did.
+    # `cli/_printed_file_names.py` for what a separator and a repeated id each did.
     rendered = [
         (name,
          render_to_plaintext(inv, book, company_info=company_info)
@@ -173,16 +173,16 @@ def _write_per_invoice(invoices, book, fmt, company_info, outdir, session=None,
                              report_file=report_file, warn=warn))
         for name, inv in file_names(invoices, ext, _swig_invoice_guid_str)
     ]
-    # Every document is laid out before any of them is written too, not only
-    # the HTML each is laid out from. Written as each one finished, a document
+    # Every page is laid out before any of them is written too, not only
+    # the HTML each is laid out from. Written as each one finished, a page
     # the engine cannot lay out left the directory partial in exactly the way
     # rendering first was meant to stop, from the other half of the same loop.
     if fmt in PRINTABLE:
-        # One display for the whole run rather than one per document: `-o
+        # One display for the whole run rather than one per page: `-o
         # out/` over fifty invoices started and tore down fifty X servers
         # otherwise. True of the server this arranges itself, which is every
         # supported build; a machine falling back to `xvfb-run` gets one per
-        # document, that wrapper owning a command rather than a block.
+        # page, that wrapper owning a command rather than a block.
         with a_display() as on:
             rendered = [(name, laid_out_by_webkit(html, fmt, on=on))
                         for name, html in rendered]
@@ -252,7 +252,7 @@ def print_invoice(gnucash_file, invoice_selectors, invoice_id,
     """
     # Refused rather than ignored. `--format plaintext` is this project's own
     # render of the canonical syntax and no GnuCash report is involved in it,
-    # so a run naming a report would quietly produce a document the reader did
+    # so a run naming a report would quietly produce a page the reader did
     # not ask for — and `-o -` is plaintext by definition, which is where it
     # would be least visible.
     if fmt == 'plaintext' and (report or report_file):
@@ -335,7 +335,7 @@ def print_invoice(gnucash_file, invoice_selectors, invoice_id,
                 )
 
     except UnwritableFigureError as exc:
-        # As a sentence, not a traceback. A printed document carries the guids
+        # As a sentence, not a traceback. A printed page carries the guids
         # that make it re-importable, so its payment amount is judged the way
         # the export's is — and a refusal the reader cannot read is a refusal
         # that tells them nothing about which figure to correct.

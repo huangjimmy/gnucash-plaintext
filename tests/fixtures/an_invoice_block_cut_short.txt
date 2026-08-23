@@ -4,16 +4,16 @@
 # block truncated after them still parses — a file cut short by a failed
 # write, a copy-paste that stopped early, a hand edit interrupted.
 #
-# The document is rebuilt from its block, which is the model: the file is the
+# The invoice is rebuilt from its block, which is the model: the file is the
 # source of truth for the lines. But nothing told "the writer restated one
 # line" apart from "the writer's file stops here", so a truncated block
 # unposted the invoice — destroying the posting and orphaning its payments —
 # and left it with no lines at all.
 #
-# What this fixture produces: a refusal naming the invoice, with the document
+# What this fixture produces: a refusal naming the invoice, with the invoice
 # left as it was.
 #
-# Verified by tests/integration/test_a_document_block_with_no_lines.py.
+# Verified by tests/integration/test_an_invoice_block_with_no_lines.py.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"

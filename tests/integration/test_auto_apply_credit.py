@@ -140,6 +140,67 @@ def test_invoice_auto_apply_credit_consumes_partial_credit(tmp_path):
     )
 
 
+def _posting_guid(gf, doc_id):
+    """The transaction an invoice is booked through — the thing a rebuild
+    destroys and replaces, and the only sign that one happened when every
+    figure comes out right either way."""
+    from gnucash import Query
+
+    from infrastructure.gnucash.utils import wrap_invoice_or_bill
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(str(gf))
+    repo.open()
+    try:
+        q = Query()
+        q.search_for('gncInvoice')
+        q.set_book(repo.book)
+        doc = next((wrap_invoice_or_bill(r) for r in q.run()
+                    if wrap_invoice_or_bill(r).GetID() == doc_id), None)
+        q.destroy()
+        assert doc is not None, f'{doc_id!r} not found'
+        posting = doc.GetPostedTxn()
+        assert posting is not None, f'{doc_id!r} not posted'
+        return posting.GetGUID().to_string()
+    finally:
+        repo.close()
+
+
+def test_invoice_auto_apply_credit_on_a_posted_invoice_keeps_its_posting(
+        tmp_path):
+    """Asking for the credit later is recording a payment, not an edit.
+
+    A posted invoice takes a `payment:` block and nothing else, and
+    settling from the owner's credit is a payment — so it is applied
+    against the posting the book already has. Read as an invoice edit it
+    fell to the rebuild: the posting destroyed, another minted, and every
+    balance below still right, which is why only the guid shows it.
+
+    The bill side of this is measured in
+    `test_taxed_bill_mixed_payment_unapply_and_relink.py`; the two
+    invoices are separate code.
+    """
+    runner = CliRunner()
+    gf = _setup(runner, tmp_path, kind='invoice')
+    asks = _fixture('q015_aac_inv002_partial_credit.txt')
+    silent = asks.replace('\tauto_apply_credit: true\n', '')
+    assert silent != asks, asks
+
+    posted = tmp_path / 'posted.txt'
+    posted.write_text(silent)
+    first = runner.invoke(cli, ['import', str(gf), str(posted),
+                                '--include-business-objects'])
+    assert first.exit_code == 0, first.output
+    posting_before = _posting_guid(gf, 'INV-002')
+
+    r = _import_fixture(runner, gf, 'q015_aac_inv002_partial_credit.txt',
+                        tmp_path)
+
+    assert r.exit_code == 0, r.output
+    assert _posting_guid(gf, 'INV-002') == posting_before
+    open_ = [lot for lot in _ar_lot_summary(gf) if not lot['closed']]
+    assert len(open_) == 1 and open_[0]['balance'] == -20.0, open_
+
+
 def test_invoice_auto_apply_credit_over_consumes_partial_pay(tmp_path):
     """INV-002 for $200 with credit of $50 available — credit < invoice.
     Auto-apply consumes the full $50, INV-002 lot still open at +$150."""

@@ -4,7 +4,7 @@ Covers linking bank transactions to vendor-bill payments on the **Accounts Payab
 
 This is the payable-side companion to [docs/invoice-payment-reconciliation.md](invoice-payment-reconciliation.md) (the receivable/invoice side). The two share the same plaintext shape (`payment:` blocks, `txn_guid:` / `txn_split_guid:`, the bank-feed-first workflow) — read that doc for the shared mechanics and the GUID / error / idempotency reference; this doc covers only what is different about bills. For the canonical end-to-end roundtrip across both sides, see [docs/comprehensive-roundtrip-example.md](comprehensive-roundtrip-example.md).
 
-This document describes:
+This page describes:
 
 - [Background: bills mirror invoices on the payable side](#background-bills-mirror-invoices-on-the-payable-side)
 - [Bill partial payments](#bill-partial-payments)
@@ -205,7 +205,7 @@ Credits are always owner-scoped. In a book with several suppliers each holding a
 
 ## Correcting a mis-applied bill payment: fresh + linked, then unapply / re-link
 
-A single bill is often settled by a *mix* of payment kinds, and the fix for a mistake is `unapply-payment` (peel a payment; the document stays posted, the bank tx is never deleted) rather than unpost. Worked on the taxed $1120 bill (net 1000 + GST 50 + PST 70), settled by two partial payments — a fresh $1000 (`ApplyPayment`, mints its own bank tx) plus a *linked* $120 (a `payment:` block whose `txn_guid:` retargets a pre-existing $120 bank tx):
+A single bill is often settled by a *mix* of payment kinds, and the fix for a mistake is `unapply-payment` (peel a payment; the bill stays posted, the bank tx is never deleted) rather than unpost. Worked on the taxed $1120 bill (net 1000 + GST 50 + PST 70), settled by two partial payments — a fresh $1000 (`ApplyPayment`, mints its own bank tx) plus a *linked* $120 (a `payment:` block whose `txn_guid:` retargets a pre-existing $120 bank tx):
 
 ```
 bill "BILL-HERO-1120"      posted lot -1120

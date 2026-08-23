@@ -66,7 +66,7 @@ class TestPrintingIt:
 
 class TestTheChequeNumber:
     """`num:` is on the payment the export writes; the printed block dropped
-    it, and a printed document read into a fresh book makes the payment from
+    it, and a printed page read into a fresh book makes the payment from
     that block."""
 
     LEDGER = 'tests/fixtures/payment_roundtrip_accounts.txt'

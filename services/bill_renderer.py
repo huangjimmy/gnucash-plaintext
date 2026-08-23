@@ -5,13 +5,13 @@ Service for rendering GnuCash vendor bills to HTML/PDF/plaintext.
 Q-019: parallel to services/invoice_renderer.py. A bill is a vendor's
 invoice — one `gncInvoice` type with a vendor owner — so the HTML page
 is GnuCash's own Printable Invoice, drawn exactly as an invoice's is,
-with the vendor as the document's owner. Nothing here decides which
+with the vendor as the bill's owner. Nothing here decides which
 party goes on which side of it.
 
 The plaintext render is this project's, and computes what GnuCash
 would: an unposted bill has no tax splits yet, so tax comes from each
 entry's bill-side tax_table through compute_bill_entry_informational,
-and the output says the figures are provisional — a plaintext document
+and the output says the figures are provisional — a plaintext page
 is re-imported, and its numbers are checked against a recomputation.
 """
 from fractions import Fraction
@@ -37,17 +37,18 @@ from services.invoice_renderer import (
     _render_seller_header,
     _render_taxtable_block,
     credit_note_lines,
-    document_totals,
-    entries_fitted_to_the_document,
+    entries_fitted_to_the_page,
+    record_totals,
     tax_breakdown,
 )
 from services.plaintext_blocks import (
     bill_entry_flags,
-    document_text_lines,
     entry_notes,
     owner_block_lines,
     payment_block_lines,
+    payment_memo_of,
     posted_block_lines,
+    record_text_lines,
 )
 
 
@@ -55,7 +56,7 @@ def compute_bill_entry_informational(lib, entry_ptr, is_credit_note=0):
     """Bill-side analogue of `compute_entry_informational`, and asked of the
     same engine functions with `is_cust_doc=0`.
 
-    `is_credit_note` is the document's credit-note flag, and it does here what it does
+    `is_credit_note` is the bill's credit-note flag, and it does here what it does
     on the invoice side: a vendor credit note stores its lines negated, so
     the flag is what turns them back into the figures its own totals state.
 
@@ -68,7 +69,7 @@ def compute_bill_entry_informational(lib, entry_ptr, is_credit_note=0):
     was just taken off.
     """
     value = lib.gncEntryGetDocValue(entry_ptr, 1, 0, is_credit_note)
-    # Unrounded, as the invoice side reads it: the document's tax is rounded
+    # Unrounded, as the invoice side reads it: the bill's tax is rounded
     # once, and the lines are fitted to it where the page is written.
     tax = lib.gncEntryGetDocTaxValue(entry_ptr, 0, 0, is_credit_note)
     net = numeric_to_fraction(value) if value.denom else Fraction(0)
@@ -95,12 +96,12 @@ def render_to_html(bill, session, report=None, report_file=None,
     from services.gnucash_report import (
         _extra_text,
         carry_slot_values_onto_the_fields,
-        render_document_html,
+        render_page_html,
     )
 
     carry_slot_values_onto_the_fields(bill)
     company_extra, owner_extra = _extra_text(bill)
-    return render_document_html(
+    return render_page_html(
         session, _swig_invoice_guid_str(bill),
         company_extra=company_extra, owner_extra=owner_extra,
         report=report, report_file=report_file, warn=warn)
@@ -147,9 +148,9 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         if tt_ptr and int(tt_ptr) not in seen_tt:
             seen_tt[int(tt_ptr)] = tt_ptr
 
-    subtotal, tax_total, total = document_totals(lib, bill)
-    entries_data = entries_fitted_to_the_document(entries_data, tax_total,
-                                                  unit, subtotal)
+    subtotal, tax_total, total = record_totals(lib, bill)
+    entries_data = entries_fitted_to_the_page(entries_data, tax_total,
+                                              unit, subtotal)
 
     blocks = []
     for tt_ptr in seen_tt.values():
@@ -164,7 +165,7 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         f'\tdate_opened: {date_opened}',
     ]
     bill_lines += credit_note_lines(bill)
-    bill_lines += document_text_lines(bill)
+    bill_lines += record_text_lines(bill)
 
     from infrastructure.gnucash.utils import (
         get_account_full_name,
@@ -183,6 +184,7 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         date_str = raw_entry.GetDate().strftime('%Y-%m-%d')
 
         bill_lines.append('\tentry:')
+        # And no `guid:`, for the reason the invoice side gives.
         bill_lines.append(f'\t\tdate: {date_str}')
         bill_lines.append(f'\t\tdescription: {encode_value_as_string(desc)}')
         # One `GncEntry` action field, shown in the bill window's Action
@@ -204,7 +206,7 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
                 bill_lines.append(
                     f'\t\ttax_table: {encode_value_as_string(tt_name)}')
 
-        # Written from the same place `export` writes them, this document
+        # Written from the same place `export` writes them, this page
         # being re-importable: a field dropped here is a field the re-import
         # takes out of the book.
         bill_lines.extend(entry_notes(lib, ent_ptr))
@@ -237,7 +239,6 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
                 if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
                     continue
                 bank_name = ''
-                pay_memo = ''
                 for i in range(txn.CountSplits()):
                     sp = txn.GetSplit(i)
                     atype = gc.xaccAccountGetType(sp.GetAccount().instance)
@@ -245,8 +246,10 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
                         gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE,
                     ):
                         bank_name = get_account_full_name(sp.GetAccount())
-                        pay_memo = sp.GetMemo() or ''
                         break
+                # As the invoice renderer reads it: off the split the import
+                # writes it to.
+                pay_memo = payment_memo_of(txn, s)
                 # As the invoice renderer does: the amount is the block
                 # writer's to work out, from `s` — this bill's own allocation,
                 # not the bank-side total.
@@ -258,8 +261,8 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         if not had_payment:
             bill_lines.append('\tpayment: none')
 
-    # The document's own totals, as the invoice side takes them: GnuCash
-    # rounds a document's tax once, and three 100.00 lines at 15 per cent
+    # The bill's own totals, as the invoice side takes them: GnuCash
+    # rounds the tax once, and three 100.00 lines at 15 per cent
     # tax-included post 300.01 where the rounded per-line tax adds to 300.00.
     # The lines above were fitted to these, so both columns add up.
     bill_lines.append(f'\tbill_subtotal: {_fmt_money(subtotal, unit)}')
@@ -281,7 +284,7 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
 
     co_header = _render_seller_header(company_info)
     if co_header:
-        # File-scoped — "this whole rendered document was sent to us".
+        # File-scoped — "this whole rendered page was sent to us".
         # Reuse the invoice header but swap the "Issued by" prefix for
         # bill-side phrasing.
         blocks.insert(

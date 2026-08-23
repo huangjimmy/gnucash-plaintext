@@ -6,8 +6,8 @@ severity: medium
 status: closed
 ---
 
-> **How the numbers reach the page has since changed ([Q-036](Q-036-printed-documents-are-not-gnucashs-page.md)).**
-> The `company` directive, the `Company GST Number` / `Company PST Number` book options and the round-trip described below are unchanged. What is gone is the rendering half: there is no `<gst>`/`<pst>` XML and no seller-block XSLT, because a printed document is now GnuCash's own Printable Invoice and GnuCash has no field for either number. They are stated as `GST: …` and one `PST: …` per number, in a row added under the company's block, and a build that laid its page out with nowhere to put them refuses the document rather than printing an invoice without them.
+> **How the numbers reach the page has since changed ([Q-036](Q-036-printed-pages-were-not-gnucashs-own.md)).**
+> The `company` directive, the `Company GST Number` / `Company PST Number` book options and the round-trip described below are unchanged. What is gone is the rendering half: there is no `<gst>`/`<pst>` XML and no seller-block XSLT, because a printed page is now GnuCash's own Printable Invoice and GnuCash has no field for either number. They are stated as `GST: …` and one `PST: …` per number, in a row added under the company's block, and a build that laid its page out with nowhere to put them refuses the page rather than printing an invoice without them.
 
 ## Problem
 

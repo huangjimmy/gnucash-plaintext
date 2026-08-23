@@ -1,4 +1,9 @@
-# A customer, a vendor and an invoice, all in CAD.
+# A customer, a vendor, an invoice and a bill, all in CAD.
+#
+# All four kinds, because the refusal below says a different sentence for an
+# owner than for a record — an owner's currency is what their invoices and
+# bills are raised in, a record's is what its lines are denominated in — and
+# a fixture holding three of the four leaves one of those sentences unread.
 #
 # `currency:` is required on each of these blocks and written back by every
 # export, so it reads as a field like any other — and on an object the book
@@ -8,12 +13,15 @@
 # disagreeing for good, with the ledger losing and nothing said.
 #
 # Applying it is not a small edit either — an owner's currency is what their
-# documents are raised in, and a posted invoice's is what its AR splits are
-# denominated in — so it is refused rather than absorbed.
+# invoices and bills are raised in, and a posted invoice's is what its AR
+# splits are denominated in — so it is refused rather than absorbed.
 #
-# owners_and_an_invoice_in_usd.txt is this file with the currency changed.
+# owners_with_the_customer_in_usd.txt, owners_with_the_vendor_in_usd.txt,
+# owners_with_the_invoice_in_usd.txt and owners_with_the_bill_in_usd.txt are
+# this file with one object's currency changed, one file each because the
+# import stops at the first it refuses.
 #
-# What this fixture produces: two owners and one posted invoice in CAD.
+# What this fixture produces: two owners, one invoice and one bill, in CAD.
 #
 # Verified by tests/integration/test_changing_an_objects_currency_is_refused.py.
 2026-01-01 commodity CAD
@@ -42,6 +50,22 @@
 	type: Accounts Receivable
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
 
 customer "C-CCY"
 	name: "Acme Supplies"
@@ -59,6 +83,19 @@ invoice "INV-CCY"
 		date: 2026-01-01
 		description: "A line"
 		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+
+bill "BILL-CCY"
+	vendor_id: "V-CCY"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Expenses:Supplies"
 		quantity: 1
 		price: 100
 		taxable: false

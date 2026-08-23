@@ -13,7 +13,7 @@ GnuCash's business module) and faithfully round-tripped by the exporter, so
 two transactions sharing date + accounts but differing on any of these are
 genuinely distinct:
 
-- **doc_link** — explicitly authored link to a receipt or external document
+- **doc_link** — explicitly authored link to a receipt or an external file
   (e.g. two grocery trips on the same day with separate receipts).
 - **tx_num** — `Transaction.GetNum()`, free-text. Users may store check
   numbers, statement references, payee tags, workflow codes — GnuCash itself

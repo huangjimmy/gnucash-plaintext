@@ -5,7 +5,7 @@
 # What that leaves is the one shape where an unpost's mark is the only thing
 # standing between a settlement and being read as an owner's credit. Unposted,
 # the transaction carries the bank side and one receivable split in a lot that
-# now names no document — and with no second candidate beside it, the ambiguity
+# now names no invoice — and with no second candidate beside it, the ambiguity
 # guard has nothing to say. The next import either knows an unpost put it there
 # or takes it for credit and strips the cost basis off currency the bank paid.
 #

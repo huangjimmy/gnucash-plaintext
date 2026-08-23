@@ -1,0 +1,54 @@
+# One invoice and one bill, for the owners of
+# an_owner_of_each_kind_with_an_address.txt.
+#
+# Enough of an invoice for `print-invoice` and `print-bill` to render, which
+# is what the address round trip is checked against: a printed invoice is
+# meant to be readable back, and reading one back emptied the owner's address
+# because the block it carried named no address keys and an absent key means
+# the empty string.
+#
+# What this fixture produces: INV-ADDR for C-ADDR and BILL-ADDR for V-ADDR.
+#
+# Verified by
+# tests/integration/test_a_printed_page_does_not_blank_an_address.py.
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+invoice "INV-ADDR"
+	customer_id: "C-ADDR"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+
+bill "BILL-ADDR"
+	vendor_id: "V-ADDR"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A line"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 50
+		taxable: false

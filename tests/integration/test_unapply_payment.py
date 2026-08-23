@@ -2,7 +2,7 @@
 
 The payment's AR/AP split is detached from the record's lot (so the invoice
 returns to Outstanding, or partial if other payments remain) and re-homed to
-`--to <account>`; the document stays posted and the bank tx is never deleted.
+`--to <account>`; the invoice stays posted and the bank tx is never deleted.
 `--to` is required and accepts any account type.
 """
 
@@ -123,6 +123,11 @@ def test_unapply_single_payment_reopens_invoice_and_rehomes(tmp_path):
                             '--to', 'Liabilities'])
     assert r.exit_code == 0, r.output
     assert 'unapplied 1 payment' in r.output, r.output
+    # The closing line, which nothing read: it says what the lot holds now and
+    # that unapplying is not unposting. Only the run says either — the book
+    # after it looks the same as a book whose payment was never applied.
+    assert 'invoice lot balance now' in r.output, r.output
+    assert '(Outstanding); it is still posted.' in r.output, r.output
 
     # AR back to full outstanding; the $40 re-homed to Liabilities; bank intact.
     assert _bal(gf, 'Assets.Accounts Receivable') == 100.0

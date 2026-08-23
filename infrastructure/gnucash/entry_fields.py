@@ -34,7 +34,7 @@ DISCOUNT_HOWS = {'pretax': 1, 'sametime': 2, 'posttax': 3}
 #: `payment_type:` on a bill entry — how a billable line was paid, which
 #: decides whether re-billing it to a customer shows as cash or on a card.
 #: Named `payment_type:` rather than `payment:` because a bill block already
-#: has `payment:` blocks of its own, and one word under one document meaning
+#: has `payment:` blocks of its own, and one word under one block meaning
 #: both "a payment made against this bill" and "how this line was paid" is
 #: two things a reader cannot tell apart at a glance.
 PAYMENT_TYPES = {'cash': 1, 'card': 2}
@@ -43,7 +43,7 @@ PAYMENT_TYPES = {'cash': 1, 'card': 2}
 #: What an entry holds when a ledger names none of these keys, measured on
 #: 5.10 by importing one that does not: `percent`, `pretax`, `cash`, beside a
 #: discount of 0, an empty note and not billable. An entry block describes the
-#: whole line — a re-imported document has its entries destroyed and rebuilt —
+#: whole line — a re-imported invoice has its entries destroyed and rebuilt —
 #: so these are what an unnamed key means, on the import and in the comparison
 #: that decides `unchanged` alike.
 DEFAULT_DISCOUNT_TYPE = 'percent'
@@ -91,7 +91,7 @@ def billable_to(lib, entry_ptr):
     raising is what lets each caller decide:
 
     - a writer cannot state it, so it refuses — and refuses where it knows
-      which document and which line it is writing, which is what a reader
+      which invoice and which line it is writing, which is what a reader
       needs to find it;
     - the comparison that decides `unchanged` wants the plain answer. A file
       states a customer or nobody, so an entry billed to a job matches

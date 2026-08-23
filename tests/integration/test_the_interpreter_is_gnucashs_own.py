@@ -1,6 +1,6 @@
 """The Scheme interpreter a render runs in is the one GnuCash is linked to.
 
-GnuCash's report is Scheme, and the modules it loads to draw a document
+GnuCash's report is Scheme, and the modules it loads to draw a page
 resolve their `scm_*` symbols against whatever libguile is globally visible. If
 that is a *different* libguile from the one GnuCash is built on, they find a
 second, unrelated Scheme heap — a crash, or a page that never arrives, with

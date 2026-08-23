@@ -6,7 +6,7 @@ them names both, so a reader picks either.
 
 The duplicate-payment guard compares the block's figure against the bank
 split's, and read only `settled_amount:`. A block spelling it as a rate carries
-`amount:` in the *document's* currency, so 100 was compared against a bank
+`amount:` in the *invoice's* currency, so 100 was compared against a bank
 split of 780.00 HKD, matched nothing, and the guard declined to fire — the
 mistyped guid then minted a second 780.00 HKD transaction for money that had
 moved once, and the run exited 0.
@@ -59,7 +59,7 @@ def book_holding_the_hkd_settlement(tmp_path):
     return book
 
 
-class TestASecondDocumentNamingThatMovementWithAMistypedGuid:
+class TestASecondInvoiceNamingThatMovementWithAMistypedGuid:
     """A hand-written block against a book that already holds the money."""
 
     def _import_by_rate(self, book, tmp_path):

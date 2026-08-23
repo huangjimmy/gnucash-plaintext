@@ -6,8 +6,8 @@ severity: medium
 status: closed
 ---
 
-> **Half of what this asked for no longer exists ([Q-036](Q-036-printed-documents-are-not-gnucashs-page.md)).**
-> `invoice_to_xml` is deleted with the XSLT page it fed: a printed document is GnuCash's own Printable Invoice, and there is no XML in between to test. What remains of `invoice_renderer.py` — the plaintext render, the tax arithmetic, `read_book_company_info` — is still covered as described here, and the page itself is covered by the tests Q-036 lists, which read what it says rather than how it was built.
+> **Half of what this asked for no longer exists ([Q-036](Q-036-printed-pages-were-not-gnucashs-own.md)).**
+> `invoice_to_xml` is deleted with the XSLT page it fed: a printed page is GnuCash's own Printable Invoice, and there is no XML in between to test. What remains of `invoice_renderer.py` — the plaintext render, the tax arithmetic, `read_book_company_info` — is still covered as described here, and the page itself is covered by the tests Q-036 lists, which read what it says rather than how it was built.
 
 ## Problem
 

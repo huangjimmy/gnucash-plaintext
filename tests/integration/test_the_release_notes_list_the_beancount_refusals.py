@@ -12,16 +12,15 @@ without the behaviour and a behaviour without the note both fail here, which is
 what keeps the list from drifting as the next refusal is added.
 """
 
-import re
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.integration.release_notes_sections import notes_for
 
 FIXTURES = Path('tests/fixtures')
-NOTES = Path('RELEASE_NOTES.md')
 
 # (fixture, what the run says, the sentence in RELEASE_NOTES that names it)
 REFUSALS = [
@@ -82,17 +81,16 @@ REFUSALS = [
 ]
 
 
-def _unreleased() -> str:
-    """The section a reader upgrading to the next version reads.
+#: The release these refusals were written up in. Named rather than taken
+#: as "the newest section", which would need every sentence copied forward
+#: into each release after it — and rather than the whole file, where a
+#: note that outlived its behaviour goes on satisfying the check for ever.
+INTRODUCED_IN = 'v0.4.0'
 
-    Bounded at the next `## ` heading so a sentence surviving in an older
-    release's notes does not stand in for one removed from this one.
-    """
-    text = NOTES.read_text()
-    start = text.index('## Unreleased')
-    after = text[start + len('## Unreleased'):]
-    end = re.search(r'^## ', after, re.MULTILINE)
-    return after[:end.start()] if end else after
+
+def _unreleased() -> str:
+    """The notes a reader meeting one of these refusals is sent to."""
+    return notes_for(INTRODUCED_IN)
 
 
 @pytest.mark.parametrize('fixture,said,noted', REFUSALS,

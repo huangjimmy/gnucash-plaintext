@@ -3,8 +3,8 @@
 # copied from a book edited elsewhere.
 #
 # Believed, it says a split is not the owner's credit when it is, and it names
-# a document, which is how a rebuild picks its own orphan out of a transaction
-# carrying several. A file could steer which of an owner's credits a document
+# an invoice, which is how a rebuild picks its own orphan out of a transaction
+# carrying several. A file could steer which of an owner's credits an invoice
 # spends, past the guard that exists to stop split order deciding that.
 # The `lot_owner:` sits on the split *before* the bad one on purpose. Acting on
 # it opens a lot — `gnc_lot_new` + `xaccAccountInsertLot` — which the

@@ -1,9 +1,9 @@
-"""Customising a printed document means writing a GnuCash report.
+"""Customising a printed page means writing a GnuCash report.
 
 There is no template of this project's to override, because there is no layout
 of this project's — the page is a GnuCash report, and GnuCash's reports are
 Scheme files that call `gnc:define-report`. So the way to change what a
-document looks like is to write one of those, which is the same thing every
+page looks like is to write one of those, which is the same thing every
 report GnuCash ships is, and name it:
 
     print-invoice book.gnucash INV-001 -o inv.pdf \\
@@ -101,13 +101,13 @@ class TestAReportOfYourOwn:
 
         assert 'THIS PAGE WAS DRAWN BY A REPORT OF MY OWN' in page, page[:2000]
 
-    def test_it_is_handed_the_document_that_was_asked_for(self, book,
+    def test_it_is_handed_the_page_that_was_asked_for(self, book,
                                                           tmp_path):
         """Not just any page: the one `print-invoice` was given."""
         page = _printed(book, tmp_path, '--report-file', OWN_REPORT,
                         '--report', 'A Report Of Your Own')
 
-        assert 'document: INV-Q19-CASH-TAX-200' in page, page[:2000]
+        assert 'invoice: INV-Q19-CASH-TAX-200' in page, page[:2000]
 
     @pytest.mark.parametrize('guid', [
         'B0DCB0DCB0DCB0DCB0DCB0DCB0DCB0DC',   # as the fixture registers it
@@ -166,7 +166,7 @@ class TestAReportOfYourOwn:
         The three display switches are the opinion, and the switches go on
         GnuCash's own invoice reports only. What the *book* holds is a
         separate question — see
-        `test_setting_the_notes_and_css_a_document_prints_with.py`, where a
+        `test_setting_the_notes_and_css_a_page_prints_with.py`, where a
         footer set with `set-invoice-style` reaches a report from a `.scm`
         file as well, the sentence being the reader's rather than the print
         command's.
@@ -214,7 +214,7 @@ class TestABookWithRegistrationNumbersAndFreeText:
     half of the rule.
     """
 
-    EXTRA = str(FIXTURES / 'a_document_with_extra_text.txt')
+    EXTRA = str(FIXTURES / 'an_invoice_with_extra_text.txt')
 
     @pytest.fixture
     def book_with_extras(self, tmp_path):
@@ -294,7 +294,7 @@ class TestABookWithRegistrationNumbersAndFreeText:
         # page. The row goes in at the first `</tbody>` *after* the anchor, so
         # a report whose `company-table` div did not itself close a tbody
         # would put the GST number in whatever table does — still passing a
-        # substring check, on a document where it sits under the customer's
+        # substring check, on a page where it sits under the customer's
         # address or among the line items.
         assert _row_sits_in_its_own_block(page, 'company-table'), page[:3000]
         assert _row_sits_in_its_own_block(page, 'client-table'), page[:3000]
@@ -364,7 +364,7 @@ class TestABookWithRegistrationNumbersAndFreeText:
         # page that has one and cannot hold the row would otherwise drop a
         # GST number from someone with every reason to think it is printed.
         assert 'with no table in it' in result.output, result.output
-        assert 'no document printed in this run states it' in result.output, \
+        assert 'no page printed in this run states it' in result.output, \
             result.output
 
     def test_a_report_with_no_such_blocks_is_left_alone(self, book_with_extras,
@@ -384,8 +384,8 @@ class TestABookWithRegistrationNumbersAndFreeText:
         """Printing anyway is right; printing silently is not.
 
         Tax Invoice is a report this tool names, loads the module for and
-        documents, so a reader can reach it with one flag — and on a book
-        carrying a GST number it then prints a document stating none, exit 0.
+        describes, so a reader can reach it with one flag — and on a book
+        carrying a GST number it then prints a page stating none, exit 0.
         README warns, and nobody re-reads README while typing a flag.
         """
         out = tmp_path / 'tax.html'
@@ -396,7 +396,7 @@ class TestABookWithRegistrationNumbersAndFreeText:
 
         assert result.exit_code == 0, result.output
         assert 'GST: 111222333RT0001' in result.output, result.output
-        assert 'no document printed in this run states it' in result.output, \
+        assert 'no page printed in this run states it' in result.output, \
             result.output
 
     def test_and_says_nothing_of_the_kind_for_a_report_of_your_own(
@@ -414,12 +414,12 @@ class TestABookWithRegistrationNumbersAndFreeText:
         assert 'states it' not in result.output, result.output
 
     def test_a_whole_book_says_it_once(self, book_with_extras, tmp_path):
-        """One process, many documents, one page layout — so each sentence
-        once, not once per document.
+        """One process, many pages, one page layout — so each sentence
+        once, not once per page.
 
         The fixture holds two invoices, and what a report's page can hold is a
         property of the report: both drop the same two blocks. Said per
-        document that is four lines for a two-document book, and a hundred for
+        page that is four lines for a two-invoice book, and a hundred for
         a book of fifty.
         """
         outdir = tmp_path / 'out'
@@ -435,21 +435,21 @@ class TestABookWithRegistrationNumbersAndFreeText:
         assert whole.exit_code == 0, whole.output
         assert len(list(outdir.glob('*.html'))) == 2, list(outdir.iterdir())
 
-        said = 'no document printed in this run states it'
+        said = 'no page printed in this run states it'
         assert whole.output.count(said) == one.output.count(said), whole.output
-        # And it claims the run rather than a document, because that is what
+        # And it claims the run rather than one page, because that is what
         # it is deduped over: the two invoices go to two customers, so the
         # owner's block dropped different text on each and only the first is
         # named.
-        assert 'the printed document does not' not in whole.output, \
+        assert 'the printed page does not' not in whole.output, \
             whole.output
 
 
 class TestChoosingBetweenTheReportsGnuCashShips:
-    """The four names README offers, each drawing the document asked for.
+    """The four names README offers, each drawing the page asked for.
 
     Asserted on that rather than on their markup: what belongs to this project
-    is that the choice reaches GnuCash and comes back with the right document,
+    is that the choice reaches GnuCash and comes back with the right page,
     not what GnuCash then draws.
 
     `Tax Invoice` is here because it is the one that had to be *made* true.
@@ -467,7 +467,7 @@ class TestChoosingBetweenTheReportsGnuCashShips:
                    'Tax Invoice', 'Australian Tax Invoice']
 
     @pytest.mark.parametrize('name', ALL_OF_THEM)
-    def test_it_draws_the_document(self, book, tmp_path, name):
+    def test_it_draws_the_page(self, book, tmp_path, name):
         page = _printed(book, tmp_path, '--report', name)
 
         assert 'INV-Q19-CASH-TAX-200' in page, page[:2000]
@@ -553,7 +553,7 @@ class TestChoosingBetweenTheReportsGnuCashShips:
 
         Tax Invoice is not here: it has no such option and states tax its own
         way, a Tax Rate and a Tax Amount column per line — measured, and the
-        reason `--report` documents it as printing differently.
+        reason `--report` lists it as printing differently.
         """
         page = _printed(book, tmp_path, '--report', name)
 
@@ -603,7 +603,7 @@ class TestAFileWithNothingToNameIt:
     Loading a `.scm` registers a report; it does not choose one. So this ran
     the reader's file, drew GnuCash's stock page from it, exited 0 and said
     `Wrote 1 invoice(s)` — the one outcome worse than an error, since the
-    document looks right and is not the one they wrote a report for.
+    page looks right and is not the one they wrote a report for.
     """
 
     def test_a_report_file_alone_is_refused(self, book, tmp_path):
@@ -644,7 +644,7 @@ class TestWhenTwoReportsAnswerToOneName:
     """A name is only an answer while it names one report.
 
     `gnc:report-templates-for-each` walks a hash, so keeping the first match
-    would hand back whichever the hash yielded — a different document each
+    would hand back whichever the hash yielded — a different page each
     way, with nothing on the page saying which. The situation is what
     replacing one of GnuCash's pages looks like: keep the name, write the
     layout. See the fixture for why the two colliding reports are both its
@@ -759,7 +759,7 @@ class TestWhenTwoReportsAnswerToOneName:
                                                                tmp_path):
         """Neither escape ends it.
 
-        A name gets today's document printed and leaves the guid ambiguous
+        A name gets today's page printed and leaves the guid ambiguous
         for every run after; not loading the file throws the report away. The
         reader copied `invoice.scm` — README tells them to — and changed the
         guid's case instead of minting one, so what ends it is minting one,
@@ -818,7 +818,7 @@ class TestWhenTwoReportsAnswerToOneName:
 
         Kept to the first the hash yielded, the command would draw either
         page: the registration numbers spliced in or not, the heading check
-        enforced or not, a different document each way with nothing saying
+        enforced or not, a different page each way with nothing saying
         which. The guid branch collects every match and refuses, as the name
         branch does.
         """
@@ -891,10 +891,10 @@ class TestAReportThatForgotItsName:
         assert 'INV-Q19-CASH-TAX-200' in page, page[:2000]
 
 
-class TestAReportThatTakesNoDocument:
+class TestAReportThatTakesNoInvoice:
     """A registered report with no `General / Invoice Number` option.
 
-    That option is how a document reaches a report, so one without it cannot
+    That option is how a page reaches a report, so one without it cannot
     be told which invoice to draw — and because it is the single write that
     is not optional, GnuCash's own error came out as it stood: `(misc-error
     (#f ~A (Attempt to write non-existent option …)))` on 4.x and 5.x, a bare
@@ -908,18 +908,18 @@ class TestAReportThatTakesNoDocument:
     can be anything.
     """
 
-    NO_DOCUMENT = str(FIXTURES / 'a_report_that_takes_no_document.scm')
-    NAME = 'A Report That Takes No Document'
+    NO_INVOICE = str(FIXTURES / 'a_report_that_takes_no_invoice.scm')
+    NAME = 'A Report That Takes No Invoice'
 
     def test_it_says_so_rather_than_failing_in_scheme(self, book, tmp_path):
         out = tmp_path / 'inv.html'
         result = CliRunner().invoke(cli, [
             'print-invoice', str(book), 'INV-Q19-CASH-TAX-200',
             '--format', 'html', '--output', str(out),
-            '--report-file', self.NO_DOCUMENT, '--report', self.NAME])
+            '--report-file', self.NO_INVOICE, '--report', self.NAME])
 
         assert result.exit_code != 0
-        assert 'does not print a document' in result.output, result.output
+        assert 'prints no invoice or bill' in result.output, result.output
         assert self.NAME in result.output, result.output
         assert 'wrong-type-arg' not in result.output, result.output
         assert not out.exists()
@@ -929,7 +929,7 @@ class TestAFileThatWillNotLoad:
     """A `.scm` with a syntax error names the file, and names the load.
 
     Scheme is parentheses and a first attempt is often one short. The failure
-    used to read "GnuCash could not render the document: (misc-error …)",
+    used to read "GnuCash could not render the page: (misc-error …)",
     which points at the invoice the reader asked for rather than at the file
     they wrote — and it is the likeliest of the mistakes in this area.
     """
@@ -978,7 +978,7 @@ class TestAReportReusingAShippedGuid:
                                                         book_with_extras,
                                                         tmp_path):
         """Which is what matters: the registration numbers still go on it, and
-        the "did it draw a document" check still applies to it."""
+        the "did it draw a page" check still applies to it."""
         out = tmp_path / 'inv.html'
         result = CliRunner().invoke(cli, [
             'print-invoice', str(book_with_extras), 'INV-EXTRA-001',
@@ -1050,7 +1050,7 @@ class TestAReportReusingAShippedGuid:
         path = tmp_path / 'extras.gnucash'
         built = CliRunner().invoke(cli, [
             'import', '--new', str(path),
-            str(FIXTURES / 'a_document_with_extra_text.txt'),
+            str(FIXTURES / 'an_invoice_with_extra_text.txt'),
             '--include-business-objects'])
         assert built.exit_code == 0, built.output
         return path
@@ -1103,7 +1103,7 @@ class TestANameIsDataAndNotCode:
 class TestWhereAReportCannotApply:
     """`--format plaintext` draws no page, so naming a report is refused.
 
-    Ignoring it would be worse than refusing: the reader gets a document, it
+    Ignoring it would be worse than refusing: the reader gets a page, it
     just is not the one they asked for — and `-o -` is plaintext by
     definition, which is where the silence would be hardest to notice.
     """
@@ -1165,7 +1165,7 @@ class TestTheBillCommandTakesThemToo:
         assert result.exit_code == 0, result.output
         page = out.read_text(encoding='utf-8')
         assert 'THIS PAGE WAS DRAWN BY A REPORT OF MY OWN' in page, page[:2000]
-        assert 'document: BILL-PRINT-001' in page, page[:2000]
+        assert 'invoice: BILL-PRINT-001' in page, page[:2000]
 
     def test_a_report_of_your_own_lays_out_a_pdf_too(self, bills, tmp_path):
         """The format the flag defaults to, and the one a reader sends.
@@ -1184,8 +1184,8 @@ class TestTheBillCommandTakesThemToo:
         assert result.exit_code == 0, result.output
         assert out.read_bytes().startswith(b'%PDF-'), out.read_bytes()[:40]
 
-    def test_every_document_in_a_run_is_drawn_by_it(self, bills, tmp_path):
-        """The `.scm` is loaded once per process, not once per document — a
+    def test_every_page_in_a_run_is_drawn_by_it(self, bills, tmp_path):
+        """The `.scm` is loaded once per process, not once per page — a
         whole-book print re-registering the same report guid for each one is
         the question that raises, and one file is the answer to it."""
         outdir = tmp_path / 'out'
@@ -1197,4 +1197,4 @@ class TestTheBillCommandTakesThemToo:
         assert result.exit_code == 0, result.output
         for bill_id in ('BILL-PRINT-001', 'BILL-PRINT-002'):
             page = (outdir / f'{bill_id}.html').read_text(encoding='utf-8')
-            assert f'document: {bill_id}' in page, page[:2000]
+            assert f'invoice: {bill_id}' in page, page[:2000]

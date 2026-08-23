@@ -68,7 +68,7 @@ class TestTwoFailuresThatExplainNothingAboutEachOther:
 
     The deferred pass carries what the run already reported, so the reader is
     told the cause and not only the symptom. Carried unfiltered, that attached
-    *every* per-object error to the document's failure — so an invoice failing
+    *every* per-object error to the invoice's failure — so an invoice failing
     over a missing tax table was told "That account could not be created: the
     amount on split 'Expenses:Fuel' states 18.191 CAD", welding two unrelated
     failures into one sentence and blaming an account neither of them names.
@@ -83,7 +83,7 @@ class TestTwoFailuresThatExplainNothingAboutEachOther:
     def test_both_failures_are_reported(self, result):
         """Both, which is what the name says and what only one of them did.
 
-        The document's failure raises past the summary, so everything the
+        The invoice's failure raises past the summary, so everything the
         commodity, account and transaction passes had already collected went
         with it — and the reader fixes the tax table, runs again, and only
         then meets the split. The export half of this release refuses a whole

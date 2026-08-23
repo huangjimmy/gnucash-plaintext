@@ -2,8 +2,8 @@
 #
 # Printed and read into another book, both blocks carry guids that name
 # nothing there, so both payments are recorded from their blocks. Editing the
-# document and reading it again rebuilds it, and the rebuild's unpost marks
-# *both* settlements with the same document guid — so finding "the settlement
+# invoice and reading it again rebuilds it, and the rebuild's unpost marks
+# *both* settlements with the same invoice guid — so finding "the settlement
 # this record orphaned" has two answers, and each block has to be paired with
 # its own.
 2026-01-01 commodity CAD

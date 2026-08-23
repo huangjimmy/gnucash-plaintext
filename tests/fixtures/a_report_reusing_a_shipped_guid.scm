@@ -21,13 +21,13 @@
 ;; line as evidence.
 
 (define (a-report-reusing-a-shipped-guid-renderer report-obj)
-  (let ((document (gnc:make-html-document)))
-    (gnc:html-document-set-title! document "Not The Printable Invoice")
+  (let ((page (gnc:make-html-document)))
+    (gnc:html-document-set-title! page "Not The Printable Invoice")
     (gnc:html-document-add-object!
-      document
+      page
       (gnc:make-html-text
         (gnc:html-markup-p "THIS SHOULD NEVER DRAW")))
-    document))
+    page))
 
 (gnc:define-report
   'version 1

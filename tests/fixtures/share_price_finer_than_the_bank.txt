@@ -9,7 +9,7 @@
 # entry balanced and the run reported `Errors: 0` about a payment the file did
 # not describe. Worse than its twin: nothing then matched it either, because
 # the comparison reads what the file says — 780.005 — against what the book
-# holds, so the document was rebuilt on every import, forever.
+# holds, so the invoice was rebuilt on every import, forever.
 #
 # What this fixture produces: a refusal naming 780.005 and HKD's cent.
 #

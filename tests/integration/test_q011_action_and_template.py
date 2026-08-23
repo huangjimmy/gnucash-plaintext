@@ -1,5 +1,5 @@
 """
-Q-011: an entry's `action` field is optional, and what a document prints
+Q-011: an entry's `action` field is optional, and what an invoice prints
 for it is whatever the entry says.
 
 Two concerns covered here:

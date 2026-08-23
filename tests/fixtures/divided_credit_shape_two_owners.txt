@@ -1,6 +1,6 @@
 # The shape a divided credit exports to, imported into a fresh book: one
-# transaction holding the bank side, the part that settled a document — which
-# carries no `lot_owner:`, because it belongs to a document's lot and the
+# transaction holding the bank side, the part that settled an invoice — which
+# carries no `lot_owner:`, because it belongs to an invoice's lot and the
 # export derives that line from live lot state — and the credit left over,
 # which does carry one.
 #

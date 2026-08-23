@@ -7,6 +7,10 @@
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/scripts/refuse-bash-file-edits.sh"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/scripts/refuse-unscoped-kills.sh"
           }
         ]
       }

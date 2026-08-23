@@ -1,6 +1,6 @@
 # A book carrying the shapes the beancount export has a line for and nothing
 # had: accounts with a code and a description, a transaction numbered but not
-# described, one carrying a document link, and a split of zero.
+# described, one carrying a receipt link, and a split of zero.
 2024-01-01 commodity XCD
 	mnemonic: "XCD"
 	fullname: "East Caribbean Dollar"

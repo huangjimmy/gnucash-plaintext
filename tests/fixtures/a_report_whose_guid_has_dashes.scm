@@ -16,21 +16,21 @@
 ;; this report is reachable by `--report` written either way.
 
 (define (a-report-with-a-dashed-guid-renderer report-obj)
-  (let* ((document (gnc:make-html-document))
+  (let* ((page (gnc:make-html-document))
          (options (gnc:report-options report-obj))
          (invoice (gnc:option-value
                     (gnc:lookup-option options "General" "Invoice Number"))))
-    (gnc:html-document-set-title! document "A Report With A Dashed Guid")
+    (gnc:html-document-set-title! page "A Report With A Dashed Guid")
     (gnc:html-document-add-object!
-      document
+      page
       (gnc:make-html-text
         (gnc:html-markup-p "A REPORT WHOSE GUID CAME FROM UUIDGEN")
         (gnc:html-markup-p
-          (string-append "document: "
+          (string-append "invoice: "
                          (if (and invoice (not (null? invoice)))
                              (gncInvoiceGetID invoice)
                              "none")))))
-    document))
+    page))
 
 (gnc:define-report
   'version 1

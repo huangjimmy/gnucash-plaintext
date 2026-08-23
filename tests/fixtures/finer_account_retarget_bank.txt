@@ -1,5 +1,5 @@
 # A 50.00 deposit on a receivable kept to a tenth of a cent, loose and waiting
-# for a document to name it. The account's unit is a thousandth, which is what
+# for an invoice to name it. The account's unit is a thousandth, which is what
 # the figures come back at; the figure stated is a whole number of cents,
 # because that is all a file may state.
 2026-02-05 * "Fine Grained overpays"

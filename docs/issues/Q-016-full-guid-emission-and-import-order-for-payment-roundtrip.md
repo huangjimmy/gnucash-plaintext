@@ -30,7 +30,7 @@ The existing roundtrip tests (`test_account_type_roundtrip` etc.) didn't catch t
 
 ### Latent gap #2 — no plaintext representation for "1 bank tx covering N invoices/bills"
 
-The canonical GnuCash UI workflow "Process Payment → select multiple Documents → pay one amount" produces:
+The canonical GnuCash UI workflow "Process Payment → select several invoices → pay one amount" produces:
 
 ```
 Transaction 2026-04-01 — "Acme" (payment)

@@ -1,4 +1,4 @@
-"""A foreign document settled into a bank in a third currency.
+"""A foreign invoice settled into a bank in a third currency.
 
 A Canadian company invoices in USD and is paid into a Hong Kong account. The
 settlement entry is denominated in the base currency, because the realized
@@ -154,11 +154,11 @@ class TestWithBothRates:
         assert sum(values) == 0, rows
 
 
-class TestADocumentAlreadyInTheBaseCurrency:
+class TestAnInvoiceAlreadyInTheBaseCurrency:
     """A CAD invoice paid into an HKD account realizes nothing.
 
     The old code refused the whole shape at the top — badly worded for this
-    case ("neither is CAD" when the document *was* CAD), but it refused.
+    case ("neither is CAD" when the invoice *was* CAD), but it refused.
     Removing that guard let this run on: the posting split is base-currency,
     so `derived_cost_of` answers 1 rather than None and the basis bail-out
     does not catch it, and the run reached the drawdown and demanded
@@ -167,7 +167,7 @@ class TestADocumentAlreadyInTheBaseCurrency:
     `cost_basis_split:` pointing at a base-currency split on the way.
 
     This is the everyday configuration for a Canadian book with foreign
-    accounts, and every other test here uses a USD document, so nothing
+    accounts, and every other test here uses a USD invoice, so nothing
     covered it.
     """
 
@@ -427,7 +427,7 @@ class TestThePayableSide:
 
     A payable is settled by a debit and the cash goes out, so every figure
     changes sign. CLAUDE.md finding 7 records this side as the one where a
-    wrong sign passes unnoticed — the document reads settled and the money
+    wrong sign passes unnoticed — the invoice reads settled and the money
     turns up somewhere else.
     """
 

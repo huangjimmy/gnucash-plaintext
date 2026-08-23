@@ -93,7 +93,7 @@ class TestWithBusinessObjects:
         assert 'open Assets' in out.read_text(), out.read_text()
 
     def test_the_second_run_saves_nothing(self, tmp_path):
-        """The whole point of the counters, on the path that has documents.
+        """The whole point of the counters, on the path that has invoices.
 
         `has_changes` read `biz_objects_imported`, which counts the
         *directives* a file carries rather than what the book did about them —
