@@ -1,0 +1,34 @@
+# A bank split finer than the currency: 100.005 USD.
+#
+# The question this fixture settles is whether the restatement can ever be
+# handed a figure the receivable cannot hold. `relink_a_parked_split` copies
+# the bank split's amount onto the receivable, and the receivable is kept to
+# the cent; a bank kept to a tenth of one, holding 100.005, would put a figure
+# there that the export then refuses — a book this tool wrote and cannot read
+# back.
+#
+# It cannot arrive this way. A booked amount is judged against the *currency*,
+# whatever unit the account is kept to, so a file may not state 100.005 in USD
+# at all — the same rule `credit_on_an_account_kept_finer_than_the_cent.txt`
+# records, where 50.005 was refused for putting an amount at the account's
+# unit against a value at the currency's, with an invented rate between CAD
+# and CAD to make the two balance.
+#
+# So this file is refused before any invoice sees it, and the restatement is
+# unreachable with such a figure through this tool. A book GnuCash itself
+# wrote that way is a different matter, which is why the guard is asked
+# anyway.
+#
+# What this fixture produces: a refusal naming the amount.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-12 * "Money in, finer than the cent"
+	guid: "c0ffee00c0ffee00c0ffee00c0ffee00"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.005 USD
+		guid: "d0ffee00c0ffee00c0ffee00c0ffee01"
+		account.commodity.mnemonic: "USD"
+	Assets:Suspense USD -100.005 USD
+		guid: "e0ffee00c0ffee00c0ffee00c0ffee02"
+		account.commodity.mnemonic: "USD"

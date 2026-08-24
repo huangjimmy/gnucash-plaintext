@@ -7,7 +7,6 @@ import math
 from fractions import Fraction
 
 import gnucash.gnucash_core_c as gc
-from gnucash import Split
 
 from infrastructure.gnucash.engine import (
     GncAccountValueC,
@@ -31,6 +30,7 @@ from services.plaintext_blocks import (
     payment_memo_of,
     posted_block_lines,
     record_text_lines,
+    settlements_by_transaction,
 )
 
 
@@ -899,13 +899,21 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         lot = invoice.GetPostedLot()
         had_payment = False
         if lot is not None:
-            for raw_split in lot.get_split_list():
-                s = Split(instance=raw_split)
-                txn = s.GetParent()
-                if txn is None:
-                    continue
-                if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
-                    continue
+            # One block per payment, which is the shared answer the export and
+            # `print-bill` read too — including the part a printed page needs
+            # most: a transaction that left a residue stays grouped, and the
+            # one block carries the `prepayment:` saying what was left. There
+            # is no transaction section on this page, so that line is the only
+            # place a residue can be said at all, and a page is meant to be
+            # re-importable.
+            #
+            # Except on a wire that settles several records, where the residue
+            # belongs to no one block and none states it — see
+            # `payment_residue`, which weighs that loss against inventing money
+            # on the rebuild.
+            for txn, sharing in settlements_by_transaction(lot):
+                s = sharing[0]
+                siblings = sharing[1:]
                 # bank-side split = the non-AR side; find any (for the
                 # account name only — the memo is `payment_memo_of`'s,
                 # which is not always this split's)
@@ -927,7 +935,8 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
                 # currency's places while the export refused the same figure.
                 inv_lines += payment_block_lines(
                     txn, s, bank_name, pay_memo,
-                    f'invoice "{invoice.GetID()}"', txn.GetNum() or '')
+                    f'invoice "{invoice.GetID()}"', txn.GetNum() or '',
+                    also_settling=siblings)
                 had_payment = True
         if not had_payment:
             inv_lines.append('\tpayment: none')

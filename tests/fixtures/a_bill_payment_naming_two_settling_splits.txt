@@ -1,0 +1,36 @@
+# One payment of BILL-USD-001, made of two splits of one transaction.
+#
+# The bill half of `a_payment_naming_two_settling_splits.txt`. Nothing about
+# the spelling changes on this side: the money left once, so it is one block,
+# and the splits it names are the payable ones.
+#
+# What this fixture produces: both payable splits in the bill's lot, the bill
+# settled, and the ledger and the printed page each writing one `payment:`
+# block whose `amount:` is the whole 100.00.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 100
+    account: "Assets:Bank:USD"
+    Transaction "9a8b7c6d5e4f30211203344556677889"
+      PaymentSplit "b7c6d5e4f30211203344556677889900"
+      PaymentSplit "c6d5e4f3021120334455667788990011"

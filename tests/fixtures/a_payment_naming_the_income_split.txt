@@ -1,0 +1,40 @@
+# Naming the income split of a cash sale as the settlement.
+#
+# The revenue is not money waiting to be identified — it is the sale. Moving it
+# onto the receivable does not turn the entry into a payment of the invoice; it
+# takes the sale out of the P&L and leaves an invoice reading paid by nothing.
+#
+# Every figure still agrees afterwards, which is what makes it worth refusing:
+# bank +100.00 against a receivable of −100.00 balances exactly as bank against
+# income did.
+#
+# What this fixture produces: a refusal naming the account and its type, with
+# the entry untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-16
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "1122aabb3344ccdd5566eeff77880099"
+    txn_split_guid: "aabb3344ccdd5566eeff77880099aabb"

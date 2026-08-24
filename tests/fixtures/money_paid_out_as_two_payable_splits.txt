@@ -1,0 +1,32 @@
+# 100.00 USD paid out as one transaction clearing the payable with two splits.
+#
+# The bill side of `money_arriving_as_two_receivable_splits.txt`, and the same
+# fact about the vendor: the money left once, so it is one payment written as
+# one `payment:` block. A bill posts the other way round, so its settling
+# splits are positive where an invoice's are negative — which is what
+# `payment_amount_text` has to sum over.
+#
+# `print-bill` had no grouping of its own before this, so a bill settled by one
+# two-split transaction printed two `payment:` blocks — the bill having been
+# paid twice, which is a different fact about the vendor — while the same
+# book's `export` wrote one.
+#
+# All three sides are USD, so the entry is USD and no rate is involved.
+#
+# What this fixture produces: a USD transaction with three splits, two of them
+# on the payable and neither in a lot until a payment block claims them.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-27 * "Money out, two lines"
+	guid: "9a8b7c6d5e4f30211203344556677889"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD -100.00 USD
+		guid: "a8b7c6d5e4f302112033445566778899"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Accounts Payable USD 60.00 USD
+		guid: "b7c6d5e4f30211203344556677889900"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Accounts Payable USD 40.00 USD
+		guid: "c6d5e4f3021120334455667788990011"
+		account.commodity.mnemonic: "USD"

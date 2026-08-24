@@ -1,0 +1,37 @@
+# A USD bill settled out of a CAD bank, with no rate stated.
+#
+# The conversion refusal on the bill side. The bank is CAD and the payable is
+# USD, so what settles the bill is not what left the bank, and the parked
+# split's own figure is CAD scaffolding rather than a conversion of anything.
+#
+# The refusal says so, and names the record's own account while it does — the
+# **payable**, this being a bill.
+#
+# What this fixture produces: a refusal asking for the figures to be written
+# out, with the entry untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-04-04
+    amount: 100
+    account: "Assets:Bank:CAD"
+    txn_guid: "9d0e1f2a3b4c5d6e7f8a9b0c5f6a7b8c"
+    txn_split_guid: "1f2a3b4c5d6e7f8a9b0c5f6a7b8c9d0e"

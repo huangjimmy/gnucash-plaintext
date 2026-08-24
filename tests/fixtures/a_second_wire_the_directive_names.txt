@@ -1,0 +1,20 @@
+# A second, ordinary wire — the one the `Transaction` directive names when a
+# block carries both spellings and they disagree.
+#
+# 100.00 USD arriving on a single receivable split, so linking it is the plain
+# case and nothing about the precedence test turns on the money.
+#
+# What this fixture produces: a USD transaction, bank +100.00 against a single
+# receivable split of −100.00, neither in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-28 * "Money in, the other wire"
+	guid: "0102030405060708090a0b0c0d0e0f10"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "02030405060708090a0b0c0d0e0f1011"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -100.00 USD
+		guid: "102030405060708090a0b0c0d0e0f101"
+		account.commodity.mnemonic: "USD"

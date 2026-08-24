@@ -1089,10 +1089,12 @@ def _require_basis_collected(selling_split, basis, basis_guid: str) -> None:
         return
     currency = split_commodity(basis)
     raise Exception(
-        f'cost basis {basis_guid} is an unpaid receivable — that '
-        f'{currency} has not been collected, so there is none to sell. Record '
-        f'the payment first, or add `{COST_BASIS_FORCE_KEY}: true` to this '
-        f'split to measure against it anyway.')
+        f'cost basis {basis_guid} is a split on '
+        f'{get_account_full_name(account)!r}, and the invoice it belongs to '
+        f'has not been collected — that {currency} is owed, not held, so '
+        f'there is none to sell. Record the payment first, or add '
+        f'`{COST_BASIS_FORCE_KEY}: true` to this split to measure against it '
+        f'anyway.')
 
 
 def _require_stated_cost(selling_split, basis, basis_guid: str) -> None:

@@ -1,0 +1,33 @@
+# A wire that kept a fee, parked in another account of the record's own
+# currency.
+#
+# The bank credited 95.00 and the wire fee took 5.00, against a suspense split
+# of −100.00 USD. Every account here is USD, and the invoice is USD.
+#
+# The third-split refusal exists because the settlement is otherwise *inferred*
+# from what the bank received, and 95.00 in the bank beside a 5.00 fee has two
+# honest readings: the customer paid 100 and bore the fee, or paid 95 and the
+# fee is ours. Nothing in the book says which.
+#
+# Here the split says which. It states −100.00 USD on an account in the
+# record's own currency, so there is nothing to infer and nothing to choose —
+# the customer paid 100.00 and the fee is borne here. The ambiguity the
+# refusal describes does not arise, so the refusal does not fire.
+#
+# What this fixture produces: a USD transaction, bank +95.00, fee +5.00, and a
+# suspense split of −100.00, none of them in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-08 * "Money in, USD suspense, net of a fee"
+	guid: "f0e1d2c3b4a5968778695a4b3c2d1e0f"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 95.00 USD
+		guid: "0e1d2c3b4a5968778695a4b3c2d1e0f1"
+		account.commodity.mnemonic: "USD"
+	Expenses:Supplies:USD 5.00 USD
+		guid: "1d2c3b4a5968778695a4b3c2d1e0f102"
+		account.commodity.mnemonic: "USD"
+	Assets:Suspense USD -100.00 USD
+		guid: "2c3b4a5968778695a4b3c2d1e0f10213"
+		account.commodity.mnemonic: "USD"

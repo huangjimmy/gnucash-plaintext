@@ -17,11 +17,11 @@ The source book contains, in roughly the order the importer processes them:
    - `INV-EX-A-100` ($100) — overpaid by $30 (Q-015 `prepayment:`).
    - `INV-EX-CASH-50` ($50) — paid in cash via `ApplyPayment` on import, no pre-existing bank tx.
    - `INV-EX-CONSUME-30` ($30) — consumes Acme's $30 prepayment credit via Q-015 `auto_apply_credit: true`.
-   - `INV-EX-B-120` ($120) — partial $50 (retarget) then $70 (Q-016 multi-invoice).
+   - `INV-EX-B-120` ($120) — partial $50 (linked bank tx) then $70 (Q-016 multi-invoice).
    - `INV-EX-C-180` ($180) — full $180 via the same Q-016 multi-invoice $250 wire as `INV-EX-B-120`'s remainder.
-5. One vendor bill `BILL-EX-001` ($75 + 13% HST = $84.75) — paid via Q-004 `txn_guid:` retarget.
+5. One vendor bill `BILL-EX-001` ($75 + 13% HST = $84.75) — paid via a Q-004 `txn_guid:` link.
 
-That covers cash payment, partial retarget, overpayment with credit residual, credit consumption, multi-invoice shared bank tx, taxed bill, and bill payment via retarget — every payment shape Q-004/Q-014/Q-015/Q-016 added.
+That covers cash payment, a partial payment from a linked bank tx, overpayment with credit residual, credit consumption, multi-invoice shared bank tx, taxed bill, and bill payment from a linked bank tx — every payment shape Q-004/Q-014/Q-015/Q-016 added.
 
 ## Step-by-step setup
 
@@ -91,7 +91,7 @@ vendor "V-EX-001"
 
 ### Pre-existing bank transactions
 
-These would normally come from a QFX import. They sit on the bank account independent of any invoice/bill until the user wires them up via `txn_guid:` retarget.
+These would normally come from a QFX import. They sit on the bank account independent of any invoice/bill until the user wires them up via a `txn_guid:` link.
 
 ```
 2026-04-10 * "Acme — INV-A overpay"
@@ -302,7 +302,7 @@ After all six payment events:
 | `INV-EX-CONSUME-30` | closed at $0 | Same 2026-04-10 wire — the $30 prepay split is now half in the prepay lot, half consumed into INV-EX-CONSUME-30's lot |
 | `INV-EX-B-120` | closed at $0 | Two payment splits — $50 from 2026-05-04 + $70 from 2026-05-15 wire |
 | `INV-EX-C-180` | closed at $0 | $180 from 2026-05-15 wire |
-| `BILL-EX-001` | closed at $0 | 2026-06-01 $84.75 wire (retargeted via `txn_guid:` + `txn_split_guid:`) |
+| `BILL-EX-001` | closed at $0 | 2026-06-01 $84.75 wire (linked via `txn_guid:` + `txn_split_guid:`) |
 
 Open AR lots: none after `INV-EX-CONSUME-30` consumes the $30 credit. Open AP lots: none. All five bank transactions are still in place (the QFX-imported $130 + $50 + $250 + $84.75 wires, plus the cash-payment $50 that `ApplyPayment` created for `INV-EX-CASH-50`).
 
@@ -388,7 +388,7 @@ Net effect: the reconstructed book has the same five bank transactions (same GUI
 
 **Cash payment** (`INV-EX-CASH-50`) — no `txn_guid:` in the payment block, so the importer uses the `ApplyPayment` path which creates a new bank tx on the fly. Round-trip preserves the GUID of that auto-created tx because the exporter emits it as a standalone `*` block too, and the re-import sees `txn_guid:` and uses the standalone tx instead of creating another.
 
-**Retarget** (`INV-EX-B-120`'s first payment, `BILL-EX-001`) — `txn_guid:` points at a bank tx the user pre-created (typically from a QFX import). The importer attaches the specific split via `txn_split_guid:` rather than creating a duplicate bank tx.
+**Linked bank transaction** (`INV-EX-B-120`'s first payment, `BILL-EX-001`) — `txn_guid:` points at a bank tx the user pre-created (typically from a QFX import). The importer attaches the specific split via `txn_split_guid:` rather than creating a duplicate bank tx.
 
 **Overpayment** (`INV-EX-A-100`) — `prepayment:` field on the payment block records the residual. The importer creates the invoice lot plus a new prepay lot for the residual, leaving an open credit on AR.
 
@@ -396,14 +396,14 @@ Net effect: the reconstructed book has the same five bank transactions (same GUI
 
 **Multi-invoice payment** (`INV-EX-B-120`'s second payment + `INV-EX-C-180`) — both invoices reference the same `txn_guid:`. The shared bank tx's three AR splits each go in the right invoice's lot via per-invoice `txn_split_guid:`.
 
-**Bill payment via retarget** (`BILL-EX-001`) — symmetric to invoice retarget but on the AP side with opposite signs.
+**Bill payment from a linked bank transaction** (`BILL-EX-001`) — symmetric to the invoice side but on AP with opposite signs.
 
 ## What would go wrong without Q-016
 
 If you exported a book like this with a pre-Q-016 build and re-imported into a fresh book:
 
 - `INV-EX-CASH-50` would survive because the cash-payment path didn't change.
-- `INV-EX-A-100` would lose the retarget link to its $130 bank tx (the exporter dropped `txn_guid:` when the user originally used retarget). On re-import, `ApplyPayment` would create a duplicate $130 bank tx, and the original would either be deduped or become an orphan depending on date/amount heuristics. The `prepayment: 30` residual would still appear because it's a Q-015 field, but the lot structure would be inconsistent.
+- `INV-EX-A-100` would lose the link to its $130 bank tx (the exporter dropped `txn_guid:` when the user originally linked one). On re-import, `ApplyPayment` would create a duplicate $130 bank tx, and the original would either be deduped or become an orphan depending on date/amount heuristics. The `prepayment: 30` residual would still appear because it's a Q-015 field, but the lot structure would be inconsistent.
 - `INV-EX-CONSUME-30` would still consume credit (`auto_apply_credit:` survives), but it would consume from the duplicate prepay lot.
 - `INV-EX-B-120`'s two payments would each get their own new bank tx; the $50 and $250 wires would be either duplicated or skipped via dedup.
 - `INV-EX-C-180` likewise.
@@ -413,4 +413,4 @@ Net: bank transaction duplication, mismatched lot membership, and a book that no
 
 ## Backward compatibility
 
-Files written by pre-Q-016 versions still import — the `payment:` block falls back to the Q-015 iterative-retarget mechanism when `txn_split_guid:` is absent, and the importer order swap is benign for any plaintext that doesn't use cross-block GUID references. New plaintext should always include the full GUID set on export; hand-authored plaintext can omit `txn_split_guid:` for single-invoice cases and let iterative-retarget handle it, though for multi-invoice you should include it.
+Files written by pre-Q-016 versions still import — the `payment:` block falls back to the Q-015 iterative linking mechanism when `txn_split_guid:` is absent, and the importer order swap is benign for any plaintext that doesn't use cross-block GUID references. New plaintext should always include the full GUID set on export; hand-authored plaintext can omit `txn_split_guid:` for single-invoice cases and let the iterative linking handle it, though for multi-invoice you should include it.

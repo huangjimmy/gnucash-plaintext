@@ -26,6 +26,35 @@
   type: Income
   commodity.namespace: "CURRENCY"
   commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Due From Director
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Suspense USD
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "USD"
+2026-01-01 open Income:Sales USD
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "USD"
+2026-01-01 open Assets:Suspense JPY
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "JPY"
+  commodity_scu: 1
+2026-01-01 open Expenses
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies:USD
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "USD"
 
 customer "C-US"
   name: "US Customer"

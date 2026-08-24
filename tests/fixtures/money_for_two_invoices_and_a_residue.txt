@@ -1,0 +1,35 @@
+# One wire settling two invoices and leaving a residue.
+#
+# `Assets:Bank:USD +330.00` against four receivable splits: −60.00 and −40.00
+# which together settle one invoice, −180.00 which settles another, and −50.00
+# left over as the customer's credit.
+#
+# The Q-016 shape — one deposit covering several records — with a two-tranche
+# settlement and a residue on top. It is what tells the writer's idea of a
+# residue from the reader's: the writer skips a split sitting in another
+# invoice's lot, because that is that record's portion and was never left
+# over.
+#
+# What this fixture produces: a USD transaction with five splits, four on the
+# receivable and none in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-24 * "Money in, two invoices and a residue"
+	guid: "77aa11bb22cc33dd44ee55ff66007788"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 330.00 USD
+		guid: "88aa11bb22cc33dd44ee55ff66007711"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -60.00 USD
+		guid: "99aa11bb22cc33dd44ee55ff66007722"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -40.00 USD
+		guid: "aaaa11bb22cc33dd44ee55ff66007733"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -180.00 USD
+		guid: "bbaa11bb22cc33dd44ee55ff66007744"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -50.00 USD
+		guid: "ccaa11bb22cc33dd44ee55ff66007755"
+		account.commodity.mnemonic: "USD"

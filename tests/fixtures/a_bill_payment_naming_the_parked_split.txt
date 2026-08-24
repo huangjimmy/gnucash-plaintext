@@ -1,0 +1,38 @@
+# BILL-USD-001 linked to the money that left the USD bank and was parked in
+# the CAD account.
+#
+# The mirror of a_payment_naming_the_parked_split.txt. The settlement is USD
+# throughout — USD bill, USD payable, USD bank — so `amount: 100` is the
+# payment and no rate is stated.
+#
+# What this fixture produces: the transaction becomes
+#   Assets:Bank:USD                 -100.00 USD
+#   Liabilities:Accounts Payable USD +100.00 USD   in the bill's lot
+# quoted in USD, with no CAD left in it. The payable side is positive where an
+# invoice's receivable is negative, which is the sign a bill settlement has.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-25
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "5c6d7e8f9001122334455667788a9bac"
+    txn_split_guid: "7e8f9001122334455667788a9bacbdce"

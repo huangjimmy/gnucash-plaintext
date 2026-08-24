@@ -1,0 +1,31 @@
+# 60.00 USD leaving the bank against two CAD splits, on the bill side.
+#
+# The bill's version of the shape a grouped payment cannot divide. The entry
+# is quoted in CAD because `Assets:Due From Director` is CAD, and the 83.40
+# it holds is split across two lines of 41.70 — neither of which says
+# anything about the settlement.
+#
+# What this fixture produces: a CAD transaction, bank −60.00 USD valued
+# −83.40 CAD against two `Assets:Due From Director` splits of +41.70 each,
+# none of them in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-04-02 * "Money out, parked in two lines"
+	guid: "5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -60.00 USD
+		guid: "6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c5f"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "-83.40"
+	Assets:Due From Director 41.70 CAD
+		guid: "7b8c9d0e1f2a3b4c5d6e7f8a9b0c5f6a"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "41.70"
+	Assets:Due From Director 41.70 CAD
+		guid: "8c9d0e1f2a3b4c5d6e7f8a9b0c5f6a7b"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "41.70"

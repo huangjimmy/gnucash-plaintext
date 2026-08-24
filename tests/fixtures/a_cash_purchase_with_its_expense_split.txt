@@ -1,0 +1,33 @@
+# A complete cash purchase: the bank and the expense, no payable.
+#
+# `Assets:Bank:USD −100.00` against `Expenses:Supplies:USD +100.00`. The bill
+# side of the cash sale — an entry with the expense breakdown baked in, which
+# has nothing on a payable to link to a bill.
+#
+# Expenses are the other side of what this entry already records, so naming
+# that split would move the purchase onto the payable: the cost gone from the
+# P&L, the bill reading paid, the entry still balancing.
+#
+# The expense account is opened here because the bill book's `Expenses:Supplies`
+# is CAD, and a CAD split would make the entry convert — which is a second
+# reason to refuse and would leave it unclear which one fired. Everything here
+# is USD, so only the account's type says no.
+#
+# What this fixture produces: a USD transaction, bank −100.00 against
+# `Expenses:Supplies:USD` +100.00, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-03-26 * "Cash purchase, expense baked in"
+	guid: "7f8a9b0c5f6a7b8c9d0e1f2a3b4c5d6e"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD -100.00 USD
+		guid: "8a9b0c5f6a7b8c9d0e1f2a3b4c5d6e7f"
+		account.commodity.mnemonic: "USD"
+	Expenses:Supplies:USD 100.00 USD
+		guid: "9b0c5f6a7b8c9d0e1f2a3b4c5d6e7f8a"
+		account.commodity.mnemonic: "USD"

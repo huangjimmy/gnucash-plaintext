@@ -16,7 +16,7 @@ dates, accounts, and amounts. Use that list to either:
   - delete the orphan(s) with `delete-transactions --by-guid`, then re-import
     the invoice/bill with a fresh `payment:` block; or
   - re-import the invoice/bill with a `payment:` block carrying
-    `txn_guid: "<orphan-guid>"` to retarget the existing bank tx into the new
+    `txn_guid: "<orphan-guid>"` to link the existing bank tx into the new
     posted lot (see docs/issues/Q-004 for the retarget mechanism).
 
 Doing neither, then re-paying via a fresh `payment:` block, leaves the orphan
@@ -111,7 +111,7 @@ def unpost_invoices(gnucash_file, ids, by_guid):
     Destroys the AR posting transaction. Bank-side payment transactions
     remain in the book as free-standing entries (the orphan-payment trap);
     each one is reported with its GUID so you can either delete it via
-    `delete-transactions --by-guid` or retarget it via Q-004's
+    `delete-transactions --by-guid` or link it via Q-004's
     `txn_guid:` re-import path. Doing neither, then re-paying via a fresh
     `payment:` block, silently duplicates the bank deposit.
 
@@ -140,8 +140,9 @@ def unpost_bills(gnucash_file, ids, by_guid):
     Symmetric to unpost-invoices: destroys the AP posting transaction;
     bank-side payment transactions remain in the book as free-standing
     entries (orphans), each reported with its GUID. The cleanup paths
-    are the same as for invoices (`delete-transactions --by-guid` or
-    `txn_guid:` retarget). Doing neither, then re-paying, silently
+    are the same as for invoices (`delete-transactions --by-guid`, or
+    linking it back with `txn_guid:` on re-import). Doing neither, then
+    re-paying, silently
     duplicates the bank withdrawal.
 
     \b

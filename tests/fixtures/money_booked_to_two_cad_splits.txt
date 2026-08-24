@@ -1,0 +1,36 @@
+# 100.00 USD arriving against two CAD splits.
+#
+# The shape a payment naming several splits cannot divide. Each split
+# carries a CAD figure that stood in for the receivable — 70.00 and 69.00 of
+# the 139.00 the entry is quoted at — and neither is a fact about the
+# settlement.
+#
+# One such split can be restated from what the bank received. Two cannot:
+# dividing the 100.00 USD between them needs a ratio, and the only numbers on
+# offer are the ones being discarded. Splitting it 70/69 because the CAD
+# happened to fall that way is a rate invented out of scaffolding.
+#
+# What this fixture produces: a CAD transaction, bank +100.00 USD valued
+# 139.00 CAD against two `Assets:Due From Director` splits of −70.00 and
+# −69.00 CAD, none of them in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-06 * "Money in, parked in two lines"
+	guid: "aabbccdd11223344556677889900eeff"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		guid: "bbccdd11223344556677889900eeffaa"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "139.00"
+	Assets:Due From Director -70.00 CAD
+		guid: "ccdd11223344556677889900eeffaabb"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-70.00"
+	Assets:Due From Director -69.00 CAD
+		guid: "dd11223344556677889900eeffaabbcc"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-69.00"

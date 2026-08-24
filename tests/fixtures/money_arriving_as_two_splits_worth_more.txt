@@ -1,0 +1,25 @@
+# 120.00 USD arriving as two receivable splits of 60.00, against a 100.00
+# invoice.
+#
+# More than the invoice owes, arriving as a transaction the book already holds
+# and already on the receivable — so nothing has to be restated and nothing
+# converted. What is missing is the question: naming several splits claims them
+# all in one step, and 20.00 of the customer's money would be left over.
+#
+# What this fixture produces: a USD transaction with three splits, two of them
+# on the receivable at −60.00 each and neither in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-27 * "Money in, two lines, too much"
+	guid: "d5e4f3c2b1a09876543210fedcba9876"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 120.00 USD
+		guid: "e4f3c2b1a09876543210fedcba987654"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -60.00 USD
+		guid: "f3c2b1a09876543210fedcba98765432"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -60.00 USD
+		guid: "c2b1a09876543210fedcba9876543210"
+		account.commodity.mnemonic: "USD"

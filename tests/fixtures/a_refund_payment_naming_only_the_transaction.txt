@@ -1,0 +1,44 @@
+# The credit note's refund, linked by `txn_guid:` alone.
+#
+# The spelling a bank-feed-first ledger uses: the transaction is already in the
+# book and the block says which record it settles, leaving the choice of split
+# to the run. Both sides being USD, nothing converts and the run takes the
+# plain attach.
+#
+# That is the path a sign guard reaches unconditionally, and reading the
+# expected sign from the account's type alone made it refuse this: "a
+# settlement of a receivable is negative on it" is true of an invoice and the
+# reverse of a credit note, whose posting is −100.00 and whose settlement is
+# therefore +100.00. The sign a settlement must have is the opposite of the
+# posting's, which is what `_still_owed` has always computed.
+#
+# What this fixture produces: the +100.00 receivable split in the credit note's
+# lot, and the note settled.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "CN-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-06
+  credit_note: true
+  entry:
+    date: 2026-01-06
+    description: "Returned goods"
+    action: "Hours"
+    account: "Income:Sales USD"
+    quantity: -1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-06
+    due: 2026-02-06
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Credit note CN-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-18
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "beef0011beef0022beef0033beef0044"

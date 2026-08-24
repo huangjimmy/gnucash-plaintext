@@ -138,6 +138,27 @@ class DirectiveType(Enum):
     # `print-invoice` / `print-bill` render in the seller block.
     COMPANY = 18
 
+    # Q-039: which splits of one transaction settle this invoice or bill.
+    #
+    # `txn_guid:` + `txn_split_guid:` name one settling split, which is nearly
+    # every settlement. A hand-written transaction may clear one receivable
+    # with several splits, and that is still **one** payment — money arrived
+    # once — so it is one `payment:` block naming all of them, not several
+    # blocks. Written as directives rather than as a repeated key because a
+    # split belongs to a transaction, and because the parse loop appends a
+    # child per directive line while a repeated key would need `metadata` to
+    # start collecting, which would make `memo:` collectable too.
+    #
+    #     payment:
+    #         Transaction "c9f27c2b…"
+    #             PaymentSplit "614b338d…"
+    #             PaymentSplit "8d1c0a44…"
+    #
+    # Capitalised, which tells them from the lower-case keys of the block they
+    # sit in and from an account path opening a split line.
+    PAYMENT_TRANSACTION = 19
+    PAYMENT_SPLIT = 20
+
 
 
 class PlaintextDirective:
@@ -289,6 +310,8 @@ class PlaintextParser:
             (split_account_name, split_amount, split_symbol) = parse_split(line)
             (key, value) = parse_metadata(line)
             company_head = parse_company_head(line.strip())
+            payment_txn_guid = parse_payment_transaction(line.strip())
+            payment_split_guid = parse_payment_split(line.strip())
             customer_id = parse_customer(line.strip())
             taxtable_name = parse_taxtable(line.strip())
             invoice_id = parse_invoice(line.strip())
@@ -322,6 +345,54 @@ class PlaintextParser:
                 obj.props['amount'] = split_amount
                 obj.props['symbol'] = split_symbol
                 obj.props['account'] = split_account_name
+                parent_directive.children.append(obj)
+                self.current_directive = obj
+            elif payment_txn_guid is not None:
+                # Under a `payment:` block, and nowhere else. Both of these
+                # match on `line.strip()`, so without the check a
+                # `Transaction "…"` under `posted:`, under an `entry:`, or at
+                # top level parsed into a directive nothing ever reads — a
+                # line the file states and the run ignores, which is what
+                # every other unread line here is refused for.
+                # `the_settlement_a_block_names` refuses an astray
+                # `PaymentSplit` one level in on exactly this reasoning; these
+                # are the same mistake one level out.
+                if parent_directive.type != DirectiveType.PAYMENT:
+                    self.errors.append(
+                        f'Error processing line {line_number}: a '
+                        f'`Transaction "..."` line names the bank transaction '
+                        f'a payment refers to, so it belongs under a '
+                        f'`payment:` block. This one is under '
+                        f'{parent_directive.type.name.lower()}, where nothing '
+                        f'would read it.')
+                    break
+                obj = PlaintextDirective(DirectiveType.PAYMENT_TRANSACTION,
+                                         line_level, line, parent_directive)
+                obj.props['guid'] = payment_txn_guid
+                parent_directive.children.append(obj)
+                self.current_directive = obj
+            elif payment_split_guid is not None:
+                # Under the `Transaction` block whose split it names. A split
+                # is a child of its transaction everywhere else in this
+                # format, and one written anywhere else names a split of
+                # nothing.
+                if parent_directive.type != DirectiveType.PAYMENT_TRANSACTION:
+                    self.errors.append(
+                        f'Error processing line {line_number}: '
+                        f'`PaymentSplit "{payment_split_guid}"` is not under a '
+                        f'`Transaction` block, so it names a split of nothing '
+                        f'— it is under {parent_directive.type.name.lower()}, '
+                        f'where nothing would read it. A payment names its '
+                        f'settling splits inside the transaction they belong '
+                        f'to:\n'
+                        f'\t\tTransaction "<the transaction>"\n'
+                        f'\t\t\tPaymentSplit "<a split of it>"\n'
+                        f'Indent it under one, or name a single split with '
+                        f'`txn_split_guid:` instead.')
+                    break
+                obj = PlaintextDirective(DirectiveType.PAYMENT_SPLIT,
+                                         line_level, line, parent_directive)
+                obj.props['guid'] = payment_split_guid
                 parent_directive.children.append(obj)
                 self.current_directive = obj
             elif company_head:
@@ -423,6 +494,8 @@ metadata_pattern = r'^\s*([a-z_][a-zA-Z0-9_\-.]*(?:\[\d+\])?)\s*:\s*(.*?)\s*$'
 commodity_pattern = r'^\s*(\d{4}-\d{2}-\d{2})\s+(commodity)\s+([^"\']*)\s*$'
 open_account_pattern = r'^\s*(\d{4}-\d{2}-\d{2})\s+(open)\s+([^"]*)\s*([^"\']*)\s*$'
 open_account_pattern2 = r'^\s*(\d{4}-\d{2}-\d{2})\s+(open)\s+("(?:\\.|[^"])*?"|\{.*?\})\s*([^"\']*)\s*$'
+payment_transaction_pattern = r'^Transaction\s+"(.*?)"\s*$'
+payment_split_pattern = r'^PaymentSplit\s+"(.*?)"\s*$'
 customer_pattern = r'^customer\s+"(.*?)"\s*$'
 taxtable_pattern = r'^taxtable\s+"(.*?)"\s*$'
 invoice_pattern = r'^invoice\s+"(.*?)"\s*$'
@@ -437,6 +510,22 @@ def parse_company_head(line: str) -> bool:
     indented `key: value` children are accumulated as metadata by the
     generic metadata path, so this only has to recognise the header."""
     return re.match(company_pattern, line) is not None
+
+
+def parse_payment_transaction(line: str) -> Optional[str]:
+    """The guid on a `Transaction "…"` line under a `payment:` block."""
+    match = re.match(payment_transaction_pattern, line)
+    if match:
+        return match.group(1)
+    return None
+
+
+def parse_payment_split(line: str) -> Optional[str]:
+    """The guid on a `PaymentSplit "…"` line under a `Transaction` block."""
+    match = re.match(payment_split_pattern, line)
+    if match:
+        return match.group(1)
+    return None
 
 
 def parse_customer(line: str) -> Optional[str]:

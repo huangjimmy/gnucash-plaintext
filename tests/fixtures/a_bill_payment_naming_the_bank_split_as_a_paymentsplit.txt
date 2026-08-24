@@ -1,0 +1,41 @@
+# A bill's grouped payment naming the bank split among its `PaymentSplit`s.
+#
+# A `Transaction` block's splits have to be ones that settle the record, and
+# the bank's guid is on the transaction too — the likeliest one to reach for,
+# and nothing else on that path catches it. Nothing here moves a split, so
+# sitting on the right account is a precondition rather than something the
+# run fixes up.
+#
+# The refusal names the account the record posts to, and for a bill that is
+# the **payable**. Telling its reader to "name the receivable splits" sends
+# them looking for an account their book has not got.
+#
+# What this fixture produces: a refusal naming the bank split, the payable,
+# and the account this bill posts to.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-24
+    amount: 100
+    account: "Assets:Suspense USD"
+    Transaction "4c5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b"
+      PaymentSplit "5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b4c"
+      PaymentSplit "6e7f8a9b0c5f6a7b8c9d0e1f2a3b4c5d"

@@ -1,0 +1,31 @@
+# 150.00 arriving as two settling splits and a residue.
+#
+# Bank +150.00 against receivable splits of −60.00, −40.00 and −50.00. The
+# first two settle a 100.00 invoice between them — one payment made of two
+# splits — and the 50.00 is left over.
+#
+# The shape asks what the export does with a grouped settlement that also left
+# a residue: `settlements_by_transaction` ungroups on a residue, so that a
+# `prepayment:` can sit beside each block — but the residue belongs to the
+# payment once, and computed per block it is written once per block.
+#
+# What this fixture produces: a USD transaction with four splits, three of them
+# on the receivable and none in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-14 * "Money in, two lines and a residue"
+	guid: "4b5c6d7e8f90a1b2c3d4e5f607182930"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 150.00 USD
+		guid: "5c6d7e8f90a1b2c3d4e5f60718293041"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -60.00 USD
+		guid: "6d7e8f90a1b2c3d4e5f6071829304152"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -40.00 USD
+		guid: "7e8f90a1b2c3d4e5f607182930415263"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -50.00 USD
+		guid: "8f90a1b2c3d4e5f60718293041526374"
+		account.commodity.mnemonic: "USD"

@@ -1,0 +1,44 @@
+# A bill posted to an account declared `type: Liability`, not Accounts Payable.
+#
+# GnuCash's engine does not check it. `gncInvoicePostToAccount` validates
+# nothing about the account it is handed, and this tool's own posting check
+# compares currencies only — so `ap_account:` naming a plain liability is a
+# book that gets built, and the bill posts to it.
+#
+# It exists to separate two questions that usually have the same answer:
+# whether a record is a bill (its owner is a vendor) and whether the account
+# it posted to is of type Accounts Payable. Here the first is true and the
+# second is false, so anything deciding "bill or invoice" from the account's
+# type gets it wrong while everything deciding from the owner gets it right —
+# and a refusal built from both says "this bill's own receivable".
+#
+# What this fixture produces: a posted bill owing 100.00 USD whose payable is
+# `Liabilities:Other Payables`, declared a plain liability.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 commodity FUNDX
+	mnemonic: "FUNDX"
+	fullname: "Example Balanced Fund"
+	namespace: "FUND"
+	fraction: 100
+2026-01-01 open Liabilities:Other Payables
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Fund
+	type: Mutual Fund
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "FUNDX"
+	commodity_scu: 1000
+2026-03-30 * "Bill on a plain liability, settled in units"
+	guid: "2a3b4c5d6e7f8a9b0c5f6a7b8c9d0e1f"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD -100.00 USD
+		guid: "3b4c5d6e7f8a9b0c5f6a7b8c9d0e1f2a"
+		account.commodity.mnemonic: "USD"
+	Assets:Fund 1.000 FUNDX
+		guid: "4c5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b"
+		account.commodity.mnemonic: "FUNDX"
+		share_price: "100"
+		value: "100.00"

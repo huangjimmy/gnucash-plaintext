@@ -1,0 +1,45 @@
+# The same split named twice, once hyphenated and once not.
+#
+# A guid is written either way and both resolve to the same split — GnuCash's
+# own windows show the hyphenated form, so a reader copying from one and from
+# an export gets one of each. Everything that compares guids here normalises
+# first; the duplicate guard compared the raw strings, so this passed it.
+#
+# What it produces past the guard is what the guard exists to stop: the split
+# is claimed twice, so `amount:` is *required* to state 80.00 for the 40.00
+# that moved; the attach is idempotent, so the lot ends with one split; and the
+# block then scores two slots against that one, so the invoice is judged
+# changed on every import of an unedited file — unposted, its posting
+# destroyed, rebuilt, for ever.
+#
+# What this fixture produces: a refusal naming the repeated guid, with nothing
+# attached.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 80
+    account: "Assets:Bank:USD"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "8192a3b4c5d6e7f80912233445566778"
+      PaymentSplit "8192A3B4-C5D6-E7F8-0912-233445566778"

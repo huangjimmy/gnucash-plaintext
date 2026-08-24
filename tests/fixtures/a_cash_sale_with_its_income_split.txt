@@ -1,0 +1,32 @@
+# A complete cash-sale entry: the bank and the revenue, no receivable.
+#
+# `Assets:Bank:USD +100.00` against `Income:Sales USD −100.00`. This is the
+# shape the reconciliation guide calls "not supported" — a bank transaction
+# with the income breakdown baked in, which has nothing on a receivable to
+# link to an invoice.
+#
+# What it is here to catch: a split is read as "parked" by *negation* — any
+# account that is not the receivable or the payable — so an income split
+# qualified. All three accounts being USD, the guard that would otherwise look
+# at the rest of the entry returns early, and an income credit is negative,
+# which is the sign a receivable settlement wants. So naming this split moved
+# the revenue onto `Assets:Accounts Receivable USD`: the sale gone from the
+# P&L, the invoice reading paid, the entry still balancing, at exit 0.
+#
+# Income, expense and equity are not accounts money sits in on its way
+# somewhere else, so a split on one is not a payment waiting to be linked.
+#
+# What this fixture produces: a USD transaction, bank +100.00 against income
+# −100.00, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-16 * "Cash sale, income baked in"
+	guid: "1122aabb3344ccdd5566eeff77880099"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "22aabb3344ccdd5566eeff77880099aa"
+		account.commodity.mnemonic: "USD"
+	Income:Sales USD -100.00 USD
+		guid: "aabb3344ccdd5566eeff77880099aabb"
+		account.commodity.mnemonic: "USD"

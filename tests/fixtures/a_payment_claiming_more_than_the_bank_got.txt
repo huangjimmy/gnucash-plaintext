@@ -1,0 +1,38 @@
+# INV-USD-001 linked to a parked split, with the block claiming 100.00 arrived
+# where the bank received 60.00.
+#
+# `amount:` is an assertion about the money, and this one is wrong. Taking it
+# settles the invoice by 60 and leaves it part-paid out of money the file does
+# not describe — which is what the fall-short guard exists to catch, and what
+# it stopped catching once the settlement's size started coming off the bank
+# split while the guard was still handed that account.
+#
+# What this fixture produces: a refusal saying the invoice would be left
+# part-paid.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-03
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "293a4b5c6d7e8f900112233445566778"

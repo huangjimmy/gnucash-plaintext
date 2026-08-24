@@ -1,0 +1,45 @@
+# A `Transaction` block naming exactly one `PaymentSplit`.
+#
+# The grouped spelling is for a payment made of several splits, but nothing
+# stops a file naming one, and it is the case that reads differently inside:
+# `payment_slots` gives a block naming one split a `None` slot, the same as a
+# plain `txn_guid:` block, so it is paired by date/amount/memo rather than by
+# the guid it names. Naming two, each slot carries its own guid and can only be
+# matched by that split.
+#
+# It settles 60.00 of the 100.00 invoice — the first of the transaction's two
+# receivable splits. The invoice is left part-paid on purpose: it is the state
+# `a_payment_naming_two_settling_splits.txt` is read into to check that a
+# second settling split can be added to a transaction that already settles
+# this invoice.
+#
+# What this fixture produces: split 7081…5667 in the invoice's lot, the other
+# receivable split untouched and in no lot, and the invoice owing 40.00.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 60
+    account: "Assets:Bank:USD"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "708192a3b4c5d6e7f809122334455667"

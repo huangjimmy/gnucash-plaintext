@@ -1,0 +1,46 @@
+# Naming a USD suspense split that holds more than the invoice owes, with no
+# `prepayment:` line.
+#
+# 120.00 arrived against 100.00 owed, so 20.00 is the customer's and has to be
+# said. The overpayment refusal skipped itself wherever that account's
+# currency matched the receivable's — it exists to protect a carve that reads
+# the parked split's own figure, and where the currencies agree that figure is
+# sound — but the carve is not the only thing at stake. Nothing else on this
+# branch weighs what arrived against what is owed, so the split was moved and
+# restated at 120 onto a receivable owing 100: the lot at −20, the invoice
+# reading paid, and the customer's 20.00 in no credit lot, at exit 0.
+#
+# The `txn_guid:`-alone spelling refuses this whatever the currencies, so the
+# two spellings disagreed — and the overpayment refusal's own remedy sends a
+# reader to this one.
+#
+# What this fixture produces: a refusal naming the 120.00 that arrived, the
+# 100.00 owed, and the `prepayment: 20.00` that would say what the rest is.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-02
+    amount: 120
+    account: "Assets:Bank:USD"
+    txn_guid: "1928374655647382910abcdef0123456"
+    txn_split_guid: "37465564738291a0bcdef012345678ab"

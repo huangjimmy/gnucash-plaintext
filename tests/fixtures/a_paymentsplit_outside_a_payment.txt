@@ -1,0 +1,16 @@
+# A `PaymentSplit "…"` written at the top level, under no `Transaction` at all.
+#
+# The companion to `a_transaction_directive_outside_a_payment.txt`: a split is
+# a child of its transaction everywhere else in this format, and one written
+# with no transaction above it names a split of nothing.
+#
+# Refused by the parser rather than by the payment reader, because at this
+# level there is no payment block to have refused it — the line would simply
+# have been hung off whatever directive preceded it and never looked at again.
+#
+# What this fixture produces: a refusal naming the line, and a book the run has
+# not touched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+PaymentSplit "708192a3b4c5d6e7f809122334455667"

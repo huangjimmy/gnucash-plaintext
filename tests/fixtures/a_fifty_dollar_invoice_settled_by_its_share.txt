@@ -1,0 +1,37 @@
+# The 50.00 invoice the wire also covers, settled by its own split.
+#
+# It is here to be unposted afterwards: unposting leaves its settlement loose
+# on the receivable and marked as this tool's own orphan, which is the state
+# the writer of a `prepayment:` line skips and a reader was counting.
+#
+# What this fixture produces: `INV-USD-004` settled, its −50.00 split in its
+# lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-004"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-09
+  entry:
+    date: 2026-01-09
+    description: "A smaller job"
+    action: "Hours"
+    account: "Income:Sales USD"
+    quantity: 1
+    price: 50
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-09
+    due: 2026-02-09
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-004"
+    accumulate: true
+  payment:
+    date: 2026-03-28
+    amount: 50
+    account: "Assets:Bank:USD"
+    memo: "Wire"
+    txn_guid: "5150aabb5150ccdd5150eeff51500011"
+    txn_split_guid: "5150aabb5150ccdd5150eeff51500055"

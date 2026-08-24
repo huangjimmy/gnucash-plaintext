@@ -1,0 +1,41 @@
+# INV-USD-001 settled by the payment that arrived net of a USD fee.
+#
+# `amount: 105` — what the customer paid. The bank credited 100 and kept 5,
+# and the receivable is cleared by the whole 105.
+#
+# The fee is in the settlement's own currency, so nothing converts — and it is
+# refused all the same, in the same words the CAD fee earns. Naming the split
+# says which split settles the invoice; it does not say what that split is
+# worth, and a parked split's own figure never does. Whether the customer paid
+# 105 with the fee borne here or 100 with the fee theirs is not in the book.
+#
+# What this fixture produces: a refusal quoting the 100.00 the bank received,
+# the 5.00 fee beside it, and both readings.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-28
+    amount: 105
+    account: "Assets:Bank:USD"
+    txn_guid: "9a1b2c3d4e5f60718293a4b5c6d7e8f9"
+    txn_split_guid: "c3d4e5f60718293a4b5c6d7e8f900112"

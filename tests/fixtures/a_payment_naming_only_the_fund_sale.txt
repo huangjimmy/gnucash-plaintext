@@ -1,0 +1,36 @@
+# The fund sale again, linked by `txn_guid:` alone.
+#
+# The two spellings reach the same place, so the check belongs on the split
+# about to move rather than on the words that chose it. `txn_guid:` alone
+# leaves the run to find the one side that is not the bank — which is the
+# fund's — and it must be refused there too.
+#
+# What this fixture produces: a refusal naming the account, with the units
+# still on it.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-18
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"

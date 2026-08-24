@@ -1,0 +1,29 @@
+# 100.00 USD parked in a USD account, having reached a CAD bank.
+#
+# The mirror of the shape Q-039 reports, and the one where the parked figure is
+# *not* an artefact. `Assets:Suspense USD` is USD, the invoice is USD and the
+# receivable is USD, so the split states the settlement outright — 100.00 USD,
+# with its CAD value beside it because the entry is quoted in the bank's
+# currency. Nothing has to be read off the bank and nothing has to be inferred.
+#
+# It is the bank that is foreign here, not `Assets:Suspense USD`. Naming only the
+# transaction settles it correctly — the receivable and the split agree on USD,
+# so no conversion arises — and naming the split has to reach the same place.
+#
+# What this fixture produces: a CAD transaction, `Assets:Bank` +139.00 CAD
+# against `Assets:Suspense USD` −100.00 USD valued −139.00 CAD, neither split
+# in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-04 * "Money in, USD parked, CAD bank"
+	guid: "11223344556677889900aabbccddeeff"
+	currency.mnemonic: "CAD"
+	Assets:Bank 139.00 CAD
+		guid: "223344556677889900aabbccddeeff11"
+		account.commodity.mnemonic: "CAD"
+	Assets:Suspense USD -100.00 USD
+		guid: "3344556677889900aabbccddeeff1122"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "-139.00"

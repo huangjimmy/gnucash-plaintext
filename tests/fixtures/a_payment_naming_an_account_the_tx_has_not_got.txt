@@ -1,0 +1,43 @@
+# The Q-039 link, with `account:` naming an account the transaction has no
+# split on.
+#
+# What a parked split is worth is read off the split that received the money,
+# so the account line is not a label any more — it is where the figure comes
+# from. Naming an account the transaction has not got has to be said out loud:
+# left to fall through, the settlement would be measured from some other split
+# and the reader would never learn which.
+#
+# `Assets:Bank` exists in this book and is CAD; the money went into
+# `Assets:Bank:USD`. That is the likelier typo of the two, and the one a
+# reader is least likely to spot by eye.
+#
+# What this fixture produces: a refusal naming the account and the
+# transaction.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-25
+    amount: 100
+    account: "Assets:Bank"
+    txn_guid: "c9f27c2b2f324117aa17c7c1f48fbafd"
+    txn_split_guid: "614b338df4f94c359aa35ffacc2dadcf"

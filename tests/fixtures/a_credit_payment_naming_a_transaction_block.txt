@@ -1,0 +1,47 @@
+# A `from_credit:` payment block carrying a `Transaction` / `PaymentSplit`
+# directive.
+#
+# There is no grouped spelling of a credit block. `Transaction` /
+# `PaymentSplit` is read by the branch that links a bank transaction, and a
+# block saying `from_credit:` goes to the one that spends an owner's credit,
+# which knows only `txn_guid:` and `txn_split_guid:` — one split each. So the
+# directive is read by nobody.
+#
+# It is not simply ignored, either, which is what makes it worth refusing:
+# `payment_slots` counts a settlement per `PaymentSplit` whatever kind of block
+# it sits in, so the two halves of the run disagree about how many settlements
+# this file accounts for while the money path reads none of them.
+#
+# A line the file states and the run ignores is what every other unread line in
+# this format is refused for.
+#
+# What this fixture produces: a refusal naming `from_credit:`, and a book the
+# run has not touched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    amount: 100
+    from_credit: #True
+    credit_dated: 2026-02-27
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "708192a3b4c5d6e7f809122334455667"

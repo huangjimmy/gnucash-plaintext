@@ -1,0 +1,46 @@
+# A grouped block naming two splits that together settle more than is owed.
+#
+# 60.00 + 60.00 against a 100.00 invoice. Each split carries its own figure, so
+# nothing has to be divided to place them — but placing both leaves the lot at
+# −20 with the invoice reading paid and 20.00 of the customer's money in no
+# credit lot, which is the state every other spelling of a payment refuses.
+#
+# The grouped branch checked each named split for existence, account, lot and
+# owner, and then attached them all without once weighing what they come to
+# against what the record still owes. It is also the spelling that can claim
+# several splits in a single step, so what is over is not a settlement at all:
+# it is the owner's credit, and the way to say so is to leave that split out of
+# the `Transaction` block and declare it with `prepayment:` beside them —
+# which is weighed against the splits the block does not name.
+#
+# What this fixture produces: a refusal naming the 120.00 the block claims and
+# the 100.00 owed, with neither split attached.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 120
+    account: "Assets:Bank:USD"
+    Transaction "d5e4f3c2b1a09876543210fedcba9876"
+      PaymentSplit "f3c2b1a09876543210fedcba98765432"
+      PaymentSplit "c2b1a09876543210fedcba9876543210"

@@ -1,0 +1,36 @@
+# 100.00 USD leaving the bank against a receipt of fund units.
+#
+# The bill side of the same shape. `Assets:Fund` is a Mutual Fund account
+# holding FUNDX, and the units are what came back — not money waiting to be
+# identified as the settlement of a bill.
+#
+# A bill posts the other way round, so its settlement is the opposite sign,
+# and the sign guard is satisfied here exactly as the invoice fixture's is.
+# What refuses it is the commodity, on this side as on that.
+#
+# What this fixture produces: a USD transaction, bank −100.00 against
+# `Assets:Fund` +1.000 FUNDX valued 100.00, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 commodity FUNDX
+	mnemonic: "FUNDX"
+	fullname: "Example Balanced Fund"
+	namespace: "FUND"
+	fraction: 100
+2026-01-01 open Assets:Fund
+	type: Mutual Fund
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "FUNDX"
+	commodity_scu: 1000
+2026-03-22 * "Bill settled in fund units"
+	guid: "1f2a3b4c5d6e7f8a9b0c5f6a7b8c9d0e"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD -100.00 USD
+		guid: "2a3b4c5d6e7f8a9b0c5f6a7b8c9d0e1f"
+		account.commodity.mnemonic: "USD"
+	Assets:Fund 1.000 FUNDX
+		guid: "3b4c5d6e7f8a9b0c5f6a7b8c9d0e1f2a"
+		account.commodity.mnemonic: "FUNDX"
+		share_price: "100"
+		value: "100.00"

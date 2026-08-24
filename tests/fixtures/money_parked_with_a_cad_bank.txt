@@ -1,0 +1,27 @@
+# 139.00 CAD reaching the CAD bank, parked against the CAD account,
+# against a USD invoice.
+#
+# The settlement genuinely converts here: the receivable is USD and the money
+# arrived in CAD. That makes it the opposite of the Q-039 case — there the
+# invoice, the receivable and the bank were all USD and only the discarded
+# split was CAD.
+#
+# No test reached this shape while the code was being written, and it is the
+# one that fails worst: nothing about the entry is USD, so restating the parked
+# split from what the bank received wrote 139.00 CAD onto the receivable as
+# 139.00 USD and requoted the transaction USD — a rate of 1:1 that nobody
+# stated, on an invoice that then read over-settled with no figure disagreeing.
+#
+# What this fixture produces: a CAD transaction of two CAD splits, in no lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-01 * "Money in, to the CAD bank"
+	guid: "d4e5f60718293a4b5c6d7e8f90011223"
+	currency.mnemonic: "CAD"
+	Assets:Bank 139.00 CAD
+		guid: "e5f60718293a4b5c6d7e8f9001122334"
+		account.commodity.mnemonic: "CAD"
+	Assets:Due From Director -139.00 CAD
+		guid: "f60718293a4b5c6d7e8f900112233445"
+		account.commodity.mnemonic: "CAD"

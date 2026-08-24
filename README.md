@@ -1366,7 +1366,7 @@ To find which bills are still outstanding, render a whole vendor at once with `p
 **Adding a payment via re-import is incremental.** If a posted invoice is already in the book with one `payment:` block, editing the plaintext to append a second `payment:` block and re-importing applies *only* the new payment on the still-posted invoice. Two sub-paths, both incremental:
 
 * The new payment block has no `txn_guid:` — the importer calls `ApplyPayment` to create a fresh bank-side transaction.
-* The new payment block has `txn_guid: "..."` pointing at a pre-existing bank transaction (e.g. one already loaded from a QFX import) — the importer retargets that transaction's counter-split into the invoice's posted lot (the Q-004 mechanism), no new bank transaction created. Original tx GUID, notes, and KVP preserved. Exported payment blocks always include `txn_guid:` and `txn_split_guid:` so the same retarget is reproducible on a fresh re-import; see [Reconciling invoice and bill payments with a bank feed](#reconciling-invoice-and-bill-payments-with-a-bank-feed) below for the multi-invoice variant.
+* The new payment block has `txn_guid: "..."` pointing at a pre-existing bank transaction (e.g. one already loaded from a QFX import) — the importer links that transaction's counter-split into the invoice's posted lot (the Q-004 mechanism), no new bank transaction created. Original tx GUID, notes, and KVP preserved. An exported payment block always names the money it refers to, so the same link is reproducible on a fresh re-import — with `txn_guid:` and `txn_split_guid:` for a payment of one settling split, and with `Transaction` / `PaymentSplit` for one made of several (see [One payment made of several splits](#one-payment-made-of-several-splits)); see [Reconciling invoice and bill payments with a bank feed](#reconciling-invoice-and-bill-payments-with-a-bank-feed) below for the multi-invoice variant.
 
 Either way the posting transaction, every entry, and the original bank-side payment transactions already on the invoice's lot are left untouched (same GUIDs throughout) — no orphan is created and the bank balance reflects exactly the payments the user recorded. A payment field edited or removed takes the GnuCash-UI-equivalent unpost-rebuild-repost path, and any payment-side bank transactions about to be orphaned by that rebuild are listed in the import output with the same warning block `unpost-invoices` / `unpost-bills` emit (see the unpost section below). A **changed line, or a changed `posted:` block, on a posted invoice or bill** is refused outright — see below.
 
@@ -1427,9 +1427,9 @@ Transaction 2026-03-10 — "Acme Customer" (payment)
   Assets:Accounts Receivable      -$50.00   (in NEW pre-payment lot — customer credit)
 ```
 
-After the payment, `Assets:Accounts Receivable` shows a net **-$50** for this customer — that's the pre-payment credit. The invoice itself is marked paid (its lot's balance is zero). The next invoice you post for the same customer can consume the credit via Process Payment in GnuCash's UI, or via a `payment:` block on the next invoice that uses `txn_guid:` to retarget the customer's existing pre-payment bank tx into the new invoice's lot.
+After the payment, `Assets:Accounts Receivable` shows a net **-$50** for this customer — that's the pre-payment credit. The invoice itself is marked paid (its lot's balance is zero). The next invoice you post for the same customer can consume the credit via Process Payment in GnuCash's UI, or via a `payment:` block on the next invoice that uses `txn_guid:` to link the customer's existing pre-payment bank tx into the new invoice's lot.
 
-For the `txn_guid:` retarget path (Q-004), when the pre-existing bank transaction's counter-split is larger than the invoice's remaining balance, the `prepayment:` field is **required**. The importer splits the counter-split into the invoice-portion (closes the lot) and the residual (new pre-payment lot on AR/AP). Omitting `prepayment:` on an over-sized retarget is rejected with an explicit error that names the bank tx, the counter-split amount, the invoice's remaining, and the expected `prepayment` value.
+For the `txn_guid:` link path (Q-004), when the pre-existing bank transaction's counter-split is larger than the invoice's remaining balance, the `prepayment:` field is **required**. The importer splits the counter-split into the invoice-portion (closes the lot) and the residual (new pre-payment lot on AR/AP). Omitting `prepayment:` on an over-sized link is rejected with an explicit error that names the bank tx, the counter-split amount, the invoice's remaining, and the expected `prepayment` value.
 
 **Vendor bills are the mirror image (Accounts Payable, opposite signs).** A bill posts as a *credit* to AP — a liability going up — which is the sign-inverse of an invoice's *debit* to AR (an asset going up), so every split below flips sign relative to the invoice case. Overpaying a $100 bill by $50 (one $150 payment *out* of the bank) creates one payment transaction with three splits across two accounts and two AP lots:
 
@@ -1553,7 +1553,7 @@ Importing one attaches that split to this invoice's lot, which is what settles i
 
 A credit **in no lot** can be attached whole but not divided, and the refusal names `lot_owner:` as the remedy: parking what is left over means opening a credit in somebody's name, and a lot is the only thing that records whose a split is — a deposit paying several owners cannot be asked. Attaching such a split whole opens no new credit and stays ordinary. A block on an invoice that **owes nothing** — cash has already settled it in full — is refused for the same reason it cannot be attached: the lot would go past zero.
 
-**Whose money it is is checked** too, and what is asked depends on what the file names. Where a block names a split, that split's **lot** must belong to this invoice's owner — one customer's credit cannot settle another's invoice. Where it names only `txn_guid:`, the retarget moves whichever counter split the transaction carries, so the **transaction's** owner is asked instead. The two are deliberately not combined: one deposit can settle invoices and bills of several owners at once, each block naming its own portion, and the transaction reports whichever owner GnuCash recorded on it — asking it there would refuse the second invoice for the first one's owner. A split in no lot has no owner of its own; its transaction answers for it where that transaction carries a single receivable or payable split — a payment GnuCash wrote for one owner — and where it carries several, nothing is refused, because none of them can be shown to be the one. Nor is a transaction off a bank feed, which records no owner and is what the retarget workflow exists to attach.
+**Whose money it is is checked** too, and what is asked depends on what the file names. Where a block names a split, that split's **lot** must belong to this invoice's owner — one customer's credit cannot settle another's invoice. Where it names only `txn_guid:`, the link moves whichever counter split the transaction carries, so the **transaction's** owner is asked instead. The two are deliberately not combined: one deposit can settle invoices and bills of several owners at once, each block naming its own portion, and the transaction reports whichever owner GnuCash recorded on it — asking it there would refuse the second invoice for the first one's owner. A split in no lot has no owner of its own; its transaction answers for it where that transaction carries a single receivable or payable split — a payment GnuCash wrote for one owner — and where it carries several, nothing is refused, because none of them can be shown to be the one. Nor is a transaction off a bank feed, which records no owner and is what the linking workflow exists to attach.
 
 Nothing is re-decided: re-running the original request against a book that has moved on could apply a different credit, and re-applying an already-applied one leaves every invoice of that owner with a lot GnuCash discards on load (`invoice_postlot_handler: assertion 'lot' failed`), so a rebuilt book came back with nothing paid. Everything the block states is checked — the split must be on the named transaction and on this invoice's own posted account, carry the amount claimed with the sign a credit has on that side, and still be the owner's to spend — and a block that cannot be honoured is refused rather than half-applied. Writing `from_credit: true` beside a `bank_account:` or a `date:` is refused too, naming the key to drop.
 
@@ -1851,7 +1851,7 @@ Behaviour:
 - Calls GnuCash's `Unpost(False)` directly. The posting transaction is destroyed; payment transactions in the bank account remain but are no longer linked to a lot. (Same end state as the GnuCash UI's Unpost menu item.)
 - **Entry GUIDs are preserved** — entries are not destroyed and recreated. External references to entries by GUID still resolve.
 - Per-record line: `<id> (<guid>): unposted` (or `not posted`, `not found`, or `failed — multiple records share this id`).
-- **Orphan-payment warning**: when the record being unposted was paid, the CLI lists each bank-side payment transaction that is about to be orphaned — with the orphan's GUID, date, bank account, amount, currency, customer/vendor name, and memo. The warning steers the user toward the two safe cleanup paths: `delete-transactions --by-guid <orphan-guid>` (drop the orphan, then re-import with a fresh `payment:` block), or a `payment:` block carrying `txn_guid: "<orphan-guid>"` on re-import (retargets the existing bank tx into the new posted lot — see [Q-004](docs/issues/Q-004-payment-transaction-duplicates.md)). Doing neither, then re-paying via a fresh `payment:` block, leaves the orphan in place alongside the new payment and silently doubles the recorded bank balance.
+- **Orphan-payment warning**: when the record being unposted was paid, the CLI lists each bank-side payment transaction that is about to be orphaned — with the orphan's GUID, date, bank account, amount, currency, customer/vendor name, and memo. The warning steers the user toward the two safe cleanup paths: `delete-transactions --by-guid <orphan-guid>` (drop the orphan, then re-import with a fresh `payment:` block), or a `payment:` block carrying `txn_guid: "<orphan-guid>"` on re-import (links the existing bank tx into the new posted lot — see [Q-004](docs/issues/Q-004-payment-transaction-duplicates.md)). Doing neither, then re-paying via a fresh `payment:` block, leaves the orphan in place alongside the new payment and silently doubles the recorded bank balance.
 - Exit code 1 if any record was not found, not posted, or ambiguous; successful unposts are still saved.
 
 For after-the-fact recovery — auditing a book that's already accumulated orphans from prior unpost runs — use `find-orphan-payments` (next section).
@@ -1890,7 +1890,7 @@ What it does: detaches the named payment's AR/AP split from the invoice/bill's p
 
 To find a payment's bank-tx GUID, run `find-orphan-payments` or read it from the invoice's exported `payment:` blocks (`txn_guid:`).
 
-After unapplying, the freed amount sits in your `--to` account. To re-link it to the *correct* invoice, apply it there as you would any payment (e.g. a `payment:` block with `txn_guid:` retargeting that transaction, or `auto_apply_credit:` if you routed it to an AR credit).
+After unapplying, the freed amount sits in your `--to` account. To re-link it to the *correct* invoice, apply it there as you would any payment (e.g. a `payment:` block with `txn_guid:` linking that transaction, or `auto_apply_credit:` if you routed it to an AR credit).
 
 
 Compared to the re-import path:
@@ -1925,11 +1925,11 @@ Exit code 0 whether or not any orphans are found — the command is informationa
 Cleanup options the command points at, per orphan:
 
   a) `gnucash-plaintext delete-transactions <book> --by-guid <guid>` — drop the orphan (with a plaintext backup written), then re-import the invoice/bill with a fresh `payment:` block.
-  b) Re-import the invoice/bill with a `payment:` block carrying `txn_guid: "<orphan-guid>"` — retargets the existing bank tx into the new posted lot (Q-004).
+  b) Re-import the invoice/bill with a `payment:` block carrying `txn_guid: "<orphan-guid>"` — links the existing bank tx into the new posted lot (Q-004).
 
 Option (a) is withdrawn for a GUID that carries money beyond the row naming it — another orphan on the same transaction, or a portion nobody has claimed yet — because deleting is by transaction and would take that with it. Those GUIDs are named at the end; where *every* GUID in the listing is one, the option is not offered at all. Option (b) moves a single split and is always available.
 
-Detection criteria (so the user can trust the result). A transaction is examined when **either** reading answers: it is payment-class — `xaccTransGetTxnType(tx) == 'P'`, or the `txn_type: P` a previous export wrote — **or** one of its splits carries the `orphaned_by_unpost` note this tool writes on every split it is about to orphan. Either alone is enough, and the second is what finds a settlement attached by retargeting an existing bank transaction (`txn_guid:`), which is not payment-class and carries no owner backref: before the note existed such a settlement was listed by nothing at all. The note is needed because nothing in the book itself distinguishes the two shapes — unposting leaves the lot on the account, live and owner-attached, exactly like an owner's parked credit (CLAUDE.md finding 10).
+Detection criteria (so the user can trust the result). A transaction is examined when **either** reading answers: it is payment-class — `xaccTransGetTxnType(tx) == 'P'`, or the `txn_type: P` a previous export wrote — **or** one of its splits carries the `orphaned_by_unpost` note this tool writes on every split it is about to orphan. Either alone is enough, and the second is what finds a settlement attached by linking an existing bank transaction (`txn_guid:`), which is not payment-class and carries no owner backref: before the note existed such a settlement was listed by nothing at all. The note is needed because nothing in the book itself distinguishes the two shapes — unposting leaves the lot on the account, live and owner-attached, exactly like an owner's parked credit (CLAUDE.md finding 10).
 
 Within an examined transaction, every marked split is reported as its own row. Where none is marked — a payment-class transaction on a book unposted by a version of this tool that predates the note — the row is the first AR/AP-side split whose lot has no invoice or bill attached. So a pre-note book lists what it always did; what it cannot do is separate a bank-paid orphan from an owner's credit on the same transaction, and unposting such an invoice again marks it.
 
@@ -1989,7 +1989,7 @@ with a clear error rather than silently doing the wrong thing:
 
 ### Reconciling invoice and bill payments with a bank feed
 
-When a bank feed (QFX, CSV, HTML) is imported **before** the matching invoice or bill, you can link them without creating a duplicate bank entry using `txn_guid:` in the `payment:` block. Exported `payment:` blocks always carry both `txn_guid:` and `txn_split_guid:` so the importer can deterministically rebuild the same bank-tx-to-invoice routing in a fresh book:
+When a bank feed (QFX, CSV, HTML) is imported **before** the matching invoice or bill, you can link them without creating a duplicate bank entry using `txn_guid:` in the `payment:` block. An exported `payment:` block always names the money it refers to, so the importer can deterministically rebuild the same bank-tx-to-invoice routing in a fresh book — with `txn_guid:` and `txn_split_guid:` for a payment of one settling split, and with a `Transaction` block for one made of several:
 
 ```
 payment:
@@ -2007,9 +2007,9 @@ gnucash-plaintext find-transactions ledger.gnucash \
 
 The importer looks up the existing bank transaction by `txn_guid:`, finds the specific AR-side split named by `txn_split_guid:`, and attaches it to the invoice's posted lot in-place — no new transaction is created and all original bank metadata is preserved.
 
-`txn_split_guid:` is optional in hand-written plaintext (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order). It is **always** emitted on export so every round-trip is order-independent and unambiguous.
+`txn_split_guid:` is optional in hand-written plaintext (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order). It is emitted on export for every payment of one settling split, so those round-trips are order-independent and unambiguous. A payment made of several settling splits is written as a `Transaction` block instead and carries neither key — see [One payment made of several splits](#one-payment-made-of-several-splits).
 
-**A `txn_guid:` that names nothing has two readings**, and the block cannot tell them apart on its own: an invoice being rebuilt into a fresh book, where the bank transaction genuinely is not there yet, and a retarget against the book that holds it, where the guid is simply mistyped. The first has to go through — a printed page carries the guids of the book it came from precisely so that book relinks rather than paying twice, and it still has to be readable elsewhere. The second must not: recording the payment from the block enters money that has already moved.
+**A `txn_guid:` that names nothing has two readings**, and the block cannot tell them apart on its own: an invoice being rebuilt into a fresh book, where the bank transaction genuinely is not there yet, and a link against the book that holds it, where the guid is simply mistyped. The first has to go through — a printed page carries the guids of the book it came from precisely so that book relinks rather than paying twice, and it still has to be readable elsewhere. The second must not: recording the payment from the block enters money that has already moved.
 
 What separates them is the book. Where the block's own `date:`, `amount:`, direction, account and `memo:` describe a transaction the book already has, the money is here and the guid is wrong, and the run is refused — naming that transaction, its guid, and the invoice it already settles, so you can either correct the guid to it or drop `txn_guid:`. A rebuild into a book that never held the money matches nothing and is untouched.
 
@@ -2041,6 +2041,70 @@ invoice "INV-EX-A-100"
 
 The same `txn_guid:` appears on the other two invoices' payment blocks, each with its own `txn_split_guid:`.
 
+#### One payment made of several splits
+
+The mirror of the shape above: one transaction settling **one** invoice with more than one receivable split — two tranches of a wire, two lines entered separately. The money arrived once, so it is one payment and one block. Which splits are this record's is said with a `Transaction` directive and a `PaymentSplit` child per split:
+
+```
+	payment:
+		date: 2026-02-27
+		amount: 100
+		account: "Assets:Bank:USD"
+		Transaction "5e6f708192a3b4c5d6e7f80912233445"
+			PaymentSplit "708192a3b4c5d6e7f809122334455667"
+			PaymentSplit "8192a3b4c5d6e7f80912233445566778"
+```
+
+Splits are children of the transaction they belong to, which is where a split lives everywhere else in this format. These are directives rather than keys, and capitalised, which is what tells them from the lower-case keys of the block they sit in and from an account path opening a split line. A directive repeats natively — the parse loop appends a child per recognised line — and a key cannot: `key: value` is a dict assignment, so a key stated twice keeps the last.
+
+`amount:` on such a block is **the sum of the splits it names**. Read into a book that never held the transaction, the guids resolve to nothing and the payment is entered from the block, so stating one split's share would enter 60 for money that moved 100.
+
+`txn_guid:` and `txn_split_guid:` are unchanged for a payment of one settling split, which is nearly every settlement and what every export so far emits. Where a block carries both spellings the `Transaction` decides, and the run says the keys went unread.
+
+Refused, each before anything moves:
+
+- **a `PaymentSplit` that is not under a `Transaction`**, or a **`Transaction` that is not under a `payment:` block** — either names a split of nothing, and a line the file states and the run ignores is what every other unread line here is refused for;
+- **a `Transaction` naming no `PaymentSplit` at all.** Its children are what it is for; childless it says only what `txn_guid:` says, and is then read by nobody;
+- **two `Transaction` blocks under one payment.** One payment is one transaction — money that arrived twice is two payments, and the format spells that as a block each;
+- **the same `PaymentSplit` named twice.** A split settles a record once, so naming it again claims a settlement the transaction does not carry;
+- **a `PaymentSplit` on any account but this record's own receivable — or a bill's payable, which is what its refusal says**, where the block names more than one: the bank's guid is on the transaction and is the likeliest one to reach for, and nothing else catches it. A block naming exactly one is read like `txn_guid:` + `txn_split_guid:`, so a lone `PaymentSplit` on an account that is not the receivable is linked and restated the way that spelling would — including the sign check that catches it naming the bank side, and the account and commodity checks below;
+- **named splits coming to more than the record still owes.** The block claims every split it names, so what is over is not a settlement but the owner's credit — leave it out and declare it with `prepayment:`;
+- **a `PaymentSplit` naming a split already in a lot** — somebody's settlement, or an owner's parked credit, which taking would leave short with every figure still balancing. Not one this record's own unpost abandoned, and not one already settling this very record. Stricter than `txn_split_guid:` on purpose: naming a single split spends a credit deliberately, while a block naming several says which of them settle this record rather than which credit to spend;
+- **a `Transaction` beside `from_credit:`.** There is no grouped spelling of a credit block: a credit names what it spends with `txn_guid:` and `txn_split_guid:`. A `prepayment:` sits beside a `Transaction` block like any other, and is weighed against the receivable splits of the transaction the block does **not** name — a residue is the payment's, not any one split's. On a printed page it is the only place a residue can be stated at all, that page carrying no transaction section for a `lot_owner:` line, so a payment made of several splits beside a residue stays one block and says what was left over.
+
+#### Naming a split that is not on the receivable yet
+
+The split that settles an invoice may be sitting anywhere the bookkeeper put it while working out what the money was for — `Assets:Due From Director`, a suspense account, an `Imbalance` line. Name it and it becomes the settlement, whether or not it is in the invoice's own currency:
+
+```
+	payment:
+		date: 2026-02-27
+		amount: 100
+		account: "Assets:Bank:USD"
+		txn_guid: "5e6f708192a3b4c5d6e7f80912233445"
+		txn_split_guid: "708192a3b4c5d6e7f809122334455667"
+```
+
+**Where the named split is in another currency than the invoice, the figure on it is not the settlement.** GnuCash quotes an entry in a currency both sides can be expressed in, so 100.00 USD received into a USD bank and booked against a CAD account makes the entry CAD and leaves 139.00 CAD on that split, at whatever rate applied that day. Both numbers are an artefact of the account it sits on and neither survives it being replaced. The settlement is **what the bank received**, and that is what is read: the split is moved onto the receivable and restated from the bank side, and the transaction is requoted in the invoice's currency. No rate is asked for, because nothing converted.
+
+**That restatement works only where the bank split is in the invoice's own currency.** Then the bank figure *is* the settlement and nothing has to be converted. Where the two differ the payment genuinely converts, only the payer knows at what rate, and nothing in the transaction states one — so it is refused rather than guessed at.
+
+**Where the named split is already in the invoice's currency, it states the settlement** and is left alone. That is the commoner shape, and also what a foreign *bank* leaves behind: a USD split behind a CAD bank carries 100.00 USD and its own CAD value, both written rather than inferred. Such a split only changes account; its figures and the entry's quote stay as they are.
+
+Naming only `txn_guid:` reaches the same place where the transaction has exactly one side that is not the bank.
+
+Refused, each before anything moves, so a refused file has changed nothing:
+
+- an `account:` naming no split of the transaction — the settlement is read from the split that received the money, so not finding one would take the figure from somewhere else with nothing saying which;
+- **anything in the entry besides the bank split and the one being placed, where the settlement has to be read off the bank.** A bank crediting 100.00 and keeping a 5.00 fee against a 105.00 receivable is either a customer who paid 105 with the fee borne here, or one who paid 100 with the fee theirs, and the book records neither — so the file is asked for the amounts. Where the split being placed is in the record's own currency it has already said which: it states the settlement outright, nothing is inferred from the bank, and a fee beside it is accepted;
+- **a bank in a different currency from the receivable**, where the settlement genuinely converts and only the payer knows at what rate;
+- several named splits with **one or more** parked in another currency. Only a payment naming a single split restates it from what the bank received, and dividing a settlement between several would need a ratio the book does not state — so one foreign split among them is enough to refuse;
+- a named split already in a lot — it is somebody's settlement or credit, and taking it would leave that one short with every figure in the book still balancing. Not one this record's own unpost abandoned, and not one already in this record's own lot, which is what re-importing an export names;
+- **a split on an account that is not one money passes through.** What may be named is this record's own receivable or payable — the settlement as it stands — or a split on an asset, bank, cash, credit-card or liability account, waiting to be identified. Income, expense and equity are the other side of what the entry already records, so moving one onto the receivable would take a sale out of the P&L with every figure still balancing — or, on a bill, an expense off it and onto the payable. Every refusal here names the record's own account, which for a bill is the payable and not a receivable its book has not got;
+- **a split whose account holds units rather than a currency** — a fund, a stock, anything a commodity is quoted in. A settlement is restated in the record's own currency, so moving one would write 100.00 USD over the 1.000 units that stood there. This is asked of the account's *commodity*, not its type: `type: Asset` may hold a fund, and it is refused just as a Mutual Fund account is.
+
+Both spellings are refused alike — naming the split with `txn_split_guid:` or a lone `PaymentSplit`, and naming only its transaction with `txn_guid:`, which reaches the same split.
+
 #### Import order guarantee
 
 A single `import --include-business-objects` call processes directives in this order:
@@ -2051,11 +2115,11 @@ accounts → customers/vendors/taxtables → standalone transactions → invoice
 
 Standalone transactions are created (with their declared `guid:` on both the transaction and each split) **before** any invoice or bill is processed, so the `payment:` blocks' `txn_guid:`/`txn_split_guid:` references always resolve in the same import call — no two-step import needed, even for a fresh book.
 
-See **[docs/comprehensive-roundtrip-example.md](docs/comprehensive-roundtrip-example.md)** for the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, all payment shapes: cash, retarget, overpayment with prepayment credit, credit consumption via `auto_apply_credit`, and the multi-invoice-one-bank-tx shape) exported and re-imported into a fresh book with semantic identity preserved down to per-split GUIDs. And **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)** for the bank-feed-first workflow, error reference, and the invoice-first alternative, plus **[docs/bill-payment-reconciliation.md](docs/bill-payment-reconciliation.md)** for the vendor-bill (Accounts Payable) side — partial payments, vendor credits, detection, and `unapply-payment` corrections.
+See **[docs/comprehensive-roundtrip-example.md](docs/comprehensive-roundtrip-example.md)** for the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, all payment shapes: cash, a linked bank transaction, overpayment with prepayment credit, credit consumption via `auto_apply_credit`, and the multi-invoice-one-bank-tx shape) exported and re-imported into a fresh book with semantic identity preserved down to per-split GUIDs. And **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)** for the bank-feed-first workflow, error reference, and the invoice-first alternative, plus **[docs/bill-payment-reconciliation.md](docs/bill-payment-reconciliation.md)** for the vendor-bill (Accounts Payable) side — partial payments, vendor credits, detection, and `unapply-payment` corrections.
 
 #### Cash-basis sales (Q-018)
 
-For cash-basis tax filers who want each sale's posted date to match the cash-receipt date, the workflow is the bank-feed-first pattern with three constraints: `posted.date == payment.date == bank-tx.date`, a single `payment:` block carrying `txn_guid:` + `txn_split_guid:` to retarget the existing bank tx, and an optional `cash_basis: true` line on the invoice header as a tax-method KVP. The flag is descriptive (purely a label for the issuer's tax filing — partial / installment payments are still allowed alongside it) and does not expose the tax-method classification in customer-facing rendering. For invoices that are issued but not yet paid, setting `cash_basis: true` on an unposted invoice renders an **UNPAID** badge instead of DRAFT, and an optional `due_date: YYYY-MM-DD` header field supplies the customer-facing due date. See **[docs/invoice-payment-reconciliation.md § Cash-basis sales](docs/invoice-payment-reconciliation.md#cash-basis-sales-q-018-same-day-post--pay)** for the worked example.
+For cash-basis tax filers who want each sale's posted date to match the cash-receipt date, the workflow is the bank-feed-first pattern with three constraints: `posted.date == payment.date == bank-tx.date`, a single `payment:` block carrying `txn_guid:` + `txn_split_guid:` to link the existing bank tx, and an optional `cash_basis: true` line on the invoice header as a tax-method KVP. The flag is descriptive (purely a label for the issuer's tax filing — partial / installment payments are still allowed alongside it) and does not expose the tax-method classification in customer-facing rendering. For invoices that are issued but not yet paid, setting `cash_basis: true` on an unposted invoice renders an **UNPAID** badge instead of DRAFT, and an optional `due_date: YYYY-MM-DD` header field supplies the customer-facing due date. See **[docs/invoice-payment-reconciliation.md § Cash-basis sales](docs/invoice-payment-reconciliation.md#cash-basis-sales-q-018-same-day-post--pay)** for the worked example.
 
 ### Retiring customers and vendors (archive)
 

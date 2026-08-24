@@ -1,0 +1,27 @@
+# 120.00 USD parked in a USD account, against a 100.00 USD invoice.
+#
+# The single-currency shape, which is the common one: bank,
+# `Assets:Suspense USD`, receivable and invoice are all USD, so nothing
+# converts and the entry is USD throughout. The figure on the
+# `Assets:Suspense USD` split *is* what the bank received — unlike the
+# cross-currency fixtures beside it, where `Assets:Due From Director` carries
+# 166.80 CAD that is an artefact of that account's own currency.
+#
+# It is 20.00 more than the invoice owes, so linking it is an overpayment and
+# the file has to say what the residue is. Nothing about the currencies makes
+# that question go away.
+#
+# What this fixture produces: a USD transaction, bank +120 against suspense
+# −120, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-02 * "Money in, USD suspense, too much"
+	guid: "1928374655647382910abcdef0123456"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 120.00 USD
+		guid: "28374655647382910abcdef012345671"
+		account.commodity.mnemonic: "USD"
+	Assets:Suspense USD -120.00 USD
+		guid: "37465564738291a0bcdef012345678ab"
+		account.commodity.mnemonic: "USD"

@@ -1,0 +1,48 @@
+# A grouped block whose `Transaction` guid is not a guid.
+#
+# `_refuse_a_payment_guid_nothing_can_parse` reads `txn_guid:` and
+# `txn_split_guid:` out of the block's keys, and the directives carry theirs
+# somewhere else — so the new spelling had no equivalent of the guard whose
+# whole point is that a mistyped guid "says which split settles which record,
+# which is not a thing to guess at".
+#
+# Two ways it bit, and the block states no `memo:` so that neither is masked
+# (a stated memo normalises the guid on the way past, by accident):
+#
+#   - where the record otherwise matched, `_the_book_holds` swallowed the parse
+#     error, the block scored one bare slot, the run said `unchanged`, and the
+#     mistyped line was read by nobody — the silent unread line this format
+#     refuses every other spelling of;
+#   - where it did not, the rebuild ran first: `Unpost(False)` destroyed the
+#     posting, and only then did the guid fail to parse.
+#
+# What this fixture produces: a refusal naming the guid, before anything is
+# unposted.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 100
+    account: "Assets:Bank:USD"
+    Transaction "not-a-guid"
+      PaymentSplit "708192a3b4c5d6e7f809122334455667"

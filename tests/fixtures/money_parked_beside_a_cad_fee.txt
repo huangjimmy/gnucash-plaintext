@@ -1,0 +1,37 @@
+# The same 100.00 USD arriving against `Assets:Due From Director`, which is
+# CAD, with a CAD wire fee beside it.
+#
+# The fee is genuinely CAD — it was charged in CAD and belongs in a CAD expense
+# account — so it does not go when `Assets:Due From Director` does. The entry
+# stays part CAD, which is what makes this different from
+# money_booked_to_a_cad_account.txt: there, both remaining sides were
+# USD and the transaction could be requoted in USD with no rate anywhere.
+#
+# Here it cannot. Requoting is impossible with a CAD split still in the entry,
+# so the receivable split would have to carry a USD amount against a CAD value,
+# and the ratio between them is a rate nobody stated. Measured on the
+# equivalent shape: 1000.00 USD against −1420.00 CAD, an implied 1.42.
+#
+# What this fixture produces: a refusal naming the currencies, rather than a
+# book carrying an invented rate.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-26 * "Money in, net of a fee"
+	guid: "7d3e1f9a4b6c48d2a1e05f8c2b7d4a63"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		guid: "2b3c4d5e6f708192a3b4c5d6e7f80912"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "139.00"
+	Expenses:Supplies 21.00 CAD
+		guid: "3c4d5e6f708192a3b4c5d6e7f8091223"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "21.00"
+	Assets:Due From Director -160.00 CAD
+		guid: "4d5e6f708192a3b4c5d6e7f809122334"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-160.00"

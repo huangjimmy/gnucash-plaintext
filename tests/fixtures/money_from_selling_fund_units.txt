@@ -1,0 +1,40 @@
+# 100.00 USD reaching the bank from a sale of fund units.
+#
+# The other side is not money at all. `Assets:Fund` is a Mutual Fund account
+# holding FUNDX, quoted in units — 1.000 of them here — and the 100.00 beside
+# it is what the units fetched, not a figure standing in for a receivable.
+#
+# It is the cash sale one commodity further along. A payment that moved this
+# split onto the receivable would restate it in dollars, so 1.000 FUNDX would
+# leave `Assets:Fund` and the fund's balance would be short a unit, with the
+# invoice reading paid and every figure still balancing in USD.
+#
+# The commodity and the account are opened here because the base book has
+# neither: it is a book of dollars, and nothing else needs them.
+#
+# What this fixture produces: a USD transaction, bank +100.00 against
+# `Assets:Fund` −1.000 FUNDX valued −100.00, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 commodity FUNDX
+	mnemonic: "FUNDX"
+	fullname: "Example Balanced Fund"
+	namespace: "FUND"
+	fraction: 100
+2026-01-01 open Assets:Fund
+	type: Mutual Fund
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "FUNDX"
+	commodity_scu: 1000
+2026-03-18 * "Fund units sold"
+	guid: "5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c5f"
+		account.commodity.mnemonic: "USD"
+	Assets:Fund -1.000 FUNDX
+		guid: "7b8c9d0e1f2a3b4c5d6e7f8a9b0c5f6a"
+		account.commodity.mnemonic: "FUNDX"
+		share_price: "100"
+		value: "-100.00"

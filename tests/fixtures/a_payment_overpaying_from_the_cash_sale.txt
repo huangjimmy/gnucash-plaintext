@@ -1,0 +1,41 @@
+# The overpaying cash sale, linked by `txn_guid:` alone with a `prepayment:`.
+#
+# `prepayment: 20` is what makes this walk the carve arm rather than the plain
+# attach — and that arm returns before the guards that were installed after it,
+# so a file the exact-amount version could not get past went through here.
+#
+# What it did: the income split was re-accounted onto
+# `Assets:Accounts Receivable USD` and divided, 100.00 settling the invoice and
+# 20.00 parked as the customer's credit. The sale left the P&L, the invoice
+# read paid, and the entry balanced, at exit 0.
+#
+# What this fixture produces: a refusal naming the income account, with the
+# revenue still on it and nothing carved.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-20
+    amount: 120
+    account: "Assets:Bank:USD"
+    prepayment: 20
+    txn_guid: "cafe1122cafe3344cafe5566cafe7788"

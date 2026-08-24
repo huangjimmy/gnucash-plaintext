@@ -1,0 +1,32 @@
+# 100.00 USD leaving the USD bank, parked against the CAD account.
+#
+# The payable side of Q-039, and the half the whole path shipped without: every
+# other fixture here is an invoice. A bill's posting is a credit where an
+# invoice's is a debit, so its settlement is the other sign — CLAUDE.md finding
+# 7 — and `relink_a_parked_split` writes the negation of what the bank did,
+# which is the right sign on both without knowing which it is looking at. That
+# is worth a test rather than an argument.
+#
+# BILL-USD-001 is 100.00 USD, its payable is USD, and the bank is USD, so
+# nothing converts. The money left before anybody had worked out what it was
+# for, so the other side is the CAD account carrying 139.00 at 1.39 —
+# an artefact of the account, as always here, and gone when it is replaced.
+#
+# What this fixture produces: a CAD-quoted transaction paying money out, in no
+# lot, whose other side is the CAD account.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-25 * "Money out"
+	guid: "5c6d7e8f9001122334455667788a9bac"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -100.00 USD
+		guid: "6d7e8f9001122334455667788a9bacbd"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "-139.00"
+	Assets:Due From Director 139.00 CAD
+		guid: "7e8f9001122334455667788a9bacbdce"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "139.00"

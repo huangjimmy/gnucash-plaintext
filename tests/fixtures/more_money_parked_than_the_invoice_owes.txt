@@ -1,0 +1,32 @@
+# 120.00 USD arriving against a 100.00 USD invoice, parked in the CAD account.
+#
+# An overpayment, and the one shape of it this path cannot divide. Dividing
+# carves the settling split in two — one part settles the invoice, the rest
+# becomes the customer's credit — and the carve reads that split's own figure.
+# Here that figure is 166.80 CAD, which is what stood in for the receivable, so
+# both halves would come out of a number that means nothing.
+#
+# Measured before it was refused: the run weighed the bank's 120 against the
+# 100 owed, asked for `prepayment: 20.00`, accepted it, and then carved the CAD
+# split — settling 100 and parking 66.80, both on the USD receivable. The file
+# had just been told the residue was 20. Values still summed to zero in CAD, so
+# nothing disagreed.
+#
+# What this fixture produces: a CAD-quoted transaction whose bank side is more
+# than the invoice owes.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-02 * "Money in, more than owed"
+	guid: "0718293a4b5c6d7e8f90011223344556"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 120.00 USD
+		guid: "18293a4b5c6d7e8f9001122334455667"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "166.80"
+	Assets:Due From Director -166.80 CAD
+		guid: "8293a4b5c6d7e8f900112233445566aa"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-166.80"

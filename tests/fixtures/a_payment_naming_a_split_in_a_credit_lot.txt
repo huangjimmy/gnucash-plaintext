@@ -1,0 +1,43 @@
+# A grouped block naming a split that sits in the owner's parked credit.
+#
+# The block names the settling split of the two-line wire and, beside it, the
+# split holding money the customer has already paid into a credit lot. Taking
+# that one settles this invoice out of currency the owner is owed, leaving the
+# credit short with every figure in the book still balancing.
+#
+# So it is refused — and the grouped spelling is stricter here than the single
+# one on purpose: `txn_split_guid:` naming that same split spends the credit
+# deliberately, which is the route the ambiguity refusal sends readers down by
+# name. A block naming several splits is saying which of them settle this
+# record, not choosing which credit to spend.
+#
+# What this fixture produces: a refusal naming the lot, with nothing attached.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 100
+    account: "Assets:Bank:USD"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "708192a3b4c5d6e7f809122334455667"
+      PaymentSplit "8192a3b4c5d6e7f80912233445566778"

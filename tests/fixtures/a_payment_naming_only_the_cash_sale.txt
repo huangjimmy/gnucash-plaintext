@@ -1,0 +1,41 @@
+# The cash sale again, linked by `txn_guid:` alone.
+#
+# The account-type check went on the spelling that names the split, and
+# Q-039 says the two spellings reach the same place — so this one still moved
+# the revenue onto the receivable. The check belongs on the split that is about
+# to move, not on the words that chose it.
+#
+# Worse, this arm *regressed*. The size used to be the split's own figure, so a
+# CAD income split of −139.00 against a 100.00 USD invoice hit "exceeds invoice
+# remaining" and the file was turned away by accident. Reading the size off the
+# bank removed that barrier without putting the deliberate one in its place.
+#
+# What this fixture produces: a refusal naming the income account, with the
+# revenue still on it.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-16
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "1122aabb3344ccdd5566eeff77880099"

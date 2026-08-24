@@ -1,0 +1,38 @@
+# The block the overpayment refusal tells a reader to write.
+#
+# It names the settling split with `txn_split_guid:` and declares the rest with
+# `prepayment: 20.00`. Both splits are on the receivable, which is where the
+# reconciliation looks for the residue.
+#
+# What this fixture produces: the −100.00 split in the invoice's lot with the
+# invoice settled, and the −20.00 split parked in a prepayment lot of the
+# customer's.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-10
+    amount: 120
+    account: "Assets:Bank:USD"
+    prepayment: 20
+    txn_guid: "5a6b7c8d9e0f1a2b3c4d5e6f70819200"
+    txn_split_guid: "7c8d9e0f1a2b3c4d5e6f708192001122"

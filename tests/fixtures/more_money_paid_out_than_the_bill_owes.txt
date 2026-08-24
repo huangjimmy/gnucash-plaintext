@@ -1,0 +1,25 @@
+# 120.00 USD leaving the bank against the CAD account, on the bill side.
+#
+# 20.00 more than the bill owes, out of a split whose own figure is CAD
+# scaffolding — which is the shape the overpayment carve cannot divide. Both
+# halves would come out of a number that means nothing.
+#
+# What this fixture produces: a CAD transaction, bank −120.00 USD valued
+# −166.80 CAD against `Assets:Due From Director` +166.80 CAD, neither split
+# in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-04-06 * "Money out, too much"
+	guid: "2a3b4c5d6e7f8a9b0c5f6a7b8c9d0e1a"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -120.00 USD
+		guid: "3b4c5d6e7f8a9b0c5f6a7b8c9d0e1a2b"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "-166.80"
+	Assets:Due From Director 166.80 CAD
+		guid: "4c5d6e7f8a9b0c5f6a7b8c9d0e1a2b3c"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "166.80"

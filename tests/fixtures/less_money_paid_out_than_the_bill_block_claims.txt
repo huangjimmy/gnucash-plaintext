@@ -1,0 +1,31 @@
+# 60.00 USD leaving the bank against the CAD account, on the bill side.
+#
+# The bill's own version of the fall-short shape. The bill owes 100.00 USD,
+# the bank sent 60.00, and the other side is `Assets:Due From Director`,
+# which is CAD — so the figure that split carries stood in for the payable
+# and says nothing about what was paid.
+#
+# A block claiming `amount: 100` against this is claiming money the bank did
+# not send. The settlement is read off the bank, so the run knows it is 60,
+# and the refusal has to say so rather than settling the bill by 60 in
+# silence.
+#
+# What this fixture produces: a CAD transaction, bank −60.00 USD valued
+# −83.40 CAD against `Assets:Due From Director` +83.40 CAD, neither split in
+# a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-28 * "Money out, short of the block"
+	guid: "0c5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -60.00 USD
+		guid: "5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "-83.40"
+	Assets:Due From Director 83.40 CAD
+		guid: "6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c5f"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "83.40"
