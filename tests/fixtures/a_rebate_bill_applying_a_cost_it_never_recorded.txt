@@ -1,0 +1,45 @@
+# A bill whose only entry is booked to income, applying a split on an expense
+# account it never posted to.
+#
+# The bill posts to `Liabilities:Accounts Payable USD` and
+# `Income:Vendor Rebates USD` and to nothing else. The split it applies is on
+# `Expenses:Supplies:USD`, which is somebody else's cost.
+#
+# It must be refused, and the refusal must not offer the posting as a way out.
+# There is no account of that posting a split could be moved off: the payable
+# already holds settlements, and income is refused whichever record posts to
+# it.
+#
+# What this fixture produces: a refusal naming the expense account, with the
+# transaction untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Income:Vendor Rebates USD
+  type: Income
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "USD"
+
+bill "BILL-REBATE-002"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-24
+  entry:
+    date: 2026-02-24
+    description: "Rebate"
+    account: "Income:Vendor Rebates USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-02-24
+    due: 2026-03-24
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-REBATE-002"
+    accumulate: true
+  payment:
+    date: 2026-02-10
+    amount: 100
+    account: "Assets:Due From Director USD"
+    txn_guid: "aa11bb22cc33dd44ee55ff6677889900"
+    txn_split_guid: "bb22cc33dd44ee55ff6677889900aa11"

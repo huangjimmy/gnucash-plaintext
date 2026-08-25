@@ -1,0 +1,35 @@
+# Money coming back from a supplier, recorded against two expense splits.
+#
+# `Assets:Due From Director USD` +100.00 against `Expenses:Supplies:USD`
+# −60.00 and −40.00. The signs are the opposite of a payment: the director is
+# owed less, and the cost is being taken off.
+#
+# A bill payment reduces the payable, so its split on the payable is
+# positive. These two are negative. Applying them would put −100.00 into the
+# bill's lot beside the posting's own −100.00.
+#
+# What this fixture produces: a USD transaction of three splits, none in a
+# lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Due From Director USD
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-03-08 * "Supplier refunded the director"
+	guid: "4c5d6e7f8a9b0cddeeff00112233aabb"
+	currency.mnemonic: "USD"
+	Assets:Due From Director USD 100.00 USD
+		guid: "5d6e7f8a9b0cddeeff00112233aabb4c"
+		account.commodity.mnemonic: "USD"
+	Expenses:Supplies:USD -60.00 USD
+		guid: "6e7f8a9b0cddeeff00112233aabb4c5d"
+		account.commodity.mnemonic: "USD"
+	Expenses:Supplies:USD -40.00 USD
+		guid: "7f8a9b0cddeeff00112233aabb4c5d6e"
+		account.commodity.mnemonic: "USD"

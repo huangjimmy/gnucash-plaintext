@@ -1,4 +1,4 @@
-# A taxed HKD invoice: the same shape as the USD one, in a currency worth far
+# An HKD invoice with a tax entry: the same shape as the USD one, in a currency worth far
 # less than a Canadian dollar.
 #
 # 333.33 HKD of consulting at 10% tax, posted at 0.1754 CAD/HKD. The CAD

@@ -1,5 +1,11 @@
 # Naming the income split of a cash sale as the settlement.
 #
+# **The account names here are load-bearing.** This invoice posts to
+# `Income:Sales` while the cash sale sits on `Income:Sales USD`, and that is
+# why it is refused: a split the record's own posting books may be moved,
+# being a second copy of the record's own line. Point both at one account and
+# this fixture stops refusing and starts moving a sale off the P&L.
+#
 # The revenue is not money waiting to be identified — it is the sale. Moving it
 # onto the receivable does not turn the entry into a payment of the invoice; it
 # takes the sale out of the P&L and leaves an invoice reading paid by nothing.

@@ -34,7 +34,10 @@ from gnucash import Query, Transaction
 from gnucash.gnucash_core_c import ACCT_TYPE_ASSET
 
 from cli.main import cli
-from infrastructure.gnucash.utils import get_account_full_name
+from infrastructure.gnucash.utils import (
+    get_account_full_name,
+    numeric_to_fraction,
+)
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 FIXTURES = Path('tests/fixtures')
@@ -225,6 +228,87 @@ LINKED_WITH_A_FEE = str(
     FIXTURES / 'a_payment_naming_the_split_parked_beside_a_fee.txt')
 RATES = str(FIXTURES / 'fx_rates_usd_dated.yaml')
 
+DIRECTOR_PAID_THE_SUPPLIER = str(
+    FIXTURES / 'a_director_paying_a_supplier_out_of_pocket.txt')
+BILL_SETTLED_BY_THE_DIRECTOR = str(
+    FIXTURES / 'a_bill_settled_by_what_the_director_paid.txt')
+DIRECTOR_USD = 'Assets:Due From Director USD'
+EXPENSE_PAID_BY_CREDIT_CARD = str(
+    FIXTURES / 'an_expense_paid_by_credit_card.txt')
+BILL_SETTLED_BY_THE_CARD = str(
+    FIXTURES / 'a_bill_settled_by_what_the_card_paid.txt')
+CREDIT_CARD = 'Liabilities:Credit Card USD'
+EXPENSE_PAID_FROM_EQUITY = str(
+    FIXTURES / 'an_expense_paid_from_owners_equity.txt')
+BILL_SETTLED_BY_THE_OWNER = str(
+    FIXTURES / 'a_bill_settled_by_what_the_owner_put_in.txt')
+OWNER_EQUITY = 'Equity:Owner Contributions USD'
+BILL_PAID_ON_THE_CARD = str(
+    FIXTURES / 'a_bill_paid_on_the_card_with_no_transaction.txt')
+BILL_GIVING_ONLY_THE_DIRECTORS_TX = str(
+    FIXTURES / 'a_bill_giving_only_the_directors_transaction_guid.txt')
+US_VENDOR_PAID_IN_USD = str(
+    FIXTURES / 'a_us_vendor_paid_in_usd_with_the_cost_in_cad.txt')
+USD_BILL_SETTLED_BY_THE_CAD_COST = str(
+    FIXTURES / 'a_usd_bill_settled_by_the_cad_cost_split.txt')
+CAD_EXPENSES = 'Expenses:Supplies'
+INVOICE_ON_THE_SAME_INCOME_ACCOUNT = str(
+    FIXTURES / 'an_invoice_applying_its_own_income_account_split.txt')
+EXPENSE_PAID_GROSS_ON_THE_CARD = str(
+    FIXTURES / 'an_expense_paid_gross_on_the_card.txt')
+TAX_ENTRY_BILL_SETTLED_BY_THE_GROSS_SPLIT = str(
+    FIXTURES / 'a_taxed_bill_settled_by_the_gross_expense_split.txt')
+GST = 'Liabilities:Tax:GST USD'
+EXPENSE_PAID_WITH_GST_SPLIT_OUT = str(
+    FIXTURES / 'an_expense_paid_on_the_card_with_gst_split_out.txt')
+TAX_ENTRY_BILL_APPLYING_ONLY_THE_COST = str(
+    FIXTURES / 'a_bill_with_a_tax_entry_applying_only_the_cost_split.txt')
+TAX_ENTRY_BILL_APPLYING_BOTH_SPLITS = str(
+    FIXTURES / 'a_bill_with_a_tax_entry_applying_both_splits.txt')
+TWO_SUPPLIERS_AT_ONCE = str(
+    FIXTURES / 'a_director_paying_two_suppliers_at_once.txt')
+FIRST_OF_TWO_BILLS = str(FIXTURES / 'the_first_of_two_suppliers_bills.txt')
+SECOND_OF_TWO_BILLS = str(FIXTURES / 'the_second_of_two_suppliers_bills.txt')
+TWO_SUSPENSE_SPLITS = str(FIXTURES / 'money_reaching_two_suspense_splits.txt')
+INVOICE_APPLYING_TWO_SUSPENSE_SPLITS = str(
+    FIXTURES / 'an_invoice_applying_two_suspense_splits.txt')
+USD_BILL_POSTED_UNPAID = str(
+    FIXTURES / 'a_usd_bill_posted_with_no_payment.txt')
+SECOND_USD_BILL_SAME_EXPENSE = str(
+    FIXTURES / 'a_second_usd_bill_on_the_same_expense_account.txt')
+REFUND_SPLIT_IN_TWO = str(FIXTURES / 'a_supplier_refund_split_in_two.txt')
+BILL_APPLYING_TWO_REFUND_SPLITS = str(
+    FIXTURES / 'a_bill_applying_two_refund_splits.txt')
+REBATE_PAID_ON_THE_CARD = str(FIXTURES / 'a_rebate_paid_onto_the_card.txt')
+BILL_ON_INCOME_APPLYING_THAT_SPLIT = str(
+    FIXTURES / 'a_bill_on_income_applying_that_income_split.txt')
+REBATE_BILL_APPLYING_A_COST = str(
+    FIXTURES / 'a_rebate_bill_applying_a_cost_it_never_recorded.txt')
+EXPENSE_PAID_ON_A_PLAIN_LIABILITY_CARD = str(
+    FIXTURES
+    / 'an_expense_paid_on_a_plain_liability_card_with_gst_split_out.txt')
+BILL_ON_A_PLAIN_LIABILITY_CARD = str(
+    FIXTURES / 'a_bill_paid_on_a_plain_liability_card.txt')
+BILL_WITH_NO_TAX_ENTRY = str(
+    FIXTURES / 'a_bill_with_no_tax_entry_applying_the_gross_cost_split.txt')
+REFUND_ON_THE_PAYABLE = str(
+    FIXTURES / 'a_supplier_refund_booked_straight_to_the_payable.txt')
+BILL_APPLYING_TWO_PAYABLE_REFUNDS = str(
+    FIXTURES / 'a_bill_applying_two_payable_refund_splits.txt')
+CAPITAL_DRAWN_ON_THE_CARD = str(
+    FIXTURES / 'capital_put_in_and_drawn_on_the_card.txt')
+BILL_ON_EQUITY = str(
+    FIXTURES / 'a_bill_on_equity_applying_that_equity_split.txt')
+PART_OF_ONE_BILL_AND_ALL_OF_ANOTHER = str(
+    FIXTURES / 'a_director_paying_part_of_one_bill_and_all_of_another.txt')
+BILL_PART_PAID_BESIDE_ANOTHER_COST = str(
+    FIXTURES / 'a_bill_part_paid_beside_another_suppliers_cost.txt')
+REBATES = 'Income:Vendor Rebates USD'
+MORE_PAID_ON_THE_CARD = str(
+    FIXTURES / 'more_paid_on_the_card_than_the_bill_owes.txt')
+BILL_OVERPAID_FROM_THE_EXPENSE = str(
+    FIXTURES / 'a_bill_overpaid_from_the_cards_expense_split.txt')
+
 BILL_BOOK = str(FIXTURES / 'fx_usd_bill_cad_expense.txt')
 MONEY_OUT = str(FIXTURES / 'money_paid_out_of_a_cad_account.txt')
 BILL_LINKED = str(FIXTURES / 'a_bill_payment_naming_the_parked_split.txt')
@@ -275,8 +359,8 @@ def _each_split_of(book, description):
         repo.close()
 
 
-def _posting_guid(book):
-    """The invoice's posting transaction, by guid.
+def _posting_guid(book, record_id='INV-USD-001'):
+    """A record's posting transaction, by guid.
 
     What an unpost destroys. Balances are the same either way, so nothing but
     the guid says whether a rebuild put the invoice back on the transaction the
@@ -291,7 +375,7 @@ def _posting_guid(book):
         from infrastructure.gnucash.utils import wrap_invoice_or_bill
         for raw in query.run():
             record = wrap_invoice_or_bill(raw)
-            if record.GetID() != 'INV-USD-001':
+            if record.GetID() != record_id:
                 continue
             posted = record.GetPostedTxn()
             found = posted.GetGUID().to_string() if posted else None
@@ -1325,8 +1409,8 @@ class TestAPrepaymentBesideAGroupedBlock:
 
         assert result.exit_code != 0, result.output
         # Caught before the comparison now, and by the figure rather than by
-        # the lot: the splits this block does not name come to nothing.
-        assert 'the splits it does not name come to 0.00' in result.output, \
+        # the lot: the splits this block does not apply come to nothing.
+        assert 'the splits it does not apply come to 0.00' in result.output, \
             result.output
 
     def test_a_residue_the_block_does_not_name_is_parked(self, book):
@@ -1705,7 +1789,7 @@ class TestAPaymentNamingOneSplitTwice:
             '--include-business-objects'])
 
         assert result.exit_code != 0, result.output
-        assert 'named twice' in result.output, result.output
+        assert 'appears twice' in result.output, result.output
 
 
 class TestAResidueBesideAnOrphanedSettlement:
@@ -2230,7 +2314,7 @@ class TestACreditNotesRefund:
 
 
 class TestASplitOnIncomeExpenseOrEquity:
-    """Money is not parked in income, expense or equity.
+    """An income or expense split the record does not post to is refused.
 
     A split was read as parked by *negation* — any account that is not the
     receivable or the payable — so the revenue split of a complete cash-sale
@@ -2241,8 +2325,17 @@ class TestASplitOnIncomeExpenseOrEquity:
     So naming it moved the revenue onto the receivable: the sale gone from the
     P&L, the invoice reading paid, the entry balancing exactly as it did
     before, at exit 0. The reconciliation guide calls this shape unsupported —
-    a bank entry with the income baked in has nothing on a receivable to link —
-    and before this it was a hard refusal for not living on an AR/AP account.
+    a bank entry with the income baked in has nothing on a receivable to link.
+
+    **What makes it a refusal is the account, and the fixtures depend on it.**
+    An income or expense split the record's own posting books is a second copy
+    of that record's line and may be moved — `TestLinkingAnExpenseSplitTo`
+    `ABillsPayable` is that case. These fixtures are near misses on purpose:
+    the invoice posts to `Income:Sales` while the cash sale sits on
+    `Income:Sales USD`, and the bill posts to `Expenses:Supplies` while the
+    purchase sits on `Expenses:Supplies:USD`. Point either pair at one account
+    and the refusal becomes an acceptance that moves a sale off the P&L, so
+    the two account names are load-bearing and must not be tidied together.
     """
 
     @pytest.fixture
@@ -2262,6 +2355,39 @@ class TestASplitOnIncomeExpenseOrEquity:
         assert 'nor an account money passes through' in result.output, \
             result.output
         assert 'not a currency' not in result.output, result.output
+        # An invoice is never offered the posting as a way out, so its
+        # refusal does not name the accounts it posts to.
+        assert 'posts to ' not in result.output, result.output
+
+    def test_an_invoice_posting_to_that_same_income_account(
+            self, a_cash_sale):
+        """Still refused, and this is the boundary that keeps it refused.
+
+        A bill may move an expense split its own posting books, the cost
+        being a cost either way. An invoice may not move a revenue split on
+        the same argument: the sale would leave the profit and loss, which is
+        what Q-039 was reported for. So the account match is allowed to
+        settle a bill and never an invoice, and this invoice posts to
+        `Income:Sales USD` — the very account the cash sale sits on.
+        """
+        result = CliRunner().invoke(cli, [
+            'import', str(a_cash_sale), INVOICE_ON_THE_SAME_INCOME_ACCOUNT,
+            '--include-business-objects', '--fx-rates', RATES])
+
+        assert result.exit_code != 0, result.output
+        assert INCOME_USD in result.output, result.output
+
+    def test_the_revenue_survives_an_invoice_on_that_account(
+            self, a_cash_sale):
+        CliRunner().invoke(cli, [
+            'import', str(a_cash_sale), INVOICE_ON_THE_SAME_INCOME_ACCOUNT,
+            '--include-business-objects', '--fx-rates', RATES])
+        rows = _each_split_of(a_cash_sale, 'Cash sale, income baked in')
+
+        income = [row for row in rows if row['account'] == INCOME_USD]
+        assert len(income) == 1, rows
+        assert income[0]['amount'] == -100, income
+        assert not [row for row in rows if row['account'] == AR], rows
 
     def test_naming_only_the_transaction_is_refused_too(self, a_cash_sale):
         """The check belongs on the split about to move, not on the words that
@@ -2351,6 +2477,10 @@ class TestASplitOfUnitsRatherThanMoney:
         assert result.exit_code != 0, result.output
         assert FUND in result.output, result.output
         assert 'FUNDX, which is not a currency' in result.output, result.output
+        # And does not offer the way out a cost split has. Units cannot take
+        # it whatever the record posts to, so naming the posting accounts
+        # would send this reader somewhere that cannot help.
+        assert 'posts to ' not in result.output, result.output
 
     def test_naming_only_the_transaction_is_refused_too(self, a_fund_sale):
         """`txn_guid:` alone finds the one side that is not the bank.
@@ -2582,6 +2712,10 @@ class TestEveryRefusalABillReachesSaysPayable:
         assert EXPENSES in result.output, result.output
         assert 'payable' in result.output, result.output
         assert 'receivable' not in result.output, result.output
+        # The near miss is named, so a reader can see it is one: the split is
+        # on `Expenses:Supplies:USD` and the bill posts to its parent.
+        assert 'posts to ' in result.output, result.output
+        assert "'Expenses:Supplies'" in result.output, result.output
 
     def test_the_expense_stays_where_it_is(self, a_bill_and_a_cash_purchase):
         CliRunner().invoke(cli, ['import', str(a_bill_and_a_cash_purchase),
@@ -2624,7 +2758,7 @@ class TestEveryRefusalABillReachesSaysPayable:
             self, a_bill_and_money_in_suspense):
         """The grouped spelling's own account check.
 
-        Reached with a `Transaction` block rather than the keys, and it names
+        Reached with a `Transaction` block rather than the keys, and it states
         the account the record posts to — so it is a fifth place the word can
         be wrong, on a path none of the others go down.
         """
@@ -2636,7 +2770,7 @@ class TestEveryRefusalABillReachesSaysPayable:
         assert result.exit_code != 0, result.output
         assert 'payable' in result.output, result.output
         assert 'receivable' not in result.output, result.output
-        assert 'Every split a payment names' in result.output, result.output
+        assert 'Every split a payment applies' in result.output, result.output
 
     def test_a_block_claiming_more_than_the_bank_sent_says_payable(
             self, tmp_path):
@@ -2757,6 +2891,815 @@ class TestEveryRefusalABillReachesSaysPayable:
         assert 'receivable' not in result.output, result.output
         assert 'out of a number that means nothing' in result.output, \
             result.output
+
+
+class TestLinkingAnExpenseSplitToABillsPayable:
+    """Link an existing expense transaction to a bill payment.
+
+    The transaction has two splits. One is on an expense account. The other is
+    on an asset, a liability or an equity account.
+
+    `account:` is the account the supplier was paid from. `txn_split_guid:` is
+    the guid of the expense split. That split is replaced with a split on the
+    payable, which settles the bill.
+
+    The supplier was paid before the bill was posted. Posting the bill records
+    the same cost again, so the expense split is a second copy of the bill's
+    own line. Replacing it leaves the cost recorded once.
+
+    There is one test for each account the other split may sit on: asset,
+    liability, equity.
+
+    This was refused before this branch. Recording the payment separately
+    instead of linking the transaction leaves that transaction in place:
+    measured, the expense account came to 200.00 and the account the supplier
+    was paid from to −200.00.
+    """
+
+    def _balance(self, path, account_path):
+        """The account's own balance, walked from a full colon path.
+
+        Walked rather than looked up by leaf, because `GetBalance()` is not
+        recursive and the accounts here are nested: the cost under test lands
+        on `Expenses:Supplies:USD`, while `BILL_BOOK`'s own unrelated bill
+        posts to its parent `Expenses:Supplies`. Reading the parent answers a
+        question about a different bill.
+        """
+        repo = GnuCashRepository(str(path))
+        repo.open(mode=SessionMode.READ_ONLY)
+        try:
+            account = repo.book.get_root_account()
+            for name in account_path.split(':'):
+                account = account.lookup_by_name(name)
+                assert account is not None, f'no account {account_path!r}'
+            return numeric_to_fraction(account.GetBalance())
+        finally:
+            repo.close()
+
+    def _linked(self, tmp_path, money, bill, cost_account=None):
+        """A book holding the transaction, with the bill's payment linked.
+
+        Balances are read before the bill is imported, because `BILL_BOOK`
+        carries a posted bill of its own against both the payable and
+        `Expenses:Supplies`. What this branch has to show is that *this*
+        bill's posting and payment cancel on the payable, and that its own
+        line replaces the entry's copy of the cost — both of which are the
+        account ending where it started rather than at any particular figure.
+        """
+        path = tmp_path / 'bills.gnucash'
+        runner = CliRunner()
+        first = runner.invoke(cli, [
+            'import', '--new', str(path), BILL_BOOK,
+            '--include-business-objects', '--fx-rates', RATES])
+        assert first.exit_code == 0, first.output
+        second = runner.invoke(cli, ['import', str(path), money])
+        assert second.exit_code == 0, second.output
+        before = {AP: self._balance(path, AP)}
+        if cost_account is not None:
+            before[cost_account] = self._balance(path, cost_account)
+        return path, before, runner.invoke(cli, [
+            'import', str(path), bill,
+            '--include-business-objects', '--fx-rates', RATES])
+
+    def _assert_settled(self, path, before, description, other_side):
+        rows = _each_split_of(path, description)
+        assert sorted(row['account'] for row in rows) == sorted(
+            [AP, other_side]), rows
+        settling = [row for row in rows if row['account'] == AP]
+        assert settling[0]['amount'] == 100, settling
+        assert settling[0]['in_a_lot'], 'the settlement belongs to the lot'
+
+        # The cost is booked once, by the bill's own line. `BILL_BOOK` never
+        # touches `Expenses:Supplies:USD`, so its whole balance is this bill's.
+        assert self._balance(path, EXPENSES) == 100, \
+            'the expense account holds 100.00, recorded by the bill alone'
+        assert self._balance(path, AP) == before[AP], \
+            "the payable is where it was: this bill's posting and its payment " \
+            "cancel each other"
+        assert self._balance(path, other_side) == -100, \
+            'the account the supplier was paid from is down 100.00'
+
+    def test_the_other_side_is_an_asset(self, tmp_path):
+        """`Assets:Due From Director USD` — a director paid the supplier."""
+        path, before, result = self._linked(
+            tmp_path, DIRECTOR_PAID_THE_SUPPLIER, BILL_SETTLED_BY_THE_DIRECTOR)
+
+        assert result.exit_code == 0, result.output
+        self._assert_settled(path, before, 'Director paid the supplier',
+                             DIRECTOR_USD)
+
+    def test_the_other_side_is_a_liability(self, tmp_path):
+        """`Liabilities:Credit Card USD` — paid on the company card."""
+        path, before, result = self._linked(
+            tmp_path, EXPENSE_PAID_BY_CREDIT_CARD, BILL_SETTLED_BY_THE_CARD)
+
+        assert result.exit_code == 0, result.output
+        self._assert_settled(path, before, 'Paid the supplier on the card',
+                             CREDIT_CARD)
+
+    def test_the_other_side_is_equity(self, tmp_path):
+        """`Equity:Owner Contributions USD` — the owner put the money in."""
+        path, before, result = self._linked(
+            tmp_path, EXPENSE_PAID_FROM_EQUITY, BILL_SETTLED_BY_THE_OWNER)
+
+        assert result.exit_code == 0, result.output
+        self._assert_settled(path, before, 'Owner settled the supplier',
+                             OWNER_EQUITY)
+
+    def test_naming_only_the_transaction_reaches_the_same_split(
+            self, tmp_path):
+        """`txn_guid:` alone picks the side that is not the `account:`.
+
+        Both spellings reaching the same split is an invariant this path is
+        paired on everywhere else, and this branch differs materially: it
+        chooses by elimination rather than being told, and its overpayment arm
+        carves the split rather than moving it whole.
+        """
+        path, before, result = self._linked(
+            tmp_path, DIRECTOR_PAID_THE_SUPPLIER,
+            BILL_GIVING_ONLY_THE_DIRECTORS_TX)
+
+        assert result.exit_code == 0, result.output
+        self._assert_settled(path, before, 'Director paid the supplier',
+                             DIRECTOR_USD)
+
+    def test_a_usd_bill_whose_expense_account_is_cad(self, tmp_path):
+        """A Canadian company paying a US vendor, which is the common shape.
+
+        The cost has to be booked in CAD for the return, so the expense
+        account is CAD while the bill and its payable are USD. The entry the
+        bookkeeper wrote converts at the day's rate, and the 140.00 CAD on
+        the expense split is what it was quoted at rather than what settles
+        the bill.
+
+        So this is the new acceptance and the cross-currency restatement at
+        once: the split moves to a payable in another currency, the
+        settlement is read off the USD side, and the entry is requoted in USD
+        once the CAD split has gone.
+        """
+        path, before, result = self._linked(
+            tmp_path, US_VENDOR_PAID_IN_USD, USD_BILL_SETTLED_BY_THE_CAD_COST,
+            cost_account=CAD_EXPENSES)
+        before_cost = before[CAD_EXPENSES]
+
+        assert result.exit_code == 0, result.output
+        rows = _each_split_of(path, 'Director paid the US vendor')
+        assert sorted(row['account'] for row in rows) == sorted(
+            [AP, DIRECTOR_USD]), rows
+        settling = [row for row in rows if row['account'] == AP]
+        assert settling[0]['amount'] == 100, 'the bill owes 100.00 USD'
+        assert settling[0]['commodity'] == 'USD', settling
+        assert settling[0]['in_a_lot'], 'the settlement belongs to the lot'
+
+        assert self._balance(path, AP) == before[AP], \
+            "the payable is where it was: this bill's posting and its payment " \
+            "cancel each other"
+        assert self._balance(path, DIRECTOR_USD) == -100, 'what was paid out'
+        # Booked once: the entry's own 140.00 CAD leaves with the split and
+        # the bill's posting puts the same cost back, converted at the same
+        # rate, so linking leaves the account where it was.
+        assert self._balance(path, CAD_EXPENSES) == before_cost, \
+            "the bill's line replaces the entry's copy of the cost"
+
+    def test_a_bill_carrying_gst_paid_as_one_gross_expense(self, tmp_path):
+        """The tax is separated by the bill, not by the entry that preceded it.
+
+        Nothing said how much of the 113.00 was tax when it was paid, so the
+        bookkeeper recorded the whole of it as one expense. That leaves two
+        splits, which is the shape this branch handles, and the bill's own
+        posting is what splits 113.00 into 100.00 of cost and 13.00 of GST.
+
+        This is the ordinary Canadian case, so it is the one worth pinning:
+        the gross split moves to the payable at 113.00, and the expense
+        account ends at the net figure rather than the gross one.
+        """
+        path, before, result = self._linked(
+            tmp_path, EXPENSE_PAID_GROSS_ON_THE_CARD,
+            TAX_ENTRY_BILL_SETTLED_BY_THE_GROSS_SPLIT)
+
+        assert result.exit_code == 0, result.output
+        rows = _each_split_of(path, 'Paid the supplier gross on the card')
+        settling = [row for row in rows if row['account'] == AP]
+        assert settling[0]['amount'] == 113, \
+            'the payable split is 113.00, the cost and the tax together'
+        assert settling[0]['in_a_lot'], 'the settlement belongs to the lot'
+
+        assert self._balance(path, AP) == before[AP], \
+            "the payable is where it was: this bill's posting and its payment " \
+            "cancel each other"
+        assert self._balance(path, EXPENSES) == 100, \
+            'the expense account holds the 100.00 the bill posted, not 113.00'
+        assert self._balance(path, GST) == 13, \
+            "the tax account holds the 13.00 the bill's tax entry posted"
+        assert self._balance(path, CREDIT_CARD) == -113, \
+            'the company owes the card issuer 113.00'
+
+    def test_applying_one_split_of_two_the_bill_posts_to_is_refused(
+            self, tmp_path):
+        """Part of a de-duplication is not a part payment.
+
+        Here the tax was split out when the supplier was paid, so the
+        transaction holds a cost split and a GST split — and the bill's
+        posting books both accounts, making both of them copies of its own
+        lines. Moving one leaves the other where it is, counted once by the
+        transaction and once by the posting.
+
+        Measured before this was refused: naming the 100.00 cost split moved
+        it to the payable, the GST stayed at 26.00 for one 13.00 charge, the
+        bill read 13.00 still owing, and every figure balanced, at exit 0 —
+        the quiet wrong book this whole path exists to prevent.
+        """
+        path, before, result = self._linked(
+            tmp_path, EXPENSE_PAID_WITH_GST_SPLIT_OUT,
+            TAX_ENTRY_BILL_APPLYING_ONLY_THE_COST)
+
+        assert result.exit_code != 0, result.output
+        # The message states the account left out, what the bill posts there,
+        # what the transaction holds there, and the way to write the payment
+        # so that nothing is left out. Figures come from the account, so a yen
+        # book reads yen here.
+        assert GST in result.output, result.output
+        assert 'posts 13.00 there' in result.output, result.output
+        assert 'holds 13.00 on that account' in result.output, result.output
+        assert '`PaymentSplit`' in result.output, result.output
+
+        rows = _each_split_of(path, 'Paid the supplier, tax split out')
+        assert sorted(row['account'] for row in rows) == sorted(
+            [EXPENSES, GST, CREDIT_CARD]), 'the entry is untouched'
+        assert not any(row['in_a_lot'] for row in rows), rows
+
+    def test_applying_both_splits_the_bill_posts_to_settles_it(self, tmp_path):
+        """Write the link out yourself and nothing is left to work out.
+
+        The tax was separated when the supplier was paid, so the transaction
+        holds a split for the cost and one for the GST, and the bill books
+        both accounts. Naming one of them is refused — the other would be
+        left counted twice. Naming both says which splits are this bill's, so
+        both move to the payable and come to the 113.00 it owes.
+        """
+        path, before, result = self._linked(
+            tmp_path, EXPENSE_PAID_WITH_GST_SPLIT_OUT,
+            TAX_ENTRY_BILL_APPLYING_BOTH_SPLITS)
+
+        assert result.exit_code == 0, result.output
+        rows = _each_split_of(path, 'Paid the supplier, tax split out')
+        settling = [row for row in rows if row['account'] == AP]
+        assert sorted(row['amount'] for row in settling) == [13, 100], rows
+        assert all(row['in_a_lot'] for row in settling), rows
+
+        assert self._balance(path, AP) == before[AP], \
+            "the payable is where it was: this bill's posting and its payment " \
+            "cancel each other"
+        assert self._balance(path, EXPENSES) == 100, \
+            'the expense account holds the 100.00 the bill posted, not 113.00'
+        assert self._balance(path, GST) == 13, \
+            "the tax account holds the 13.00 the bill's tax entry posted"
+        assert self._balance(path, CREDIT_CARD) == -113, \
+            'the company owes the card issuer 113.00'
+
+    def test_two_bills_paid_by_one_transaction_each_apply_their_own(
+            self, tmp_path):
+        """One transaction paying two suppliers, both costs on one account.
+
+        Each bill names the split that is its own, so neither has to be told
+        apart from the other by the run. Both settle, and the director ends
+        owed the whole 300.00.
+        """
+        path = tmp_path / 'bills.gnucash'
+        runner = CliRunner()
+        first = runner.invoke(cli, [
+            'import', '--new', str(path), BILL_BOOK,
+            '--include-business-objects', '--fx-rates', RATES])
+        assert first.exit_code == 0, first.output
+        assert runner.invoke(cli, [
+            'import', str(path), TWO_SUPPLIERS_AT_ONCE]).exit_code == 0
+        before = self._balance(path, AP)
+
+        one = runner.invoke(cli, [
+            'import', str(path), FIRST_OF_TWO_BILLS,
+            '--include-business-objects', '--fx-rates', RATES])
+        assert one.exit_code == 0, one.output
+        two = runner.invoke(cli, [
+            'import', str(path), SECOND_OF_TWO_BILLS,
+            '--include-business-objects', '--fx-rates', RATES])
+        assert two.exit_code == 0, two.output
+
+        rows = _each_split_of(path, 'Director paid two suppliers')
+        settling = [row for row in rows if row['account'] == AP]
+        assert sorted(row['amount'] for row in settling) == [100, 200], rows
+        assert self._balance(path, AP) == before, 'both bills are settled'
+        assert self._balance(path, EXPENSES) == 300, 'each bill books its own'
+        assert self._balance(path, DIRECTOR_USD) == -300, 'what is owed'
+
+    def test_a_part_payment_beside_another_suppliers_cost_is_allowed(
+            self, tmp_path):
+        """A part payment stays a part payment whatever else shares the account.
+
+        The director paid 60.00 of a bill owing 100.00, and 200.00 for another
+        supplier, both costs on `Expenses:Supplies:USD`. The bill applies its
+        60.00. The 40.00 it still owes was never paid, and the 200.00 is the
+        other supplier's.
+
+        Asking whether what is applied came to what the posting booked refused
+        this: 60.00 against 100.00, with the message saying the rest would be
+        recorded twice, which is untrue. It also made the answer depend on the
+        other supplier — the same part payment was allowed when nothing else
+        shared the account, because then no split was left over to compare
+        against.
+        """
+        path = tmp_path / 'bills.gnucash'
+        runner = CliRunner()
+        first = runner.invoke(cli, [
+            'import', '--new', str(path), BILL_BOOK,
+            '--include-business-objects', '--fx-rates', RATES])
+        assert first.exit_code == 0, first.output
+        assert runner.invoke(cli, [
+            'import', str(path), PART_OF_ONE_BILL_AND_ALL_OF_ANOTHER
+        ]).exit_code == 0
+
+        result = runner.invoke(cli, [
+            'import', str(path), BILL_PART_PAID_BESIDE_ANOTHER_COST,
+            '--include-business-objects', '--fx-rates', RATES])
+
+        assert result.exit_code == 0, result.output
+        rows = _each_split_of(
+            path, 'Director paid one supplier in part and another in full')
+        settling = [row for row in rows if row['account'] == AP]
+        assert [row['amount'] for row in settling] == [60], rows
+        assert settling[0]['in_a_lot'], 'the 60.00 belongs to the bill'
+        others = [row for row in rows if row['account'] == EXPENSES]
+        assert [row['amount'] for row in others] == [200], \
+            "the other supplier's cost is untouched"
+        assert not others[0]['in_a_lot'], rows
+
+    def test_an_invoice_applies_two_suspense_splits(self, book):
+        """The grouped spelling on the invoice side, off a suspense account.
+
+        Money waiting in a suspense account has always been movable, whichever
+        record it turns out to settle. What is new is that a `Transaction`
+        block may apply more than one such split, so an arrival recorded as
+        two halves settles one invoice.
+
+        The bill side needs the posting to book the account, because the split
+        there is a cost and moving it removes one. A suspense split is money,
+        so that condition does not apply here.
+        """
+        assert CliRunner().invoke(
+            cli, ['import', str(book), TWO_SUSPENSE_SPLITS]).exit_code == 0
+
+        result = CliRunner().invoke(cli, [
+            'import', str(book), INVOICE_APPLYING_TWO_SUSPENSE_SPLITS,
+            '--include-business-objects'])
+
+        assert result.exit_code == 0, result.output
+        rows = _each_split_of(book, 'Money in, split in two')
+        settling = [row for row in rows if row['account'] == AR]
+        assert sorted(row['amount'] for row in settling) == [-60, -40], rows
+        assert all(row['in_a_lot'] for row in settling), rows
+        assert not [row for row in rows if row['account'] == SUSPENSE], rows
+
+    def test_a_bill_may_not_settle_itself_from_its_own_posting(self, tmp_path):
+        """A bill's own posting transaction is not a payment of it.
+
+        Posting a bill writes `DR Expenses / CR A/P`. That transaction has a
+        split on the expense account, and the bill's own posting books that
+        account, so it satisfies the test that lets a cost split be applied.
+        Its payable split is already in the bill's lot, so the split left for
+        `txn_guid:` to find is the expense one.
+
+        Every other check passes it. The sign is right: the posting's expense
+        split is positive and so is a bill's settlement on the payable. The
+        amount is right: the posting is for what the bill owes. No split is
+        left out, there being nothing else on that account.
+
+        Measured before the check this pins: exit 0, the expense account went
+        from 100.00 to nil, the payable rose by 100.00, the bill read as paid,
+        no money moved anywhere, and every figure balanced.
+
+        The export prints this guid as `posted_txn_guid:` a few lines above
+        the `payment:` block that takes `txn_guid:`, so it is an ordinary
+        thing to write by mistake.
+        """
+        path = tmp_path / 'bills.gnucash'
+        runner = CliRunner()
+        assert runner.invoke(cli, [
+            'import', '--new', str(path), BILL_BOOK,
+            '--include-business-objects',
+            '--fx-rates', RATES]).exit_code == 0
+        assert runner.invoke(cli, [
+            'import', str(path), USD_BILL_POSTED_UNPAID,
+            '--include-business-objects', '--fx-rates', RATES]).exit_code == 0
+
+        posting = _posting_guid(path, 'BILL-SELF-001')
+        assert posting, 'the bill is posted, so it has a posting transaction'
+        block = tmp_path / 'self_settling.txt'
+        block.write_text(
+            Path(USD_BILL_POSTED_UNPAID).read_text().replace(
+                '  payment: none',
+                '  payment:\n'
+                '    date: 2026-03-12\n'
+                '    amount: 100\n'
+                '    account: "Assets:Due From Director USD"\n'
+                f'    txn_guid: "{posting}"\n'))
+
+        result = runner.invoke(cli, [
+            'import', str(path), str(block),
+            '--include-business-objects', '--fx-rates', RATES])
+
+        assert result.exit_code != 0, result.output
+        assert 'own posting transaction' in result.output, result.output
+        assert self._balance(path, EXPENSES) == 100, \
+            'the cost the posting recorded is still on the expense account'
+        assert self._balance(path, AP) == -200, \
+            'both bills are still owing: 100.00 each'
+
+    def test_a_bill_may_not_settle_itself_from_another_bills_posting(
+            self, tmp_path):
+        """No posting transaction is a payment, whosever posting it is.
+
+        Bill A's posting holds an expense split and a payable split. The
+        payable split is in A's lot, so the split left for `txn_guid:` to find
+        is the expense one — and where bill B posts to that same account, it
+        passes every test the linking branch makes: the sign is right, the
+        amount is what B owes, and no split is left out.
+
+        Taking it would move A's cost onto B's payable. A's expense account
+        would empty, B would read as paid, and no money would have moved.
+
+        The check therefore asks whether the transaction is **any** record's
+        posting, not only this record's.
+        """
+        path = tmp_path / 'bills.gnucash'
+        runner = CliRunner()
+        assert runner.invoke(cli, [
+            'import', '--new', str(path), BILL_BOOK,
+            '--include-business-objects',
+            '--fx-rates', RATES]).exit_code == 0
+        assert runner.invoke(cli, [
+            'import', str(path), USD_BILL_POSTED_UNPAID,
+            '--include-business-objects', '--fx-rates', RATES]).exit_code == 0
+        assert runner.invoke(cli, [
+            'import', str(path), SECOND_USD_BILL_SAME_EXPENSE,
+            '--include-business-objects', '--fx-rates', RATES]).exit_code == 0
+
+        posting = _posting_guid(path, 'BILL-SELF-001')
+        assert posting, 'the first bill is posted'
+        block = tmp_path / 'other_bills_posting.txt'
+        block.write_text(
+            Path(SECOND_USD_BILL_SAME_EXPENSE).read_text().replace(
+                '  payment: none',
+                '  payment:\n'
+                '    date: 2026-03-13\n'
+                '    amount: 100\n'
+                '    account: "Assets:Due From Director USD"\n'
+                f'    txn_guid: "{posting}"\n'))
+
+        result = runner.invoke(cli, [
+            'import', str(path), str(block),
+            '--include-business-objects', '--fx-rates', RATES])
+
+        assert result.exit_code != 0, result.output
+        assert 'posting transaction' in result.output, result.output
+        assert self._balance(path, EXPENSES) == 200, \
+            'both postings still hold their own cost'
+        assert self._balance(path, AP) == -300, \
+            'three bills owing: 100.00 each'
+
+    def test_applying_splits_of_the_wrong_sign_is_refused(self, tmp_path):
+        """A refund's splits are the wrong way round for a payment.
+
+        A bill's posting puts −100.00 on the payable, so its payment puts
+        +100.00 there. These two splits are −60.00 and −40.00, being money
+        coming back from the supplier rather than going to it.
+
+        Applying them would add −100.00 to a lot that already holds the
+        posting's −100.00. The lot would reach −200.00, the bill would read as
+        owing 200.00, and every figure would still balance. The sign is the
+        one thing that is not the same on both sides of a link, so it is what
+        catches this.
+        """
+        path, _, result = self._linked(
+            tmp_path, REFUND_SPLIT_IN_TWO, BILL_APPLYING_TWO_REFUND_SPLITS)
+
+        assert result.exit_code != 0, result.output
+        rows = _each_split_of(path, 'Supplier refunded the director')
+        assert not [row for row in rows if row['account'] == AP], \
+            'the transaction is untouched'
+        assert not any(row['in_a_lot'] for row in rows), rows
+
+    def test_wrong_signed_splits_already_on_the_payable_are_refused(
+            self, tmp_path):
+        """The same refusal, on the arm where nothing moves.
+
+        These two splits are already on the bill's payable, so the payment
+        claims them where they are rather than moving them. The sign check
+        read only the splits about to move, so this arm had none.
+
+        Everything else passes: neither split is in a lot, neither is another
+        owner's, neither settles another record, and 60.00 and 40.00 come to
+        the 100.00 the bill owes. Measured before the check reached this arm:
+        both joined a lot already holding the posting's −100.00, the lot
+        reached −200.00, the bill read as owing 200.00, every figure balanced,
+        at exit 0.
+        """
+        path = tmp_path / 'bills.gnucash'
+        runner = CliRunner()
+        first = runner.invoke(cli, [
+            'import', '--new', str(path), BILL_BOOK,
+            '--include-business-objects', '--fx-rates', RATES])
+        assert first.exit_code == 0, first.output
+        assert runner.invoke(cli, [
+            'import', str(path), DIRECTOR_PAID_THE_SUPPLIER]).exit_code == 0
+        assert runner.invoke(cli, [
+            'import', str(path), REFUND_ON_THE_PAYABLE]).exit_code == 0
+        before = self._balance(path, AP)
+
+        result = runner.invoke(cli, [
+            'import', str(path), BILL_APPLYING_TWO_PAYABLE_REFUNDS,
+            '--include-business-objects', '--fx-rates', RATES])
+
+        assert result.exit_code != 0, result.output
+        rows = _each_split_of(path, 'Supplier refunded the company')
+        assert not any(row['in_a_lot'] for row in rows), rows
+        assert self._balance(path, AP) == before, \
+            'the payable is where it was: the bill was never posted'
+
+    def test_a_bill_posting_to_income_is_refused_without_false_advice(
+            self, tmp_path):
+        """Income is outside the arm, so the posting is not offered either.
+
+        A bill's line may be booked to income, a vendor rebate being exactly
+        that, so a bill's posting can book an income account and the account
+        test is satisfied. The arm still refuses it — a cost is a cost
+        whichever entry carries it, which says nothing about revenue.
+
+        The message has to refuse it without pointing at the posting: naming
+        the accounts the bill posts to would name the very one the reader
+        already named, and tell them to do what they just did.
+        """
+        path, _, result = self._linked(
+            tmp_path, REBATE_PAID_ON_THE_CARD,
+            BILL_ON_INCOME_APPLYING_THAT_SPLIT)
+
+        assert result.exit_code != 0, result.output
+        assert REBATES in result.output, result.output
+        assert 'posts to ' not in result.output, result.output
+        assert 'would place is on' in result.output, result.output
+
+    def test_a_bill_that_posts_to_no_movable_account_says_so(self, tmp_path):
+        """A refusal may not tell a posted bill it has posted to nothing.
+
+        This bill's only entry is a rebate, so its posting books the payable
+        and an income account and nothing else. Neither can take a split: one
+        already holds settlements, the other is refused whichever record posts
+        to it. The list of accounts to offer the reader is therefore empty.
+
+        The split applied is on `Expenses:Supplies:USD`, which this bill never
+        posted to. It is refused, as somebody else's cost.
+
+        Measured before the check this pins: the message read "This one posts
+        to nothing yet", which describes a bill that has not been posted. This
+        one was posted, on 2026-02-24.
+        """
+        path, _, result = self._linked(
+            tmp_path, DIRECTOR_PAID_THE_SUPPLIER, REBATE_BILL_APPLYING_A_COST)
+
+        assert result.exit_code != 0, result.output
+        assert 'nothing yet' not in result.output, result.output
+        assert 'posts to ' not in result.output, result.output
+        assert EXPENSES in result.output, result.output
+        assert self._balance(path, EXPENSES) == 100, \
+            'the cost stays where the transaction put it'
+
+    def test_a_bill_posting_to_equity_is_refused(self, tmp_path):
+        """Capital is not a cost either, so equity is closed beside income.
+
+        `Entry.SetBillAccount` places no restriction on the account, so a
+        bill's line can be booked to an equity account, and its posting then
+        books one. The account test is satisfied and the split must still be
+        refused: what this allowance rests on is that a cost is a cost
+        whichever entry carries it, and moving capital to the payable would
+        take it off the balance sheet with every figure still balancing.
+
+        Equity remains a payment account. The owner settling a supplier out of
+        their own money is one of the three shapes this branch supports, and
+        there the equity account is the one `account:` states — the side that
+        never moves.
+        """
+        path, _, result = self._linked(
+            tmp_path, CAPITAL_DRAWN_ON_THE_CARD, BILL_ON_EQUITY)
+
+        assert result.exit_code != 0, result.output
+        assert OWNER_EQUITY in result.output, result.output
+        assert self._balance(path, OWNER_EQUITY) == 100, \
+            'the capital is where the transaction put it'
+
+    def test_the_rebate_stays_on_the_income_account(self, tmp_path):
+        path, _, _ = self._linked(
+            tmp_path, REBATE_PAID_ON_THE_CARD,
+            BILL_ON_INCOME_APPLYING_THAT_SPLIT)
+        rows = _each_split_of(path, 'Rebate settled on the card')
+
+        rebate = [row for row in rows if row['account'] == REBATES]
+        assert len(rebate) == 1, rows
+        assert rebate[0]['amount'] == 100, rebate
+        assert not [row for row in rows if row['account'] == AP], rows
+
+    def test_a_bill_overpaid_from_the_expense_split(self, tmp_path):
+        """The division the new arm reaches, which nothing pinned before.
+
+        150.00 was paid against a bill owing 100.00, so the split is divided:
+        100.00 settles the bill and 50.00 stays as the vendor's credit. The
+        whole 150.00 leaves the expense account, and the bill's own posting
+        puts 100.00 back — so the cost ends where the bill says rather than
+        where the payment did.
+        """
+        path, before, result = self._linked(
+            tmp_path, MORE_PAID_ON_THE_CARD, BILL_OVERPAID_FROM_THE_EXPENSE)
+
+        assert result.exit_code == 0, result.output
+        assert self._balance(path, EXPENSES) == 100, \
+            'the expense account holds the 100.00 the bill posted'
+        assert self._balance(path, CREDIT_CARD) == -150, \
+            'the company owes the card issuer the whole 150.00 it paid'
+        # The payable keeps the 50.00 that was over, as a credit against the
+        # vendor: 50.00 more than it held before this bill was posted.
+        assert self._balance(path, AP) == before[AP] + 50, \
+            'the residue is the vendor\'s credit'
+
+    def test_the_linked_card_payment_reads_back_unchanged(self, tmp_path):
+        """The export has to carry what this arm produced.
+
+        Two things are new in the file it writes: the transaction's expense
+        split is a payable split now, and `account:` names a liability. Both
+        have to come back the same way, or a book exported and re-imported
+        stops matching itself — which every other link shape here pins.
+        """
+        path, _, result = self._linked(
+            tmp_path, EXPENSE_PAID_BY_CREDIT_CARD, BILL_SETTLED_BY_THE_CARD)
+        assert result.exit_code == 0, result.output
+
+        out = tmp_path / 'card_roundtrip.txt'
+        assert CliRunner().invoke(cli, [
+            'export', str(path), '--output', str(out),
+            '--include-business-objects']).exit_code == 0
+        assert CREDIT_CARD in out.read_text(), out.read_text()
+
+        again = CliRunner().invoke(cli, [
+            'import', str(path), str(out), '--include-business-objects'])
+
+        assert again.exit_code == 0, again.output
+        assert 'bill "BILL-CARD-001": unchanged' in again.output, again.output
+
+    def test_a_part_payment_reads_back_into_a_fresh_book(self, tmp_path):
+        """The export has to state where the money came from, not what is left.
+
+        This transaction keeps a split on the expense account after the link:
+        the other supplier's 200.00, which is nobody's payment. The payment
+        account is the director's, and that is what the block has to state.
+
+        Measured before this was fixed: the export picked the first split that
+        was not on the payable, which is that 200.00, and wrote
+        `bank_account: "Expenses:Supplies:USD"`. Re-imported, the account
+        check refuses an expense account for a bill payment outright, so the
+        book could not read its own export back.
+        """
+        path = tmp_path / 'bills.gnucash'
+        runner = CliRunner()
+        first = runner.invoke(cli, [
+            'import', '--new', str(path), BILL_BOOK,
+            '--include-business-objects', '--fx-rates', RATES])
+        assert first.exit_code == 0, first.output
+        assert runner.invoke(cli, [
+            'import', str(path), PART_OF_ONE_BILL_AND_ALL_OF_ANOTHER
+        ]).exit_code == 0
+        linked = runner.invoke(cli, [
+            'import', str(path), BILL_PART_PAID_BESIDE_ANOTHER_COST,
+            '--include-business-objects', '--fx-rates', RATES])
+        assert linked.exit_code == 0, linked.output
+
+        out = tmp_path / 'part_payment_roundtrip.txt'
+        assert runner.invoke(cli, [
+            'export', str(path), '--output', str(out),
+            '--include-business-objects']).exit_code == 0
+        written = out.read_text()
+        block = written[written.index('bill "BILL-PART-001"'):]
+        block = block[:block.index('\n\n')]
+        payment = block[block.index('\tpayment:'):]
+        assert f'bank_account: "{DIRECTOR_USD}"' in payment, payment
+        assert EXPENSES not in payment, \
+            "the other supplier's cost is not where this money came from"
+
+        again = runner.invoke(cli, [
+            'import', str(path), str(out), '--include-business-objects'])
+
+        assert again.exit_code == 0, again.output
+        assert 'bill "BILL-PART-001": unchanged' in again.output, again.output
+
+    def test_the_card_is_the_payment_account_beside_a_tax_split(
+            self, tmp_path):
+        """A plain liability split is not the card, and comes first.
+
+        This bill has no tax entry, so it posts only to the expense account
+        and the tax split is a copy of no line of it. The link is allowed and
+        the tax split stays where it is, leaving the transaction holding two
+        liability splits: `Liabilities:Tax:GST USD` and the card.
+
+        Both are liabilities, and the tax split is written first. Measured
+        with one tier for the two: the export wrote
+        `bank_account: "Liabilities:Tax:GST USD"`, and a liability being a
+        valid bill payment account now, a fresh book read that back without
+        complaint and entered the payment against the tax account.
+
+        A credit card is its own type, so the two are separate tiers.
+        """
+        path, _, result = self._linked(
+            tmp_path, EXPENSE_PAID_WITH_GST_SPLIT_OUT,
+            BILL_WITH_NO_TAX_ENTRY)
+        assert result.exit_code == 0, result.output
+
+        out = tmp_path / 'card_beside_tax.txt'
+        assert CliRunner().invoke(cli, [
+            'export', str(path), '--output', str(out),
+            '--include-business-objects']).exit_code == 0
+        written = out.read_text()
+        block = written[written.index('bill "BILL-NO-TAX-001"'):]
+        block = block[:block.index('\n\n')]
+        payment = block[block.index('\tpayment:'):]
+
+        assert f'bank_account: "{CREDIT_CARD}"' in payment, payment
+        assert GST not in payment, \
+            'the tax account is not where this money came from'
+
+    def test_a_plain_liability_card_is_told_from_the_tax_account(
+            self, tmp_path):
+        """Types cannot tell them apart, so the sign does.
+
+        GnuCash takes an ordinary `type: Liability` account for a credit card
+        and this tool's `type:` map accepts one, so a chart of accounts that
+        never uses the Credit Card type is an ordinary book. Here the card and
+        the tax account are both plain liabilities, and the tax split is
+        written first.
+
+        Measured with a credit card preferred over a plain liability: that
+        ordering worked only while the card carried the Credit Card type, and
+        with this one the export wrote
+        `bank_account: "Liabilities:Tax:GST USD"` — the same failure that
+        ordering was added to prevent, reached by one account-type choice.
+
+        What separates them is not a type. The settlement debits the payable
+        and the money went the other way, so the money is the split whose sign
+        is opposite the settlement's: the tax split is +13.00 like the
+        settlement, and the card is −113.00.
+        """
+        path, _, result = self._linked(
+            tmp_path, EXPENSE_PAID_ON_A_PLAIN_LIABILITY_CARD,
+            BILL_ON_A_PLAIN_LIABILITY_CARD)
+        assert result.exit_code == 0, result.output
+
+        out = tmp_path / 'plain_liability_card.txt'
+        assert CliRunner().invoke(cli, [
+            'export', str(path), '--output', str(out),
+            '--include-business-objects']).exit_code == 0
+        written = out.read_text()
+        block = written[written.index('bill "BILL-PLAIN-CARD"'):]
+        block = block[:block.index('\n\n')]
+        payment = block[block.index('\tpayment:'):]
+
+        assert 'bank_account: "Liabilities:Card As Liability USD"' in payment, \
+            payment
+        assert GST not in payment, \
+            'the tax account is not where this money came from'
+
+    def test_a_card_payment_entered_from_the_block(self, tmp_path):
+        """The other way a liability reaches a bill payment: no `txn_guid:`.
+
+        The account check runs before the linking branch, so allowing a card
+        opened this path too. Here the run writes the settlement itself, and
+        the sign of a split it creates is not the sign of one it moves — a
+        bill negates the amount before `ApplyPayment`, so the card has to end
+        at −100.00, what the company now owes the issuer.
+        """
+        path = tmp_path / 'bills.gnucash'
+        runner = CliRunner()
+        first = runner.invoke(cli, [
+            'import', '--new', str(path), BILL_BOOK,
+            '--include-business-objects', '--fx-rates', RATES])
+        assert first.exit_code == 0, first.output
+        before = self._balance(path, AP)
+
+        result = runner.invoke(cli, [
+            'import', str(path), BILL_PAID_ON_THE_CARD,
+            '--include-business-objects', '--fx-rates', RATES])
+
+        assert result.exit_code == 0, result.output
+        assert self._balance(path, AP) == before, \
+            "the payable is where it was: this bill's posting and its payment " \
+            "cancel each other"
+        assert self._balance(path, CREDIT_CARD) == -100, \
+            'what the company owes the card issuer'
+        assert self._balance(path, EXPENSES) == 100, \
+            'the expense account holds 100.00, recorded by the bill alone'
 
 
 class TestTheTwoSidesOfTheLinkSwapped:

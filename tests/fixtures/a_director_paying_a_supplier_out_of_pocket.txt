@@ -1,0 +1,27 @@
+# Two splits: one on an asset, liability or equity account, the other on an
+# expense account. Here `Assets:Due From Director USD` −100.00 against
+# `Expenses:Supplies:USD` +100.00.
+#
+# A director paid the supplier before the bill was posted.
+#
+# What this fixture produces: a USD transaction, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Due From Director USD
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-02-10 * "Director paid the supplier"
+	guid: "aa11bb22cc33dd44ee55ff6677889900"
+	currency.mnemonic: "USD"
+	Expenses:Supplies:USD 100.00 USD
+		guid: "bb22cc33dd44ee55ff6677889900aa11"
+		account.commodity.mnemonic: "USD"
+	Assets:Due From Director USD -100.00 USD
+		guid: "cc33dd44ee55ff6677889900aa11bb22"
+		account.commodity.mnemonic: "USD"

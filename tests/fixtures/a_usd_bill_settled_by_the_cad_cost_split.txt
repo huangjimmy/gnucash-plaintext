@@ -1,0 +1,40 @@
+# A USD bill whose payment names a CAD expense split.
+#
+# The bill is USD and its payable is USD; `Expenses:Supplies` is CAD, so
+# posting converts at the day's rate. `txn_split_guid:` names the CAD expense
+# split, which moves to `Liabilities:Accounts Payable USD`. `account:` names
+# `Assets:Due From Director USD`, where the money came from.
+#
+# The 140.00 CAD on that split is what the entry was quoted at, not what
+# settles the bill: the bill owes 100.00 USD and that is what the director
+# paid, so the settlement is read off the USD side and the entry is requoted
+# in USD once the CAD split has gone.
+#
+# What this fixture produces: the payable settled, the cost booked once in
+# CAD, and `Assets:Due From Director USD` at −100.00 USD.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USVENDOR-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Supplies"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USVENDOR-001"
+    accumulate: true
+  payment:
+    date: 2026-01-05
+    amount: 100
+    account: "Assets:Due From Director USD"
+    txn_guid: "5566778899aabbccddeeff0011223344"
+    txn_split_guid: "66778899aabbccddeeff001122334455"

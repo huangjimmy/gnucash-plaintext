@@ -1,0 +1,39 @@
+# A bill applying the two splits of a supplier refund.
+#
+# The signs are wrong for a payment. A bill's posting puts −100.00 on the
+# payable, so its payment puts +100.00 there. These two splits are −60.00 and
+# −40.00, so applying them would add −100.00 to a lot that already holds the
+# posting's −100.00: the lot would reach −200.00 and the bill would read as
+# owing 200.00, with every figure still balancing.
+#
+# Refused by the sign, which is the one thing that is not the same on both
+# sides of a link.
+#
+# What this fixture produces: a refusal, with the transaction untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-REFUND-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-03-08
+  entry:
+    date: 2026-03-08
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-03-08
+    due: 2026-04-08
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-REFUND-001"
+    accumulate: true
+  payment:
+    date: 2026-03-08
+    amount: 100
+    account: "Assets:Due From Director USD"
+    Transaction "4c5d6e7f8a9b0cddeeff00112233aabb"
+      PaymentSplit "6e7f8a9b0cddeeff00112233aabb4c5d"
+      PaymentSplit "7f8a9b0cddeeff00112233aabb4c5d6e"

@@ -1,0 +1,29 @@
+# Two splits: one on a liability account, the other on an income account.
+# `Income:Vendor Rebates USD` +100.00 against `Liabilities:Credit Card USD`
+# −100.00.
+#
+# A bill's line may be booked to income — a vendor rebate is — so a bill's
+# posting can book an income account, and this transaction carries a split on
+# the same one.
+#
+# What this fixture produces: a USD transaction, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Income:Vendor Rebates USD
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Credit Card USD
+	type: Credit Card
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-02-24 * "Rebate settled on the card"
+	guid: "445566778899aabbccddeeff00112233"
+	currency.mnemonic: "USD"
+	Income:Vendor Rebates USD 100.00 USD
+		guid: "5566778899aabbccddeeff0011223344"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Credit Card USD -100.00 USD
+		guid: "66778899aabbccddeeff001122334455"
+		account.commodity.mnemonic: "USD"

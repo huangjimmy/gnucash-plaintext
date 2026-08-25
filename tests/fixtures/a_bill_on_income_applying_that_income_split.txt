@@ -1,0 +1,39 @@
+# A bill whose line is booked to income, applying a split on that same income
+# account.
+#
+# The account test a bill's expense split relies on is satisfied — the bill's
+# posting books `Income:Vendor Rebates USD` — and it must still be refused.
+# The reason that allowance exists is that a cost is a cost whichever entry
+# carries it, which says nothing about revenue.
+#
+# So the refusal must not offer the posting as a way out either: it would
+# give back the very account the file had just given it.
+#
+# What this fixture produces: a refusal stating the income account, with the
+# entry untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-REBATE-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-24
+  entry:
+    date: 2026-02-24
+    description: "Rebate"
+    account: "Income:Vendor Rebates USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-02-24
+    due: 2026-03-24
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-REBATE-001"
+    accumulate: true
+  payment:
+    date: 2026-02-24
+    amount: 100
+    account: "Liabilities:Credit Card USD"
+    txn_guid: "445566778899aabbccddeeff00112233"
+    txn_split_guid: "5566778899aabbccddeeff0011223344"

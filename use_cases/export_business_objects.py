@@ -12,7 +12,6 @@ import json
 from fractions import Fraction
 
 import gnucash.gnucash_business as gb
-import gnucash.gnucash_core_c as gc
 from gnucash import Book, Query
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
@@ -35,6 +34,7 @@ from infrastructure.gnucash.utils import (
 )
 from services.gnucash_importer import COMPANY_FIELD_TO_SLOT
 from services.invoice_renderer import credit_note_lines
+from services.payment_links import kind_of, the_payment_account_on
 from services.plaintext_addresses import (
     address_key,
     address_line_index,
@@ -547,7 +547,8 @@ class ExportBusinessObjectsUseCase:
                 if _split_was_applied_from_credit(s):
                     lines += self._format_credit_payment(txn, s, sharing[1:])
                 else:
-                    lines += self._format_payment(txn, s, sharing[1:])
+                    lines += self._format_payment(
+                        txn, s, kind_of(inv), sharing[1:])
                 has_payments = True
         if not has_payments:
             lines.append('	payment: none')
@@ -705,7 +706,8 @@ class ExportBusinessObjectsUseCase:
             f'		txn_split_guid: "{in_lot_ar_ap_split.GetGUID().to_string()}"',
         ]
 
-    def _format_payment(self, txn, in_lot_ar_ap_split, also_settling=()) -> list:
+    def _format_payment(self, txn, in_lot_ar_ap_split, kind,
+                        also_settling=()) -> list:
         """Format one payment transaction as `payment:` lines.
 
         `in_lot_ar_ap_split` is the AR/AP-side split that lives in the
@@ -713,21 +715,22 @@ class ExportBusinessObjectsUseCase:
         walking that lot's splits). Used to compute the `prepayment:`
         residual when GnuCash split the payment across multiple lots
         (overpayment).
+
+        `kind` is `'invoice'` or `'bill'`, from the record's owner. Which
+        accounts a payment may sit on differs between the two, and the block
+        has to state one this book will take back.
         """
         pay_date = txn.GetDate().strftime("%Y-%m-%d")
         pay_num  = txn.GetNum() or ''
 
-        # Find the bank/asset side (non-AR/AP) split for amount, account,
-        # and memo. ApplyPayment stores the memo on the splits (not on
-        # the transaction description, which is set to the owner name).
-        bank_name = ''
-        for i in range(txn.CountSplits()):
-            split = txn.GetSplit(i)
-            acct  = split.GetAccount()
-            atype = gc.xaccAccountGetType(acct.instance)
-            if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
-                bank_name = get_account_full_name(acct)
-                break
+        # Where the money came from. `the_payment_account_on` holds the rule,
+        # and the printed invoice and bill ask it too — all three wrote this
+        # loop out and all three took the first split that was not on the
+        # receivable, which is the money only while the transaction carries
+        # nothing else. The memo is separate: `ApplyPayment` stores it on the
+        # splits rather than on the transaction description, which it sets to
+        # the owner's name.
+        bank_name = the_payment_account_on(txn, kind, in_lot_ar_ap_split)
         # The memo off the split the import writes it to, which is not the
         # bank side where one payment settles several invoices: they share
         # that split and each block says what its own portion was for.
@@ -895,7 +898,8 @@ class ExportBusinessObjectsUseCase:
                 if _split_was_applied_from_credit(s):
                     lines += self._format_credit_payment(txn, s, sharing[1:])
                 else:
-                    lines += self._format_payment(txn, s, sharing[1:])
+                    lines += self._format_payment(
+                        txn, s, kind_of(inv), sharing[1:])
                 has_payments = True
         if not has_payments:
             lines.append('	payment: none')

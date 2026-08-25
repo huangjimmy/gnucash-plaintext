@@ -1,0 +1,42 @@
+# Three splits: the cost, the GST separated out, and the card.
+# `Expenses:Supplies:USD` +100.00, `Liabilities:Tax:GST USD` +13.00 and
+# `Liabilities:Credit Card USD` −113.00.
+#
+# The bookkeeper split the tax at payment time, which somebody claiming the
+# credit may well do. The bill that follows books the same two accounts, so
+# both splits are duplicates of its own lines and moving only one of them
+# would leave the other counted twice.
+#
+# What this fixture produces: a USD transaction of three splits, none in a
+# lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Credit Card USD
+	type: Credit Card
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Tax:GST USD
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-02-18 * "Paid the supplier, tax split out"
+	guid: "ccddeeff00112233445566778899aabb"
+	currency.mnemonic: "USD"
+	Expenses:Supplies:USD 100.00 USD
+		guid: "ddeeff00112233445566778899aabbcc"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Tax:GST USD 13.00 USD
+		guid: "eeff00112233445566778899aabbccdd"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Credit Card USD -113.00 USD
+		guid: "ff00112233445566778899aabbccddee"
+		account.commodity.mnemonic: "USD"

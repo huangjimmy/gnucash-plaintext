@@ -1,0 +1,39 @@
+# A USD bill posted to a USD expense account, with no payment yet.
+#
+# The bill, its payable and its expense account are all USD, so no currency
+# difference stands in the way of linking a transaction to it. That is what
+# makes it the book for asking whether the bill's own posting transaction can
+# be applied as its payment.
+#
+# What this fixture produces: `Expenses:Supplies:USD` at 100.00 and
+# `Liabilities:Accounts Payable USD` at -100.00.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "USD"
+2026-01-01 open Assets:Due From Director USD
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "USD"
+
+bill "BILL-SELF-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-03-12
+  entry:
+    date: 2026-03-12
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-03-12
+    due: 2026-04-12
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-SELF-001"
+    accumulate: true
+  payment: none

@@ -1,0 +1,32 @@
+# Two splits: one on an equity account, the other on a liability account.
+# `Equity:Owner Contributions USD` +100.00 against `Liabilities:Credit Card
+# USD` −100.00.
+#
+# The company drew 100.00 on the card and booked it against the owner's
+# capital. Nothing here is a cost.
+#
+# What this fixture produces: a USD transaction, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Equity
+	type: Equity
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity:Owner Contributions USD
+	type: Equity
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Credit Card USD
+	type: Credit Card
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-03-20 * "Capital drawn on the card"
+	guid: "5c6d7e8f90a1b2c3d4e5f60718293a4b"
+	currency.mnemonic: "USD"
+	Equity:Owner Contributions USD 100.00 USD
+		guid: "6d7e8f90a1b2c3d4e5f60718293a4b5c"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Credit Card USD -100.00 USD
+		guid: "7e8f90a1b2c3d4e5f60718293a4b5c6d"
+		account.commodity.mnemonic: "USD"

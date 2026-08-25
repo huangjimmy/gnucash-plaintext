@@ -514,9 +514,9 @@ class TestASplitAlreadyInALot:
 
 class TestALotGuidTheBookDoesNotHaveOnThatOwner:
     @pytest.mark.parametrize('named, said', [
-        ('ab12ab12ab12ab12ab12ab12ab12ab12', 'names no lot in this book'),
+        ('ab12ab12ab12ab12ab12ab12ab12ab12', 'matches no lot in this book'),
         ('the customer', 'is an existing customer in this book, not a lot'),
-        ('another owner', "names another owner's credit"),
+        ('another owner', "is another owner's credit"),
     ])
     def test_is_refused(self, tmp_path, named, said):
         """A settlement may only take a credit that is there and is theirs.

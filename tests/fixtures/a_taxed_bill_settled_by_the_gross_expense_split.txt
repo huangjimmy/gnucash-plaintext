@@ -1,0 +1,48 @@
+# A bill carrying GST, settled by the one gross expense split of an existing
+# transaction.
+#
+# The bill is 100.00 net plus 13% GST, so it owes 113.00 and its posting
+# separates the two: `DR Expenses:Supplies:USD 100 / DR Liabilities:Tax:GST
+# USD 13 / CR A/P 113`. The transaction recorded the whole 113.00 as one
+# expense, because at the time nothing said how much was tax.
+#
+# `txn_split_guid:` names that gross split. It moves to the payable at
+# 113.00, which is what the bill owes, and the bill's own posting is what
+# separates the tax.
+#
+# What this fixture produces: the payable settled, `Expenses:Supplies:USD` at
+# 100.00, `Liabilities:Tax:GST USD` at 13.00 and the card at −113.00.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+taxtable "GST"
+  entry:
+    account: "Liabilities:Tax:GST USD"
+    rate: 13.0%
+    type: PERCENT
+
+bill "BILL-GST-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-16
+  entry:
+    date: 2026-02-16
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+  posted:
+    date: 2026-02-16
+    due: 2026-03-16
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-GST-001"
+    accumulate: true
+  payment:
+    date: 2026-02-16
+    amount: 113
+    account: "Liabilities:Credit Card USD"
+    txn_guid: "99aabbccddeeff00112233445566778a"
+    txn_split_guid: "aabbccddeeff00112233445566778a99"

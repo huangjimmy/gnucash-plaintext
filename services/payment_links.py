@@ -33,6 +33,23 @@ inside the functions that use them, which is how the rest of this package breaks
 the same cycle.
 """
 
+from fractions import Fraction
+
+from gnucash.gnucash_core_c import (
+    ACCT_TYPE_ASSET,
+    ACCT_TYPE_BANK,
+    ACCT_TYPE_CASH,
+    ACCT_TYPE_CREDIT,
+    ACCT_TYPE_EQUITY,
+    ACCT_TYPE_EXPENSE,
+    ACCT_TYPE_INCOME,
+    ACCT_TYPE_LIABILITY,
+    ACCT_TYPE_MUTUAL,
+    ACCT_TYPE_PAYABLE,
+    ACCT_TYPE_RECEIVABLE,
+    ACCT_TYPE_STOCK,
+)
+
 from infrastructure.gnucash.utils import (
     get_account_full_name,
     numeric_to_fraction,
@@ -40,6 +57,482 @@ from infrastructure.gnucash.utils import (
 )
 from services.foreign_currency import split_guid
 from services.plaintext_parser import DirectiveType
+
+# The account types a split may be moved off on the ordinary path. Written as
+# what is allowed rather than what is refused, because the two are not the same
+# list and reversing it is what let income, expense and equity's neighbours
+# through: a type GnuCash adds later is refused by being absent rather than
+# admitted by not having been enumerated.
+#
+# It is not the whole rule. A bill may also move a split off an account its own
+# posting books, whatever the type, so a type absent from this list can still
+# be reached that way — see `may_be_moved_onto_the_receivable`, which is where
+# the rule lives. This list is one of its two arms.
+#
+# What sits on the account is asked separately, of the commodity — a type does
+# not answer it, since `type: Asset` may hold a fund's units.
+TYPES_A_SPLIT_MAY_BE_MOVED_FROM = (
+    ACCT_TYPE_ASSET,
+    ACCT_TYPE_BANK,
+    ACCT_TYPE_CASH,
+    ACCT_TYPE_CREDIT,
+    ACCT_TYPE_LIABILITY,
+)
+
+
+# What a payment block's `account:` may be, in the order a writer prefers it.
+# The same types `_validate_payment_account_type` accepts on each side, since
+# what is written has to read back: an expense is a bad-debt write-off and an
+# invoice's alone, a liability is a card and a bill's alone, and both sides
+# take an asset, a security or owner's equity.
+#
+# Ordered rather than a set, because a settlement transaction can hold more
+# than one of them. A bank keeping a fee has a split on an expense account
+# beside the money, and a bill part paid keeps another supplier's cost — so
+# "the first split that is not the payable" is not the money, it is whatever
+# happens to be written first.
+#
+# **A credit card is its own type, and comes before a plain liability.** They
+# are one tier apart rather than one tier, because a bill paid on the card
+# whose tax was separated at payment time holds both — the tax account and
+# the card — and the tax split is written first. Lumped together, the export
+# wrote the tax account as the payment account, and a liability being a valid
+# bill payment account now, a fresh book read that back without complaint.
+#
+# A security is last on both sides. A settlement is money except where a
+# record was paid in units, and where it was there is no money split to
+# prefer over it.
+PAYMENT_ACCOUNT_PREFERENCE = {
+    'bill': ((ACCT_TYPE_BANK, ACCT_TYPE_CASH, ACCT_TYPE_ASSET),
+             (ACCT_TYPE_EQUITY,),
+             (ACCT_TYPE_CREDIT,),
+             (ACCT_TYPE_LIABILITY,),
+             (ACCT_TYPE_STOCK, ACCT_TYPE_MUTUAL)),
+    'invoice': ((ACCT_TYPE_BANK, ACCT_TYPE_CASH, ACCT_TYPE_ASSET),
+                (ACCT_TYPE_EQUITY,),
+                (ACCT_TYPE_EXPENSE,),
+                (ACCT_TYPE_STOCK, ACCT_TYPE_MUTUAL)),
+}
+
+
+def the_payment_account_on(transaction, kind: str, settlement) -> str:
+    """The account a payment came from, for a block that has to state one.
+
+    Every writer of a `payment:` block asks this — `export`, the printed
+    invoice and the printed bill — and each took the first split that was not
+    on the receivable or payable. That is the money only while the transaction
+    holds nothing else.
+
+    It now routinely holds something else. A bill part paid out of a
+    transaction that also carries another supplier's cost keeps that cost on
+    the expense account, and it comes first. Measured on a bill owing 100.00
+    applying a 60.00 split beside a 200.00 one: the export wrote
+    `bank_account: "Expenses:Supplies:USD"`, which is the other supplier's
+    cost rather than where the money came from — and re-importing it was
+    refused outright, a bill payment not taking an expense account. The book
+    could not read its own export back.
+
+    **The money is the side the settlement is not.** `settlement` is the split
+    in this record's own lot, and what paid it went the other way: a bill's
+    settlement debits the payable and the money leaves an account, an
+    invoice's credits the receivable and the money arrives in one. So the
+    search is over the splits whose sign is opposite the settlement's, and the
+    rest of the transaction — another supplier's cost, a tax split, a fee —
+    carries the settlement's own sign and is passed over.
+
+    A type cannot answer this, which is what the first version got wrong.
+    Preferring a credit card over a plain liability worked only while the card
+    was typed `Credit Card`; GnuCash takes an ordinary `type: Liability` for
+    one, which is a common chart of accounts, and then the card and the tax
+    account were the same type and split order decided. Sign is a fact about
+    the transaction rather than about how somebody set their accounts up.
+
+    The type order still decides between two splits that both went the other
+    way — an invoice paid 100.00 into the bank out of a 105.00 receivable,
+    with the 5.00 fee on an expense account, has two — and there it prefers
+    the money.
+
+    Both filters fall back rather than losing the line: a transaction with
+    nothing of the opposite sign keeps all its splits as candidates, and one
+    matching no type keeps the answer it exported before.
+
+    **The kind comes from the record's owner**, not from the type of the
+    account it posted to — `ap_account:` naming a plain `type: Liability` is a
+    book that gets built, and asked of the account there this would offer an
+    invoice's list to a bill.
+    """
+    if kind not in PAYMENT_ACCOUNT_PREFERENCE:  # pragma: no cover - a caller's error
+        raise ValueError(
+            f'the_payment_account_on was given {kind!r}, which is neither a '
+            f'bill nor an invoice — which accounts may hold a payment '
+            f'differs between the two.')
+    others = [split for split in transaction.GetSplitList()
+              if split.GetAccount() is not None
+              and split.GetAccount().GetType() not in (ACCT_TYPE_RECEIVABLE,
+                                                       ACCT_TYPE_PAYABLE)]
+    settled = numeric_to_fraction(settlement.GetAmount()) if settlement else 0
+    if settled:
+        paid = [split for split in others
+                if (numeric_to_fraction(split.GetAmount()) < 0) != (settled < 0)
+                and numeric_to_fraction(split.GetAmount())]
+        others = paid or others
+    for tier in PAYMENT_ACCOUNT_PREFERENCE[kind]:
+        for split in others:
+            if split.GetAccount().GetType() in tier:
+                return get_account_full_name(split.GetAccount())
+    return get_account_full_name(others[0].GetAccount()) if others else ''
+
+
+def holds_money(account) -> bool:
+    """Whether what sits on this account is a currency rather than units.
+
+    A settlement is restated in the record's own currency, so this decides
+    whether restating a split there would overwrite what it holds. Asked of
+    the commodity because the type does not answer it: `type: Asset` beside
+    `commodity.namespace: "FUND"` is a book this tool builds.
+    """
+    if account is None:
+        return False
+    commodity = account.GetCommodity()
+    return (commodity is not None
+            and (commodity.get_namespace() or '').upper() == 'CURRENCY')
+
+
+def the_records_own_posting_books(record, account) -> bool:
+    """Whether this record's posting transaction also books `account`.
+
+    A supplier is often paid before the bill is posted — by a director, on the
+    company card, out of the owner's own money — and the entry written at the
+    time puts the cost straight on an expense account. Posting the bill books
+    that same cost again, so the expense split is a second copy of the bill's
+    own line, and moving it to the payable is what leaves the cost booked once.
+
+    Only true where the posting books the same account. That is asked of the
+    posting transaction rather than of the entry lines, because the posting is
+    what the book actually holds: the entry accounts, the payable, and any tax
+    lines. Where the two differ the split is somebody else's cost, nothing
+    replaces it, and moving it would take it out of the P&L.
+    """
+    if record is None:
+        return False
+    posting = record.GetPostedTxn()
+    if posting is None:
+        return False
+    wanted = get_account_full_name(account)
+    for split in posting.GetSplitList():
+        on = split.GetAccount()
+        if on is not None and get_account_full_name(on) == wanted:
+            return True
+    return False
+
+
+def accounts_the_posting_books(record) -> list:
+    """The accounts of this record's posting a split could be moved off.
+
+    A reader told their split is on the wrong account needs to know which
+    account would have been right, and the answer is not a rule but a list:
+    whatever this record's own posting books. A bill that posts to
+    `Expenses:Supplies` is what tells them their `Expenses:Supplies:USD` split
+    is a near miss rather than a category error.
+
+    The receivable and the payable are left out: every posting books one, and
+    a split already there has nowhere to move to. Income and equity are left
+    out as well, being refused whichever record posts to them — a bill's own
+    line may be booked to either, as a vendor rebate is booked to income. Any
+    of them listed would offer an account and then refuse the reader for
+    using it.
+
+    **Empty is a real answer, and the caller has to read it as one.** A bill
+    whose only entry is a rebate posts to the payable and to an income
+    account, so this list is empty though the bill is posted. The advice that
+    quotes it must be dropped there rather than printed with nothing in it:
+    the refusal said the bill posted to "nothing yet", which reads as a bill
+    that has not been posted, and it had been.
+    """
+    if record is None:
+        return []
+    posting = record.GetPostedTxn()
+    if posting is None:
+        return []
+    return sorted({get_account_full_name(split.GetAccount())
+                   for split in posting.GetSplitList()
+                   if split.GetAccount() is not None
+                   and split.GetAccount().GetType() not in (
+                       ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE,
+                       ACCT_TYPE_INCOME, ACCT_TYPE_EQUITY)})
+
+
+def require_every_duplicated_split_to_be_applied(
+        record, applied_splits, kind: str, key: str) -> None:
+    """An account the bill posts to may not be left out of the payment whole.
+
+    Posting a bill writes `DR Expenses / CR A/P`.
+
+    The supplier was paid before the bill was posted. That payment transaction
+    has its own split on the expense account. Posting the bill puts a second
+    split on the same account. Applying the payment's split moves it to the
+    payable, so the cost is recorded once.
+
+    A bill with a separate tax entry posts to two accounts: 100.00 to the
+    expense account, 13.00 to the tax account. A payment recorded as
+    `DR Expenses 100 / DR GST 13 / CR Card −113` has a split on each. Apply
+    the cost split alone and the tax split stays on the tax account, beside
+    the posting's own 13.00. Measured: the tax account held 26.00 for one
+    13.00 charge, the bill read 13.00 still owing, every figure balanced,
+    exit 0.
+
+    Each account the posting books is asked one question: does the payment
+    apply anything on it? The tax account above answers no — the payment has a
+    split there and applies none of it — so the payment is refused. Apply both
+    splits and the bill settles: 100.00 and 13.00 come to the 113.00 owed.
+
+    Two shapes answer yes and are allowed.
+
+    One transaction paying two suppliers, 100.00 and 200.00 on
+    `Expenses:Supplies`. Each bill applies its own split, so each has applied
+    something on that account. The other supplier's split stays where it is,
+    which is right: it belongs to the other bill.
+
+    A part payment. A director pays 60.00 toward a 100.00 bill and 200.00 for
+    another supplier, both costs on `Expenses:Supplies`. The bill applies its
+    60.00 and the remaining 40.00 is simply unpaid.
+
+    Accounts are all this compares, so it can go no further: another
+    supplier's split and an unpaid remainder of this bill's cost look exactly
+    the same. Asking instead whether what is applied came to what the posting
+    booked distinguished neither, and refused that part payment — with the
+    outcome turning on whether an unrelated second supplier happened to share
+    the expense account.
+    """
+    # The record's own receivable or payable is booked by every posting, and
+    # several splits on it are the ordinary shape of one wire settling more
+    # than one record — settlements, not duplicates. They are left out.
+    def a_duplicate(account):
+        return (account is not None
+                and account.GetType() not in (ACCT_TYPE_RECEIVABLE,
+                                              ACCT_TYPE_PAYABLE)
+                and the_records_own_posting_books(record, account))
+
+    applied = [split for split in applied_splits
+               if a_duplicate(split.GetAccount())]
+    if not applied:
+        return
+    transaction = applied[0].GetParent()
+    posting = record.GetPostedTxn()
+    if transaction is None or posting is None:
+        return
+    applied_guids = {split_guid(split) for split in applied}
+
+    def on_it(splits, account_name):
+        return [split for split in splits
+                if split.GetAccount() is not None
+                and get_account_full_name(split.GetAccount()) == account_name]
+
+    # Every account the posting books that this transaction also has a split
+    # on, rather than only the ones applied — the account left out is exactly
+    # the one to ask about, and walking the applied accounts alone never
+    # looked at the tax account a payment had failed to apply.
+    on_both = {get_account_full_name(split.GetAccount())
+               for split in transaction.GetSplitList()
+               if a_duplicate(split.GetAccount())}
+    for account_name in sorted(on_both):
+        left = [split for split in on_it(transaction.GetSplitList(),
+                                         account_name)
+                if split_guid(split) not in applied_guids]
+        if not left:
+            continue
+        # Formatted at the unit the account is kept to, like every other money
+        # figure this tool writes. A yen bill cannot hold `113.00`, and a
+        # message whose job is to name the figures a reader must reconcile is
+        # the last place to print one their book does not have.
+        from services.gnucash_importer import _account_money_str
+        posted_there = on_it(posting.GetSplitList(), account_name)
+        on = posted_there[0].GetAccount()
+        books = sum((numeric_to_fraction(split.GetAmount())
+                     for split in posted_there), Fraction(0))
+        # What is asked is whether the payment applies **anything** on this
+        # account, not whether what it applies comes to what the posting
+        # booked. The two are different questions, and the second one refuses
+        # an ordinary part payment: a director paying 60.00 toward a 100.00
+        # bill and 200.00 for another supplier, both costs on
+        # `Expenses:Supplies`, leaves the other supplier's split over — so the
+        # comparison ran, found 60.00 against the 100.00 posted, and refused a
+        # payment whose remaining 40.00 was simply never paid. Whether a part
+        # payment was accepted then turned on whether an unrelated second
+        # supplier happened to share the expense account.
+        #
+        # Applying nothing at all is the shape that is wrong, and it is the
+        # measured one: a bill with a separate tax entry posts 100.00 to the
+        # expense account and 13.00 to the tax account, the payment has a
+        # split on each, and applying the cost split alone leaves the whole
+        # tax account unspoken for — 26.00 there for one 13.00 charge, the
+        # bill reading 13.00 owing, every figure balancing, at exit 0.
+        #
+        # Where the payment applies something on the account, the file has
+        # said which splits there are this record's, and that stands. Accounts
+        # are all this compares, so it cannot do better: a second supplier's
+        # split and an unpaid remainder of this one look the same.
+        # Asked of the splits, not of their figures. Weighing the amounts read
+        # a 0.00 split as applying nothing and refused the payment for leaving
+        # the account out, which the block had not done.
+        if on_it(applied, account_name):
+            continue
+        outstanding = sum((numeric_to_fraction(split.GetAmount())
+                           for split in left), Fraction(0))
+        raise Exception(
+            f'{kind} {record.GetID()}: {key} applies none of the splits on '
+            f'{account_name!r}, and this {kind.lower()} posts '
+            f'{_account_money_str(abs(books), on)} there. The transaction '
+            f'holds {_account_money_str(abs(outstanding), on)} on that '
+            f'account, so leaving it out would record it twice, once by the '
+            f'transaction and once by the posting. Apply every split of that '
+            f'transaction this {kind.lower()} paid for, with a `PaymentSplit` '
+            f'line for each under a `Transaction` block; or record what was '
+            f'paid as a single split and let the {kind.lower()} separate the '
+            f'parts.')
+
+
+def may_be_moved_onto_the_receivable(account, record) -> bool:
+    """Whether a payment may move a split off this account and restate it.
+
+    Two ways in. An account money passes through — a type from the list above,
+    holding money rather than units — is where a settlement waits to be
+    identified, and that is the ordinary case. An income, expense or equity
+    account is not, with one exception: where a **bill's** own posting books
+    the same account, the split is a second copy of the bill's own line, and
+    moving it is what leaves the cost booked once.
+
+    **A bill's, and never an invoice's.** The argument is that a cost is a
+    cost whichever entry carries it, so removing the copy loses nothing. It
+    does not carry over to revenue: an invoice posting to the same income
+    account as a cash sale would, on the same reasoning, take the sale off the
+    profit and loss — which is the failure this whole path was reported for.
+    Measured before the check was scoped: such an invoice imported at exit 0
+    and moved the revenue onto the receivable.
+
+    `_refuse_a_split_that_is_not_placeable` refuses what this rejects, and the
+    `txn_split_guid:` branch's `not_there_yet` asks it too — so on that branch
+    a split that may not move is never read as needing to, by construction
+    rather than by the refusal happening to run first.
+
+    **The `txn_guid:`-alone branch is not like that**, and its safety is the
+    ordering: it decides what to do by comparing currencies, not by asking
+    this, so a fund's split reaches it looking like any other and is stopped
+    only because `_refuse_a_split_that_is_not_placeable` runs above it. Moving
+    that call below the currency test would restate the units.
+
+    **`record` is required**, for the reason `the_records_own_account` gives
+    about its own argument: left defaulting to `None`, a caller that forgot it
+    got the narrow rule back in silence, and a bill's expense split was
+    refused with nothing in the message to say why.
+    """
+    if account is None:
+        return False
+    # A split already on the record's own receivable or payable is the
+    # settlement as it stands and has nowhere to move to. It has to be turned
+    # away before the posting is consulted, because the posting books that
+    # account too — asked without this, every settling split read as one still
+    # needing to be moved, and was moved and restated a second time.
+    if account.GetType() in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+        return False
+    if (account.GetType() in TYPES_A_SPLIT_MAY_BE_MOVED_FROM
+            and holds_money(account)):
+        return True
+    # And never off an income or equity account, whichever side asks. What
+    # this allowance rests on is that a cost is a cost whichever entry carries
+    # it. Income is not a cost, and neither is capital.
+    #
+    # `Entry.SetBillAccount` places no restriction on the account, so a bill's
+    # line may be booked to either — a vendor rebate is booked to income — and
+    # "it is a bill" therefore does not imply "it is a cost". Without this a
+    # rebate split could be moved to the payable and take the income off the
+    # profit and loss through the bill side, and an equity split could be
+    # moved the same way and take the capital off the balance sheet.
+    #
+    # Equity remains a payment *account*: the owner settling a supplier out of
+    # their own money is one of the three shapes this branch supports. That is
+    # the side `account:` states, which is never the side that moves.
+    if account.GetType() in (ACCT_TYPE_INCOME, ACCT_TYPE_EQUITY):
+        return False
+    return (record is not None
+            and kind_of(record) == 'bill'
+            and holds_money(account)
+            and the_records_own_posting_books(record, account))
+
+
+def refuse_a_posting_transaction(
+        record, transaction, kind: str, key: str, guid: str) -> None:
+    """A posting transaction is not a payment of anything.
+
+    Posting a bill writes `DR Expenses / CR A/P`. That transaction has a split
+    on the expense account, and a bill's own posting books that account, so it
+    satisfies the test that lets a cost split be applied to a payment. Its
+    payable split is already in the bill's lot, so the split left for
+    `txn_guid:` to find is the expense one.
+
+    Every other check passes it. The sign is right: the posting's expense
+    split is positive and so is a bill's settlement on the payable. The amount
+    is right: the posting is for what the bill owes. No split is left out,
+    there being nothing else on that account.
+
+    Measured before this check existed, on a USD bill posting 100.00 to a USD
+    expense account: the import ran at exit 0, the expense account went from
+    100.00 to nil, the payable rose by 100.00, the bill read as paid, and no
+    money moved anywhere. Every figure balanced.
+
+    It is an ordinary thing to write by mistake. The export prints the posting
+    transaction's guid as `posted_txn_guid:` a few lines above the `payment:`
+    block that takes `txn_guid:`.
+
+    **Any record's posting, not only this one's.** Where a second bill posts
+    to the same expense account, the first bill's posting passes the same
+    tests for it: the payable split is in the first bill's lot and is skipped,
+    leaving the expense split, whose sign and amount suit the second bill
+    exactly. Measured the same way: exit 0, the first bill's cost moved onto
+    the second bill's payable, and no money moved. Scoping the check to the
+    record being paid closed one of the two and left the other open.
+
+    Refused for the transaction rather than for the split, because no split of
+    a posting pays the record it posts — the payable split is the debt itself
+    and the expense split is the cost. That also answers every spelling at
+    once: `txn_guid:` alone, `txn_split_guid:` beside it, and a `Transaction`
+    block with `PaymentSplit` lines all resolve the same transaction, and this
+    runs where they resolve it.
+
+    GnuCash answers whose posting it is: `gncInvoiceGetInvoiceFromTxn` reads
+    the slot posting writes on the transaction, and returns nothing for an
+    ordinary bank payment.
+    """
+    from gnucash import gnucash_core_c as gc
+
+    from infrastructure.gnucash.utils import (
+        qof_instance,
+        wrap_invoice_or_bill,
+    )
+    if transaction is None:
+        return
+    raw = gc.gncInvoiceGetInvoiceFromTxn(qof_instance(transaction))
+    if not raw:
+        return
+    posts = wrap_invoice_or_bill(raw)
+    word = kind.lower()
+    own = (record is not None
+           and record.GetPostedTxn() is not None
+           and record.GetPostedTxn().GetGUID().to_string()
+           == transaction.GetGUID().to_string())
+    whose = (f'this {word}\'s own posting transaction' if own else
+             f'the posting transaction of {kind_of(posts)} '
+             f'{posts.GetID()!r}')
+    posted_word = word if own else kind_of(posts)
+    arrived = ('the transaction the supplier was paid in' if word == 'bill'
+               else 'the transaction the customer\'s money arrived in')
+    raise Exception(
+        f'{kind} {record.GetID()}: {key} {guid!r} is {whose}. Posting a '
+        f'{posted_word} records what is owed, so its splits are the debt and '
+        f'the cost, and neither one pays anything. Applying it would move '
+        f'that cost onto this {word}\'s {the_records_own_account(word)} and '
+        f'leave the {word} reading as paid with no money having moved. Use '
+        f'the guid of {arrived}.')
 
 
 def the_records_own_account(kind: str) -> str:
@@ -151,9 +644,9 @@ def the_settlement_a_block_names(pay_dir):
     # run. The directive's children are what it is for.
     if not splits:
         raise Exception(
-            f'`Transaction {block.props["guid"]!r}` names no `PaymentSplit`. '
-            f'A `Transaction` block says which splits of it settle this '
-            f'record, and its children are what say so:\n'
+            f'`Transaction {block.props["guid"]!r}` has no `PaymentSplit` '
+            f'under it. A `Transaction` block says which splits of it settle '
+            f'this record, and its children are what say so:\n'
             f'\t\tTransaction "<the transaction>"\n'
             f'\t\t\tPaymentSplit "<a split of it>"\n'
             f'Name them, or say the same thing with `txn_guid:` and '
@@ -178,8 +671,8 @@ def the_settlement_a_block_names(pay_dir):
     for guid in splits:
         if _normalise_guid(guid) in seen:
             raise Exception(
-                f'`PaymentSplit {guid!r}` is named twice by one payment. A '
-                f'split settles a record once, so naming it again claims a '
+                f'`PaymentSplit {guid!r}` appears twice in one payment. A '
+                f'split settles a record once, so listing it again claims a '
                 f'settlement the transaction does not carry — the figures '
                 f'would state double what moved, and the block would go on '
                 f'accounting for one settlement more than the lot holds. '
@@ -347,7 +840,7 @@ def refuse_to_move_a_split_out_of_its_lot(split, declared: str,
         f'invoice or a bill, or standing as an owner\'s credit, so moving it '
         f'here would leave that one short with nothing saying so. Take it out '
         f'of the lot first (`unapply-payment`, or its own `payment:` block), '
-        f'or name a split that is not spoken for.')
+        f'or apply a split that is not spoken for.')
 
 
 def refuse_when_the_amount_cannot_be_read(
@@ -379,8 +872,8 @@ def refuse_when_the_amount_cannot_be_read(
             f'{bank_acct_name!r}, and tx {txn_guid!r} has no split on that '
             f'account. What a parked split is worth is read from the one that '
             f'received the money, so there is nothing here to read it from. '
-            f'Check `account:` against the transaction, or name the '
-            f'transaction the payment is really on.')
+            f'Check `account:` against the transaction, or give the guid of '
+            f'the transaction the payment is really on.')
     settlement = commodity_of(post_acct)
     parked_currency = commodity_of(parked_split.GetAccount())
     # Whether the split being placed already states the settlement. Where it is
@@ -436,7 +929,7 @@ def refuse_when_the_amount_cannot_be_read(
         f'in the book says which. That is yours to state rather than this '
         f'tool\'s to guess: write the transaction out with an amount on every '
         f'split, so the one settling this {kind.lower()} says its own figure, '
-        f'and name it with {key}.')
+        f'and give its guid with {key}.')
 
 
 def refuse_several_splits_this_cannot_divide(book, txn_guid: str,
@@ -481,17 +974,18 @@ def refuse_several_splits_this_cannot_divide(book, txn_guid: str,
         f'{guid} on {account} ({currency})' for guid, account, currency in foreign)
     one = len(foreign) == 1
     raise Exception(
-        f'this payment names '
+        f'this payment applies '
         f'{len(named)} splits of tx {txn_guid!r}, and '
         f'{"one of them sits" if one else f"{len(foreign)} of them sit"} '
         f'on an account in another currency than {settlement} — {which}. '
-        f'A payment naming its splits places each at the figure it carries, '
+        f'A payment that applies several splits places each at the figure it '
+        f'carries, '
         f'and a split parked in another currency carries the one that stood '
         f'in for the {the_records_own_account(kind_of(record))}. Only a '
-        f'payment naming a single split restates '
+        f'payment that applies a single split restates '
         f'it from what the bank received, and dividing a settlement between '
         f'several would need a ratio the book does not state. Put the amounts '
-        f'on those splits in the transaction section, or name the one split '
+        f'on those splits in the transaction section, or apply the one split '
         f'that settles this {kind_of(record)}.')
 
 
@@ -661,9 +1155,9 @@ def refuse_a_settlement_read_off_the_wrong_split(settled, parked_split,
         f'{get_account_full_name(post_acct)!r}, and this record is settled by '
         f'a {wanted} figure there — a settlement cancels what the posting put '
         f'on the account, so it is the posting\'s sign reversed'
-        f'. `account:` names '
+        f'. `account:` is '
         f'{get_account_full_name(bank_split.GetAccount())!r}, which is where '
-        f'the money arrived, and {key} names the split on '
+        f'the money arrived, and {key} is the guid of the split on '
         f'{get_account_full_name(parked_split.GetAccount())!r}, which is the '
         f'one that becomes the settlement. Swapped, the settlement is read off '
         f'the split being replaced and comes out the wrong way round — the '

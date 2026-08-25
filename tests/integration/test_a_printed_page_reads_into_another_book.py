@@ -116,8 +116,8 @@ class TestIntoABookThatNeverHeldThem:
         assert 'INV-SPELL' in text, text
         assert 'posted: none' not in text, text
 
-    def test_it_says_the_posting_guid_named_nothing_here(self, printed,
-                                                         elsewhere):
+    def test_it_says_the_posting_guid_matched_nothing_here(self, printed,
+                                                           elsewhere):
         """Not an error — reading it here is what printing it is for — but
         not silent either.
 
@@ -134,7 +134,7 @@ class TestIntoABookThatNeverHeldThem:
 
         assert result.exit_code == 0, result.output
         assert 'posted_txn_guid' in result.output, result.output
-        assert 'names no transaction in this book' in result.output, \
+        assert 'matches no transaction in this book' in result.output, \
             result.output
         assert 'INV-SPELL' in result.output, result.output
 

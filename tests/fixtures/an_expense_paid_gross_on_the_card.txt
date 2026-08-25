@@ -1,0 +1,37 @@
+# Two splits: one on a liability account, the other on an expense account.
+# `Liabilities:Credit Card USD` −113.00 against `Expenses:Supplies:USD`
+# +113.00.
+#
+# The whole payment recorded as one expense, tax and all, which is what a
+# bookkeeper writes before the bill exists — there is nothing yet to say how
+# much of it was tax.
+#
+# What this fixture produces: a USD transaction, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Credit Card USD
+	type: Credit Card
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Tax:GST USD
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-02-16 * "Paid the supplier gross on the card"
+	guid: "99aabbccddeeff00112233445566778a"
+	currency.mnemonic: "USD"
+	Expenses:Supplies:USD 113.00 USD
+		guid: "aabbccddeeff00112233445566778a99"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Credit Card USD -113.00 USD
+		guid: "bbccddeeff00112233445566778a99aa"
+		account.commodity.mnemonic: "USD"

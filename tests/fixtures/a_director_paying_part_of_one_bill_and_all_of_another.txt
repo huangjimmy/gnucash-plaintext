@@ -1,0 +1,31 @@
+# Three splits: two costs on one expense account, and what the company owes
+# the director. `Expenses:Supplies:USD` +60.00 and +200.00 against
+# `Assets:Due From Director USD` −260.00.
+#
+# The 60.00 is part of a bill owing 100.00 — the director paid some of it and
+# the rest is still owed. The 200.00 is another supplier's, in full.
+#
+# What this fixture produces: a USD transaction, none of the splits in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Due From Director USD
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-03-05 * "Director paid one supplier in part and another in full"
+	guid: "7a8b9c0d1e2f3a4b5c6d7e8f90a1b2c3"
+	currency.mnemonic: "USD"
+	Expenses:Supplies:USD 60.00 USD
+		guid: "8b9c0d1e2f3a4b5c6d7e8f90a1b2c37a"
+		account.commodity.mnemonic: "USD"
+	Expenses:Supplies:USD 200.00 USD
+		guid: "9c0d1e2f3a4b5c6d7e8f90a1b2c37a8b"
+		account.commodity.mnemonic: "USD"
+	Assets:Due From Director USD -260.00 USD
+		guid: "0d1e2f3a4b5c6d7e8f90a1b2c37a8b9c"
+		account.commodity.mnemonic: "USD"

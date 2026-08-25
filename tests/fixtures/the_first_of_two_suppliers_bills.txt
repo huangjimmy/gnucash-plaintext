@@ -1,0 +1,34 @@
+# The first of two bills paid by one transaction, naming its own split.
+#
+# The transaction holds a 100.00 cost and a 200.00 cost on the same expense
+# account. This bill is the 100.00 one and names that split; the 200.00 is the
+# other bill's and is left where it is until that bill claims it.
+#
+# What this fixture produces: this bill settled, with the 200.00 split
+# untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-TWO-A"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-03-02
+  entry:
+    date: 2026-03-02
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-03-02
+    due: 2026-04-02
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-TWO-A"
+    accumulate: true
+  payment:
+    date: 2026-03-02
+    amount: 100
+    account: "Assets:Due From Director USD"
+    Transaction "0e1f2a3b4c5d6e7f8a9b0cddeeff0011"
+      PaymentSplit "1f2a3b4c5d6e7f8a9b0cddeeff00110e"

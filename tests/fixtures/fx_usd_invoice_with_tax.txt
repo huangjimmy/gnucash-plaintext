@@ -1,4 +1,4 @@
-# A taxed USD invoice: two CAD splits priced at one rate.
+# A USD invoice with a tax entry: two CAD splits priced at one rate.
 #
 # 33.33 USD of consulting at 10% tax, posted at 1.4 CAD/USD. The tax is
 # 3.333 USD, which the cent cannot hold, so it is 3.33; the income is 33.33.

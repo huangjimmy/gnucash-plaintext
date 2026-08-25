@@ -696,12 +696,12 @@ class TestABlockNamingASplitTheBookHasElsewhere:
         assert 'not a split of this transaction' in message, message
 
 
-class TestTwoBlocksNamingOneSplit:
+class TestTwoBlocksStatingOneSplitGuid:
     def test_are_refused(self, tmp_path):
         """A guid is one split, so the second block cannot have it.
 
         Left to fall through to position, that block would update whichever
-        split was spare — so a file naming `G` twice would put the second
+        split was spare — so a file stating `G` twice would put the second
         block's amount and memo on a third split it never mentioned, and
         report the transaction updated. The line blocks are refused for the
         same reason, in the same words.
@@ -719,7 +719,7 @@ class TestTwoBlocksNamingOneSplit:
         assert result.exit_code != 0, result.output
         message = str(result.output) + str(result.exception)
         assert guids[0] in message, message
-        assert 'two splits name guid' in message, message
+        assert 'two splits state guid' in message, message
 
 
 @pytest.mark.parametrize('label,first,second', PAIRS,

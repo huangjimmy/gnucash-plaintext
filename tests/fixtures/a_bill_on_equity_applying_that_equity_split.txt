@@ -1,0 +1,45 @@
+# A bill whose line is booked to an equity account, applying a split on that
+# same equity account.
+#
+# `Entry.SetBillAccount` places no restriction on the account, so a bill's
+# line can be booked to equity just as a vendor rebate's is booked to income.
+# The account test a bill's expense split relies on is then satisfied — the
+# bill's posting books `Equity:Owner Contributions USD` — and it must still
+# be refused.
+#
+# What this allowance rests on is that a cost is a cost whichever entry
+# carries it. Capital is not a cost, so moving the split to the payable would
+# take the capital off the balance sheet with every figure still balancing.
+#
+# Equity remains a payment account: the owner settling a supplier out of
+# their own money is supported, and there `account:` states the equity
+# account, which is never the side that moves.
+#
+# What this fixture produces: a refusal, with the capital still on the equity
+# account.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-CAPITAL-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-03-20
+  entry:
+    date: 2026-03-20
+    description: "Booked to capital"
+    account: "Equity:Owner Contributions USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-03-20
+    due: 2026-04-20
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-CAPITAL-001"
+    accumulate: true
+  payment:
+    date: 2026-03-20
+    amount: 100
+    account: "Liabilities:Credit Card USD"
+    txn_guid: "5c6d7e8f90a1b2c3d4e5f60718293a4b"
+    txn_split_guid: "6d7e8f90a1b2c3d4e5f60718293a4b5c"

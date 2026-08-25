@@ -1,0 +1,40 @@
+# A bill with no tax entry at all, applying the cost split of a payment whose
+# tax was separated when it was paid.
+#
+# The bill posts only to `Expenses:Supplies:USD`, so the tax split is not a
+# copy of any line of this bill and is left where it is. The link is allowed:
+# what the company claimed as a tax credit is its own affair, and the bill
+# says nothing about it.
+#
+# After the link the transaction is `A/P +100.00 / Liabilities:Tax:GST USD
+# +13.00 / Liabilities:Credit Card USD −113.00` — a payment holding a plain
+# liability split beside the card. Which of the two is the payment account is
+# what the export has to get right, and the tax split comes first.
+#
+# What this fixture produces: the bill settled, paid on the card.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-NO-TAX-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-18
+  entry:
+    date: 2026-02-18
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-02-18
+    due: 2026-03-18
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-NO-TAX-001"
+    accumulate: true
+  payment:
+    date: 2026-02-18
+    amount: 100
+    account: "Liabilities:Credit Card USD"
+    txn_guid: "ccddeeff00112233445566778899aabb"
+    txn_split_guid: "ddeeff00112233445566778899aabbcc"

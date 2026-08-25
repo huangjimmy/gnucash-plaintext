@@ -1,0 +1,39 @@
+# A bill applying two splits that are already on its payable and are the
+# wrong way round for a payment.
+#
+# The two −60.00 and −40.00 splits sit on the payable already, so the payment
+# does not move them; it claims them where they are. That is the arm the sign
+# check did not cover — it read only the splits about to move.
+#
+# Every other check passes: neither split is in a lot, neither is another
+# owner's, neither settles another record, and 60.00 and 40.00 come to the
+# 100.00 the bill owes.
+#
+# What this fixture produces: a refusal, with both splits still loose.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-REFUND-AP"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-03-24
+  entry:
+    date: 2026-03-24
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-03-24
+    due: 2026-04-24
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-REFUND-AP"
+    accumulate: true
+  payment:
+    date: 2026-03-24
+    amount: 100
+    account: "Assets:Bank:USD"
+    Transaction "1a2b3c4d5e6f708192a3b4c5d6e7f809"
+      PaymentSplit "3c4d5e6f708192a3b4c5d6e7f8091a2b"
+      PaymentSplit "4d5e6f708192a3b4c5d6e7f8091a2b3c"

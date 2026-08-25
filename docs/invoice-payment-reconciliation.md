@@ -374,19 +374,19 @@ thing. Common cases:
 | Every split outside `bank_account` already settles an invoice or a bill | `invoice "X": every split of tx '…' outside 'Assets:Bank' already settles an invoice or a bill — taking one would leave that unpaid with no figure disagreeing` |
 | Several splits could settle it and the block names only `txn_guid:` | `invoice "X": tx '…' carries 2 splits that are not 'Assets:Bank' and could each settle this invoice` |
 | `bank_account` names an account no split is on | as the row above: with no split matching the name, every split counts as "not the bank", so a two-split deposit reads as ambiguous. Check `bank_account:` for a typo before adding `txn_split_guid:` |
-| `from_credit:` names a split an unpost left loose that a bank had paid — any invoice's, not only this one's | `invoice "X": the split txn_split_guid names is a settlement a bank paid, left loose when the invoice or bill it settled was unposted — no credit was spent on it` |
+| `from_credit:` gives the guid of a split an unpost left loose that a bank had paid — any invoice's, not only this one's | `invoice "X": the split given in txn_split_guid is a settlement a bank paid, left loose when the invoice or bill it settled was unposted — no credit was spent on it` |
 | A split states `orphaned_by_unpost:` | `the split on 'Assets:…': \`orphaned_by_unpost:\` is not a key a file may state on a transaction or a split` |
 | A transaction states `orphaned_by_unpost:` (on either arm — a new transaction, or one named by `guid:` under `--strategy update`) | `the transaction dated 2026-04-03: \`orphaned_by_unpost:\` is not a key a file may state on a transaction or a split` |
 | A bare `txn_guid:` block's `amount:` covers neither what the split carries nor what the invoice owes | `invoice "X": this block says 100.00 arrived, but the split it would move on tx '…' carries 60.00 and the invoice is owed 100.00 — so taking it would leave the invoice part-paid out of money this file does not describe` |
 | A bare `txn_guid:` block's `amount:` is not a number | `invoice "X": payment amount must be a number, got 'one hundred'` |
-| `txn_split_guid:` names a split that already settles another invoice | `invoice "X": the split txn_split_guid '…' names is in another invoice's or bill's lot — it settles that one, and moving it here would leave it unpaid` |
+| `txn_split_guid:` is the guid of a split that already settles another invoice | `invoice "X": the split given in txn_split_guid '…' is in another invoice's or bill's lot — it settles that one, and moving it here would leave it unpaid` |
 | The file changes what a **posted** invoice's lines say, without saying `posted: none` | `invoice "X": this invoice is posted, and this file changes it. … Unpost it first — unpost-invoices <book> X — and import this file after.` |
-| Two `entry:` blocks name one `guid:`, or a block names a line that is another invoice's | `invoice "X": two lines name guid …` / `invoice "X": guid … is an existing invoice or bill line in this book, not a line of this one` |
-| Two split blocks name one `guid:`, or a block names a split the book holds elsewhere | `two splits name guid …` / `guid … is an existing split in this book, not a split of this transaction on this account` |
-| `lot_guid:` names a lot that is another owner's, closed, on another account, a posted invoice's, or not a lot at all | `customer 'C001': lot_guid … names another owner's credit` (and one message per case) |
-| `lot_guid:` with no `lot_owner:` beside it | `lot_guid … names a credit, and nothing on this split says it is one` |
+| Two `entry:` blocks state one `guid:`, or a block states a guid that is another invoice's line | `invoice "X": two lines state guid …` / `invoice "X": guid … is an existing invoice or bill line in this book, not a line of this one` |
+| Two split blocks state one `guid:`, or a block states a guid the book holds on a split elsewhere | `two splits state guid …` / `guid … is an existing split in this book, not a split of this transaction on this account` |
+| `lot_guid:` names a lot that is another owner's, closed, on another account, a posted invoice's, or not a lot at all | `customer 'C001': lot_guid … is another owner's credit` (and one message per case) |
+| `lot_guid:` with no `lot_owner:` beside it | `lot_guid … is a credit, and nothing on this split says it is one` |
 | A split sitting in a lot is given another account | `the split … is in lot … and this file gives it another account` |
-| A split sitting in a lot is named by no block of its transaction | `the split … is in lot … and no block of this transaction names it` |
+| A split sitting in a lot is left out by every block of its transaction | `the split … is in lot … and no block of this transaction accounts for it` |
 
 ### Cross-reference errors
 

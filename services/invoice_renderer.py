@@ -6,8 +6,6 @@ import ctypes
 import math
 from fractions import Fraction
 
-import gnucash.gnucash_core_c as gc
-
 from infrastructure.gnucash.engine import (
     GncAccountValueC,
     iterate_glist,
@@ -22,6 +20,7 @@ from infrastructure.gnucash.utils import (
     numeric_to_fraction,
     to_money,
 )
+from services.payment_links import kind_of, the_payment_account_on
 from services.plaintext_blocks import (
     entry_discount,
     entry_notes,
@@ -914,16 +913,13 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
             for txn, sharing in settlements_by_transaction(lot):
                 s = sharing[0]
                 siblings = sharing[1:]
-                # bank-side split = the non-AR side; find any (for the
-                # account name only — the memo is `payment_memo_of`'s,
-                # which is not always this split's)
-                bank_name = ''
-                for i in range(txn.CountSplits()):
-                    sp = txn.GetSplit(i)
-                    atype = gc.xaccAccountGetType(sp.GetAccount().instance)
-                    if atype not in (gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
-                        bank_name = get_account_full_name(sp.GetAccount())
-                        break
+                # Where the money came from, for the account line only — the
+                # memo is `payment_memo_of`'s, which is not always that
+                # split's. `the_payment_account_on` holds the rule, and the
+                # export and the printed bill ask it too: taking the first
+                # split that is not on the receivable was the money only
+                # while the transaction carried nothing else.
+                bank_name = the_payment_account_on(txn, kind_of(invoice), s)
                 # Off the split the import writes it to — this invoice's
                 # own where the payment settles several, as `export` reads
                 # it.
