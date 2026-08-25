@@ -1,0 +1,39 @@
+# A bill overpaid from the expense split of an existing transaction.
+#
+# 150.00 was paid on the card against a bill that owes 100.00, so the split
+# has to be divided: 100.00 becomes the settlement and the 50.00 left over is
+# the vendor's credit, which `prepayment:` states.
+#
+# This is the division the new arm reaches. On the ordinary arm the split
+# being divided sat on an asset; here it is the expense copy of the bill's own
+# line, so the expense account has to end at the bill's own 100.00 with the
+# whole 150.00 gone from it.
+#
+# What this fixture produces: the payable holding a 50.00 credit, the cost at
+# 100.00, and the card at −150.00.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-OVER-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-26
+  entry:
+    date: 2026-02-26
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-02-26
+    due: 2026-03-26
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-OVER-001"
+    accumulate: true
+  payment:
+    date: 2026-02-26
+    amount: 150
+    account: "Liabilities:Credit Card USD"
+    txn_guid: "778899aabbccddeeff00112233445566"
+    prepayment: 50

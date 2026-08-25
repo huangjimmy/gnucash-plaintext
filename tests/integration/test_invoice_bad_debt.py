@@ -2,7 +2,8 @@
 expense writes the invoice off instead of receiving cash. The payment account
 (`account:`, or the legacy `bank_account:` alias) is constrained by side: an
 invoice payment may be an asset (cash) or an expense (write-off); a bill payment
-must be an asset (an unpaid bill is debt forgiveness — a gain — out of scope).
+may be an asset, owner's equity, or a liability (the company card), but never an
+expense — an unpaid bill is debt forgiveness, a gain, and out of scope.
 """
 
 from pathlib import Path
@@ -62,6 +63,24 @@ def test_invoice_payment_to_income_is_rejected(tmp_path):
     r = _import(runner, gf, 'q_invoice_pay_to_income.txt', tmp_path)
     # Routing an invoice payment to income (a credit memo) is not allowed.
     assert 'asset' in r.output.lower() and 'expense' in r.output.lower(), r.output
+
+
+def test_invoice_payment_to_a_liability_is_rejected(tmp_path):
+    """The widening that lets a bill be paid on the card is one-sided.
+
+    A liability is where a bill's debt moves to. An invoice is the other
+    direction — money owed to the company arriving — and a liability is not
+    where it arrives, so the invoice side is unchanged. Asserted because
+    nothing else holds it: dropping `is_bill` from that check leaves every
+    other test green.
+    """
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    r = _import(runner, gf, 'an_invoice_payment_into_a_credit_card.txt',
+                tmp_path)
+
+    assert 'Liabilities:Credit Card' in r.output, r.output
+    assert 'invoice payment must use an asset' in r.output.lower(), r.output
 
 
 def test_bill_payment_to_expense_is_rejected(tmp_path):

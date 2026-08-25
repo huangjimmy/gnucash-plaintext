@@ -1,0 +1,44 @@
+# The same three splits as `an_expense_paid_on_the_card_with_gst_split_out`,
+# with the card kept as a plain `type: Liability` account.
+#
+# GnuCash takes an ordinary liability account for a credit card, and this
+# tool's `type:` map accepts one, so a chart of accounts that never uses the
+# Credit Card type is an ordinary book rather than an odd one. The tax
+# account is a liability too, and it is written first.
+#
+# `Expenses:Supplies:USD` +100.00, `Liabilities:Tax:GST USD` +13.00 and
+# `Liabilities:Card As Liability USD` −113.00.
+#
+# What this fixture produces: a USD transaction of three splits, none in a
+# lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Tax:GST USD
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Card As Liability USD
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-03-26 * "Paid the supplier on a plain-liability card"
+	guid: "8f90a1b2c3d4e5f60718293a4b5c6d7e"
+	currency.mnemonic: "USD"
+	Expenses:Supplies:USD 100.00 USD
+		guid: "90a1b2c3d4e5f60718293a4b5c6d7e8f"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Tax:GST USD 13.00 USD
+		guid: "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Card As Liability USD -113.00 USD
+		guid: "b2c3d4e5f60718293a4b5c6d7e8f90a1"
+		account.commodity.mnemonic: "USD"

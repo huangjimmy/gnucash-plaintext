@@ -1,0 +1,40 @@
+# A bill owing 100.00 applying a 60.00 split, where a second supplier's
+# 200.00 sits on the same expense account.
+#
+# An ordinary part payment: the director paid 60.00 of this bill and 40.00 is
+# still owed. The 200.00 is the other supplier's and stays where it is until
+# that bill applies it.
+#
+# The payment applies a split on the expense account, so it has said which
+# split there is this bill's. What is left over is either the other
+# supplier's or an unpaid remainder, and accounts alone cannot tell those
+# apart.
+#
+# What this fixture produces: the bill part paid, owing 40.00, with the
+# 200.00 split untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-PART-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-03-05
+  entry:
+    date: 2026-03-05
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-03-05
+    due: 2026-04-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-PART-001"
+    accumulate: true
+  payment:
+    date: 2026-03-05
+    amount: 60
+    account: "Assets:Due From Director USD"
+    txn_guid: "7a8b9c0d1e2f3a4b5c6d7e8f90a1b2c3"
+    txn_split_guid: "8b9c0d1e2f3a4b5c6d7e8f90a1b2c37a"

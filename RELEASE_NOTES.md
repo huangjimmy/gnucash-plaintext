@@ -1,5 +1,42 @@
 # Release Notes
 
+## Unreleased
+
+### Link an existing expense transaction to a bill payment
+
+**A supplier paid before the bill was posted can now be linked to it.** The only entry available at the time puts the cost on an expense account — a director paying out of pocket, a purchase on the company card, the owner settling it as capital:
+
+```
+2026-02-10 * "Director paid the supplier"
+	Expenses:Supplies:USD 100.00 USD
+	Assets:Due From Director USD -100.00 USD
+```
+
+Posting the bill books that same cost again as `DR Expenses / CR A/P`, so the expense split is a second copy of the bill's own line. A `payment:` block applies it, and it becomes a split on the payable:
+
+```
+	payment:
+		date: 2026-02-10
+		amount: 100
+		account: "Assets:Due From Director USD"
+		txn_guid: "aa11bb22cc33dd44ee55ff6677889900"
+		txn_split_guid: "bb22cc33dd44ee55ff6677889900aa11"
+```
+
+The bill is settled and the cost is recorded once, by the bill's own posting. The split must sit on an expense account this bill posts to; one it does not post to is somebody else's cost. The account may be in another currency than the bill. Income and equity are refused on both sides — a bill's line can be booked to either, and a cost is a cost in a way that revenue and capital are not.
+
+**A bill may be paid from a liability account.** Paying a supplier on the company card settles the bill and leaves the company owing the card issuer; the money never passes through an asset. An asset and owner's equity still work as before. An invoice settled into a liability stays refused.
+
+**A payment may apply more than one split of its transaction**, written as a `Transaction` block with a `PaymentSplit` line for each. A bill whose payment recorded the tax separately applies both; an invoice does the same where an arrival was recorded as two suspense splits.
+
+**A posting transaction is refused as a payment.** Posting a bill records what is owed, so its splits are the debt and the cost and neither one pays anything — and that holds for any bill's posting, not only the one being paid. The export prints that guid as `posted_txn_guid:` a few lines above the `payment:` block that takes `txn_guid:`, so it is an ordinary thing to write by mistake.
+
+**A payment block states where the money came from.** Every writer of one — `export`, `print-invoice`, `print-bill` — took the first split that was not on the receivable, which is the money only while the transaction carries nothing else. A bill part paid out of a transaction that also holds another supplier's cost kept that cost on the expense account, and the export wrote it as the payment account; re-imported, a bill payment does not take an expense account, so the book could not read its own export back.
+
+### Refusal wording
+
+**A guid is given, a split is applied, and a guid the book has nothing for matches nothing.** Saying a payment "names" a split told a reader nothing — every split has a name — and a payment does not choose or select one either. Every refusal that used the word has been reworded, including `posted_txn_guid '…' names no transaction in this book`, which now reads `matches no transaction in this book`.
+
 ## v0.4.0 - Identity for a line, a split and a credit, every column an invoice or bill line has, printing through GnuCash's own report (2026-08-21)
 
 ### A line, a split, a credit and a payment's memo each keep their own identity

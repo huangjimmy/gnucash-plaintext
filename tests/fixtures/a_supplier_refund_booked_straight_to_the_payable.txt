@@ -1,0 +1,24 @@
+# Three splits: money coming back from the supplier, against two splits
+# booked straight to the payable. `Assets:Bank:USD` +100.00 against
+# `Liabilities:Accounts Payable USD` −60.00 and −40.00.
+#
+# Both payable splits are loose — in no lot, settling nothing. They are the
+# wrong way round for a payment: a bill's posting puts −100.00 on the
+# payable, so its settlement puts +100.00 there.
+#
+# What this fixture produces: a USD transaction, none of the splits in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-24 * "Supplier refunded the company"
+	guid: "1a2b3c4d5e6f708192a3b4c5d6e7f809"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "2b3c4d5e6f708192a3b4c5d6e7f8091a"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Accounts Payable USD -60.00 USD
+		guid: "3c4d5e6f708192a3b4c5d6e7f8091a2b"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Accounts Payable USD -40.00 USD
+		guid: "4d5e6f708192a3b4c5d6e7f8091a2b3c"
+		account.commodity.mnemonic: "USD"

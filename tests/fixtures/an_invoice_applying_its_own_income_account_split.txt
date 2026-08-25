@@ -1,0 +1,38 @@
+# An invoice posting to `Income:Sales USD`, applying the cash sale's split on
+# that same account.
+#
+# The account match a bill relies on, on the invoice side. Here it must not
+# be enough: moving the split takes the sale off the profit and loss, and a
+# sale leaving is the failure Q-039 was reported for. Bills are allowed it
+# because the cost is a cost either way; revenue is not.
+#
+# What this fixture produces: a refusal, with the revenue still on the income
+# account.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-SAME-INCOME"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-03-16
+  entry:
+    date: 2026-03-16
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales USD"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-03-16
+    due: 2026-04-16
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-SAME-INCOME"
+    accumulate: true
+  payment:
+    date: 2026-03-16
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "1122aabb3344ccdd5566eeff77880099"
+    txn_split_guid: "aabb3344ccdd5566eeff77880099aabb"

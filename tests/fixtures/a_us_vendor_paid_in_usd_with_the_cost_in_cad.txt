@@ -1,0 +1,28 @@
+# Two splits: one on an asset account, the other on an expense account. Here
+# `Assets:Due From Director USD` −100.00 USD against `Expenses:Supplies`
+# +140.00 CAD, the entry quoted in CAD.
+#
+# A Canadian company paying a US vendor. The money is USD, and the cost has to
+# be booked in CAD for the return, so the expense account is CAD and the entry
+# converts at the day's rate. The bill that follows is USD and its payable is
+# USD.
+#
+# What this fixture produces: a CAD transaction, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Assets:Due From Director USD
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-05 * "Director paid the US vendor"
+	guid: "5566778899aabbccddeeff0011223344"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 140.00 CAD
+		guid: "66778899aabbccddeeff001122334455"
+		account.commodity.mnemonic: "CAD"
+	Assets:Due From Director USD -100.00 USD
+		guid: "778899aabbccddeeff00112233445566"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "-140.00"

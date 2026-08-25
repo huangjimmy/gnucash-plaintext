@@ -1,0 +1,28 @@
+# Two splits: one on a liability account, the other on an expense account.
+# `Liabilities:Credit Card USD` −150.00 against `Expenses:Supplies:USD`
+# +150.00.
+#
+# More than the bill turns out to owe, so linking it has to divide the split:
+# 100.00 settles the bill and 50.00 stays with the vendor as a credit.
+#
+# What this fixture produces: a USD transaction, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Credit Card USD
+	type: Credit Card
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-02-26 * "Paid the supplier too much on the card"
+	guid: "778899aabbccddeeff00112233445566"
+	currency.mnemonic: "USD"
+	Expenses:Supplies:USD 150.00 USD
+		guid: "8899aabbccddeeff001122334455667a"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Credit Card USD -150.00 USD
+		guid: "99aabbccddeeff001122334455667a88"
+		account.commodity.mnemonic: "USD"

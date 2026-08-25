@@ -1,0 +1,45 @@
+# A bill with a tax entry, applying both splits of the transaction that paid
+# it.
+#
+# The cost and the GST were separated when the supplier was paid, so the
+# transaction holds a split for each — and the bill books both accounts. The
+# block names both, so nothing is left for the run to work out: both move to
+# the payable and come to 113.00, which is what the bill owes.
+#
+# What this fixture produces: the payable settled, `Expenses:Supplies:USD` at
+# 100.00, `Liabilities:Tax:GST USD` at 13.00 and the card at −113.00.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+taxtable "GST"
+  entry:
+    account: "Liabilities:Tax:GST USD"
+    rate: 13.0%
+    type: PERCENT
+
+bill "BILL-GST-003"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-18
+  entry:
+    date: 2026-02-18
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+  posted:
+    date: 2026-02-18
+    due: 2026-03-18
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-GST-003"
+    accumulate: true
+  payment:
+    date: 2026-02-18
+    amount: 113
+    account: "Liabilities:Credit Card USD"
+    Transaction "ccddeeff00112233445566778899aabb"
+      PaymentSplit "ddeeff00112233445566778899aabbcc"
+      PaymentSplit "eeff00112233445566778899aabbccdd"

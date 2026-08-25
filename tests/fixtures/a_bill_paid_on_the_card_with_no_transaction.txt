@@ -1,0 +1,44 @@
+# A bill paid on the company card, entered from the block rather than linked.
+#
+# No `txn_guid:`, so the run writes the settlement itself against
+# `Liabilities:Credit Card USD`. This is the other way a liability reaches a
+# bill payment: the widening that lets a card be named applies here too, and
+# the sign of a split the run creates is not the sign of one it moves.
+#
+# What this fixture produces: the payable settled, and
+# `Liabilities:Credit Card USD` at −100.00 — what the company now owes the
+# card issuer.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+  type: Expense
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Credit Card USD
+  type: Credit Card
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "USD"
+
+bill "BILL-CARD-002"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-01
+  entry:
+    date: 2026-02-01
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-02-01
+    due: 2026-03-01
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-CARD-002"
+    accumulate: true
+  payment:
+    date: 2026-02-20
+    amount: 100
+    account: "Liabilities:Credit Card USD"
+    memo: "Paid on the company card"

@@ -1,0 +1,32 @@
+# The director's transaction again, linked by `txn_guid:` alone.
+#
+# No `txn_split_guid:`, so the run picks the side that is not the `account:`
+# — the `Expenses:Supplies:USD` split. Both spellings have to reach the same
+# split, which is an invariant this path is paired on everywhere else.
+#
+# What this fixture produces: the same result as giving the split's own guid.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-DIRECTOR-002"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-01
+  entry:
+    date: 2026-02-01
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-02-01
+    due: 2026-03-01
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-DIRECTOR-002"
+    accumulate: true
+  payment:
+    date: 2026-02-10
+    amount: 100
+    account: "Assets:Due From Director USD"
+    txn_guid: "aa11bb22cc33dd44ee55ff6677889900"

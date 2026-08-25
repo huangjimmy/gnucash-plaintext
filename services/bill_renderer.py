@@ -16,8 +16,6 @@ is re-imported, and its numbers are checked against a recomputation.
 """
 from fractions import Fraction
 
-import gnucash.gnucash_core_c as gc
-
 from infrastructure.gnucash.engine import (
     load_gnc_engine,
     safe_ctypes_string,
@@ -40,6 +38,7 @@ from services.invoice_renderer import (
     record_totals,
     tax_breakdown,
 )
+from services.payment_links import kind_of, the_payment_account_on
 from services.plaintext_blocks import (
     bill_entry_flags,
     entry_notes,
@@ -238,15 +237,12 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
             # fact about the vendor — while the same book's `export` wrote one.
             for txn, sharing in settlements_by_transaction(lot):
                 s = sharing[0]
-                bank_name = ''
-                for i in range(txn.CountSplits()):
-                    sp = txn.GetSplit(i)
-                    atype = gc.xaccAccountGetType(sp.GetAccount().instance)
-                    if atype not in (
-                        gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE,
-                    ):
-                        bank_name = get_account_full_name(sp.GetAccount())
-                        break
+                # Where the money came from. `the_payment_account_on` holds
+                # the rule, and the export and the printed invoice ask it too:
+                # taking the first split that is not on the payable was the
+                # money only while the transaction carried nothing else, and a
+                # bill part paid keeps another supplier's cost.
+                bank_name = the_payment_account_on(txn, kind_of(bill), s)
                 # As the invoice renderer reads it: off the split the import
                 # writes it to.
                 pay_memo = payment_memo_of(txn, s)

@@ -1,0 +1,30 @@
+# The second of two bills paid by one transaction, naming its own split.
+#
+# What this fixture produces: this bill settled from the 200.00 split, with
+# both costs now on the payable and the director owed 300.00.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-TWO-B"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-03-02
+  entry:
+    date: 2026-03-02
+    description: "More supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 200
+    taxable: false
+  posted:
+    date: 2026-03-02
+    due: 2026-04-02
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-TWO-B"
+    accumulate: true
+  payment:
+    date: 2026-03-02
+    amount: 200
+    account: "Assets:Due From Director USD"
+    Transaction "0e1f2a3b4c5d6e7f8a9b0cddeeff0011"
+      PaymentSplit "2a3b4c5d6e7f8a9b0cddeeff00110e1f"

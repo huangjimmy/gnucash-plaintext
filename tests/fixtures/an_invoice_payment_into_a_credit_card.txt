@@ -1,0 +1,44 @@
+# An invoice whose `payment:` names a credit card as the account the money
+# reached.
+#
+# A liability is a bill payment account — the company card settles a bill and
+# leaves the card issuer owed instead. An invoice is the other direction:
+# money owed *to* the company arriving, and a liability is not where it
+# arrives. So the widening is one-sided, and this pins the side that did not
+# move.
+#
+# What this fixture produces: a refusal naming the account.
+#
+# Verified by tests/integration/test_invoice_bad_debt.py.
+2026-01-01 open Liabilities:Credit Card
+	type: Credit Card
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C010"
+	name: "Test Customer"
+	currency: CAD
+
+invoice "INV-CARD"
+	customer_id: "C010"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Services"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-CARD"
+		accumulate: true
+	payment:
+		date: 2026-06-01
+		amount: 100
+		account: "Liabilities:Credit Card"
+		memo: "illegal: invoice payment routed to a liability"

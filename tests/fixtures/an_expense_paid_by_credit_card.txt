@@ -1,0 +1,27 @@
+# Two splits: one on a liability account, the other on an expense account.
+# `Liabilities:Credit Card USD` −100.00 against `Expenses:Supplies:USD`
+# +100.00.
+#
+# The supplier was paid on the company card before the bill was posted.
+#
+# What this fixture produces: a USD transaction, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities:Credit Card USD
+	type: Credit Card
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-02-12 * "Paid the supplier on the card"
+	guid: "dd44ee55ff6677889900aa11bb22cc33"
+	currency.mnemonic: "USD"
+	Expenses:Supplies:USD 100.00 USD
+		guid: "ee55ff6677889900aa11bb22cc33dd44"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Credit Card USD -100.00 USD
+		guid: "ff6677889900aa11bb22cc33dd44ee55"
+		account.commodity.mnemonic: "USD"

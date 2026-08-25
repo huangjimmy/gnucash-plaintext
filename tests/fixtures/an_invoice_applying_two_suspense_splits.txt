@@ -1,0 +1,43 @@
+# An invoice applying both suspense splits of one arrival.
+#
+# Neither split is on the receivable yet, and the invoice does not post to
+# `Assets:Suspense USD`. What allows it is the account: money waits in a
+# suspense account, and a `Transaction` block says which splits of the
+# arrival are this invoice's. Both move to the receivable and come to the
+# 100.00 it is owed.
+#
+# This is the invoice side of the grouped spelling. The bill side needs the
+# posting to book the account because the split there is a cost; a suspense
+# split is money, and money waiting to be identified has always been movable.
+#
+# What this fixture produces: the invoice settled, both splits on the
+# receivable and in its lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-10
+    amount: 100
+    account: "Assets:Bank:USD"
+    Transaction "8a9b0cddeeff00112233aabb4c5d6e7f"
+      PaymentSplit "0cddeeff00112233aabb4c5d6e7f8a9b"
+      PaymentSplit "cddeeff00112233aabb4c5d6e7f8a9b0"

@@ -1,0 +1,32 @@
+# Two splits: one on an equity account, the other on an expense account.
+# `Equity:Owner Contributions USD` −100.00 against `Expenses:Supplies:USD`
+# +100.00.
+#
+# The owner settled the supplier and put it in as capital rather than as a
+# loan, before the bill was posted.
+#
+# What this fixture produces: a USD transaction, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Expenses:Supplies:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity
+	type: Equity
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity:Owner Contributions USD
+	type: Equity
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-02-14 * "Owner settled the supplier"
+	guid: "112233445566778899aabbccddeeff00"
+	currency.mnemonic: "USD"
+	Expenses:Supplies:USD 100.00 USD
+		guid: "2233445566778899aabbccddeeff0011"
+		account.commodity.mnemonic: "USD"
+	Equity:Owner Contributions USD -100.00 USD
+		guid: "33445566778899aabbccddeeff001122"
+		account.commodity.mnemonic: "USD"

@@ -1,0 +1,34 @@
+# A bill whose payment names the `Expenses:Supplies:USD` split of a
+# transaction the book already holds.
+#
+# `account:` names `Liabilities:Credit Card USD`. `txn_split_guid:` names the
+# expense split, which moves to `Liabilities:Accounts Payable USD`.
+#
+# What this fixture produces: `Expenses:Supplies:USD` at 100.00, the payable
+# at nil, `Liabilities:Credit Card USD` at −100.00.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-CARD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-01
+  entry:
+    date: 2026-02-01
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-02-01
+    due: 2026-03-01
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-CARD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-12
+    amount: 100
+    account: "Liabilities:Credit Card USD"
+    txn_guid: "dd44ee55ff6677889900aa11bb22cc33"
+    txn_split_guid: "ee55ff6677889900aa11bb22cc33dd44"

@@ -1,0 +1,49 @@
+# A bill with a tax entry, applying only the cost split of a transaction that
+# also holds the GST.
+#
+# The bill's posting books `Expenses:Supplies:USD` **and**
+# `Liabilities:Tax:GST USD`, and the transaction carries a split on each. So
+# both are duplicates of the bill's own lines, and moving one of them settles
+# nothing properly: the other stays where it is and is counted twice, once by
+# the transaction and once by the posting.
+#
+# Refused for that reason. Naming one split of several the record books is a
+# part de-duplication rather than a part payment, and the two do not mean the
+# same thing.
+#
+# What this fixture produces: a refusal naming the accounts the bill posts
+# to, with the entry untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+taxtable "GST"
+  entry:
+    account: "Liabilities:Tax:GST USD"
+    rate: 13.0%
+    type: PERCENT
+
+bill "BILL-GST-002"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-02-18
+  entry:
+    date: 2026-02-18
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: true
+    tax_included: false
+    tax_table: "GST"
+  posted:
+    date: 2026-02-18
+    due: 2026-03-18
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-GST-002"
+    accumulate: true
+  payment:
+    date: 2026-02-18
+    amount: 100
+    account: "Liabilities:Credit Card USD"
+    txn_guid: "ccddeeff00112233445566778899aabb"
+    txn_split_guid: "ddeeff00112233445566778899aabbcc"

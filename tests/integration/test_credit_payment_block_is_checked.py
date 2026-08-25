@@ -246,8 +246,8 @@ def test_a_block_naming_its_split_walks_each_account_once(tmp_path, monkeypatch)
     assert len(receivable) == 1, walks
 
 
-def test_a_credit_block_names_no_account(tmp_path):
-    """Nothing paid out of a bank, so naming one is refused."""
+def test_a_credit_block_states_no_account(tmp_path):
+    """Nothing paid out of a bank, so stating one is refused."""
     runner = CliRunner()
     book = _book_with_a_credit(runner, tmp_path)
     txn_guid, split_guid = _credit_split(book)
@@ -255,7 +255,7 @@ def test_a_credit_block_names_no_account(tmp_path):
     result = _import_fixture(runner, book, tmp_path,
                              'credit_payment_naming_a_bank.txt', txn_guid, split_guid)
     assert result.exit_code != 0, result.output
-    assert 'names no account' in result.output, result.output
+    assert 'states no account' in result.output, result.output
     assert 'bank_account' in result.output, result.output
 
 

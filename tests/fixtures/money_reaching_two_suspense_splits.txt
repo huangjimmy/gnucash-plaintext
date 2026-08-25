@@ -1,0 +1,22 @@
+# One arrival recorded as two suspense splits.
+#
+# `Assets:Bank:USD` +100.00 against `Assets:Suspense USD` −60.00 and −40.00.
+# The bookkeeper split it while working out what it was for; both halves are
+# the same customer's money.
+#
+# What this fixture produces: a USD transaction, none of the splits in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-10 * "Money in, split in two"
+	guid: "8a9b0cddeeff00112233aabb4c5d6e7f"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "9b0cddeeff00112233aabb4c5d6e7f8a"
+		account.commodity.mnemonic: "USD"
+	Assets:Suspense USD -60.00 USD
+		guid: "0cddeeff00112233aabb4c5d6e7f8a9b"
+		account.commodity.mnemonic: "USD"
+	Assets:Suspense USD -40.00 USD
+		guid: "cddeeff00112233aabb4c5d6e7f8a9b0"
+		account.commodity.mnemonic: "USD"

@@ -192,7 +192,7 @@ def test_the_cost_pools_every_base_split_rather_than_judging_them(tmp_path):
 def test_a_taxed_foreign_invoice_is_not_read_as_two_rates(tmp_path):
     """Rounding is not disagreement.
 
-    A taxed USD invoice converts its CAD income and its CAD tax at one rate
+    A USD invoice with a tax entry converts its CAD income and its CAD tax at one rate
     and rounds each to the cent on its own, so their amount-over-value ratios
     differ in the last digits — 1.40006 against 1.39940 on 33.33 USD at 10%.
     Comparing those ratios to each other calls every taxed foreign invoice
@@ -405,7 +405,7 @@ def test_the_one_stored_cost_survives_a_round_trip(tmp_path):
 def test_a_currency_worth_less_than_a_dollar_is_not_read_as_two_rates(tmp_path):
     """The direction the check measures in decides whether it is usable.
 
-    A taxed HKD invoice at 0.1754 CAD/HKD carries CAD figures made from the
+    An HKD invoice with a tax entry at 0.1754 CAD/HKD carries CAD figures made from the
     HKD ones and rounded to the cent — 58.47 and 5.85. Half a CAD cent is a
     fifth of a HKD cent the other way round, so reading the rate backwards,
     from CAD into HKD, says the income split should be 333.35 HKD where the

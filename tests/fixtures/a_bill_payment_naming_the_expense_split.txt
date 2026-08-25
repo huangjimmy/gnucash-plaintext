@@ -1,5 +1,11 @@
 # Naming the expense split of a cash purchase as a bill's settlement.
 #
+# **The account names here are load-bearing.** This bill posts to
+# `Expenses:Supplies` while the purchase sits on `Expenses:Supplies:USD`, and
+# that is why it is refused: a split the bill's own posting books may be
+# moved, being a second copy of the bill's own line. Point both at one account
+# and this fixture stops refusing.
+#
 # The account-type refusal on the bill side. `Expenses:Supplies:USD` holds
 # dollars, so the commodity check has nothing to say and it is the account
 # arm of the message that fires — the arm that names the record's own

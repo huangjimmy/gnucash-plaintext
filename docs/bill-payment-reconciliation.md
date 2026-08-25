@@ -144,7 +144,7 @@ credit after: 0.00
 
 The flag also composes with a cash `payment:` block on the same bill: the cash applies **first** and the credit covers the remainder. So if that second bill also carries a `payment: amount: 50`, the $50 cash plus the $50 of remaining credit settle it — both bills close and the credit reaches $0.
 
-One further asymmetry with invoices: a bill payment's transfer account must be an asset or owner's-equity account — routing it to an expense or income is rejected (`bill payment must use an asset ...`). Writing an unpaid bill off is debt forgiveness (a gain), not bad debt; the bad-debt write-off to an expense exists only for invoices, i.e. money owed *to* you.
+One further asymmetry with invoices: a bill payment's transfer account must be an asset, owner's-equity or liability account — routing it to an expense or income is rejected (`bill payment must use an asset ...`). A liability is there for the company card: paying a supplier on it settles the bill and leaves the company owing the card issuer, and no money passes through an asset. Writing an unpaid bill off is debt forgiveness (a gain), not bad debt; the bad-debt write-off to an expense exists only for invoices, i.e. money owed *to* you.
 
 ## Detecting a vendor's bill payment state (paid / partial / overpaid)
 

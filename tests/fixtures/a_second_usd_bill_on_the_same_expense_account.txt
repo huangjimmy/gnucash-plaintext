@@ -1,0 +1,34 @@
+# A second USD bill posting to the same USD expense account as the first,
+# applying the first bill's posting transaction as its payment.
+#
+# The first bill's posting holds an expense split and a payable split. The
+# payable split is in the first bill's lot, so the split left for `txn_guid:`
+# to find is the expense one — and this bill posts to that same account, so
+# every test the linking branch makes passes it.
+#
+# Nothing here is a payment. A posting transaction records what a bill owes,
+# and that is as true of another bill's posting as of this bill's own.
+#
+# What this fixture produces: a refusal, with the first bill's posting
+# untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-SELF-002"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-03-13
+  entry:
+    date: 2026-03-13
+    description: "Supplies"
+    account: "Expenses:Supplies:USD"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-03-13
+    due: 2026-04-13
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-SELF-002"
+    accumulate: true
+  payment: none
