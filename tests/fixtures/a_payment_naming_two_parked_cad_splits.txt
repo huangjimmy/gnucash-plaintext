@@ -1,0 +1,43 @@
+# A grouped block naming two splits parked in another currency.
+#
+# The refusal `refuse_several_splits_this_cannot_divide` exists for, and the
+# file that reaches it. Both named splits are CAD against a USD invoice, so
+# neither carries a figure that says anything about the settlement, and there
+# is no ratio in the book to divide the 100.00 USD between them by.
+#
+# It is asked where the block's names are read, ahead of the per-split account
+# check in the grouped branch — so a reader is told the settlement cannot be
+# divided rather than that each split is on the wrong account, which is true
+# but is not the obstacle.
+#
+# What this fixture produces: a refusal naming the two splits and the currency,
+# with nothing attached and the entry untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-06
+    amount: 100
+    account: "Assets:Bank:USD"
+    Transaction "aabbccdd11223344556677889900eeff"
+      PaymentSplit "ccdd11223344556677889900eeffaabb"
+      PaymentSplit "dd11223344556677889900eeffaabbcc"

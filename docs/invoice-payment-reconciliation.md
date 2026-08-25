@@ -4,7 +4,7 @@ Covers the scenarios where bank transactions and invoice payments need
 to be linked without creating duplicate bank entries, and how the GUID-based
 identity model affects re-imports. For the vendor-bill (Accounts Payable) side, see [docs/bill-payment-reconciliation.md](bill-payment-reconciliation.md).
 
-For the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, every payment shape from cash through retarget, overpayment, credit consumption, and multi-invoice shared bank tx) exported and re-imported into a fresh book with all GUIDs preserved — see [docs/comprehensive-roundtrip-example.md](comprehensive-roundtrip-example.md).
+For the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, every payment shape from cash through a linked bank transaction, overpayment, credit consumption, and multi-invoice shared bank tx) exported and re-imported into a fresh book with all GUIDs preserved — see [docs/comprehensive-roundtrip-example.md](comprehensive-roundtrip-example.md).
 
 ## Background
 
@@ -15,11 +15,11 @@ same cash movement — one from the feed, one from the payment.
 
 The `txn_guid:` field on a `payment:` block solves this cleanly: instead of
 creating a new transaction, the importer **modifies the existing bank
-transaction in-place**, retargeting its counter-split to AR
+transaction in-place**, linking its counter-split to AR
 and linking it to the invoice lot. All original bank metadata — notes,
 description, split memos, FITID — is preserved.
 
-The companion `txn_split_guid:` field names the *specific* AR/AP-side split that belongs to this invoice/bill. It's optional in hand-written plaintext (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order) but is **always** emitted on export so a round-tripped book reconstructs bit-for-bit on a fresh re-import — including the shape where one bank transaction covers several invoices or bills, each claiming one specific AR/AP-side split via its own `txn_split_guid:`.
+The companion `txn_split_guid:` field names the *specific* AR/AP-side split that belongs to this invoice/bill. It's optional in hand-written plaintext (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order) but is emitted on export for every payment of one settling split, so a round-tripped book reconstructs bit-for-bit on a fresh re-import — including the shape where one bank transaction covers several invoices or bills, each claiming one specific AR/AP-side split via its own `txn_split_guid:`. The one payment it does not spell is a payment made of *several* settling splits, which is written as a `Transaction` block with a `PaymentSplit` per split and carries neither key; see [README § One payment made of several splits](../README.md#one-payment-made-of-several-splits).
 
 This guide describes:
 
@@ -89,7 +89,7 @@ invoice "INV-2026-001"
 
 Only `bank_account` and `txn_guid` are required in the `payment:` block —
 `date`, `amount`, and `memo` are taken from the existing transaction and do
-not need to be repeated. `txn_split_guid:` is optional in hand-written files (the importer falls back to the iterative-retarget mechanism that walks the bank tx's counter-splits in plaintext order) but is recommended for multi-invoice bank transactions and is always emitted on export.
+not need to be repeated. `txn_split_guid:` is optional in hand-written files (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order) but is recommended for multi-invoice bank transactions and is emitted on export for every payment of one settling split. A payment made of several is written as a `Transaction` block carrying a `PaymentSplit` per split, and carries neither key.
 
 The `customer_guid:` line is optional in hand-written files but emitted on
 every export. When both `customer_id:` and `customer_guid:` are present,
@@ -107,7 +107,7 @@ The importer:
 1. Creates and posts the invoice (AR lot opened) — or finds the existing one
    by id/guid and updates it
 2. Finds the existing bank transaction by `txn_guid:`
-3. Locates the specific AR-side split by `txn_split_guid:` (or, if absent, picks the counter-split via the iterative-retarget fallback)
+3. Locates the specific AR-side split by `txn_split_guid:` (or, if absent, picks the counter-split via the iterative linking fallback)
 4. Attaches that split to the invoice's posted lot
 5. The lot sum reaches zero → invoice is marked paid
 6. **No new transaction is created** — the original bank entry survives intact
@@ -123,7 +123,7 @@ Cash-basis tax filers recognize revenue when cash is received, not when an invoi
 The mechanic is just the bank-feed-first workflow above with three constraints applied:
 
 - `posted.date == payment.date == bank-tx.date` (the cash-receipt date).
-- Exactly one `payment:` block carrying `txn_guid:` + `txn_split_guid:` retargeting the existing bank tx.
+- Exactly one `payment:` block carrying `txn_guid:` + `txn_split_guid:` linking the existing bank tx.
 - An optional `cash_basis: true` line on the invoice header marking tax-method intent.
 
 ```
@@ -161,7 +161,7 @@ invoice "INV-CASH-001"
         memo: "INV-CASH-001 cash sale"
 ```
 
-Post-import the invoice is GnuCash-posted and GnuCash-paid; the AR account sees a same-day debit-and-credit netting to zero in a single closed lot; only one bank tx exists (the original, retargeted — Q-016 prevents the duplicate that the ApplyPayment path would create). Income and any tax-account splits are dated on the cash-receipt date, so a P&L grouped by date matches the cash-basis books.
+Post-import the invoice is GnuCash-posted and GnuCash-paid; the AR account sees a same-day debit-and-credit netting to zero in a single closed lot; only one bank tx exists (the original, linked — Q-016 prevents the duplicate that the ApplyPayment path would create). Income and any tax-account splits are dated on the cash-receipt date, so a P&L grouped by date matches the cash-basis books.
 
 `cash_basis: true` is a **descriptive** flag — a tax-method label for the issuer's own filing / reporting tools. It does NOT constrain the invoice's structure: partial payments, multi-payment, overpayment, and prepayment are all allowed alongside the flag (cash-basis filers commonly receive installments — each payment recognizes its portion of revenue at its own date). The flag survives import → export → fresh-book re-import as a KVP slot on the invoice.
 
@@ -192,7 +192,7 @@ The Q-012 draft path is preserved for invoices that do NOT carry the `cash_basis
 
 ### Not supported: bank tx with the income/tax breakdown baked in
 
-If your bank tx is already a "complete" cash-sale entry — `Bank +N`, `Income −x`, `Tax −y` with NO `Accounts Receivable` split at all — Q-018 cannot link it to an invoice via the paid-on-receipt workflow. The Q-016 retarget mechanism needs an AR-side split on the bank tx to move into the invoice's posted lot, and a bank tx without an AR split has nothing to retarget.
+If your bank tx is already a "complete" cash-sale entry — `Bank +N`, `Income −x`, `Tax −y` with NO `Accounts Receivable` split at all — Q-018 cannot link it to an invoice via the paid-on-receipt workflow. The Q-016 linking mechanism needs an AR-side split on the bank tx to move into the invoice's posted lot, and a bank tx without an AR split has nothing to link.
 
 The fix is in the bank tx, not the invoice: restructure it to `Bank: +N` / `Accounts Receivable: −N` (no Income or Tax splits on the bank tx). Then the standard Q-018 paid-on-receipt workflow above creates the Income and Tax splits via the invoice's posting tx, and the two same-day transactions net to a clean cash-basis P&L.
 
@@ -313,7 +313,7 @@ The export is **identity-preserving** for every business object and every transa
 - Invoices reference their customer with both `customer_id:` and `customer_guid:`
 - Bills reference their vendor with both `vendor_id:` and `vendor_guid:`
 - Standalone transaction blocks (`* "..."`) carry `guid:` and every split inside carries its own `guid:`
-- `payment:` blocks always carry `txn_guid:` (the bank transaction) and `txn_split_guid:` (the AR/AP-side split that belongs to this invoice/bill) — re-imports on a fresh book reconstruct the same bank-tx-to-invoice routing without inference
+- `payment:` blocks always name the money they refer to, so re-imports on a fresh book reconstruct the same bank-tx-to-invoice routing without inference: `txn_guid:` (the bank transaction) and `txn_split_guid:` (the AR/AP-side split that belongs to this invoice/bill) for a payment of one settling split, and a `Transaction` block with a `PaymentSplit` per split for one made of several, which carries neither key
 
 ```
 invoice "INV-2026-001"
@@ -351,7 +351,7 @@ posted invoice, do it through the GnuCash GUI or void+reissue.
 
 For a `payment:` block linked via `txn_guid`, re-importing is safe: the
 invoice is already paid, the bank transaction's counter-split is already
-retargeted to AR. The importer sees the invoice already exists and skips
+linked to AR. The importer sees the invoice already exists and skips
 the whole block; the bank tx is left untouched.
 
 ---
@@ -371,7 +371,7 @@ thing. Common cases:
 | Invoice has `posted: none` with a `payment:` block | `invoice "X": cannot have payment: blocks on an unposted invoice` |
 | Invoice was created but not posted (no posted: block) | `invoice "X": has no posted lot — must be posted before payment` |
 | The transaction has no split outside `bank_account` | `invoice "X": tx '…' has no split outside 'Assets:Bank' to settle it with` |
-| Every split outside `bank_account` already settles an invoice or a bill | `invoice "X": every split of tx '…' outside 'Assets:Bank' already settles an invoice or a bill — retargeting one would leave that unpaid with no figure disagreeing` |
+| Every split outside `bank_account` already settles an invoice or a bill | `invoice "X": every split of tx '…' outside 'Assets:Bank' already settles an invoice or a bill — taking one would leave that unpaid with no figure disagreeing` |
 | Several splits could settle it and the block names only `txn_guid:` | `invoice "X": tx '…' carries 2 splits that are not 'Assets:Bank' and could each settle this invoice` |
 | `bank_account` names an account no split is on | as the row above: with no split matching the name, every split counts as "not the bank", so a two-split deposit reads as ambiguous. Check `bank_account:` for a typo before adding `txn_split_guid:` |
 | `from_credit:` names a split an unpost left loose that a bank had paid — any invoice's, not only this one's | `invoice "X": the split txn_split_guid names is a settlement a bank paid, left loose when the invoice or bill it settled was unposted — no credit was spent on it` |

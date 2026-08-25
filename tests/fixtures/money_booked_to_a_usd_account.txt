@@ -1,0 +1,27 @@
+# 100.00 USD parked in a USD account, against the 100.00 USD invoice.
+#
+# The single-currency shape on the happy path, and the common one: money
+# arrives, nobody knows yet what it settles, so it is booked to
+# `Assets:Suspense USD`, in the same currency it arrived in. Bank,
+# `Assets:Suspense USD`, receivable and invoice are all USD, so the entry is
+# USD and nothing converts.
+#
+# Every other Q-039 fixture parks CAD against a USD invoice, which is the
+# shape the issue reported. This is the one where the parked figure happens to
+# be right — linking it must still work, and must still land the receivable at
+# what the bank received rather than at whatever that split said.
+#
+# What this fixture produces: a USD transaction, bank +100 against suspense
+# −100, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-02 * "Money in, USD suspense"
+	guid: "abcdef0123456789abcdef0123456789"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "bcdef0123456789abcdef0123456789a"
+		account.commodity.mnemonic: "USD"
+	Assets:Suspense USD -100.00 USD
+		guid: "cdef0123456789abcdef0123456789ab"
+		account.commodity.mnemonic: "USD"

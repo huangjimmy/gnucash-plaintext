@@ -1,0 +1,34 @@
+# 100.50 USD received, parked against a JPY account.
+#
+# The currency is what this fixture is for. A yen is its own smallest unit —
+# fraction 1, where a dollar's is 100 — so the entry is quoted at a unit that
+# cannot hold a cent. GnuCash rounds a split's *value* to the transaction's
+# current currency when it is set, so restating the split before requoting the
+# entry rounds 100.50 to 101 and then converts that back: an amount of −100.50
+# USD against a value of −101.00 USD, with the bank's +100.50 against +101.00,
+# and an implied 1.00498 between USD and USD that nobody wrote.
+#
+# Both figures being on the same commodity, the entry balances and nothing
+# disagrees — the export then writes a `share_price` for a USD→USD split.
+#
+# CAD and USD are both hundredths, which is why every other fixture here would
+# never show it.
+#
+# What this fixture produces: a JPY-quoted transaction, bank +100.50 USD valued
+# 15075 JPY against `Assets:Suspense JPY` −15075.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-26 * "Money in, parked in yen"
+	guid: "3e3e11112222333344445555666677aa"
+	currency.mnemonic: "JPY"
+	Assets:Bank:USD 100.50 USD
+		guid: "3e3e11112222333344445555666677bb"
+		account.commodity.mnemonic: "USD"
+		share_price: "150"
+		value: "15075"
+	Assets:Suspense JPY -15075 JPY
+		guid: "3e3e11112222333344445555666677cc"
+		account.commodity.mnemonic: "JPY"
+		share_price: "1"
+		value: "-15075"

@@ -1,0 +1,37 @@
+# A credit note in USD, posted to the same receivable the invoices use.
+#
+# A credit note is a `gncInvoice` posted the other way round: it puts −100.00
+# on the receivable where an invoice puts +100.00. So its settlement — the
+# refund paid out to the customer — is **positive** on that account, the
+# opposite of an invoice's.
+#
+# That is what makes it the shape a sign guard has to be careful about. Read
+# from the account's type alone, "a settlement of a receivable is negative"
+# is true of an invoice and false of this, and refusing on it turns away a
+# link that has always worked.
+#
+# What this fixture produces: `CN-USD-001` posted at −100.00 USD on
+# `Assets:Accounts Receivable USD`.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "CN-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-06
+  credit_note: true
+  entry:
+    date: 2026-01-06
+    description: "Returned goods"
+    action: "Hours"
+    account: "Income:Sales USD"
+    quantity: -1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-06
+    due: 2026-02-06
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Credit note CN-USD-001"
+    accumulate: true

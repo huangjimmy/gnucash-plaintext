@@ -1,0 +1,43 @@
+# A `Transaction` block with no `PaymentSplit` under it.
+#
+# The directive's children are its splits — that is what it is for, and what
+# distinguishes it from `txn_guid:`, which says the same thing in one key.
+# Written childless it says nothing the key does not, and it is read by nobody:
+# with no children the block scores a bare slot, so the comparison pairs it on
+# date, amount and memo, and an otherwise-matching record reports `unchanged`
+# before the override that would have preferred the directive, or the note
+# saying the keys went unread, ever runs.
+#
+# That is the same silent unread line a mistyped directive guid and a
+# `from_credit:` block naming a `Transaction` are both refused for.
+#
+# What this fixture produces: a refusal naming the transaction, with nothing
+# attached.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 100
+    account: "Assets:Bank:USD"
+    memo: "Wire"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"

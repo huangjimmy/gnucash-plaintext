@@ -1,0 +1,41 @@
+# Naming the USD suspense split of a wire that kept a fee.
+#
+# Accepted, and the accepting path is what needed writing down: every other fee
+# fixture here parks in CAD, where the split's figure means nothing and the
+# settlement has to be inferred from the bank — which is the ambiguity the
+# third-split refusal is about.
+#
+# This split states −100.00 USD against a USD invoice, so the reading is
+# settled by the file: the customer paid 100.00 and the 5.00 fee is borne here.
+#
+# What this fixture produces: the suspense split on
+# `Assets:Accounts Receivable USD` at −100.00 USD in the invoice's lot, the fee
+# split untouched on `Expenses:Supplies:USD`, and the bank's 95.00 untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-08
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "f0e1d2c3b4a5968778695a4b3c2d1e0f"
+    txn_split_guid: "2c3b4a5968778695a4b3c2d1e0f10213"

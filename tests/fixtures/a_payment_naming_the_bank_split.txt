@@ -1,0 +1,42 @@
+# A `PaymentSplit` naming the bank side rather than a receivable split.
+#
+# The likeliest mistake once a payment can name its splits: the guids are all
+# on the transaction and the bank's is the first of them. Nothing else catches
+# it — the bank split is in no lot, belongs to no owner and settles nothing —
+# so without a check on the account it went into the invoice's lot, leaving
+# the money that arrived counted as the money owed.
+#
+# Named beside a real receivable split, so the refusal is about the one that
+# is wrong rather than about the block being empty.
+#
+# What this fixture produces: a refusal naming the account the split is on and
+# the account the invoice posts to.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 100
+    account: "Assets:Bank:USD"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "708192a3b4c5d6e7f809122334455667"
+      PaymentSplit "6f708192a3b4c5d6e7f8091223344556"

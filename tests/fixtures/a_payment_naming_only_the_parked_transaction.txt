@@ -1,0 +1,41 @@
+# The Q-039 link with `txn_guid:` and no `txn_split_guid:` beside it.
+#
+# The transaction has one side that is not the bank, so there is nothing to
+# choose between and naming the split adds nothing. This is what a person
+# writes by hand.
+#
+# It is the way that failed worst. The importer measured the parked
+# split's 139.00 CAD against the invoice's 100.00 USD, called the difference an
+# overpayment and offered `prepayment: 39.00` — thirty-nine of nothing, the two
+# figures being in different currencies and the CAD one about to be discarded.
+#
+# What this fixture produces: the same book as
+# a_payment_naming_the_parked_split.txt — the receivable carrying −100.00 USD
+# in the invoice's lot, the entry quoted in USD, no CAD and no rate.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-25
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "c9f27c2b2f324117aa17c7c1f48fbafd"

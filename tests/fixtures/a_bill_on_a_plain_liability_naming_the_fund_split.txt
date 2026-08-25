@@ -1,0 +1,42 @@
+# A bill posted to a plain liability, naming fund units as its settlement.
+#
+# The units refusal again, on a book where the record's owner and its posted
+# account disagree about what kind of record it is. The owner is a vendor, so
+# this is a bill and every sentence built from the owner says so; the posted
+# account is `type: Liability` rather than Accounts Payable, so anything
+# reading the account's type concludes "not a payable" and reaches for the
+# invoice word.
+#
+# The refusal names the record's own account in the same breath as the word
+# "bill", so the two have to come from the same place. Read from the account,
+# it says "this bill's own receivable" — a phrase with a contradiction inside
+# it, about an account the book has not got.
+#
+# What this fixture produces: a refusal naming `Assets:Fund`, the bill, and
+# the payable.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-002"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Other Payables"
+    memo: "Bill BILL-USD-002"
+    accumulate: true
+  payment:
+    date: 2026-03-30
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "2a3b4c5d6e7f8a9b0c5f6a7b8c9d0e1f"
+    txn_split_guid: "4c5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b"

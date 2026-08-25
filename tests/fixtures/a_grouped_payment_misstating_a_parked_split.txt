@@ -1,0 +1,47 @@
+# A `Transaction` naming one parked split, stating an amount that is not it.
+#
+# `amount: 999` against a USD suspense split of −100.00, on a 100.00 invoice.
+#
+# The sum check was skipped for any split the branch still had to move, and
+# that is decided by account type — so a split in the record's own currency
+# took the exemption. Its figure is not scaffolding, though: where the
+# currencies agree it states the settlement outright, which is what
+# `the_settlement_amount` already returns for it. The exemption belongs to a
+# split that is foreign to the receivable, whose own figure stood in for it.
+#
+# Nothing else caught the overstatement: the fall-short refusal returns
+# whenever what arrived covers what is owed, and the overpayment refusal
+# whenever it does not exceed it — 100.00 against 100.00 passes both. So the
+# file imported at exit 0, and read into a book without the transaction the
+# guids resolve to nothing and 999.00 is entered for money that moved 100.00.
+#
+# What this fixture produces: a refusal quoting the 999.00 stated and the
+# 100.00 named.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-02
+    amount: 999
+    account: "Assets:Bank:USD"
+    Transaction "abcdef0123456789abcdef0123456789"
+      PaymentSplit "cdef0123456789abcdef0123456789ab"

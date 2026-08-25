@@ -283,8 +283,16 @@ def split_was_applied_from_credit(split) -> bool:
                ).strip().lower() == 'true'
 
 
-def payment_residue(transaction, in_lot_split):
+def payment_residue(transaction, in_lot_split, also_settling=()):
     """What this payment left over when it was made, as a Fraction.
+
+    `also_settling` are the payment's other settling splits where it is made of
+    several. They are not residue — they are the rest of the payment — and a
+    grouped block has to leave them out for the same reason it leaves out the
+    split it is written for. They are skipped here anyway once they sit in this
+    record's lot, but not before: a rebuild reads the block against a
+    transaction whose splits are still loose, and counting them there made the
+    residue the whole of the payment.
 
     A payment can be larger than the invoice or bill it settles — 250.00 against a
     100.00 invoice — and `amount:` states that record's own slice, because
@@ -322,11 +330,13 @@ def payment_residue(transaction, in_lot_split):
 
     from services.gnucash_importer import is_a_bank_paid_orphan
 
-    in_lot_guid = in_lot_split.GetGUID().to_string()
+    claimed = {in_lot_split.GetGUID().to_string()}
+    claimed.update(split.GetGUID().to_string() for split in also_settling)
     residue = Fraction(0)
+    shared = False
     for i in range(transaction.CountSplits()):
         split = transaction.GetSplit(i)
-        if split.GetGUID().to_string() == in_lot_guid:
+        if split.GetGUID().to_string() in claimed:
             continue
         account = split.GetAccount()
         if account is None:
@@ -337,11 +347,37 @@ def payment_residue(transaction, in_lot_split):
         lot = split.GetLot()
         if (lot is not None and gc.gncInvoiceGetInvoiceFromLot(lot)
                 and not split_was_applied_from_credit(split)):
+            # Another record's portion of this same payment, so the wire is
+            # shared — see below.
+            shared = True
             continue
         if is_a_bank_paid_orphan(split):
             continue
         residue += abs(numeric_to_fraction(split.GetAmount()))
-    return residue
+    # **A residue on a wire that settles more than one record belongs to no
+    # block of it.** Each block skips the other records' portions, so each sees
+    # the same leftover and declares the whole of it: one wire settling two
+    # invoices and leaving 50.00 exported two blocks saying `prepayment: 50.00`
+    # — 100.00 of residue for 50.00 of money — and no import order survived
+    # rebuilding it, one arriving at 230.00 loose against a declared 50.00 and
+    # the other at 150.00. Same-book re-import said `unchanged` throughout, so
+    # only the rebuild the export exists for was broken.
+    #
+    # This is the two-blocks-one-residue defect the docstring above records for
+    # two splits of one payment, one level out: there the answer was to keep
+    # them in one block, and there is no one block here. `lot_owner:` on the
+    # split carries such a residue — the transaction section writes it, and it
+    # is what the refusal beside this names as the way to park one.
+    #
+    # **What that costs a printed page**, said rather than left to be found: a
+    # page carries no transaction section, so `prepayment:` is the only place
+    # it can state a residue at all — and for a wire settling several records
+    # it now states none. Such a page read into a fresh book enters this
+    # record's share and does not create the owner's leftover. Both answers
+    # lose something and this is the smaller: declaring it on every block
+    # invented money in the one place that matters, the rebuild, while a page
+    # of a shared wire cannot express the other records' portions either.
+    return Fraction(0) if shared else residue
 
 
 def settles_more_than_one_record(transaction) -> bool:
@@ -403,7 +439,8 @@ def payment_memo_of(transaction, in_lot_split) -> str:
 
 
 def payment_block_lines(transaction, in_lot_split, bank_account: str,
-                        memo: str, where: str, num: str = ''):
+                        memo: str, where: str, num: str = '',
+                        also_settling=()):
     """A `payment:` block, with the guids that name the money it refers to.
 
     `txn_guid:` and `txn_split_guid:` are what make a payment refer to the
@@ -435,6 +472,16 @@ def payment_block_lines(transaction, in_lot_split, bank_account: str,
     block that would make a bank payment in any book it was read into.
     """
     if split_was_applied_from_credit(in_lot_split):
+        # A credit settlement is never grouped, so it is never handed
+        # companions. Said rather than ignored: accepted and dropped, a
+        # companion is a settlement missing from the ledger with nothing
+        # saying so, which is exactly how the grouped-credit defect read.
+        if also_settling:
+            raise ValueError(
+                'a credit settlement is written one split to a block, so it '
+                f'takes no companions; {len(also_settling)} were passed. '
+                'Group credit splits by their own guid — see '
+                'settlements_by_transaction.')
         return [
             '\tpayment:',
             f'\t\tamount: {payment_amount_text(in_lot_split, where)}',
@@ -447,7 +494,7 @@ def payment_block_lines(transaction, in_lot_split, bank_account: str,
     lines = [
         '\tpayment:',
         f'\t\tdate: {transaction.GetDate().strftime("%Y-%m-%d")}',
-        f'\t\tamount: {payment_amount_text(in_lot_split, where)}',
+        f'\t\tamount: {payment_amount_text(in_lot_split, where, also_settling)}',
         f'\t\tbank_account: {encode_value_as_string(bank_account)}',
         f'\t\tmemo: {encode_value_as_string(memo)}',
     ]
@@ -457,16 +504,34 @@ def payment_block_lines(transaction, in_lot_split, bank_account: str,
     # lost it.
     if num:
         lines.append(f'\t\tnum: {encode_value_as_string(num)}')
-    lines += [
-        f'\t\ttxn_guid: "{transaction.GetGUID().to_string()}"',
-        f'\t\ttxn_split_guid: "{in_lot_split.GetGUID().to_string()}"',
-    ]
+    if also_settling:
+        # This transaction clears the record with more than one split, and it
+        # is still one payment. `txn_split_guid:` names one split and there is
+        # no second of it, so the settlement is written as the transaction it
+        # is, with its splits as children — which is where a split lives
+        # everywhere else in this format.
+        lines.append(f'\t\tTransaction "{transaction.GetGUID().to_string()}"')
+        for split in (in_lot_split, *also_settling):
+            lines.append(
+                f'\t\t\tPaymentSplit "{split.GetGUID().to_string()}"')
+    else:
+        lines += [
+            f'\t\ttxn_guid: "{transaction.GetGUID().to_string()}"',
+            f'\t\ttxn_split_guid: "{in_lot_split.GetGUID().to_string()}"',
+        ]
     # And what the payment left over, where it left anything. `amount:` is
     # this record's own slice, so a block without this line says a 250.00
     # deposit against a 100.00 invoice moved 100.00 — which is what a printed
     # overpayment read into a book that never held the deposit entered, with
     # the owner's 150.00 never created and the run exiting 0.
-    residue = payment_residue(transaction, in_lot_split)
+    # Beside a grouped block too, and weighed against the splits it does not
+    # name. A residue is the payment's rather than any one split's, and on a
+    # printed page this line is the only place it can be said at all — there is
+    # no transaction section on that page to hang a `lot_owner:` on. What must
+    # not happen is stating it once per block: ungrouped, each block skipped
+    # the other (in this record's lot) and counted the same loose 50.00, so the
+    # export declared 100.00 of residue for 50.00 of money.
+    residue = payment_residue(transaction, in_lot_split, also_settling)
     if residue > 0:
         lines.append(f'\t\tprepayment: {payment_residue_text(residue, in_lot_split, where)}')
     return lines
@@ -496,11 +561,114 @@ def payment_residue_text(residue, in_lot_split, where: str) -> str:
     return money_text(residue, unit)
 
 
-def payment_amount_text(split, where: str) -> str:
+def settlements_by_transaction(lot):
+    """A record's settlements, one entry per payment rather than per split.
+
+    A `payment:` block is a payment, and a payment is money arriving once. A
+    transaction clearing the record with two splits is one arrival, so it is
+    one block — written per split it read back as the record having been paid
+    twice, which is a different fact about the owner.
+
+    Grouped by **how** it was paid as well as by which transaction made it: a
+    transaction holding one bank split and one spent from the owner's credit
+    is written a block each, and keyed on the transaction alone it was
+    classified by whichever the lot happened to list first.
+
+    **Nor is one whose splits word themselves differently.** A block carries
+    one `memo:`, so grouping two splits with two wordings would report the
+    first as the payment's and leave the second in the ledger nowhere. A
+    grouped block is only right where it can say everything its splits say.
+
+    **A residue does not ungroup it.** `prepayment:` says what the payment left
+    over, and a grouped block carries it like any other, weighed against the
+    splits it does not name. Ungrouping was the first answer and was wrong
+    twice over: the residue is one figure for one payment, and `payment_residue`
+    asked per block skipped the sibling settling split (in this record's lot)
+    while counting the same loose 50.00 — so two blocks declared 100.00 of
+    residue for 50.00 of money, and the ledger was refused by its own importer
+    in any book that had to build the transaction rather than look it up.
+
+    So a transaction that left a residue stays grouped **whatever its splits'
+    memos say**. Differing wordings ungroup only where there is nothing left
+    over: a residue written twice is money invented, and a memo is a label.
+
+    **What that costs, said rather than implied.** A ledger keeps both wordings
+    anyway, its transaction section writing each split's own — but a printed
+    page has no transaction section, so a page of a payment that both left a
+    residue and words its splits differently carries the first wording and not
+    the second. Neither can be dropped in its place: the residue is money and
+    the page has to state it, while the label is the half a reader can recover
+    from the book it came from.
+
+    **Nor is a settlement spent from the owner's credit**, for the same reason
+    one step further on: there is no grouped spelling of a credit block at all.
+    `Transaction` / `PaymentSplit` is read by `_apply_payment_directive`, and a
+    `from_credit:` block goes to `_apply_credit_payment_directive`, which knows
+    only `txn_guid:` and `txn_split_guid:` — one split each. Keyed on the
+    transaction, two credit-applied splits of one transaction grouped into one
+    entry and both writers then wrote only the first: `payment_block_lines`
+    returns from its credit branch before `also_settling` is read, and
+    `_format_credit_payment` never took it. The second settlement vanished from
+    the ledger, so a book rebuilt from the export held less credit applied than
+    the book it came from, and the counting disagreed with itself —
+    `payment_slots` scoring the block 1 where `_lot_payment_splits` returned 2,
+    which is the record reading as changed by its own export. So each credit
+    settlement is keyed by its own split and stays its own block.
+
+    One function, because there were three: the ledger export, `print-invoice`
+    and `print-bill` each grouped their own way, and only one of them knew
+    about the residue. Returns `[(transaction, [split, …]), …]` in the order
+    the lot lists them, so a book written twice writes its payments alike.
+    """
+    from gnucash import Split
+    from gnucash import gnucash_core_c as gc
+
+    grouped = {}
+    for raw_split in lot.get_split_list():
+        split = Split(instance=raw_split)
+        txn = split.GetParent()
+        if txn is None:
+            continue
+        # The posting transaction is not a payment of itself.
+        if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
+            continue
+        from_credit = split_was_applied_from_credit(split)
+        # A credit settlement is keyed by its own split, so two of them on one
+        # transaction stay two entries and are never grouped. See the docstring:
+        # there is no grouped spelling of a credit block to group them into.
+        key = (txn.GetGUID().to_string(), from_credit,
+               split.GetGUID().to_string() if from_credit else '')
+        grouped.setdefault(key, (txn, []))[1].append(split)
+    out = []
+    for txn, sharing in grouped.values():
+        # Splits that word themselves differently are written apart, for the
+        # residue's reason one step on: a block carries one `memo:`, so a
+        # grouped one would report the first split's wording as the payment's
+        # and leave the second's in the ledger nowhere at all. A grouped block
+        # is only right where it can say everything its splits say.
+        worded_apart = len({split.GetMemo() or '' for split in sharing}) > 1
+        # Only where nothing was left over: a residue written once per block is
+        # money invented, and a memo the block cannot state is still written on
+        # its own split in the ledger's transaction section.
+        if len(sharing) > 1 and worded_apart and not payment_residue(
+                txn, sharing[0], sharing[1:]):
+            out.extend((txn, [split]) for split in sharing)
+        else:
+            out.append((txn, sharing))
+    return out
+
+
+def payment_amount_text(split, where: str, also_settling=()) -> str:
     """A payment's own allocation, at the unit its account is kept to.
 
-    The AR/AP split in the record's lot, not the bank-side total, which
-    would over-report when one bank transaction pays several invoices.
+    The AR/AP splits in the record's lot, not the bank-side total, which would
+    over-report when one bank transaction pays several invoices.
+
+    All of them where the payment is one transaction settling this record with
+    more than one split — the block states the payment, and 60 of a 100 that
+    arrived is not it. Read into a book that never held the transaction, the
+    guids resolve to nothing and the payment is recorded from the block, so a
+    block saying 60 enters 60 for money that moved 100.
 
     Refused rather than rounded where the currency cannot hold it: this figure
     is read back as `amount:`, and the importer judges it against the same
@@ -511,12 +679,23 @@ def payment_amount_text(split, where: str) -> str:
     )
 
     account = split.GetAccount()
+    # Each split's own size, added up — not the size of their sum. The two
+    # agree while the settling splits share a sign, which is every book this
+    # writes, and differ where they do not: a −60 beside a +40 is 100.00 of
+    # settlement one way and 20.00 the other. The importer weighs the stated
+    # figure against the sum of sizes, and these two are meant to be inverses,
+    # so a ledger written the other way round was refused by its own reader.
+    total = sum((abs(numeric_to_fraction(each.GetAmount()))
+                 for each in (split, *also_settling)), Fraction(0))
     refuse_a_figure_the_currency_cannot_hold(
-        abs(numeric_to_fraction(split.GetAmount())), account,
-        'the payment amount', where)
+        total, account, 'the payment amount', where)
+    commodity = account.GetCommodity() if account is not None else None
     scu = account.GetCommoditySCU() if account is not None else None
     if not scu:
-        return format_amount_for_commodity(
-            split.GetAmount().abs(),
-            account.GetCommodity() if account is not None else None)
-    return money_text(abs(numeric_to_fraction(split.GetAmount())), scu)
+        # One fallback for both, so a grouped payment and a single one are
+        # written the same way on an account with no unit of its own.
+        # The `Fraction` goes straight in: `format_amount_for_commodity` takes
+        # one, and wrapping it in a `GncNumeric` first only round-tripped it
+        # through int64 for the same answer.
+        return format_amount_for_commodity(total, commodity)
+    return money_text(total, scu)

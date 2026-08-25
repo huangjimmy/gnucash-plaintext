@@ -1,0 +1,48 @@
+# The two sides swapped, one line shorter: `account:` on
+# `Assets:Suspense USD` and no `txn_split_guid:` at all.
+#
+# Naming only the transaction leaves the choice of split to the run, and what
+# it picks is "the side that is not the `account:`" — here the **bank** split.
+# One candidate, so nothing is ambiguous; 100.00 against 100.00 owed, so
+# neither the fall-short nor the overpayment refusal has anything to say; and
+# both sides being USD there is no conversion to refuse either.
+#
+# The sign guard is what catches the same mistake in the spelling that names
+# the split, and it sits inside the restatement so that no caller can reach
+# that without it. This spelling does not reach the restatement at all where
+# the currencies agree — it takes the plain attach instead, which moved the
+# +100.00 bank split onto the receivable with no sign asked.
+#
+# The deposit left `Assets:Bank:USD` entirely, the lot held the posting's
+# +100.00 and this +100.00 so the invoice read as owing 200.00, and the entry
+# still balanced, at exit 0.
+#
+# What this fixture produces: a refusal, with the bank's deposit still on the
+# bank.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-02
+    amount: 100
+    account: "Assets:Suspense USD"
+    txn_guid: "abcdef0123456789abcdef0123456789"

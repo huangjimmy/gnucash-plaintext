@@ -1,0 +1,37 @@
+# 100.00 USD arrives in the USD bank and is parked against a CAD account.
+#
+# Q-039, on the book fx_usd_invoice_cad_income.txt builds: INV-USD-001 is
+# 100.00 USD, its receivable is USD, and this is the money paying it.
+#
+# Nobody knew that yet when it was booked, so the other side is
+# `Assets:Due From Director`, which is CAD. GnuCash has to quote the entry in a
+# currency both sides can be expressed in, so the transaction is CAD and the
+# `Assets:Due From Director` split carries 139.00 of it at 1.39.
+#
+# **Neither figure is a fact about the settlement.** The invoice is USD, the
+# receivable is USD, the bank is USD: 100 USD arrived against 100 USD owed and
+# nothing converts. Both numbers are an artefact of `Assets:Due From Director`
+# being CAD, and both go when it is replaced.
+#
+# The transaction and its splits state their own guids so a `payment:` block in
+# another fixture can name them, rather than a test reading them out of the
+# book and building the ledger in Python.
+#
+# What this fixture produces: one CAD-quoted transaction, in no lot, whose
+# other side is the CAD account.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-25 * "Money in"
+	guid: "c9f27c2b2f324117aa17c7c1f48fbafd"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		guid: "1a2b3c4d5e6f70819a2b3c4d5e6f7081"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "139.00"
+	Assets:Due From Director -139.00 CAD
+		guid: "614b338df4f94c359aa35ffacc2dadcf"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-139.00"

@@ -1,0 +1,37 @@
+# Naming the units on a plain Asset account as the settlement.
+#
+# Asset is a type a payment may move a split off, so nothing about the type
+# refuses this. The commodity is what makes it wrong: FUNDY is not a currency,
+# and a settlement is restated in the record's own, so 1.000 units would be
+# overwritten with 100.00 USD.
+#
+# What this fixture produces: a refusal naming the account, with the units
+# still on it.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-20
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "8c9d0e1f2a3b4c5d6e7f8a9b0c5f6a7b"
+    txn_split_guid: "0e1f2a3b4c5d6e7f8a9b0c5f6a7b8c9d"

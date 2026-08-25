@@ -18,7 +18,7 @@ Q-014: just before `Unpost(False)` we walk the posted lot and capture
 every payment-class transaction attached to it. Those transactions
 survive the unpost as free-standing bank entries; the CLI surfaces
 them so the user knows what's left behind and how to clean it up
-(`delete-transactions --by-guid` or Q-004's `txn_guid:` retarget).
+(`delete-transactions --by-guid` or Q-004's `txn_guid:` link).
 
 Use the re-import path when the .txt is the source of truth and you
 want to also edit fields. Use these commands when the .txt is stale or
@@ -270,10 +270,10 @@ def format_orphan_warning_block(kind: str, orphans: List['OrphanPayment'],
     else:
         lines.append('          txn_guid: "<orphan-guid>"  (one block per orphan)')
     lines.append(
-        '        to retarget the existing bank transaction(s) into the '
+        '        to link the existing bank transaction(s) into the '
         'new posted lot'
     )
-    lines.append('        (see docs/issues/Q-004 for the retarget mechanism).')
+    lines.append('        (see docs/issues/Q-004 for how the linking works).')
 
     return '\n'.join(lines)
 

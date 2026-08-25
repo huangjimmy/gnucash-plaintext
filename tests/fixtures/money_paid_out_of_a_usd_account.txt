@@ -1,0 +1,31 @@
+# 100.00 USD leaving the bank against a USD account, on the bill side.
+#
+# The same-currency shape a bill's payment takes: money goes out, nobody has
+# said yet which bill it settles, so the other side waits in
+# `Assets:Suspense USD`. Bank, that account, the payable and the bill are all
+# USD, so nothing converts.
+#
+# A bill posts the other way round, so its settlement is **positive** on the
+# payable — which is what makes this the fixture for the swapped-sides
+# refusal on this side: getting the two `account:` and `txn_split_guid:`
+# lines the wrong way round produces a figure of the wrong sign there, and
+# the sign is the only thing that is not symmetric in the two splits.
+#
+# What this fixture produces: a USD transaction, bank −100.00 against
+# `Assets:Suspense USD` +100.00, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Assets:Suspense USD
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-03-24 * "Money out, USD suspense"
+	guid: "4c5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD -100.00 USD
+		guid: "5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b4c"
+		account.commodity.mnemonic: "USD"
+	Assets:Suspense USD 100.00 USD
+		guid: "6e7f8a9b0c5f6a7b8c9d0e1f2a3b4c5d"
+		account.commodity.mnemonic: "USD"

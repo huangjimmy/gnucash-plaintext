@@ -1,0 +1,35 @@
+# One wire settling two invoices and leaving 30.00 over.
+#
+# `Assets:Bank:USD +180.00` against four receivable splits: −60.00 and −40.00
+# settling one invoice between them, −50.00 settling another, and −30.00 left
+# over.
+#
+# The shape exists to be *unposted* afterwards. Unposting the second invoice
+# leaves its −50.00 loose and marked as this tool's own orphan — which the
+# writer of a `prepayment:` line skips, an orphan being a settlement waiting to
+# be put back rather than money left over. A reader that counts it makes 80.00
+# of a 30.00 residue and refuses the export that wrote it.
+#
+# What this fixture produces: a USD transaction with five splits, four on the
+# receivable and none in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-28 * "Money in, two invoices and a small residue"
+	guid: "5150aabb5150ccdd5150eeff51500011"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 180.00 USD
+		guid: "5150aabb5150ccdd5150eeff51500022"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -60.00 USD
+		guid: "5150aabb5150ccdd5150eeff51500033"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -40.00 USD
+		guid: "5150aabb5150ccdd5150eeff51500044"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -50.00 USD
+		guid: "5150aabb5150ccdd5150eeff51500055"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -30.00 USD
+		guid: "5150aabb5150ccdd5150eeff51500066"
+		account.commodity.mnemonic: "USD"

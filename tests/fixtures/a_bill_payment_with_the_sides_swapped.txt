@@ -1,0 +1,40 @@
+# The two sides of the link swapped, on the bill side: `account:` names
+# `Assets:Suspense USD` and `txn_split_guid:` names the bank split.
+#
+# The sign is what catches it, and a bill is where the sign differs. A bill's
+# posting is negative on the payable, so its settlement is positive there;
+# reading the settlement off the wrong split gives −100.00 instead, which is
+# the posting's own sign rather than its reverse.
+#
+# What the refusal has to get right is the word: a bill's own account is the
+# payable, and telling its reader the arrival would be "moved onto the
+# receivable" names an account their book has not got.
+#
+# What this fixture produces: a refusal naming both accounts and the payable,
+# with the entry untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-24
+    amount: 100
+    account: "Assets:Suspense USD"
+    txn_guid: "4c5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b"
+    txn_split_guid: "5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b4c"

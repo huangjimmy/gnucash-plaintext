@@ -1,0 +1,48 @@
+# Naming the USD split whose money reached a CAD bank.
+#
+# The split states 100.00 USD and its own CAD value. The invoice is USD and the
+# receivable is USD, so the settlement is what the split already says and no
+# rate has to be found — which is exactly what `the_settlement_amount` answers:
+# where the split being placed is already in the record's currency it returns
+# that split's own figure and never asks the bank.
+#
+# The refusal beside it disagreed, weighing the *bank's* currency
+# unconditionally and turning this away as a conversion nobody wrote a rate
+# for. It also said something untrue of this split — "what the split being
+# placed carries is the figure that stood in for the receivable, not a
+# conversion of it" — when it is a stated conversion.
+#
+# So the deterministic spelling was strictly weaker than the one the docs call
+# optional: `txn_guid:` alone settles this file, and naming the split refused
+# it.
+#
+# What this fixture produces: the split on `Assets:Accounts Receivable USD` at
+# −100.00 USD, valued −139.00 CAD, in the invoice's lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-04
+    amount: 100
+    account: "Assets:Bank"
+    txn_guid: "11223344556677889900aabbccddeeff"
+    txn_split_guid: "3344556677889900aabbccddeeff1122"

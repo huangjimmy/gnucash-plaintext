@@ -1,0 +1,29 @@
+# The two-line wire again, with the second split parked as the customer's
+# credit.
+#
+# `lot_owner:` is what says so: it puts that split in a lot of the owner's,
+# naming no invoice or bill, which is what an owner's prepayment is. The first
+# split is loose and settles nothing yet.
+#
+# The guids are `money_arriving_as_two_receivable_splits.txt`'s, so the same
+# grouped block claims them — and claiming the second one now means spending a
+# credit the customer is owed.
+#
+# What this fixture produces: a USD transaction whose −60.00 split is loose and
+# whose −40.00 split sits in a credit lot of `C-US`.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-27 * "Money in, two lines"
+	guid: "5e6f708192a3b4c5d6e7f80912233445"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "6f708192a3b4c5d6e7f8091223344556"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -60.00 USD
+		guid: "708192a3b4c5d6e7f809122334455667"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -40.00 USD
+		guid: "8192a3b4c5d6e7f80912233445566778"
+		account.commodity.mnemonic: "USD"
+		lot_owner: customer:C-US

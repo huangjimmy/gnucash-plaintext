@@ -19,7 +19,7 @@ This page describes:
 
 A bill's `payment:` block has the same *shape* as an invoice's — provide `bank_account` and `txn_guid` — but the accounting is the mirror image, not a copy. A bill posts as a **credit to Accounts Payable** (a liability going up) where an invoice posts a **debit to Accounts Receivable** (an asset going up); a bill payment sends money **out** (debit AP, credit Bank) where an invoice payment brings money **in**. Every sign in the bill examples below is flipped from the AR case. The plaintext still carries positive `amount:` values — the importer records the outgoing direction for bills internally.
 
-Just like an invoice, a bill payment can **link an existing bank transaction** (e.g. one already loaded from a bank feed) instead of minting a new one: give the `payment:` block a `txn_guid:` (and optionally `txn_split_guid:`) naming that bank tx, and the importer retargets its AP-side split into the bill's posted lot rather than creating a duplicate:
+Just like an invoice, a bill payment can **link an existing bank transaction** (e.g. one already loaded from a bank feed) instead of minting a new one: give the `payment:` block a `txn_guid:` (and optionally `txn_split_guid:`) naming that bank tx, and the importer links its AP-side split into the bill's posted lot rather than creating a duplicate:
 
 ```
 vendor "VEND-001"
@@ -205,7 +205,7 @@ Credits are always owner-scoped. In a book with several suppliers each holding a
 
 ## Correcting a mis-applied bill payment: fresh + linked, then unapply / re-link
 
-A single bill is often settled by a *mix* of payment kinds, and the fix for a mistake is `unapply-payment` (peel a payment; the bill stays posted, the bank tx is never deleted) rather than unpost. Worked on the taxed $1120 bill (net 1000 + GST 50 + PST 70), settled by two partial payments — a fresh $1000 (`ApplyPayment`, mints its own bank tx) plus a *linked* $120 (a `payment:` block whose `txn_guid:` retargets a pre-existing $120 bank tx):
+A single bill is often settled by a *mix* of payment kinds, and the fix for a mistake is `unapply-payment` (peel a payment; the bill stays posted, the bank tx is never deleted) rather than unpost. Worked on the taxed $1120 bill (net 1000 + GST 50 + PST 70), settled by two partial payments — a fresh $1000 (`ApplyPayment`, mints its own bank tx) plus a *linked* $120 (a `payment:` block whose `txn_guid:` links a pre-existing $120 bank tx):
 
 ```
 bill "BILL-HERO-1120"      posted lot -1120

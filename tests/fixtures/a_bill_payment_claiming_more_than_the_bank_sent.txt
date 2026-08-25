@@ -1,0 +1,39 @@
+# A bill block claiming 100.00 against a bank that sent 60.00.
+#
+# `amount:` asserts what was paid, and the bank says otherwise. The named
+# split is on a CAD account, so its own figure stood in for the payable and
+# the settlement is read off the bank instead — 60.00, which is less than
+# both the claim and what the bill is owed. Taking it would leave the bill
+# part-paid out of money this file does not describe.
+#
+# The refusal's explanation names the record's own account, and for a bill
+# that is the **payable**.
+#
+# What this fixture produces: a refusal naming both figures and the payable,
+# with the entry untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-28
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "0c5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b"
+    txn_split_guid: "6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c5f"

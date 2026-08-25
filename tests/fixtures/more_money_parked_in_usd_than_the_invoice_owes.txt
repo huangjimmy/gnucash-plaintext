@@ -1,0 +1,21 @@
+# 120.00 USD parked in a USD account, against the 100.00 invoice.
+#
+# The same shape as `more_money_booked_to_a_usd_account.txt` but with
+# its own guids, so a test can swap the two sides of the link on it: the
+# overpayment arm is what takes a file past the guards installed after it, and
+# the swap is the mistake those guards exist to catch.
+#
+# What this fixture produces: a USD transaction, bank +120.00 against suspense
+# −120.00, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-22 * "Money in, USD suspense, swapped and too much"
+	guid: "d0d01122d0d03344d0d05566d0d07788"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 120.00 USD
+		guid: "d0d099aad0d0bbccd0d0ddeed0d0ff01"
+		account.commodity.mnemonic: "USD"
+	Assets:Suspense USD -120.00 USD
+		guid: "d0d00022d0d00044d0d00066d0d00088"
+		account.commodity.mnemonic: "USD"

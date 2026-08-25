@@ -1,0 +1,47 @@
+# A grouped block whose `amount:` is not the sum of the splits it names.
+#
+# README: "`amount:` on such a block is the sum of the splits it names", and
+# the reason is that the same file has to mean one thing in two books. In the
+# book that holds the transaction the named splits settle the invoice by their
+# own figures — 60 and 40, so 100. In a book that does not, the guids resolve
+# to nothing and the payment is entered from the block, so `amount: 60` books
+# 60 for money that moved 100.
+#
+# Nothing weighed it. The in-book path matches a naming block by guid, so
+# `_single_payment_matches` — the only thing that reads `amount:` — never runs,
+# and the grouped branch checked existence, account, lot, owner and the total
+# against what is owed without ever looking at the stated figure. Every sibling
+# spelling weighs it, including the parked single-split path; this was the one
+# that skipped it.
+#
+# What this fixture produces: a refusal quoting the 60.00 stated and the 100.00
+# the named splits come to.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 60
+    account: "Assets:Bank:USD"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "708192a3b4c5d6e7f809122334455667"
+      PaymentSplit "8192a3b4c5d6e7f80912233445566778"

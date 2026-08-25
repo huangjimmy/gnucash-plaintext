@@ -1,0 +1,47 @@
+# A block carrying both spellings, naming two different transactions.
+#
+# `txn_guid:` names the two-line wire; the `Transaction` directive names the
+# single parked CAD split. Where a block carries both, the directive decides
+# and the two keys are not read — a strict override rather than a refusal,
+# because someone correcting an exported block adds the advanced form to it,
+# and having to delete two keys first earns nothing.
+#
+# **And the run says so.** The keys being read by nothing is exactly the state
+# a reader cannot see in the book afterwards: nothing distinguishes "the key
+# was ignored" from "the file only ever named one", so the note is the only
+# thing that can. That makes it the one behaviour here where a silent
+# regression would be invisible.
+#
+# What this fixture produces: the split named by the `Transaction` block
+# settles the invoice, the transaction `txn_guid:` names is untouched, and the
+# run notes that the keys went unread.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "5e6f708192a3b4c5d6e7f80912233445"
+    txn_split_guid: "708192a3b4c5d6e7f809122334455667"
+    Transaction "0102030405060708090a0b0c0d0e0f10"
+      PaymentSplit "102030405060708090a0b0c0d0e0f101"

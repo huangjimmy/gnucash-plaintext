@@ -1,0 +1,40 @@
+# The bill's payment, linked by `txn_guid:` alone.
+#
+# The payable side of `a_payment_naming_only_the_parked_transaction.txt`, and
+# the one branch of this feature no bill exercised: every other bill fixture
+# here names its split or groups several, so both take a different path.
+#
+# It is the branch that carries the sign guard, and the sign is the thing that
+# runs the other way on a bill. A payable posts negative and its settlement is
+# positive, the reverse of an invoice's — the same subtlety that made a credit
+# note's refund look like a swapped `account:` — so the payable direction is
+# the half of that guard nothing had run.
+#
+# What this fixture produces: the parked split on
+# `Liabilities:Accounts Payable USD` at +100.00 USD in the bill's lot, restated
+# from what the bank sent, with the entry quoted USD and no CAD left in it.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-25
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "5c6d7e8f9001122334455667788a9bac"

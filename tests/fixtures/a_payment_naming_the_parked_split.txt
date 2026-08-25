@@ -1,0 +1,46 @@
+# INV-USD-001 again, with a `payment:` block naming the bank transaction and
+# the split that was parked in the CAD account.
+#
+# Q-039. The settlement is USD throughout — USD invoice, USD receivable, USD
+# bank — and 100 USD arrived against 100 USD owed, so `amount: 100` is the
+# payment and no rate is stated because nothing converts. The split named in
+# `txn_split_guid:` is the CAD one, which is the point: it stood in for the
+# receivable while nobody knew what the money was, and linking the payment is
+# what replaces it.
+#
+# The invoice block repeats what the book already holds, because a posted
+# invoice takes a `payment:` block and nothing else. Every other line is
+# fx_usd_invoice_cad_income.txt's, unchanged.
+#
+# What this fixture produces: the transaction becomes
+#   Assets:Bank:USD                 +100.00 USD
+#   Assets:Accounts Receivable USD  -100.00 USD   in the invoice's lot
+# quoted in USD, with no CAD left in it.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-25
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "c9f27c2b2f324117aa17c7c1f48fbafd"
+    txn_split_guid: "614b338df4f94c359aa35ffacc2dadcf"

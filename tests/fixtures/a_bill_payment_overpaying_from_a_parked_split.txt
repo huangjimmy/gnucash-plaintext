@@ -1,0 +1,38 @@
+# A bill overpaid out of a split parked in another currency.
+#
+# The overpayment carve on the bill side. 120.00 USD left the bank against a
+# bill owing 100.00, so 20.00 is over — and the carve would read the named
+# split's own figure to divide it, which is 166.80 CAD of scaffolding. Both
+# halves would come out of a number that means nothing.
+#
+# The refusal explains that the split's figure "stood in for the ..." and
+# names the record's own account, which for a bill is the **payable**.
+#
+# What this fixture produces: a refusal naming the payable, with the entry
+# untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-04-06
+    amount: 120
+    account: "Assets:Bank:USD"
+    txn_guid: "2a3b4c5d6e7f8a9b0c5f6a7b8c9d0e1a"
+    txn_split_guid: "4c5d6e7f8a9b0c5f6a7b8c9d0e1a2b3c"

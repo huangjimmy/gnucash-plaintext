@@ -1,0 +1,48 @@
+# A `Transaction` naming one `PaymentSplit`, stating an amount that is not it.
+#
+# `amount: 999` beside a split carrying 60.00. The sum check is written for a
+# block naming several, so a block naming one fell past it — and its slot
+# carries the guid, so the pairing matches by that and `_single_payment_matches`
+# never reads `amount:` either.
+#
+# The key spelling is *not* the comparison here, and an earlier version of this
+# note said it was. `amount:` means a different figure there —
+# `_bank_side_figure_of` reads it as what moved through the bank, residue
+# included — so the two are weighed differently on purpose, and README says
+# which is which.
+#
+# What that costs is the same "one file, two meanings" the sum check exists
+# for: in the book holding the transaction the split settles 60.00, and in one
+# that does not the guids resolve to nothing and 999.00 is entered from the
+# block.
+#
+# What this fixture produces: a refusal quoting the 999.00 stated and the 60.00
+# named.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 999
+    account: "Assets:Bank:USD"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "708192a3b4c5d6e7f809122334455667"

@@ -19,7 +19,7 @@ without using `txn_guid:` retarget, a second bank-side transaction
 gets created and the bank balance is silently doubled. This command
 surfaces the orphans so the user can decide between
 `delete-transactions --by-guid` (drop the orphan, fresh `payment:`
-block on re-import) or Q-004's `txn_guid:` retarget (re-link the
+block on re-import) or Q-004's `txn_guid:` link (re-link the
 existing bank tx to the new posted lot).
 
 `unpost-invoices` / `unpost-bills` already warn about orphans at the
@@ -66,7 +66,7 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
          the orphan (with plaintext backup), then re-import the invoice/bill
          with a fresh `payment:` block.
       b) Re-import the invoice/bill with a `payment:` block carrying
-         `txn_guid: "<orphan-guid>"` — retargets the existing bank tx into
+         `txn_guid: "<orphan-guid>"` — links the existing bank tx into
          the new posted lot (see docs/issues/Q-004).
 
     \b
@@ -256,7 +256,7 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
         '  b) re-import the invoice/bill with `txn_guid: "<guid>"` inside '
         'the new')
     click.echo(
-        '     `payment:` block to retarget the existing bank tx '
+        '     `payment:` block to link the existing bank tx '
         '(see Q-004).')
     if shared:
         click.echo('')

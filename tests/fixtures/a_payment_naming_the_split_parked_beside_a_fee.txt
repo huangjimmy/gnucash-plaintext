@@ -1,0 +1,37 @@
+# INV-USD-001 linked to the transaction that still holds a CAD fee.
+#
+# Names the parked split outright, which is what says "this one settles the
+# invoice, the fee is not mine" — the fee split is left alone whatever happens
+# here. The refusal is not about being unable to tell the two apart; the block
+# says which. It is that the entry cannot be quoted in USD with a CAD fee in
+# it, so the settlement's value would have to be a CAD figure nobody stated.
+#
+# What this fixture produces: a refusal naming USD and CAD.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-26
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "7d3e1f9a4b6c48d2a1e05f8c2b7d4a63"
+    txn_split_guid: "4d5e6f708192a3b4c5d6e7f809122334"

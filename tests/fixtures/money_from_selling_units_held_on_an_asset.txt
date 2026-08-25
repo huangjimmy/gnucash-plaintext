@@ -1,0 +1,39 @@
+# The fund sale again, with the units on a plain Asset account.
+#
+# An account's *type* and its *commodity* are set independently — `type: Asset`
+# with `commodity.namespace: "FUND"` is a book this tool will build — so the
+# type says nothing about whether what sits there is money. `Assets:Units` is
+# an Asset holding FUNDY, and Asset is one of the types a payment may move a
+# split off.
+#
+# So the type check alone waves this through, and the restatement then writes
+# −100.00 where 1.000 units stood: the same overwrite `Assets:Fund` is refused
+# for, one account type over. What has to be asked is the commodity, not the
+# type.
+#
+# What this fixture produces: a USD transaction, bank +100.00 against
+# `Assets:Units` −1.000 FUNDY valued −100.00, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 commodity FUNDY
+	mnemonic: "FUNDY"
+	fullname: "Example Growth Fund"
+	namespace: "FUND"
+	fraction: 100
+2026-01-01 open Assets:Units
+	type: Asset
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "FUNDY"
+	commodity_scu: 1000
+2026-03-20 * "Units sold from an asset account"
+	guid: "8c9d0e1f2a3b4c5d6e7f8a9b0c5f6a7b"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "9d0e1f2a3b4c5d6e7f8a9b0c5f6a7b8c"
+		account.commodity.mnemonic: "USD"
+	Assets:Units -1.000 FUNDY
+		guid: "0e1f2a3b4c5d6e7f8a9b0c5f6a7b8c9d"
+		account.commodity.mnemonic: "FUNDY"
+		share_price: "100"
+		value: "-100.00"

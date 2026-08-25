@@ -1,0 +1,37 @@
+# A `PaymentSplit` sitting beside the block's keys rather than under a
+# `Transaction`.
+#
+# A `PaymentSplit` names a split *of a transaction*, so one written here names
+# a split of nothing. Read by no one it would be a line the file states and the
+# run ignores, which is what every other unread line in this format is refused
+# for — so it is refused, and the refusal shows the shape it should have had.
+#
+# What this fixture produces: a refusal naming the guid, and a book the run has
+# not touched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 100
+    account: "Assets:Bank:USD"
+    PaymentSplit "708192a3b4c5d6e7f809122334455667"

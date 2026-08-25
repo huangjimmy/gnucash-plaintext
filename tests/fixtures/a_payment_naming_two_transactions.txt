@@ -1,0 +1,39 @@
+# One `payment:` block naming two `Transaction` blocks.
+#
+# One payment is one transaction. Money that arrived twice is two payments, and
+# a block claiming both is a file saying something the format has a spelling
+# for — a `payment:` block each — so it is refused rather than guessed at.
+# Guessing would mean picking one of the two and silently dropping the other's
+# splits, which is a settlement missing from the book with nothing saying so.
+#
+# What this fixture produces: a refusal, and a book the run has not touched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 100
+    account: "Assets:Bank:USD"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "708192a3b4c5d6e7f809122334455667"
+    Transaction "6f708192a3b4c5d6e7f8091223344556"
+      PaymentSplit "8192a3b4c5d6e7f80912233445566778"

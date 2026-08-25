@@ -1,0 +1,25 @@
+# The cash sale again, this time worth more than the invoice owes.
+#
+# `Assets:Bank:USD +120.00` against `Income:Sales USD −120.00`, on a 100.00
+# invoice. The extra 20.00 is what takes it down the overpayment arm — the one
+# that carves the settling split in two and returns before the guards placed
+# after it.
+#
+# So the exact-amount file was refused and this one was not: the revenue split
+# was re-accounted onto the receivable and divided 100/20, the invoice read
+# paid, 20.00 was parked as the customer's credit, and the entry balanced.
+#
+# What this fixture produces: a USD transaction, bank +120.00 against income
+# −120.00, neither split in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-20 * "Cash sale, too much, income baked in"
+	guid: "cafe1122cafe3344cafe5566cafe7788"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 120.00 USD
+		guid: "cafe99aacafebbccafeddeecafeff001"
+		account.commodity.mnemonic: "USD"
+	Income:Sales USD -120.00 USD
+		guid: "cafe0022cafe0044cafe0066cafe0088"
+		account.commodity.mnemonic: "USD"

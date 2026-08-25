@@ -1,0 +1,30 @@
+# 100.00 USD arriving as one payment, cleared by two receivable splits.
+#
+# A hand-written entry may clear one receivable with more than one split — two
+# tranches of one wire, two lines a bookkeeper entered separately. It is still
+# **one** payment: the money arrived once, and the transaction is one.
+#
+# Both settling splits are already on the receivable and each carries its own
+# figure, 60 and 40 of the 100. Nothing has to be divided or inferred: the
+# question a `payment:` block answers here is only *which* splits are this
+# invoice's, which the block says outright.
+#
+# All three sides are USD, so the entry is USD and no rate is involved.
+#
+# What this fixture produces: a USD transaction with three splits, two of them
+# on the receivable and neither in a lot until a payment block claims them.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-27 * "Money in, two lines"
+	guid: "5e6f708192a3b4c5d6e7f80912233445"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "6f708192a3b4c5d6e7f8091223344556"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -60.00 USD
+		guid: "708192a3b4c5d6e7f809122334455667"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -40.00 USD
+		guid: "8192a3b4c5d6e7f80912233445566778"
+		account.commodity.mnemonic: "USD"

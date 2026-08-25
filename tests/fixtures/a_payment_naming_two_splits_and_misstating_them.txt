@@ -1,0 +1,43 @@
+# The two-split block again, with its `amount:` edited down to 60.
+#
+# Read into a book that already holds this settlement, both guids pair and the
+# record matches — a naming block's slots are matched by guid, and nothing on
+# the comparison side reads `amount:` at all. So the run said `unchanged` and
+# the ledger was left stating 60.00 for money that moved 100.00, which carried
+# into a book without the transaction enters 60.00.
+#
+# That is the same "one file, two meanings in two books" the sum check was
+# added for, on the path the check could not see: it lives on the apply side,
+# and an unchanged record is never applied.
+#
+# What this fixture produces: a refusal quoting the 60.00 stated and the 100.00
+# named, whether or not the settlement is already in the book.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 60
+    account: "Assets:Bank:USD"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "708192a3b4c5d6e7f809122334455667"
+      PaymentSplit "8192a3b4c5d6e7f80912233445566778"

@@ -1,0 +1,42 @@
+# The overpayment again, this time naming the parked split outright.
+#
+# The sibling spelling — `txn_guid:` alone — refuses this, and its refusal ends
+# "name the settling one with `txn_split_guid:`". So this is the very edit a
+# reader is sent to make, and it has to be refused for the same reason rather
+# than quietly doing what the other spelling would not.
+#
+# Measured before that: naming the split, every guard passed — not in a lot,
+# bank present, bank USD like the receivable, only two splits — and the run
+# wrote −120.00 USD onto the receivable and put it in the lot. The lot came to
+# 100 − 120 = −20: the invoice read paid, the customer's 20.00 was in no credit
+# lot, and nothing disagreed. Exit 0.
+#
+# What this fixture produces: the same refusal `txn_guid:` alone earns.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-02
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "0718293a4b5c6d7e8f90011223344556"
+    txn_split_guid: "8293a4b5c6d7e8f900112233445566aa"

@@ -1,0 +1,39 @@
+# INV-USD-001 linked to a parked split carrying more than the invoice owes,
+# with the residue declared.
+#
+# `prepayment: 20.00` is what the run itself asked for, and supplying it is
+# what a reader would do next — which is why the file has to be refused rather
+# than accepted: the figure is right about the money and wrong about what the
+# carve would produce, because the carve reads the parked split's 166.80 CAD
+# instead.
+#
+# What this fixture produces: a refusal naming the two figures and the account
+# the split sits on.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-02
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "0718293a4b5c6d7e8f90011223344556"
+    prepayment: 20.00

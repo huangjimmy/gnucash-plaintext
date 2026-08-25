@@ -1,4 +1,4 @@
-"""Q-035: an unpaid receivable holds no currency to sell.
+"""Q-035: a receivable that has not been collected holds no currency to sell.
 
 An invoice's A/R split states what a customer owes, not what the book has.
 Measuring a sale against it before the invoice is paid is selling money that has
@@ -63,8 +63,13 @@ def test_selling_against_an_uncollected_receivable_is_refused(tmp_path):
 
     result = _run(runner, 'import', str(book), _sale_against(tmp_path, basis))
     message = result.output + str(result.exception)
-    assert 'unpaid receivable' in message, message
     assert 'has not been collected' in message, message
+    # What is uncollected is the invoice, not the basis. A cost basis is what
+    # something was acquired for; whether it has been collected is a fact
+    # about the receivable the split sits on, and calling the basis itself
+    # "an unpaid receivable" states neither.
+    assert 'unpaid receivable' not in message, message
+    assert 'owed, not held' in message, message
 
     # Nothing was recorded against it.
     assert 'Total USD basis balance: 100.00 USD' in _balances(runner, book)
@@ -84,8 +89,8 @@ def test_the_refusal_can_be_forced(tmp_path):
 def test_a_mistyped_override_is_refused_by_name(tmp_path):
     """As every other flag in a ledger is. Compared against a list of the
     truthy spellings, `cost_basis_force: treu` was silently *not* forced —
-    and the sale then failed with the unpaid-receivable message, which tells
-    its author to add the key they had just added."""
+    and the sale then failed with the uncollected-invoice message, which
+    tells its author to add the key they had just added."""
     runner = CliRunner()
     book, basis = _unpaid_invoice_book(runner, tmp_path)
     sale = Path(_sale_against(tmp_path, basis, forced=True,
@@ -98,7 +103,7 @@ def test_a_mistyped_override_is_refused_by_name(tmp_path):
     message = result.output + str(result.exception)
     assert 'cost_basis_force' in message, message
     assert 'neither true nor false' in message, message
-    assert 'unpaid receivable' not in message, message
+    assert 'has not been collected' not in message, message
 
 
 def test_a_mistyped_override_is_named_even_where_it_would_change_nothing(

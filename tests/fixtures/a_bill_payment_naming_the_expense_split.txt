@@ -1,0 +1,39 @@
+# Naming the expense split of a cash purchase as a bill's settlement.
+#
+# The account-type refusal on the bill side. `Expenses:Supplies:USD` holds
+# dollars, so the commodity check has nothing to say and it is the account
+# arm of the message that fires — the arm that names the record's own
+# account, which for a bill is the **payable**.
+#
+# The cost is not money waiting to be identified: it is the purchase. Moving
+# it onto the payable would take the expense out of the P&L and leave a bill
+# reading paid by nothing, with every figure still balancing.
+#
+# What this fixture produces: a refusal naming the expense account and the
+# payable, with the cost still on it.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+bill "BILL-USD-001"
+  vendor_id: "V-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Parts"
+    account: "Expenses:Supplies"
+    quantity: 1
+    price: 100
+    taxable: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ap_account: "Liabilities:Accounts Payable USD"
+    memo: "Bill BILL-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-26
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "7f8a9b0c5f6a7b8c9d0e1f2a3b4c5d6e"
+    txn_split_guid: "9b0c5f6a7b8c9d0e1f2a3b4c5d6e7f8a"

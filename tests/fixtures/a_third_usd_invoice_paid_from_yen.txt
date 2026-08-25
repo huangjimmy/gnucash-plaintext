@@ -1,0 +1,39 @@
+# A 100.50 USD invoice, settled from the money parked in yen.
+#
+# The figure has a cent in it on purpose: an entry quoted in yen cannot hold
+# one, so this is the invoice that shows whether the split is restated before
+# or after the transaction is requoted.
+#
+# What this fixture produces: the parked split on
+# `Assets:Accounts Receivable USD` carrying −100.50 as **both** its amount and
+# its value, the bank's +100.50 likewise, and the entry quoted USD with no yen
+# left in it.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-003"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-08
+  entry:
+    date: 2026-01-08
+    description: "Consulting, part"
+    action: "Hours"
+    account: "Income:Sales USD"
+    quantity: 1
+    price: 100.50
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-08
+    due: 2026-02-08
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-003"
+    accumulate: true
+  payment:
+    date: 2026-03-26
+    amount: 100.50
+    account: "Assets:Bank:USD"
+    memo: "Yen wire"
+    txn_guid: "3e3e11112222333344445555666677aa"
+    txn_split_guid: "3e3e11112222333344445555666677cc"

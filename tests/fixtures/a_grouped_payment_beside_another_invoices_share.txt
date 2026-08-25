@@ -1,0 +1,46 @@
+# The grouped block for the first invoice, on a wire that also settles another
+# and leaves a residue.
+#
+# It names the −60.00 and −40.00 that settle this invoice and declares the
+# 50.00 left over. The −180.00 beside them is the other invoice's portion,
+# already in that record's lot.
+#
+# This is the block the export writes for this state, and it was refused by the
+# importer that received it: the residue check totalled every receivable split
+# the block did not name — the other invoice's 180.00 among them — and made
+# 230.00 of a 50.00 residue. The writer skips a split sitting in a lot that
+# names an invoice or a bill, because that is that record's portion and was
+# never left over, and the reader has to ask the same question.
+#
+# What this fixture produces: both named splits in this invoice's lot, the
+# 50.00 parked as the customer's credit, and the other invoice untouched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-24
+    amount: 100
+    account: "Assets:Bank:USD"
+    prepayment: 50
+    Transaction "77aa11bb22cc33dd44ee55ff66007788"
+      PaymentSplit "99aa11bb22cc33dd44ee55ff66007722"
+      PaymentSplit "aaaa11bb22cc33dd44ee55ff66007733"

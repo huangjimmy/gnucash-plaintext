@@ -1,0 +1,24 @@
+# The refund that settles a credit note: money going out, not coming in.
+#
+# `Assets:Bank:USD −100.00` against `Assets:Accounts Receivable USD +100.00`.
+# The receivable split is positive because a credit note posts −100.00 there,
+# and a settlement is what cancels the posting.
+#
+# Both sides are USD, so linking it converts nothing — which is exactly the
+# path that takes the plain attach rather than the restatement, and so the one
+# a sign guard reaches unconditionally.
+#
+# What this fixture produces: a USD transaction, bank −100.00 against a loose
+# receivable split of +100.00.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-18 * "Refund to the customer"
+	guid: "beef0011beef0022beef0033beef0044"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD -100.00 USD
+		guid: "beef0055beef0066beef0077beef0088"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD 100.00 USD
+		guid: "beef0099beef00aabeef00bbbeef00cc"
+		account.commodity.mnemonic: "USD"

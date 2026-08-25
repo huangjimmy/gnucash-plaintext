@@ -1,0 +1,29 @@
+# 60.00 USD arriving against a 100.00 USD invoice, parked in the CAD account.
+#
+# A part payment, which is ordinary — except that the block naming it claims
+# 100.00 arrived. What the file asserts and what the bank holds disagree, and
+# the guard for that compares the two figures.
+#
+# It skips itself when the account it is handed is not the record's currency,
+# so handing it the CAD account turned it off for exactly the case the
+# new sizing made reachable: measured, the invoice was settled by 60 while the
+# file said 100, exit 0 and not a word.
+#
+# What this fixture produces: a CAD-quoted transaction whose bank side is less
+# than the block claims.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-03 * "Money in, short"
+	guid: "293a4b5c6d7e8f900112233445566778"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 60.00 USD
+		guid: "3a4b5c6d7e8f9001122334455667788a"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "83.40"
+	Assets:Due From Director -83.40 CAD
+		guid: "4b5c6d7e8f9001122334455667788a9b"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-83.40"

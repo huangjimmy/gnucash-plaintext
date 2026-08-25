@@ -1,0 +1,30 @@
+# The overpayment refusal's own remedy, written out.
+#
+# 120.00 arrived against a 100.00 invoice. Naming a parked split cannot divide
+# that — the spelling carves nothing — so the run asks for the transaction to
+# be written with the settlement and the residue as two splits, both on the
+# receivable, each stating its amount.
+#
+# Both on the receivable is the part that has to be said: a `prepayment:` is
+# reconciled against the loose splits on the record's own posted account, so a
+# residue left on that account sums to 0.00 there and is refused for not
+# matching — a second refusal that says nothing about where the residue must
+# live.
+#
+# What this fixture produces: a USD transaction, bank +120.00 against
+# receivable splits of −100.00 and −20.00, neither in a lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-03-10 * "Money in, settlement and residue"
+	guid: "5a6b7c8d9e0f1a2b3c4d5e6f70819200"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 120.00 USD
+		guid: "6b7c8d9e0f1a2b3c4d5e6f7081920011"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -100.00 USD
+		guid: "7c8d9e0f1a2b3c4d5e6f708192001122"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -20.00 USD
+		guid: "8d9e0f1a2b3c4d5e6f70819200112233"
+		account.commodity.mnemonic: "USD"

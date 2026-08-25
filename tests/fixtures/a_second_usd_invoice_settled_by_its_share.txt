@@ -1,0 +1,42 @@
+# The other invoice the wire covers, settled by its own split.
+#
+# `INV-USD-002` for 180.00, paid by the −180.00 split of the shared deposit —
+# the ordinary Q-016 spelling, one invoice naming the one split that is its
+# portion.
+#
+# It exists to put that split in *this* record's lot, which is what makes it
+# not a residue: a split settling another invoice is that invoice's portion
+# and was never left over. The writer knows it and skips it; the reader has to
+# agree, or a ledger the writer produced is refused by its own importer.
+#
+# What this fixture produces: `INV-USD-002` settled, its −180.00 split in its
+# lot, and the −60.00, −40.00 and −50.00 splits still loose.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-002"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-07
+  entry:
+    date: 2026-01-07
+    description: "More consulting"
+    action: "Hours"
+    account: "Income:Sales USD"
+    quantity: 1
+    price: 180
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-07
+    due: 2026-02-07
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-002"
+    accumulate: true
+  payment:
+    date: 2026-03-24
+    amount: 180
+    account: "Assets:Bank:USD"
+    memo: "Wire"
+    txn_guid: "77aa11bb22cc33dd44ee55ff66007788"
+    txn_split_guid: "bbaa11bb22cc33dd44ee55ff66007744"

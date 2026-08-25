@@ -1,0 +1,27 @@
+# 139.00 CAD leaving the CAD bank against a CAD account, on the bill side.
+#
+# The settlement genuinely converts here: the payable is USD and the money
+# left in CAD. Nothing in the entry is USD, so the settlement cannot be read
+# off the bank — only the payer knows the rate, and the transaction states
+# none.
+#
+# The refusal explains that the parked split's figure "stood in for the ..."
+# rather than converting it, and for a bill that is the **payable**.
+#
+# What this fixture produces: a CAD transaction of two CAD splits, in no lot.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Assets:Bank:CAD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-04-04 * "Money out, from the CAD bank"
+	guid: "9d0e1f2a3b4c5d6e7f8a9b0c5f6a7b8c"
+	currency.mnemonic: "CAD"
+	Assets:Bank:CAD -139.00 CAD
+		guid: "0e1f2a3b4c5d6e7f8a9b0c5f6a7b8c9d"
+		account.commodity.mnemonic: "CAD"
+	Assets:Due From Director 139.00 CAD
+		guid: "1f2a3b4c5d6e7f8a9b0c5f6a7b8c9d0e"
+		account.commodity.mnemonic: "CAD"

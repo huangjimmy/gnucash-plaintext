@@ -1,0 +1,37 @@
+# A `Transaction "…"` directive under `posted:` rather than under `payment:`.
+#
+# `Transaction` names the bank transaction a *payment* refers to, so it means
+# nothing anywhere else. Both directives are matched on the stripped line, so
+# without a check on what they are indented under, one written here parsed into
+# a directive nothing ever reads — a line the file states and the run ignores.
+#
+# `the_settlement_a_block_names` refuses an astray `PaymentSplit` one level in,
+# on exactly this reasoning. This is the same mistake one level out, and is
+# refused for the same reason: the file says the payment refers to a
+# transaction, the run does not, and nothing tells the reader which.
+#
+# What this fixture produces: a refusal naming the line, and a book the run has
+# not touched.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"

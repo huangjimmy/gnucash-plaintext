@@ -1,0 +1,35 @@
+# The two-split payment again, with a different memo on each settling split.
+#
+# One payment made of two splits is written as one `payment:` block, and a
+# block carries one `memo:`. Where the splits it would name word themselves
+# differently, that block cannot state the book: written anyway it reports the
+# first split's wording as the payment's, and the second's is in the ledger
+# nowhere at all.
+#
+# So the export writes a block per split instead — the same escape a residue
+# takes, and for the same reason. A grouped block is only correct where it can
+# say everything the splits say.
+#
+# The guids are `money_arriving_as_two_receivable_splits.txt`'s, so the same
+# `a_payment_naming_two_settling_splits.txt` claims them; that block states no
+# `memo:` of its own, so each split keeps the wording this file gives it.
+#
+# What this fixture produces: a USD transaction whose two receivable splits
+# carry "First tranche" and "Second tranche".
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-27 * "Money in, two lines, two memos"
+	guid: "5e6f708192a3b4c5d6e7f80912233445"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "6f708192a3b4c5d6e7f8091223344556"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -60.00 USD
+		guid: "708192a3b4c5d6e7f809122334455667"
+		account.commodity.mnemonic: "USD"
+		memo: "First tranche"
+	Assets:Accounts Receivable USD -40.00 USD
+		guid: "8192a3b4c5d6e7f80912233445566778"
+		account.commodity.mnemonic: "USD"
+		memo: "Second tranche"

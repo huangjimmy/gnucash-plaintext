@@ -1,0 +1,40 @@
+# The short payment again, this time naming the parked split outright.
+#
+# The block says 100.00 arrived; the bank received 60.00. Written with
+# `txn_guid:` alone that is refused — the invoice would be left part-paid out
+# of money the file does not describe. Naming the split has to earn the same
+# refusal, because naming a split says *which* split settles the invoice and
+# says nothing about how much arrived.
+#
+# Measured before that: it was accepted, and the invoice settled by 60 while
+# the file asserted 100. Exit 0, no note.
+#
+# What this fixture produces: the same refusal `txn_guid:` alone earns.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-03
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "293a4b5c6d7e8f900112233445566778"
+    txn_split_guid: "4b5c6d7e8f9001122334455667788a9b"

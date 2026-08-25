@@ -1,0 +1,41 @@
+# 100.00 USD reaching the bank net of a 5.00 USD fee, against
+# `Assets:Due From Director`, which is CAD.
+#
+# The customer paid 105.00 USD; the bank kept 5.00 and credited 100.00. The
+# fee is in the settlement's own currency, so nothing here converts and the
+# entry can be quoted in USD once `Assets:Due From Director` is gone — which
+# makes it the case that money_parked_beside_a_cad_fee.txt is not.
+#
+# **The settlement cannot be worked out**, which is what this fixture is for.
+# The `Assets:Due From Director` split's 145.95 CAD means nothing — it is what
+# stood in for the receivable — so what settles the invoice would have to come
+# from the bank's 100.00. With the fee beside it that is either 105.00, the
+# customer having paid it and the fee borne here, or 100.00 with the fee
+# theirs. The book records neither.
+#
+# So it is refused, in the same words a same-currency fee earns anywhere: the
+# question is which figure settles the invoice, not what rate applies.
+#
+# What this fixture produces: a CAD-quoted transaction of three splits, one of
+# them a USD fee.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-02-28 * "Money in, net of a wire fee"
+	guid: "9a1b2c3d4e5f60718293a4b5c6d7e8f9"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		guid: "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "139.00"
+	Expenses:Supplies:USD 5.00 USD
+		guid: "b2c3d4e5f60718293a4b5c6d7e8f9001"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "6.95"
+	Assets:Due From Director -145.95 CAD
+		guid: "c3d4e5f60718293a4b5c6d7e8f900112"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-145.95"

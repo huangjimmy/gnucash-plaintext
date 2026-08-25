@@ -1,0 +1,49 @@
+# A grouped block naming the same split twice — a copy-pasted line.
+#
+# Nothing deduplicated it. The guids come back verbatim, `payment_slots` emits
+# one slot per entry and the grouped branch claims one split per entry, so the
+# same 40.00 split was counted as two settlements of 40.00 each:
+#
+#   - `amount:` is checked against the sum of the names, so the file is
+#     *required* to state 80.00 for money that moved 40.00;
+#   - 80.00 against 100.00 owed passes the owed check;
+#   - the split is attached to the lot twice, which is idempotent, so the book
+#     ends with one settlement of 40.00 while the file asserts 80.00;
+#   - and thereafter the block scores two slots against the one split the lot
+#     holds, so the invoice is judged changed on every import of an unedited
+#     file — unposted, its posting destroyed, rebuilt, for ever.
+#
+# That last is exactly what slots exist to prevent, so a repeated name is
+# refused, as two `Transaction` blocks under one payment already were.
+#
+# What this fixture produces: a refusal naming the repeated guid, with nothing
+# attached.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-27
+    amount: 80
+    account: "Assets:Bank:USD"
+    Transaction "5e6f708192a3b4c5d6e7f80912233445"
+      PaymentSplit "8192a3b4c5d6e7f80912233445566778"
+      PaymentSplit "8192a3b4c5d6e7f80912233445566778"

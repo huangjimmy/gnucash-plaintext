@@ -13,7 +13,7 @@ from fractions import Fraction
 
 import gnucash.gnucash_business as gb
 import gnucash.gnucash_core_c as gc
-from gnucash import Book, Query, Split
+from gnucash import Book, Query
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
 from infrastructure.gnucash.kvp import (
@@ -51,6 +51,7 @@ from services.plaintext_blocks import (
     payment_residue,
     payment_residue_text,
     record_text_lines,
+    settlements_by_transaction,
     split_was_applied_from_credit,
 )
 from use_cases.export_transactions import (
@@ -75,7 +76,7 @@ def _fmt_quantity(val: Fraction) -> str:
     return exact_text(val)
 
 
-def _payment_amount_text(split, where='') -> str:
+def _payment_amount_text(split, where='', also_settling=()) -> str:
     """A payment's amount, at the unit its own account is kept to.
 
     An amount is held to its account's smallest unit, not its currency's: a
@@ -89,7 +90,7 @@ def _payment_amount_text(split, where='') -> str:
     renderers rounded it, so one book answered two ways depending on which
     command was asked.
     """
-    return payment_amount_text(split, where)
+    return payment_amount_text(split, where, also_settling)
 
 
 def _split_was_applied_from_credit(split) -> bool:
@@ -541,18 +542,12 @@ class ExportBusinessObjectsUseCase:
         lot = inv.GetPostedLot()
         has_payments = False
         if lot:
-            for raw_split in lot.get_split_list():
-                s   = Split(instance=raw_split)
-                txn = s.GetParent()
-                if txn is None:
-                    continue
-                # Skip the posting transaction itself
-                if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
-                    continue
+            for txn, sharing in settlements_by_transaction(lot):
+                s = sharing[0]
                 if _split_was_applied_from_credit(s):
-                    lines += self._format_credit_payment(txn, s)
+                    lines += self._format_credit_payment(txn, s, sharing[1:])
                 else:
-                    lines += self._format_payment(txn, s)
+                    lines += self._format_payment(txn, s, sharing[1:])
                 has_payments = True
         if not has_payments:
             lines.append('	payment: none')
@@ -664,7 +659,8 @@ class ExportBusinessObjectsUseCase:
 
         return lines
 
-    def _format_credit_payment(self, txn, in_lot_ar_ap_split) -> list:
+    def _format_credit_payment(self, txn, in_lot_ar_ap_split,
+                               also_settling=()) -> list:
         """Format the slice of an owner's credit that settled this invoice or bill.
 
         A credit is applied by moving currency the book already has: GnuCash
@@ -679,7 +675,23 @@ class ExportBusinessObjectsUseCase:
         attaches this exact split to that record's lot, where re-running the
         `auto_apply_credit:` that produced it would apply whatever credit the
         book has at the time, which is not necessarily this one.
+
+        **One split to a block**, so companions are refused rather than
+        dropped. There is no grouped spelling of a credit block —
+        `Transaction` / `PaymentSplit` is read by `_apply_payment_directive`
+        and a `from_credit:` block goes elsewhere — and
+        `settlements_by_transaction` keys each credit settlement by its own
+        split so this cannot arise. Dropped in silence, as taking no such
+        parameter amounted to, a second credit settlement on one transaction
+        went missing from the ledger and the record read as changed by its own
+        export.
         """
+        if also_settling:
+            raise ValueError(
+                'a credit settlement is written one split to a block, so it '
+                f'takes no companions; {len(also_settling)} were passed. '
+                'Group credit splits by their own guid — see '
+                'settlements_by_transaction.')
         amount = _payment_amount_text(in_lot_ar_ap_split,
                                       self._being_written)
         return [
@@ -693,7 +705,7 @@ class ExportBusinessObjectsUseCase:
             f'		txn_split_guid: "{in_lot_ar_ap_split.GetGUID().to_string()}"',
         ]
 
-    def _format_payment(self, txn, in_lot_ar_ap_split) -> list:
+    def _format_payment(self, txn, in_lot_ar_ap_split, also_settling=()) -> list:
         """Format one payment transaction as `payment:` lines.
 
         `in_lot_ar_ap_split` is the AR/AP-side split that lives in the
@@ -730,7 +742,8 @@ class ExportBusinessObjectsUseCase:
         # Format at the AR/AP account's own smallest unit, exactly (no float).
         in_lot_ar_ap_split.GetAccount().GetCommodity()
         pay_amt_str = _payment_amount_text(in_lot_ar_ap_split,
-                                          self._being_written)
+                                           self._being_written,
+                                           also_settling)
 
         # Q-015 / Q-016: prepayment residual — what this payment left over
         # when it was made. Worked out by `payment_residue`, which the printed
@@ -738,7 +751,9 @@ class ExportBusinessObjectsUseCase:
         # stated its own slice and nothing about the residue, so read into a
         # book that never held the deposit it entered a 100.00 bank movement
         # for money that moved 250.00.
-        prepay = payment_residue(txn, in_lot_ar_ap_split)
+        # Weighed against the splits this block does not name, so a payment
+        # made of several does not count its own other halves as residue.
+        prepay = payment_residue(txn, in_lot_ar_ap_split, also_settling)
 
         # Q-016: always emit `txn_guid:` so re-import resolves the payment
         # via the standalone-tx pass rather than via ApplyPayment (which
@@ -760,10 +775,23 @@ class ExportBusinessObjectsUseCase:
             f'		date: {pay_date}',
             f'		amount: {pay_amt_str}',
             f'		bank_account: {encode_value_as_string(bank_name)}',
-            f'		txn_guid: "{txn_guid}"',
-            f'		txn_split_guid: "{txn_split_guid}"',
-            f'		memo: {encode_value_as_string(pay_memo)}',
         ]
+        if also_settling:
+            # More than one split of this transaction settles this record, and
+            # it is still one payment. `txn_split_guid:` names one split and
+            # there is no second of it, so the settlement is written as the
+            # transaction it is, with its splits as children — which is where
+            # a split lives everywhere else in this format.
+            lines.append(f'		Transaction "{txn_guid}"')
+            for split in (in_lot_ar_ap_split, *also_settling):
+                lines.append(
+                    f'			PaymentSplit "{split.GetGUID().to_string()}"')
+        else:
+            lines += [
+                f'		txn_guid: "{txn_guid}"',
+                f'		txn_split_guid: "{txn_split_guid}"',
+            ]
+        lines.append(f'		memo: {encode_value_as_string(pay_memo)}')
         if pay_num:
             lines.append(f'		num: {encode_value_as_string(pay_num)}')
         if prepay > 0:
@@ -862,17 +890,12 @@ class ExportBusinessObjectsUseCase:
         lot = inv.GetPostedLot()
         has_payments = False
         if lot:
-            for raw_split in lot.get_split_list():
-                s   = Split(instance=raw_split)
-                txn = s.GetParent()
-                if txn is None:
-                    continue
-                if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
-                    continue
+            for txn, sharing in settlements_by_transaction(lot):
+                s = sharing[0]
                 if _split_was_applied_from_credit(s):
-                    lines += self._format_credit_payment(txn, s)
+                    lines += self._format_credit_payment(txn, s, sharing[1:])
                 else:
-                    lines += self._format_payment(txn, s)
+                    lines += self._format_payment(txn, s, sharing[1:])
                 has_payments = True
         if not has_payments:
             lines.append('	payment: none')

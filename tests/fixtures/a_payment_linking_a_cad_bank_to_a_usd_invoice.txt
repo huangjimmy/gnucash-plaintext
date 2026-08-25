@@ -1,0 +1,42 @@
+# INV-USD-001, a USD invoice, linked to money that arrived in the CAD bank.
+#
+# This one really does convert, and only the payer knows at what. The parked
+# split's 139.00 CAD is not a conversion of the settlement — it is what stood
+# in for the receivable — so there is no rate anywhere in the transaction to
+# read one off.
+#
+# `settled_amount:` is how a payment states what actually landed in the other
+# currency, but it belongs to a block that *records* a payment. This block
+# links one the book already holds, so what it needs instead is the amounts
+# written on the splits themselves.
+#
+# What this fixture produces: a refusal naming both currencies and saying what
+# to state.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-01
+    amount: 100
+    account: "Assets:Bank"
+    txn_guid: "d4e5f60718293a4b5c6d7e8f90011223"
+    txn_split_guid: "f60718293a4b5c6d7e8f900112233445"

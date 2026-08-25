@@ -1,0 +1,45 @@
+# The grouped block for the first invoice, on a wire whose other settlement
+# has since been orphaned by an unpost.
+#
+# It names the −60.00 and −40.00 that settle this invoice and declares the
+# 30.00 left over. Beside them the −50.00 is loose — not because it is residue,
+# but because unposting the invoice it settled let it go, and this tool marked
+# it as its own orphan when it did.
+#
+# The writer of every `prepayment:` line skips such a split: an orphan is a
+# settlement waiting to be put back, not money the payment left over. A reader
+# that counts it makes 80.00 of a 30.00 residue and refuses the export that
+# wrote it.
+#
+# What this fixture produces: both named splits in this invoice's lot, the
+# 30.00 parked as the customer's credit, and the orphan left alone.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-28
+    amount: 100
+    account: "Assets:Bank:USD"
+    prepayment: 30
+    Transaction "5150aabb5150ccdd5150eeff51500011"
+      PaymentSplit "5150aabb5150ccdd5150eeff51500033"
+      PaymentSplit "5150aabb5150ccdd5150eeff51500044"

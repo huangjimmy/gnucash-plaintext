@@ -220,7 +220,7 @@ The entry is written in the book's currency because that is the currency the gai
 
 `settled_amount:` exists because a `payment:` block is not a transaction: it is an instruction to `gncOwnerApplyPaymentSecs`, which builds the transaction itself. The block carries one amount — in the record's currency — and an account name, so there is no second split in which to write what the other side received. An ordinary transaction needs no such field precisely because it states both numbers already, and `share_price` is then just `value / amount`.
 
-If you would rather use only keys that already existed, write the settlement as an ordinary transaction and attach it, which is the Q-016 retarget path:
+If you would rather use only keys that already existed, write the settlement as an ordinary transaction and attach it, which is the Q-016 linking path:
 
 ```
 2026-02-25 * "Acme pays INV-USD-001"
@@ -562,8 +562,9 @@ Cost released is 135.00 + 65.00 = 200.00 CAD against 208.50 of proceeds, so `Inc
 An invoice's A/R split states what a customer **owes**, not what the book has. Measuring a sale against it before the invoice is paid is selling money that has not arrived, so it is refused:
 
 ```
-Error: cost basis <guid> is an unpaid receivable — that USD has not been
-collected, so there is none to sell. Record the payment first, or add
+Error: cost basis <guid> is a split on 'Assets:Accounts Receivable USD', and
+the invoice it belongs to has not been collected — that USD is owed, not held,
+so there is none to sell. Record the payment first, or add
 `cost_basis_force: true` to this split to measure against it anyway.
 ```
 
@@ -576,7 +577,7 @@ This tool keeps books; it does not support trading a position the book does not 
 | the file says | the importer says |
 |---|---|
 | a sale of 150 USD against a basis of 100 | `150.00 USD against cost basis <guid> exceeds its basis balance by 50.00 USD (the basis is 100.00 USD and 0.00 was already used)` |
-| a sale against an invoice that is not yet paid | `cost basis <guid> is an unpaid receivable — that USD has not been collected, so there is none to sell…` |
+| a sale against an invoice that is not yet paid | `cost basis <guid> is a split on 'Assets:Accounts Receivable USD', and the invoice it belongs to has not been collected — that USD is owed, not held, so there is none to sell…` |
 | a cost other than the basis's | `this split sells 100.00 USD valued at 120.00 CAD, but cost basis <guid> cost 1.35 CAD per USD, i.e. 135.00 CAD — value what is sold at the basis it picks, so the CAD the sale fetched and the residual gain or loss stand apart` |
 | a guid matching no split | `cost_basis_split_guid '<guid>' matches no split in the book` |
 | a guid matching a split that holds no foreign currency | `cost_basis_split_guid '<guid>' names a split that is no USD cost basis — a basis is a split that brought USD into the book (an invoice, a bill, a purchase or a borrowing)` |
@@ -784,7 +785,7 @@ An update can also *bring currency into the book* — a CAD placeholder correcte
 
 ## Round-trip
 
-A realized settlement round-trips without restating anything: the export writes the payment as a retarget of the transaction it already emitted (`txn_guid:` + `txn_split_guid:`), so the fresh book inherits the FX split, the A/R value at cost, and the basis at zero available — and needs no rates file to rebuild them.
+A realized settlement round-trips without restating anything: the export writes the payment as a link to the transaction it already emitted (`txn_guid:` + `txn_split_guid:`), so the fresh book inherits the FX split, the A/R value at cost, and the basis at zero available — and needs no rates file to rebuild them.
 
 `cost_basis_split_guid:` and `cost_basis_balance:` are ordinary KVP slots, so they survive export → fresh-book re-import like any other custom metadata. **A balance stated in a file is authoritative and already net of that file's own sales** — an export carries `cost_basis_balance: "60.00"` on a basis alongside the 40 USD sale that lowered it — so re-importing an export leaves it at 60.00 rather than taking the 40 again. A sale imported against a basis the book already held is a new sale and does lower it. A stated balance only counts once its transaction is actually in the book: a transaction that fails and rolls back takes its splits' guids with it, so a sale further down the same file naming that basis is refused for a basis the book does not have.
 

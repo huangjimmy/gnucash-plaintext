@@ -37,6 +37,10 @@
   type: Income
   commodity.namespace: "CURRENCY"
   commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Due From Director
+  type: Asset
+  commodity.namespace: "CURRENCY"
+  commodity.mnemonic: "CAD"
 
 vendor "V-US"
   name: "US Vendor"

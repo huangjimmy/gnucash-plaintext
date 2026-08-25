@@ -1,0 +1,48 @@
+# The two sides swapped again, and overpaying — which is what carried it past
+# the guard.
+#
+# `account:` names that account, so the run picks the **bank** split as
+# "the side that is not the `account:`". One candidate, so nothing is
+# ambiguous; the bank is an asset, so the placeability check has nothing to say
+# even asked early; and `prepayment: 20` sends it down the carve arm, which
+# returns before the sign guard was installed.
+#
+# What that did: the bank's own +120.00 was re-accounted onto the receivable
+# and divided — +100.00 into the invoice's lot and +20.00 into a fresh lot
+# called a credit while holding a debit. The deposit left `Assets:Bank:USD`
+# altogether, the invoice read as owing 200.00, and the entry balanced, at
+# exit 0.
+#
+# The sign is the only thing that tells the arrival from the split being
+# placed, and it has to be asked for the whole branch rather than for the arm
+# that settles exactly.
+#
+# What this fixture produces: a refusal, with the deposit still on the bank.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-22
+    amount: 120
+    account: "Assets:Suspense USD"
+    prepayment: 20
+    txn_guid: "d0d01122d0d03344d0d05566d0d07788"

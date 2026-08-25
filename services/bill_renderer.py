@@ -17,7 +17,6 @@ is re-imported, and its numbers are checked against a recomputation.
 from fractions import Fraction
 
 import gnucash.gnucash_core_c as gc
-from gnucash import Split
 
 from infrastructure.gnucash.engine import (
     load_gnc_engine,
@@ -49,6 +48,7 @@ from services.plaintext_blocks import (
     payment_memo_of,
     posted_block_lines,
     record_text_lines,
+    settlements_by_transaction,
 )
 
 
@@ -231,13 +231,13 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         lot = bill.GetPostedLot()
         had_payment = False
         if lot is not None:
-            for raw_split in lot.get_split_list():
-                s = Split(instance=raw_split)
-                txn = s.GetParent()
-                if txn is None:
-                    continue
-                if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
-                    continue
+            # One block per payment, the same answer the export and
+            # `print-invoice` read. Left looping the lot's splits, a bill
+            # settled by one two-split transaction printed two `payment:`
+            # blocks — the bill having been paid twice, which is a different
+            # fact about the vendor — while the same book's `export` wrote one.
+            for txn, sharing in settlements_by_transaction(lot):
+                s = sharing[0]
                 bank_name = ''
                 for i in range(txn.CountSplits()):
                     sp = txn.GetSplit(i)
@@ -255,7 +255,8 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
                 # not the bank-side total.
                 bill_lines += payment_block_lines(
                     txn, s, bank_name, pay_memo,
-                    f'bill "{bill.GetID()}"', txn.GetNum() or '')
+                    f'bill "{bill.GetID()}"', txn.GetNum() or '',
+                    also_settling=sharing[1:])
 
                 had_payment = True
         if not had_payment:
