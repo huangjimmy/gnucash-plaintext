@@ -28,7 +28,7 @@ from cli.main import cli
 from infrastructure.gnucash.utils import numeric_to_fraction
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
-LEDGER = 'tests/fixtures/discounted_lines_taxed_three_ways.txt'
+LEDGER = 'tests/fixtures/discounted_lines_with_tax_three_ways.txt'
 
 INVOICES = (
     'INV-DISCOUNT-PRETAX',
@@ -264,7 +264,7 @@ class TestSeveralLinesAndSeveralTaxAccounts:
 
     def test_each_account_holds_what_its_split_holds_across_lines(
             self, book, tmp_path):
-        """Two lines of 1.10 taxed 5% + 5%: each line owes 0.055 to each
+        """Two lines of 1.10 taxed at 5% + 5%: each line owes 0.055 to each
         account. Rounding a line's own breakdown gives one account 0.06 and
         the other 0.05 on both lines — 0.12 against 0.10 — while the book
         rounds each account once across the invoice and posts 0.11 each.
@@ -540,7 +540,7 @@ class TestWhichRoundingAnInvoicesTaxIs:
 
     The alternative reading — one rounding of the whole invoice's tax —
     gives the same answer for almost every invoice, which is why it has to
-    be asked of a case that parts them. One line of 1.10 taxed 5% + 5% owes
+    be asked of a case that parts them. One line of 1.10 taxed at 5% + 5% owes
     0.055 to each account:
 
         per account, each rounded once : 0.06 + 0.06 = 0.12

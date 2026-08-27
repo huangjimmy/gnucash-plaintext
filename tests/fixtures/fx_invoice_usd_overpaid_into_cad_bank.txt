@@ -2,11 +2,11 @@
 # customer's bank converted into 274.00 CAD — a rate of 1.37.
 #
 # Two things are settled at once and they are not settled at the same rate.
-# The 100.00 USD that clears the invoice is released at what the invoice
-# carried, 1.40, so 140.00 CAD of cost leaves; the 100.00 USD overpaid was
-# received at 1.37, so the credit is worth 137.00 CAD. What the bank actually
-# received, 274.00, less those two is the 3.00 CAD the invoice lost by being
-# paid at a weaker rate than it was booked at.
+# The 100.00 USD that clears the invoice is valued at what the invoice
+# carried, 1.40, so 140.00 CAD of cost is consumed with it; the 100.00 USD
+# overpaid was received at 1.37, so the credit is worth 137.00 CAD. What the
+# bank actually received, 274.00, less those two is the 3.00 CAD the invoice
+# lost by being paid at a weaker rate than it was booked at.
 #
 # What this fixture produces:
 #

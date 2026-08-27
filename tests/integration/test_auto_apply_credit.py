@@ -176,7 +176,7 @@ def test_invoice_auto_apply_credit_on_a_posted_invoice_keeps_its_posting(
     balance below still right, which is why only the guid shows it.
 
     The bill side of this is measured in
-    `test_taxed_bill_mixed_payment_unapply_and_relink.py`; the two
+    `test_a_bill_with_tax_paid_partly_fresh_and_partly_linked.py`; the two
     invoices are separate code.
     """
     runner = CliRunner()

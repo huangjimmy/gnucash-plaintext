@@ -587,7 +587,7 @@ class TestARateInSomethingElse:
 
     Every rate was applied as though it already were, which is true of what
     this tool writes and not of what a person writes. Two shapes reach it: a
-    leg quoted against a third currency, off the statement it came from, and
+    posting quoted against a third currency, off the statement it came from, and
     an exchange ratio written where a rate goes.
     """
 

@@ -370,7 +370,7 @@ def test_same_currency_payment_still_settles_without_a_rate(tmp_path):
 def test_a_converting_payment_that_overpays_values_both_parts(tmp_path):
     """An overpayment converts at the payment's rate, not the record's.
 
-    The 100.00 USD that clears the invoice is released at what the invoice
+    The 100.00 USD that clears the invoice is valued at what the invoice
     carried, 1.40; the 100.00 USD overpaid was received at 1.37 and is worth
     137.00 CAD. Both belong in the entry, and what is left over is the 3.00
     CAD the invoice lost.

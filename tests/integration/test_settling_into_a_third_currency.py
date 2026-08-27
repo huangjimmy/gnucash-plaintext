@@ -283,7 +283,7 @@ class TestOverpaidAcrossThreeCurrencies:
     """The credit left over is worth what the payment converted at.
 
     A USD invoice overpaid out of an HKD bank settles two things at once and
-    not at the same rate. The 100.00 USD that clears the invoice is released
+    not at the same rate. The 100.00 USD that clears the invoice is valued
     at the 1.40 it was booked at; the 100.00 USD overpaid was never bought at
     1.40 — nothing about that rate was paid — it arrived with the rest of the
     cash, at what the whole conversion came to: 1,560.00 HKD worth 268.32 CAD

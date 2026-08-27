@@ -5,8 +5,8 @@
 # −20 with the invoice reading paid and 20.00 of the customer's money in no
 # credit lot, which is the state every other spelling of a payment refuses.
 #
-# The grouped branch checked each named split for existence, account, lot and
-# owner, and then attached them all without once weighing what they come to
+# The grouped branch checked each split it applies for existence, account, lot
+# and owner, and then attached them all without once weighing what they come to
 # against what the record still owes. It is also the spelling that can claim
 # several splits in a single step, so what is over is not a settlement at all:
 # it is the owner's credit, and the way to say so is to leave that split out of

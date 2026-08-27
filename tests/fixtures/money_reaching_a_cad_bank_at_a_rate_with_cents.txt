@@ -1,0 +1,28 @@
+# 100.00 USD parked in a USD account, having reached a CAD bank at 1.3937.
+#
+# The same shape as `money_parked_in_usd_that_reached_a_cad_bank.txt`, at a
+# rate that does not come out even: the split's CAD value is −139.37, so it is
+# a figure an account kept to whole dollars cannot state.
+#
+# The account that cannot state it is `an_account_kept_to_whole_dollars.txt`,
+# opened on its own so the bill book can be given one too. An account kept
+# coarser than its own currency is a book GnuCash writes — see
+# `amount_finer_than_a_coarse_account.txt`, which is the import side of the
+# same question.
+#
+# What this fixture produces: a CAD transaction, `Assets:Bank` +139.37 CAD
+# against `Assets:Suspense USD` −100.00 USD valued −139.37 CAD, neither split
+# in a lot.
+#
+# Verified by tests/integration/test_unlinking_a_linked_transaction.py.
+2026-03-04 * "Money in at a rate with cents"
+	guid: "aabbccddeeff00112233445566778899"
+	currency.mnemonic: "CAD"
+	Assets:Bank 139.37 CAD
+		guid: "bbccddeeff00112233445566778899aa"
+		account.commodity.mnemonic: "CAD"
+	Assets:Suspense USD -100.00 USD
+		guid: "ccddeeff00112233445566778899aabb"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.3937"
+		value: "-139.37"

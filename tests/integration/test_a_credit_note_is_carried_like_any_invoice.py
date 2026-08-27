@@ -82,11 +82,11 @@ def imported(tmp_path):
 class TestWhatTheImportPutsInTheBook:
     """The four invoices post the way GnuCash posts them.
 
-    Taxed and discounted on both sides, because a credit note reversing a
-    taxed invoice is the ordinary case and it is the only thing that asks
+    With tax and discounted on both sides, because a credit note reversing
+    an invoice with tax is the ordinary case and it is the only thing that asks
     `gncEntryGetDocTaxValue` and `gncEntryGetDocTaxValues` what a credit
     note's line is worth. Measured on 5.10: 2 × 100.00 less 10 per cent,
-    taxed 10 per cent, posts A/R 198.00 against Sales −180.00 and tax
+    taxed at 10 per cent, posts A/R 198.00 against Sales −180.00 and tax
     −18.00 — and its credit note posts the exact mirror, so GnuCash negates
     a line's tax the same way it negates the line.
     """

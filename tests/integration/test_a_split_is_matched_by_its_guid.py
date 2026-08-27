@@ -245,7 +245,7 @@ def _exported(book, tmp_path, name='out.txt'):
 
 class TestABlockGivingItsSplitAnotherAccount:
     def test_moves_the_split_and_keeps_its_guid(self, tmp_path):
-        """Recategorising is the commonest edit anyone makes to a ledger.
+        """Changing a split's account is the commonest edit to a ledger.
 
         The blocks are paired within one account, so a block whose account
         line changed found an empty group: it built a new split with a guid
@@ -276,7 +276,7 @@ class TestABlockGivingItsSplitAnotherAccount:
         """A file that refuses moves nothing, which is what the update path
         says about itself: every refusal before `BeginEdit`.
 
-        Both live in the same pass — the block that recategorises a split
+        Both live in the same pass — the block that gives a split another account
         and the block that names a guid this transaction has not got — so
         one could move a split and the next refuse the file. The run does
         not stop there: the error is collected and the import goes on to
@@ -294,7 +294,7 @@ class TestABlockGivingItsSplitAnotherAccount:
                                 '\tExpenses:Groceries 10.00 CAD')
         edited = tmp_path / 'edited.txt'
         edited.write_text(text.replace(refusing, elsewhere), encoding='utf-8')
-        # The recategorised block is read first, so a pass that moved as it
+        # That block is read first, so a pass that acted as it
         # went would have moved it before reaching the refusal.
         written = edited.read_text(encoding='utf-8')
         assert (written.index('Expenses:Groceries 10.00')
@@ -307,9 +307,9 @@ class TestABlockGivingItsSplitAnotherAccount:
         assert _dining(book) == before, _dining(book)
 
 
-class TestAFileThatRecategorisesOneSplitAndLosesAnother:
+class TestAFileThatChangesOneSplitsAccountAndLosesAnother:
     def test_moves_nothing_at_all(self, tmp_path):
-        """The refusal comes first, so the recategorisation never happens.
+        """The refusal comes first, so the account never changes.
 
         Both live in the same rebuild: one block gives its split another
         account, and the file stops naming the account of a split that is
@@ -326,12 +326,12 @@ class TestAFileThatRecategorisesOneSplitAndLosesAnother:
         before = _splits_on(book, 'Assets:Bank')
         assert before, 'the payment should have a bank split'
 
-        recategorised = exported.replace('\tAssets:Bank 30.00 CAD',
-                                         '\tExpenses:Dining 30.00 CAD')
-        assert recategorised != exported, exported
+        with_another_account = exported.replace(
+            '\tAssets:Bank 30.00 CAD', '\tExpenses:Dining 30.00 CAD')
+        assert with_another_account != exported, exported
         edited = tmp_path / 'edited.txt'
         edited.write_text(
-            _without_the_receivable_split(recategorised, settling),
+            _without_the_receivable_split(with_another_account, settling),
             encoding='utf-8')
 
         result = CliRunner().invoke(cli, ['import', str(book), str(edited),

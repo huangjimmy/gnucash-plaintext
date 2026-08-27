@@ -7,7 +7,7 @@
 # 46.66/33.33 is 1.40006, 4.66/3.33 is 1.39940 — while the transaction used a
 # single rate throughout.
 #
-# This is the ordinary shape of a taxed foreign invoice, and it is why no
+# This is the ordinary shape of a foreign invoice with tax, and it is why no
 # check is made on whether a transaction's base-currency splits "agree" about
 # its rate: rounding produces the same difference as a genuine disagreement
 # would, and the rounded figures cannot tell them apart. The cost is their

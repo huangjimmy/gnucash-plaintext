@@ -1,12 +1,12 @@
 ; A rate stated in a currency that is not the transaction's.
 ;
-; 100 USD bought with 15,000 yen, each leg quoted off the statement it came
-; from: the USD leg against CAD, the yen leg against the USD it bought. The
-; entry is denominated in CAD — the first rate names it — and the yen leg's
-; rate is per USD.
+; 100 USD bought with 15,000 yen, each posting quoted off the statement it
+; came from: the USD posting against CAD, the yen posting against the USD it
+; bought. The entry is denominated in CAD — the first rate names it — and the
+; yen posting's rate is per USD.
 ;
 ; Applied as though every rate were in the transaction's currency, the yen
-; leg was valued at 15,000 × 0.0066… = 100.00 CAD instead of the 135.00 CAD
+; posting was valued at 15,000 × 0.0066… = 100.00 CAD instead of the 135.00 CAD
 ; it is worth, GnuCash balanced the 35.00 difference by inventing an
 ; Imbalance, and the run reported success. Nothing in the file was wrong: the
 ; rate was read as answering a question it was not asked.

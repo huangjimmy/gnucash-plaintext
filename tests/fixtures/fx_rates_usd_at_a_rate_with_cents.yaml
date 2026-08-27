@@ -1,0 +1,10 @@
+# A USD rate that does not come out in whole dollars: 100.00 USD is 139.37 CAD.
+#
+# Every other rates fixture here quotes 1.40 or 1.37, and 100 of anything at
+# either is a whole number of dollars — so a converted figure landing on an
+# account kept to whole dollars would round to itself and prove nothing. This
+# is the file that makes that rounding visible.
+#
+# Dated 2026-02-10, the day the director paid the supplier.
+USD/CAD:
+  2026-02-10: 1.3937

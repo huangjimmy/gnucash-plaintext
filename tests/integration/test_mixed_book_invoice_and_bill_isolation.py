@@ -25,7 +25,7 @@ from cli.main import cli
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q019_accounts.txt')
-POSTED_FIXTURE = 'mixed_book_invoice_and_bill_posted_taxed.txt'
+POSTED_FIXTURE = 'mixed_book_invoice_and_bill_posted_with_tax.txt'
 UNPOSTED_FIXTURE = 'mixed_book_invoice_and_bill_unposted.txt'
 
 

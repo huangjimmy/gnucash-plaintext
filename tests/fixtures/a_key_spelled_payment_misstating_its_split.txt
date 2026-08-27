@@ -6,13 +6,13 @@
 # spellings. On a block naming its splits it is what they come to. On this one
 # `_bank_side_figure_of` reads it as what moved through the bank, residue and
 # all, which is what the overpayment remedy prints: `amount: 120` beside a
-# 100.00 split and `prepayment: 20`. Weighing it against the named split
-# refuses the remedy this tool itself prints.
+# 100.00 split and `prepayment: 20`. Weighing it against the split the key
+# gives refuses the remedy this tool itself prints.
 #
 # So the two are asked different questions deliberately, and README says which
 # is which.
 #
-# What this fixture produces: a clean import, with the named split settling
+# What this fixture produces: a clean import, with that split settling
 # the invoice by its own 60.00.
 #
 # Verified by

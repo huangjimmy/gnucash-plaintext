@@ -5,7 +5,7 @@
 # the owner's residue, or another invoice's portion waiting for its own block,
 # and this block says nothing either way.
 #
-# What this fixture produces: both named splits in the invoice's lot, the
+# What this fixture produces: both splits applied in the invoice's lot, the
 # invoice settled, and the −50.00 untouched.
 #
 # Verified by

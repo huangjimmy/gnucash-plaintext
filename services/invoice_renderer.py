@@ -262,7 +262,7 @@ def entries_fitted_to_the_page(entries_data, page_tax, unit,
     # record and posted as one split. Fitting each line's tax first and
     # splitting it between accounts afterwards makes both columns add up on
     # the page and neither match the book — measured shape: two lines of 1.10
-    # taxed 5% + 5%, where each line's 0.055 + 0.055 rounds to 0.06 + 0.05 on
+    # taxed at 5% + 5%, where each line's 0.055 + 0.055 rounds to 0.06 + 0.05 on
     # every line, so the page shows one account 0.12 and the other 0.10 while
     # the book posts 0.11 each.
     #
@@ -368,8 +368,8 @@ def figures_that_add_up(parts, whole, unit, keys=None):
     # Only among the lines that carry any of it. A line the page declares
     # `taxable: false` holds no tax and has no `breakdown:` block under it,
     # so a unit landing there states tax the line does not carry and that
-    # nothing on the page adds up to. Every part zero is the untaxed
-    # case, where the whole is zero too and nothing moves.
+    # nothing on the page adds up to. Every part zero is the case of no line
+    # carrying any of it, where the whole is zero too and nothing moves.
     carrying = [i for i in range(len(parts)) if scaled[i] != 0]
 
     # Largest fractional part first, and by what each part *is* after that —

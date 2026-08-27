@@ -8,7 +8,7 @@
 # disagreeing for good, with the ledger losing and nothing said.
 #
 # Applying it is not a small edit either — an owner's currency is what their
-# invoices are raised in, and a posted invoice's is what its AR splits are
+# invoices are created in, and a posted invoice's is what its AR splits are
 # denominated in — so it is refused rather than absorbed.
 #
 # owners_and_an_invoice_in_cad.txt is this file before the change. The

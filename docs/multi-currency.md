@@ -32,7 +32,7 @@ Every split that brings foreign currency into the book establishes a **cost basi
 | customer invoiced in USD | the invoice's A/R split, `+100.00 USD` | the CAD income booked against it |
 | billed by a US vendor | the bill's A/P split, `−100.00 USD` | the CAD expense booked against it |
 | USD bought with CAD | the receiving bank split, `+100.00 USD` | the CAD paid |
-| USD borrowed | the receiving bank split, `+100.00 USD` | the CAD value of the liability raised |
+| USD borrowed | the receiving bank split, `+100.00 USD` | the CAD value of the liability written |
 | customer overpays in USD | the credit left on A/R, `−100.00 USD`, in its own lot — unless the money landed in a USD account, which then holds it | what the payment converted at when it converted; what the record was carried at when it did not |
 | paid a US vendor beyond the bill | the debit left on A/P, `+100.00 USD`, in its own lot | the same |
 
@@ -214,7 +214,7 @@ Left to GnuCash alone, none of this happens: `gncOwnerApplyPaymentSecs` values t
 
 The bill side is the mirror, and the sign flips with it: a payable booked at 140.00 CAD settled with 137.00 CAD of cash writes `Income:FX Gain -3.00 CAD`, a **gain**, because less cash extinguished more liability.
 
-The entry is written in the book's currency because that is the currency the gain is in. A split's value is stated in its transaction's currency, so a CAD gain cannot live inside a USD-denominated entry — and GnuCash 3.8 raises the payment in the record's currency where 4.x and later use the transfer account's. The importer states the currency and all three values explicitly, so the entry reads the same on every supported version.
+The entry is written in the book's currency because that is the currency the gain is in. A split's value is stated in its transaction's currency, so a CAD gain cannot live inside a USD-denominated entry — and GnuCash 3.8 writes the payment in the record's currency where 4.x and later use the transfer account's. The importer states the currency and all three values explicitly, so the entry reads the same on every supported version.
 
 ### Two ways to write a converting payment
 
@@ -376,11 +376,11 @@ Without `lot_owner:`, a hand-written credit belongs to no lot, which is how a se
 		value: "-137.00"
 ```
 
-That receivable's basis was opened when the invoice was raised, so counting the credit as well would offer 200.00 USD from a book holding none.
+That receivable's basis was opened when the invoice was posted, so counting the credit as well would offer 200.00 USD from a book holding none.
 
 **A refund is the mirror, and it needs `lot_owner:` for the same reason.** It is a debit on the receivable — the direction that normally establishes a basis — but it sends the customer's own money back rather than bringing any in. Naming the owner puts it in the lot no invoice owns, which is what marks it a refund, and it then establishes nothing; counting it because debits are the normal direction offered a third 100.00 USD that had already left the book.
 
-Naming no owner, it is read as a receivable raised by hand and does establish one — because that is the other thing those three lines are, exactly as a lot-less credit is read as a settlement. Neither side guesses: the file says which it is, or it gets the reading its shape gives it.
+Naming no owner, it is read as a receivable written by hand and does establish one — because that is the other thing those three lines are, exactly as a lot-less credit is read as a settlement. Neither side guesses: the file says which it is, or it gets the reading its shape gives it.
 
 The payable side works the same way in reverse. What is owed to a vendor sits on the credit side and always establishes a basis; a **debit** on a payable is either money sent to settle a bill (establishes nothing — that currency has gone) or a prepayment to a vendor (a claim on them, which does). Again the lot decides, not the direction.
 
@@ -417,9 +417,9 @@ Applying a credit is asked for with `auto_apply_credit: true` and nothing else. 
 		txn_split_guid: "…"
 ```
 
-A credit bigger than the invoice is divided the way a bank transfer bigger than the invoice it pays has always been: the named split settles what is owed, and the rest is parked as the owner's credit in a lot of its own, carrying what is left of the cost the credit was acquired at. Two shapes are refused rather than divided: a credit in no lot, since nothing records whose the leftover would be and every listing of credits reads lots (`lot_owner:` gives it an owner first), and a block on an invoice that owes nothing, since there is nothing left for the credit to settle.
+A credit bigger than the invoice is divided the way a bank transfer bigger than the invoice it pays has always been: the split the block gives settles what is owed, and the rest is parked as the owner's credit in a lot of its own, carrying what is left of the cost the credit was acquired at. Two shapes are refused rather than divided: a credit in no lot, since nothing records whose the leftover would be and every listing of credits reads lots (`lot_owner:` gives it an owner first), and a block on an invoice that owes nothing, since there is nothing left for the credit to settle.
 
-`credit_dated:` is the day the currency arrived, not a day anything was paid — applying a credit writes no transaction, so the book has no date for it to state. That the split settled an invoice out of credit at all is recorded on it when the credit is applied (`applied_from_credit`), because nothing about the split afterwards distinguishes it from a bank payment's, and where a deposit is taken and an invoice raised against it the same day, not even the dates do. Re-importing that block attaches the same split to the same lot, which keeps the basis where the book put it; asking for the application again instead would let the engine choose a different credit, and re-applying one already applied leaves invoices whose lots GnuCash drops on load, taking their basis with them.
+`credit_dated:` is the day the currency arrived, not a day anything was paid — applying a credit writes no transaction, so the book has no date for it to state. That the split settled an invoice out of credit at all is recorded on it when the credit is applied (`applied_from_credit`), because nothing about the split afterwards distinguishes it from a bank payment's, and where a deposit is taken and an invoice posted against it the same day, not even the dates do. Re-importing that block attaches the same split to the same lot, which keeps the basis where the book put it; asking for the application again instead would let the engine choose a different credit, and re-applying one already applied leaves invoices whose lots GnuCash drops on load, taking their basis with them.
 
 ### Securities are not foreign currency
 
@@ -501,7 +501,7 @@ Checked 2 cost basis(es); 1 disagree with their own figures:
 
 The factors listed are the ones the derivation multiplied, and only those: a transaction already in CAD has one, `value / amount`, while a USD-denominated one has that and the `CAD per USD` rate its CAD splits imply. Nothing is printed for a step that was not taken.
 
-That rate is every base-currency split taken together — the CAD they carry over the foreign currency they are worth — not whichever split is read first. Each is rounded to the cent on its own, so a taxed invoice's income and tax lines give slightly different ratios though both were converted at one rate: 33.33 USD at 10% tax, posted at 1.4, books 46.66 CAD over 33.33 and 4.66 over 3.33, which are 1.40006 and 1.39940. Reading one split priced the whole basis at whichever it happened to reach; summing cancels most of the rounding and cannot depend on order.
+That rate is every base-currency split taken together — the CAD they carry over the foreign currency they are worth — not whichever split is read first. Each is rounded to the cent on its own, so an invoice's income and tax lines give slightly different ratios though both were converted at one rate: 33.33 USD at 10% tax, posted at 1.4, books 46.66 CAD over 33.33 and 4.66 over 3.33, which are 1.40006 and 1.39940. Reading one split priced the whole basis at whichever it happened to reach; summing cancels most of the rounding and cannot depend on order.
 
 Nothing is inferred back out of those figures. A rate runs forward — the file states it, the foreign amount is multiplied by it, and the result is rounded to the unit the receiving account is held to. The effective rate the ledger then carries is that rounding's doing: 45.00 USD at a stated 1.405 books 63.23 CAD, whose ratio is 6323/4500, and that is correct rather than a discrepancy to be detected.
 
@@ -555,7 +555,7 @@ The user decides which bases a sale draws on and in what amounts. Selling 200 US
 	Income:FX Gain $residual$ CAD
 ```
 
-Cost released is 135.00 + 65.00 = 200.00 CAD against 208.50 of proceeds, so `Income:FX Gain -8.50 CAD`. The first basis is exhausted, the second keeps 50.00 USD available.
+The cost consumed is 135.00 + 65.00 = 200.00 CAD against 208.50 of proceeds, so `Income:FX Gain -8.50 CAD`. The first basis has no balance left, the second keeps 50.00 USD available.
 
 ### You can only sell currency you actually hold
 
@@ -580,7 +580,7 @@ This tool keeps books; it does not support trading a position the book does not 
 | a sale against an invoice that is not yet paid | `cost basis <guid> is a split on 'Assets:Accounts Receivable USD', and the invoice it belongs to has not been collected — that USD is owed, not held, so there is none to sell…` |
 | a cost other than the basis's | `this split sells 100.00 USD valued at 120.00 CAD, but cost basis <guid> cost 1.35 CAD per USD, i.e. 135.00 CAD — value what is sold at the basis it picks, so the CAD the sale fetched and the residual gain or loss stand apart` |
 | a guid matching no split | `cost_basis_split_guid '<guid>' matches no split in the book` |
-| a guid matching a split that holds no foreign currency | `cost_basis_split_guid '<guid>' names a split that is no USD cost basis — a basis is a split that brought USD into the book (an invoice, a bill, a purchase or a borrowing)` |
+| a guid matching a split that holds no foreign currency | `cost_basis_split_guid '<guid>' matches a split that is no USD cost basis — a basis is a split that brought USD into the book (an invoice, a bill, a purchase or a borrowing)` |
 | a basis with no balance recorded | `cost basis <guid> has no balance recorded — the split was not written by this tool, so how much of its USD is still unsold is not known and cannot be assumed to be all of it…` |
 | a `payment:` block spending a foreign account whose bases still have a balance | `this bill pays 100.00 USD out of 'Assets:Bank:USD', whose cost bases still have 200.00 USD of balance between them, and spending that has to say which cost basis it comes out of. A payment block cannot — GnuCash writes its bank split. Write the settlement as an ordinary transaction with cost_basis_split_guid: on the bank line and attach it with txn_guid: / txn_split_guid:` |
 | a settlement into a foreign bank with no rate for **that bank's** currency | `this invoice is in USD and settles into HKD, so valuing the cash needs the HKD/CAD rate on 2026-02-25, which the rates file does not carry: …` |
@@ -597,7 +597,7 @@ A refusal that can only come later is caught by one of two different mechanisms,
 | a **transaction** | it is destroyed and what it drew is given back with it, and the rest of the file lands as normal |
 | a **payment inside an invoice or bill** | the whole import is abandoned: the book is left exactly as it was found, and nothing else from that file is written either |
 
-Both leave every basis where it was, which is the guarantee that matters, but they are not the same behaviour and a file half-lands in neither case. The second is the blunter of the two — a settlement values itself against the basis it releases, so what a refusal after that point would have to give back is not one drawdown but everything the invoice has done, and abandoning the book is the only answer that cannot leave the two disagreeing.
+Both leave every basis where it was, which is the guarantee that matters, but they are not the same behaviour and a file half-lands in neither case. The second is the blunter of the two — a settlement values itself against the basis it consumes, so what a refusal after that point would have to give back is not one drawdown but everything the invoice has done, and abandoning the book is the only answer that cannot leave the two disagreeing.
 
 Measured on a book holding 200.00 USD across two bases: a file carrying an invoice whose converting payment realizes 3.00 CAD with no split to take it, and an ordinary CAD transaction beside it, is refused with `settling this USD invoice into CAD realizes 3.00 CAD … add a split to the payment block`. Afterwards `fx-balances` reports the same 200.00 USD across the same two bases, and the ordinary transaction is not in the book either — the file landed in full or not at all.
 
@@ -668,7 +668,7 @@ Total USD basis balance: 200.00 USD
 gnucash-plaintext import book.gnucash sell-150.txt
 ```
 
-**4. What the ledger now says.** 200.00 CAD of cost released against 208.50 of proceeds, so the residual booked `Income:FX Gain -8.50 CAD` — an 8.50 CAD gain — and the bases record what is left:
+**4. What the ledger now says.** 200.00 CAD of cost consumed against 208.50 of proceeds, so the residual booked `Income:FX Gain -8.50 CAD` — an 8.50 CAD gain — and the bases record what is left:
 
 ```
 $ gnucash-plaintext fx-balances book.gnucash --with-balance-only
@@ -682,7 +682,7 @@ Total USD basis balance: 50.00 USD
 
 The bank account holds 50 USD and the one remaining basis has 50 USD available — here they agree, because every USD in the account came from a basis in the account. They would not agree if a USD invoice were still outstanding: that A/R basis holds USD the bank has not received yet.
 
-**5. Repaying the borrowing** with the USD still held is the same shape as settling a USD bill with USD cash, above: name the basis the cash comes from, value it at that basis's cost, and let `$residual$` book the difference against what the loan was raised at.
+**5. Repaying the borrowing** with the USD still held is the same shape as settling a USD bill with USD cash, above: name the basis the cash comes from, value it at that basis's cost, and let `$residual$` book the difference against what the loan was written at.
 
 ---
 

@@ -1,0 +1,16 @@
+# Dated rates into CAD, for undoing a link onto an account kept in a currency
+# the split carries no figure in.
+#
+# JPY is here to be refused *with* a rate for it. A third foreign currency is
+# turned away whatever is passed — the arithmetic is not the problem, the cost
+# basis is — and a refusal proved against a file with no JPY line in it would
+# only be proving that the rate was missing. This file is what makes the
+# refusal mean what it says.
+#
+# So nothing here ever converts into yen, and no yen figure is ever rounded.
+USD/CAD:
+  2026-01-05: 1.40
+  2026-02-20: 1.37
+JPY/CAD:
+  2026-01-05: 0.0091
+  2026-02-20: 0.0093

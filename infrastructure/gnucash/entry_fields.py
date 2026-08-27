@@ -104,7 +104,7 @@ def billable_to(lib, entry_ptr):
     keeps it as a `GncOwner` on the entry — a second owner beside the
     vendor's, which is what makes `billable:` worth anything: a line marked
     billable to nobody is one GnuCash cannot offer when the customer's
-    invoice is raised. A job is its other chargeback target, persists as
+    invoice is created. A job is its other chargeback target, persists as
     owner type 3, and is what `other_owner_id` names.
 
     **An owner is judged by what it names, not by its type.** `gncEntryCreate`

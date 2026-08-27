@@ -1,0 +1,38 @@
+# 100.00 CAD parked in a CAD account, in an entry quoted in USD.
+#
+# The book is CAD and the invoice is CAD, so the split holds the book's own
+# currency — but the transaction it sits in does not. GnuCash quotes an entry
+# in a currency both sides can be expressed in, and here that is the bank's.
+#
+# It is the one shape where the order of the tests in
+# `the_amount_the_new_account_takes` decides the answer. A CAD `--to` matches
+# both "kept in the commodity the split already holds" and "kept in CAD where
+# the transaction is quoted elsewhere", and the first wins: the split takes
+# its own amount, and no rate is needed though the entry is foreign. Read the
+# other way round the run would ask for `--fx-rates` it has no use for.
+#
+# What this fixture produces: a USD transaction, `Assets:Bank:USD` +75.00 USD
+# against `Assets:Suspense CAD` −100.00 CAD valued −75.00 USD, neither split
+# in a lot.
+#
+# Verified by tests/integration/test_unlinking_a_linked_transaction.py.
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Suspense CAD
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-18 * "Money in, CAD parked, USD bank"
+	guid: "11223344556677889900112233445566"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 75.00 USD
+		guid: "22334455667788990011223344556611"
+		account.commodity.mnemonic: "USD"
+	Assets:Suspense CAD -100.00 CAD
+		guid: "33445566778899001122334455661122"
+		account.commodity.mnemonic: "CAD"
+		share_price: "0.75"
+		value: "-75.00"

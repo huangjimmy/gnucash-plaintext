@@ -1,6 +1,6 @@
 # The bill's payment, linked by `txn_guid:` alone.
 #
-# The payable side of `a_payment_naming_only_the_parked_transaction.txt`, and
+# The payable side of `a_payment_giving_only_the_parked_transaction.txt`, and
 # the one branch of this feature no bill exercised: every other bill fixture
 # here names its split or groups several, so both take a different path.
 #

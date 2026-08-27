@@ -1,7 +1,7 @@
 # BILL-USD-001 linked to the money that left the USD bank and was parked in
 # the CAD account.
 #
-# The mirror of a_payment_naming_the_parked_split.txt. The settlement is USD
+# The mirror of a_payment_giving_the_parked_split.txt. The settlement is USD
 # throughout — USD bill, USD payable, USD bank — so `amount: 100` is the
 # payment and no rate is stated.
 #

@@ -8,8 +8,8 @@ Two of them were left out. The bill comparison skipped `taxable:` and
 `tax_included:`, on the reasoning that GnuCash could not persist a bill
 entry's tax flags — which was true of a vendor bill handled as a customer
 invoice, and is not true of one handled as a bill (CLAUDE.md §8). Both are
-written on import and both are read back, so untaxing a bill line in the
-ledger reported `unchanged` and left it taxed.
+written on import and both are read back, so making a bill line not taxable in the
+ledger reported `unchanged` and left it taxable.
 """
 
 from fractions import Fraction
@@ -110,7 +110,7 @@ class TestWhatIsNotEdited:
         """Importing the edited file again must find nothing left to do.
 
         The `before` file is all `taxable: true`, so re-importing it never
-        meets a line that is untaxed *and* names a tax table — which is the
+        meets a line that is not taxable *and* names a tax table — which is the
         combination a comparison can disagree with the writer about. On a
         posted bill that disagreement is not a wrong number: it unposts,
         destroys the posting, orphans the payments and rebuilds, every run.

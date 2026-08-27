@@ -1,6 +1,6 @@
 """A payment refused after its settlement drew a basis down changes nothing.
 
-A settlement values itself against the cost basis it releases, so the drawdown
+A settlement values itself against the cost basis it consumes, so the drawdown
 happens before the entry can be judged complete. What a refusal after that
 point would have to give back is not one drawdown but everything the invoice
 has done, so the import is abandoned rather than unwound: the book is left as

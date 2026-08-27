@@ -8,7 +8,7 @@
 #
 # Contrast it with fx_buy_usd_with_bank_fee.txt, where a 2.70 CAD fee is NOT
 # part of what the currency cost. The difference is what the base-currency
-# split is: a discount reduces the revenue the receivable was raised for, so it
+# split is: a discount reduces the revenue the receivable was posted for, so it
 # belongs in the cost; a fee is a separate expense the bank charged, so it does
 # not. Both directions matter — counting the fee overstates the basis, ignoring
 # the discount understates it, and either way every gain later measured against

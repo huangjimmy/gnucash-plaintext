@@ -1,6 +1,6 @@
 # Sell all 200.00 USD the book holds after a 100.00 USD invoice was overpaid
 # with 200.00 USD: 100 against the invoice's own basis, 100 against the credit
-# the overpayment left. Both were carried at 1.40, so the cost released is
+# the overpayment left. Both were carried at 1.40, so the cost consumed is
 # 140.00 + 140.00 = 280.00 CAD, and the 290.00 CAD the sale fetched leaves
 # $residual$ booking a 10.00 CAD gain.
 #

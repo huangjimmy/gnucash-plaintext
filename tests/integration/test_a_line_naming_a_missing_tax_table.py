@@ -13,8 +13,9 @@ and saying so once costs a message; not saying it costs the posting
 transaction every time the ledger is read.
 
 Both sides are refused the same way — an invoice entry and a bill entry — and
-`taxable: false` is refused too: the name is what the comparison reads, so an
-untaxed line naming a missing table loops exactly like a taxed one.
+`taxable: false` is refused too: the name is what the comparison reads, so a
+line that is not taxable and names a missing table loops exactly like a
+taxable one.
 """
 
 from pathlib import Path
@@ -77,7 +78,7 @@ def _import(tmp_path, taxable: str):
         'import', '--new', str(book), str(ledger), '--include-business-objects'])
 
 
-class TestATaxedLine:
+class TestATaxableLine:
     def test_it_is_refused(self, tmp_path):
         result = _import(tmp_path, 'true')
 
@@ -89,7 +90,7 @@ class TestATaxedLine:
         assert 'GST' in result.output, result.output
 
 
-class TestAnUntaxedLine:
+class TestALineThatIsNotTaxable:
     """The name is what the comparison reads, so `taxable: false` loops too."""
 
     def test_it_is_refused_as_well(self, tmp_path):

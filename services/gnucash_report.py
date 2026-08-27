@@ -1610,7 +1610,7 @@ def _one_matching_template(test: str, what: str, wanted, remedy: str) -> str:
     which drew.
 
     `remedy` is what to do about it, and the two branches do not share one.
-    A name that two reports answer to is escaped by naming a guid instead.
+    A name that two reports answer to is escaped by giving a guid instead.
     A *guid* that two answer to is not escaped that way: they collided
     because they are equal once case and dashes are set aside, so every
     spelling the reader could type — including either id quoted back at them

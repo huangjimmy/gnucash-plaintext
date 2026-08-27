@@ -195,7 +195,7 @@ def test_a_sale_can_spread_across_several_bases(tmp_path):
     assert '0.00 USD' in listing, listing
 
     exported = _export_text(runner, book, tmp_path / 'after.txt')
-    # Cost released 135.00 + 65.00 = 200.00 against 208.50 of proceeds.
+    # Cost consumed 135.00 + 65.00 = 200.00 against 208.50 of proceeds.
     assert 'Income:FX Gain -8.50 CAD' in exported, exported
 
 
@@ -461,7 +461,7 @@ def test_a_settlement_arriving_as_base_currency_opens_no_second_basis(tmp_path):
     Written by hand with the money arriving as CAD, a settlement and a
     prepayment are the same three lines; only the lot differs, and neither
     hand-written split has one. This is the settlement half: the receivable
-    already opened its 100.00 USD basis when it was raised, and the credit
+    already opened its 100.00 USD basis when it was written, and the credit
     that closes it brings nothing in.
 
     Reading every lot-less credit as a prepayment — which is what recognising
@@ -558,7 +558,7 @@ def test_prepaying_a_vendor_from_a_usd_bank_moves_the_basis_across(tmp_path):
 def test_a_refund_naming_no_lot_reads_as_the_receivable_it_resembles(tmp_path):
     """`lot_owner:` decides on the debit side too, not only the credit side.
 
-    A refund and a receivable raised by hand are the same three lines. What
+    A refund and a receivable written by hand are the same three lines. What
     separates them is the lot — a refund settles the owner lot no invoice
     owns — so a debit naming none is read as a receivable and establishes a
     basis, exactly as a credit naming none is read as a settlement and does
@@ -797,7 +797,7 @@ def test_a_bare_retarget_dividing_a_credit_carries_its_cost(tmp_path):
     assert divided.exit_code == 0, divided.output
 
     # Recorded as a credit spent, and the 60.00 left of it still costs what it
-    # cost — 1.4, not the 1.37 this invoice was raised at.
+    # cost — 1.4, not the 1.37 this invoice was posted at.
     exported = _export_text(runner, book, tmp_path / 'out.txt')
     block = exported.split('invoice "INV-USD-THIRD"')[1]
     assert 'from_credit: #True' in block, block

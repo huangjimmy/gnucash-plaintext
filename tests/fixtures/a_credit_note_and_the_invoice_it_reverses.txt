@@ -53,11 +53,12 @@
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
 
-# Taxed and discounted on purpose: a credit note reversing a taxed invoice is
-# the ordinary case, and it is the only thing that asks `gncEntryGetDocTaxValue`
-# and `gncEntryGetDocTaxValues` what a credit note's line is worth. Untaxed,
-# those two are never reached with a figure at all, and whether GnuCash negates
-# an invoice's tax the same way it negates the line's would be an assumption.
+# With tax and discounted on purpose: a credit note reversing an invoice with
+# tax is the ordinary case, and it is the only thing that asks
+# `gncEntryGetDocTaxValue` and `gncEntryGetDocTaxValues` what a credit note's
+# line is worth. With no tax on the line those two are never reached with a
+# figure at all, and whether GnuCash negates an invoice's tax the same way it
+# negates the line's would be an assumption.
 taxtable "SALES TAX"
 	entry:
 		account: "Liabilities:Sales Tax"

@@ -1293,7 +1293,7 @@ def _execute_unpost(book: Book, ids: List[str], by_guid: bool,
         orphans = find_lot_payment_transactions(rec)
         # Q-035: a foreign-currency record's A/R or A/P split *is* a cost
         # basis. Unposting destroys it, so anything measured against it is
-        # refused loudly rather than left naming a split the book no longer
+        # refused loudly rather than left giving a split the book no longer
         # holds.
         require_cost_basis_unused(book, rec, kind, rid)
         # Q-035: the lot survives the unpost holding whatever settled the

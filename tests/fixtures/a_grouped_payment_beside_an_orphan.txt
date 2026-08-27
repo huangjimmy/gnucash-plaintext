@@ -11,7 +11,7 @@
 # that counts it makes 80.00 of a 30.00 residue and refuses the export that
 # wrote it.
 #
-# What this fixture produces: both named splits in this invoice's lot, the
+# What this fixture produces: both splits applied in this invoice's lot, the
 # 30.00 parked as the customer's credit, and the orphan left alone.
 #
 # Verified by

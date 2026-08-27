@@ -8,8 +8,8 @@ and the next export wrote that currency back over the edit. The ledger and the
 book then disagreed for good, with the ledger losing and nothing said.
 
 Applying it is not a small edit. An owner's currency is what their invoices
-and bills are raised in, and a posted invoice's is what its receivable splits
-are denominated in — changing either means re-raising them, which is a
+and bills are created in, and a posted invoice's is what its receivable splits
+are denominated in — changing either means creating them again, which is a
 decision rather than a field. So the file is refused, and says which two
 currencies it is between, in the words that fit the kind it is refusing.
 """
@@ -98,26 +98,36 @@ class TestEditingItToUsd:
                     if oid in line and 'CAD' in line and 'USD' in line]
         assert refusals, result.output
 
-    @pytest.mark.parametrize('oid,says', [
-        ('C-CCY', "a customer's invoices and bills are raised in"),
-        ('V-CCY', "a vendor's invoices and bills are raised in"),
-        ('INV-CCY', "this invoice's lines and its posting are denominated"),
-        ('BILL-CCY', "this bill's lines and its posting are denominated"),
+    @pytest.mark.parametrize('oid,says,remedy', [
+        ('C-CCY', "a customer's invoices and bills are created in",
+         'create the new ones under a customer in USD'),
+        ('V-CCY', "a vendor's invoices and bills are created in",
+         'create the new ones under a vendor in USD'),
+        ('INV-CCY', "this invoice's lines and its posting are denominated",
+         'create a new invoice in USD'),
+        ('BILL-CCY', "this bill's lines and its posting are denominated",
+         'create a new bill in USD'),
     ])
-    def test_it_says_what_that_kinds_currency_is(self, book, oid, says):
-        """The sentence has to fit the kind it is refusing.
+    def test_it_says_what_that_kinds_currency_is(self, book, oid, says,
+                                                 remedy):
+        """The sentence has to fit the kind it is refusing, both halves of it.
 
         One sentence served all four kinds by naming what they hold
         generically, and a rename of that word left the owner sentence
         addressed to a record: *"A currency is what an invoice's invoices and
-        bills are raised in … raise the new ones under an invoice."* Every
+        bills are created in … create the new ones under an invoice."* Every
         other assertion here reads the two currency codes, which that text
         still carried, so the run stayed green while the sentence stopped
         meaning anything.
+
+        The guard added then read the `what` clause alone, which left the
+        remedy — the half a reader actually acts on — free to be renamed into
+        nonsense by the next pass. It is read here too, for all four kinds.
         """
         result = self._again(book, oid)
 
         assert says in result.output, result.output
+        assert remedy in result.output, result.output
 
     @pytest.mark.parametrize('oid', list(MOVED))
     def test_it_does_not_report_itself_unchanged(self, book, oid):

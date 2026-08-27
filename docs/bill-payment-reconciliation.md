@@ -94,7 +94,7 @@ bill "BILL-PARTIAL-100"
 		memo: "Second instalment"
 ```
 
-Tax does not change the mechanics — it only raises the payable total. A taxed bill of net $1000 + GST 5% + PST 7% = **$1120** paid $60 stays open at **−$1052** (its posting is −$1120, the payment +$60); a shortfall is always measured against the tax-inclusive total.
+Tax does not change the mechanics — it only raises the payable total. A bill with tax of net $1000 + GST 5% + PST 7% = **$1120** paid $60 stays open at **−$1052** (its posting is −$1120, the payment +$60); a shortfall is always measured against the tax-inclusive total.
 
 ## Bill overpayment (vendor credit)
 
@@ -129,7 +129,7 @@ bill "BILL-OVERPAY-100"
 		prepayment: 50.00
 ```
 
-For a taxed bill the residual is measured against the tax-inclusive total the same way: net $100 + 12% = $112 paid $150 leaves a **+$38** vendor credit and exports `prepayment: 38.00`.
+For a bill with tax the residual is measured against the tax-inclusive total the same way: net $100 + 12% = $112 paid $150 leaves a **+$38** vendor credit and exports `prepayment: 38.00`.
 
 Apply the credit to the next bill from the same vendor with `auto_apply_credit: true`, or list open vendor credits with `find-prepayments --vendor V001`.
 
@@ -205,7 +205,7 @@ Credits are always owner-scoped. In a book with several suppliers each holding a
 
 ## Correcting a mis-applied bill payment: fresh + linked, then unapply / re-link
 
-A single bill is often settled by a *mix* of payment kinds, and the fix for a mistake is `unapply-payment` (peel a payment; the bill stays posted, the bank tx is never deleted) rather than unpost. Worked on the taxed $1120 bill (net 1000 + GST 50 + PST 70), settled by two partial payments — a fresh $1000 (`ApplyPayment`, mints its own bank tx) plus a *linked* $120 (a `payment:` block whose `txn_guid:` links a pre-existing $120 bank tx):
+A single bill is often settled by a *mix* of payment kinds, and the fix for a mistake is `unapply-payment` (peel a payment; the bill stays posted, the bank tx is never deleted) rather than unpost. Worked on the $1120 bill with tax (net 1000 + GST 50 + PST 70), settled by two partial payments — a fresh $1000 (`ApplyPayment`, mints its own bank tx) plus a *linked* $120 (a `payment:` block whose `txn_guid:` links a pre-existing $120 bank tx):
 
 ```
 bill "BILL-HERO-1120"      posted lot -1120
@@ -216,7 +216,7 @@ bill "BILL-HERO-1120"      posted lot -1120
 
 Three corrections from that settled state, each observed:
 
-- **Linked the wrong tx** — peel just the $120: `unapply-payment book BILL-HERO-1120 --bill --txn <120-bank-tx> --to "Liabilities:Due to vendor"`. The $1000 stays applied, the bill drops to **−$120** outstanding, and the $120 bank tx survives (only its split's account changed).
+- **Linked the wrong tx** — peel just the $120: `unapply-payment book BILL-HERO-1120 --bill --txn <120-bank-tx> --to "Liabilities:Due to vendor"`. The $1000 stays applied, the bill drops to **−$120** outstanding, and the $120 bank tx survives (only its split's account changed, and its amount with it if the accounts are kept in different currencies).
 - **Pay from a prior credit instead** — peel everything: `unapply-payment book BILL-HERO-1120 --bill --all --to "Liabilities:Due to vendor"`. The bill returns to **−$1120** fully outstanding; re-import it with `auto_apply_credit: true` to settle it from an existing vendor credit rather than cash (the credit lot is consumed by the amount of the bill, any residual staying open).
 - **Applied the wrong bank tx for the net** — peel the $1000 (`--txn <1000-bank-tx>`), leaving the $120 applied and **−$1000** outstanding; then import the correct $1000 bank tx and re-import the bill with a `payment:` block whose `txn_guid:` links it. The lot closes again (0.00), now settled by the corrected tx, and the original $1000 tx survives in your `--to` account.
 

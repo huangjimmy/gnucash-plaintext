@@ -1,8 +1,8 @@
 # One payment of BILL-USD-001, made of two splits of one transaction.
 #
-# The bill half of `a_payment_naming_two_settling_splits.txt`. Nothing about
+# The bill half of `a_payment_giving_two_settling_splits.txt`. Nothing about
 # the spelling changes on this side: the money left once, so it is one block,
-# and the splits it names are the payable ones.
+# and the splits it applies are the payable ones.
 #
 # What this fixture produces: both payable splits in the bill's lot, the bill
 # settled, and the ledger and the printed page each writing one `payment:`

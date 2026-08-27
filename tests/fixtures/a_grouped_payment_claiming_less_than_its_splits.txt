@@ -1,13 +1,13 @@
-# A grouped block whose `amount:` is not the sum of the splits it names.
+# A grouped block whose `amount:` is not the sum of the splits it applies.
 #
-# README: "`amount:` on such a block is the sum of the splits it names", and
+# README: "`amount:` on such a block is the sum of the splits it applies", and
 # the reason is that the same file has to mean one thing in two books. In the
-# book that holds the transaction the named splits settle the invoice by their
+# book that holds the transaction the splits applied settle the invoice by their
 # own figures — 60 and 40, so 100. In a book that does not, the guids resolve
 # to nothing and the payment is entered from the block, so `amount: 60` books
 # 60 for money that moved 100.
 #
-# Nothing weighed it. The in-book path matches a naming block by guid, so
+# Nothing weighed it. The in-book path matches a grouped block by guid, so
 # `_single_payment_matches` — the only thing that reads `amount:` — never runs,
 # and the grouped branch checked existence, account, lot, owner and the total
 # against what is owed without ever looking at the stated figure. Every sibling
@@ -15,7 +15,7 @@
 # that skipped it.
 #
 # What this fixture produces: a refusal quoting the 60.00 stated and the 100.00
-# the named splits come to.
+# the splits applied come to.
 #
 # Verified by
 # tests/integration/test_linking_a_split_not_on_the_receivable.py.

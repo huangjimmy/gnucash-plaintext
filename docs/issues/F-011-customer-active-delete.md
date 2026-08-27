@@ -27,14 +27,14 @@ uses the retire/hide workflow.
 ### 2. No way to delete a customer that has no invoices
 
 Clients occasionally want to fully remove a customer they created by mistake
-(typo in name, duplicate entry, etc.) before any invoices are raised against
+(typo in name, duplicate entry, etc.) before any invoices are created for
 it.
 
 > **Note on customer deletion**: deletion is a destructive, irreversible
 > operation. The recommended approach for retiring a customer is always
 > `archive-customers` (soft-hide via `SetActive(False)`), which preserves all
 > invoice history. `delete-customers` should only be used for customers that
-> were created by mistake and have never had any invoices raised against them.
+> were created by mistake and have never had any invoices created for them.
 
 GnuCash exposes two options via Python bindings:
 - `SetActive(False)` — hides the customer; invoices are unaffected.

@@ -133,5 +133,5 @@ class TestAnOwnerWhoseCurrencyWasEdited:
         assert result.exit_code != 0, result.output
         assert 'is in CAD in this book and the file says USD' in result.output, \
             result.output
-        assert 'raise the new ones under a customer in USD' in result.output, \
+        assert 'create the new ones under a customer in USD' in result.output, \
             result.output

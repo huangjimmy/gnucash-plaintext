@@ -221,3 +221,17 @@ The refusal is for the transaction rather than for the split, because no split o
 ## Rename "retarget" to "link" everywhere a reader sees it
 
 The code calls this "retarget" — in `_retarget_counter_split_to_lot`, `_retarget_choices`, `_refuse_an_ambiguous_retarget`, in the refusal quoted above, in `find-orphan-payments` and `unpost` output, and 34 times across README and docs. It is **linking a bank transaction to an invoice's payment**, and that is what it should be called wherever a reader can see it.
+
+## Undoing it: `unlink`
+
+A link had no way back. `unapply-payment` was the nearest thing and it set the account and nothing else, which is this issue's own defect running backwards: a 100.00 USD settlement given a CAD account kept the figure 100.00 and became 100 Canadian dollars, with nothing disagreeing because the split's *value* was never touched.
+
+`unlink` is the undo, and `unapply-payment` restates through the same function, so the two cannot differ. The split comes off the receivable, leaves the record's lot, and takes the account `--to` gives — restated for that account, since a split carries an amount in the commodity of the account it is on and a value in the currency the transaction is quoted in. The transaction itself survives whole.
+
+Neither command can refuse the other's case, because the book does not record which it holds: measured on 5.10, a bank entry reads as no transaction type at all until a `payment:` block gives its guid and `'P'` afterwards, which is exactly what the engine stamps on a payment it creates. `tests/research/what_tells_a_linked_payment_from_an_applied_one_probe.py` is the measurement.
+
+What both refuse: an account in a third foreign currency, whatever rates are passed — the converted amount would be currency in the book with no cost basis behind it — and an account kept too coarse to state the figure, which would round it in silence.
+
+And what a settlement drew out of a cost basis comes back when it is taken off. A converting settlement lowers the receivable's basis balance by the units it converted; leaving that spent made the record unsettleable, since re-applying the money hit "that USD has already been sold against it" about currency the book had just gone back to being owed.
+
+**The `Income:FX Gain` split is not deleted, and cannot be.** A settlement that converts at a rate other than the `share_price:` of the split that opened the basis realizes a difference, and the payment block is required to say where it belongs — the import refuses the block otherwise, naming `Income:FX Gain $residual$ CAD`. That split is the file's own, in the transaction the file wrote, and surviving the undo whole is what these commands promise. Measured on `fx_invoice_usd_paid_from_cad_bank.txt`: after the give-back the basis reads 100.00 USD undisposed while the income statement carries −3.00 CAD realized on disposing of it. Both describe what happened, and nothing here can decide whose line to rewrite. Applying the money to another record with another `$residual$` line records the difference twice; the first line is the reader's to remove. `test_a_settlements_cost_basis_comes_back.py` pins the measurement.

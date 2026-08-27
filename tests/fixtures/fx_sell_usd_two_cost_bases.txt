@@ -1,6 +1,7 @@
 # Sell 150 USD for 208.50 CAD, measured against two cost bases: all 100 USD of
-# the one bought at 1.35, and 50 USD of the one borrowed at 1.30. Cost released
-# is 135.00 + 65.00 = 200.00 CAD, so $residual$ books an 8.50 CAD gain.
+# the one bought at 1.35, and 50 USD of the one borrowed at 1.30. The cost
+# consumed is 135.00 + 65.00 = 200.00 CAD, so $residual$ books an 8.50 CAD
+# gain.
 2026-03-01 * "Sell 150 USD"
 	currency.mnemonic: "CAD"
 	Assets:Bank:USD -100.00 USD

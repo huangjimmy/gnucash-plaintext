@@ -427,8 +427,8 @@ state between an invoice and a credit note — so a block that leaves it out is 
 ordinary invoice or bill, and a block on a credit note that leaves it out turns it
 into one. That is a difference the comparison reports and the re-import acts on,
 unlike every other unnamed key. It matters most for a ledger written before this
-release, which names the key nowhere: re-importing one flips every credit note in it
-to an ordinary invoice and reposts it the other way round. Export with this release
+release, which states the key nowhere: re-importing one turns every credit note in it
+into an ordinary invoice and reposts it the other way round. Export with this release
 first.
 
 **An `entry:` line carries that same rule down to its keys**, which is the other
@@ -1303,7 +1303,7 @@ Every exported `posted:` block carries a `posted_txn_guid:` line — the GUID of
 
 The `date:`, `amount:`, `bank_account:` and `memo:` of a `payment:` block are the payment **transaction's**, not the invoice's — GnuCash writes them onto the splits `ApplyPayment` makes, and nothing about the invoice or the bill holds them. So correcting one word of a memo and re-importing changes that transaction, and the run reports it under `Updated:` with the transactions while the invoice itself reads `unchanged`. The invoice has not moved: its posting transaction keeps its guid, its lines keep theirs, and the payment goes on settling the lot it was already in.
 
-The memo is the **settling split's** — the receivable or payable split in this invoice's lot, the one `txn_split_guid:` names — and that is the split every writer reads it back from, so a correction lands where the next export looks for it. One block describes one settlement, so it states the memo of the one split that settlement is: a payment settling two invoices carries a split for each and its blocks name one apiece, and the bank split they share is neither block's. A block naming no split — hand-written, and free to — states that same settling split's memo; only where the invoice has none in that transaction is it the split its `bank_account:` names.
+The memo is the **settling split's** — the receivable or payable split in this invoice's lot, the one `txn_split_guid:` gives — and that is the split every writer reads it back from, so a correction lands where the next export looks for it. One block describes one settlement, so it states the memo of the one split that settlement is: a payment settling two invoices carries a split for each and its blocks name one apiece, and the bank split they share is neither block's. A block naming no split — hand-written, and free to — states that same settling split's memo; only where the invoice has none in that transaction is it the split its `bank_account:` names.
 
 **The bank split follows**, and only where it still holds what the settling split held: that is how `ApplyPayment` leaves the two sides of a payment, and keeping them together is the difference between correcting a memo and breaking one in half. It does not follow on a payment settling several records, whose bank split is shared and whose wording a bank feed gave it. Everything else on the transaction — the other invoice's portion, a wire fee, the residue of an overpayment — is nobody's block to rewrite, whatever memo it happens to carry.
 
@@ -1543,7 +1543,7 @@ On import the invoice is posted normally, then `gncInvoiceAutoApplyPayments` run
     txn_split_guid: "f792882e159c4cb0b6bab44ec1479f51"
 ```
 
-Which of an invoice's payments is a credit is **recorded when the credit is applied**, as `applied_from_credit: "true"` on the split the application moves into the invoice's lot (visible on that split in the transaction section of an export). It cannot be worked out afterwards: a consumed credit's split sits in the lot exactly as a bank payment's split does, GnuCash keeps no record of the lot it came from, one payment commonly settles the invoice it was made against *and*, months later, a second invoice that took what it left over — and when a deposit is taken and an invoice raised against it the same day, even the dates agree. A split with nothing recorded on it, such as one written in the GnuCash GUI, reads as a payment. The invoice the bank really paid keeps its `bank_account:`, `date:` and `prepayment:` lines.
+Which of an invoice's payments is a credit is **recorded when the credit is applied**, as `applied_from_credit: "true"` on the split the application moves into the invoice's lot (visible on that split in the transaction section of an export). It cannot be worked out afterwards: a consumed credit's split sits in the lot exactly as a bank payment's split does, GnuCash keeps no record of the lot it came from, one payment commonly settles the invoice it was made against *and*, months later, a second invoice that took what it left over — and when a deposit is taken and an invoice posted against it the same day, even the dates agree. A split with nothing recorded on it, such as one written in the GnuCash GUI, reads as a payment. The invoice the bank really paid keeps its `bank_account:`, `date:` and `prepayment:` lines.
 
 `prepayment:` on that bank-paid invoice is what the payment left over **when it was made**, not what is left today: a 150.00 payment against a 100.00 invoice writes `prepayment: 50.00` even after a later invoice has taken 30.00 of it, because a rebuild reaches that payment before the later invoice exists. It is decided by the same recorded fact, so the two cannot disagree.
 
@@ -1553,7 +1553,7 @@ Importing one attaches that split to this invoice's lot, which is what settles i
 
 A credit **in no lot** can be attached whole but not divided, and the refusal names `lot_owner:` as the remedy: parking what is left over means opening a credit in somebody's name, and a lot is the only thing that records whose a split is — a deposit paying several owners cannot be asked. Attaching such a split whole opens no new credit and stays ordinary. A block on an invoice that **owes nothing** — cash has already settled it in full — is refused for the same reason it cannot be attached: the lot would go past zero.
 
-**Whose money it is is checked** too, and what is asked depends on what the file names. Where a block names a split, that split's **lot** must belong to this invoice's owner — one customer's credit cannot settle another's invoice. Where it names only `txn_guid:`, the link moves whichever counter split the transaction carries, so the **transaction's** owner is asked instead. The two are deliberately not combined: one deposit can settle invoices and bills of several owners at once, each block naming its own portion, and the transaction reports whichever owner GnuCash recorded on it — asking it there would refuse the second invoice for the first one's owner. A split in no lot has no owner of its own; its transaction answers for it where that transaction carries a single receivable or payable split — a payment GnuCash wrote for one owner — and where it carries several, nothing is refused, because none of them can be shown to be the one. Nor is a transaction off a bank feed, which records no owner and is what the linking workflow exists to attach.
+**Whose money it is is checked** too, and what is asked depends on what the file gives. Where a block gives a split, that split's **lot** must belong to this invoice's owner — one customer's credit cannot settle another's invoice. Where it names only `txn_guid:`, the link moves whichever counter split the transaction carries, so the **transaction's** owner is asked instead. The two are deliberately not combined: one deposit can settle invoices and bills of several owners at once, each block naming its own portion, and the transaction reports whichever owner GnuCash recorded on it — asking it there would refuse the second invoice for the first one's owner. A split in no lot has no owner of its own; its transaction answers for it where that transaction carries a single receivable or payable split — a payment GnuCash wrote for one owner — and where it carries several, nothing is refused, because none of them can be shown to be the one. Nor is a transaction off a bank feed, which records no owner and is what the linking workflow exists to attach.
 
 Nothing is re-decided: re-running the original request against a book that has moved on could apply a different credit, and re-applying an already-applied one leaves every invoice of that owner with a lot GnuCash discards on load (`invoice_postlot_handler: assertion 'lot' failed`), so a rebuilt book came back with nothing paid. Everything the block states is checked — the split must be on the named transaction and on this invoice's own posted account, carry the amount claimed with the sign a credit has on that side, and still be the owner's to spend — and a block that cannot be honoured is refused rather than half-applied. Writing `from_credit: true` beside a `bank_account:` or a `date:` is refused too, naming the key to drop.
 
@@ -1761,7 +1761,7 @@ already treats it as absent — an export drops a `lot_owner:` guid and a
 the format could take and could not write back: the lot came out of the
 next export with no `lot_guid:` line at all, and the re-import fell back to
 the owner's oldest open credit. It is not
-read as a block naming no guid: a block that names none is matched by
+read as a block giving no guid: a block that gives none is matched by
 position, so a guid the reader gave up on would put the block's values on
 whichever object of its kind was left over, and a block creating one would
 get a guid GnuCash minted rather than the one the file asked for. The
@@ -1787,7 +1787,7 @@ invoice "INV-001"
 ```
 
 Editing an invoice rewrites the lines its blocks name and leaves the rest of
-the invoice alone. A line no block names is removed; a block naming no line
+the invoice alone. A line no block gives is removed; a block giving no line
 is added. So correcting one word of one description changes that one line,
 and every other line keeps the guid the book gave it — which is what anything
 holding a reference to a line needs, and what makes two consecutive exports of
@@ -1862,12 +1862,12 @@ When a payment was applied to the wrong invoice (or a deposit turned out not to 
 
 ```
 # INV has ONE payment — no selector needed. That payment is detached and
-# the freed amount moved to the named liability; INV returns to Outstanding.
+# the payment split takes the named liability; INV returns to Outstanding.
 gnucash-plaintext unapply-payment ledger.gnucash INV-2026-001 --to "Liabilities:Due to customer"
 
 # INV has SEVERAL payments — peel exactly one, named by its bank-tx GUID.
 # The other payments stay applied (INV becomes partially-paid). Here the
-# freed amount is routed to income (e.g. it was really interest income).
+# payment split takes an income account (e.g. it was really interest income).
 gnucash-plaintext unapply-payment ledger.gnucash INV-2026-001 --txn <bank-tx-guid> --to "Income:Misc"
 
 # THREE payments, two of them wrong — repeat --txn to peel just those two.
@@ -1882,15 +1882,78 @@ gnucash-plaintext unapply-payment ledger.gnucash INV-2026-001 --all --to "Liabil
 gnucash-plaintext unapply-payment ledger.gnucash BILL-2026-001 --bill --to "Liabilities:Due to vendor"
 ```
 
-What it does: detaches the named payment's AR/AP split from the invoice/bill's posted lot — so the lot reopens (Outstanding, or partially-paid if other payments remain) — and moves that freed split to the account you name with `--to`. The invoice stays **posted**; the bank/income transaction is **never deleted** (the money still happened); only the freed split's account changes, so the transaction stays balanced.
+What it does: detaches the payment's AR/AP split from the invoice/bill's posted lot — so the lot reopens (Outstanding, or partially-paid if other payments remain) — and gives that payment split the account you name with `--to`. The invoice stays **posted**; the bank/income transaction is **never deleted** (the money still happened); only the payment split's account changes, and its amount with it where the two accounts are kept in different currencies. Its *value* — the transaction's own side of it — is untouched either way, so the transaction stays balanced. Pass `--fx-rates` for a `--to` account in a currency the split carries no figure in; see `unlink` below, which is the same operation under the name for undoing a link.
 
-- **`--to` is required**, and accepts **any** account type. The payment's prior account was overwritten when it was applied and isn't recorded, so only you know where the freed money belongs. Money you received that is no longer applied to an invoice is, in accounting terms, a payable you may owe back — typically a liability such as `Liabilities:Due to customer` / `Due to shareholder` (which need not be a GnuCash *A/Payable*-type account); you may equally route it to income, a clearing account, or an asset carried negative. It is your call.
+- **`--to` is required**, and accepts **any** account *type* — what it is kept in is the constraint, not what type it is: an account in a third foreign currency, or one holding fund units rather than a currency, is refused, and an account kept coarser than the figure is too. The payment's prior account was overwritten when it was applied and isn't recorded, so only you know where that money belongs. Money you received that is no longer applied to an invoice is, in accounting terms, a payable you may owe back — typically a liability such as `Liabilities:Due to customer` / `Due to shareholder` (which need not be a GnuCash *A/Payable*-type account); you may equally route it to income, a clearing account, or an asset carried negative. It is your call.
 - **Which payment(s)**: one payment → no selector needed; several → `--txn <bank-tx-guid>` to peel one, **repeat `--txn`** to peel a subset (two of three), or `--all` for every payment. On a multi-payment record, omitting all selectors is an error — never an implicit "all". Payments are identified by transaction GUID, so two payments of the same amount are unambiguous.
 - `--bill` targets a vendor bill; `--by-guid` resolves the id argument as an invoice/bill GUID.
+- `--fx-rates` is needed only for a `--to` account kept in the book's own currency where the payment split carries no figure in it. An account in a third foreign currency is refused whatever you pass — see the table under `unlink` below, which is the whole rule.
 
 To find a payment's bank-tx GUID, run `find-orphan-payments` or read it from the invoice's exported `payment:` blocks (`txn_guid:`).
 
-After unapplying, the freed amount sits in your `--to` account. To re-link it to the *correct* invoice, apply it there as you would any payment (e.g. a `payment:` block with `txn_guid:` linking that transaction, or `auto_apply_credit:` if you routed it to an AR credit).
+After unapplying, that money sits in your `--to` account. To link it to the *correct* invoice, apply it there as you would any payment (e.g. a `payment:` block with `txn_guid:` linking that transaction, or `auto_apply_credit:` if you routed it to an AR credit).
+
+#### Undoing an invoice's payment by unlinking the transaction that paid it: `unlink`
+
+An invoice can be paid without entering any money. The bank feed arrived first, or a director paid a supplier out of pocket, so the transaction is already in the book; a `payment:` block giving its guid puts the receivable's account on one of its splits, and that split becomes the settlement. `unlink` undoes that, and what it leaves is a payment with nothing to do with the invoice any more — the split comes off the receivable, leaves the record's lot, and takes the account `--to` gives, while the invoice owes again:
+
+```bash
+# The split takes Assets:Due From Director again; the invoice returns to Outstanding.
+gnucash-plaintext unlink ledger.gnucash INV-2026-001 --to "Assets:Due From Director"
+
+# One of several payments, by its transaction guid; repeatable, or --all.
+gnucash-plaintext unlink ledger.gnucash INV-2026-001 --txn <tx-guid> --to "Assets:Due From Director"
+```
+
+**The transaction is not touched.** It was the book's own record before the link existed and it survives the unlink whole: nothing is deleted, its other side, its description, its date and every guid come through, and what changes is the one split the link wrote on — the account it is on, and the amount that account is kept in. Nothing here was made by this tool, so nothing here is this tool's to remake. That is the difference from `unpost-invoices`, which destroys the posting.
+
+**An account in another currency is restated, not renumbered.** A split carries two figures — an amount, in the commodity of the account the split is on, and a value, in the currency the transaction is quoted in — so the figure changes with the account:
+
+An account may be kept in one of **two** currencies: the commodity the split already holds, or the book's own. Anything else is refused, whatever you pass. The book's own currency is **CAD** throughout this tool — it is not read from the book — so a ledger kept in another currency will be told to use an account in CAD, and refused for the currency it actually keeps its books in.
+
+| the account `--to` gives | the split takes | rate |
+|---|---|---|
+| kept in the commodity the split already holds | the amount, unchanged — only the account differs | none |
+| kept in CAD, where the split holds something else and the transaction is quoted in CAD | the **value**, which the split already carries | none |
+| kept in CAD, where the split holds something else and the transaction is quoted elsewhere | converted at `--fx-rates`, on the transaction's own date | required |
+| kept in any other currency | refused — see below | — |
+
+**The first row wins wherever it applies**, which is why the other two say what the split does *not* hold. A CAD split of a USD-quoted entry — the shape a CAD invoice linked to a parked CAD split makes — takes its own amount and needs no rate, though the entry it sits in is foreign.
+
+The currency the transaction is *quoted* in is not a third option. It is one of those two or it is refused like any other: a USD invoice settled by an HKD-quoted entry cannot send its split to an HKD account, because that would put HKD in the book with no cost basis behind it.
+
+So a 100.00 USD settlement in a CAD-quoted entry, unlinked to a CAD account, is written as the −139.00 CAD the split already says it is worth — not left at 100.00 to be read as Canadian dollars. No rate is asked for in the first two rows, because none is needed: both figures are already on the split.
+
+The third row is the case where nothing on the split is in the currency you are giving — an invoice and its payment both in USD, going back to a CAD `Due From Director`. That genuinely converts, so it takes a rate:
+
+```bash
+gnucash-plaintext unlink ledger.gnucash INV-2026-001 \
+  --to "Assets:Due From Director" --fx-rates rates.yaml
+```
+
+The rate is read at the transaction's own date, not today's, and the figure is rounded to the unit the destination account is kept to. Without `--fx-rates` it is refused, and the refusal names the file that would answer it.
+
+**A fourth row is refused whatever you pass**, and it is not the arithmetic — that converts perfectly well. It is what the converted figure would leave behind. A split that brings foreign currency into the book carries a `share_price:` and a `value:` in the currency the transaction is quoted in, and its cost basis is opened from the two (see [Multi-currency](docs/multi-currency.md)); restating a settlement states neither figure. Unlinking a USD settlement onto a yen account wrote −14946 JPY, and `fx-balances` then listed the USD receivable and no JPY at all — yen held with no basis behind them. Use an account kept in the split's own currency, the transaction's, or CAD. Buying yen is a transaction of its own.
+
+**An account too coarse for a figure read off the split is refused as well**, rather than rounded into. `commodity_scu:` lets an account be kept coarser than its own currency — whole dollars, no cents — and a −139.37 CAD settlement written onto one lands as −139 with nothing said, leaving a split whose amount and value disagree. Importing a figure finer than the account it is destined for is refused for the same reason, so this is the same rule on the way back out.
+
+A **converted** figure is rounded to that account instead of refused, because a rate may carry any number of decimals: 100.00 USD at 1.39375 is 139.375 CAD, which no account states, so a conversion has to be brought to the destination's unit or ordinary rates would be refused on ordinary accounts. The two cases are told apart by where the figure came from — read off the split, or computed — not by the account.
+
+`--to` is required for the reason it is on `unapply-payment` — the account the split carried before the link was overwritten and never recorded, so only you know where it belongs.
+
+**What a converting settlement drew out of a cost basis comes back; the realized difference does not.** Settling a 100.00 USD invoice booked at 1.40 into a CAD bank at 1.37 draws 100.00 USD out of the receivable's basis — that USD was spent — and realizes 3.00 CAD. Taking the payment off gives the basis back, because the currency was not sold, it went back to being owed; without that the record was unsettleable, since re-applying the money hit "that USD has already been sold against it".
+
+The `Income:FX Gain` split is not deleted, and nothing about it is rewritten. It is your line, not this tool's: a payment block that realizes a difference has to say where it belongs (`Income:FX Gain $residual$ CAD`) or the import refuses the block, so that split is one of the splits of the transaction you wrote — and neither command touches any split but the one the link wrote on.
+
+**So a CAD `--to` takes 140.00, not the 137.00 the bank received.** Where a difference was realized the entry is quoted in CAD and the settlement split's value is written at the **`share_price:`** of the posting split that opened the basis — its value over its amount, 1.40, so 100.00 USD is valued 140.00 CAD — while the bank split carries what the bank was credited and your `$residual$` line carries the 3.00 between them. The value is the figure a CAD account takes, so it is 3.00 away from the receipt, and it is the only figure that leaves the entry balancing: writing 137.00 would put the transaction 3.00 out, and the only way to close that is to rewrite your line. Naming a USD account instead takes the 100.00 USD unchanged. Measured on that book, the result is a ledger saying both things — 100.00 USD owed and undisposed, and 3.00 CAD realized on disposing of it. Both are true of what happened. **If you then apply the money to another record with another `$residual$` line, the difference is recorded twice** — remove the first line, or rebuild that payment transaction.
+
+**A vendor bill is unlinked the same way**, with `--bill`; everything above holds, with the payable in place of the receivable and the signs the other way round — a bill's settlement is positive on the payable where an invoice's is negative on the receivable, so a +100.00 USD split becomes +140.00 CAD and not −140.00. `--by-guid` reads the id argument as an invoice or bill GUID, for the legacy books where two records share an id. Selecting among several payments is `--txn <guid>`, repeatable, or `--all`; omitting both on a record with several is an error rather than a guess, and the refusal lists the guids to choose between.
+
+```bash
+gnucash-plaintext unlink ledger.gnucash BILL-2026-001 --bill --to "Assets:Due From Director"
+```
+
+**Either command takes either kind of payment.** `unapply-payment` is the same operation under the name for a payment this tool created, and neither refuses the other's case, because nothing in the book says which one you have: a bank entry reads as no transaction type at all until a `payment:` block names it and `P` afterwards, which is exactly what GnuCash stamps on a payment its own machinery creates. Both end in the same place — the split off the receivable and out of the lot, the record owing again — so pick the name that describes what you did.
 
 
 Compared to the re-import path:
@@ -2067,7 +2130,7 @@ Refused, each before anything moves:
 - **a `Transaction` naming no `PaymentSplit` at all.** Its children are what it is for; childless it says only what `txn_guid:` says, and is then read by nobody;
 - **two `Transaction` blocks under one payment.** One payment is one transaction — money that arrived twice is two payments, and the format spells that as a block each;
 - **the same `PaymentSplit` named twice.** A split settles a record once, so naming it again claims a settlement the transaction does not carry;
-- **a `PaymentSplit` on an account a settlement cannot be moved off**, where the block has more than one. Three kinds of account can be: this record's own receivable, or a bill's payable; an account money passes through — a bank, cash, an asset, a credit card, a plain liability; and, for a bill alone, an account the bill's own posting books. Anything else is refused. So is the split on the account `account:` states, whichever kind that account is: that is the side the money moved through, its guid is on the transaction, and it is the likeliest one to reach for. A block with exactly one `PaymentSplit` is read like `txn_guid:` + `txn_split_guid:` and takes that spelling's checks instead — the sign check that catches the bank side, and the account and commodity checks below;
+- **a `PaymentSplit` on an account a settlement cannot be taken from**, where the block has more than one. Three kinds of account can be: this record's own receivable, or a bill's payable; an account money passes through — a bank, cash, an asset, a credit card, a plain liability; and, for a bill alone, an account the bill's own posting books. Anything else is refused. So is the split on the account `account:` states, whichever kind that account is: that is the side the money moved through, its guid is on the transaction, and it is the likeliest one to reach for. A block with exactly one `PaymentSplit` is read like `txn_guid:` + `txn_split_guid:` and takes that spelling's checks instead — the sign check that catches the bank side, and the account and commodity checks below;
 - **the splits applied coming to more than the record still owes.** The block claims every split under it, so what is over is not a settlement but the owner's credit — leave it out and declare it with `prepayment:`;
 - **a `PaymentSplit` for a split already in a lot** — somebody's settlement, or an owner's parked credit, which taking would leave short with every figure still balancing. Not one this record's own unpost abandoned, and not one already settling this very record. Stricter than `txn_split_guid:` on purpose: a single split's guid there spends a credit deliberately, while a block applying several says which of them settle this record rather than which credit to spend;
 - **a `Transaction` beside `from_credit:`.** There is no grouped spelling of a credit block: a credit names what it spends with `txn_guid:` and `txn_split_guid:`. A `prepayment:` sits beside a `Transaction` block like any other, and is weighed against the receivable splits of the transaction the block does **not** apply — a residue is the payment's, not any one split's. On a printed page it is the only place a residue can be stated at all, that page carrying no transaction section for a `lot_owner:` line, so a payment made of several splits beside a residue stays one block and says what was left over.
@@ -2085,7 +2148,7 @@ The split that settles an invoice may be sitting anywhere the bookkeeper put it 
 		txn_split_guid: "708192a3b4c5d6e7f809122334455667"
 ```
 
-**Where the split given in `txn_split_guid:` is in another currency than the invoice, the figure on it is not the settlement.** GnuCash quotes an entry in a currency both sides can be expressed in, so 100.00 USD received into a USD bank and booked against a CAD account makes the entry CAD and leaves 139.00 CAD on that split, at whatever rate applied that day. Both numbers are an artefact of the account it sits on and neither survives it being replaced. The settlement is **what the bank received**, and that is what is read: the split is moved onto the receivable and restated from the bank side, and the transaction is requoted in the invoice's currency. No rate is asked for, because nothing converted.
+**Where the split given in `txn_split_guid:` is in another currency than the invoice, the figure on it is not the settlement.** GnuCash quotes an entry in a currency both sides can be expressed in, so 100.00 USD received into a USD bank and booked against a CAD account makes the entry CAD and leaves 139.00 CAD on that split, at whatever rate applied that day. Both numbers are an artefact of the account it sits on and neither survives it being replaced. The settlement is **what the bank received**, and that is what is read: the split is given the receivable's account and restated from the bank side, and the transaction is requoted in the invoice's currency. No rate is asked for, because nothing converted.
 
 **That restatement works only where the bank split is in the invoice's own currency.** Then the bank figure *is* the settlement and nothing has to be converted. Where the two differ the payment genuinely converts, only the payer knows at what rate, and nothing in the transaction states one — so it is refused rather than guessed at.
 
@@ -2100,7 +2163,7 @@ Refused, each before anything moves, so a refused file has changed nothing:
 - **a bank in a different currency from the receivable**, where the settlement genuinely converts and only the payer knows at what rate;
 - several splits applied with **one or more** parked in another currency. Only a payment that applies a single split restates it from what the bank received, and dividing a settlement between several would need a ratio the book does not state — so one foreign split among them is enough to refuse;
 - a split already in a lot — it is somebody's settlement or credit, and taking it would leave that one short with every figure in the book still balancing. Not one this record's own unpost abandoned, and not one already in this record's own lot, which is what re-importing an export points at;
-- **a split on an account that is not one money passes through.** What may be applied is this record's own receivable or payable — the settlement as it stands — or a split on an asset, bank, cash, credit-card or liability account, waiting to be identified. Income, expense and equity are the other side of what the entry already records, so moving one onto the receivable would take a sale out of the P&L with every figure still balancing — or, on a bill, an expense off it and onto the payable. **Unless it is a bill, the bill posts to that same account, and the account is neither income nor equity** — see "Link an existing expense transaction to a bill payment" below for what that supports. Every refusal here states the record's own account, which for a bill is the payable and not a receivable its book has not got;
+- **a split on an account that is not one money passes through.** What may be applied is this record's own receivable or payable — the settlement as it stands — or a split on an asset, bank, cash, credit-card or liability account, waiting to be identified. Income, expense and equity are the other side of what the entry already records, so giving one the receivable would take a sale out of the P&L with every figure still balancing — or, on a bill, an expense off it and onto the payable. **Unless it is a bill, the bill posts to that same account, and the account is neither income nor equity** — see "Link an existing expense transaction to a bill payment" below for what that supports. Every refusal here states the record's own account, which for a bill is the payable and not a receivable its book has not got;
 - **a split whose account holds units rather than a currency** — a fund, a stock, anything a commodity is quoted in. A settlement is restated in the record's own currency, so moving one would write 100.00 USD over the 1.000 units that stood there. This is asked of the account's *commodity*, not its type: `type: Asset` may hold a fund, and it is refused just as a Mutual Fund account is.
 
 Both spellings are refused alike — the split's own guid, in `txn_split_guid:` or in a lone `PaymentSplit`, and its transaction's guid alone in `txn_guid:`, which reaches the same split.
@@ -2239,7 +2302,7 @@ clear error rather than producing a confusing "not found".
 history and can be undone by re-importing the record without `active: false`.
 
 Use `delete-customers` only for customers created by mistake that have **never
-had any invoices raised against them**. Deletion is blocked if any invoices
+had any invoices created for them**. Deletion is blocked if any invoices
 exist (paid or unpaid, posted or unposted):
 
 ```bash
@@ -2363,7 +2426,7 @@ An id that is unique and holds no separator — which is nearly all of them — 
 
 **Plaintext format (Q-017)**: `--format plaintext` emits the same canonical plaintext syntax used by `export` — with one line left out, an `entry:`'s `guid:`, and **informational** totals added — `entry_amount` and `entry_tax` per line, repeatable `breakdown:` sub-blocks showing which tax account got which dollar (audit-friendly for combined HST = GST + PST), and invoice-level `invoice_subtotal`, `invoice_tax_total`, `invoice_total`. The exporter never emits these (round-trip stays minimal); the renderer does. On re-import every one of them is asked of GnuCash again — what it makes the line worth and what it makes the invoice worth — and a page whose figures are not the book's is refused, naming the field and both numbers. So a rendered plaintext file carries its own tamper detection. A draft carries all three totals too: they are computed from the entries, so an unposted invoice or bill has them before it has splits.
 
-**A printed page names no line guids**, where an exported ledger names one under every `entry:`. A page is read into books that are not the one it was printed from, and those hold the same invoice under guids of their own — so naming the source book's would make every line of the page a line the reading book has not got, and a posted invoice or bill there would be refused rather than matched. The page carries the *invoice's* guid and its posting transaction's, which is what relinks a payment; a line's guid names nothing a reader of the page can use.
+**A printed page gives no line guids**, where an exported ledger gives one under every `entry:`. A page is read into books that are not the one it was printed from, and those hold the same invoice under guids of their own — so naming the source book's would make every line of the page a line the reading book has not got, and a posted invoice or bill there would be refused rather than matched. The page carries the *invoice's* guid and its posting transaction's, which is what relinks a payment; a line's guid names nothing a reader of the page can use.
 
 **Free text of your own, without a template of your own.** GnuCash's page has no row for two things people want on an invoice, so two rows are added to it and nothing else:
 
@@ -2540,7 +2603,7 @@ When using `--strategy update`, each field is updated only if it is explicitly p
 
 In other words, **omitting a field means "leave it alone"**, while supplying an empty string means "clear it". This applies to both split `memo` and split `action`.
 
-**Which split a block updates is decided by its `guid:`**, the same way the transaction's own guid decides which transaction it is. Position decides only where a block states none, which is what a hand-written file does. Two blocks stating one split's guid are refused: a guid is one split, so the second would fall through to position and put its amount and memo on a split the file never mentioned. So is a block stating a guid the book holds on something that is not a split of that transaction — another transaction's split, an account, a line. **Changing a block's account line moves that split**, keeping its guid: recategorising is the commonest edit anyone makes to an exported ledger, and the split used to be destroyed and rebuilt under a guid GnuCash minted. A split sitting in a **lot** is not moved — it is settling an invoice or standing as an owner's credit, and moving it would leave a receivable's lot holding a split that now lives on an expense account. That is refused, and the refusal gives the lot's guid; the way to move such money is the invoice's own `payment:` block or `unapply-payment`. A split in a lot that *no* block states is refused rather than removed, for the same reason: one mistyped digit of a `guid:` reads as a new split, and dropping the one it meant would take a settlement out of its invoice's lot while the account's balance stayed put — nothing looking wrong, and the invoice reading unpaid. Every exported split carries one, so a file whose two `Expenses:Dining` blocks were rewritten the other way round updates each split with its own block — where pairing by position moved the amounts between them, reported `Updated: 1`, and left the book contradicting the file that had just been imported into it. Two splits of the same amount are the case that moved in silence: 15.00 for coffee and 15.00 for cake swap their *memos* and nothing else, so no total changes, no balance changes, and no figure looks wrong.
+**Which split a block updates is decided by its `guid:`**, the same way the transaction's own guid decides which transaction it is. Position decides only where a block states none, which is what a hand-written file does. Two blocks stating one split's guid are refused: a guid is one split, so the second would fall through to position and put its amount and memo on a split the file never mentioned. So is a block stating a guid the book holds on something that is not a split of that transaction — another transaction's split, an account, a line. **Changing a block's account line moves that split**, keeping its guid: changing a split's account is the commonest edit anyone makes to an exported ledger, and the split used to be destroyed and rebuilt under a guid GnuCash minted. A split sitting in a **lot** is not moved — it is settling an invoice or standing as an owner's credit, and moving it would leave a receivable's lot holding a split that now lives on an expense account. That is refused, and the refusal gives the lot's guid; the way to move such money is the invoice's own `payment:` block or `unapply-payment`. A split in a lot that *no* block states is refused rather than removed, for the same reason: one mistyped digit of a `guid:` reads as a new split, and dropping the one it meant would take a settlement out of its invoice's lot while the account's balance stayed put — nothing looking wrong, and the invoice reading unpaid. Every exported split carries one, so a file whose two `Expenses:Dining` blocks were rewritten the other way round updates each split with its own block — where pairing by position moved the amounts between them, reported `Updated: 1`, and left the book contradicting the file that had just been imported into it. Two splits of the same amount are the case that moved in silence: 15.00 for coffee and 15.00 for cake swap their *memos* and nothing else, so no total changes, no balance changes, and no figure looks wrong.
 
 **How conflicts are detected:**
 

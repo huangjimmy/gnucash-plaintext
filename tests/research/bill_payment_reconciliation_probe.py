@@ -168,7 +168,7 @@ bill "BILL-OVER-100"
 '''
 
 
-# D) Taxed bills (GST 5% + PST 7% on net 100 → total 112) overpaid and
+# D) Bills with tax (GST 5% + PST 7% on net 100 → total 112) overpaid and
 #    partially paid — to show payment works against the TAX-INCLUSIVE total.
 TAXTABLE = '''
 taxtable "GST+PST"
@@ -182,7 +182,7 @@ taxtable "GST+PST"
 \t\ttype: PERCENT
 '''
 
-TAXED_BILLS = TAXTABLE + VENDOR + '''
+BILLS_WITH_TAX = TAXTABLE + VENDOR + '''
 bill "BILL-TAX-OVER-112"
 \tvendor_id: "V001"
 \tcurrency: CAD
@@ -462,17 +462,17 @@ def main():
 
     print()
     print('=' * 70)
-    print('D) TAXED BILLS (net 100 + GST5+PST7 = 112) — overpaid + partial')
+    print('D) BILLS WITH TAX (net 100 + GST5+PST7 = 112) — overpaid + partial')
     print('=' * 70)
     gf4 = tmp / 'book4.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gf4),
                             'tests/fixtures/q019_accounts.txt'])
     assert r.exit_code == 0, r.output
-    _import(runner, gf4, TAXED_BILLS, 'taxed.txt', tmp)
-    print('  --- overpaid taxed bill ($112 total, paid $150) ---')
+    _import(runner, gf4, BILLS_WITH_TAX, 'bills_with_tax.txt', tmp)
+    print('  --- overpaid bill with tax ($112 total, paid $150) ---')
     _dump_posting_and_lots(gf4, 'BILL-TAX-OVER-112')
     _export_block(runner, gf4, 'BILL-TAX-OVER-112', tmp)
-    print('  --- partially paid taxed bill ($112 total, paid $60) ---')
+    print('  --- partially paid bill with tax ($112 total, paid $60) ---')
     _dump_posting_and_lots(gf4, 'BILL-TAX-PART-112')
     print('  per-bill posted-lot state:')
     _bill_states(gf4, ['BILL-TAX-OVER-112', 'BILL-TAX-PART-112'])

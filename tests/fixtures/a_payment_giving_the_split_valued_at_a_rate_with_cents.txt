@@ -1,0 +1,37 @@
+# Settling INV-USD-001 with the split whose CAD value is −139.37.
+#
+# The link itself is the ordinary one: the invoice is USD, the split holds
+# 100.00 USD, and the settlement is what the split already says. The rate with
+# cents matters only on the way back out — unlinking onto a CAD account writes
+# the split's value, and −139.37 is a figure an account kept to whole dollars
+# cannot state.
+#
+# What this fixture produces: the split on `Assets:Accounts Receivable USD` at
+# −100.00 USD, valued −139.37 CAD, in the invoice's lot.
+#
+# Verified by tests/integration/test_unlinking_a_linked_transaction.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-04
+    amount: 100
+    account: "Assets:Bank"
+    txn_guid: "aabbccddeeff00112233445566778899"
+    txn_split_guid: "ccddeeff00112233445566778899aabb"

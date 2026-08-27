@@ -98,8 +98,8 @@ class TestWhichLinesTakeTheOddUnits:
     def test_a_line_carrying_no_tax_is_never_handed_any(self):
         """A `taxable: false` line has no tax and no `breakdown:` block under
         it, so a unit landing there states tax the line does not carry and
-        that nothing on the page adds up to. Two taxed lines of 0.9975 beside
-        an untaxed one: both units go to the two that hold tax."""
+        that nothing on the page adds up to. Two taxable lines of 0.9975
+        beside one that is not: both units go to the two that hold tax."""
         parts = [Fraction(9975, 10000), Fraction(9975, 10000), Fraction(0)]
 
         fitted = figures_that_add_up(parts, Fraction(2), 100)
