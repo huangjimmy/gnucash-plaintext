@@ -10,7 +10,7 @@
 # figures being in different currencies and the CAD one about to be discarded.
 #
 # What this fixture produces: the same book as
-# a_payment_naming_the_parked_split.txt — the receivable carrying −100.00 USD
+# a_payment_giving_the_parked_split.txt — the receivable carrying −100.00 USD
 # in the invoice's lot, the entry quoted in USD, no CAD and no rate.
 #
 # Verified by

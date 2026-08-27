@@ -12,7 +12,7 @@
 # names an invoice or a bill, because that is that record's portion and was
 # never left over, and the reader has to ask the same question.
 #
-# What this fixture produces: both named splits in this invoice's lot, the
+# What this fixture produces: both splits applied in this invoice's lot, the
 # 50.00 parked as the customer's credit, and the other invoice untouched.
 #
 # Verified by

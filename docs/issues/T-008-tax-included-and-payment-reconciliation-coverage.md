@@ -42,7 +42,7 @@ segfault the ctypes helper was originally added for — verified on Ubuntu 20.04
 
 ### Reconciliation coverage gaps (untested before this work)
 
-- overpayment / partial payment on a **taxed** invoice/bill (payment applied
+- overpayment / partial payment on an invoice or bill **with tax** (payment applied
   against the tax-inclusive total);
 - settling one invoice with a **mix** of a fresh `ApplyPayment` and a linked
   existing bank tx (`txn_guid:`), then `unapply-payment` (single / `--all`) and
@@ -64,7 +64,7 @@ segfault the ctypes helper was originally added for — verified on Ubuntu 20.04
 - `services/invoice_renderer.py`, `services/bill_renderer.py` (branch under test)
 - `tests/integration/test_tax_included_pricing.py`,
   `test_overpayment_partial_payment_with_and_without_tax.py`,
-  `test_taxed_bill_mixed_payment_unapply_and_relink.py`,
+  `test_a_bill_with_tax_paid_partly_fresh_and_partly_linked.py`,
   `test_credit_attribution_multiple_owners.py`,
   `test_credit_consumption_across_bills.py`,
   `test_credit_consumption_across_invoices.py`,

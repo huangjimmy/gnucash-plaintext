@@ -74,7 +74,7 @@ def probe_invoice(workdir):
     print(f'\ncost basis after posting: {guid}')
     balances(book)
 
-    # 40 USD of a basis that cost 1.40: 56.00 CAD released, sold for 55.60.
+    # 40 USD of a basis that cost 1.40: 56.00 CAD consumed, sold for 55.60.
     sale = os.path.join(workdir, 'sale.txt')
     with open('tests/fixtures/fx_sell_usd_partial.txt') as handle:
         text = (handle.read()

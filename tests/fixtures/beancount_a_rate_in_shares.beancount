@@ -3,7 +3,7 @@
 ; A takeover paying half a share of the acquirer for each share held, plus a
 ; little cash for the fraction left over. `@ 0.5 NASDAQ.NEWCO` is the ratio,
 ; not what the holding is worth, and a split's value is in the transaction's
-; currency — CAD here, off the cash leg — so there is no reading of 0.5 that
+; currency — CAD here, off the cash posting — so there is no reading of 0.5 that
 ; answers the question this tool has to ask.
 ;
 ; Applied as a rate regardless, the 100 shares given up were valued at

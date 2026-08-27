@@ -1,0 +1,15 @@
+# A CAD liability, for money received that is no longer applied to an invoice.
+#
+# What `--to` is usually given: a payment taken off a record is something you
+# may owe back, and this is the shape README names. Opened on its own, with no
+# transaction, so any book can be given one.
+#
+# Verified by tests/integration/test_a_settlements_cost_basis_comes_back.py.
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Due to customer
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"

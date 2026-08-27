@@ -7,7 +7,7 @@
 # division has to do the same accounting, and the part left over has to keep
 # the cost the credit was acquired at — 1.4 CAD/USD, the rate the first invoice
 # was booked at — not a fresh rate for the day this invoice happens to be
-# raised on. Priced at this invoice's own date it would be 1.37, and the book
+# posted on. Priced at this invoice's own date it would be 1.37, and the book
 # would report a gain the customer's money never made.
 #
 # Verified by tests/integration/test_foreign_currency_cost_basis.py.

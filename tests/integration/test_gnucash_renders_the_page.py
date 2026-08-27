@@ -239,8 +239,8 @@ class TestItIsGnuCashsPage:
 
     def test_the_totals_are_the_ones_gnucash_ships(self, rendered):
         """This invoice is `taxable: false`, so there is no tax row at all —
-        the tax rows are one per tax account, named, and an untaxed page
-        has none. `test_q019_draft_tax_render` covers a taxed one."""
+        the tax rows are one per tax account, named, and a page with no tax
+        has none. `test_q019_draft_tax_render` covers one with tax."""
         for label in ('Net Price', 'Total Price', 'Amount Due'):
             assert f'>{label}</td>' in rendered, (label, rendered[-2500:])
 

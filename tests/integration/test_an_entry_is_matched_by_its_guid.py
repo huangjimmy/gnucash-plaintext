@@ -119,23 +119,23 @@ bill""")
 #: The same book with a tax table, and a line on each invoice using it.
 #: What a line keeps when its block stops naming a field is measured on the
 #: tax table, the one field set only where a block names it.
-TAXED = (LEDGER
-         .replace('customer "C-ENT"', 'taxtable "GST"\n'
-                  '\tentry:\n'
-                  '\t\taccount: "Income:Sales"\n'
-                  '\t\trate: 5.0%\n'
-                  '\t\ttype: PERCENT\n'
-                  '\ncustomer "C-ENT"')
-         .replace('\t\tdescription: "Design"\n',
-                  '\t\tdescription: "Design"\n\t\tnotes: "as quoted"\n')
-         .replace('\t\tdescription: "Paper"\n',
-                  '\t\tdescription: "Paper"\n\t\tnotes: "on account"\n')
-         .replace('\t\tprice: 100\n\t\ttaxable: #False\n',
-                  '\t\tprice: 100\n\t\ttaxable: #True\n'
-                  '\t\ttax_table: "GST"\n')
-         .replace('\t\tprice: 20\n\t\ttaxable: #False\n',
-                  '\t\tprice: 20\n\t\ttaxable: #True\n'
-                  '\t\ttax_table: "GST"\n'))
+WITH_TAX = (LEDGER
+            .replace('customer "C-ENT"', 'taxtable "GST"\n'
+                     '\tentry:\n'
+                     '\t\taccount: "Income:Sales"\n'
+                     '\t\trate: 5.0%\n'
+                     '\t\ttype: PERCENT\n'
+                     '\ncustomer "C-ENT"')
+            .replace('\t\tdescription: "Design"\n',
+                     '\t\tdescription: "Design"\n\t\tnotes: "as quoted"\n')
+            .replace('\t\tdescription: "Paper"\n',
+                     '\t\tdescription: "Paper"\n\t\tnotes: "on account"\n')
+            .replace('\t\tprice: 100\n\t\ttaxable: #False\n',
+                     '\t\tprice: 100\n\t\ttaxable: #True\n'
+                     '\t\ttax_table: "GST"\n')
+            .replace('\t\tprice: 20\n\t\ttaxable: #False\n',
+                     '\t\tprice: 20\n\t\ttaxable: #True\n'
+                     '\t\ttax_table: "GST"\n'))
 
 
 def _book(tmp_path, ledger_text=LEDGER):
@@ -458,7 +458,7 @@ class TestALineEditedInPlace:
         file adds up to, with the page in the book disagreeing with the page
         it was imported from.
         """
-        book = _book(tmp_path, TAXED)
+        book = _book(tmp_path, WITH_TAX)
         exported = _exported(book, tmp_path)
         assert exported.count('tax_table: "GST"') == 2, exported
 

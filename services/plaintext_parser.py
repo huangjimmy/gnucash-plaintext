@@ -354,7 +354,7 @@ class PlaintextParser:
                 # top level parsed into a directive nothing ever reads — a
                 # line the file states and the run ignores, which is what
                 # every other unread line here is refused for.
-                # `the_settlement_a_block_names` refuses an astray
+                # `the_settlement_a_block_gives` refuses an astray
                 # `PaymentSplit` one level in on exactly this reasoning; these
                 # are the same mistake one level out.
                 if parent_directive.type != DirectiveType.PAYMENT:
@@ -372,22 +372,22 @@ class PlaintextParser:
                 parent_directive.children.append(obj)
                 self.current_directive = obj
             elif payment_split_guid is not None:
-                # Under the `Transaction` block whose split it names. A split
+                # Under the `Transaction` block whose split it gives. A split
                 # is a child of its transaction everywhere else in this
-                # format, and one written anywhere else names a split of
+                # format, and one written anywhere else gives a split of
                 # nothing.
                 if parent_directive.type != DirectiveType.PAYMENT_TRANSACTION:
                     self.errors.append(
                         f'Error processing line {line_number}: '
                         f'`PaymentSplit "{payment_split_guid}"` is not under a '
-                        f'`Transaction` block, so it names a split of nothing '
+                        f'`Transaction` block, so it gives a split of nothing '
                         f'— it is under {parent_directive.type.name.lower()}, '
-                        f'where nothing would read it. A payment names its '
+                        f'where nothing would read it. A payment gives its '
                         f'settling splits inside the transaction they belong '
                         f'to:\n'
                         f'\t\tTransaction "<the transaction>"\n'
                         f'\t\t\tPaymentSplit "<a split of it>"\n'
-                        f'Indent it under one, or name a single split with '
+                        f'Indent it under one, or give a single split with '
                         f'`txn_split_guid:` instead.')
                     break
                 obj = PlaintextDirective(DirectiveType.PAYMENT_SPLIT,

@@ -5,7 +5,7 @@
 # without a check on what they are indented under, one written here parsed into
 # a directive nothing ever reads — a line the file states and the run ignores.
 #
-# `the_settlement_a_block_names` refuses an astray `PaymentSplit` one level in,
+# `the_settlement_a_block_gives` refuses an astray `PaymentSplit` one level in,
 # on exactly this reasoning. This is the same mistake one level out, and is
 # refused for the same reason: the file says the payment refers to a
 # transaction, the run does not, and nothing tells the reader which.

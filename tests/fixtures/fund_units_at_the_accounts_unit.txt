@@ -1,8 +1,8 @@
 # Fund units are not money, so the account's unit decides what they can hold.
 #
 # FUNDX is declared `fraction: 100` — the number a fund company puts on a
-# prospectus — while the holding account is kept to thousandths, which is how
-# units are actually quoted. 12.345 units is a legal quantity here, and the
+# prospectus — while the account holding them is kept to thousandths, which
+# is how units are actually quoted. 12.345 units is a legal quantity here, and the
 # currency's cent has nothing to say about it: judged as money it would be
 # refused for needing a third decimal, with a message calling fund units "not
 # money this book can record".

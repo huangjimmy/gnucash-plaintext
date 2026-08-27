@@ -21,7 +21,7 @@ The source book contains, in roughly the order the importer processes them:
    - `INV-EX-C-180` ($180) — full $180 via the same Q-016 multi-invoice $250 wire as `INV-EX-B-120`'s remainder.
 5. One vendor bill `BILL-EX-001` ($75 + 13% HST = $84.75) — paid via a Q-004 `txn_guid:` link.
 
-That covers cash payment, a partial payment from a linked bank tx, overpayment with credit residual, credit consumption, multi-invoice shared bank tx, taxed bill, and bill payment from a linked bank tx — every payment shape Q-004/Q-014/Q-015/Q-016 added.
+That covers cash payment, a partial payment from a linked bank tx, overpayment with credit residual, credit consumption, multi-invoice shared bank tx, a bill with tax, and bill payment from a linked bank tx — every payment shape Q-004/Q-014/Q-015/Q-016 added.
 
 ## Step-by-step setup
 

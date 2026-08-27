@@ -348,7 +348,7 @@ def test_a_balance_that_will_not_parse_survives_a_division_as_it_reads(tmp_path)
     credit_txn, credit_split = _the_credit_split(book)
     second = tmp_path / 'second.txt'
     second.write_text(
-        Path('tests/fixtures/fx_invoice_naming_a_part_sold_credit.txt').read_text()
+        Path('tests/fixtures/fx_invoice_giving_a_part_sold_credit.txt').read_text()
         .replace('TXN_GUID', credit_txn).replace('SPLIT_GUID', credit_split))
     result = runner.invoke(cli, ['import', str(book), str(second),
                                  '--include-business-objects', '--fx-rates', RATES])
@@ -387,7 +387,7 @@ def test_dividing_a_credit_with_no_recorded_balance_records_none(tmp_path):
     credit_txn, credit_split = _the_credit_split(book)
     second = tmp_path / 'second.txt'
     second.write_text(
-        Path('tests/fixtures/fx_invoice_naming_a_part_sold_credit.txt').read_text()
+        Path('tests/fixtures/fx_invoice_giving_a_part_sold_credit.txt').read_text()
         .replace('TXN_GUID', credit_txn).replace('SPLIT_GUID', credit_split))
     result = runner.invoke(cli, ['import', str(book), str(second),
                                  '--include-business-objects', '--fx-rates', RATES])
@@ -433,7 +433,7 @@ def test_dividing_a_credit_gives_back_only_what_was_left(tmp_path):
     credit_txn, credit_split = _the_credit_split(book)
     second = tmp_path / 'second.txt'
     second.write_text(
-        Path('tests/fixtures/fx_invoice_naming_a_part_sold_credit.txt').read_text()
+        Path('tests/fixtures/fx_invoice_giving_a_part_sold_credit.txt').read_text()
         .replace('TXN_GUID', credit_txn).replace('SPLIT_GUID', credit_split))
     result = runner.invoke(cli, ['import', str(book), str(second),
                                  '--include-business-objects', '--fx-rates', RATES])
@@ -472,7 +472,7 @@ def test_dividing_a_credit_valued_in_another_currency_balances(tmp_path):
     credit_txn, credit_split = _the_credit_split(book)
     second = tmp_path / 'second.txt'
     second.write_text(
-        Path('tests/fixtures/fx_invoice_naming_a_credit_valued_in_cad.txt').read_text()
+        Path('tests/fixtures/fx_invoice_giving_a_credit_valued_in_cad.txt').read_text()
         .replace('TXN_GUID', credit_txn).replace('SPLIT_GUID', credit_split))
     result = runner.invoke(cli, ['import', str(book), str(second),
                                  '--include-business-objects', '--fx-rates', RATES])

@@ -83,7 +83,7 @@ def _the_credit_carries_the_old_key(book):
 
 
 def _what_that_split_holds(book, guid):
-    """The named split's custom metadata, read back off disk.
+    """That split's custom metadata, read back off disk.
 
     Read from the book rather than from an export: the payment transaction
     carries two −100.00 USD splits on the same account — the first invoice's

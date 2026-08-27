@@ -1,0 +1,51 @@
+vendor "V-NOTAX-BILL"
+	name: "Supplier With No Tax"
+	currency: CAD
+
+bill "BILL-NOTAX-OVER-100"
+	vendor_id: "V-NOTAX-BILL"
+	currency: CAD
+	date_opened: 2026-04-01
+	entry:
+		date: 2026-04-01
+		description: "Materials (no tax, total 100)"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-04-01
+		due: 2026-05-01
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-NOTAX-OVER-100"
+		accumulate: true
+	payment:
+		date: 2026-04-10
+		amount: 150
+		bank_account: "Assets:Bank"
+		memo: "Paid 150 on a 100 bill (overpaid 50)"
+
+bill "BILL-NOTAX-PART-100"
+	vendor_id: "V-NOTAX-BILL"
+	currency: CAD
+	date_opened: 2026-04-02
+	entry:
+		date: 2026-04-02
+		description: "Materials (no tax, total 100)"
+		account: "Expenses:Office Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-04-02
+		due: 2026-05-02
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-NOTAX-PART-100"
+		accumulate: true
+	payment:
+		date: 2026-04-11
+		amount: 60
+		bank_account: "Assets:Bank"
+		memo: "Part payment (40 outstanding on a 100 bill)"

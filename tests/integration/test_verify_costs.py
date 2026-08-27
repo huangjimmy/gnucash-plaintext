@@ -165,7 +165,7 @@ def test_the_cost_pools_every_base_split_rather_than_judging_them(tmp_path):
     number whatever order they are read in, and no verdict is passed on them.
 
     Three criteria for such a verdict were tried and each reported correct
-    books: the ratios against each other (every taxed foreign invoice), each
+    books: the ratios against each other (every foreign invoice with tax), each
     against the pooled rate (a bill of 1.82 CAD for 1.30 USD beside 5.00 for
     3.57 — two lines rounded to their own units, whose ratios differ in the
     third decimal without either being wrong), and the windows the rounding
@@ -189,13 +189,13 @@ def test_the_cost_pools_every_base_split_rather_than_judging_them(tmp_path):
     assert '25/18 CAD/USD' in checked.output, checked.output
 
 
-def test_a_taxed_foreign_invoice_is_not_read_as_two_rates(tmp_path):
+def test_a_foreign_invoice_with_tax_is_not_read_as_two_rates(tmp_path):
     """Rounding is not disagreement.
 
     A USD invoice with a tax entry converts its CAD income and its CAD tax at one rate
     and rounds each to the cent on its own, so their amount-over-value ratios
     differ in the last digits — 1.40006 against 1.39940 on 33.33 USD at 10%.
-    Comparing those ratios to each other calls every taxed foreign invoice
+    Comparing those ratios to each other calls every foreign invoice with tax
     inconsistent, which is the ordinary shape of the thing this feature is
     for. The rate is applied back to each split and rounded the way its value
     was instead.

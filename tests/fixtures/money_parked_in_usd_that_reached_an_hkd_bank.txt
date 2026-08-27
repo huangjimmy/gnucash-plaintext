@@ -1,0 +1,34 @@
+# 100.00 USD parked in a USD account, having reached an HKD bank.
+#
+# The same shape as `money_parked_in_usd_that_reached_a_cad_bank.txt` with a
+# third currency in the bank's place: the entry is quoted in HKD, because that
+# is the currency the cash arrived in, and the parked split holds the USD the
+# invoice is in. The book itself is kept in CAD, so *neither* side of this
+# entry is the book's own currency.
+#
+# That is what makes it worth having. The split states the settlement outright
+# — 100.00 USD against a 100.00 USD invoice — so the link needs no rate and is
+# accepted. What the entry is quoted in only matters on the way back out, and
+# there it is a currency an account may not be kept in.
+#
+# What this fixture produces: an HKD transaction, `Assets:Bank HKD` +780.00 HKD
+# against `Assets:Suspense USD` −100.00 USD valued −780.00 HKD, neither split
+# in a lot.
+#
+# Verified by tests/integration/test_unlinking_a_linked_transaction.py.
+2026-01-01 open Assets:Bank HKD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+
+2026-03-04 * "Money in, USD parked, HKD bank"
+	guid: "ddeeff00112233445566778899aabbcc"
+	currency.mnemonic: "HKD"
+	Assets:Bank HKD 780.00 HKD
+		guid: "eeff00112233445566778899aabbccdd"
+		account.commodity.mnemonic: "HKD"
+	Assets:Suspense USD -100.00 USD
+		guid: "ff00112233445566778899aabbccddee"
+		account.commodity.mnemonic: "USD"
+		share_price: "7.80"
+		value: "-780.00"

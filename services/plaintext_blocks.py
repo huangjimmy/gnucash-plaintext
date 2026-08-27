@@ -260,7 +260,7 @@ def split_was_applied_from_credit(split) -> bool:
     it there. Nothing else in the book can answer it: once applied, a consumed
     credit's split sits in the record's lot exactly as a bank payment's split
     does, GnuCash keeps no record of the lot it came from, and on the day a
-    deposit is taken and an invoice raised against it even the dates are the
+    deposit is taken and an invoice posted against it even the dates are the
     same.
 
     Two things were tried before this and both misread ordinary books. Asking

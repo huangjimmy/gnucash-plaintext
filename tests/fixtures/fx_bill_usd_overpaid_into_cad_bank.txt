@@ -1,10 +1,10 @@
 # The bill mirror of fx_invoice_usd_overpaid_into_cad_bank.txt: a 100.00 USD
 # bill booked at 1.40, overpaid with 200.00 USD costing 274.00 CAD — 1.37.
 #
-# The part that clears the bill is released at what the bill carried, 1.40, so
-# 140.00 CAD of cost leaves; the part overpaid was sent at 1.37, so the
-# prepayment is worth 137.00 CAD. Less cash extinguishing more liability is a
-# gain on this side, so the 3.00 CAD is credited.
+# The part that clears the bill is valued at what the bill carried, 1.40, so
+# 140.00 CAD of cost is consumed with it; the part overpaid was sent at 1.37,
+# so the prepayment is worth 137.00 CAD. Less cash extinguishing more
+# liability is a gain on this side, so the 3.00 CAD is credited.
 #
 # What this fixture produces:
 #

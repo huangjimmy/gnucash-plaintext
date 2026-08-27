@@ -203,7 +203,7 @@ def _import_fixture(runner, book, tmp_path, name, txn_guid='', split_guid=''):
                                '--include-business-objects'])
 
 
-def test_a_block_naming_its_split_walks_each_account_once(tmp_path, monkeypatch):
+def test_a_block_giving_its_split_walks_each_account_once(tmp_path, monkeypatch):
     """The guards before a move share one reading of the account's lots.
 
     Asking whether a lot is still the account's means walking the account's
@@ -278,7 +278,7 @@ def test_a_credit_block_must_say_which_credit(tmp_path):
     book = _book_with_a_credit(runner, tmp_path)
 
     result = _import_fixture(runner, book, tmp_path,
-                             'credit_payment_naming_no_split.txt')
+                             'credit_payment_giving_no_split.txt')
     assert result.exit_code != 0, result.output
     assert 'txn_split_guid' in result.output, result.output
     assert 'auto_apply_credit' in result.output, result.output
@@ -458,7 +458,7 @@ def test_a_credit_takes_only_what_the_cash_before_it_left(tmp_path):
     """80.00 of cash and a 50.00 credit against a 100.00 invoice.
 
     Cash blocks are applied before credit ones, so by the time the credit is
-    reached the invoice owes 20.00, not the 100.00 it was raised for.
+    reached the invoice owes 20.00, not the 100.00 it was posted for.
     Measuring the credit against the invoice's total instead let all 50.00 in
     and took the lot to −30.00 — the invoice neither settled nor open, and
     30.00 of the customer's money inside its lot, where `find-prepayments`
@@ -479,7 +479,7 @@ def test_a_credit_takes_only_what_the_cash_before_it_left(tmp_path):
     assert 'CAD 30.00' in prepayments.output, prepayments.output
 
 
-def test_a_retarget_naming_only_a_transaction_is_guarded_too(tmp_path):
+def test_a_retarget_giving_only_a_transaction_is_guarded_too(tmp_path):
     """Dropping `txn_split_guid:` must not drop the check with it.
 
     A payment block naming just `txn_guid:` retargets the transaction's
@@ -501,7 +501,7 @@ def test_a_retarget_naming_only_a_transaction_is_guarded_too(tmp_path):
 
     txn_guid, _split_guid = _credit_split(book, amount='-10000/100')
     result = _import_fixture(runner, book, tmp_path,
-                             'retarget_naming_only_another_owners_transaction.txt',
+                             'retarget_giving_only_another_owners_transaction.txt',
                              txn_guid)
     assert result.exit_code != 0, result.output
     assert 'C-EXACT' in result.output, result.output
@@ -550,7 +550,7 @@ def test_the_credit_the_block_names_is_the_one_that_is_spent(tmp_path):
     # has to be divided, and it is the March one that must give up 30.00.
     txn_guid, split_guid = _credit_split(book, description='Acme pays ahead again')
     result = _import_fixture(runner, book, tmp_path,
-                             'credit_payment_naming_the_later_credit.txt',
+                             'credit_payment_giving_the_later_credit.txt',
                              txn_guid, split_guid)
 
     assert result.exit_code == 0, result.output
@@ -688,7 +688,7 @@ def test_a_rebuild_takes_its_own_orphan_over_a_loose_sibling(tmp_path):
     assert txn_guid is not None
 
     first = tmp_path / 'alpha.txt'
-    first.write_text((FIXTURES / 'alpha_alone_naming_its_own_portion.txt')
+    first.write_text((FIXTURES / 'alpha_alone_giving_its_own_portion.txt')
                      .read_text().replace('TXN_GUID', txn_guid)
                      .replace('SPLIT_A', splits['-10000/100']))
     assert runner.invoke(cli, ['import', str(book), str(first),
@@ -711,7 +711,7 @@ def test_a_rebuild_takes_its_own_orphan_over_a_loose_sibling(tmp_path):
     assert 'one hundred' in nan.output, nan.output
 
     edited = tmp_path / 'alpha_edited.txt'
-    edited.write_text((FIXTURES / 'alpha_rebuilt_naming_only_the_transaction.txt')
+    edited.write_text((FIXTURES / 'alpha_rebuilt_giving_only_the_transaction.txt')
                       .read_text().replace('TXN_GUID', txn_guid))
     # The edit changes a line, and a line under a posting is not changed by an
     # import — the unpost is a step of its own now. It is what orphans this
@@ -924,7 +924,7 @@ def test_one_deposit_can_settle_two_owners_invoices(tmp_path):
     # remedy for the guard.
     outright = tmp_path / 'outright.txt'
     outright.write_text(
-        (FIXTURES / 'third_invoice_naming_a_spent_split_outright.txt')
+        (FIXTURES / 'third_invoice_giving_a_spent_split_outright.txt')
         .read_text().replace('TXN_GUID', txn_guid)
         .replace('SPLIT_A', splits['-10000/100']))
     named = runner.invoke(cli, ['import', str(book), str(outright),
@@ -962,7 +962,7 @@ def test_one_deposit_can_settle_two_owners_invoices(tmp_path):
 
     nowhere = tmp_path / 'nowhere.txt'
     nowhere.write_text(
-        (FIXTURES / 'invoice_naming_a_transaction_with_no_other_side.txt')
+        (FIXTURES / 'invoice_giving_a_transaction_with_no_other_side.txt')
         .read_text().replace('TXN_GUID', inside_guid))
     empty = runner.invoke(cli, ['import', str(book), str(nowhere),
                                 '--include-business-objects'])
@@ -1142,7 +1142,7 @@ def test_dividing_a_credit_that_belongs_to_no_lot_is_refused(tmp_path):
     assert split_guid is not None
 
     result = _import_fixture(runner, book, tmp_path,
-                             'credit_payment_naming_a_lotless_credit.txt',
+                             'credit_payment_giving_a_lotless_credit.txt',
                              txn_guid, split_guid)
     assert result.exit_code != 0, result.output
     assert 'no lot' in result.output, result.output
@@ -1624,7 +1624,7 @@ def test_a_credit_owned_by_its_lot_is_guarded_by_the_shorter_block_too(tmp_path)
     txn_guid, _split = _credit_split(book, description='Acme pays ahead again')
 
     result = _import_fixture(runner, book, tmp_path,
-                             'retarget_naming_only_a_lot_owned_credit.txt',
+                             'retarget_giving_only_a_lot_owned_credit.txt',
                              txn_guid)
     assert result.exit_code != 0, result.output
     assert 'C001' in result.output, result.output
@@ -1692,7 +1692,7 @@ def test_an_unlotted_split_of_a_single_owner_payment_is_still_guarded(tmp_path):
     txn_guid, split_guid = _credit_split(book, amount='-10000/100')
     result = _import_fixture(
         runner, book, tmp_path,
-        'retarget_naming_an_unlotted_split_of_another_owner.txt',
+        'retarget_giving_an_unlotted_split_of_another_owner.txt',
         txn_guid, split_guid)
     assert result.exit_code != 0, result.output
     assert 'C-EXACT' in result.output, result.output
@@ -2404,7 +2404,7 @@ def _transaction_metadata(book, description):
 
 
 def _split_lot_is_none(book, split_guid):
-    """True when the named split is still in no lot."""
+    """True when the split given in the block is still in no lot."""
     from gnucash import Query, Transaction
 
     repo = GnuCashRepository(str(book))

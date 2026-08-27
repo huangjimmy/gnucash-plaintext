@@ -652,11 +652,11 @@ def test_two_payments_of_the_same_shape_are_paired_the_only_way_that_works(tmp_p
     assert runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS]).exit_code == 0
 
     bank_path = tmp_path / 'bank.txt'
-    bank_path.write_text(_fx('two_payments_one_named_one_described_bank.txt'))
+    bank_path.write_text(_fx('two_payments_one_given_one_described_bank.txt'))
     assert runner.invoke(cli, ['import', str(gf), str(bank_path)]).exit_code == 0
     retarget_txn_guid = _bank_tx_guid(gf, 50.0)
 
-    text = _fx('two_payments_one_named_one_described.txt').format(
+    text = _fx('two_payments_one_given_one_described.txt').format(
         retarget_txn_guid=retarget_txn_guid)
     inv_path = tmp_path / 'invoice.txt'
     inv_path.write_text(text)

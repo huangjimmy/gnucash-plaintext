@@ -59,7 +59,7 @@ from __future__ import annotations
 
 import traceback
 from fractions import Fraction
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional, Set
 
 import gnucash.gnucash_core_c as _gc
 from gnucash import GncLot
@@ -252,7 +252,7 @@ def _base_per_unit_of(transaction, tx_currency: str) -> Optional[Fraction]:
 
     They are all converted at the one rate the transaction was entered at, but
     each is rounded to the cent on its own, so individually they disagree in
-    the last digit: a taxed USD invoice at 1.4 books 46.66 CAD against 33.33
+    the last digit: a USD invoice with tax, posted at 1.4, books 46.66 CAD against 33.33
     USD and 4.66 against 3.33, which are 1.40006 and 1.39940. Reading one
     split answered with whichever of those it reached first — the tax line, on
     a book where the tax is listed before the income — and priced the whole
@@ -900,12 +900,32 @@ def amounts_by_cost_basis(transaction) -> Dict[str, Fraction]:
     return taken
 
 
-def give_back_to_cost_bases(book, taken: Dict[str, Fraction]) -> None:
-    """Raise each named basis's basis balance by what was taken from it."""
+def give_back_to_cost_bases(book, taken: Dict[str, Fraction]) -> Set[str]:
+    """Raise each basis's balance by what was taken from it.
+
+    Returns the guids whose balance actually came back, which is not always
+    all of them: the basis split may be gone from the book, and
+    `raise_cost_basis_balance` writes nothing when the stored text will not
+    parse — the fault `--verify-costs` exists to report, which no give-back
+    may paper over.
+
+    A caller that records the drawdown somewhere needs to know which: the
+    unapply path drops `cost_basis_split_guid` from the settlement, and
+    dropping it where the balance did not come back would destroy the only
+    thing saying which basis that settlement drew from, leaving the basis
+    short with nothing able to say by how much.
+    """
+    restored: Set[str] = set()
     for guid, amount in taken.items():
         basis = find_split_by_guid(book, guid)
-        if basis is not None:
-            raise_cost_basis_balance(basis, amount)
+        if basis is None:
+            continue
+        raise_cost_basis_balance(basis, amount)
+        # Reads back as a figure only where one was written: an unparseable
+        # balance answers `None` before and after.
+        if cost_basis_balance_of(basis) is not None:
+            restored.add(guid)
+    return restored
 
 
 def find_split_by_guid(book, guid: str):
@@ -1005,7 +1025,7 @@ def _validate_pick(book, selling_split, basis_guid: str):
 
     if not establishes_cost_basis(basis):
         raise Exception(
-            f'{COST_BASIS_SPLIT_KEY} {basis_guid!r} names a split that is no '
+            f'{COST_BASIS_SPLIT_KEY} {basis_guid!r} matches a split that is no '
             f'{basis_currency} cost basis — a basis is a split that brought '
             f'{basis_currency} into the book (an invoice, a bill, a purchase or '
             f'a borrowing)')
@@ -1206,7 +1226,7 @@ def require_no_cost_basis_dependents(book, transaction, label: str) -> None:
     """Refuse to delete a transaction whose cost basis something measures against.
 
     Deleting it destroys the split the basis lives on, leaving those
-    transactions naming a guid the book no longer holds — the export then fails
+    transactions giving a guid the book no longer holds — the export then fails
     to re-import, and nothing gives them their currency back. The mirror of the
     unpost guard, for the other way a basis can be destroyed.
     """
@@ -1217,7 +1237,7 @@ def require_no_cost_basis_dependents(book, transaction, label: str) -> None:
     raise ValueError(
         f'{label} cannot be deleted: it establishes a cost basis that '
         f'{len(users)} transaction(s) measure against — {listed}. Deleting it '
-        f'would leave them naming a split the book no longer holds. Delete '
+        f'would leave them giving a split the book no longer holds. Delete '
         f'those first.')
 
 
@@ -1275,7 +1295,7 @@ def verify_cost_bases(book) -> Dict:
       rates produce the same rounded figure, and the one the file stated is
       not among the things the ledger keeps. Every criterion tried in that
       backwards direction reported correct books — the splits' ratios against
-      each other (every taxed foreign invoice), each against the pooled rate
+      each other (every foreign invoice with tax), each against the pooled rate
       (a bill of 1.819 CAD for 1.30 USD beside 5.00 for 3.57, which 1.3992
       produces exactly), and the windows the rounding leaves. The pooled rate
       is still what a cost is derived from, because it is order-independent;
@@ -1536,7 +1556,7 @@ def _base_figures_of(transaction, tx_currency: str) -> List:
     whose effective rate is 6323/4500 — reading that back and asking whether
     it "is" 1.405 has no answer, since many rates give 63.23 and the stated
     one is not kept. Each of these figures is rounded to its own unit that
-    way, so a taxed invoice's income and tax lines differ in the last digits
+    way, so an invoice's income and tax lines differ in the last digits
     though one rate produced both.
 
     Empty for a transaction in the book's own currency, which converts nothing.

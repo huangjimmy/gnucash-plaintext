@@ -10,8 +10,9 @@ Two things make that harder than it sounds, and both live here.
 **The split may not be on the receivable yet.** Money can be booked wherever the
 bookkeeper put it while working out what it was for — `Assets:Due From Director`
 in the report this came from. When it turns out to have settled an invoice, that
-split is what has to become the settlement. `txn_guid:` alone could always move
-it, never having been filtered by account type; naming it outright could not.
+split is what has to become the settlement. `txn_guid:` alone could always give
+it the receivable's account, never having been filtered by account type; naming
+it outright could not.
 
 **And the figure on it may mean nothing.** GnuCash quotes an entry in a currency
 both sides can be expressed in, so 100.00 USD received into a USD bank and
@@ -52,26 +53,44 @@ from gnucash.gnucash_core_c import (
 
 from infrastructure.gnucash.utils import (
     get_account_full_name,
+    is_power_of_ten,
+    money_text,
     numeric_to_fraction,
     qof_pointer,
+    to_money,
 )
-from services.foreign_currency import split_guid
+from services.foreign_currency import BASE_CURRENCY, split_guid
 from services.plaintext_parser import DirectiveType
 
-# The account types a split may be moved off on the ordinary path. Written as
-# what is allowed rather than what is refused, because the two are not the same
-# list and reversing it is what let income, expense and equity's neighbours
-# through: a type GnuCash adds later is refused by being absent rather than
-# admitted by not having been enumerated.
+
+class AccountCannotTakeTheSplitError(Exception):
+    """`--to` gives an account the payment split cannot take.
+
+    Two situations reach this, and both are refusals rather than failures: the
+    account is kept in a currency the split carries no figure in and no rates
+    file was passed, or converting into that currency would leave the book
+    holding foreign currency with no cost basis behind it.
+
+    A class of its own because `unapply-payment` and `unlink` catch it to
+    print the message instead of a traceback, and catching plain `Exception`
+    there would print a bug's message the same way — as advice.
+    """
+
+
+# The account types a settlement may be taken from on the ordinary path.
+# Written as what is allowed rather than what is refused, because the two are
+# not the same list and reversing it is what let income, expense and equity's
+# neighbours through: a type GnuCash adds later is refused by being absent
+# rather than admitted by not having been enumerated.
 #
-# It is not the whole rule. A bill may also move a split off an account its own
+# It is not the whole rule. A bill may also take a split from an account its own
 # posting books, whatever the type, so a type absent from this list can still
-# be reached that way — see `may_be_moved_onto_the_receivable`, which is where
+# be reached that way — see `may_become_the_settlement`, which is where
 # the rule lives. This list is one of its two arms.
 #
 # What sits on the account is asked separately, of the commodity — a type does
 # not answer it, since `type: Asset` may hold a fund's units.
-TYPES_A_SPLIT_MAY_BE_MOVED_FROM = (
+TYPES_A_SETTLEMENT_MAY_BE_TAKEN_FROM = (
     ACCT_TYPE_ASSET,
     ACCT_TYPE_BANK,
     ACCT_TYPE_CASH,
@@ -205,13 +224,13 @@ def the_records_own_posting_books(record, account) -> bool:
     company card, out of the owner's own money — and the entry written at the
     time puts the cost straight on an expense account. Posting the bill books
     that same cost again, so the expense split is a second copy of the bill's
-    own line, and moving it to the payable is what leaves the cost booked once.
+    own line, and giving it the payable is what leaves the cost booked once.
 
     Only true where the posting books the same account. That is asked of the
     posting transaction rather than of the entry lines, because the posting is
     what the book actually holds: the entry accounts, the payable, and any tax
     lines. Where the two differ the split is somebody else's cost, nothing
-    replaces it, and moving it would take it out of the P&L.
+    replaces it, and taking it would leave the P&L short.
     """
     if record is None:
         return False
@@ -227,7 +246,7 @@ def the_records_own_posting_books(record, account) -> bool:
 
 
 def accounts_the_posting_books(record) -> list:
-    """The accounts of this record's posting a split could be moved off.
+    """The accounts of this record's posting a settlement could be taken from.
 
     A reader told their split is on the wrong account needs to know which
     account would have been right, and the answer is not a rule but a list:
@@ -236,7 +255,7 @@ def accounts_the_posting_books(record) -> list:
     is a near miss rather than a category error.
 
     The receivable and the payable are left out: every posting books one, and
-    a split already there has nowhere to move to. Income and equity are left
+    a split already there has no other account to take. Income and equity are left
     out as well, being refused whichever record posts to them — a bill's own
     line may be booked to either, as a vendor rebate is booked to income. Any
     of them listed would offer an account and then refuse the reader for
@@ -270,7 +289,7 @@ def require_every_duplicated_split_to_be_applied(
 
     The supplier was paid before the bill was posted. That payment transaction
     has its own split on the expense account. Posting the bill puts a second
-    split on the same account. Applying the payment's split moves it to the
+    split on the same account. Applying the payment's split gives it the
     payable, so the cost is recorded once.
 
     A bill with a separate tax entry posts to two accounts: 100.00 to the
@@ -392,15 +411,15 @@ def require_every_duplicated_split_to_be_applied(
             f'parts.')
 
 
-def may_be_moved_onto_the_receivable(account, record) -> bool:
-    """Whether a payment may move a split off this account and restate it.
+def may_become_the_settlement(account, record) -> bool:
+    """Whether a payment may take a split from this account and restate it.
 
     Two ways in. An account money passes through — a type from the list above,
     holding money rather than units — is where a settlement waits to be
     identified, and that is the ordinary case. An income, expense or equity
     account is not, with one exception: where a **bill's** own posting books
     the same account, the split is a second copy of the bill's own line, and
-    moving it is what leaves the cost booked once.
+    giving it the payable is what leaves the cost booked once.
 
     **A bill's, and never an invoice's.** The argument is that a cost is a
     cost whichever entry carries it, so removing the copy loses nothing. It
@@ -408,11 +427,11 @@ def may_be_moved_onto_the_receivable(account, record) -> bool:
     account as a cash sale would, on the same reasoning, take the sale off the
     profit and loss — which is the failure this whole path was reported for.
     Measured before the check was scoped: such an invoice imported at exit 0
-    and moved the revenue onto the receivable.
+    and put the receivable's account on the revenue split.
 
     `_refuse_a_split_that_is_not_placeable` refuses what this rejects, and the
     `txn_split_guid:` branch's `not_there_yet` asks it too — so on that branch
-    a split that may not move is never read as needing to, by construction
+    a split this refuses is never read as one still to be taken, by construction
     rather than by the refusal happening to run first.
 
     **The `txn_guid:`-alone branch is not like that**, and its safety is the
@@ -429,13 +448,13 @@ def may_be_moved_onto_the_receivable(account, record) -> bool:
     if account is None:
         return False
     # A split already on the record's own receivable or payable is the
-    # settlement as it stands and has nowhere to move to. It has to be turned
+    # settlement as it stands and has no other account to take. It has to be turned
     # away before the posting is consulted, because the posting books that
     # account too — asked without this, every settling split read as one still
-    # needing to be moved, and was moved and restated a second time.
+    # needing the receivable's account, and was given it and restated twice.
     if account.GetType() in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
         return False
-    if (account.GetType() in TYPES_A_SPLIT_MAY_BE_MOVED_FROM
+    if (account.GetType() in TYPES_A_SETTLEMENT_MAY_BE_TAKEN_FROM
             and holds_money(account)):
         return True
     # And never off an income or equity account, whichever side asks. What
@@ -445,13 +464,13 @@ def may_be_moved_onto_the_receivable(account, record) -> bool:
     # `Entry.SetBillAccount` places no restriction on the account, so a bill's
     # line may be booked to either — a vendor rebate is booked to income — and
     # "it is a bill" therefore does not imply "it is a cost". Without this a
-    # rebate split could be moved to the payable and take the income off the
+    # rebate split could be given the payable and take the income off the
     # profit and loss through the bill side, and an equity split could be
-    # moved the same way and take the capital off the balance sheet.
+    # given it the same way and take the capital off the balance sheet.
     #
     # Equity remains a payment *account*: the owner settling a supplier out of
     # their own money is one of the three shapes this branch supports. That is
-    # the side `account:` states, which is never the side that moves.
+    # the side `account:` states, which is never the side that is taken.
     if account.GetType() in (ACCT_TYPE_INCOME, ACCT_TYPE_EQUITY):
         return False
     return (record is not None
@@ -488,7 +507,7 @@ def refuse_a_posting_transaction(
     to the same expense account, the first bill's posting passes the same
     tests for it: the payable split is in the first bill's lot and is skipped,
     leaving the expense split, whose sign and amount suit the second bill
-    exactly. Measured the same way: exit 0, the first bill's cost moved onto
+    exactly. Measured the same way: exit 0, the first bill's cost taken onto
     the second bill's payable, and no money moved. Scoping the check to the
     record being paid closed one of the two and left the other open.
 
@@ -529,7 +548,7 @@ def refuse_a_posting_transaction(
     raise Exception(
         f'{kind} {record.GetID()}: {key} {guid!r} is {whose}. Posting a '
         f'{posted_word} records what is owed, so its splits are the debt and '
-        f'the cost, and neither one pays anything. Applying it would move '
+        f'the cost, and neither one pays anything. Applying it would put '
         f'that cost onto this {word}\'s {the_records_own_account(word)} and '
         f'leave the {word} reading as paid with no money having moved. Use '
         f'the guid of {arrived}.')
@@ -539,7 +558,7 @@ def the_records_own_account(kind: str) -> str:
     """`'payable'` for a bill, `'receivable'` for an invoice.
 
     A word a reader acts on, so it has to be theirs: told a split cannot be
-    moved "onto the receivable", somebody holding a bill goes looking through
+    given "the receivable", somebody holding a bill goes looking through
     a chart of accounts for one that is not in it.
 
     **Taken from the record's kind, which is its owner** — `kind_of` reads
@@ -584,7 +603,7 @@ def commodity_of(account) -> str:
 
 
 def the_split_on(transaction, account_name: str):
-    """The transaction's split on the named account, or None."""
+    """The transaction's split on `account_name`, or None."""
     for split in transaction.GetSplitList():
         account = split.GetAccount()
         if account is not None and get_account_full_name(account) == account_name:
@@ -601,8 +620,11 @@ def kind_of(record) -> str:
     return 'bill' if record.GetOwnerType() == GNC_OWNER_VENDOR else 'invoice'
 
 
-def the_settlement_a_block_names(pay_dir):
-    """The transaction and splits a `payment:` block's directives name.
+def the_settlement_a_block_gives(pay_dir):
+    """The transaction and splits a `payment:` block's directives give.
+
+    A split has no name and the block states none: what it carries is a guid,
+    and a guid is given.
 
     Returns `('', [])` where the block carries none, which is nearly every
     block: one settling split is written `txn_guid:` + `txn_split_guid:` and
@@ -610,30 +632,30 @@ def the_settlement_a_block_names(pay_dir):
 
     A `Transaction "…"` under the payment is for the other case — one payment
     whose transaction clears the record with more than one split. That is one
-    payment, money having arrived once, so it is one block naming several
-    splits rather than several blocks, which would read as several payments.
+    payment, money having arrived once, so it is one block giving several
+    guids rather than several blocks, which would read as several payments.
 
     Two `Transaction` blocks under one payment is a file saying the payment is
     two transactions, which is two payments; refused rather than guessed at.
 
     A `PaymentSplit` sitting beside the block's keys rather than under a
-    `Transaction` is refused too, but by the parser rather than here: it names
-    a split of nothing wherever it is written, including one level further out
+    `Transaction` is refused too, but by the parser rather than here: it gives
+    a guid of nothing wherever it is written, including one level further out
     where there is no payment block to have caught it, so the check belongs
     where every such line passes. Kept here as well it was unreachable — the
     parser answers first, and its message is the one a reader actually earns.
     """
     children = list(getattr(pay_dir, 'children', []))
-    named = [child for child in children
+    given = [child for child in children
              if child.type == DirectiveType.PAYMENT_TRANSACTION]
-    if not named:
+    if not given:
         return '', []
-    if len(named) > 1:
+    if len(given) > 1:
         raise Exception(
-            'a payment block names more than one `Transaction`. One payment '
+            'a payment block gives more than one `Transaction`. One payment '
             'is one transaction — money arriving twice is two payments, so '
             'write a `payment:` block for each.')
-    block = named[0]
+    block = given[0]
     splits = [child.props['guid'] for child in block.children
               if child.type == DirectiveType.PAYMENT_SPLIT]
     # A `Transaction` with no splits under it says only what `txn_guid:` says,
@@ -695,7 +717,7 @@ def payment_slots(payment_dirs, book=None):
     splits its own unpost had abandoned. Slots are what make the two sides count
     the same thing.
 
-    Each slot of a naming block carries the guid it names, so it can only be
+    Each slot of a grouped block carries the guid it gives, so it can only be
     matched by that split — **including a block that names exactly one.**
     Given a `None` slot instead, that one was paired on date/amount/memo, and
     its `amount:` is the settlement's share while the figure it was weighed
@@ -718,11 +740,11 @@ def payment_slots(payment_dirs, book=None):
 
     slots = []
     for block in payment_dirs:
-        txn, named = the_settlement_a_block_names(block)
-        if named and book is not None and not _the_book_holds(book, txn):
-            named = []
-        if named:
-            slots.extend((block, _normalise_guid(guid)) for guid in named)
+        txn, given = the_settlement_a_block_gives(block)
+        if given and book is not None and not _the_book_holds(book, txn):
+            given = []
+        if given:
+            slots.extend((block, _normalise_guid(guid)) for guid in given)
         else:
             slots.append((block, None))
     return slots
@@ -739,7 +761,7 @@ def _the_book_holds(book, txn_guid: str) -> bool:
     `ValueError` and nothing wider, because that is the one thing being
     allowed for — `_find_transaction_by_guid` raises exactly it for a guid it
     cannot parse. Catching everything, any other failure became "the book does
-    not have it", which collapses a naming block from one slot per split to
+    not have it", which collapses a grouped block from one slot per split to
     one: the count then falls short of what the lot holds, the record is judged
     changed, and its posting is destroyed by an unpost nobody asked for. That
     is the failure slots exist to prevent, arriving through the guard meant to
@@ -783,7 +805,7 @@ def the_settlement_amount(existing_tx, counter_split, post_acct,
     if bank_split is None or commodity_of(bank_split.GetAccount()) != settlement:
         # Nothing here can say what the settlement is worth, so it says so
         # rather than guessing. `refuse_when_the_amount_cannot_be_read` turns
-        # both shapes away before anything moves; measuring the parked figure
+        # both shapes away before anything changes; measuring the parked figure
         # would refuse first, for a reason that is not true.
         return None
     return abs(numeric_to_fraction(bank_split.GetAmount()))
@@ -837,7 +859,7 @@ def refuse_to_move_a_split_out_of_its_lot(split, declared: str,
     raise Exception(
         f'{key} {declared!r} on tx {txn_guid!r} is in lot '
         f'{_lot_guid_str(lot)} already. A split in a lot is settling an '
-        f'invoice or a bill, or standing as an owner\'s credit, so moving it '
+        f'invoice or a bill, or standing as an owner\'s credit, so taking it '
         f'here would leave that one short with nothing saying so. Take it out '
         f'of the lot first (`unapply-payment`, or its own `payment:` block), '
         f'or apply a split that is not spoken for.')
@@ -862,7 +884,7 @@ def refuse_when_the_amount_cannot_be_read(
     Nothing in the book says which, and it is not this tool's to choose — so it
     asks, and the file answers by stating the amounts.
 
-    Both are asked before anything moves, so a refused file has changed nothing.
+    Both are asked before anything changes, so a refused file has changed nothing.
     """
     from services.gnucash_importer import _account_money_str
 
@@ -933,8 +955,8 @@ def refuse_when_the_amount_cannot_be_read(
 
 
 def refuse_several_splits_this_cannot_divide(book, txn_guid: str,
-                                             named: list, record) -> None:
-    """Several named splits have to carry their own figures.
+                                             applied: list, record) -> None:
+    """Several splits applied to one payment have to carry their own figures.
 
     Where each is already on the receivable it does: two lines of one wire, 60
     and 40 of a 100, each saying what it is. Claiming them is only a question of
@@ -951,13 +973,13 @@ def refuse_several_splits_this_cannot_divide(book, txn_guid: str,
         _normalise_guid,
     )
 
-    if len(named) < 2:
+    if len(applied) < 2:
         return
     existing_tx = _find_transaction_by_guid(book, txn_guid)
     if existing_tx is None:
         return
     settlement = commodity_of(record.GetPostedAcc())
-    wanted = {_normalise_guid(guid) for guid in named}
+    wanted = {_normalise_guid(guid) for guid in applied}
     foreign = [(split_guid(split),
                 get_account_full_name(split.GetAccount()),
                 commodity_of(split.GetAccount()))
@@ -975,7 +997,7 @@ def refuse_several_splits_this_cannot_divide(book, txn_guid: str,
     one = len(foreign) == 1
     raise Exception(
         f'this payment applies '
-        f'{len(named)} splits of tx {txn_guid!r}, and '
+        f'{len(applied)} splits of tx {txn_guid!r}, and '
         f'{"one of them sits" if one else f"{len(foreign)} of them sit"} '
         f'on an account in another currency than {settlement} — {which}. '
         f'A payment that applies several splits places each at the figure it '
@@ -1036,14 +1058,14 @@ def refuse_an_overpayment_this_cannot_carve(counter_split, post_acct, carried,
     same-currency overpayments go through it as they always have.
 
     Scoped to the currency alone this skipped the commoner shape entirely: a
-    USD split against a USD invoice. Whether a split still has to be moved is
+    USD split against a USD invoice. Whether a split still has to be taken is
     decided by its account, not by its currency, so that split takes the
     naming branch like any other, and nothing else on that branch weighs what
     arrived against what is owed — 120.00 parked settled a 100.00 invoice with
     the lot at −20, the invoice reading paid, the customer's 20.00 in no
     credit lot, at exit 0.
 
-    Asked before anything moves, so a refused file has changed nothing.
+    Asked before anything changes, so a refused file has changed nothing.
     """
     from services.gnucash_importer import _account_money_str
 
@@ -1062,7 +1084,7 @@ def refuse_an_overpayment_this_cannot_carve(counter_split, post_acct, carried,
                f'{the_records_own_account(kind)}, and dividing it '
                f'would take both halves out of a number that means nothing.')
     else:
-        why = (f'Naming a split says which one settles this {kind.lower()}; '
+        why = (f'Giving a split says which one settles this {kind.lower()}; '
                f'it does not say how to divide it, and this spelling carves '
                f'nothing.')
     raise Exception(
@@ -1091,13 +1113,13 @@ def refuse_a_settlement_read_off_the_wrong_split(settled, parked_split,
     of them can catch it. The parked split is on an asset, so the account-type
     check passes. The bank split is not on a receivable, so it reads as parked.
     It is in no lot. `refuse_when_the_amount_cannot_be_read` excludes *both*
-    named splits when it looks for a third and so finds none — it is symmetric
+    splits the block gives when it looks for a third and so finds none — it is symmetric
     in exactly the two fields that were swapped. And where the currencies agree
     the conversion arm is silent too.
 
     Measured on a USD bank, a USD `Assets:Suspense USD` and a USD invoice owing
     100: the settlement was read as the negation of what the *parked* split did, so
-    the **bank** split was moved onto the receivable at +100.00. The deposit
+    the **bank** split was given the receivable at +100.00. The deposit
     left the bank account altogether, the lot held the posting's +100 and this
     +100 so the invoice read as owing 200, and the entry still balanced — at
     exit 0, with nothing anywhere disagreeing.
@@ -1161,9 +1183,247 @@ def refuse_a_settlement_read_off_the_wrong_split(settled, parked_split,
         f'{get_account_full_name(parked_split.GetAccount())!r}, which is the '
         f'one that becomes the settlement. Swapped, the settlement is read off '
         f'the split being replaced and comes out the wrong way round — the '
-        f'arrival is moved onto the {the_records_own_account(kind)} and '
+        f'arrival is given the {the_records_own_account(kind)} and '
         f'leaves the account it arrived in. Give `account:` the account the '
         f'money moved through.')
+
+
+def the_amount_the_new_account_takes(held: str, quoted: str, account,
+                                     amount: Fraction, value: Fraction,
+                                     *, where: str, rate_for=None) -> Fraction:
+    """What a split detached from a lot is worth on the account it is given.
+
+    A split belongs to one transaction and stays there; what changes is the
+    **account on the split**, which `xaccSplitSetAccount` sets. Undoing a link
+    is the inverse of `relink_a_parked_split` and has the same question to
+    answer: a split carries two figures — an **amount**, in the commodity of
+    the account the split is on, and a **value**, in the currency the
+    transaction is quoted in. So an account kept in another commodity means
+    writing a different amount.
+
+    Setting the account and nothing else is what `unapply-payment` did, and it
+    is the defect Q-039 was reported for, running backwards: a settlement of
+    100.00 USD given a CAD account kept the figure 100.00 and became 100
+    Canadian dollars. Nothing disagreed, because the *value* — the CAD side —
+    was never touched, so the transaction went on balancing.
+
+    **Two currencies an account may be kept in, and no others**: the commodity
+    the split already holds, and the book's own. The first brings nothing new
+    into the book — the amount is the figure it already was — and the second
+    owes no cost basis, being the currency the book is kept in. Everything
+    else is refused, whatever rate is passed.
+
+    "The book's own" is `BASE_CURRENCY`, which is `'CAD'` for every book this
+    tool opens rather than something read off the one in hand. That is a known
+    limitation of the whole tool and this is the first place it hands out
+    *advice* on the strength of it: a ledger kept in USD is told to use a CAD
+    account and refused the currency it actually keeps its books in. README
+    says so where the rule is stated.
+
+    The currency the transaction is *quoted* in is not a third. It is one of
+    those two or it is refused like any other, and the order of the tests here
+    is what says so: the refusal comes before the value is read. Read first,
+    a transaction quoted in a third currency was a way straight through the
+    guard — measured on a USD invoice settled by an HKD-quoted entry carrying
+    a USD split, which wrote HKD into the book with nothing accounting for it.
+
+    Neither allowed destination needs a rate when the figure is already on the
+    split:
+
+    - one kept in the commodity the split already holds. The split's amount is
+      that figure, so nothing but the account changes. This is the ordinary
+      undo: a USD split that stood in for a USD receivable takes a USD account
+      again.
+    - one kept in the book's own currency, where the entry is quoted in it.
+      The split's **value** is that figure, written onto the split when the
+      entry was made, so it is read rather than computed. A 100.00 USD split
+      in a CAD entry carries −139.00 CAD, and −139.00 is what a CAD account
+      takes.
+
+    **The book's own currency converts**, and the split says nothing about it:
+    a USD settlement in a USD-quoted entry, given a CAD account, has no CAD
+    figure anywhere on it. That is the shape the reporter has — an invoice in
+    USD and `Assets:Due From Director` in CAD — so it has to work, and the
+    only honest way is for the rate to be stated. `--fx-rates` is where this
+    tool already keeps them, dated, so the rate used is the one that held on
+    the transaction's own day rather than today's.
+
+    **A third *foreign* currency is refused even with a rates file**, and that
+    is not a limitation of the arithmetic — it converts perfectly well. It is
+    what the converted figure would leave behind. A split that brings foreign
+    currency into the book carries a `share_price:` — the rate that currency
+    came in at — and a `value:` in the currency the transaction is quoted in,
+    and a cost basis is opened from the two. Restating a settlement writes an
+    amount onto an account and states neither figure, so nothing opens, draws
+    down or gives back a basis.
+
+    Measured: unlinking a USD settlement onto a JPY account wrote −14946 JPY,
+    and `fx-balances` then listed the USD receivable and no JPY at all — yen
+    held in the book with no basis behind them.
+
+    `BASE_CURRENCY` is the book's own currency and not foreign, so it needs no
+    cost basis and the conversion is complete in itself. Any other currency
+    would need a basis opened here, which is the sale-and-purchase machinery
+    and not an undo.
+
+    Converted through CAD, because that is what a rates file quotes: the value
+    is worth `value × rate(quoted)` in CAD, and an account kept in
+    `destination` divides that by its own rate. Where `destination` is CAD the
+    second rate is 1 and the arithmetic is the first line of the file.
+
+    A converted figure is rounded to the unit that account is kept to, never
+    to two places: a yen account holds no sen. That unit is the **account's**
+    and not the commodity's, which are not always the same — a receivable at a
+    tenth of a cent is a book GnuCash itself writes, and `commodity_scu:`
+    round-trips it. Exact throughout — Fractions in, Fraction out, no float
+    anywhere near money.
+
+    **A figure read off the split is refused rather than rounded**, because
+    rounding it would lose what the split says. An account kept coarser than
+    the figure it is being given raises, and the message states the account's
+    unit beside the figure — see `_refuse_a_figure_the_account_cannot_state`.
+
+    A **converted** figure is rounded instead, and that is not the same case:
+    a rate may carry any number of decimals, so the arithmetic produces a
+    figure no account could state, and refusing it would refuse ordinary
+    conversions at ordinary rates. The two are told apart by where the figure
+    came from, not by the account.
+
+    Without a rates file it is refused rather than guessed at, which is what
+    every other conversion on this path does.
+    """
+    commodity = account.GetCommodity()
+    destination = commodity.get_mnemonic()
+    unit = account.GetCommoditySCU() or commodity.get_fraction()
+    # The commodity the split already holds. Nothing new enters the book — the
+    # amount is the figure it was — so no basis is owed and this is allowed
+    # whether or not that commodity is foreign.
+    if destination == held:
+        _refuse_a_figure_the_account_cannot_state(
+            amount, account, unit, destination, where=where)
+        return amount
+    # Every other destination puts a currency on the split that the split was
+    # not holding, and only the book's own is free of a cost basis. Asked
+    # *before* the value is read, not after: the value is denominated in the
+    # transaction's currency, so a transaction quoted in a third currency made
+    # `destination == quoted` a way into exactly what this refuses. Reachable
+    # through a supported shape — a USD invoice settled by an HKD-quoted entry
+    # carrying a USD split — and it wrote the HKD with nothing accounting for
+    # it.
+    if destination != BASE_CURRENCY:
+        # The two an account may be kept in, each written once: the commodity
+        # the split holds, which brings nothing new into the book, and the
+        # book's own currency, which owes no basis. The *quoted* currency is
+        # not a third — it is one of those two or it is refused like this one,
+        # and offering it sent a reader from one refusal to the next. Where
+        # the split holds the book's own currency the two collapse to one, and
+        # a sentence listing CAD twice reads as a mistake.
+        instead = []
+        for code in (held, BASE_CURRENCY):
+            if code and code not in instead:
+                instead.append(code)
+        raise AccountCannotTakeTheSplitError(
+            f'{where}: the payment split on this record holds {held} in a '
+            f'transaction quoted in {quoted}, and '
+            f'{get_account_full_name(account)!r} is kept in {destination}. '
+            f'Converting into {destination} would put {destination} in the '
+            f'book with no cost basis behind it. A split that brings foreign '
+            f'currency in carries a `share_price:`, the rate that currency '
+            f'came in at, and a `value:` in the currency the transaction is '
+            f'quoted in, and a cost basis is opened from the two. Restating a '
+            f'settlement states neither figure. Use an account kept in '
+            f'{" or ".join(instead)}. Buying {destination} is a transaction '
+            f'of its own.')
+    # The book's own currency from here, so no basis is owed either way.
+    #
+    # The entry is quoted in it, and the split's value is therefore already
+    # the figure — written when the entry was made, so it is read rather than
+    # computed and no rate is asked for.
+    if destination == quoted:
+        _refuse_a_figure_the_account_cannot_state(
+            value, account, unit, destination, where=where)
+        return value
+    if rate_for is not None:
+        # `to_money` rounds the way money rounds — GnuCash's own half-up, not
+        # Python's banker's rounding — and hands back its own numeric, so the
+        # Fraction this promises comes back through `numeric_to_fraction`.
+        #
+        # Rounding is right here and wrong above. A rate may carry any number
+        # of decimals, so a conversion produces a figure of arbitrary
+        # precision that has to be brought to some unit, and the destination
+        # account's is the only one it could be brought to — refusing instead
+        # would refuse ordinary conversions at ordinary rates. A figure read
+        # off the split is the opposite: already exact at a unit the book
+        # holds it in, and rounding it loses what the split says.
+        return numeric_to_fraction(to_money(
+            value * rate_for(quoted) / rate_for(destination), unit))
+    # Only the commodity the split holds. Reaching here, the destination is
+    # the book's own currency and the entry is *not* quoted in it — so the
+    # quoted currency is a foreign one, and an account kept in it is refused
+    # above rather than offered here.
+    # One currency, not a list. Reaching here the destination is the book's
+    # own and the entry is not quoted in it, so the quoted currency is foreign
+    # and an account kept in it is refused above rather than offered here —
+    # which leaves the commodity the split holds, and nothing else.
+    no_rate_needed = held
+    carries = (f'the two figures the split carries are a {held} amount and a '
+               f'{quoted} value' if held != quoted else
+               f'both figures the split carries are in {held}')
+    # The rate wanted is the *quoted* currency's. Reaching here, `destination`
+    # is the book's own currency — every other destination is refused above —
+    # and `rate_fraction` answers that one with 1 without consulting the file,
+    # so asking for that one sent a reader to add a `CAD: 1.0` line that
+    # changes nothing, and to meet `No FX rate for USD` on the next run.
+    raise AccountCannotTakeTheSplitError(
+        f'{where}: the payment split on this record holds {held} in a '
+        f'transaction quoted in {quoted}, and '
+        f'{get_account_full_name(account)!r} is kept in {destination}. Giving '
+        f'the split that account converts, and nothing in the transaction '
+        f'states a rate — {carries}. Pass `--fx-rates` with a {quoted} rate '
+        f"covering the transaction's date, or use an account kept in "
+        f'{no_rate_needed}, which needs no rate at all.')
+
+
+def _refuse_a_figure_the_account_cannot_state(figure: Fraction, account,
+                                              unit: int, destination: str, *,
+                                              where: str) -> None:
+    """Refuse a figure the destination account is not kept finely enough for.
+
+    The two branches that read a figure off the split hand it back untouched,
+    so nothing rounds it here — and `xaccSplitSetAmount` then rounds it half
+    up without saying so. An account may be kept coarser than its own
+    commodity: `commodity_scu:` is a field a file states and this tool
+    round-trips, and `amount_finer_than_a_coarse_account.txt` is a book kept
+    to whole dollars.
+
+    What that costs: restating a −139.37 CAD settlement onto such an account
+    writes −139 and loses the 37 cents in silence. On the `quoted` branch it
+    is worse, because the split's value is left alone — the amount and the
+    value would then disagree on a split whose account is kept in the very
+    currency the transaction is quoted in.
+
+    The import side refuses a figure finer than the account it is destined for
+    rather than rounding it, and this is the same refusal on the way back.
+    """
+    if (figure * unit).denominator == 1:
+        return
+    # Written as money, starting at the destination commodity's own unit and
+    # going finer until one states the figure exactly. Its *own* denominator
+    # is not that unit: a `Fraction` is reduced, so −40.50 is −81/2 and the
+    # denominator is 2 — no power of ten, and the message printed `-81/2 CAD`
+    # at somebody reading a refusal about their bank account.
+    shown = str(figure)
+    for candidate in (account.GetCommodity().get_fraction() or 1,
+                      100, 1000, 10 ** 6):
+        if is_power_of_ten(candidate) and (figure * candidate).denominator == 1:
+            shown = money_text(figure, candidate)
+            break
+    raise AccountCannotTakeTheSplitError(
+        f'{where}: {get_account_full_name(account)!r} is kept to a smallest '
+        f'unit of {Fraction(1, unit)} {destination}, and the payment split is '
+        f'worth {shown} {destination}, which that unit cannot state. Writing '
+        f'it there would round the figure and say nothing. Use an account '
+        f'kept finely enough for it.')
 
 
 def relink_a_parked_split(lib, existing_tx, parked_split, post_acct,
@@ -1179,7 +1439,7 @@ def relink_a_parked_split(lib, existing_tx, parked_split, post_acct,
 
     So the split is restated from what the bank received: same figure, other
     sign. Then the entry is requoted, because both remaining sides are the
-    settlement's currency once the parked split has moved, and each value
+    settlement's currency once the parked split is restated, and each value
     equals its amount — no rate, nothing having converted.
 
     `xaccSplitSetAccount` has a SWIG const-type mismatch, so the account is set
@@ -1191,7 +1451,7 @@ def relink_a_parked_split(lib, existing_tx, parked_split, post_acct,
     # a true figure with one in the wrong currency: a USD parked split behind
     # a CAD bank would land on the USD receivable carrying the bank's 139. So
     # that one only changes account, and the entry keeps its quote, the bank
-    # being the foreign side there rather than the split being moved.
+    # being the foreign side there rather than the split being restated.
     parked_currency = commodity_of(parked_split.GetAccount())
     keeps_its_figure = (bool(parked_currency)
                         and parked_currency == commodity_of(post_acct))
@@ -1210,7 +1470,8 @@ def relink_a_parked_split(lib, existing_tx, parked_split, post_acct,
     # And a figure the receivable's currency cannot state is refused here
     # rather than by the export that meets it later. Every sibling path in this
     # file asks it, and asked at the end the answer arrives after the split has
-    # been moved and restated — a book this tool wrote and cannot read back.
+    # been given a new account and restated — a book this tool wrote and
+    # cannot read back.
     #
     # No file can reach it: a booked amount is judged against the currency
     # whatever unit the account is kept to, so a transaction carrying 100.005

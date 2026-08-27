@@ -2,7 +2,7 @@
 #
 # All four kinds, because the refusal below says a different sentence for an
 # owner than for a record — an owner's currency is what their invoices and
-# bills are raised in, a record's is what its lines are denominated in — and
+# bills are created in, a record's is what its lines are denominated in — and
 # a fixture holding three of the four leaves one of those sentences unread.
 #
 # `currency:` is required on each of these blocks and written back by every
@@ -13,7 +13,7 @@
 # disagreeing for good, with the ledger losing and nothing said.
 #
 # Applying it is not a small edit either — an owner's currency is what their
-# invoices and bills are raised in, and a posted invoice's is what its AR
+# invoices and bills are created in, and a posted invoice's is what its AR
 # splits are denominated in — so it is refused rather than absorbed.
 #
 # owners_with_the_customer_in_usd.txt, owners_with_the_vendor_in_usd.txt,

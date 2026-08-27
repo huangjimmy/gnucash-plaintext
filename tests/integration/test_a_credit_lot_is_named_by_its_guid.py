@@ -389,7 +389,7 @@ class TestALotGuidNamingALotOfAnotherKind:
 
 class TestGivingASplitInALotAnotherAccount:
     def test_is_refused(self, tmp_path):
-        """Recategorising moves the split its block names — but not one
+        """A block's account line changes that split's account — but not one
         sitting in a lot.
 
         Moved, the receivable's lot would hold a split that now lives on an

@@ -23,7 +23,7 @@ BILLS = str(FIXTURES / 'two_bills_to_print.txt')
 
 
 def _book(tmp_path):
-    """A book holding BILL-PRINT-001 (taxed, part-paid) and BILL-PRINT-002."""
+    """A book holding BILL-PRINT-001 (with tax, part-paid) and BILL-PRINT-002."""
     runner = CliRunner()
     gnc = tmp_path / 'book.gnucash'
     created = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
@@ -54,7 +54,7 @@ class TestPlaintext:
         assert '1120.00' in text
         assert '400.00' in text          # the payment
 
-    def test_an_untaxed_bill_prints_without_inventing_a_tax_line(self, tmp_path):
+    def test_a_bill_with_no_tax_prints_without_inventing_a_tax_line(self, tmp_path):
         gnc = _book(tmp_path)
         out = tmp_path / 'plain.txt'
         result = CliRunner().invoke(cli, [

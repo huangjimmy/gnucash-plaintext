@@ -204,6 +204,10 @@ def verify_ctypes_functions(lib, required_functions=None):
             # an overpayment would take that invoice's lot past zero and
             # leave the owner's money where nothing can spend it.
             'xaccSplitSetAccount',
+            # Undoing a link: the split's value is what it takes on an
+            # account kept in the transaction's currency.
+            'xaccSplitGetValue',
+            'xaccSplitSetAmount',
             'gnc_lot_new',
             'xaccAccountInsertLot',
             'gnc_lot_add_split',
@@ -452,6 +456,13 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.xaccSplitGetParent.argtypes            = [ctypes.c_void_p]
     lib.xaccSplitGetAmount.restype             = GncNumericC
     lib.xaccSplitGetAmount.argtypes            = [ctypes.c_void_p]
+    # A split's other figure, and the setter for the one that changes with the
+    # account. Undoing a link gives a split an account in another currency,
+    # and what it takes there is its value — read off the split, not converted.
+    lib.xaccSplitGetValue.restype              = GncNumericC
+    lib.xaccSplitGetValue.argtypes             = [ctypes.c_void_p]
+    lib.xaccSplitSetAmount.restype             = None
+    lib.xaccSplitSetAmount.argtypes            = [ctypes.c_void_p, GncNumericC]
     lib.xaccTransGetDate.restype               = ctypes.c_int64
     lib.xaccTransGetDate.argtypes              = [ctypes.c_void_p]
     lib.gnc_lot_new.restype                    = ctypes.c_void_p

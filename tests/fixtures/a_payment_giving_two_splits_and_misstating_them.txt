@@ -1,7 +1,7 @@
 # The two-split block again, with its `amount:` edited down to 60.
 #
 # Read into a book that already holds this settlement, both guids pair and the
-# record matches — a naming block's slots are matched by guid, and nothing on
+# record matches — a grouped block's slots are matched by guid, and nothing on
 # the comparison side reads `amount:` at all. So the run said `unchanged` and
 # the ledger was left stating 60.00 for money that moved 100.00, which carried
 # into a book without the transaction enters 60.00.

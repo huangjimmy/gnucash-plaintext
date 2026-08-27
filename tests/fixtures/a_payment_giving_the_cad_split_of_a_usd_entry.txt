@@ -1,0 +1,38 @@
+# Settling INV-UNPAID with the CAD split of a USD-quoted entry.
+#
+# The invoice is CAD and the split holds 100.00 CAD, so the settlement is what
+# the split already says and the link needs no rate. What the entry is quoted
+# in — USD, the currency the cash arrived in — says nothing about that.
+#
+# It says something on the way back out, which is the point: a CAD `--to`
+# matches the split's own commodity *and* "kept in CAD where the entry is
+# quoted elsewhere", and the first is the one that applies.
+#
+# What this fixture produces: the split on `Assets:Accounts Receivable` at
+# −100.00 CAD, valued −75.00 USD, in the invoice's lot.
+#
+# Verified by tests/integration/test_unlinking_a_linked_transaction.py.
+invoice "INV-UNPAID"
+	customer_id: "C-UNAPPLY"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Posted, never paid"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-UNPAID"
+		accumulate: true
+	payment:
+		date: 2026-01-18
+		amount: 100
+		account: "Assets:Bank:USD"
+		txn_guid: "11223344556677889900112233445566"
+		txn_split_guid: "33445566778899001122334455661122"

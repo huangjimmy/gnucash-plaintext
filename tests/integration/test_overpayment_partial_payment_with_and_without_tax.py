@@ -1,21 +1,21 @@
 """Overpayment and partial payment, WITH and WITHOUT tax, on bills and invoices.
 
-The payment machinery works against the *payable total*, which for a taxed
-record is net + tax. This module pins that for all four combinations
-(overpay / partial × taxed / untaxed) on both sides, using a fresh
+The payment machinery works against the *payable total*, which for a record
+with tax is net + tax. This module pins that for all four combinations
+(overpay / partial × with tax / with no tax) on both sides, using a fresh
 `ApplyPayment` (a `payment:` block with no `txn_guid:`):
 
-  taxed  record: net 100 + GST 5% + PST 7% = 112 total
-  untaxed record: 100 total
+  with tax:    net 100 + GST 5% + PST 7% = 112 total
+  with no tax: 100 total
 
   overpay: pay 150 → record lot closes at 0; the residual opens a credit
-           lot (150 − total): taxed 38, untaxed 50.
+           lot (150 − total): 38 with tax, 50 with none.
   partial: pay 60  → record lot stays open at the shortfall (total − 60):
-           taxed 52, untaxed 40 (AP negative for bills, AR positive for
-           invoices).
+           52 with tax, 40 with none (AP negative for bills, AR positive
+           for invoices).
 
 The link-existing-tx path and unapply/re-link are covered in
-test_taxed_bill_mixed_payment_unapply_and_relink.py.
+test_a_bill_with_tax_paid_partly_fresh_and_partly_linked.py.
 """
 from pathlib import Path
 
@@ -94,20 +94,20 @@ def _export(runner, gf, tmp_path):
 
 # ── Bills — overpayment ────────────────────────────────────────────
 
-def test_taxed_bill_overpayment_credit_is_residual_over_tax_inclusive_total(tmp_path):
-    """Taxed bill total 112 paid 150: bill lot closes, vendor credit = 38."""
+def test_bill_with_tax_overpayment_credit_is_residual_over_tax_inclusive_total(tmp_path):
+    """A bill with tax, total 112, paid 150: lot closes, vendor credit = 38."""
     runner = CliRunner()
-    gf = _book(runner, tmp_path, 'overpay_partial_taxed_bills.txt')
+    gf = _book(runner, tmp_path, 'overpay_partial_bills_with_tax.txt')
     assert _posted_lot_balance(gf, 'BILL-TAX-OVER-112') == 0.00
     assert _owner_credit_total(gf, vendor_id='V-TAX-BILL') == 38.00
     exported = _export(runner, gf, tmp_path)
     assert 'prepayment: 38.00' in exported, exported
 
 
-def test_untaxed_bill_overpayment_credit_is_residual_over_total(tmp_path):
-    """Untaxed bill total 100 paid 150: bill lot closes, vendor credit = 50."""
+def test_bill_with_no_tax_overpayment_credit_is_residual_over_total(tmp_path):
+    """A bill with no tax, total 100, paid 150: lot closes, vendor credit = 50."""
     runner = CliRunner()
-    gf = _book(runner, tmp_path, 'overpay_partial_untaxed_bills.txt')
+    gf = _book(runner, tmp_path, 'overpay_partial_bills_with_no_tax.txt')
     assert _posted_lot_balance(gf, 'BILL-NOTAX-OVER-100') == 0.00
     assert _owner_credit_total(gf, vendor_id='V-NOTAX-BILL') == 50.00
     exported = _export(runner, gf, tmp_path)
@@ -116,52 +116,52 @@ def test_untaxed_bill_overpayment_credit_is_residual_over_total(tmp_path):
 
 # ── Bills — partial payment ────────────────────────────────────────
 
-def test_taxed_bill_partial_outstanding_against_tax_inclusive_total(tmp_path):
-    """Taxed bill total 112 paid 60: AP lot open at -52; no credit."""
+def test_bill_with_tax_partial_outstanding_against_tax_inclusive_total(tmp_path):
+    """A bill with tax, total 112, paid 60: AP lot open at -52; no credit."""
     runner = CliRunner()
-    gf = _book(runner, tmp_path, 'overpay_partial_taxed_bills.txt')
+    gf = _book(runner, tmp_path, 'overpay_partial_bills_with_tax.txt')
     assert _posted_lot_balance(gf, 'BILL-TAX-PART-112') == -52.00
     assert _owner_credit_total(gf, vendor_id='V-TAX-BILL') == 38.00  # only the OVER bill's credit
 
 
-def test_untaxed_bill_partial_outstanding_against_total(tmp_path):
-    """Untaxed bill total 100 paid 60: AP lot open at -40."""
+def test_bill_with_no_tax_partial_outstanding_against_total(tmp_path):
+    """A bill with no tax, total 100, paid 60: AP lot open at -40."""
     runner = CliRunner()
-    gf = _book(runner, tmp_path, 'overpay_partial_untaxed_bills.txt')
+    gf = _book(runner, tmp_path, 'overpay_partial_bills_with_no_tax.txt')
     assert _posted_lot_balance(gf, 'BILL-NOTAX-PART-100') == -40.00
 
 
 # ── Invoices — overpayment ─────────────────────────────────────────
 
-def test_taxed_invoice_overpayment_credit_is_residual_over_tax_inclusive_total(tmp_path):
-    """Taxed invoice total 112 paid 150: invoice lot closes, customer credit = 38."""
+def test_invoice_with_tax_overpayment_credit_is_residual_over_tax_inclusive_total(tmp_path):
+    """An invoice with tax, total 112, paid 150: lot closes, customer credit = 38."""
     runner = CliRunner()
-    gf = _book(runner, tmp_path, 'overpay_partial_taxed_invoices.txt')
+    gf = _book(runner, tmp_path, 'overpay_partial_invoices_with_tax.txt')
     assert _posted_lot_balance(gf, 'INV-TAX-OVER-112') == 0.00
     assert _owner_credit_total(gf, customer_id='C-TAX-INV') == 38.00
     exported = _export(runner, gf, tmp_path)
     assert 'prepayment: 38.00' in exported, exported
 
 
-def test_untaxed_invoice_overpayment_credit_is_residual_over_total(tmp_path):
-    """Untaxed invoice total 100 paid 150: invoice lot closes, customer credit = 50."""
+def test_invoice_with_no_tax_overpayment_credit_is_residual_over_total(tmp_path):
+    """An invoice with no tax, total 100, paid 150: lot closes, customer credit = 50."""
     runner = CliRunner()
-    gf = _book(runner, tmp_path, 'overpay_partial_untaxed_invoices.txt')
+    gf = _book(runner, tmp_path, 'overpay_partial_invoices_with_no_tax.txt')
     assert _posted_lot_balance(gf, 'INV-NOTAX-OVER-100') == 0.00
     assert _owner_credit_total(gf, customer_id='C-NOTAX-INV') == 50.00
 
 
 # ── Invoices — partial payment ─────────────────────────────────────
 
-def test_taxed_invoice_partial_outstanding_against_tax_inclusive_total(tmp_path):
-    """Taxed invoice total 112 paid 60: AR lot open at +52 (still owed to us)."""
+def test_invoice_with_tax_partial_outstanding_against_tax_inclusive_total(tmp_path):
+    """An invoice with tax, total 112, paid 60: AR lot open at +52 (still owed)."""
     runner = CliRunner()
-    gf = _book(runner, tmp_path, 'overpay_partial_taxed_invoices.txt')
+    gf = _book(runner, tmp_path, 'overpay_partial_invoices_with_tax.txt')
     assert _posted_lot_balance(gf, 'INV-TAX-PART-112') == 52.00
 
 
-def test_untaxed_invoice_partial_outstanding_against_total(tmp_path):
-    """Untaxed invoice total 100 paid 60: AR lot open at +40."""
+def test_invoice_with_no_tax_partial_outstanding_against_total(tmp_path):
+    """An invoice with no tax, total 100, paid 60: AR lot open at +40."""
     runner = CliRunner()
-    gf = _book(runner, tmp_path, 'overpay_partial_untaxed_invoices.txt')
+    gf = _book(runner, tmp_path, 'overpay_partial_invoices_with_no_tax.txt')
     assert _posted_lot_balance(gf, 'INV-NOTAX-PART-100') == 40.00

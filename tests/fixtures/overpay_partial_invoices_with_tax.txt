@@ -8,18 +8,19 @@ taxtable "GST+PST"
 		rate: 7.0%
 		type: PERCENT
 
-vendor "V-TAX-BILL"
-	name: "Taxed Supplier"
+customer "C-TAX-INV"
+	name: "Customer With Tax"
 	currency: CAD
 
-bill "BILL-TAX-OVER-112"
-	vendor_id: "V-TAX-BILL"
+invoice "INV-TAX-OVER-112"
+	customer_id: "C-TAX-INV"
 	currency: CAD
 	date_opened: 2026-04-01
 	entry:
 		date: 2026-04-01
-		description: "Materials (net 100 + 12% tax = 112)"
-		account: "Expenses:Office Supplies"
+		description: "Services (net 100 + 12% tax = 112)"
+		action: "Hours"
+		account: "Income:Sales"
 		quantity: 1
 		price: 100
 		taxable: true
@@ -28,23 +29,24 @@ bill "BILL-TAX-OVER-112"
 	posted:
 		date: 2026-04-01
 		due: 2026-05-01
-		ap_account: "Liabilities:Accounts Payable"
-		memo: "Bill BILL-TAX-OVER-112"
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-TAX-OVER-112"
 		accumulate: true
 	payment:
 		date: 2026-04-10
 		amount: 150
 		bank_account: "Assets:Bank"
-		memo: "Paid 150 on a 112 bill (overpaid 38)"
+		memo: "Customer paid 150 on a 112 invoice (overpaid 38)"
 
-bill "BILL-TAX-PART-112"
-	vendor_id: "V-TAX-BILL"
+invoice "INV-TAX-PART-112"
+	customer_id: "C-TAX-INV"
 	currency: CAD
 	date_opened: 2026-04-02
 	entry:
 		date: 2026-04-02
-		description: "Materials (net 100 + 12% tax = 112)"
-		account: "Expenses:Office Supplies"
+		description: "Services (net 100 + 12% tax = 112)"
+		action: "Hours"
+		account: "Income:Sales"
 		quantity: 1
 		price: 100
 		taxable: true
@@ -53,11 +55,11 @@ bill "BILL-TAX-PART-112"
 	posted:
 		date: 2026-04-02
 		due: 2026-05-02
-		ap_account: "Liabilities:Accounts Payable"
-		memo: "Bill BILL-TAX-PART-112"
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-TAX-PART-112"
 		accumulate: true
 	payment:
 		date: 2026-04-11
 		amount: 60
 		bank_account: "Assets:Bank"
-		memo: "Part payment (52 outstanding on a 112 bill)"
+		memo: "Part payment (52 outstanding on a 112 invoice)"

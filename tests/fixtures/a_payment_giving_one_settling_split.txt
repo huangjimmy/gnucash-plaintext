@@ -9,7 +9,7 @@
 #
 # It settles 60.00 of the 100.00 invoice — the first of the transaction's two
 # receivable splits. The invoice is left part-paid on purpose: it is the state
-# `a_payment_naming_two_settling_splits.txt` is read into to check that a
+# `a_payment_giving_two_settling_splits.txt` is read into to check that a
 # second settling split can be added to a transaction that already settles
 # this invoice.
 #

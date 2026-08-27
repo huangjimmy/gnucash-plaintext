@@ -14,7 +14,7 @@
 
 ## Scenario setup
 
-Single CAD-only book, one customer, one invoice with one un-taxed entry. Accounts:
+Single CAD-only book, one customer, one invoice with one entry that is not taxable. Accounts:
 
 ```
 Assets

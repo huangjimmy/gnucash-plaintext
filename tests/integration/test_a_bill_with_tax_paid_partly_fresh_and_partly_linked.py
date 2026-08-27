@@ -1,4 +1,4 @@
-"""A taxed bill paid by a MIX of a fresh payment and a linked bank tx, then
+"""A bill with tax paid by a MIX of a fresh payment and a linked bank tx, then
 peeled apart with `unapply-payment` and re-linked.
 
 The bill: net 1000 + GST 5% ($50) + PST 7% ($70) = $1120 total. It is
@@ -33,7 +33,7 @@ from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 FIXTURES = Path('tests/fixtures')
 ACCOUNTS = str(FIXTURES / 'q019_accounts.txt')
-TO = 'Liabilities'  # re-home freed splits here (any account type is accepted)
+TO = 'Liabilities'  # the account a payment split takes (any type is accepted)
 
 
 def _fx(name):
@@ -170,7 +170,7 @@ def _setup_fully_paid(runner, tmp_path):
     assert guid_120 is not None
 
     # Bill: fresh $1000 payment + linked $120 payment (retargets the tx above).
-    bill_text = _fx('hero_taxed_bill_1120.txt').replace('{txn_guid}', guid_120)
+    bill_text = _fx('hero_bill_with_tax_1120.txt').replace('{txn_guid}', guid_120)
     r = _import(runner, gf, bill_text, 'bill.txt', tmp_path)
     assert r.exit_code == 0, f'hero bill import: {r.output}'
     guid_1000 = _bank_tx_guid(gf, -1000.0)
@@ -178,11 +178,11 @@ def _setup_fully_paid(runner, tmp_path):
     return gf, guid_1000, guid_120
 
 
-# ── Mixed apply + link settles the taxed bill ──────────────────────
+# ── Mixed apply + link settles the bill with tax ───────────────────
 
-def test_taxed_bill_settled_by_fresh_1000_and_linked_120(tmp_path):
+def test_a_bill_with_tax_settled_by_fresh_1000_and_linked_120(tmp_path):
     """The two-kind payment set (fresh $1000 + linked $120) fully settles
-    the $1120 taxed bill: posted lot balance 0, and the two bank txs
+    the $1120 bill with tax: posted lot balance 0, and the two bank txs
     (fresh $1000 out + linked $120) are both present."""
     runner = CliRunner()
     gf, _guid_1000, _guid_120 = _setup_fully_paid(runner, tmp_path)
@@ -330,7 +330,7 @@ def test_unapply_all_then_settle_from_prior_vendor_credit(tmp_path):
                 tmp_path, biz=False)
     assert r.exit_code == 0, r.output
     guid_120 = _bank_tx_guid(gf, -120.0)
-    bill_text = _fx('hero_taxed_bill_1120.txt').replace('{txn_guid}', guid_120)
+    bill_text = _fx('hero_bill_with_tax_1120.txt').replace('{txn_guid}', guid_120)
     r = _import(runner, gf, bill_text, 'bill.txt', tmp_path)
     assert r.exit_code == 0, r.output
     assert _posted_lot_balance(gf, 'BILL-HERO-1120') == 0.00

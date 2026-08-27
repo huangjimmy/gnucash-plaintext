@@ -37,6 +37,7 @@ from cli.report_cmd import report
 from cli.set_book_key_cmd import set_book_key
 from cli.set_invoice_style_cmd import set_invoice_style
 from cli.unapply_cmd import unapply_payment
+from cli.unlink_cmd import unlink
 from cli.unpost_cmd import unpost_bills, unpost_invoices
 from cli.validate_cmd import validate_ledger
 from infrastructure.guile import GuileUnavailableError
@@ -113,6 +114,7 @@ cli.add_command(archive_vendors, name='archive-vendors')
 cli.add_command(unpost_invoices, name='unpost-invoices')
 cli.add_command(unpost_bills, name='unpost-bills')
 cli.add_command(unapply_payment, name='unapply-payment')
+cli.add_command(unlink, name='unlink')
 cli.add_command(rename_account, name='rename-account')
 cli.add_command(set_book_key, name='set-book-key')
 cli.add_command(set_invoice_style, name='set-invoice-style')

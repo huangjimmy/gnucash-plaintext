@@ -1,7 +1,7 @@
 # A refund written by hand, naming no owner lot.
 #
-# The debit on the receivable belongs to no lot, and that is how raising a
-# receivable by hand looks too (fx_settlement_arriving_as_cad.txt raises one
+# The debit on the receivable belongs to no lot, and that is how writing a
+# receivable by hand looks too (fx_settlement_arriving_as_cad.txt writes one
 # exactly this way). The two are the same three lines, so the debit is read as
 # the receivable it resembles and establishes a basis: 100.00 USD the customer
 # owes. Nothing in the file says otherwise.

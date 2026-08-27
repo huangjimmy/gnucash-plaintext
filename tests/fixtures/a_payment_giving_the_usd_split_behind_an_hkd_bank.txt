@@ -1,0 +1,41 @@
+# Settling INV-USD-001 with the USD split of an HKD-quoted entry.
+#
+# The link itself is the ordinary one and needs no rate: the invoice is USD,
+# the split holds 100.00 USD, and the settlement is what the split already
+# says. The bank being in a third currency is allowed here — what the entry is
+# quoted in says nothing about whether the split states the settlement.
+#
+# It matters on the way back out. The split's *value* is 780.00 HKD, so an
+# account kept in HKD would take a figure the split already carries — and
+# writing it would put HKD in a CAD book with no cost basis behind it, which
+# is what `the_amount_the_new_account_takes` refuses.
+#
+# What this fixture produces: the split on `Assets:Accounts Receivable USD` at
+# −100.00 USD, valued −780.00 HKD, in the invoice's lot.
+#
+# Verified by tests/integration/test_unlinking_a_linked_transaction.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-04
+    amount: 100
+    account: "Assets:Bank HKD"
+    txn_guid: "ddeeff00112233445566778899aabbcc"
+    txn_split_guid: "ff00112233445566778899aabbccddee"

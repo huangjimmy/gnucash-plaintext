@@ -2,7 +2,7 @@
 #
 # The money never sits in an account of its own: the draw funds the payment in
 # one transaction. So one lump of currency is written twice — the credit line
-# raises the obligation it came from, and the payable debit records the claim
+# increases the obligation it came from, and the payable debit records the claim
 # on the vendor it went to.
 #
 # Currency arriving in a liability arrives as a *credit*: the account's

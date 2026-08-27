@@ -86,7 +86,7 @@ def test_a_discount_on_the_base_side_is_part_of_what_the_currency_cost(tmp_path)
 
     Unlike a bank fee, a discount is not a separate expense the book paid: it
     reduces the revenue, so the base currency the transaction actually booked
-    is the 126.00 that the receivable was raised for.
+    is the 126.00 that the receivable was posted for.
     """
     runner = CliRunner()
     gnucash_file = tmp_path / 'discount.gnucash'

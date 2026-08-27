@@ -7,7 +7,7 @@
 #     commodity checks both pass;
 #   - the bank split is not on a receivable, so it reads as "parked";
 #   - it is in no lot, so the lot refusal passes;
-#   - `refuse_when_the_amount_cannot_be_read` excludes *both* named splits when
+#   - `refuse_when_the_amount_cannot_be_read` excludes *both* given splits when
 #     it looks for a third, so it sees none and returns — it cannot catch this,
 #     being symmetric in exactly the two fields that were swapped;
 #   - both sides are USD, so the conversion arm is silent;
@@ -15,8 +15,8 @@
 #     overpayment refusal has anything to say.
 #
 # What that produced, at exit 0: the settlement is read as the negation of what
-# the *holding* split did, so the **bank** split was moved onto the receivable
-# at +100.00. The deposit vanished from `Assets:Bank:USD` altogether, the
+# the *holding* split did, so the **bank** split was given the receivable's
+# account at +100.00. The deposit vanished from `Assets:Bank:USD` altogether, the
 # invoice's lot held the posting's +100 and this +100 so the invoice read as
 # owing 200, and the entry still balanced — nothing anywhere disagreed.
 #

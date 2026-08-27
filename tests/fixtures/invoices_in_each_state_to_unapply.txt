@@ -1,17 +1,19 @@
-# One customer and three invoices, each in a state `unapply-payment` has to
-# refuse for a different reason: never posted, posted but never paid, and
-# posted and paid.
+# One customer and four invoices: three in a state `unapply-payment` and
+# `unlink` have to refuse for a different reason — never posted, posted but
+# never paid, posted and paid twice with no selector — and one posted and paid
+# once, which both commands take a payment off without being told which.
 #
 # The paid one is there so a refusal can be told from a book with nothing in
 # it — a command that says "no payments to unapply" about every invoice in the
 # book is not answering, and the third invoice is the control that says the
 # other two answers are about those two invoices.
 #
-# `Liabilities:Owed Back` is somewhere for a peeled payment to land: money
-# received that is no longer applied to an invoice is something you may owe
-# back, and `--to` has no defensible default.
+# `Liabilities:Owed Back` is the account a payment split takes: money received
+# that is no longer applied to an invoice is something you may owe back, and
+# `--to` has no defensible default.
 #
-# Verified by tests/integration/test_unapply_says_why_it_cannot.py.
+# Verified by tests/integration/test_saying_why_no_payment_came_off.py, which
+# runs every one of these states against both commands.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
@@ -105,3 +107,73 @@ invoice "INV-PAID"
 		amount: 100
 		bank_account: "Assets:Bank"
 		memo: "Paid in full"
+
+# A fourth: posted and paid twice, in two instalments. Neither command may
+# guess which payment a bare run means, so this is the record that reaches
+# `need_selector` — the status whose whole job is to say what to type next,
+# and the one no book in the suite could produce before.
+invoice "INV-TWICE"
+	customer_id: "C-UNAPPLY"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Posted and paid in two instalments"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-TWICE"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 60
+		bank_account: "Assets:Bank"
+		memo: "First instalment"
+	payment:
+		date: 2026-01-20
+		amount: 40
+		bank_account: "Assets:Bank"
+		memo: "Second instalment"
+
+# A fifth: paid in two instalments of which only one is a whole number of
+# dollars. `--all` on it, onto an account that counts whole dollars, has to
+# refuse — and refuse *both*, having written neither. One instalment alone
+# could be stated there, so a run that worked payment by payment would take
+# the 60.00 off and then fail on the 40.50, leaving the record half undone.
+#
+# The total is 100.50 for that reason: where the total is whole, either both
+# instalments are whole or neither is, and the case cannot arise.
+invoice "INV-PART-WHOLE"
+	customer_id: "C-UNAPPLY"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Posted and paid in a whole part and a part with cents"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100.50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-PART-WHOLE"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 60
+		bank_account: "Assets:Bank"
+		memo: "Whole instalment"
+	payment:
+		date: 2026-01-20
+		amount: 40.50
+		bank_account: "Assets:Bank"
+		memo: "Instalment with cents"

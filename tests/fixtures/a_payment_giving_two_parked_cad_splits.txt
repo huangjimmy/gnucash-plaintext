@@ -1,7 +1,7 @@
 # A grouped block naming two splits parked in another currency.
 #
 # The refusal `refuse_several_splits_this_cannot_divide` exists for, and the
-# file that reaches it. Both named splits are CAD against a USD invoice, so
+# file that reaches it. Both splits applied are CAD against a USD invoice, so
 # neither carries a figure that says anything about the settlement, and there
 # is no ratio in the book to divide the 100.00 USD between them by.
 #

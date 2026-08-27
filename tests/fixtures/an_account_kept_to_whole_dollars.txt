@@ -1,0 +1,12 @@
+# A CAD account that counts whole dollars and nothing finer.
+#
+# `commodity_scu: 1` is a supported field this tool round-trips, and an account
+# kept coarser than its own currency is a book GnuCash writes. Opened on its
+# own, with no transaction, so any book can be given one.
+#
+# Verified by tests/integration/test_unlinking_a_linked_transaction.py.
+2026-01-01 open Assets:Due From Director Whole
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	commodity_scu: 1
