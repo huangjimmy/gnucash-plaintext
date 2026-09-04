@@ -16,12 +16,12 @@ Removal was always caught, because the removed split is on the booked side.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import _run
 
 ADDED_CAD_SPLITS = 'tests/fixtures/fx_two_cad_splits_added_to_a_transaction.txt'
 
@@ -37,11 +37,6 @@ def _without_comments(text: str) -> str:
                    if not line.startswith('#'))
 
 FIXTURE = 'tests/fixtures/fx_two_base_splits_at_different_rates.txt'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _book_and_export(runner, tmp_path):

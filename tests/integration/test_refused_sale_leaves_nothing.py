@@ -10,17 +10,12 @@ several bases never lowers one of them and then fails on the next.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
+from tests.conftest import _run
 
 
 def _balances(runner, book, *extra):

@@ -72,6 +72,18 @@ A split carries two figures — an amount, in the commodity of the account the s
 
 **An export leaves out a `cost_basis_split_guid:` that matches a pool the book has consumed**, so a ledger from this version can differ from the previous one's for the same book. Spending an owner's credit in full ends the pool the sale drew on; the book keeps the guid, because that is what it knows about where its currency came from, and the file cannot carry it — a rebuilt book has nothing to measure against it, and the import refuses the line.
 
+### A ledger states a cost basis above whatever draws on it
+
+**An export writes transactions in the order the book keeps them**, which is GnuCash's own and the one every register shows: the posted date, then `num` where the transactions carry one, then when each was entered, then the description, then the guid. It sorted on the posted date alone before.
+
+**And a transaction holding a cost basis is stated above any transaction that draws on it**, whatever that order says. `cost_basis_split_guid:` is resolved as each block is applied, so a sale whose basis the file states further down is refused with "matches no split in the book". A deposit and a same-day fee drawn on it come out fee-first by description, and that ledger did not rebuild the book it came from — a sound book, every figure in it agreeing, that `--verify-costs` reported nothing about.
+
+The exception does not ask which of the two is dated first, so a cost basis dated after the sale drawn on it is stated above the sale and the file goes out of date order. Where two transactions draw on each other no order reads back and the book's own is written. `--with-balance` is unaffected: a balance is a figure as at a date, added up over the book in its own order.
+
+**`export-transaction --guid` and the undo copy `delete-transactions -o` writes follow the same rule.** The undo copy needed it most: a cost basis cannot be deleted while a sale measures against it, so the guids have to be given sale-first, and the copy came out in that order with the transactions it was the only copy of already gone.
+
+**And that copy states the balances the book held when the command began.** Deleting a sale gives its currency back to the basis it drew on, so a deposit written out after the fee had gone stated the whole of what it brought in rather than what was left of it — and re-importing the copy left the book offering currency its bank does not hold, silently, because a balance a file states is taken as already net of the sales below it. Every transaction such a run deletes is written out before any of them goes.
+
 ### Refusal wording
 
 **A guid is given, a split is applied, and a guid the book has nothing for matches nothing.** Saying a payment "names" a split told a reader nothing — every split has a name — and a payment does not choose or select one either. Every refusal that used the word has been reworded, including `posted_txn_guid '…' names no transaction in this book`, which now reads `matches no transaction in this book`.

@@ -22,7 +22,6 @@ Read back through the *book*, not the file: what a writer wrote proves only
 what it wrote, and the question here is what GnuCash holds afterwards.
 """
 
-import time
 from pathlib import Path
 
 import pytest
@@ -616,7 +615,6 @@ class TestALineBilledToAJob:
                     finally:
                         lib.gncOwnerFree(owner)
             q.destroy()
-            time.sleep(1.1)   # two saves in one second collide on the backup
             repo.save()
         finally:
             repo.close()
@@ -905,7 +903,6 @@ class TestANoteTypedOnTwoLines:
                     entry.SetNotes(self.NOTE)
                     entry.CommitEdit()
             q.destroy()
-            time.sleep(1.1)   # two saves in one second collide on the backup
             repo.save()
         finally:
             repo.close()

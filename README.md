@@ -2249,6 +2249,16 @@ accounts → customers/vendors/taxtables → standalone transactions → invoice
 
 Standalone transactions are created (with their declared `guid:` on both the transaction and each split) **before** any invoice or bill is processed, so the `payment:` blocks' `txn_guid:`/`txn_split_guid:` references always resolve in the same import call — no two-step import needed, even for a fresh book.
 
+#### What order an export writes transactions in
+
+A ledger states transactions in the order the book keeps them, which is GnuCash's own and the one every register shows: the posted date, then `num` where the transactions carry one, then when each was entered, then the description, then the guid. Two transactions of one day are ordered by the `num` you give them, and two carrying none by their descriptions.
+
+With one exception, which is about the file rather than the book: **a transaction holding a cost basis is stated above any transaction that draws on it.** `cost_basis_split_guid:` is resolved as each block is applied, so a sale whose basis the file states further down is refused with "matches no split in the book". Two transactions of one day, one a deposit and one a fee drawn on it, come out fee-first by description — and that ledger does not rebuild the book it came from.
+
+The exception does not ask which of the two is dated first, so a cost basis dated *after* the sale drawn on it — a mistyped date — is stated above the sale, and the file goes out of date order to stay readable. Where two transactions draw on each other no order reads back, and the book's own is written. A running balance is unaffected either way: `--with-balance` states a figure as at a date, added up over the book in its own order.
+
+`export-transaction --guid` and the undo copy `delete-transactions -o` writes follow the same rule, whichever order the guids are given in.
+
 See **[docs/comprehensive-roundtrip-example.md](docs/comprehensive-roundtrip-example.md)** for the canonical end-to-end roundtrip walkthrough — a single source book exercising every plaintext surface (accounts, customers, vendors, tax tables, invoices and bills, all payment shapes: cash, a linked bank transaction, overpayment with prepayment credit, credit consumption via `auto_apply_credit`, and the multi-invoice-one-bank-tx shape) exported and re-imported into a fresh book with semantic identity preserved down to per-split GUIDs. And **[docs/invoice-payment-reconciliation.md](docs/invoice-payment-reconciliation.md)** for the bank-feed-first workflow, error reference, and the invoice-first alternative, plus **[docs/bill-payment-reconciliation.md](docs/bill-payment-reconciliation.md)** for the vendor-bill (Accounts Payable) side — partial payments, vendor credits, detection, and `unapply-payment` corrections.
 
 #### Cash-basis sales (Q-018)

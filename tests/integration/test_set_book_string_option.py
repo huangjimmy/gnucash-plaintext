@@ -272,8 +272,7 @@ def test_setting_new_key_preserves_unrelated_slots(fresh_book):
     """Setting Company Name on a book that already has Company Email
     Address must not wipe the email slot. Real-world flow: the user
     fills in their Business options field-by-field over multiple
-    sessions; each set call must be additive. The session-boundary
-    sleep handles the backup-naming collision documented above."""
+    sessions; each set call must be additive."""
     assert _write_business_options(
         fresh_book, ('Company Email Address', 'hi@acme.test'),
     )[0]

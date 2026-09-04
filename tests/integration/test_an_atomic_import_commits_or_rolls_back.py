@@ -19,7 +19,6 @@ the damaged book unable to accept any import at all.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -27,6 +26,7 @@ from click.testing import CliRunner
 from cli.main import cli
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.foreign_currency import iter_splits, split_guid
+from tests.conftest import _run
 
 ACCOUNTS = 'tests/fixtures/an_atomic_run_accounts.txt'
 # The second posts to an account the book has not got.
@@ -34,11 +34,6 @@ ONE_GOOD_ONE_BAD = 'tests/fixtures/an_atomic_run_one_good_one_bad.txt'
 BOTH_GOOD = 'tests/fixtures/an_atomic_run_both_good.txt'
 A_THIRD_GOOD_ONE = 'tests/fixtures/an_atomic_run_a_third_good_one.txt'
 AN_ORDINARY_CAD_EXPENSE = 'tests/fixtures/an_ordinary_cad_expense.txt'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _book(runner, tmp_path):

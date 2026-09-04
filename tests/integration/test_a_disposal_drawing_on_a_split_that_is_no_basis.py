@@ -12,35 +12,43 @@ ledger is refused with "matches a split that is no USD cost basis". A book
 whose own export cannot rebuild it should not be reported as sound.
 """
 
+import datetime
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
+from gnucash.gnucash_core_c import xaccTransOrder
 
 from cli.main import cli
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.foreign_currency import iter_splits, split_guid
+from tests.conftest import _run
 
 RATES = 'tests/fixtures/fx_rates_usd_two_invoice_dates.yaml'
 DEPOSIT_SPLIT = '00e958a8d56547d484d7629000292dc3'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
+A_DEPOSIT = 'Received money from Example Customer Inc'
+A_FEE = 'Charges for: TRANSFER-0000001'
 
 
 def _block_for(text, opening):
     return re.search(rf'{re.escape(opening)}[^\n]*\n(?:\t[^\n]*\n)*', text).group(0)
 
 
-def _a_fee_drawing_on_a_split_that_is_no_basis(runner, tmp_path):
-    """Two invoices, a deposit, a fee drawn on the deposit — then the CAD side
-    taken away and the stranded balance cleared.
+def a_deposit_and_a_fee_of_the_same_day(runner, tmp_path):
+    """Two invoices, a deposit of 2720.00 USD, and a 0.72 USD fee drawn on it.
 
-    What is left is a fee giving a guid that is no cost basis, and nothing
-    else wrong that any existing check can see.
+    Sound: the fee is measured against the deposit's own cost basis, and the
+    two share the day they are posted. `tests/integration/
+    test_an_export_states_a_cost_basis_above_what_draws_on_it.py` is about
+    that day.
+
+    The two are entered at one instant, and the book is asked whether that
+    puts the fee above the deposit. Two imports stamp the second they run in,
+    so whether they tie is a matter of where the second boundary falls: tied,
+    the engine orders them by description and the fee comes first, which is
+    the book this is for; a boundary between them and the deposit sorts first
+    on its own, and every test built on this passes without the fault being
+    there to find.
     """
     book = tmp_path / 'book.gnucash'
     result = runner.invoke(cli, [
@@ -54,6 +62,48 @@ def _a_fee_drawing_on_a_split_that_is_no_basis(runner, tmp_path):
     assert _run(runner, 'import', str(book),
                 'tests/fixtures/fx_fee_drawn_from_the_deposits_basis.txt'
                 ).exit_code == 0
+
+    entered = datetime.datetime(2026, 8, 14, 9, 30, 0)
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.NORMAL)
+    try:
+        written = 0
+        for transaction in repo.get_all_transactions():
+            if transaction.GetDescription() in (A_DEPOSIT, A_FEE):
+                transaction.BeginEdit()
+                transaction.SetDateEnteredSecs(entered)
+                transaction.CommitEdit()
+                written += 1
+        assert written == 2, written
+    finally:
+        repo.save()
+        repo.close()
+
+    # Asked of the book on disk, which is the one every test opens. Asked of
+    # the session that wrote it, an entered time that did not survive the save
+    # would read back right here and wrong everywhere it matters.
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.READ_ONLY)
+    try:
+        held = {transaction.GetDescription(): transaction
+                for transaction in repo.get_all_transactions()
+                if transaction.GetDescription() in (A_DEPOSIT, A_FEE)}
+        assert set(held) == {A_DEPOSIT, A_FEE}, sorted(held)
+        assert xaccTransOrder(held[A_FEE].instance,
+                              held[A_DEPOSIT].instance) < 0
+    finally:
+        repo.close()
+    return book
+
+
+def _a_fee_drawing_on_a_split_that_is_no_basis(runner, tmp_path):
+    """That book, with the deposit's CAD side taken away and the stranded
+    balance cleared.
+
+    What is left is a fee giving a guid that is no cost basis, and nothing
+    else wrong that any existing check can see.
+    """
+    book = a_deposit_and_a_fee_of_the_same_day(runner, tmp_path)
 
     repo = GnuCashRepository(str(book))
     repo.open(mode=SessionMode.NORMAL)
@@ -99,7 +149,13 @@ def test_the_disposal_is_reported(tmp_path):
 
 
 def test_the_export_of_that_book_does_not_re_import(tmp_path):
-    """Which is what the finding is warning about."""
+    """Which is what the finding is warning about.
+
+    The deposit is stated above the fee that draws on it, because the export
+    writes a cost basis above what draws on it whatever the book's own order
+    says. So the guid resolves, to a split that is no cost basis, and it is
+    that refusal the reader gets rather than "matches no split in the book".
+    """
     runner = CliRunner()
     book = _a_fee_drawing_on_a_split_that_is_no_basis(runner, tmp_path)
 
@@ -109,6 +165,7 @@ def test_the_export_of_that_book_does_not_re_import(tmp_path):
     result = _run(runner, 'import', '--new', str(fresh), str(out))
     message = result.output + str(result.exception)
     assert result.exit_code != 0, message
+    assert DEPOSIT_SPLIT in message, message
     assert 'no USD cost basis' in message, message
 
 

@@ -20,7 +20,6 @@ from the transaction itself, which the spending never touched.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -28,6 +27,7 @@ from gnucash import Query, Transaction
 
 from cli.main import cli
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from tests.conftest import _run
 from tests.integration.test_applied_credit_carries_its_basis import (
     _overpaid_book,
 )
@@ -36,11 +36,6 @@ RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
 OWN_CURRENCY_RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
 
 SALE = 'tests/fixtures/fx_sell_from_a_credit_handed_back.txt'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _the_overpaying_transaction(book):

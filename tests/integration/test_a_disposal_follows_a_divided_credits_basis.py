@@ -36,12 +36,12 @@ refused.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import _run
 from tests.integration.test_a_credit_handed_back_by_an_unpost_is_checked import (
     _a_cad_paid_credit,
     _the_overpaying_transaction,
@@ -52,11 +52,6 @@ from tests.integration.test_applied_credit_carries_its_basis import (
     _overpaid_book,
     _the_credit_split,
 )
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _dashed(guid):

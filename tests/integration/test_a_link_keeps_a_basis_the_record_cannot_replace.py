@@ -19,19 +19,14 @@ keeps it.
 """
 
 import re
-import time
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import _run
 
 RATES = 'tests/fixtures/fx_rates_usd_two_invoice_dates.yaml'
 SOURCE = 'tests/fixtures/fx_usd_invoice_booked_to_a_usd_income_account.txt'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _with_payment(text, header, payment_lines):

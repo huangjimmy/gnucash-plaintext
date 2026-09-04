@@ -10,7 +10,6 @@ what the book still owes — while the 40.00 has become a settlement and holds
 nothing.
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -194,7 +193,6 @@ def test_the_applied_part_can_be_priced_again_after_an_unpost(tmp_path):
                                '--include-business-objects',
                                '--fx-rates', RATES]).exit_code == 0
 
-    time.sleep(1.1)             # two saves in one second collide on backup
     unposted = runner.invoke(cli, ['unpost-invoices', str(book),
                                    'INV-USD-SECOND'])
     assert unposted.exit_code == 0, unposted.output

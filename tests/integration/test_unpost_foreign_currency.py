@@ -10,20 +10,14 @@ Refused, rather than warned about, because nothing downstream would notice.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import _run
 
 RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
-
-
-def _run(runner, *args):
-    # Two saves inside one second collide on the backup filename.
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _balances(runner, book):

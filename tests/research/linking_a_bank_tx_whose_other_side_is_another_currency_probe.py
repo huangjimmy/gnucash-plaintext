@@ -52,18 +52,27 @@ Run:  ./scripts/run.sh latest bash -c 'python3 -m pip install -e . \
           tests/research/linking_a_bank_tx_whose_other_side_is_another_currency_probe.py'
 """
 
+import os
 import sys
 import tempfile
-import time
 from fractions import Fraction
 from pathlib import Path
 
-from click.testing import CliRunner
-from gnucash import Query, Transaction
+# The repo root, so `tests` is importable when this is run as a script. The
+# editable install puts `cli` and the rest of the package on the path; the
+# suite's own directory is not part of it.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                                '..', '..')))
 
-from cli.main import cli
-from infrastructure.gnucash.utils import get_account_full_name
-from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from click.testing import CliRunner  # noqa: E402
+from gnucash import Query, Transaction  # noqa: E402
+
+from infrastructure.gnucash.utils import get_account_full_name  # noqa: E402
+from repositories.gnucash_repository import (  # noqa: E402
+    GnuCashRepository,
+    SessionMode,
+)
+from tests.conftest import _run  # noqa: E402
 
 BANK = 'Assets:Bank USD'
 AR = 'Assets:Accounts Receivable'
@@ -150,13 +159,6 @@ MONEY_IN = '''\
 \t\tshare_price: "1"
 \t\tvalue: "-1399.00"
 '''
-
-
-def _run(runner, *args):
-    # GnuCash refuses a second save inside the same second: its backup file is
-    # named to the second and the collision surfaces as ERR_FILEIO_BACKUP_ERROR.
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _transaction(book_path, description):

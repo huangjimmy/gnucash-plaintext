@@ -27,7 +27,6 @@ Run: ./scripts/test.sh <tag> tests/research/a_lot_can_be_named_probe.py
 """
 
 import ctypes
-import time
 
 from click.testing import CliRunner
 
@@ -185,9 +184,6 @@ def test_a_lot_answers_to_its_guid_and_takes_one(tmp_path):
         report.append(f'after that save and a reload: {alone_back}')
     finally:
         repo.close()
-
-    # Two saves in the same second collide on the backup file's timestamp.
-    time.sleep(1)
 
     repo = GnuCashRepository(str(book_path))
     repo.open(SessionMode.NORMAL)

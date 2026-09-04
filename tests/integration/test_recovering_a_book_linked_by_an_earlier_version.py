@@ -16,7 +16,6 @@ guid.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -29,6 +28,7 @@ from services.foreign_currency import (
     iter_splits,
     split_guid,
 )
+from tests.conftest import _run
 
 RATES = 'tests/fixtures/fx_rates_usd_two_invoice_dates.yaml'
 BANK = ('Assets:Current assets:Cash and deposits:Deposits in Canadian banks '
@@ -36,11 +36,6 @@ BANK = ('Assets:Current assets:Cash and deposits:Deposits in Canadian banks '
         'Chequing 000000000000001')
 DEPOSIT_SPLIT = '00e958a8d56547d484d7629000292dc3'
 FEE_TX = '10379c8ab37547b8b7c8dbebca45d3e3'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _stored_balance(book, guid):

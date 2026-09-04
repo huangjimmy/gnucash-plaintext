@@ -18,7 +18,6 @@ place it can be asked of a sale nobody is importing.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -27,13 +26,9 @@ from gnucash import GncNumeric
 from cli.main import cli
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.foreign_currency import iter_splits, split_commodity
+from tests.conftest import _run
 
 RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
-
 
 def _a_basis_with_a_fee_drawn_on_it(runner, tmp_path):
     """100.00 USD bought at 1.40, with a 10.00 USD fee valued against it."""

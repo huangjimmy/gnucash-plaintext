@@ -281,15 +281,9 @@ class TestAccountBalancePricedbPersistence:
 
     def test_fx_rates_written_to_pricedb_on_disk(self, temp_gnucash_account_balance, tmp_path):
         """HKD/CAD price entry appears in a fresh session opened after the CLI run."""
-        import time
-
         from gnucash.gnucash_core_c import gnc_pricedb_get_db, gnc_pricedb_lookup_latest
 
         from repositories.gnucash_repository import GnuCashRepository, SessionMode
-
-        # GnuCash backup filenames are timestamp-based (second resolution).
-        # The fixture saves during setup; without this sleep the CLI save would
-        # collide with the same-second backup → ERR_FILEIO_BACKUP_ERROR → no save.
 
         fx = _fx_file(tmp_path)
         result = run_cli(temp_gnucash_account_balance, "--as-of", "2024-12-31",

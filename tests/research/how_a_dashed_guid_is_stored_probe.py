@@ -18,12 +18,12 @@ tool, and the ten supported builds do not have to agree about it.
     ./scripts/test.sh latest tests/research/how_a_dashed_guid_is_stored_probe.py
 """
 
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import _run
 from tests.integration.test_a_disposal_follows_a_divided_credits_basis import (
     RATES,
     _dashed,
@@ -31,11 +31,6 @@ from tests.integration.test_a_disposal_follows_a_divided_credits_basis import (
 from tests.integration.test_applied_credit_carries_its_basis import (
     _overpaid_book,
 )
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def test_what_a_dashed_guid_becomes(tmp_path, capsys):

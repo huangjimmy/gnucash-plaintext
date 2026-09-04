@@ -24,6 +24,30 @@ from use_cases.export_transactions import (
 
 
 @dataclass
+class APreparedDelete:
+    """One transaction read and written out, and not yet deleted.
+
+    `plaintext` is the undo copy, and what it states about a cost basis is
+    true of the book as it stands. Deleting a sale gives its currency back to
+    the basis it drew on, so a transaction written out after a sibling's
+    deletion states a balance the book no longer had when the command began —
+    and the undo copy, re-imported, then leaves the book offering currency its
+    bank does not hold. So every transaction a run deletes is written out
+    before any of them goes.
+
+    The transaction itself is not held here, only its guid, and `carry_out`
+    looks it up again. A guid named twice in one run is prepared twice, and a
+    kept wrapper would be a pointer to a transaction the first deletion had
+    already freed — read, written and destroyed a second time.
+    """
+    guid: str
+    description: str
+    date: str
+    plaintext: str
+    undo_copy_error: Optional[str]
+
+
+@dataclass
 class DeleteTransactionResult:
     """Result of the delete-transactions use case (single tx)."""
     guid: str
@@ -59,14 +83,19 @@ class DeleteTransactionUseCase:
         Raises:
             ValueError: If no transaction with the given GUID exists in the book.
         """
-        transactions = self.repository.get_all_transactions()
-        target = next(
-            (tx for tx in transactions if tx.GetGUID().to_string() == guid),
-            None,
-        )
-        if target is None:
-            raise ValueError(f"Transaction GUID {guid!r} not found in book")
+        return self.carry_out(self.prepare(guid))
 
+    def prepare(self, guid: str) -> APreparedDelete:
+        """Read the transaction and write the undo copy. Nothing is deleted.
+
+        A caller deleting several transactions prepares all of them first, so
+        that no undo copy states a cost basis balance a sibling's deletion has
+        already changed.
+
+        Raises:
+            ValueError: If no transaction with the given GUID exists in the book.
+        """
+        target = self._the_one_the_book_holds(guid)
         description = target.GetDescription()
         date = target.GetDate().strftime("%Y-%m-%d")
 
@@ -99,10 +128,42 @@ class DeleteTransactionUseCase:
                 f'# The transaction was deleted anyway. Re-creating it means '
                 f'entering it in GnuCash.\n')
 
+        return APreparedDelete(
+            guid=guid,
+            description=description,
+            date=date,
+            plaintext=plaintext,
+            undo_copy_error=undo_copy_error,
+        )
+
+    def _the_one_the_book_holds(self, guid: str):
+        transactions = self.repository.get_all_transactions()
+        target = next(
+            (tx for tx in transactions if tx.GetGUID().to_string() == guid),
+            None,
+        )
+        if target is None:
+            raise ValueError(f"Transaction GUID {guid!r} not found in book")
+        return target
+
+    def carry_out(self, prepared: APreparedDelete) -> DeleteTransactionResult:
+        """Delete a transaction already written out by `prepare`.
+
+        Looked up again rather than kept from `prepare`, so that a guid named
+        twice in one run is refused the second time by the book rather than
+        destroyed twice.
+
+        Raises:
+            ValueError: If the book no longer holds it, or if a cost basis in
+                it is still measured against.
+        """
+        target = self._the_one_the_book_holds(prepared.guid)
+
         # Q-035: a transaction that establishes a cost basis cannot go while
         # anything still measures against it — that split *is* the basis.
         require_no_cost_basis_dependents(
-            self.repository.book, target, f'{date} {description!r}')
+            self.repository.book, target,
+            f'{prepared.date} {prepared.description!r}')
 
         # And read what this transaction takes from each cost basis before it
         # goes, so those amounts can be given back — deleting a sale returns
@@ -114,9 +175,9 @@ class DeleteTransactionUseCase:
         give_back_to_cost_bases(self.repository.book, taken)
 
         return DeleteTransactionResult(
-            guid=guid,
-            description=description,
-            date=date,
-            plaintext=plaintext,
-            undo_copy_error=undo_copy_error,
+            guid=prepared.guid,
+            description=prepared.description,
+            date=prepared.date,
+            plaintext=prepared.plaintext,
+            undo_copy_error=prepared.undo_copy_error,
         )

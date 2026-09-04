@@ -16,7 +16,6 @@ whatever styling it was configured with, not whatever the ledger's author
 used.
 """
 
-import time
 from pathlib import Path
 
 import pytest
@@ -58,7 +57,6 @@ def _book(tmp_path):
 
 
 def _styled(book, tmp_path, *args):
-    time.sleep(1.1)     # GnuCash names its backup by the second
     result = CliRunner().invoke(cli, ['set-invoice-style', str(book), *args])
     assert result.exit_code == 0, result.output
     return result
@@ -480,7 +478,6 @@ class TestABookWrittenBySomethingElse:
         )
 
         book = _book(tmp_path)
-        time.sleep(1.1)
         repo = GnuCashRepository(str(book))
         repo.open(SessionMode.NORMAL)
         try:
@@ -505,7 +502,6 @@ class TestABookWrittenBySomethingElse:
         )
 
         book = _book(tmp_path)
-        time.sleep(1.1)
         repo = GnuCashRepository(str(book))
         repo.open(SessionMode.NORMAL)
         try:

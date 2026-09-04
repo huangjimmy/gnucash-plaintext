@@ -246,6 +246,24 @@ class TestDeleteTransactionsCli:
             if os.path.exists(path):
                 os.unlink(path)
 
+    def test_the_same_guid_twice_deletes_it_once(self, tmp_path):
+        """And the book refuses the second, as it refuses any missing guid.
+
+        Every transaction a run deletes is written out before any of them
+        goes, so a guid named twice is written out twice while it is still
+        there. What it must not do is delete twice: the second deletion would
+        read, write and destroy a transaction the first had freed.
+        """
+        path, guid = _make_gnucash_with_transaction()
+        try:
+            result = run_cli(path, '--by-guid', guid, guid)
+            assert result.exit_code == 1, result.output
+            assert result.output.count(f'{guid}: deleted') == 1, result.output
+            assert 'not found in book' in result.output, result.output
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
     def test_multi_delete_backup_is_reimportable(self, tmp_path):
         """Concatenated multi-tx backup re-imports cleanly and restores
         both transactions. Guards `"\\n\\n".join(...)` in delete_transaction_cmd.py:
@@ -265,14 +283,6 @@ class TestDeleteTransactionsCli:
             assert result.exit_code == 0, result.output
             assert f'{guid1}: deleted' in result.output, result.output
             assert f'{guid2}: deleted' in result.output, result.output
-
-            # GnuCash backup filenames use a per-second timestamp.
-            # Without this sleep, the next `repo.save()` collides with
-            # the delete-transactions save's backup filename and raises
-            # ERR_FILEIO_BACKUP_ERROR — which our CLI swallows, so the
-            # re-import silently no-ops on disk and `imported_count`
-            # comes back as 0 (false test pass otherwise). Same footgun
-            # the Q-010 unpost test documents at length.
 
             # Both blocks present in the concatenated backup
             with open(backup) as f:
@@ -331,10 +341,6 @@ class TestDeleteTransactionsCli:
             # Delete with backup
             result = run_cli(path, '--by-guid', guid, '-o', backup)
             assert result.exit_code == 0, result.output
-
-            # See comment in test_multi_delete_backup_is_reimportable
-            # above re: ERR_FILEIO_BACKUP_ERROR — same per-second
-            # backup-filename collision applies here.
 
             # Re-import backup
             repo = GnuCashRepository(path)

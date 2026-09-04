@@ -13,7 +13,6 @@ test_residual_split.py and test_unpost_foreign_currency.py).
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -22,13 +21,9 @@ from cli.main import cli
 from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.foreign_currency import COST_BASIS_FORCE_KEY, iter_splits
+from tests.conftest import _run
 
 RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _balances(runner, book):

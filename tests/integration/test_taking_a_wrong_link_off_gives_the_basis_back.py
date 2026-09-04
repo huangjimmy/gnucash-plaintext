@@ -20,11 +20,11 @@ is pinned below, because it decides what the director is owed.
 """
 
 import re
-import time
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import _run
 
 RATES = 'tests/fixtures/fx_rates_usd_two_invoice_dates.yaml'
 QUOTED_ON_THE_DAY = 'tests/fixtures/fx_rates_usd_quoted_on_the_deposit_date.yaml'
@@ -35,11 +35,6 @@ BANK_USD = ('Assets:Current assets:Cash and deposits:Deposits in Canadian '
             'banks and institutions – Foreign currency:Foreign Payments '
             'Provider Chequing 000000000000001')
 DUE_FROM = 'Assets:Current assets:Due from director'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _with_payment(text, header, payment_lines):

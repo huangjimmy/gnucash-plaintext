@@ -6,8 +6,10 @@ with all metadata required for round-trip import.
 """
 
 import datetime
+import heapq
 import os
 from fractions import Fraction
+from functools import cmp_to_key
 from typing import Optional, Sequence
 
 from gnucash import Transaction
@@ -17,6 +19,7 @@ from gnucash.gnucash_core_c import (
     xaccAccountGetTypeStr,
     xaccTransGetIsClosingTxn,
     xaccTransLookup,
+    xaccTransOrder,
 )
 
 from infrastructure.gnucash.kvp import get_custom_metadata
@@ -38,6 +41,7 @@ from services.foreign_currency import (
     derived_cost_of,
     establishes_cost_basis,
     is_a_spent_credit,
+    split_guid,
 )
 from services.gnucash_importer import (
     ORPHANED_BY_UNPOST_KEY,
@@ -217,6 +221,142 @@ def _stored_cost_is_ignorable(split) -> bool:
         return not establishes_cost_basis(split)
     except Exception:
         return False
+
+
+def the_order_the_book_keeps_them_in(one, other) -> int:
+    """GnuCash's own comparison of two transactions, `xaccTransOrder`.
+
+    The engine already answers "which of these comes first", and it is the
+    answer every GnuCash register shows: the posted date, then `num` where the
+    transactions carry one, then when each was entered, then the description,
+    then the guid. An export reads a book and should say what the book says,
+    so it asks rather than inventing an order of its own.
+
+    It was sorted on the posted date alone before, which is the same order:
+    `qof_query_run` returns transactions in `xaccTransOrder` already — measured
+    in `tests/research/what_order_a_book_keeps_same_day_transactions_in_probe.py`,
+    where the query hands over a same-day fee and deposit in the order the
+    engine's own comparison puts them. Sorting says so, rather than leaning on
+    a query whose order nothing had asked about.
+    """
+    return xaccTransOrder(one.instance, other.instance)
+
+
+def _the_basis_a_sale_draws_on(split) -> Optional[str]:
+    """The guid this split will state in `cost_basis_split_guid:`, or None.
+
+    None where the split gives no guid, and where it gives one the export
+    drops — so this asks exactly what the writer asks, and a line the file
+    will not carry moves nothing.
+    """
+    given = get_custom_metadata(split).get(COST_BASIS_SPLIT_KEY)
+    if not given or _the_basis_it_gives_was_spent(split, given):
+        return None
+    return str(given).replace('-', '').lower()
+
+
+def each_basis_above_what_draws_on_it(transactions: list) -> list:
+    """The book's order, with one exception: a transaction holding a cost
+    basis is written above any transaction that draws on it.
+
+    Given the transactions the file will carry, after any date or account
+    filter, so that only an order the file can be read back in is asked
+    about — and so that the running balances, which are added up over every
+    transaction in the book's own order, are not asked to follow this one.
+
+    `cost_basis_split_guid:` is resolved as each block is applied, so a sale
+    whose basis the file states further down is refused with "matches no split
+    in the book" and the import fails. The two transactions this was measured
+    on share a posted date, carry no `num` and were entered in the same
+    second, so the engine orders them by description — and "Charges for:
+    TRANSFER-0000001" comes before the deposit it is drawn on. That book is
+    sound: every figure in it agrees, and its own ledger did not rebuild it.
+
+    Which of the two is dated first is not asked. A basis dated after the sale
+    that draws on it is an odd book, but it is one this can still write a
+    ledger for, and the alternative is a file that does not read back.
+
+    Where two transactions draw on each other there is no order that reads
+    back, and the book's own is returned untouched.
+
+    One walk of the splits, and one read of each split's slot: most books hold
+    no cost basis at all, and this runs on every export. `GetSplitList` is a
+    fresh wrapper per call and the slot is a ctypes read and a `json.loads`,
+    so both are taken once and the guid a sale gives is collected on the way
+    past.
+    """
+    held_by = {}
+    drawn_on = []
+    for position, transaction in enumerate(transactions):
+        for split in transaction.GetSplitList():
+            held_by[split_guid(split)] = position
+            basis = _the_basis_a_sale_draws_on(split)
+            if basis is not None:
+                drawn_on.append((position, basis))
+
+    if not drawn_on:
+        return transactions
+
+    # A entry per transaction that waits for another, and per transaction
+    # another waits for — not one per transaction in the book. A book of a
+    # hundred thousand entries and one sale in it holds two of each here.
+    waits_for: dict = {}
+    holds_up: dict = {}
+    for position, basis in drawn_on:
+        above = held_by.get(basis)
+        if above is None or above == position:
+            continue
+        waits_for.setdefault(position, set()).add(above)
+        holds_up.setdefault(above, set()).add(position)
+
+    if not waits_for:
+        return transactions
+
+    ready = [position for position in range(len(transactions))
+             if position not in waits_for]
+    heapq.heapify(ready)
+    written = []
+    while ready:
+        position = heapq.heappop(ready)
+        written.append(transactions[position])
+        for below in sorted(holds_up.get(position, ())):
+            waiting = waits_for[below]
+            waiting.discard(position)
+            if not waiting:
+                del waits_for[below]
+                heapq.heappush(ready, below)
+
+    return written if len(written) == len(transactions) else transactions
+
+
+def where_each_undo_block_goes(book, guids: Sequence[str]) -> dict:
+    """A position per guid, for a command writing one block per transaction.
+
+    `delete-transactions -o` writes an undo copy, one block per guid, in the
+    order the guids were typed — and that order is not the writer's to choose.
+    A cost basis cannot be deleted while a sale measures against it, so the
+    sale is named first, and the copy stated the sale above the basis it draws
+    on: a file whose opening block gives the guid of a split no block above it
+    creates, refused on the way back in, with the transactions it was the only
+    copy of already gone from the book.
+
+    Asked before the transactions are deleted, because it reads them. A guid
+    the book does not hold is left out, and so is the block it would have had:
+    a caller writes a copy of what it deleted, and it deleted nothing.
+    """
+    found = {}
+    for guid in guids:
+        gnc_guid = GncGUID()
+        if not string_to_guid(str(guid), gnc_guid):
+            continue
+        raw = xaccTransLookup(gnc_guid, book.instance)
+        if raw is not None:
+            found[guid] = Transaction(instance=raw)
+
+    named_by = {id(transaction): guid for guid, transaction in found.items()}
+    return {named_by[id(transaction)]: position for position, transaction
+            in enumerate(each_basis_above_what_draws_on_it(
+                list(found.values())))}
 
 
 def _the_basis_it_gives_was_spent(split, basis_guid) -> bool:
@@ -529,8 +669,7 @@ class ExportTransactionsUseCase:
         # Get ALL transactions first (we'll filter them later)
         all_transactions = self.repository.get_all_transactions()
 
-        # Sort by date
-        all_transactions.sort(key=lambda tx: tx.GetDate())
+        all_transactions.sort(key=cmp_to_key(the_order_the_book_keeps_them_in))
 
         # Filter transactions by date range if specified
         if start_date and end_date:
@@ -554,6 +693,12 @@ class ExportTransactionsUseCase:
                         filtered.append(tx)
                         break
             transactions = filtered
+
+        # Last, so that only what the file will carry is asked about, and so
+        # that `all_transactions` stays in the book's own order: it is what
+        # the running balances are added up over, and a balance is a figure
+        # as at a date, whatever order the file states the transactions in.
+        transactions = each_basis_above_what_draws_on_it(transactions)
 
         result = ExportResult()
 
@@ -1400,6 +1545,14 @@ class ExportTransactionsUseCase:
             if raw is None:
                 raise ValueError(f"No transaction found with GUID: {guid}")
             self._collect_transaction_data(Transaction(instance=raw), result)
+
+        # A cost basis above whatever draws on it, as the whole-book export
+        # states them. The guids are given in whatever order the caller typed,
+        # so `export-transaction --guid <sale> --guid <basis>` wrote a ledger
+        # whose opening block gives the guid of a split no block above it
+        # creates — refused on the way into a fresh book.
+        result.transactions = each_basis_above_what_draws_on_it(
+            result.transactions)
         return result
 
     def execute_by_guid(self, guid: str) -> ExportResult:

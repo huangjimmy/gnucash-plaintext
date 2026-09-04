@@ -10,7 +10,6 @@ The reported book had 2,719.28 USD sitting that way. This is the check that
 says so.
 """
 
-import time
 
 from click.testing import CliRunner
 
@@ -22,14 +21,10 @@ from services.foreign_currency import (
     iter_splits,
     split_guid,
 )
+from tests.conftest import _run
 
 RATES = 'tests/fixtures/fx_rates_usd_two_invoice_dates.yaml'
 DEPOSIT_SPLIT = '00e958a8d56547d484d7629000292dc3'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _a_book_with_a_parked_deposit(runner, book):

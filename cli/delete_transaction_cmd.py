@@ -26,6 +26,7 @@ import click
 from cli._saving import save_or_report
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from use_cases.delete_transaction import DeleteTransactionUseCase
+from use_cases.export_transactions import where_each_undo_block_goes
 
 
 @click.command("delete-transactions")
@@ -93,18 +94,36 @@ def delete_transactions(gnucash_file, guids, by_guid, output_file):
     all_ok = True
     try:
         use_case = DeleteTransactionUseCase(repo)
+        # Both read before anything is deleted. The undo copy states a cost
+        # basis above whatever draws on it, and the guids are typed the other
+        # way round because that is the only order a delete accepts; and a
+        # transaction written out after a sibling has gone states a basis
+        # balance the deletion has already raised.
+        goes = where_each_undo_block_goes(repo.book, guids)
+        prepared = []
         for guid in guids:
             try:
-                result = use_case.execute(guid)
-                backups.append(result.plaintext)
-                results.append((guid, result, None))
+                prepared.append(use_case.prepare(guid))
             except ValueError as e:
                 results.append((guid, None, str(e)))
                 all_ok = False
 
+        for each in prepared:
+            try:
+                result = use_case.carry_out(each)
+                backups.append((each.guid, result.plaintext))
+                results.append((each.guid, result, None))
+            except ValueError as e:
+                results.append((each.guid, None, str(e)))
+                all_ok = False
+
         # Write backups (only those that succeeded) before saving so
         # the user always has them even on save error.
-        combined = "\n\n".join(p for p in backups if p)
+        # Every guid here is one the book held when `goes` was read: nothing
+        # reaches `backups` that `prepare` did not find.
+        written = [(goes[guid], text) for guid, text in backups if text]
+        written.sort(key=lambda block: block[0])
+        combined = "\n\n".join(text for _, text in written)
         if combined:
             if output_file:
                 with open(output_file, "w", encoding="utf-8") as f:
@@ -120,6 +139,13 @@ def delete_transactions(gnucash_file, guids, by_guid, output_file):
         # with respect to the on-disk book state.
         if any(r is not None for _, r, _ in results):
             save_or_report(repo)
+
+        # Reported in the order the guids were typed, which is neither the
+        # order they were written out in nor the order the copy states them.
+        typed: dict = {}
+        for position, guid in enumerate(guids):
+            typed.setdefault(guid, position)
+        results.sort(key=lambda line: typed.get(line[0], len(guids)))
 
         for guid, result, err in results:
             if result is not None:

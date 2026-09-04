@@ -241,6 +241,19 @@ def a_ledger_without_the_day_it_was_written(text: str) -> str:
         text, flags=re.M)
 
 
+def _run(runner, *args):
+    """Run a CLI command, with its arguments written flat.
+
+    One helper rather than a copy in each test file. There were twenty-three,
+    identical, because each was written around a `time.sleep(1.1)` that no
+    longer exists: two saves in one second used to collide on GnuCash's backup
+    filename, and `_patch_session_save` above deletes that file instead.
+    """
+    from cli.main import cli
+
+    return runner.invoke(cli, list(args))
+
+
 def find_account(root_account, account_path):
     """
     Find account by full path (e.g., 'Assets:Bank:Checking').

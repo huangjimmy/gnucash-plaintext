@@ -13,20 +13,15 @@ the book holds. The rounding is performed now and the comparison is exact.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import _run
 
 BOUGHT = 'tests/fixtures/fx_sell_part_of_a_lot_bought_at_a_three_decimal_rate.txt'
 SOLD = 'tests/fixtures/fx_sell_part_of_a_lot_at_its_basis.txt'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _a_book_holding_100_usd(runner, tmp_path, name):

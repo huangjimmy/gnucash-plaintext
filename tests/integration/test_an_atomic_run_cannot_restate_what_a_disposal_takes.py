@@ -21,12 +21,12 @@ down before.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import _run
 from tests.integration.test_a_repriced_basis_is_caught_under_its_sales import (
     RATES,
     _a_basis_with_a_fee_drawn_on_it,
@@ -34,11 +34,6 @@ from tests.integration.test_a_repriced_basis_is_caught_under_its_sales import (
 
 ANOTHER_PURCHASE = 'tests/fixtures/fx_buy_60_usd_at_the_same_rate.txt'
 A_EUR_PURCHASE = 'tests/fixtures/fx_buy_60_eur_at_the_same_rate.txt'
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def _the_fee_block(text):

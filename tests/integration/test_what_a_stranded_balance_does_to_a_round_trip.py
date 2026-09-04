@@ -17,21 +17,16 @@ is carried forward, not caught. Nothing clears it but saying so.
 """
 
 import re
-import time
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import _run
 from tests.integration.test_an_atomic_import_commits_or_rolls_back import (
     DEPOSIT_SPLIT,
     RATES,
     _a_book_already_wrong,
 )
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
 
 
 def test_the_book_is_reported(tmp_path):
