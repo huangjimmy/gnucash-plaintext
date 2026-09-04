@@ -191,8 +191,14 @@ def _report_disagreements(disagreements, checked: int) -> None:
                    f'the figures it is derived from.')
         return
 
-    click.echo(f'Checked {checked} cost basis(es); {len(disagreements)} '
-               f'disagree with their own figures:')
+    # "and found" rather than "of which", because the two numbers do not count
+    # the same things. `checked` is the cost bases in the book; a finding can
+    # be about a split that is not one at all — a balance stored where nothing
+    # reads it, a sale drawing on a split that is no basis — so a book with
+    # one stranded balance and no bases read "Checked 0 cost basis(es); 1
+    # disagree".
+    click.echo(f'Checked {checked} cost basis(es), and found '
+               f'{len(disagreements)} thing(s) that do not hold:')
     for row in disagreements:
         click.echo('')
         click.echo(f"{row['date']}  {row['account']}")
@@ -220,7 +226,7 @@ def _report_disagreements(disagreements, checked: int) -> None:
             if row['tx_rate'] is not None:
                 click.echo(f"    transaction rate {exact_text(row['tx_rate'])} "
                            f"{BASE_CURRENCY}/{row['tx_currency']}")
-            # The figures the rate was pooled from, so a reader can see what
+            # The figures the rate was added up from, so a reader can see what
             # the cost came from. Where an account is kept finer than its
             # currency, say so: three decimals on a CAD figure otherwise read
             # as a mistake rather than as the unit that account is held to.

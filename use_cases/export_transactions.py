@@ -33,14 +33,16 @@ from infrastructure.gnucash.utils import (
 )
 from repositories.gnucash_repository import GnuCashRepository
 from services.foreign_currency import (
-    COST_BASIS_BALANCE_KEY,
     COST_BASIS_COST_KEY,
+    COST_BASIS_SPLIT_KEY,
     derived_cost_of,
     establishes_cost_basis,
+    is_a_spent_credit,
 )
 from services.gnucash_importer import (
     ORPHANED_BY_UNPOST_KEY,
     _lot_guid_str,
+    _the_split_this_book_holds,
     is_a_bank_paid_orphan,
 )
 
@@ -201,7 +203,64 @@ def _stored_cost_is_ignorable(split) -> bool:
     try:
         if derived_cost_of(split) is not None:
             return True
+        if is_a_spent_credit(split):
+            # An owner's credit this book has spent. It is no cost basis while
+            # it settles the record, so the test below would drop its stored
+            # cost — and that cost is the only thing pricing it, this shape
+            # being a credit paid in the record's own currency with no
+            # base-currency figure anywhere in its transaction. Dropped, the
+            # rebuilt book cannot price the split at all, and unposting the
+            # record there hands back currency nothing can value while the
+            # book it came from hands back a cost basis. Kept, so the two
+            # books answer alike.
+            return False
         return not establishes_cost_basis(split)
+    except Exception:
+        return False
+
+
+def _the_basis_it_gives_was_spent(split, basis_guid) -> bool:
+    """True iff this sale's `cost_basis_split_guid` gives a pool this book has
+    consumed — an owner's credit that has since settled a record.
+
+    That happens with nothing wrong: spending the credit ends the pool, and the
+    split that was the credit becomes the record's settlement. The sale keeps
+    the guid, which is what the book knows about where its currency came from,
+    and the file cannot carry it, because a rebuilt book has nothing to measure
+    against it and `_validate_pick` refuses the line.
+
+    **Only a consumed pool.** A split that is no cost basis for any other
+    reason keeps its guid in the file, and must: a deposit whose basis a link
+    stranded is the fault this issue is named for, and the export writing that
+    guid is how the book's own ledger refuses to rebuild it — which is what
+    `--verify-costs` reports and what a reader is sent to look at. Dropped
+    here as well, the fault would export clean and the report would be the only
+    thing that had ever seen it.
+
+    A guid that gives no split at all is left alone for the same reason.
+    """
+    account = split.GetAccount()
+    book = account.get_book() if account is not None else None
+    if book is None:
+        return False
+    # Looked up rather than searched for: this is asked once per sale that
+    # gives a guid, and a walk of the book would make an export cost the sales
+    # times the splits.
+    # Normalised the way `cost_basis_guid_of` and `find_split_by_guid`
+    # normalise, because the key is stored exactly as a file spelled it and a
+    # file may give a guid dashed. Measured on 5.10 in
+    # `tests/research/how_a_dashed_guid_is_stored_probe.py`: the dashed
+    # spelling is stored dashed, and `string_to_guid` reads it — so this is
+    # GnuCash's parser answering rather than anything of ours, and the ten
+    # supported builds do not have to agree about it. Unnormalised and given a
+    # stricter parser, the lookup finds nothing, the answer is "no pool was
+    # consumed", and the export writes a guid its own import refuses.
+    other = _the_split_this_book_holds(
+        book, str(basis_guid).replace('-', '').lower())
+    if other is None:
+        return False
+    try:
+        return not establishes_cost_basis(other) and is_a_spent_credit(other)
     except Exception:
         return False
 
@@ -1284,16 +1343,18 @@ class ExportTransactionsUseCase:
             # figure in it, and that one keeps it.
             if key == COST_BASIS_COST_KEY and _stored_cost_is_ignorable(split):
                 continue
-            # The pre-rename spelling of the balance key, written under its
-            # current name. A book from before the rename carries it on every
-            # basis, and emitted as it stands it made a file this tool refuses
-            # by name — export succeeding, import of its own output failing,
-            # on the one route out of such a book. The figure is unchanged;
-            # only the key was ever wrong.
-            if key == 'cost_basis_available':
-                key = COST_BASIS_BALANCE_KEY
-                if COST_BASIS_BALANCE_KEY in custom_split_meta:
-                    continue      # both spellings present: the current one wins
+            # And the same rule for the guid a sale gives, for the same
+            # reason. Spending an owner's credit on their next invoice ends
+            # the pool a sale drew on, and the split that was the credit is
+            # that record's settlement afterwards — no cost basis. The guid
+            # stays on the sale, which is the book's own record of where its
+            # currency came from, but written into a file it is a line the
+            # import refuses: nothing in the rebuilt book can be measured
+            # against a split that is no basis. So the sale exports the way a
+            # sale that draws on nothing exports, which is what it now is.
+            if (key == COST_BASIS_SPLIT_KEY
+                    and _the_basis_it_gives_was_spent(split, value)):
+                continue
             lines.append(f'\t\t{key}: {encode_value_as_string(value)}')
 
         # Running balance — emitted last so it reads as a post-transaction annotation

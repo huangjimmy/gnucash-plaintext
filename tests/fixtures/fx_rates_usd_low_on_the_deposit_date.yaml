@@ -1,0 +1,6 @@
+# A rate for the deposit's own day that is nothing like the one it was entered
+# at, so a figure restated from this file cannot have come from anywhere else.
+USD/CAD:
+  2026-07-31: 1.4029
+  2026-08-13: 1.20
+  2026-08-31: 1.3861

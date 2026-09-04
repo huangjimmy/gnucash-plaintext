@@ -1,0 +1,38 @@
+# A 100.00 USD invoice settled by the customer's whole 100.00 USD credit, which
+# the block gives by guid so this tool carves it rather than GnuCash. Nothing is
+# left of the credit, so there is no remainder.
+#
+# The credit came in under a CAD transaction, so what it cost is readable from
+# that transaction rather than from a stored key — which is what makes the split
+# a cost basis again if the record it settles here is ever unposted.
+#
+# `auto_apply_credit: true` must not be used here. On 3.8, 4.4 and 4.13 the
+# engine's own application rewrites the credit split's value at par — −100.00
+# where −137.00 belongs — and adds a balancing 37.00 USD split to cover the
+# difference, so the book under test would be a different book on those builds.
+# See CLAUDE.md finding 19.
+invoice "INV-FX-SPENDS-CREDIT"
+	customer_id: "C-FX"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "More consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-FX-SPENDS-CREDIT"
+		accumulate: true
+	payment:
+		amount: 100.00
+		from_credit: true
+		credit_dated: 2026-02-25
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

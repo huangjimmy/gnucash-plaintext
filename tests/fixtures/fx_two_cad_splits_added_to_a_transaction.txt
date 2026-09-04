@@ -1,0 +1,10 @@
+# Two CAD splits added to a transaction the book already holds, appended to its
+# exported block. They sum to nothing between them, so the transaction goes on
+# balancing — and they are on CAD accounts, so they join the splits the cost is
+# worked out from and move it. 25/18 becomes 19/14.
+	Expenses:Other 20.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "16.00"
+	Income:Misc -20.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "-16.00"

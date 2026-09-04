@@ -166,7 +166,7 @@ class TestABookThatDoesNot:
         result = CliRunner().invoke(cli, ['fx-balances', str(book_that_does_not),
                                           '--verify-costs'])
 
-        assert 'disagree with their own figures' not in result.output, \
+        assert 'that do not hold' not in result.output, \
             result.output
 
     def test_the_currency_and_both_figures_are_named(self, book_that_does_not):

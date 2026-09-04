@@ -222,6 +222,35 @@ class FxRates:
             )
         return self._rates[code]
 
+    def quote_date(self, currency: str,
+                   as_of: Optional[_date] = None) -> Optional[_date]:
+        """The day of the quote `rate_fraction` would use for this date.
+
+        Rates are carried forward, not extrapolated: the quote used is the
+        most recent one on or before the date asked about, so a file quoting
+        2026-07-31 answers for 2026-08-13 with a figure thirteen days old and
+        says nothing about it. A caller that is about to write that rate into
+        the book asks this to find out, and can say so.
+
+        None wherever no dated quote is consulted. The book's own currency is
+        the first of those, and it has to be answered here rather than left to
+        the file: `rate_fraction` returns 1 for it before it looks at the
+        file, so nothing in the file is read — but a file may state `CAD:` all
+        the same, dated like the rest, which the format allows and the README
+        shows. Read off `_dated` alone, a restatement into CAD was reported as
+        having used a rate quoted thirteen days earlier, when it had used 1.
+        None too for a currency quoted with one flat rate, which has no dated
+        quotes at all, and where no quote covers the date, which is the case
+        `rate_fraction` refuses outright.
+        """
+        if currency.upper() == 'CAD':
+            return None
+        quotes = self._dated.get(currency.upper())
+        if quotes is None or as_of is None:
+            return None
+        usable = [d for d in quotes if d <= as_of]
+        return max(usable) if usable else None
+
     def has_rate(self, currency: str) -> bool:
         """Check if a rate exists for the given currency."""
         return currency.upper() in self._rates

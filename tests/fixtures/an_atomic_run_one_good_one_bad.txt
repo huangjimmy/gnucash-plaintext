@@ -1,0 +1,9 @@
+# Two transactions, the second posting to an account the book has not got.
+# Without --atomic the first is kept and the second reported; with it, neither.
+2026-02-01 * "A good one"
+	Expenses:Office 10.00 CAD
+	Assets:Bank -10.00 CAD
+
+2026-02-02 * "A bad one"
+	Expenses:Nowhere At All 20.00 CAD
+	Assets:Bank -20.00 CAD

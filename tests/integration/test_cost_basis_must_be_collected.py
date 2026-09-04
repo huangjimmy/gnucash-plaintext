@@ -19,6 +19,9 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from cli.main import cli
+from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from services.foreign_currency import COST_BASIS_FORCE_KEY, iter_splits
 
 RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
 
@@ -167,6 +170,58 @@ def test_selling_is_allowed_once_the_invoice_is_paid(tmp_path):
     assert result.exit_code == 0, result.output
     assert 'error:' not in result.output, result.output
     assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
+
+
+def _forget_the_override(book):
+    """Take `cost_basis_force` off whatever sale carries it.
+
+    Which is how a book arrives holding a sale against an uncollected
+    receivable with nothing saying the money is in hand. `--strategy update`
+    refuses to edit a transaction a cost basis draws on, and `--atomic` defers
+    that refusal without putting anything in its place — `update_transaction`
+    never calls `apply_cost_basis_picks`, so `_validate_pick` runs on the
+    create path alone. Written straight into the book here, so the state is
+    the subject rather than the route to it.
+    """
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.NORMAL)
+    try:
+        for split in iter_splits(repo.book):
+            metadata = dict(get_custom_metadata(split))
+            if metadata.pop(COST_BASIS_FORCE_KEY, None) is None:
+                continue
+            transaction = split.GetParent()
+            transaction.BeginEdit()
+            set_custom_metadata(split, metadata)
+            transaction.CommitEdit()
+    finally:
+        repo.save()
+        repo.close()
+
+
+def test_verify_costs_reports_a_sale_left_against_an_uncollected_receivable(
+        tmp_path):
+    """The same question the import asks of a file, asked of the book.
+
+    Every other check passes: the balance is within its bounds, the basis is
+    real, and the sale is valued at what that basis cost. What is wrong is
+    that the currency was never collected, so the book is offering money the
+    customer has not paid.
+    """
+    runner = CliRunner()
+    book, basis = _unpaid_invoice_book(runner, tmp_path)
+    assert _run(runner, 'import', str(book),
+                _sale_against(tmp_path, basis, forced=True, name='forced.txt')
+                ).exit_code == 0
+
+    kept = _run(runner, 'fx-balances', str(book), '--verify-costs')
+    assert kept.exit_code == 0, kept.output      # the override is deliberate
+
+    _forget_the_override(book)
+    verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
+    assert verified.exit_code == 1, verified.output
+    assert 'has not been collected' in verified.output, verified.output
+    assert 'owed, not held' in verified.output, verified.output
 
 
 def test_currency_bought_outright_needs_no_override(tmp_path):

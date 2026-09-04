@@ -86,7 +86,7 @@ def test_a_sale_across_bases_lowers_none_of_them_when_it_is_refused(tmp_path):
     assert 'Sell 120 USD' not in exported, exported
 
 
-def test_available_only_lists_bases_with_something_left(tmp_path):
+def test_with_balance_only_lists_bases_with_something_left(tmp_path):
     runner = CliRunner()
     book, basis = _book(runner, tmp_path)
 

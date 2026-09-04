@@ -6,9 +6,10 @@ Tests run in Docker with real GnuCash Python bindings.
 """
 
 import os
+import re
 import sys
 import tempfile
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -117,8 +118,59 @@ def _harden_pytest_logging_teardown():
         cls._gnc_close_hardened = True
 
 
+def a_spare_copy_of(fd: int):
+    """A duplicate of `fd`, or None where it cannot be taken."""
+    return swallow_oserror(lambda _self, target: os.dup(target))(None, fd)
+
+
+def put_the_descriptor_back_if_it_has_gone(fd: int, spare) -> bool:
+    """Restore `fd` from `spare` where `fd` is closed. True when it was.
+
+    Asked of the descriptor rather than of any Python object: what goes
+    missing is fd 1 itself, and every stream that names it fails the moment
+    anything writes.
+    """
+    if spare is None:
+        return False
+    try:
+        os.fstat(fd)
+    except OSError:
+        return swallow_oserror(
+            lambda _self: (os.dup2(spare, fd), True)[1], False)(None)
+    return False
+
+
+#: Taken while the descriptor is certainly good, which is now: this module is
+#: imported before the first book session is opened.
+_A_SPARE_STDOUT = None
+
+
+def pytest_unconfigure(config):
+    """Put stdout's descriptor back before pytest flushes it on the way out.
+
+    The same GnuCash fd-churn as the two hardened teardown paths above, on the
+    last path of all: `console_main` flushes `sys.stdout` as pytest returns
+    (`_pytest/config/__init__.py`), and where GnuCash has closed fd 1 the
+    flush raises `OSError: [Errno 9] Bad file descriptor` through `runpy`. The
+    run ends there — measured on Ubuntu 20.04 / Py3.8 at 8% of the suite, with
+    the other nine versions green and no assertion behind it.
+
+    Neither hardened path reaches this one. Those wrap pytest's own capture
+    and logging classes; this is the interpreter's stdout, restored to its
+    real descriptor by then, and `io.TextIOWrapper.flush` is a C method on a
+    built-in type that cannot be wrapped. Wrapping `sys.stdout` does not reach
+    it either: capture has replaced that object long before this file is
+    imported, and what pytest flushes at the end is the original it saved.
+
+    So the descriptor is put back instead, in the last hook pytest calls
+    before that flush, and only where it has actually gone.
+    """
+    put_the_descriptor_back_if_it_has_gone(1, _A_SPARE_STDOUT)
+
+
 _harden_pytest_capture_teardown()
 _harden_pytest_logging_teardown()
+_A_SPARE_STDOUT = a_spare_copy_of(1)
 
 
 # Monkey-patch gnucash.Session so every save() first deletes any backup and
@@ -159,6 +211,34 @@ def _patch_session_save():
 
 
 _patch_session_save()
+
+
+def a_ledger_without_the_day_it_was_written(text: str) -> str:
+    """An export's text with the day it ran blanked on `open` and `commodity`
+    lines, for comparing two exports of the same book.
+
+    An account and a commodity have no date of their own, so the export falls
+    back to the day it runs for those lines. Two exports of one book
+    therefore differ whenever midnight falls between them — measured: a
+    ten-distro sweep started on 2026-09-03 and ran past 00:00, and the one
+    version still running compared `2026-09-03 open Assets` against
+    `2026-09-04 open Assets` and failed. Once a day, on whichever test happens
+    to straddle it.
+
+    **Only today and yesterday are blanked.** The fallback is the last of
+    three branches — a `date_override` and the transaction's own date come
+    first — so a line carrying some other date is carrying a real one, and an
+    export that started writing the wrong date there is a regression these
+    comparisons must still catch. A run can only stamp the day it started or
+    the day it crossed into.
+    """
+    days = {date.today().isoformat(),
+            (date.today() - timedelta(days=1)).isoformat()}
+    return re.sub(
+        r'^(\d{4}-\d{2}-\d{2}) (open|commodity) ',
+        lambda seen: (f'<written> {seen.group(2)} '
+                      if seen.group(1) in days else seen.group(0)),
+        text, flags=re.M)
 
 
 def find_account(root_account, account_path):

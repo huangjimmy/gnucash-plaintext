@@ -10,11 +10,13 @@ what the book still owes — while the 40.00 has become a settlement and holds
 nothing.
 """
 
+import time
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import a_ledger_without_the_day_it_was_written
 
 RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
 
@@ -98,11 +100,13 @@ def test_the_remaining_credit_keeps_the_cost_it_was_acquired_at(tmp_path):
                                '--include-business-objects']).exit_code == 0
     text = exported.read_text()
 
-    # The applied part carries no basis figures at all.
+    # The applied part offers nothing to sell, and still says what its
+    # currency cost — the one thing that can price it again if this invoice
+    # is ever unposted, since every split in its transaction is USD.
     applied = text.split('Assets:Accounts Receivable USD -40.00 USD')[1]
     applied = applied.split('\n\tAssets')[0]
     assert 'cost_basis_balance' not in applied, applied
-    assert 'cost_basis_cost' not in applied, applied
+    assert 'cost_basis_cost: "1.4 CAD/USD"' in applied, applied
 
     # What is left of the credit carries them, at its own size.
     remainder = text.split('Assets:Accounts Receivable USD -60.00 USD')[1]
@@ -159,17 +163,66 @@ def test_what_is_left_of_the_credit_comes_back_with_its_cost(tmp_path):
     again = tmp_path / 'out2.txt'
     assert runner.invoke(cli, ['export', str(rebuilt), str(again),
                                '--include-business-objects']).exit_code == 0
-    assert again.read_text() == exported.read_text()
+    # Without the day each was written on: an account and a commodity have no
+    # date of their own, so the export stamps the day it runs, and two
+    # exports either side of midnight differ over that alone.
+    assert a_ledger_without_the_day_it_was_written(again.read_text()) == \
+        a_ledger_without_the_day_it_was_written(exported.read_text())
 
 
-def test_a_credit_spent_to_the_last_cent_keeps_no_basis(tmp_path):
-    """Nothing is carved, and the whole of it is spent, so nothing is left.
+def test_the_applied_part_can_be_priced_again_after_an_unpost(tmp_path):
+    """The carve leaves the applied part able to say what its currency cost.
+
+    A credit overpaid in the invoice's own currency is priced by a stored cost
+    and by nothing else — every split in its transaction is USD, so there is
+    no base-currency figure to derive one from. Unposting the invoice hands
+    the applied part back as a loose credit, and without that cost it is
+    neither a cost basis nor a spent credit: currency in the book that cannot
+    be priced, listed nowhere and sellable not at all.
+
+    The carve is where it would be lost. It runs before
+    `_mark_applied_from_credit`, which is the other place a spent credit gives
+    its keys up and re-reads the frame this leaves, so a cost dropped here is
+    dropped for good.
+    """
+    runner = CliRunner()
+    book = _overpaid_book(runner, tmp_path)
+
+    second = tmp_path / 'second.txt'
+    second.write_text(SECOND_INVOICE)
+    assert runner.invoke(cli, ['import', str(book), str(second),
+                               '--include-business-objects',
+                               '--fx-rates', RATES]).exit_code == 0
+
+    time.sleep(1.1)             # two saves in one second collide on backup
+    unposted = runner.invoke(cli, ['unpost-invoices', str(book),
+                                   'INV-USD-SECOND'])
+    assert unposted.exit_code == 0, unposted.output
+
+    listing = runner.invoke(cli, ['fx-balances', str(book)]).output
+    loosened = [line for line in listing.splitlines() if '40.00 USD' in line]
+    assert loosened, listing
+    assert '1.4 CAD/USD' in loosened[0], loosened[0]
+
+
+def test_a_credit_spent_to_the_last_cent_keeps_no_balance(tmp_path):
+    """Nothing is carved, and the whole of it is spent, so nothing is left to sell.
 
     A credit consumed in full moves into the invoice's lot as one split,
     never shrinking. Watching only for a split that got smaller left that one
-    still carrying the balance and cost of currency it had just spent — inert
-    while it sits in an invoice's lot, and a stated balance on a settlement
-    the moment anything reads the file.
+    still carrying the balance of currency it had just spent — inert while it
+    sits in an invoice's lot, and a stated balance on a settlement the moment
+    anything reads the file.
+
+    The cost stays, as it does wherever a credit is spent: it says what the
+    currency was acquired for, and it is what prices the split again if this
+    invoice is unposted.
+
+    The spent credit is found by its mark rather than by its amount. This book
+    holds two −100.00 USD splits on the receivable — the settlement of the
+    first invoice and the credit spent on the second — and taking the first
+    one that reads −100.00 asked the settlement, which carries nothing to
+    begin with, so the assertions held whatever became of the credit.
     """
     runner = CliRunner()
     book = _overpaid_book(runner, tmp_path)
@@ -186,11 +239,14 @@ def test_a_credit_spent_to_the_last_cent_keeps_no_basis(tmp_path):
                                '--include-business-objects']).exit_code == 0
     text = exported.read_text()
 
-    # The whole 100.00 credit went into the invoice, and carries nothing.
-    spent = text.split('Assets:Accounts Receivable USD -100.00 USD')[1]
+    # The whole 100.00 credit went into the invoice: nothing left to sell,
+    # and still priced at what it was acquired for.
+    spent = next(block for block in
+                 text.split('Assets:Accounts Receivable USD -100.00 USD')[1:]
+                 if 'applied_from_credit' in block.split('\n\tAssets')[0])
     spent = spent.split('\n\tAssets')[0].split('\n\tIncome')[0]
     assert 'cost_basis_balance' not in spent, spent
-    assert 'cost_basis_cost' not in spent, spent
+    assert 'cost_basis_cost: "1.4 CAD/USD"' in spent, spent
 
     # The book now holds the first invoice's 100.00 and the new one's 250.00.
     listing = runner.invoke(cli, ['fx-balances', str(book)])
@@ -527,7 +583,7 @@ def test_a_vendor_credit_keeps_its_cost_the_same_way(tmp_path):
     applied = text.split('Liabilities:Accounts Payable USD 40.00 USD')[1]
     applied = applied.split('\n\tLiabilities')[0].split('\n\tAssets')[0]
     assert 'cost_basis_balance' not in applied, applied
-    assert 'cost_basis_cost' not in applied, applied
+    assert 'cost_basis_cost: "1.4 CAD/USD"' in applied, applied
 
     remainder = text.split('Liabilities:Accounts Payable USD 60.00 USD')[1]
     remainder = remainder.split('\n\tLiabilities')[0].split('\n\tAssets')[0]
@@ -551,4 +607,8 @@ def test_a_vendor_credit_keeps_its_cost_the_same_way(tmp_path):
     again = tmp_path / 'out2.txt'
     assert runner.invoke(cli, ['export', str(rebuilt), str(again),
                                '--include-business-objects']).exit_code == 0
-    assert again.read_text() == exported.read_text()
+    # Without the day each was written on: an account and a commodity have no
+    # date of their own, so the export stamps the day it runs, and two
+    # exports either side of midnight differ over that alone.
+    assert a_ledger_without_the_day_it_was_written(again.read_text()) == \
+        a_ledger_without_the_day_it_was_written(exported.read_text())

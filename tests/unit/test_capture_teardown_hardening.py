@@ -13,11 +13,17 @@ nothing would say so until a commit was blocked by a run with no real failure
 in it.
 """
 
+import contextlib
 import logging
+import os
 
 import pytest
 
-from tests.conftest import swallow_oserror
+from tests.conftest import (
+    a_spare_copy_of,
+    put_the_descriptor_back_if_it_has_gone,
+    swallow_oserror,
+)
 
 CAPTURE_CLASS_NAMES = ('FDCaptureBinary', 'FDCapture', 'SysCaptureBinary', 'SysCapture')
 
@@ -121,3 +127,50 @@ def test_a_working_call_is_left_alone():
         return value * 2
 
     assert swallow_oserror(_fine)(object(), 21) == 42
+
+
+class TestTheDescriptorPytestFlushesOnItsWayOut:
+    """`console_main` flushes `sys.stdout` as pytest returns, and where
+    GnuCash has closed fd 1 that flush ends the run mid-suite through `runpy`
+    — no assertion behind it, and the sweep reporting that version failed.
+
+    Neither hardened class is on that path, and neither is `sys.stdout`:
+    capture has replaced that object before `conftest.py` is imported, and
+    what pytest flushes at the end is the original it saved. So the descriptor
+    is what gets put back, in the last hook before that flush.
+
+    Exercised on a descriptor of its own — closing fd 1 in the process running
+    these tests would take pytest's own output with it.
+    """
+
+    def test_a_spare_is_held_for_stdout(self):
+        import tests.conftest as conftest
+
+        assert conftest._A_SPARE_STDOUT is not None
+        os.fstat(conftest._A_SPARE_STDOUT)      # raises if it is not a real fd
+
+    def test_a_closed_descriptor_is_put_back(self, tmp_path):
+        target = os.open(tmp_path / 'out.txt', os.O_WRONLY | os.O_CREAT)
+        spare = a_spare_copy_of(target)
+        try:
+            os.close(target)
+            assert put_the_descriptor_back_if_it_has_gone(target, spare) is True
+            os.fstat(target)                    # open again, from the spare
+            os.write(target, b'said')
+        finally:
+            for fd in (target, spare):
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+        assert (tmp_path / 'out.txt').read_bytes() == b'said'
+
+    def test_a_descriptor_that_is_still_there_is_left_alone(self, tmp_path):
+        target = os.open(tmp_path / 'out.txt', os.O_WRONLY | os.O_CREAT)
+        spare = a_spare_copy_of(target)
+        try:
+            assert put_the_descriptor_back_if_it_has_gone(target, spare) is False
+        finally:
+            for fd in (target, spare):
+                os.close(fd)
+
+    def test_with_no_spare_it_does_nothing(self):
+        assert put_the_descriptor_back_if_it_has_gone(1, None) is False

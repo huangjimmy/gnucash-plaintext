@@ -23,6 +23,7 @@ import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import a_ledger_without_the_day_it_was_written
 
 FIXTURES = Path('tests/fixtures')
 LEDGER = str(FIXTURES / 'a_book_that_prints_a_whole_invoice.txt')
@@ -571,7 +572,12 @@ class TestTheyAreNotPartOfTheFormat:
         assert 'css' not in exported.lower(), exported
 
     def test_and_the_export_is_the_same_file_either_way(self, tmp_path):
-        """One book, exported before and after the styling is set."""
+        """One book, exported before and after the styling is set.
+
+        Compared without the day each export was written on: an account and a
+        commodity have no date of their own, so the export stamps the day it
+        runs, and two exports either side of midnight differ over that alone.
+        """
         book = _book(tmp_path)
         first = tmp_path / 'first.txt'
         assert CliRunner().invoke(cli, [
@@ -588,5 +594,7 @@ class TestTheyAreNotPartOfTheFormat:
             'export', str(book), '--output', str(second),
             '--include-business-objects']).exit_code == 0
 
-        assert first.read_text(encoding='utf-8') \
-            == second.read_text(encoding='utf-8')
+        assert a_ledger_without_the_day_it_was_written(
+            first.read_text(encoding='utf-8')
+        ) == a_ledger_without_the_day_it_was_written(
+            second.read_text(encoding='utf-8'))

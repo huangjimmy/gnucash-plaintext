@@ -1,0 +1,13 @@
+# 50.00 USD bought outright, bringing its own cost with it. USD, so both sides
+# of the currency total move; unrelated to anything else in the book, so the
+# disagreement between those totals is left exactly where it was found.
+2026-09-02 * "Buy 50 USD"
+	currency.mnemonic: "CAD"
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 000000000000001 50.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "70.00"
+	Assets:Current assets:Due from director -70.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-70.00"

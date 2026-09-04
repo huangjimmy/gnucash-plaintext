@@ -146,6 +146,97 @@ def _reraise_with_the_cause(exc, also=()):
     raise exc
 
 
+def _what_the_book_gets_wrong(book):
+    """Everything wrong with this book's cost bases, as `(identity, sentence)`.
+
+    Called twice on an `--atomic` run — once before the file is applied and
+    once after — and only what the second list adds to the first is a reason
+    to roll back. A book being repaired is very often wrong somewhere else
+    too, and a fault the file neither caused nor claimed to fix must not stop
+    it landing; that would leave the damaged book with no way to accept an
+    import at all.
+
+    The identity is what those two lists are compared on, and it is not the
+    sentence, because a sentence states figures and figures move. A book whose
+    USD bases hold 20.00 against a ledger of 100.00 reads "hold 20.00 … says
+    100.00 — a difference of 80.00"; add an unrelated 50.00 USD purchase and
+    the same untouched fault reads "hold 70.00 … says 150.00", which as text
+    is a fault the file introduced and would be rolled back over. So a split's
+    fault is identified by the split and by what is wrong with it, with the
+    numbers taken out. Reading a changed figure as a new fault refuses the
+    very thing a repair is.
+
+    **The per-currency totals are not among these questions**, though
+    `--verify-costs` prints them. They are a warning there and say so on the
+    page — "Nothing is refused: every basis is within its own bounds, and
+    which side is right is not something the book records" — and a warning is
+    not something to throw a run away over. What a rollback answers to is the
+    questions that set that command's exit code.
+
+    They would also refuse ordinary work. Dividing a credit that has had
+    currency sold against it cannot leave those totals level: the arrived side
+    counts what the remainder holds, while the sale that drew on the pool is
+    still the size it was. A 100.00 USD credit with 80.00 sold, 40.00 of it
+    then applied to an invoice, leaves a 60.00 remainder against an 80.00
+    sale — and `--atomic` exists for books that have credits and sales in
+    them.
+
+    Every check runs and every failure is kept, so one file is told everything
+    it got wrong instead of being refused once per attempt.
+
+    These are `--verify-costs`'s own questions, asked of a book this run has
+    just written rather than one already on disk. That includes the one this
+    needs most — a disposal drawing on a split which is no cost basis in the
+    finished book, which `_require_no_cost_basis_edit` used to catch as each
+    block was applied. There is nothing here that `--verify-costs` does not
+    also report; a book that passes one passes the other.
+
+    What is deliberately **not** among them is any comparison of what the bases
+    offer against what the accounts hold. That is not an invariant this model
+    keeps: an account that received 60.00 USD and paid an 8.00 USD fee out of
+    the same transaction holds 52.00 and offers 60.00, and that book is
+    correct. The module docstring of `services/foreign_currency.py` sets that
+    out, and a check on it reports ordinary books.
+    """
+    from services.foreign_currency import verify_cost_bases
+
+    problems = []
+    # `totals=False`: the per-currency comparison is not asked here, and it is
+    # a walk of every split in the book — run once before the file and once
+    # after, on a book whose size is why `_priced_bases_in` counts its own
+    # walks.
+    verified = verify_cost_bases(book, totals=False)
+    for row in verified['findings']:
+        for problem in row['problems']:
+            # The split, and what is wrong with it with the figures taken out.
+            # A sentence states figures and figures move: a balance of 150.00
+            # on a basis that brought in 100.00 is the same fault after an
+            # ordinary sale draws it to 140.00, and after a repair lowers it to
+            # 120.00 without finishing. Read as text, both are new faults the
+            # file introduced, and an unrelated import is rolled back over one
+            # while a partial repair is refused for improving it.
+            #
+            # A guid is not a figure, and the two look alike to a digit
+            # matcher: `00e9…` and `11e9…` both mask to `##e#…`, so two
+            # findings that name different splits would be one identity. The
+            # lookarounds leave a run of digits alone where a hex character
+            # sits beside it, which is every guid a sentence quotes and no
+            # figure any of them states.
+            #
+            # What this gives up is a fault the file makes *worse in the same
+            # words*: a balance already above what its basis brought in, raised
+            # further, reads as the identity that was there before and commits.
+            # The alternative is refusing a repair that improves a fault
+            # without finishing it, which is the case this exemption exists
+            # for; `--verify-costs` reports the book either way.
+            identity = re.sub(r'(?<![0-9a-f])[\d,]*\d(?![0-9a-f])', '#',
+                              problem)
+            problems.append(((row['guid'], identity),
+                             f"split {row['guid']}: {problem}"))
+
+    return problems
+
+
 def _warn_open_prepayment_mismatches(directives, book):
     """Recompute open prepayment credits from the book and warn (never fail)
     when a declared `open_prepayment:` block disagrees with reality.
@@ -249,7 +340,22 @@ def _warn_open_prepayment_mismatches(directives, book):
          'foreign-currency invoice or bill whose income/expense account is in '
          'another currency — that is the rate its revenue is booked at.'
 )
-def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run, create_new, include_business_objects, output_new, fx_rates_file):
+@click.option(
+    '--atomic',
+    'atomic',
+    is_flag=True,
+    help='Apply the file the way a database applies a transaction: it all '
+         'commits or none of it does. One cost-basis check is deferred to the '
+         'end and asked of the finished book — the refusal to edit a '
+         'transaction a cost basis rests on, which no repair can get past in '
+         'any order. It is deferred for a transaction that holds a cost basis '
+         'or re-points a disposal at another one; a block restating what a '
+         'disposal takes is refused as it lands, this flag or not, because '
+         'nothing draws a basis down on the update path. Without this, a file '
+         'whose blocks partly fail keeps the ones that worked and reports the '
+         'rest, which is what a bank feed wants and what a repair cannot use.'
+)
+def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, strategy, dry_run, create_new, include_business_objects, output_new, fx_rates_file, atomic):
     """
     Import plaintext transactions to GnuCash file.
 
@@ -336,6 +442,11 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
     # Whether the run reported anything it could not do. Read after the
     # session is closed, so the exit and any cleanup happen in that order.
     failed = False
+    # Whether an `--atomic` run rolled the file back — either because part of
+    # it failed, or because the book it left does not hold together. Kept
+    # apart from `failed`, which counts per-block errors, because the second
+    # of those has none: every block applied and the result was still wrong.
+    rolled_back = False
 
     try:
         if create_new:
@@ -417,10 +528,16 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             if dry_run:
                 click.echo("(Dry run - no changes will be made)")
 
+            # What was already wrong before this file was read, so that a
+            # rollback can be limited to what the file itself leaves wrong.
+            # A book being repaired is often wrong somewhere else too.
+            wrong_before = _what_the_book_gets_wrong(repo.book) if atomic else []
+
             result = use_case.import_from_file(
                 input_file, resolution_strategy,
                 on_accounts_ready=(_owners_and_tax_tables
-                                   if include_business_objects else None))
+                                   if include_business_objects else None),
+                atomic=atomic)
             # A file that could not be read is refused, not summarised. The
             # hook above never runs for one — the parse is checked before any
             # declaration is carried out — so both paths agree on the exit code
@@ -478,8 +595,8 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             # invoice alone — counted here with the transactions, above the
             # summary that states the figure and above `has_changes`, so a
             # run whose only change is a memo says so and saves. Read from
-            # the invoice and bill paths, which report one line apiece and have no way
-            # to say "a transaction moved".
+            # the invoice and bill paths, which report one line each and have
+            # no way to say "a transaction moved".
             # Minus the ones the transaction pass already reported: under
             # `--strategy update` it reports every transaction the file
             # names, and one transaction changed is one transaction
@@ -608,6 +725,54 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 or result.accounts_created > 0
                 or biz_objects_changed > 0
             )
+            # `--atomic` commits the file or rolls it back, the way a database
+            # handles a transaction. Ordinarily an import keeps what worked
+            # and reports what did not, which is what a bank feed wants: a
+            # statement of two hundred lines should not be thrown away over
+            # one account nobody has opened yet. Repairing a book is the
+            # opposite. Its blocks are parts of one correction, and half of it
+            # applied leaves a book in a state nobody chose — worse than the
+            # state it started in, because the reader now has to work out
+            # which half landed.
+            #
+            # The rollback costs nothing, because nothing has been written:
+            # the session is simply not saved, so the file on disk is the one
+            # that went in. Every refusal in the import already works this way.
+            if atomic and result.errors:
+                click.echo("")
+                click.echo(
+                    f"✗ Rolled back: --atomic commits this file or none of "
+                    f"it, and {len(result.errors)} block(s) failed. The book "
+                    f"is untouched.", err=True)
+                has_changes = False
+                rolled_back = True
+            elif atomic and has_changes:      # noqa: SIM102
+                # The per-block check was deferred for this run, so the same
+                # question is asked here instead, of the finished book, before
+                # a byte of it is saved — a constraint deferred to commit
+                # time.
+                #
+                # Only what this file adds to what was already wrong. A book
+                # being repaired is often wrong somewhere else as well, and
+                # refusing over a fault the file neither caused nor claimed to
+                # fix would leave that book unable to accept any import.
+                already = {identity for identity, _ in wrong_before}
+                unsound = [sentence
+                           for identity, sentence
+                           in _what_the_book_gets_wrong(repo.book)
+                           if identity not in already]
+                if unsound:
+                    click.echo("")
+                    click.echo(
+                        f"✗ Rolled back: --atomic applied this file and then "
+                        f"read the book it left, and {len(unsound)} thing(s) "
+                        f"about it do not hold. The book is untouched.",
+                        err=True)
+                    for problem in unsound:
+                        click.echo(f"  - {problem}", err=True)
+                    has_changes = False
+                    rolled_back = True
+
             if not dry_run and has_changes:
                 click.echo("")
                 click.echo("Saving changes...")
@@ -631,7 +796,11 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                         except OSError as exc:
                             raise click.ClickException(f"Could not write --output-new file: {exc}") from exc
 
-            elif dry_run and not result.error_count:
+            elif dry_run and not (result.error_count or rolled_back):
+                # `rolled_back` for the reason it is read below: an `--atomic`
+                # run refused by the finished book has no per-block error to
+                # its name, so a tick here printed directly under `✗ Rolled
+                # back:`.
                 click.echo("")
                 click.echo("✓ Dry run complete (no changes made)")
             elif dry_run:
@@ -657,12 +826,18 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     click.echo(
                         "✗ Dry run complete — nothing would be imported",
                         err=True)
-            elif result.error_count:
+            elif result.error_count or rolled_back:
                 # "Nothing to import" and "nothing could be imported" are
                 # different answers, and the tick belongs to the first. Said
                 # with a tick, a run whose every object was refused printed
                 # its errors and then signed off as though the file had
                 # simply held nothing new.
+                #
+                # A rollback is the second answer too, and reaches here with
+                # no per-block error to its name: `--atomic` read the finished
+                # book, found what the file left, and threw the run away. Left
+                # to `result.error_count` alone, every block having applied
+                # meant a green tick printed under `✗ Rolled back:`.
                 click.echo("")
                 click.echo("✗ Nothing was imported", err=True)
             else:
@@ -685,7 +860,11 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             # Unlinking the data file with the session still open leaves the
             # engine holding a path that is gone, which is the state the
             # sweep exists to avoid rather than create.
-            failed = result.error_count > 0
+            # An `--atomic` run can roll back with no per-block error at all:
+            # every block applied, and what it left does not hold. That is a
+            # failure like any other and the exit code has to say so, or a
+            # script sees 0 for a file that changed nothing.
+            failed = result.error_count > 0 or rolled_back
 
         finally:
             repo.close()

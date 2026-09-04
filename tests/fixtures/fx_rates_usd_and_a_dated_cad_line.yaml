@@ -1,0 +1,13 @@
+# The same two USD quotes, with the book's own currency written out as a dated
+# block beside them. `CAD: 1.0` is a line the format allows and the README
+# shows, and a person keeping one file per month writes it dated like the rest.
+#
+# Nothing consults it: a rate for the book's own currency is 1 by definition,
+# answered before the file is looked at. So a run restating a split into CAD
+# has taken no CAD quote, and must not say it used one from another day.
+USD/CAD:
+  2026-07-31: 1.4029
+  2026-08-31: 1.3861
+CAD:
+  2026-07-31: 1.0
+  2026-08-31: 1.0

@@ -44,10 +44,8 @@ def execute_set_book_key(book, key, value):
     # So a write here would report `created` and then be invisible in every
     # direction — until the next `company` block naming the key deleted it.
     #
-    # The same reasoning the importer's `cost_basis_available:` refusal
-    # follows, one command over: a key that has stopped being read is worse
-    # than one that was never accepted, because the file and the command both
-    # look like they worked.
+    # A key that is stored where nothing reads it is worse than one that is
+    # refused, because the file and the command both look like they worked.
     if key in COMPANY_FIELD_TO_SLOT or is_address_key(key):
         raise ValueError(
             f'{key!r} is a field of the `company` block, not a custom book '

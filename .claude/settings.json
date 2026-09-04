@@ -13,6 +13,15 @@
             "command": "$CLAUDE_PROJECT_DIR/scripts/refuse-unscoped-kills.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/scripts/refuse-name-as-a-verb.sh"
+          }
+        ]
       }
     ]
   }

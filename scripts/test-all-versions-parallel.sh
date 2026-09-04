@@ -135,7 +135,40 @@ echo "Running tests in parallel..."
 FAILED_VERSIONS=()
 PASSED_VERSIONS=()
 PIDS=()
+# How many containers may run at once. Unset means all ten, which is what this
+# script has always done and what a machine with the memory for it wants.
+#
+# Ten suites at once is ten Python processes each holding a GnuCash book, and
+# on a machine without room for that the kernel kills one of them: the run then
+# reports a test failure, in whichever container the kernel picked rather than
+# in whichever one is at fault. Measured here — fedora41 alone passed all 3477
+# tests while the same suite under the ten-way run was killed part way through.
+#
+# So it is a number rather than a flag, and the default is unchanged.
+MAX_PARALLEL="${GNC_MAX_PARALLEL:-0}"
+# Read before it is compared. `set -e` is on and `[ x -gt 0 ]` exits 2 on
+# anything that is not a number, which would end the sweep before a single
+# container started, with the shell's own message and nothing about this
+# variable in it.
+case "$MAX_PARALLEL" in
+    ''|*[!0-9]*)
+        echo "GNC_MAX_PARALLEL must be a whole number, not '$MAX_PARALLEL'." >&2
+        echo "Leave it unset to run every version at once." >&2
+        exit 1
+        ;;
+esac
+if [ "$MAX_PARALLEL" -gt 0 ]; then
+    echo "  (at most $MAX_PARALLEL at a time)"
+fi
 for version in "${VERSIONS[@]}"; do
+    if [ "$MAX_PARALLEL" -gt 0 ]; then
+        # `jobs -rp` lists only what is still running, so a finished container
+        # drops out of the count. Nothing is reaped here — the per-version
+        # `wait` below still collects every exit code.
+        while [ "$(jobs -rp | wc -l)" -ge "$MAX_PARALLEL" ]; do
+            sleep 2
+        done
+    fi
     echo "  Starting $version..."
     run_test "$version" &
     PIDS+=($!)

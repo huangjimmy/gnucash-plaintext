@@ -340,7 +340,7 @@ class TestTheBillSideOfTheSameRule:
     def test_the_tax_column_adds_to_the_tax_the_bill_states(
             self, book, tmp_path):
         """Three lines whose tax is 13.0434… each. Rounded on their own they
-        print 13.04 apiece and add to 39.12, against a stated 39.13 — a
+        each print 13.04 and add to 39.12, against a stated 39.13 — a
         column a reader cannot add. The lines are fitted to the invoice's
         figure instead, so one of them carries the odd cent."""
         printed = self._printed_bill(book, tmp_path)

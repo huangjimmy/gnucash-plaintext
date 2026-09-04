@@ -1,0 +1,8 @@
+# Two transactions that both apply, so --atomic changes nothing about the run.
+2026-02-01 * "A good one"
+	Expenses:Office 10.00 CAD
+	Assets:Bank -10.00 CAD
+
+2026-02-02 * "Another good one"
+	Expenses:Office 20.00 CAD
+	Assets:Bank -20.00 CAD

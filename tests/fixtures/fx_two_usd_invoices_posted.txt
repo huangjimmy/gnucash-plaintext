@@ -1,0 +1,127 @@
+# Step 1 of the Q-040 sequence: the two USD invoices, posted.
+#
+# Two USD invoices posted to one receivable, neither collected. Anonymised from
+# a real book: the account numbers, the payment provider and the customer are
+# invented, while the dates, the amounts and the rates are the ones the book
+# held.
+
+2026-07-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Current assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Current assets:Accounts receivable
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Current assets:Accounts receivable:USD
+	type: Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Assets:Current assets:Due from director
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Current assets:Cash and deposits
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 000000000000001
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Income:Non-farming revenue
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Income:Non-farming revenue:Total sales of goods and services
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Income:Non-farming revenue:Trade sales of goods and services
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Income:Non-farming revenue:Foreign exchange gains/losses
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Expenses:Non-farming expenses – Operating expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Expenses:Non-farming expenses – Operating expenses:Bank charges
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Equity
+	type: Equity
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Equity:Equity
+	type: Equity
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Equity:Equity:Retained earnings/deficit
+	type: Equity
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-USD-001"
+	name: "Example Customer Inc"
+	currency: USD
+
+invoice "INV-USD-001"
+	customer_id: "C-USD-001"
+	currency: USD
+	date_opened: 2026-07-31
+	entry:
+		date: 2026-07-31
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Non-farming revenue:Total sales of goods and services"
+		quantity: 1
+		price: 2720
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-31
+		due: 2026-08-30
+		ar_account: "Assets:Current assets:Accounts receivable:USD"
+		memo: "Invoice INV-USD-001"
+		accumulate: true
+
+invoice "INV-USD-002"
+	customer_id: "C-USD-001"
+	currency: USD
+	date_opened: 2026-08-31
+	entry:
+		date: 2026-08-31
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Non-farming revenue:Trade sales of goods and services"
+		quantity: 1
+		price: 1020
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-08-31
+		due: 2026-09-30
+		ar_account: "Assets:Current assets:Accounts receivable:USD"
+		memo: "Invoice INV-USD-002"
+		accumulate: true

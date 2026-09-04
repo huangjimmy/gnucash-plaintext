@@ -46,8 +46,10 @@ from infrastructure.gnucash.utils import (
     numeric_to_fraction,
 )
 from services.foreign_currency import (
+    COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
     cost_basis_guid_of,
+    derived_cost_of,
     establishes_cost_basis,
     give_back_to_cost_bases,
     iter_splits,
@@ -88,6 +90,12 @@ class UnapplyResult:
     # own verb, which this layer does not know.
     payments: List[str] = field(default_factory=list)
     detail: str = ''               # human note for error statuses
+    # Things the run did that are correct and worth saying out loud. A rate
+    # carried forward from an earlier day is the one this exists for: it is
+    # not a refusal — a rates file states the days it states — but the figure
+    # it writes into the book is not a rate for the transaction's own day, and
+    # nothing else on the page says so.
+    warnings: List[str] = field(default_factory=list)
 
     # status values:
     #   'unapplied'      — one or more payments peeled off
@@ -137,6 +145,96 @@ def _norm_guid(g: str) -> str:
     return (g or '').replace('-', '').lower()
 
 
+def _rates_that_came_from_an_earlier_day(fx_rates, rates_taken) -> list:
+    """One warning per rate answered by a quote from before the day asked for.
+
+    Rates are carried forward rather than extrapolated: `rate_fraction` takes
+    the most recent quote on or before the transaction's date, so a file
+    quoting 2026-07-31 answers for 2026-08-13 with a figure thirteen days old.
+    That is not a refusal — a rates file states the days it states, and
+    demanding a quote for every date would stop ordinary unapplies dead — but
+    it is not a rate for the transaction's own day either, and what it decides
+    here is what the base-currency split is restated to and what the reopened
+    cost basis is priced at.
+
+    Measured on the reported book: the deposit was entered at 1.4029, the
+    rates file quoted 2026-07-31 and 2026-08-31 and nothing for the deposit's
+    own 2026-08-13, and the restoration came out at the 2026-07-31 rate. That
+    it matched to the cent was a coincidence of the two being the same figure.
+    With 1.20 quoted for the day instead, what the director is owed moves by
+    551.89 CAD.
+
+    So the run says which day the rate came from and leaves the decision where
+    it belongs.
+    """
+    if fx_rates is None:
+        return []
+    said = []
+    seen = set()
+    for currency, day in rates_taken:
+        if (currency, day) in seen:
+            continue
+        seen.add((currency, day))
+        used = fx_rates.quote_date(currency, day)
+        if used is None or used == day:
+            continue
+        said.append(
+            f'the {currency} rate used is the one quoted for '
+            f'{used.isoformat()}, not for {day.isoformat()} — the rates file '
+            f'states none for that day, and rates are carried forward rather '
+            f'than extrapolated. That rate is what the split was restated at '
+            f'and what any cost basis reopened on its transaction is priced '
+            f'at.')
+    return said
+
+
+def _drop_a_cost_the_transaction_states_itself(book, settlements) -> None:
+    """Take a stored cost off a split whose own transaction prices it again.
+
+    A link to a bill keeps the credit line's basis by storing
+    `cost_basis_cost` on the split, because the link takes the transaction's
+    base-currency split away and nothing in it says what the USD cost any
+    more. Taking that payment off puts the base-currency split back, so the
+    transaction prices the split itself — and then both answers exist to
+    disagree, because the restatement takes its rate from `--fx-rates` at the
+    transaction's date rather than from the figure the link stored.
+
+    Measured on the bill built in
+    `test_a_link_leaves_the_cost_basis_figures_right.py`, undone against a
+    file quoting 1.20: `--verify-costs` reported "cost_basis_cost says
+    381589/272000 CAD/USD, but the transaction says 1.2" and exited 1 after an
+    ordinary undo, with nothing on the page saying that `cost_basis_cost: ""`
+    is what clears it.
+
+    The transaction outranks a stored copy wherever both exist — that is the
+    rule `--verify-costs` states — so the copy is what goes. Only where the
+    transaction does state a cost: a split still priced by a stored figure
+    alone keeps it, or the currency it holds could not be valued at all.
+    """
+    for split in iter_splits(book):
+        if split_guid(split) in settlements:
+            continue
+        transaction = split.GetParent()
+        if transaction is None:
+            continue
+        if not any(split_guid(sibling) in settlements
+                   for sibling in transaction.GetSplitList()):
+            continue
+        metadata = dict(get_custom_metadata(split))
+        if COST_BASIS_COST_KEY not in metadata:
+            continue
+        try:
+            if derived_cost_of(split) is None:
+                continue
+        except Exception:
+            continue
+        remaining = {key: value for key, value in metadata.items()
+                     if key != COST_BASIS_COST_KEY}
+        transaction.BeginEdit()
+        set_custom_metadata(split, remaining)
+        transaction.CommitEdit()
+
+
 def _give_the_basis_back_what_the_settlement_took(book, drawn) -> None:
     """Raise each cost basis by the units the settlement taken off drew down.
 
@@ -158,7 +256,7 @@ def _give_the_basis_back_what_the_settlement_took(book, drawn) -> None:
     says this split spent that basis; once the balance is returned the split
     has spent nothing, so leaving it would export a settlement as drawn from a
     basis it no longer draws from. Where the balance did *not* come back — the
-    basis split gone from the book, or its stored balance unparseable, which
+    basis split gone from the book, or its `cost_basis_balance` unreadable, which
     is the fault `--verify-costs` reports — the key is the only thing left
     saying which basis was drawn down, and dropping it would leave the basis
     short with nothing able to say by how much.
@@ -211,7 +309,7 @@ def _give_the_basis_back_what_the_settlement_took(book, drawn) -> None:
     restored = give_back_to_cost_bases(book, totals)
     for split, basis_guid, _units in drawn:
         # Only where the balance came back. A basis whose split the book no
-        # longer holds, or whose stored balance will not parse, is left
+        # longer holds, or whose `cost_basis_balance` will not parse, is left
         # lowered — and the key is the only thing saying which basis this
         # settlement drew from, so dropping it there would leave the basis
         # short with nothing able to say by how much or against what.
@@ -390,6 +488,13 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
         raw = lib.gnc_commodity_get_mnemonic(commodity_ptr) if commodity_ptr else None
         return raw.decode('ascii', 'replace') if raw else ''
 
+    # Every (currency, day) a rate was actually taken for, so the run can say
+    # afterwards which of them were answered by a quote from an earlier day.
+    # Recorded here rather than asked for in advance because most unapplies
+    # convert nothing at all: the split keeps its own commodity, or its value
+    # is already the figure the new account takes.
+    rates_taken = []
+
     def _rate_for_on(day):
         """The rates file's answer for a currency, on the transaction's day.
 
@@ -401,6 +506,7 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
             return None
 
         def rate_for(currency: str) -> Fraction:
+            rates_taken.append((currency, day))
             return fx_rates.rate_fraction(currency, day)
 
         return rate_for
@@ -465,6 +571,28 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
         lib.xaccTransCommitEdit(tx)
 
     _give_the_basis_back_what_the_settlement_took(book, drawn)
+    _drop_a_cost_the_transaction_states_itself(book, wanted)
+    # No balance is opened on what this leaves behind, deliberately.
+    #
+    # Taking the payment off puts a base-currency split back on the
+    # transaction, so it prices its foreign currency again and the split that
+    # holds that currency is a cost basis once more — that much happens on its
+    # own, and the cost comes back with it. What does not come back is the
+    # balance, and there is nothing here that knows what it was.
+    #
+    # Opening one at the split's full amount was written and taken out. It
+    # cannot tell a balance this tool removed from one that was never written:
+    # a deposit entered in the GnuCash GUI is a cost basis reading `none
+    # recorded`, a link leaves it alone because there is no stored balance to
+    # take, and opening one on the way back would offer currency that may be
+    # long gone. `update_transaction` refuses the same thing for the same
+    # reason, and its comment records what it cost when it did not.
+    #
+    # So the split comes back listed, priced, and reading `none recorded`, and
+    # `fx-balances` says what to do about that: state `cost_basis_balance:` on
+    # it in an import file.
+    res.warnings.extend(_rates_that_came_from_an_earlier_day(fx_rates,
+                                                            rates_taken))
 
     for tg in sorted(targets):
         # Written at the record currency's own decimals — quantizing every

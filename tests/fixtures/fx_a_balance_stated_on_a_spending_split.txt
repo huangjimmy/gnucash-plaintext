@@ -1,0 +1,15 @@
+# A balance stated on a split that spends USD rather than bringing any in.
+#
+# Every question the import asks of a stated balance is satisfied: the account
+# is kept in a currency other than the book's own, the figure parses, it is
+# positive, it fits the cent, and it is no more than the 0.72 the split
+# carries. What it is not is a cost basis — the split lowers this account's
+# USD — so nothing will ever read the figure.
+2026-08-14 * "Charges for: TRANSFER-0000002"
+	currency.mnemonic: "CAD"
+	Expenses:Non-farming expenses – Operating expenses:Bank charges 1.01 CAD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 000000000000001 -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.4029"
+		value: "-1.01"
+		cost_basis_balance: "0.72"

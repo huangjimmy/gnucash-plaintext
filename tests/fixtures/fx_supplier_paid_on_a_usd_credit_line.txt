@@ -1,0 +1,16 @@
+# The supplier was paid before the bill was posted, drawing 2720.00 USD on a USD
+# credit line, with the cost booked to the CAD expense account the bill posts to.
+#
+# The transaction is stated in CAD, so the credit-line split is given a rate and
+# the USD it drew opens a cost basis of its own. The credit line is a live USD
+# obligation and stays one after the bill is linked to this payment.
+2026-08-13 * "Director paid the supplier"
+	guid: "aa11bb22cc33dd44ee55ff6677889900"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 3815.89 CAD
+		guid: "bb22cc33dd44ee55ff6677889900aa11"
+	Liabilities:USD Credit Line -2720.00 USD
+		guid: "cc33dd44ee55ff6677889900aa11bb22"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.4029"
+		value: "-3815.89"

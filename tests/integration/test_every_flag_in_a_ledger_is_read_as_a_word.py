@@ -17,7 +17,7 @@ which key it landed in:
 the first two classes here measure: two lines against one account, merged
 into one split when the flag is read and posted a split each when it is not.
 An invoice of one line posts the same transaction either way. The rest are
-one refusal apiece — the key named, and both sets of spellings offered.
+one refusal each — the key given, and both sets of spellings offered.
 """
 
 import re

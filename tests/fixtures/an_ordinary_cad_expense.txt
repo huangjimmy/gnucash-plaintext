@@ -1,0 +1,5 @@
+# A bank charge in the book's own currency, touching no foreign currency at
+# all — so a book that is already wrong about a cost basis must still take it.
+2026-09-01 * "An ordinary CAD expense"
+	Expenses:Non-farming expenses – Operating expenses:Bank charges 4.00 CAD
+	Assets:Current assets:Due from director -4.00 CAD

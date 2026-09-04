@@ -124,4 +124,10 @@ def take_the_payment_off(gnucash_file: str, record_id: str,
         raise click.ClickException(str(exc)) from exc
     finally:
         repo.close()
+    # Said by both commands, because both restate the split the same way and
+    # a rate carried forward from an earlier day decides the same figures
+    # whichever verb asked for it. On stderr: the run succeeded, and a caller
+    # reading the payment lines off stdout should not have to filter these out.
+    for said in result.warnings:
+        click.echo(f'warning: {said}', err=True)
     return result
