@@ -103,7 +103,7 @@ def test_a_stored_cost_that_drifted_from_the_transaction_is_reported(tmp_path):
 
     checked = _verify(runner, book)
     assert checked.exit_code == 1, checked.output
-    assert '1 disagree' in checked.output, checked.output
+    assert 'found 1 thing(s) that do not hold' in checked.output, checked.output
     assert 'the transaction says 1.35' in checked.output, checked.output
 
     # The whole computation, not just the verdict: both guids, the figures the
@@ -151,11 +151,11 @@ def test_every_disagreement_is_reported_before_the_exit(tmp_path):
 
     checked = _verify(runner, book)
     assert checked.exit_code == 1, checked.output
-    assert '2 disagree' in checked.output, checked.output
+    assert 'found 2 thing(s) that do not hold' in checked.output, checked.output
     assert '9.99' in checked.output and '0.01' in checked.output, checked.output
 
 
-def test_the_cost_pools_every_base_split_rather_than_judging_them(tmp_path):
+def test_the_cost_adds_up_every_base_split_rather_than_judging_them(tmp_path):
     """Whether the CAD lines "agree" is not a question the ledger can answer.
 
     A transaction whose CAD revenue implies 1.4 and whose CAD fee implies 1.25
@@ -166,7 +166,7 @@ def test_the_cost_pools_every_base_split_rather_than_judging_them(tmp_path):
 
     Three criteria for such a verdict were tried and each reported correct
     books: the ratios against each other (every foreign invoice with tax), each
-    against the pooled rate (a bill of 1.82 CAD for 1.30 USD beside 5.00 for
+    against the rate they add up to (a bill of 1.82 CAD for 1.30 USD beside 5.00 for
     3.57 — two lines rounded to their own units, whose ratios differ in the
     third decimal without either being wrong), and the windows the rounding
     leaves.
@@ -559,7 +559,8 @@ def test_a_stored_cost_that_does_not_parse_is_reported_as_what_it_is(tmp_path):
 
     checked = _verify(runner, book)
     assert checked.exit_code == 1, checked.output
-    assert 'Checked 2 cost basis(es); 1 disagree' in checked.output, checked.output
+    assert ('Checked 2 cost basis(es), and found 1 thing(s) that do not hold'
+            in checked.output), checked.output
     assert 'could not be read at all' not in checked.output, checked.output
     assert "reads 'oops'" in checked.output, checked.output
     assert 'which is what is used' in checked.output, checked.output
@@ -608,7 +609,7 @@ def test_a_reported_basis_shows_its_figures_at_the_unit_they_are_held_to(tmp_pat
     """What the cost came from, written as the ledger holds it.
 
     A basis reported for anything at all prints the base-currency splits its
-    cost was pooled from. One of these is on an account kept to thousandths,
+    cost was added up from. One of these is on an account kept to thousandths,
     where the ledger holds 1.820 CAD: printed at the cent it reads 1.82, which
     says nothing about the unit the figure is kept to, and nothing else tells a
     reader that account apart from an ordinary CAD one — so the unit is named.

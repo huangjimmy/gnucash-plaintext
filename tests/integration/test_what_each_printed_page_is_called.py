@@ -17,7 +17,6 @@ What must stay true alongside the fixes: an ordinary id still names its file
 the way it always did, because that name is what a script globs for.
 """
 
-import time
 from pathlib import Path
 
 import pytest
@@ -72,7 +71,6 @@ class TestAnOrdinaryId:
     def test_names_its_file_the_way_it_always_did(self, tmp_path):
         """The common case must not move: scripts glob for these."""
         book = _a_book(tmp_path)
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, [
             'import', str(book), _ledger(tmp_path, 'INV-2026-001'),
             '--include-business-objects']).exit_code == 0
@@ -92,7 +90,6 @@ class TestAnIdThatLooksLikeAPath:
 
     def test_it_writes_one_file_inside_the_directory(self, tmp_path):
         book = _a_book(tmp_path)
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, [
             'import', str(book), _ledger(tmp_path, '2026/001'),
             '--include-business-objects']).exit_code == 0
@@ -111,7 +108,6 @@ class TestAnIdThatLooksLikeAPath:
     def test_and_does_not_write_outside_what_was_asked_for(self, tmp_path):
         """The same mechanism pointed the other way."""
         book = _a_book(tmp_path)
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, [
             'import', str(book), _ledger(tmp_path, '../escaped'),
             '--include-business-objects']).exit_code == 0
@@ -138,12 +134,10 @@ class TestTwoInvoicesWithOneId:
     @pytest.fixture
     def book_with_two(self, tmp_path):
         book = _a_book(tmp_path)
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, [
             'import', str(book), _ledger(tmp_path, 'SAME-ID'),
             '--include-business-objects']).exit_code == 0
 
-        time.sleep(1.1)
         # Through this project's own session layer rather than `Session(...,
         # mode=...)`: GnuCash 3.8's binding has no `mode` keyword, and the
         # repository is where that difference is already handled.
@@ -208,7 +202,6 @@ class TestTwoInvoicesWithOneId:
             '--output', f'{outdir}/']).exit_code == 0
         taken = sorted(p.stem for p in outdir.iterdir() if p.is_file())
 
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, [
             'import', str(book_with_two), _ledger(tmp_path, taken[0]),
             '--include-business-objects']).exit_code == 0
@@ -257,7 +250,6 @@ bill "{record_id}"
 \t\tmemo: "{record_id}"
 \t\taccumulate: true
 ''', encoding='utf-8')
-        time.sleep(1.1)
         made = CliRunner().invoke(cli, ['import', str(book), str(ledger),
                                         '--include-business-objects'])
         assert made.exit_code == 0, made.output
@@ -300,7 +292,6 @@ class TestAnIdTooLongToBeAFilename:
 
     def test_it_is_cut_to_something_writable(self, tmp_path):
         book = _a_book(tmp_path)
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, [
             'import', str(book), _ledger(tmp_path, 'A' * 400),
             '--include-business-objects']).exit_code == 0
@@ -324,7 +315,6 @@ class TestAnIdThatIsNoNameAtAll:
 
     def test_it_is_written_as_a_file(self, tmp_path):
         book = _a_book(tmp_path)
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, [
             'import', str(book), _ledger(tmp_path, '..'),
             '--include-business-objects']).exit_code == 0

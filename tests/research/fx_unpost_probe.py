@@ -19,24 +19,24 @@ import re
 import shutil
 import sys
 import tempfile
-import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from click.testing import CliRunner  # noqa: E402
 
-from cli.main import cli  # noqa: E402
+from tests.conftest import _run  # noqa: E402
 
 RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
 runner = CliRunner()
 
-
-def run(*args):
-    # Two saves inside one second collide on the backup filename
-    # (ERR_FILEIO_BACKUP_ERROR), so space every command that writes.
-    time.sleep(1.1)
-    result = runner.invoke(cli, list(args))
-    return result
+# `_run` rather than a local wrapper, and not only to save a line: importing
+# `tests.conftest` is what deletes the backup and log files a second save
+# inside one second would collide on. This probe is run as a script —
+# `python3 tests/research/fx_unpost_probe.py` — so pytest loads no conftest
+# for it, and GnuCash's ERR_FILEIO_BACKUP_ERROR is swallowed by the CLI's
+# save handler: the command exits 0 and the book on disk is the one before
+# the write. A probe that reports what was never saved is worse than one
+# that fails.
 
 
 def hr(title):
@@ -47,19 +47,19 @@ def hr(title):
 
 
 def balances(book):
-    out = run('fx-balances', book).output
+    out = _run(runner, 'fx-balances', book).output
     print(out.rstrip() or '(no cost bases)')
     return out
 
 
 def export(book, path):
-    run('export', book, path, '--include-business-objects')
+    _run(runner, 'export', book, path, '--include-business-objects')
     with open(path) as handle:
         return handle.read()
 
 
 def basis_guid(book):
-    out = run('fx-balances', book).output
+    out = _run(runner, 'fx-balances', book).output
     match = re.search(r'\b([0-9a-f]{32})\b', out)
     return match.group(1) if match else None
 
@@ -67,7 +67,7 @@ def basis_guid(book):
 def probe_invoice(workdir):
     hr('INVOICE — post, sell against the basis, then unpost')
     book = os.path.join(workdir, 'inv.gnucash')
-    result = run('import', '--new', book, 'tests/fixtures/fx_usd_invoice_cad_income.txt',
+    result = _run(runner, 'import', '--new', book, 'tests/fixtures/fx_usd_invoice_cad_income.txt',
                  '--include-business-objects', '--fx-rates', RATES)
     print(f'import posted invoice: exit={result.exit_code}')
     guid = basis_guid(book)
@@ -83,13 +83,13 @@ def probe_invoice(workdir):
                 .replace('value: "-54.00"', 'value: "-56.00"'))
     with open(sale, 'w') as handle:
         handle.write(text)
-    result = run('import', book, sale)
+    result = _run(runner, 'import', book, sale)
     print(f'\nsell 40 USD against it: exit={result.exit_code}')
     if result.exit_code != 0 or 'error' in result.output:
         print(result.output.rstrip())
     balances(book)
 
-    result = run('unpost-invoices', book, 'INV-USD-001')
+    result = _run(runner, 'unpost-invoices', book, 'INV-USD-001')
     print(f'\nunpost: exit={result.exit_code}')
     print(result.output.rstrip())
 
@@ -104,7 +104,7 @@ def probe_invoice(workdir):
           f'{declares_guid in text}')
 
     hr('INVOICE — re-post and see whether the basis comes back')
-    result = run('import', book, 'tests/fixtures/fx_usd_invoice_cad_income.txt',
+    result = _run(runner, 'import', book, 'tests/fixtures/fx_usd_invoice_cad_income.txt',
                  '--include-business-objects', '--fx-rates', RATES)
     print(f're-import (re-post): exit={result.exit_code}')
     new_guid = basis_guid(book)
@@ -115,14 +115,14 @@ def probe_invoice(workdir):
 def probe_bill(workdir):
     hr('BILL — post, then unpost')
     book = os.path.join(workdir, 'bill.gnucash')
-    result = run('import', '--new', book, 'tests/fixtures/fx_usd_bill_cad_expense.txt',
+    result = _run(runner, 'import', '--new', book, 'tests/fixtures/fx_usd_bill_cad_expense.txt',
                  '--include-business-objects', '--fx-rates', RATES)
     print(f'import posted bill: exit={result.exit_code}')
     guid = basis_guid(book)
     print(f'\ncost basis after posting: {guid}')
     balances(book)
 
-    result = run('unpost-bills', book, 'BILL-USD-001')
+    result = _run(runner, 'unpost-bills', book, 'BILL-USD-001')
     print(f'\nunpost: exit={result.exit_code}')
     print(result.output.rstrip())
     print('\ncost bases after unpost:')
@@ -132,13 +132,13 @@ def probe_bill(workdir):
 def probe_converted_payment(workdir):
     hr('INVOICE — unpost one whose payment realized a gain')
     book = os.path.join(workdir, 'paid.gnucash')
-    result = run('import', '--new', book,
+    result = _run(runner, 'import', '--new', book,
                  'tests/fixtures/fx_invoice_usd_paid_from_cad_bank.txt',
                  '--include-business-objects', '--fx-rates', RATES)
     print(f'import paid invoice: exit={result.exit_code}')
     balances(book)
 
-    result = run('unpost-invoices', book, 'INV-USD-PAY')
+    result = _run(runner, 'unpost-invoices', book, 'INV-USD-PAY')
     print(f'\nunpost: exit={result.exit_code}')
     print(result.output.rstrip())
 

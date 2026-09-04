@@ -1,0 +1,22 @@
+# Sell 50.00 USD against the customer's 100.00 USD credit, while the credit is
+# still a cost basis with a balance of its own. What is left of that balance
+# goes when the credit is spent on an invoice, so a book holding this sale can
+# hold a credit that carries no basis key at all.
+#
+# The USD bank is opened here because this book was built around a CAD one: the
+# invoice was paid, and overpaid, from Assets:Bank in CAD.
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-03-05 * "Sell 50 USD of the credit"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -50.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "-68.50"
+		cost_basis_split_guid: "{basis}"
+	Assets:Bank 68.50 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "68.50"

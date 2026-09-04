@@ -1,0 +1,17 @@
+# 60.00 EUR bought for 84.00 CAD — 1.40 CAD per EUR, deliberately the same
+# figure the USD purchase cost, so a sale valued at that rate follows from
+# either and only the currencies tell the two bases apart.
+2026-01-01 open Assets:Bank:EUR
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+2026-02-06 * "Buy 60 EUR"
+	currency.mnemonic: "CAD"
+	Assets:Bank:EUR 60.00 EUR
+		account.commodity.mnemonic: "EUR"
+		share_price: "1.40"
+		value: "84.00"
+	Assets:Bank -84.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-84.00"

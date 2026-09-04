@@ -19,10 +19,6 @@ FIXTURES = Path(__file__).parent.parent / 'fixtures'
 
 
 def _import(runner, gnucash_file, fixture_name):
-    # GnuCash backup filenames include a wall-clock timestamp with one-second
-    # resolution; consecutive saves within the same second collide with
-    # ERR_FILEIO_BACKUP_ERROR. Sleep before each invocation to keep tests
-    # deterministic across distros.
     return runner.invoke(import_transactions, [gnucash_file, str(FIXTURES / fixture_name)])
 
 

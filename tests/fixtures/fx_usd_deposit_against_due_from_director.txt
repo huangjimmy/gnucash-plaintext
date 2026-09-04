@@ -1,0 +1,16 @@
+# Step 2: the bank feed brings in the deposit, with the other side booked to a
+# CAD account because nothing yet says which invoice it settles.
+#
+# The transaction is stated in CAD, so the USD it brought in has a cost —
+# 3815.89 CAD for 2720.00 USD — and the bank split opens a cost basis.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "15f40458487e434abd1d9a95c46a7041"
+	currency.mnemonic: "CAD"
+	doc_link: "example:ofx:Foreign Payments Provider:000000000000001:TRANSFER-0000001"
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 000000000000001 2720.00 USD
+		guid: "00e958a8d56547d484d7629000292dc3"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.4029"
+		value: "3815.89"
+	Assets:Current assets:Due from director -3815.89 CAD
+		guid: "e53d7cb83919474195ae689521d9a105"

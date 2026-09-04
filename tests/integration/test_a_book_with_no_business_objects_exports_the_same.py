@@ -16,6 +16,7 @@ import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import a_ledger_without_the_day_it_was_written
 
 LEDGER = 'tests/fixtures/a_plain_transaction_to_edit.txt'
 ACCOUNTS = 'tests/fixtures/payment_roundtrip_accounts.txt'
@@ -60,7 +61,11 @@ class TestWithTheFlag:
         assert runner.invoke(cli, [
             'export', str(rebuilt), str(again),
             '--include-business-objects']).exit_code == 0
-        assert again.read_text() == out.read_text()
+        # Without the day each was written on: an account and a commodity
+        # have no date of their own, so the export stamps the day it runs,
+        # and two exports either side of midnight differ over that alone.
+        assert a_ledger_without_the_day_it_was_written(again.read_text()) == \
+            a_ledger_without_the_day_it_was_written(out.read_text())
 
     def test_it_says_what_the_bare_export_says(self, book_with_only_transactions,
                                                tmp_path):

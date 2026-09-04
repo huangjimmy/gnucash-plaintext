@@ -20,20 +20,13 @@ Deleting a *sale* is the ordinary direction and stays ordinary:
 """
 
 import re
-import time
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
-
-
-def _run(runner, *args):
-    # A second between writes: two saves inside one wall-clock second collide
-    # on GnuCash's backup filename.
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
+from tests.conftest import _run
 
 
 def _balances(runner, book):

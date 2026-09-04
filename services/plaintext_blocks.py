@@ -52,6 +52,7 @@ from infrastructure.gnucash.utils import (
     numeric_to_fraction,
     qof_instance,
 )
+from services.foreign_currency import APPLIED_FROM_CREDIT_KEY
 from services.plaintext_addresses import LEGACY_ADDRESS_KEYS, address_key
 
 
@@ -278,8 +279,17 @@ def split_was_applied_from_credit(split) -> bool:
 
     Here rather than in the exporter, because it decides which block is
     written and the block writers are what this module is.
+
+    The mark alone, and not `foreign_currency.is_a_spent_credit`, which asks
+    this and then asks the book whether the split still sits in a record's lot.
+    The two want different answers. That one decides whether a sale may give
+    this split's guid, so a mark a file wrote must not be enough on its own.
+    This one records how the money was paid, which unposting the record does
+    not undo: a payment made out of credit was made out of credit whatever
+    happened to the invoice afterwards, and writing it back out as a bank
+    payment would lose that.
     """
-    return str(get_custom_metadata(split).get('applied_from_credit', '')
+    return str(get_custom_metadata(split).get(APPLIED_FROM_CREDIT_KEY, '')
                ).strip().lower() == 'true'
 
 

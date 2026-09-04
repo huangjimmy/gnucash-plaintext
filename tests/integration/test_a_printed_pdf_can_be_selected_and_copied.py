@@ -14,7 +14,6 @@ The figures are asserted too, because the same run proves them: this invoice is
 2 hours at C$100.00 with GST 5% + PST 7%, so it owes C$224.00.
 """
 
-import time
 from pathlib import Path
 
 import pytest
@@ -34,15 +33,10 @@ def book(tmp_path):
     path = tmp_path / 'book.gnucash'
     made = CliRunner().invoke(cli, ['import', '--new', str(path), ACCOUNTS])
     assert made.exit_code == 0, made.output
-    # Two saves inside one second collide on the backup file's name, which
-    # GnuCash reports as ERR_FILEIO_BACKUP_ERROR and the import treats as a
-    # failure — the backup name is stamped to the second.
-    time.sleep(1.1)
     for fixture in (INVOICE, BILL):
         result = CliRunner().invoke(cli, [
             'import', str(path), fixture, '--include-business-objects'])
         assert result.exit_code == 0, result.output
-        time.sleep(1.1)
     return path
 
 
@@ -264,7 +258,6 @@ class TestSeveralInvoicesInOnePdf:
         path = tmp_path / 'bills.gnucash'
         made = CliRunner().invoke(cli, ['import', '--new', str(path), ACCOUNTS])
         assert made.exit_code == 0, made.output
-        time.sleep(1.1)
         result = CliRunner().invoke(cli, [
             'import', str(path), TWO_BILLS, '--include-business-objects'])
         assert result.exit_code == 0, result.output

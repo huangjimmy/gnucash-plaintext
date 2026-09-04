@@ -5,6 +5,7 @@ Exports GnuCash data to beancount-compatible format with proper account names,
 commodity symbols, and metadata keys following beancount conventions.
 """
 
+from functools import cmp_to_key
 from typing import Optional
 
 from gnucash.gnucash_core_c import xaccAccountGetTypeStr
@@ -21,6 +22,7 @@ from services.beancount_converter import BeancountConverter
 from use_cases.export_transactions import (
     UnwritableFigureError,
     refuse_a_figure_the_currency_cannot_hold,
+    the_order_the_book_keeps_them_in,
 )
 
 
@@ -78,8 +80,16 @@ class ExportBeancountUseCase:
         # Get ALL transactions first
         all_transactions = self.repository.get_all_transactions()
 
-        # Sort by date
-        all_transactions.sort(key=lambda tx: tx.GetDate())
+        # The order the book keeps them in, which is the plaintext export's
+        # too: the posted date, then `num`, then when each was entered, then
+        # the description. Sorted on the date alone, two transactions of one
+        # day came out in whichever order the query gave them, and the two
+        # exports of one book could disagree about which came first.
+        #
+        # No cost basis is stated here — beancount has no
+        # `cost_basis_split_guid:` — so nothing has to be written above
+        # anything, and this is the book's order with no exception to it.
+        all_transactions.sort(key=cmp_to_key(the_order_the_book_keeps_them_in))
 
         # Filter transactions by date range if specified
         if start_date and end_date:

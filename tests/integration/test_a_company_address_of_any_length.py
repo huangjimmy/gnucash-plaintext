@@ -21,7 +21,6 @@ line on one of those blocks is refused: nothing in the book could hold it, and
 filing it somewhere that never prints is how it used to be lost.
 """
 
-import time
 from pathlib import Path
 
 import pytest
@@ -41,12 +40,6 @@ LEDGER = str(FIXTURES / 'a_company_with_a_six_line_address.txt')
 
 SIX = ['42 Example Street', 'Unit 5', 'Springfield ON', 'A1A 1A1', 'CANADA',
        'Attn: Accounts Payable']
-
-
-def _second_save_apart():
-    """GnuCash names its backup file by the second, so two saves inside one
-    fail with `ERR_FILEIO_BACKUP_ERROR`."""
-    time.sleep(1.1)
 
 
 def _import(path, ledger, new=False):
@@ -155,7 +148,6 @@ class TestAnAddressTypedIntoGnuCash:
         made = _import(path, LEDGER, new=True)
         assert made.exit_code == 0, made.output
 
-        _second_save_apart()
         repo = GnuCashRepository(str(path))
         repo.open(SessionMode.NORMAL)
         try:
@@ -233,7 +225,6 @@ class TestABlockThatNamesSomeOfTheLines:
     def test_a_line_it_does_not_name_is_left_alone(self, book, tmp_path):
         ledger = _write(tmp_path, 'street.txt',
                         'company\n\taddr[0]: "9 New Road"\n')
-        _second_save_apart()
         result = _import(book, ledger)
         assert result.exit_code == 0, result.output
 
@@ -241,7 +232,6 @@ class TestABlockThatNamesSomeOfTheLines:
 
     def test_a_line_named_empty_is_cleared(self, book, tmp_path):
         ledger = _write(tmp_path, 'shorter.txt', 'company\n\taddr[5]: ""\n')
-        _second_save_apart()
         result = _import(book, ledger)
         assert result.exit_code == 0, result.output
 
@@ -253,7 +243,6 @@ class TestABlockThatNamesSomeOfTheLines:
         so clearing line three leaves the country on line five, where the
         rest of the address expects it."""
         ledger = _write(tmp_path, 'gap.txt', 'company\n\taddr[2]: ""\n')
-        _second_save_apart()
         result = _import(book, ledger)
         assert result.exit_code == 0, result.output
 
@@ -327,7 +316,6 @@ class TestAnIndexThatIsNotALine:
         assert made.exit_code == 0, made.output
 
         lines = [f'Line {n}' for n in range(1, 121)]
-        _second_save_apart()
         repo = GnuCashRepository(str(path))
         repo.open(SessionMode.NORMAL)
         try:
@@ -347,7 +335,6 @@ class TestAnIndexThatIsNotALine:
             str(FIXTURES / 'q019_accounts.txt')]).exit_code == 0
 
         lines = [f'Line {n}' for n in range(1, 121)]
-        _second_save_apart()
         repo = GnuCashRepository(str(path))
         repo.open(SessionMode.NORMAL)
         try:
@@ -494,7 +481,6 @@ class TestABookWhoseAddressIsStillInTheOldSlot:
             str(FIXTURES / 'q019_accounts.txt')])
         assert made.exit_code == 0, made.output
 
-        _second_save_apart()
         repo = GnuCashRepository(str(path))
         repo.open(SessionMode.NORMAL)
         try:
@@ -510,7 +496,6 @@ class TestABookWhoseAddressIsStillInTheOldSlot:
                                                           tmp_path):
         ledger = _write(tmp_path, 'street.txt',
                         'company\n\taddr[0]: "9 New Road"\n')
-        _second_save_apart()
         result = _import(legacy, ledger)
         assert result.exit_code == 0, result.output
 
@@ -521,10 +506,8 @@ class TestABookWhoseAddressIsStillInTheOldSlot:
         """Which is what a rebuild gets."""
         ledger = _write(tmp_path, 'street.txt',
                         'company\n\taddr[0]: "9 New Road"\n')
-        _second_save_apart()
         assert _import(legacy, ledger).exit_code == 0
 
-        _second_save_apart()
         assert _exported_address(legacy, tmp_path) == [
             'addr[0]: "9 New Road"',
             'addr[1]: "Unit 5"',
@@ -538,7 +521,6 @@ class TestABookWhoseAddressIsStillInTheOldSlot:
         otherwise the line is stated twice and the stale copy wins."""
         ledger = _write(tmp_path, 'street.txt',
                         'company\n\taddr[0]: "9 New Road"\n')
-        _second_save_apart()
         assert _import(legacy, ledger).exit_code == 0
 
         held = _book_custom_keys(legacy)
@@ -547,7 +529,6 @@ class TestABookWhoseAddressIsStillInTheOldSlot:
     def test_a_block_that_says_nothing_about_it_migrates_it_whole(
             self, legacy, tmp_path):
         ledger = _write(tmp_path, 'name.txt', 'company\n\tname: "Renamed"\n')
-        _second_save_apart()
         assert _import(legacy, ledger).exit_code == 0
 
         assert _book_address(legacy) == ['42 Example Street', 'Unit 5',
@@ -578,7 +559,6 @@ class TestABookHoldingItInBothPlaces:
             str(FIXTURES / 'q019_accounts.txt')])
         assert made.exit_code == 0, made.output
 
-        _second_save_apart()
         repo = GnuCashRepository(str(path))
         repo.open(SessionMode.NORMAL)
         try:
@@ -603,7 +583,6 @@ class TestABookHoldingItInBothPlaces:
 
     def test_an_import_settles_it_onto_the_option(self, split, tmp_path):
         ledger = _write(tmp_path, 'name.txt', 'company\n\tname: "Renamed"\n')
-        _second_save_apart()
         assert _import(split, ledger).exit_code == 0
 
         assert _book_address(split) == ['9 New Road', 'Unit 5',
@@ -615,9 +594,7 @@ class TestABookHoldingItInBothPlaces:
         """The second import has nothing left to move, so an unchanged
         ledger stops rewriting the book."""
         ledger = _write(tmp_path, 'name.txt', 'company\n\tname: "Renamed"\n')
-        _second_save_apart()
         assert _import(split, ledger).exit_code == 0
-        _second_save_apart()
         again = _import(split, ledger)
 
         assert again.exit_code == 0, again.output
@@ -667,7 +644,6 @@ class TestAnObjectThatHasNoAddress:
                        _AN_INVOICE.replace('INV-PRINT-001', 'INV-DOC-001')
                        .replace('C-PRINT', 'C-DOC')
                        + '\taddr[0]: "also mine"\n')
-        _second_save_apart()
         result = _import(path, later)
         assert result.exit_code == 0, result.output
 

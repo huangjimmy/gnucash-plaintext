@@ -1,0 +1,14 @@
+# A 10.00 USD fee valued at 14.00 CAD, measured against the purchase's cost
+# basis — 1.40 CAD per USD, which is what 14.00 for 10.00 says. Re-price that
+# basis afterwards and this valuation no longer follows from it.
+2026-02-10 * "A 10 USD fee"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -10.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "-14.00"
+		cost_basis_split_guid: "{basis}"
+	Expenses:Fees 14.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "14.00"

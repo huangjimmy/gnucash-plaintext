@@ -54,15 +54,10 @@ def _has_not_found_line(output, input_str):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def import_fixture(runner, gnucash_file, fixture=FIXTURE):
-    import time
     result = runner.invoke(cli, [
         "import", "--new", str(gnucash_file), fixture, "--include-business-objects",
     ])
     assert result.exit_code == 0, f"Import failed:\n{result.output}"
-    # GnuCash backup filenames use a per-second timestamp. Without a pause,
-    # the next save in the same test would collide with the import's backup
-    # timestamp and fail silently. 1 second is enough to guarantee a new
-    # timestamp on the subsequent save.
 
 
 def export_biz(runner, gnucash_file):

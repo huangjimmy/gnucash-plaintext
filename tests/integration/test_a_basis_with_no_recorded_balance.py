@@ -11,7 +11,6 @@ book — the state a GUI-made book is in — rather than by mocking anything.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -20,11 +19,7 @@ from cli.main import cli
 from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.foreign_currency import COST_BASIS_BALANCE_KEY, iter_splits
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
+from tests.conftest import _run
 
 
 def _balances(runner, book, *extra):
@@ -58,7 +53,6 @@ def _book_with_no_recorded_balance(runner, tmp_path):
     assert _run(runner, 'import', '--new', str(book),
                 'tests/fixtures/fx_buy_and_borrow_usd.txt',
                 '--include-business-objects').exit_code == 0
-    time.sleep(1.1)
     _forget_recorded_balances(book)
     return book
 

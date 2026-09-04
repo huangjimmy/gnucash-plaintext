@@ -1,0 +1,5 @@
+# A transaction that applies, written ahead of a file that fails, so a rollback
+# has something already applied to take back out.
+2026-03-01 * "A third good one"
+	Expenses:Office 30.00 CAD
+	Assets:Bank -30.00 CAD

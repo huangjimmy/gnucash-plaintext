@@ -1,0 +1,60 @@
+# A USD invoice whose entry account is kept in USD, so the posting transaction
+# is USD on both sides and nothing in it says what those USD cost.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Due from director
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales USD
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+customer "C-USD"
+	name: "US Customer"
+	currency: USD
+invoice "INV-USD-OWN-CURRENCY"
+	customer_id: "C-USD"
+	currency: USD
+	date_opened: 2026-07-31
+	entry:
+		date: 2026-07-31
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales USD"
+		quantity: 1
+		price: 2720
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-31
+		due: 2026-08-31
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-OWN-CURRENCY"
+		accumulate: true
+2026-08-13 * "Received money from Example Customer Inc"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 2720.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.4029"
+		value: "3815.89"
+	Assets:Due from director -3815.89 CAD
+		account.commodity.mnemonic: "CAD"

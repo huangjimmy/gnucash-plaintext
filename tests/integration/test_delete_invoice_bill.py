@@ -95,13 +95,6 @@ def _setup_book_with(runner, tmp_path, fixture_text):
     fix = _write(tmp_path / "in.txt", ACCOUNTS + "\n" + fixture_text)
     r = _import_new(runner, gnc, fix)
     assert r.exit_code == 0, r.output
-    # GnuCash backup filenames use a per-second timestamp. Without a
-    # pause, the next save in the same test would collide with the
-    # import's backup timestamp and fail with ERR_FILEIO_BACKUP_ERROR.
-    # The CLI's save handler swallows that specific error (so the
-    # surrounding command still exits 0), which silently drops the
-    # save — leaving the in-memory delete invisible on reload. Same
-    # workaround the Q-010 unpost test uses.
     return gnc
 
 

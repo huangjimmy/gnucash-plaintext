@@ -305,6 +305,7 @@ class ImportTransactionsUseCase:
         input_path: str,
         resolution_strategy: ResolutionStrategy = ResolutionStrategy.SKIP,
         on_accounts_ready=None,
+        atomic: bool = False,
     ) -> ImportResult:
         """
         Import from full GnuCash plaintext format file.
@@ -349,7 +350,7 @@ class ImportTransactionsUseCase:
         # Q-035: a cost basis whose basis balance this file states is
         # stating it net of the file's own sales; forget what the last file
         # stated before reading this one.
-        begin_import_run()
+        begin_import_run(atomic)
         # And which lots the last file attached splits to, which is what tells
         # this one when a lot's own split list can be trusted.
         begin_lot_attachments()

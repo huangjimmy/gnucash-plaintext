@@ -1,0 +1,22 @@
+# A 5,000.00 USD invoice for the customer and the accounts
+# `fx_two_usd_invoices_posted.txt` opens, so a 2,720.00 USD deposit linked to
+# it pays part of it and leaves 2,280.00 owed.
+invoice "INV-USD-BIG"
+	customer_id: "C-USD-001"
+	currency: USD
+	date_opened: 2026-07-31
+	entry:
+		date: 2026-07-31
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Non-farming revenue:Total sales of goods and services"
+		quantity: 1
+		price: 5000
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-31
+		due: 2026-08-30
+		ar_account: "Assets:Current assets:Accounts receivable:USD"
+		memo: "Invoice INV-USD-BIG"
+		accumulate: true

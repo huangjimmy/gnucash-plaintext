@@ -3,7 +3,7 @@
 A printed page states a tax per line and a tax for the page, and the
 book holds only the second: GnuCash rounds a page's tax once, and an
 accumulated posting carries no per-line tax split. Rounded on their own the
-lines need not add to the whole — three lines of 13.0434… print 13.04 apiece
+lines need not add to the whole — three lines of 13.0434… each print 13.04
 against a stated 39.13 — so `figures_that_add_up` fits them to it.
 
 The arithmetic is exact rationals throughout, so these are asked of the
@@ -89,7 +89,7 @@ class TestWhichLinesTakeTheOddUnits:
     """Flooring every line leaves the column under the whole by a unit or
     two, and those units go to the lines with the largest fractions.
 
-    Never more than one apiece, and never below zero, because the whole is
+    Never more than one for any line, and never below zero, because the whole is
     the lines' own sum rounded: it sits within half a unit of them, and each
     floor sits under its own line. Which is why there is one pass and no
     limit to check — see `figures_that_add_up`.

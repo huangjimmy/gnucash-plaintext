@@ -1,0 +1,6 @@
+# Dated USD rates into CAD for the two invoice posting dates. Anonymised from a
+# real book: 2720.00 USD at 1.4029 books 3815.89 CAD, and 1020.00 USD at 1.3861
+# books 1413.82 CAD.
+USD/CAD:
+  2026-07-31: 1.4029
+  2026-08-31: 1.3861

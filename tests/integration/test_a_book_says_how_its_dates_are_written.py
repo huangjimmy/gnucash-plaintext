@@ -13,7 +13,6 @@ other field the report reads comes off the book and round-trips through the
 machine that prints, and was lost by an export and re-import.
 """
 
-import time
 from pathlib import Path
 
 import pytest
@@ -29,13 +28,6 @@ from infrastructure.gnucash.kvp import (
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 
-def _second_save_apart():
-    """GnuCash names its backup file by the second, so two saves inside one
-    fail with `ERR_FILEIO_BACKUP_ERROR`. Every test here that imports twice
-    waits, as the rest of the suite does."""
-    time.sleep(1.1)
-
-
 def _the_state_an_older_version_left(path, keys):
     """A book holding these keys in its custom blob and nothing on the option.
 
@@ -45,7 +37,6 @@ def _the_state_an_older_version_left(path, keys):
     the helper that command calls, one layer down. That is the same write an
     older `import` performed, which is the book these tests are about.
     """
-    _second_save_apart()
     repo = GnuCashRepository(str(path))
     repo.open(SessionMode.NORMAL)
     try:
@@ -322,7 +313,6 @@ class TestABookThatUsedItAsACustomKey:
         _the_state_an_older_version_left(book, {'date_format': '%Y-%m-%d'})
 
         out = tmp_path / 'exported.txt'
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'export', str(book), '--output', str(out),
             '--include-business-objects']).exit_code == 0
@@ -345,13 +335,11 @@ class TestABookThatUsedItAsACustomKey:
     def test_a_later_import_clears_the_stale_copy(self, book, tmp_path):
         """So it stops being carried at all, rather than being filtered
         forever."""
-        _second_save_apart()
         _the_state_an_older_version_left(book, {'date_format': '%Y-%m-%d'})
 
         again = tmp_path / 'again.txt'
         again.write_text('company\n  date_format: "%d %B %Y"\n',
                          encoding='utf-8')
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'import', str(book), str(again),
             '--include-business-objects']).exit_code == 0
@@ -398,7 +386,6 @@ class TestABookWhoseOnlyCopyIsTheOldOne:
         """It is the only copy, and an export is the only copy a rebuild
         gets."""
         out = tmp_path / 'exported.txt'
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'export', str(legacy), '--output', str(out),
             '--include-business-objects']).exit_code == 0
@@ -412,7 +399,6 @@ class TestABookWhoseOnlyCopyIsTheOldOne:
         a deletion of the book's only copy."""
         other = tmp_path / 'other.txt'
         other.write_text('company\n  name: "Renamed Co."\n', encoding='utf-8')
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'import', str(legacy), str(other),
             '--include-business-objects']).exit_code == 0
@@ -429,7 +415,6 @@ class TestABookWhoseOnlyCopyIsTheOldOne:
         looks at, so a book carrying it printed dates it had not asked for."""
         other = tmp_path / 'other.txt'
         other.write_text('company\n  name: "Renamed Co."\n', encoding='utf-8')
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'import', str(legacy), str(other),
             '--include-business-objects']).exit_code == 0
@@ -466,7 +451,6 @@ class TestABookHoldingItInBothPlaces:
             self, both, tmp_path):
         other = tmp_path / 'other.txt'
         other.write_text('company\n  name: "Renamed Co."\n', encoding='utf-8')
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'import', str(both), str(other),
             '--include-business-objects']).exit_code == 0
@@ -489,12 +473,10 @@ class TestABookHoldingItInBothPlaces:
         and the next import puts the old one back."""
         other = tmp_path / 'other.txt'
         other.write_text('company\n  name: "Renamed Co."\n', encoding='utf-8')
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'import', str(both), str(other),
             '--include-business-objects']).exit_code == 0
 
-        _second_save_apart()
         repo = GnuCashRepository(str(both))
         repo.open(SessionMode.NORMAL)
         try:
@@ -504,7 +486,6 @@ class TestABookHoldingItInBothPlaces:
         finally:
             repo.close()
 
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'import', str(both), str(other),
             '--include-business-objects']).exit_code == 0
@@ -547,7 +528,6 @@ class TestAnotherKeyThatBecameAField:
         named = tmp_path / 'named.txt'
         named.write_text('company\n  name: "Acme Plaintext Co."\n',
                          encoding='utf-8')
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'import', str(path), str(named),
             '--include-business-objects']).exit_code == 0
@@ -556,7 +536,6 @@ class TestAnotherKeyThatBecameAField:
         other = tmp_path / 'other.txt'
         other.write_text('company\n  phone: "+1-555-0100"\n',
                          encoding='utf-8')
-        _second_save_apart()
         result = CliRunner().invoke(cli, [
             'import', str(path), str(other), '--include-business-objects'])
 
@@ -583,7 +562,6 @@ class TestAnotherKeyThatBecameAField:
         _the_state_an_older_version_left(path, {'phone': '+1-555-0100'})
 
         out = tmp_path / 'exported.txt'
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'export', str(path), '--output', str(out),
             '--include-business-objects']).exit_code == 0
@@ -605,13 +583,11 @@ class TestAnotherKeyThatBecameAField:
 
         other = tmp_path / 'other.txt'
         other.write_text('company\n  name: "Renamed Co."\n', encoding='utf-8')
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'import', str(path), str(other),
             '--include-business-objects']).exit_code == 0
 
         out = tmp_path / 'exported.txt'
-        _second_save_apart()
         assert CliRunner().invoke(cli, [
             'export', str(path), '--output', str(out),
             '--include-business-objects']).exit_code == 0
@@ -626,7 +602,6 @@ class TestChangingItAndClearingIt:
         change = tmp_path / 'change.txt'
         change.write_text('company\n  date_format: "%Y/%m/%d"\n',
                           encoding='utf-8')
-        _second_save_apart()
         result = CliRunner().invoke(cli, ['import', str(book), str(change),
                                           '--include-business-objects'])
         assert result.exit_code == 0, result.output
@@ -642,7 +617,6 @@ class TestChangingItAndClearingIt:
         and the book then falls back to the machine's preference again."""
         clear = tmp_path / 'clear.txt'
         clear.write_text('company\n  date_format: ""\n', encoding='utf-8')
-        _second_save_apart()
         result = CliRunner().invoke(cli, ['import', str(book), str(clear),
                                           '--include-business-objects'])
         assert result.exit_code == 0, result.output
@@ -664,7 +638,6 @@ class TestChangingItAndClearingIt:
         """An absent key is not an instruction — CLAUDE.md finding 11."""
         other = tmp_path / 'other.txt'
         other.write_text('company\n  name: "Renamed Co."\n', encoding='utf-8')
-        _second_save_apart()
         assert CliRunner().invoke(
             cli, ['import', str(book), str(other),
                   '--include-business-objects']).exit_code == 0

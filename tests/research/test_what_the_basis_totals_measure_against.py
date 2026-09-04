@@ -119,7 +119,8 @@ def _holdings(book_path):
                     readings['owed-in'].get(currency, Fraction(0)) + amount)
         query.destroy()
 
-        # What the ledger says independently of any stored balance: every
+        # What the ledger says on its own, with no `cost_basis_balance` read at
+        # all: every
         # basis's own amount, less every split that names one — which is what
         # a drawdown records, written on the selling split by the file.
         for split in iter_splits(repo.book):

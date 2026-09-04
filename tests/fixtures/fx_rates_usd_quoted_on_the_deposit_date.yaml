@@ -1,0 +1,6 @@
+# The two invoice dates and the deposit's own day, so nothing is carried
+# forward. The deposit rate is the one it was entered at.
+USD/CAD:
+  2026-07-31: 1.4029
+  2026-08-13: 1.4029
+  2026-08-31: 1.3861

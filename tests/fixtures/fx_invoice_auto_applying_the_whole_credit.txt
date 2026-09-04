@@ -1,0 +1,23 @@
+# The same 100.00 USD invoice, leaving the application to GnuCash instead of
+# giving the credit's guid. The engine spends the whole credit, so again
+# nothing is left of it.
+invoice "INV-USD-AUTO"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	auto_apply_credit: true
+	entry:
+		date: 2026-03-01
+		description: "More consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-AUTO"
+		accumulate: true

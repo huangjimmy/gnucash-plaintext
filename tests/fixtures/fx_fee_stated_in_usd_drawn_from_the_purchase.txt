@@ -1,0 +1,19 @@
+# The same 10.00 USD fee drawn from the purchase's cost basis, in a
+# transaction stated in USD rather than in the book's own currency.
+#
+# Nothing in it says what the sale fetched in CAD — both splits are USD — so
+# `a_sale_valued_against_another_cost` declines to answer for it, which is
+# deliberate: a transaction between two foreign currencies states its values in
+# neither. What that costs is that this disposal cannot hold the basis above it
+# to the cost it was valued against.
+2026-01-01 open Expenses:Fees:USD
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-02-12 * "A 10 USD fee, stated in USD"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD -10.00 USD
+		account.commodity.mnemonic: "USD"
+		cost_basis_split_guid: "{basis}"
+	Expenses:Fees:USD 10.00 USD
+		account.commodity.mnemonic: "USD"

@@ -10,17 +10,12 @@ several bases never lowers one of them and then fails on the next.
 """
 
 import re
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cli.main import cli
-
-
-def _run(runner, *args):
-    time.sleep(1.1)
-    return runner.invoke(cli, list(args))
+from tests.conftest import _run
 
 
 def _balances(runner, book, *extra):
@@ -86,7 +81,7 @@ def test_a_sale_across_bases_lowers_none_of_them_when_it_is_refused(tmp_path):
     assert 'Sell 120 USD' not in exported, exported
 
 
-def test_available_only_lists_bases_with_something_left(tmp_path):
+def test_with_balance_only_lists_bases_with_something_left(tmp_path):
     runner = CliRunner()
     book, basis = _book(runner, tmp_path)
 

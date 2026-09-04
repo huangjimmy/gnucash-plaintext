@@ -16,13 +16,13 @@ whatever styling it was configured with, not whatever the ledger's author
 used.
 """
 
-import time
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.conftest import a_ledger_without_the_day_it_was_written
 
 FIXTURES = Path('tests/fixtures')
 LEDGER = str(FIXTURES / 'a_book_that_prints_a_whole_invoice.txt')
@@ -57,7 +57,6 @@ def _book(tmp_path):
 
 
 def _styled(book, tmp_path, *args):
-    time.sleep(1.1)     # GnuCash names its backup by the second
     result = CliRunner().invoke(cli, ['set-invoice-style', str(book), *args])
     assert result.exit_code == 0, result.output
     return result
@@ -479,7 +478,6 @@ class TestABookWrittenBySomethingElse:
         )
 
         book = _book(tmp_path)
-        time.sleep(1.1)
         repo = GnuCashRepository(str(book))
         repo.open(SessionMode.NORMAL)
         try:
@@ -504,7 +502,6 @@ class TestABookWrittenBySomethingElse:
         )
 
         book = _book(tmp_path)
-        time.sleep(1.1)
         repo = GnuCashRepository(str(book))
         repo.open(SessionMode.NORMAL)
         try:
@@ -571,7 +568,12 @@ class TestTheyAreNotPartOfTheFormat:
         assert 'css' not in exported.lower(), exported
 
     def test_and_the_export_is_the_same_file_either_way(self, tmp_path):
-        """One book, exported before and after the styling is set."""
+        """One book, exported before and after the styling is set.
+
+        Compared without the day each export was written on: an account and a
+        commodity have no date of their own, so the export stamps the day it
+        runs, and two exports either side of midnight differ over that alone.
+        """
         book = _book(tmp_path)
         first = tmp_path / 'first.txt'
         assert CliRunner().invoke(cli, [
@@ -588,5 +590,7 @@ class TestTheyAreNotPartOfTheFormat:
             'export', str(book), '--output', str(second),
             '--include-business-objects']).exit_code == 0
 
-        assert first.read_text(encoding='utf-8') \
-            == second.read_text(encoding='utf-8')
+        assert a_ledger_without_the_day_it_was_written(
+            first.read_text(encoding='utf-8')
+        ) == a_ledger_without_the_day_it_was_written(
+            second.read_text(encoding='utf-8'))

@@ -20,6 +20,7 @@ from click.testing import CliRunner
 
 from cli.main import cli
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from tests.conftest import a_ledger_without_the_day_it_was_written
 
 ACCOUNTS = 'tests/fixtures/payment_roundtrip_accounts.txt'
 FIXTURES = Path('tests/fixtures')
@@ -100,7 +101,11 @@ def test_invoice_settled_from_credit_comes_back_settled(tmp_path):
     # And the rebuilt book exports to the same file it was built from, so a
     # third generation says the same thing as the first.
     again = _export(runner, rebuilt, tmp_path, 'out2.txt')
-    assert again.read_text() == exported.read_text()
+    # Without the day each was written on: an account and a commodity have no
+    # date of their own, so the export stamps the day it runs, and two
+    # exports either side of midnight differ over that alone.
+    assert a_ledger_without_the_day_it_was_written(again.read_text()) == \
+        a_ledger_without_the_day_it_was_written(exported.read_text())
 
 
 def test_bill_settled_from_credit_comes_back_settled(tmp_path):
@@ -119,7 +124,11 @@ def test_bill_settled_from_credit_comes_back_settled(tmp_path):
         f'rebuild lost which payments settled it.\nbefore: {before}\n'
         f'after:  {_settled(rebuilt)}')
     again = _export(runner, rebuilt, tmp_path, 'out2.txt')
-    assert again.read_text() == exported.read_text()
+    # Without the day each was written on: an account and a commodity have no
+    # date of their own, so the export stamps the day it runs, and two
+    # exports either side of midnight differ over that alone.
+    assert a_ledger_without_the_day_it_was_written(again.read_text()) == \
+        a_ledger_without_the_day_it_was_written(exported.read_text())
 
 
 def test_a_invoice_settled_by_a_divided_credit_comes_back_settled(tmp_path):
@@ -185,7 +194,11 @@ def test_a_invoice_settled_by_a_divided_credit_comes_back_settled(tmp_path):
     # carries two keys no other shape has, and they go out through the same
     # generic KVP path as everything else.
     again = _export(runner, rebuilt, tmp_path, 'out2.txt')
-    assert again.read_text() == exported.read_text()
+    # Without the day each was written on: an account and a commodity have no
+    # date of their own, so the export stamps the day it runs, and two
+    # exports either side of midnight differ over that alone.
+    assert a_ledger_without_the_day_it_was_written(again.read_text()) == \
+        a_ledger_without_the_day_it_was_written(exported.read_text())
 
 
 def test_the_credit_left_over_stays_the_owners(tmp_path):

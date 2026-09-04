@@ -331,12 +331,12 @@ def figures_that_add_up(parts, whole, unit, keys=None):
     an accumulated posting has no per-line tax split to compare a line
     against. Rounding each line on its own then leaves a column that does not
     add up — measured on 5.10, three 100.00 lines at 15 per cent tax-included
-    print 13.04 apiece against a stated 39.13.
+    each print 13.04 against a stated 39.13.
 
     GnuCash's own page sidesteps this by printing no per-line tax at all;
     this format states one, for a reader and for the re-import that checks
     it, so the parts are fitted to the whole instead. Each is rounded down
-    and the units that leaves are handed out one apiece, largest remainder
+    and the units that leaves are handed out one at a time, largest remainder
     first.
 
     **`whole` is the parts' own sum, rounded to the unit** — that is what

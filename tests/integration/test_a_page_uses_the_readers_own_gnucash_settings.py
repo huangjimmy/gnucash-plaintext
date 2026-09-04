@@ -41,7 +41,6 @@ it.
 import os
 import re
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -379,7 +378,6 @@ class TestTheReportTheBookPrintsWith:
             repo.close()
 
     def test_no_flag_is_needed_for_it(self, book, saved_report, tmp_path):
-        time.sleep(1.1)     # GnuCash names its backup by the second
         self._the_book_names(book, SAVED_REPORT_GUID,
                              'A Report Saved In GnuCash')
 
@@ -402,7 +400,6 @@ class TestTheReportTheBookPrintsWith:
         name elsewhere. That is the configuration doing what it was saved to
         do, and the reader is told which one it was.
         """
-        time.sleep(1.1)
         self._the_book_names(book, SAVED_REPORT_GUID,
                              'A Report Saved In GnuCash')
 
@@ -434,7 +431,6 @@ class TestTheReportTheBookPrintsWith:
         """
         from services.gnucash_report import TAX_INVOICE_GUID
 
-        time.sleep(1.1)
         self._the_book_names(book, TAX_INVOICE_GUID, 'Tax Invoice')
 
         out = tmp_path / 'page.html'
@@ -467,7 +463,6 @@ class TestTheReportTheBookPrintsWith:
         this was written by hand or by another tool.
         """
         _a_saved_report(A_REPORT_THAT_DRAWS_NOTHING)
-        time.sleep(1.1)
         self._the_book_names(book, A_REPORTLESS_GUID, 'Account Summary')
 
         out = tmp_path / 'page.html'
@@ -497,7 +492,6 @@ class TestTheReportTheBookPrintsWith:
         would name a guid nobody typed. The page draws with GnuCash's own
         report instead, and the run says so.
         """
-        time.sleep(1.1)
         self._the_book_names(book, 'deadbeefdeadbeefdeadbeefdeadbeef',
                              'A Report That Is Not Here')
 
@@ -521,7 +515,6 @@ class TestTheReportTheBookPrintsWith:
         are about a report the reader did not pick for this run, and this run
         they picked one.
         """
-        time.sleep(1.1)
         self._the_book_names(book, SAVED_REPORT_GUID,
                              'A Report Saved In GnuCash')
 
@@ -541,7 +534,6 @@ class TestTheReportTheBookPrintsWith:
         """It is called the Default *Invoice* Report, and a bill is drawn by
         the invoice report — so the one setting decides both, which is why a
         bill printed here follows it too."""
-        time.sleep(1.1)
         self._the_book_names(book, SAVED_REPORT_GUID,
                              'A Report Saved In GnuCash')
 
@@ -654,7 +646,6 @@ class TestWhenTwoReportsAnswerToOneName:
         than one — and both are a setting made in File → Properties rather
         than on this command line. The page draws either way."""
         _a_saved_report(A_REPORT_SAVED_IN_GNUCASH + THE_SAME_GUID_IN_CAPS)
-        time.sleep(1.1)
         TestTheReportTheBookPrintsWith()._the_book_names(
             book, SAVED_REPORT_GUID, 'A Report Saved In GnuCash')
 
@@ -689,7 +680,6 @@ class TestTwoStylesheetsForOnePage:
                                                   tmp_path):
         style = tmp_path / 'invoice.css'
         style.write_text(self.A_STYLE, encoding='utf-8')
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, ['set-invoice-style', str(book),
                                         '--css', str(style)]).exit_code == 0
 
@@ -708,10 +698,8 @@ class TestTwoStylesheetsForOnePage:
                                                        tmp_path):
         style = tmp_path / 'invoice.css'
         style.write_text(self.A_STYLE, encoding='utf-8')
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, ['set-invoice-style', str(book),
                                         '--css', str(style)]).exit_code == 0
-        time.sleep(1.1)
         assert CliRunner().invoke(cli, ['set-invoice-style', str(book),
                                         '--clear-css']).exit_code == 0
 
