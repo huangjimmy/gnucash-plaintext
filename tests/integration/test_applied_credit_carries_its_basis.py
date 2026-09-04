@@ -5,7 +5,7 @@ GnuCash reduces the split it comes from to the part being applied and carves
 the remainder into a new split in the same transaction. A 100.00 USD credit
 meeting a 40.00 USD invoice becomes a 40.00 split and a 60.00 one.
 
-The basis has to follow the 60.00 — that is what the customer still holds, and
+The cost basis has to follow the 60.00 — that is what the customer still holds, and
 what the book still owes — while the 40.00 has become a settlement and holds
 nothing.
 """
@@ -116,14 +116,14 @@ def test_the_remaining_credit_keeps_the_cost_it_was_acquired_at(tmp_path):
     # And the listing follows: the first invoice's 100.00, the second's 40.00,
     # and 60.00 of credit still owed — nothing offering more than it holds.
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Total USD basis balance: 200.00' in listing, listing
+    assert 'Total USD cost basis balance: 200.00' in listing, listing
     assert '60.00 USD' in listing, listing
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
 
 
 def test_what_is_left_of_the_credit_comes_back_with_its_cost(tmp_path):
-    """The carved basis survives a rebuild, not just an export.
+    """The carved cost basis survives a rebuild, not just an export.
 
     Which split is the applied part and which the remainder is worked out
     from what the credit lost, and the figures are then rewritten across
@@ -148,11 +148,11 @@ def test_what_is_left_of_the_credit_comes_back_with_its_cost(tmp_path):
                                  '--include-business-objects'])
     assert result.exit_code == 0, result.output
 
-    # The same 200.00 across the same three bases, the remaining credit still
+    # The same 200.00 across the same three cost bases, the remaining credit still
     # carrying the cost it was acquired at.
     listing = runner.invoke(cli, ['fx-balances', str(rebuilt)])
     assert listing.exit_code == 0, listing.output
-    assert 'Total USD basis balance: 200.00' in listing.output, listing.output
+    assert 'Total USD cost basis balance: 200.00' in listing.output, listing.output
     assert '1.4 CAD/USD' in listing.output, listing.output
     assert '60.00 USD' in listing.output, listing.output
     checked = runner.invoke(cli, ['fx-balances', str(rebuilt), '--verify-costs'])
@@ -249,7 +249,7 @@ def test_a_credit_spent_to_the_last_cent_keeps_no_balance(tmp_path):
     # The book now holds the first invoice's 100.00 and the new one's 250.00.
     listing = runner.invoke(cli, ['fx-balances', str(book)])
     assert listing.exit_code == 0, listing.output
-    assert 'Total USD basis balance: 350.00' in listing.output, listing.output
+    assert 'Total USD cost basis balance: 350.00' in listing.output, listing.output
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
 
@@ -263,7 +263,7 @@ def test_the_remainder_is_told_apart_from_a_settlement_of_its_own_size(tmp_path)
     and that remainder is exactly the size of the settlement sitting next to
     it. Picking by size, the settlement can be reached first and handed the
     credit's balance and cost, which nothing then reads: its lot belongs to an
-    invoice, so it is no basis. The customer's real 100.00 is left with no
+    invoice, so it is no cost basis. The customer's real 100.00 is left with no
     recorded balance, the book reports 150.00 available against 250.00 held,
     and selling that credit is refused for having no balance recorded.
     """
@@ -293,7 +293,7 @@ def test_the_remainder_is_told_apart_from_a_settlement_of_its_own_size(tmp_path)
     assert 'cost_basis_balance' not in settlement, settlement
     assert 'cost_basis_cost' not in settlement, settlement
 
-    # What is left of the credit is 100.00, and it is what carries the basis.
+    # What is left of the credit is 100.00, and it is what carries the cost basis.
     remainder = text.split('Assets:Accounts Receivable USD -100.00 USD')[2]
     remainder = remainder.split('\n\tAssets')[0].split('\n\tIncome')[0]
     assert 'cost_basis_balance: "100.00"' in remainder, remainder
@@ -303,7 +303,7 @@ def test_the_remainder_is_told_apart_from_a_settlement_of_its_own_size(tmp_path)
     # back — against 250.00 in the bank.
     listing = runner.invoke(cli, ['fx-balances', str(book)])
     assert listing.exit_code == 0, listing.output
-    assert 'Total USD basis balance: 250.00' in listing.output, listing.output
+    assert 'Total USD cost basis balance: 250.00' in listing.output, listing.output
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
 
@@ -348,7 +348,7 @@ def _the_credit_split(book):
 def _edit_the_credits_basis(book, change):
     """Rewrite the credit split's cost-basis KVP, and save.
 
-    A book can hold a basis this tool would refuse to import — hand-edited in
+    A book can hold a cost basis this tool would refuse to import — hand-edited in
     the GnuCash GUI, or written by a version that checked less — and how such
     a book is *read* is the thing under test. Both callers below make one the
     only way one can be made: by writing the KVP the importer will not accept.
@@ -378,7 +378,7 @@ def _edit_the_credits_basis(book, change):
                 transaction.CommitEdit()
                 touched += 1
         query.destroy()
-        assert touched == 1, f'expected one credit basis, touched {touched}'
+        assert touched == 1, f'expected one credit cost basis, touched {touched}'
         repo.save()
     finally:
         repo.close()
@@ -390,7 +390,7 @@ def test_a_balance_that_will_not_parse_survives_a_division_as_it_reads(tmp_path)
     `cost_basis_balance_of` answers None for a balance that is missing and for one that
     will not parse alike, so inside a branch that has already found the key,
     None can only mean unparseable. Treated as absent, the largest figure the
-    division could produce is written onto a basis nobody can vouch for — and
+    division could produce is written onto a cost basis nobody can vouch for — and
     the text `--verify-costs` exists to report is destroyed on the way: `20,00`
     for `20.00` comes back as a clean 70.00 available.
     """
@@ -429,7 +429,7 @@ def test_dividing_a_credit_with_no_recorded_balance_records_none(tmp_path):
 
     A credit carrying a cost but no balance has none recorded: nothing recorded
     what has already been sold from it. Reading the residue's own size as its
-    balance would open a basis for currency that may be long gone, and every
+    balance would open a cost basis for currency that may be long gone, and every
     later sale would be measured against it.
     """
     runner = CliRunner()
@@ -462,7 +462,7 @@ def test_dividing_a_credit_gives_back_only_what_was_left(tmp_path):
 
     100.00 USD of credit with 80.00 of it sold has 20.00 left to sell. A
     30.00 invoice naming that credit divides it, and the 70.00 that remains
-    the customer's is still only 20.00 of sellable basis — writing the split's
+    the customer's is still only 20.00 of sellable cost basis — writing the split's
     new size as its balance would re-open 50.00 USD the book no longer holds,
     and every later sale would be measured against currency that is gone.
     """

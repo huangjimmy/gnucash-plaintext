@@ -3,7 +3,7 @@
 The importer applies a transaction's picks — checking each one and lowering
 the balances — and then keeps reading the transaction. If anything after that
 refuses it, the transaction is destroyed, and the drawdown has to go with it:
-a basis left lowered by a sale the book does not hold is currency that can no
+a cost basis left lowered by a sale the book does not hold is currency that can no
 longer be sold and that nothing accounts for.
 
 Every refusal the *file* can cause is checked before the drawdown today — a
@@ -37,7 +37,7 @@ CENTS = 100
 
 
 def _basis_balances(book):
-    """Every basis on the USD account, by guid, with the balance each has."""
+    """Every cost basis on the USD account, by guid, with the balance each has."""
     account = find_account(book.get_root_account(), 'Assets:Bank:USD')
     found = {}
     for split in account.GetSplitList():
@@ -48,10 +48,10 @@ def _basis_balances(book):
 
 
 def _sale_picking(book, picks):
-    """A transaction selling `units` from each basis in `picks`: {guid: units}.
+    """A transaction selling `units` from each cost basis in `picks`: {guid: units}.
 
     Written the way the importer writes one — splits parented, valued at the
-    cost of the basis each picks, and carrying `cost_basis_split_guid` —
+    cost of the cost basis each picks, and carrying `cost_basis_split_guid` —
     because that is what `apply_cost_basis_picks` reads.
     """
     root = book.get_root_account()
@@ -61,7 +61,7 @@ def _sale_picking(book, picks):
     transaction = Transaction(book)
     transaction.BeginEdit()
     transaction.SetCurrency(cad_account.GetCommodity())
-    transaction.SetDescription('Sell USD against two bases')
+    transaction.SetDescription('Sell USD against two cost bases')
 
     proceeds = Fraction(0)
     for guid, units in picks.items():
@@ -84,7 +84,7 @@ def _sale_picking(book, picks):
 
 
 def test_giving_back_restores_exactly_what_the_picks_took(tmp_path):
-    """Two bases drawn down by one transaction, both restored in full."""
+    """Two cost bases drawn down by one transaction, both restored in full."""
     runner = CliRunner()
     gnucash_file = tmp_path / 'book.gnucash'
     result = runner.invoke(cli, [
@@ -98,7 +98,7 @@ def test_giving_back_restores_exactly_what_the_picks_took(tmp_path):
         before = _basis_balances(repo.book)
         assert sorted(before.values()) == [Fraction(100), Fraction(100)], before
 
-        # 40 from the basis that cost 1.35, 25 from the one that cost 1.30.
+        # 40 from the cost basis that cost 1.35, 25 from the one that cost 1.30.
         picks = {}
         for guid in before:
             cost = cost_of(find_split_by_guid(repo.book, guid))

@@ -117,7 +117,7 @@ def test_settling_a_usd_bill_with_usd_cash_realizes_the_difference(tmp_path):
 
     listing = runner.invoke(cli, ['fx-balances', str(book)])
     assert listing.exit_code == 0, listing.output
-    # The listing is in no particular order, so each basis is picked by the
+    # The listing is in no particular order, so each cost basis is picked by the
     # account it sits on: the bill's payable, and the cash bought to settle it.
     bill_basis = _basis_on(listing.output, 'Accounts Payable')
     cash_basis = _basis_on(listing.output, 'Assets:Bank:USD')
@@ -135,4 +135,4 @@ def test_settling_a_usd_bill_with_usd_cash_realizes_the_difference(tmp_path):
     assert 'Income:FX Gain -5.00 CAD' in exported, exported
 
     after = runner.invoke(cli, ['fx-balances', str(book)])
-    assert 'Total USD basis balance: 0.00' in after.output, after.output
+    assert 'Total USD cost basis balance: 0.00' in after.output, after.output

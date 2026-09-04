@@ -3,7 +3,7 @@
 A split written in the GnuCash GUI, or by an import that predates this feature,
 carries no `cost_basis_balance` KVP. Reading its amount as its balance would
 re-open currency that may already have been sold, so it reads as `none
-recorded`, is refused as a sale's basis, and is given a balance only when the
+recorded`, is refused as a sale's cost basis, and is given a balance only when the
 user says so.
 
 The split with no recorded balance is produced by clearing the KVP on a real
@@ -70,7 +70,7 @@ def test_a_basis_with_no_recorded_balance_says_so(tmp_path):
 
     listing = _balances(runner, book)
     assert 'none recorded' in listing, listing
-    assert 'Total USD basis balance' not in listing, listing
+    assert 'Total USD cost basis balance' not in listing, listing
     assert 'cost_basis_balance' in listing, listing
 
 
@@ -87,7 +87,7 @@ def test_selling_against_a_basis_with_no_recorded_balance_is_refused(tmp_path):
 
 def test_stating_the_balance_in_a_file_gives_the_basis_one(tmp_path):
     """The mechanism that already exists: a balance written on the split in an
-    import file is authoritative, and the basis is sellable from then on."""
+    import file is authoritative, and the cost basis is sellable from then on."""
     runner = CliRunner()
     book = _book_with_no_recorded_balance(runner, tmp_path)
     basis = re.search(r'\b([0-9a-f]{32})\b', _balances(runner, book)).group(1)
@@ -121,22 +121,22 @@ def test_stating_the_balance_in_a_file_gives_the_basis_one(tmp_path):
     listing = _balances(runner, book)
     basis_row = next(line for line in listing.splitlines() if basis in line)
     assert 'none recorded' not in basis_row, listing
-    assert '100.00 USD     100.00 USD' in basis_row, listing
-    # The basis nothing stated a balance for is untouched.
+    assert re.search(r'100\.00 USD[^\n]+100\.00 USD', basis_row), listing
+    # The cost basis nothing stated a balance for is untouched.
     assert 'none recorded' in listing, listing
 
 
 def test_an_update_does_not_quietly_write_a_balance(tmp_path):
-    """Editing a description must not decide how much of a basis is left.
+    """Editing a description must not decide how much of a cost basis is left.
 
-    A basis with no recorded balance is one this tool never wrote one for —
+    A cost basis with no recorded balance is one this tool never wrote one for —
     made in the GUI, or predating the feature — so how much of its currency
     has already been sold is not known. Opening it at its full amount would
     offer currency that may be long gone, which is the whole reason the state
     exists rather than a default of "all of it".
 
     Re-importing that book with a corrected description passes the edit guard,
-    correctly: prose cannot change what a basis holds. What it must not do is
+    correctly: prose cannot change what a cost basis holds. What it must not do is
     write a balance on the way past.
     """
     runner = CliRunner()
@@ -155,5 +155,5 @@ def test_an_update_does_not_quietly_write_a_balance(tmp_path):
 
     listing = _balances(runner, book)
     assert 'none recorded' in listing, (
-        'an edit that cannot change what a basis holds gave it a balance '
+        'an edit that cannot change what a cost basis holds gave it a balance '
         f'anyway:\n{listing}')

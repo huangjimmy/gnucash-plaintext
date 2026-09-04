@@ -347,7 +347,7 @@ class ImportTransactionsUseCase:
         """
         result = ImportResult()
 
-        # Q-035: a cost basis whose basis balance this file states is
+        # Q-035: a cost basis whose cost basis balance this file states is
         # stating it net of the file's own sales; forget what the last file
         # stated before reading this one.
         begin_import_run(atomic)

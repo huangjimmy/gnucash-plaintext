@@ -62,15 +62,15 @@ def test_selling_against_an_uncollected_receivable_is_refused(tmp_path):
     result = _run(runner, 'import', str(book), _sale_against(tmp_path, basis))
     message = result.output + str(result.exception)
     assert 'has not been collected' in message, message
-    # What is uncollected is the invoice, not the basis. A cost basis is what
+    # What is uncollected is the invoice, not the cost basis. A cost basis is what
     # something was acquired for; whether it has been collected is a fact
-    # about the receivable the split sits on, and calling the basis itself
+    # about the receivable the split sits on, and calling the cost basis itself
     # "an unpaid receivable" states neither.
     assert 'unpaid receivable' not in message, message
     assert 'owed, not held' in message, message
 
     # Nothing was recorded against it.
-    assert 'Total USD basis balance: 100.00 USD' in _balances(runner, book)
+    assert 'Total USD cost basis balance: 100.00 USD' in _balances(runner, book)
 
 
 def test_the_refusal_can_be_forced(tmp_path):
@@ -81,7 +81,7 @@ def test_the_refusal_can_be_forced(tmp_path):
                   _sale_against(tmp_path, basis, forced=True, name='forced.txt'))
     assert result.exit_code == 0, result.output
     assert 'error:' not in result.output, result.output
-    assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
+    assert 'Total USD cost basis balance: 60.00 USD' in _balances(runner, book)
 
 
 def test_a_mistyped_override_is_refused_by_name(tmp_path):
@@ -164,7 +164,7 @@ def test_selling_is_allowed_once_the_invoice_is_paid(tmp_path):
     result = _run(runner, 'import', str(book), _sale_against(tmp_path, basis))
     assert result.exit_code == 0, result.output
     assert 'error:' not in result.output, result.output
-    assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
+    assert 'Total USD cost basis balance: 60.00 USD' in _balances(runner, book)
 
 
 def _forget_the_override(book):
@@ -198,8 +198,8 @@ def test_verify_costs_reports_a_sale_left_against_an_uncollected_receivable(
         tmp_path):
     """The same question the import asks of a file, asked of the book.
 
-    Every other check passes: the balance is within its bounds, the basis is
-    real, and the sale is valued at what that basis cost. What is wrong is
+    Every other check passes: the balance is within its bounds, the cost basis is
+    real, and the sale is valued at what that cost basis cost. What is wrong is
     that the currency was never collected, so the book is offering money the
     customer has not paid.
     """
@@ -234,4 +234,4 @@ def test_currency_bought_outright_needs_no_override(tmp_path):
     result = _run(runner, 'import', str(book), str(sale))
     assert result.exit_code == 0, result.output
     assert 'error:' not in result.output, result.output
-    assert 'Total USD basis balance: 160.00 USD' in _balances(runner, book)
+    assert 'Total USD cost basis balance: 160.00 USD' in _balances(runner, book)

@@ -1518,7 +1518,7 @@ class TestFollowingTheOverpaymentRemedy:
     context is the account the money was parked on, and the reconciliation only
     counts loose splits on the record's own posted account — so a residue left
     there sums to 0.00 and earns a second refusal that says nothing about
-    where it should have gone. The message names the account now.
+    where it should have gone. The message gives the account's name now.
     """
 
     @pytest.fixture

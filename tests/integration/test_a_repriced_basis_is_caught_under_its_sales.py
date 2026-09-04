@@ -1,14 +1,14 @@
 """Re-pricing a cost basis is caught by the sales already measured against it.
 
 `_require_stated_cost` asks of every sale in a file that it values what it sells
-at what its basis cost. It asks it of the file, and only of the file, so a sale
+at what its cost basis cost. It asks it of the file, and only of the file, so a sale
 already in the book is never asked again — and `import --atomic` defers
 `_require_no_cost_basis_edit`, which is what otherwise stops a block restating a
 basis transaction's `value:`.
 
-So a basis can be re-priced under sales that are in no file. Every other check
+So a cost basis can be re-priced under sales that are in no file. Every other check
 is satisfied: the balance is inside its bounds, no stored cost disagrees because
-there is none to disagree, the sale draws on a real basis, and the currency
+there is none to disagree, the sale draws on a real cost basis, and the currency
 totals level, because none of them looks at what the sale is valued at. The book
 is saved, `--verify-costs` says every cost agrees, and the export is refused on
 the way back in.
@@ -79,7 +79,7 @@ def _a_basis_with_a_usd_stated_fee_drawn_on_it(runner, tmp_path):
     """The same purchase, with the fee below it stated in USD.
 
     Its value is in no base-currency figure, so the finished book cannot ask
-    whether it is still valued at what its basis cost — which is what
+    whether it is still valued at what its cost basis cost — which is what
     `--atomic` leans on when it defers the in-place refusal.
     """
     book = tmp_path / 'book.gnucash'
@@ -109,7 +109,7 @@ def test_a_reprice_under_a_foreign_stated_sale_is_refused(tmp_path):
 
     The commit-time stand-in is `a_sale_valued_against_another_cost`, and it
     answers only for a sale stated in the book's own currency: a transaction
-    between two foreign currencies states its values in neither. So a basis
+    between two foreign currencies states its values in neither. So a cost basis
     with only foreign-stated sales beneath it could be re-priced under them,
     the run exited 0, the book was saved, and `--verify-costs` called it
     sound — the same fault this file is about, with the fee stated in USD.
@@ -128,7 +128,7 @@ def test_a_reprice_under_a_foreign_stated_sale_is_refused(tmp_path):
     assert 'Changes saved' not in result.output, result.output
     assert 'A 10 USD fee, stated in USD' in message, message
 
-    # And the book is as it was: 1.4, with 90.00 USD left of the basis.
+    # And the book is as it was: 1.4, with 90.00 USD left of the cost basis.
     listing = _run(runner, 'fx-balances', str(book)).output
     assert '1.4 CAD/USD' in listing, listing
     assert '90.00 USD' in listing, listing
@@ -164,7 +164,7 @@ def test_an_atomic_reprice_is_rolled_back(tmp_path):
     assert result.exit_code != 0, result.output
     assert 'Rolled back' in result.output, result.output
     assert 'Changes saved' not in result.output, result.output
-    assert 'value what is sold at the basis it picks' in result.output, \
+    assert 'value what is sold at the cost basis it picks' in result.output, \
         result.output
     # Every block applied, so the run reaches the end with no per-block error
     # to its name — which is the shape that printed a tick under the refusal.
@@ -241,7 +241,7 @@ def test_verify_costs_reports_a_book_already_re_priced(tmp_path):
     assert verified.exit_code == 1, verified.output
     assert '10.00 USD valued at' in verified.output, verified.output
     assert '15.00 CAD' in verified.output, verified.output
-    assert 'value what is sold at the basis it picks' in verified.output, \
+    assert 'value what is sold at the cost basis it picks' in verified.output, \
         verified.output
 
 

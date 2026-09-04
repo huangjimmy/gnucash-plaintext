@@ -7,9 +7,9 @@ Run:  ./scripts/run.sh latest bash -c 'cd /workspace &&
 A posted invoice's A/R split *is* the cost basis, and unposting destroys the
 posting transaction. So:
 
-  1. what happens to a basis that a sale has already picked?
+  1. what happens to a cost basis that a sale has already picked?
   2. what does `fx-balances` report afterwards?
-  3. does re-posting restore the basis, or mint a new guid the sale cannot see?
+  3. does re-posting restore the cost basis, or mint a new guid the sale cannot see?
   4. same three questions on the bill side.
   5. and for a converted payment, what becomes of the realized FX split?
 """
@@ -65,7 +65,7 @@ def basis_guid(book):
 
 
 def probe_invoice(workdir):
-    hr('INVOICE — post, sell against the basis, then unpost')
+    hr('INVOICE — post, sell against the cost basis, then unpost')
     book = os.path.join(workdir, 'inv.gnucash')
     result = _run(runner, 'import', '--new', book, 'tests/fixtures/fx_usd_invoice_cad_income.txt',
                  '--include-business-objects', '--fx-rates', RATES)
@@ -74,7 +74,7 @@ def probe_invoice(workdir):
     print(f'\ncost basis after posting: {guid}')
     balances(book)
 
-    # 40 USD of a basis that cost 1.40: 56.00 CAD consumed, sold for 55.60.
+    # 40 USD of a cost basis that cost 1.40: 56.00 CAD consumed, sold for 55.60.
     sale = os.path.join(workdir, 'sale.txt')
     with open('tests/fixtures/fx_sell_usd_partial.txt') as handle:
         text = (handle.read()
@@ -103,7 +103,7 @@ def probe_invoice(workdir):
     print('that split still exists in the book: '
           f'{declares_guid in text}')
 
-    hr('INVOICE — re-post and see whether the basis comes back')
+    hr('INVOICE — re-post and see whether the cost basis comes back')
     result = _run(runner, 'import', book, 'tests/fixtures/fx_usd_invoice_cad_income.txt',
                  '--include-business-objects', '--fx-rates', RATES)
     print(f're-import (re-post): exit={result.exit_code}')

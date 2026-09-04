@@ -1,8 +1,8 @@
 """Probe: Σ(basis balances) against the book's own holdings, per currency.
 
-`--verify-costs` checks each basis against the ledger it came from, one basis
+`--verify-costs` checks each cost basis against the ledger it came from, one cost basis
 at a time. The question this probe asks is the book-wide one: for each foreign
-currency, does the sum of its bases' balances equal what the book holds in
+currency, does the sum of its cost bases' balances equal what the book holds in
 that currency?
 
 Four readings of "what the book holds" were computed over the same books, to
@@ -12,7 +12,7 @@ find which — if any — the totals follow:
 * **cash** — asset and liability accounts only, excluding receivable/payable
 * **owed-in** — cash, plus receivable/payable counted in their normal
   direction only (what an invoice owes the book, not what the book owes back)
-* **in-less-sold** — what every basis brought in, less every split naming one
+* **in-less-sold** — what every cost basis brought in, less every split giving one
 
 Measured:
 
@@ -31,12 +31,12 @@ prepayment arriving as CAD     USD 100.00   -100.00      0.00      0.00    100.0
 **No account-balance reading matches.** Currency that exists only as an
 obligation is the reason: a customer's credit is money the book holds *and*
 owes back, so the receivable nets it away while the bank still shows it; a
-prepayment taken in CAD leaves the book holding no USD at all, and its basis is
+prepayment taken in CAD leaves the book holding no USD at all, and its cost basis is
 the only record that 100.00 USD is owed. Summing account balances asks a
 different question, and `docs/multi-currency.md` says so — an account balance
-and a basis balance are separate quantities.
+and a cost basis balance are separate quantities.
 
-**The ledger reading matches on every shape.** What the bases hold between
+**The ledger reading matches on every shape.** What the cost bases hold between
 them equals what they brought in less what the splits naming them took, per
 currency — two sides written by different mechanisms (a KVP on one, the
 transactions themselves on the other), so they can disagree, which is what
@@ -159,7 +159,7 @@ def test_the_ledger_reading_is_the_one_that_matches(name, ledger, rates, tmp_pat
     assert result.exit_code == 0, f'{name}: {result.output}'
 
     readings = _holdings(book)
-    assert readings['bases'], f'{name}: no basis with a balance to compare'
+    assert readings['bases'], f'{name}: no cost basis with a balance to compare'
     for currency, total in sorted(readings['bases'].items()):
         assert readings['in-less-sold'].get(currency) == total, (
             f'{name}: the {currency} bases hold {total} between them, while '

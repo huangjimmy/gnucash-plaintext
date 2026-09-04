@@ -1,6 +1,6 @@
 """The retarget block README shows is a block this tool accepts.
 
-Refusing a `payment:` that spends a foreign account's basis balance, the run
+Refusing a `payment:` that spends a foreign account's cost basis balance, the run
 names the way out: *"Write the settlement as an ordinary transaction with
 `cost_basis_split_guid:` on the bank line and attach it with `txn_guid:` /
 `txn_split_guid:`"* — and `docs/multi-currency.md` adds "README's
@@ -33,7 +33,7 @@ def _the_retarget_snippets():
     does not silently start testing some other block.
     """
     text = README.read_text()
-    anchor = text.index('The way to spend a basis balance is the way every '
+    anchor = text.index('The way to spend a cost basis balance is the way every '
                         'other foreign disposal is written')
     after = text[anchor:]
     blocks = re.findall(r'```\n(.*?)```', after, re.DOTALL)
@@ -85,7 +85,7 @@ class TestTheDocumentedRemedy:
     def _import_the_transaction(self, book, basis, tmp_path):
         transaction, _payment = _the_retarget_snippets()
         ledger = tmp_path / 'spend.txt'
-        # Only the basis guid, which no printed example can know in advance.
+        # Only the cost basis guid, which no printed example can know in advance.
         # Every figure — the rate, the value, the accounts — is read from
         # README as written, against a book built to match it.
         ledger.write_text(
@@ -124,7 +124,7 @@ class TestTheDocumentedRemedy:
         assert 'account:' in payment, payment
 
     def test_the_three_guids_are_three_different_guids(self):
-        """The basis, the transaction, and the transaction's payable split.
+        """The cost basis, the transaction, and the transaction's payable split.
 
         The prose says so — "`txn_guid:` is the transaction above,
         `txn_split_guid:` its A/P split" — and the same literal stood for the

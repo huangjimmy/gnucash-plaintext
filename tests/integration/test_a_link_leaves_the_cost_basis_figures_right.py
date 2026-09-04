@@ -4,17 +4,17 @@ USD arriving in an asset account, against CAD going out of an asset or onto a
 liability, is the shape of buying or borrowing USD, so importing one opens a
 cost basis on the split that received the USD.
 
-What that transaction turns out to be decides whether the basis stays:
+What that transaction turns out to be decides whether the cost basis stays:
 
 - linked to pay an invoice in full, it is neither a purchase nor a borrowing
   any more — it is that invoice being paid, and the invoice's own posting split
-  has had a cost basis for the same USD since it was posted. The basis the
+  has had a cost basis for the same USD since it was posted. The cost basis the
   import opened is discarded, or the same USD has two. The link is refused
-  while a disposal still draws on that basis, because the `share_price:` on
+  while a disposal still draws on that cost basis, because the `share_price:` on
   the deposit's USD split and the invoice's posting rate need not agree.
 - linked to pay a bill, USD drawn on a credit line is still borrowed: the
   payable is paid and the credit line is still owed. So it is still a
-  borrowing and its basis stands, kept by writing the price onto the split.
+  borrowing and its cost basis stands, kept by writing the price onto the split.
 
 The reproduction is the four steps in `docs/issues/Q-040-…`, measured from a
 real book.
@@ -25,7 +25,7 @@ import re
 from click.testing import CliRunner
 
 from cli.main import cli
-from infrastructure.gnucash.kvp import get_custom_metadata
+from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.foreign_currency import (
     COST_BASIS_BALANCE_KEY,
@@ -121,12 +121,91 @@ def _linked_to_the_invoice(runner, book, tmp_path):
                 '--strategy', 'update')
 
 
+def test_a_link_is_refused_where_the_balance_is_below_what_came_in(tmp_path):
+    """A cost basis part-sold outside this book cannot be discarded silently.
+
+    A balance a file states is authoritative — it is how a book carrying sales
+    this tool never saw gets one — so a deposit that brought in 2,720.00 USD
+    and reads 2,000.00 has had 720.00 sold somewhere the book does not record.
+    Sales it *does* record are refused already, by their disposals.
+
+    Discarding that balance destroys the only statement of the 720.00 there
+    is. The split becomes a settlement, which is no cost basis, and taking the
+    payment off later opens it at the whole 2,720.00 — the book then offering
+    currency that is gone, with `--verify-costs` clean, because 2,720.00 is
+    exactly what the split brought in.
+    """
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    _invoices_and_a_parked_deposit(runner, book, with_fee=False)
+
+    part_sold = tmp_path / 'part-sold.txt'
+    block = re.search(r'2026-08-13 \* "Received[^\n]*\n(?:\t[^\n]*\n)*',
+                      _exported(runner, book, tmp_path / 'first.txt')).group(0)
+    part_sold.write_text(re.sub(r'\t\tcost_basis_balance: "[^"]*"\n',
+                                '\t\tcost_basis_balance: "2000.00"\n', block))
+    assert _run(runner, 'import', str(book), str(part_sold),
+                '--strategy', 'update').exit_code == 0
+
+    refused = _linked_to_the_invoice(runner, book, tmp_path)
+    message = refused.output + str(refused.exception)
+    assert refused.exit_code != 0, message
+    assert DEPOSIT_SPLIT in message, message
+    assert '2000.00 USD of the 2720.00 USD it brought in' in message, message
+    assert '720.00 USD difference is currency sold outside' in message, message
+
+    # And the book is as it was: the balance the file stated, still stated.
+    assert _stored_balance(book, DEPOSIT_SPLIT) == '2000.00'
+
+
+def test_a_link_is_refused_where_the_balance_will_not_parse(tmp_path):
+    """A figure nobody can read is not the same as no figure at all.
+
+    `cost_basis_balance_of` answers None for both, so the refusal above would
+    let this one past and the strip would delete the very text
+    `--verify-costs` is reporting — after which a later unapply opens the
+    split at its full amount, over currency that may be sold.
+
+    Written into the book rather than stated in a file, because a file stating
+    one is refused as it lands: this is a book that arrives holding it, which
+    is the only way `--verify-costs` has anything to report.
+    """
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    _invoices_and_a_parked_deposit(runner, book, with_fee=False)
+
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.NORMAL)
+    try:
+        for split in iter_splits(repo.book):
+            if split_guid(split) != DEPOSIT_SPLIT:
+                continue
+            transaction = split.GetParent()
+            transaction.BeginEdit()
+            metadata = dict(get_custom_metadata(split))
+            metadata[COST_BASIS_BALANCE_KEY] = '2,000.00'
+            set_custom_metadata(split, metadata)
+            transaction.CommitEdit()
+    finally:
+        repo.save()
+        repo.close()
+    assert _stored_balance(book, DEPOSIT_SPLIT) == '2,000.00'
+
+    refused = _linked_to_the_invoice(runner, book, tmp_path)
+    message = refused.output + str(refused.exception)
+    assert refused.exit_code != 0, message
+    assert "reads '2,000.00', which is not a figure" in message, message
+
+    # And the text is still there for `--verify-costs` to report.
+    assert _stored_balance(book, DEPOSIT_SPLIT) == '2,000.00'
+
+
 def test_a_part_payment_link_hands_the_currency_to_the_receivable(tmp_path):
-    """A part payment discards the deposit's basis like any other payment.
+    """A part payment discards the deposit's cost basis like any other payment.
 
     The deposit is 2,720.00 USD and the invoice it is linked to is 5,000.00,
     so 2,280.00 is still owed afterwards — and the receivable has priced the
-    whole 5,000.00 since the day it was posted. Keeping the deposit's basis
+    whole 5,000.00 since the day it was posted. Keeping the deposit's cost basis
     beside it counts the same money twice, and the two are not both held back
     for long: pay the rest and the invoice's lot closes, the receivable's
     basis becomes sellable, and the book offers 7,720.00 USD where it holds
@@ -136,7 +215,7 @@ def test_a_part_payment_link_hands_the_currency_to_the_receivable(tmp_path):
     What it costs is that the currency in the bank is the receivable's from
     the link on: a sale of it waits until the invoice is collected, or says
     `cost_basis_force: true`, which is what that flag is for. The listing
-    keeps showing the receivable's basis throughout, so nothing goes quiet.
+    keeps showing the receivable's cost basis throughout, so nothing goes quiet.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -165,21 +244,21 @@ def test_a_part_payment_link_hands_the_currency_to_the_receivable(tmp_path):
     assert DEPOSIT_SPLIT not in listing, (
         'the receivable prices this money now, and the deposit is still '
         f'listed beside it:\n{listing}')
-    # The invoice's own basis is what carries it: the three posted invoices —
+    # The invoice's own cost basis is what carries it: the three posted invoices —
     # 2,720.00, 5,000.00 and 1,020.00 — and nothing else. Kept, the deposit
     # would add its 2,720.00 on top and the book would offer 11,460.00.
     assert '5,000.00 USD' in listing, listing
-    assert 'Total USD basis balance: 8,740.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 8,740.00 USD' in listing, listing
 
     verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
     assert verified.exit_code == 0, verified.output
 
 
 def test_the_link_takes_the_balance_off_the_deposit(tmp_path):
-    """With nothing drawn on it, the whole basis is discarded.
+    """With nothing drawn on it, the whole cost basis is discarded.
 
     The transaction is paying the invoice, not borrowing, so the receivable is
-    the one basis for that 2,720.00 USD from then on — the state a `payment:`
+    the one cost basis for that 2,720.00 USD from then on — the state a `payment:`
     block reaches when it pays a USD invoice in full from a USD bank.
     """
     runner = CliRunner()
@@ -191,10 +270,10 @@ def test_the_link_takes_the_balance_off_the_deposit(tmp_path):
     assert result.exit_code == 0, result.output
 
     assert _stored_balance(book, DEPOSIT_SPLIT) is None, (
-        'the deposit stopped being a borrowing but kept its basis balance:\n'
+        'the deposit stopped being a borrowing but kept its cost basis balance:\n'
         f'{_balances(runner, book)}')
     listing = _balances(runner, book)
-    assert 'Total USD basis balance: 3,740.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 3,740.00 USD' in listing, listing
 
 
 def test_the_link_is_refused_while_a_disposal_draws_on_the_deposit(tmp_path):
@@ -219,7 +298,7 @@ def test_the_link_is_refused_while_a_disposal_draws_on_the_deposit(tmp_path):
 
 
 def test_reclassifying_the_other_split_is_allowed(tmp_path):
-    """Due From -> Income cannot move the basis, so it must not be refused.
+    """Due From -> Income cannot move the cost basis, so it must not be refused.
 
     The USD split keeps its account, its amount and its rate, so its cost is
     the same figure before and after. Refusing it blocks an ordinary
@@ -246,7 +325,7 @@ def test_reclassifying_the_other_split_is_allowed(tmp_path):
 
     listing = _balances(runner, book)
     row = next(line for line in listing.splitlines() if DEPOSIT_SPLIT in line)
-    assert '2,720.00 USD   2,720.00 USD' in row, listing
+    assert re.search(r'2,720\.00 USD[^\n]+2,720\.00 USD', row), listing
 
 
 # ------------------------------------------------------------------- bill side
@@ -256,12 +335,12 @@ def test_a_bill_link_keeps_the_live_credit_line_basis(tmp_path):
 
     The payment moves what is owed from the supplier to the credit line: the
     payable is paid and the credit line is not, so the transaction is still a
-    borrowing and its basis stands. It stands by keeping the price, written
+    borrowing and its cost basis stands. It stands by keeping the price, written
     onto the split, since the transaction itself can no longer supply one once
     its expense split has moved to the payable.
 
     The paid payable keeps its own balance, as a paid invoice's receivable
-    does. Consuming it was tried and is wrong: what a basis brought in and what
+    does. Consuming it was tried and is wrong: what a cost basis brought in and what
     it still holds are the two sides `currency_totals_that_disagree` compares,
     so lowering a balance with no disposal to account for it puts the book's
     own currency totals out by that amount.
@@ -297,21 +376,21 @@ def test_a_bill_link_keeps_the_live_credit_line_basis(tmp_path):
     credit_line = next((line for line in listing.splitlines()
                         if CREDIT_LINE_SPLIT in line), None)
     assert credit_line is not None, (
-        'the credit line is still owed 2,720.00 USD, but its basis is gone '
+        'the credit line is still owed 2,720.00 USD, but its cost basis is gone '
         f'from the listing:\n{listing}')
     assert '381589/272000 CAD/USD' in credit_line, credit_line
-    assert '2,720.00 USD   2,720.00 USD' in credit_line, credit_line
+    assert re.search(r'2,720\.00 USD[^\n]+2,720\.00 USD', credit_line), credit_line
 
 
 def test_the_bills_link_writes_a_cost_the_export_keeps(tmp_path):
     """The written cost has to reach the file, or it is written and thrown away.
 
-    The link keeps this basis by storing `cost_basis_cost` on the split, and
+    The link keeps this cost basis by storing `cost_basis_cost` on the split, and
     the split is not a cost basis at the moment that is written — being no
     longer priced by its transaction is the whole reason it needs storing. The
-    export drops a stored cost from any split that is no basis
+    export drops a stored cost from any split that is no cost basis
     (`_stored_cost_is_ignorable`), so the key survives only because writing it
-    makes the split a basis again.
+    makes the split a cost basis again.
 
     Nothing else says so. Were that to stop holding, the run would report a
     repaired book while exporting a ledger with the balance and no cost — the
@@ -389,7 +468,7 @@ def _a_bill_linked_to_the_credit_line_payment(runner, book, tmp_path):
 
 
 def test_a_bill_link_keeps_a_basis_that_has_no_recorded_balance(tmp_path):
-    """A basis with no balance is still a basis, and still owes its price.
+    """A cost basis with no balance is still a cost basis, and still owes its price.
 
     A deposit or a draw entered in the GnuCash GUI, or made before this tool
     wrote balances, is a cost basis reading `none recorded`: the currency is
@@ -403,7 +482,7 @@ def test_a_bill_link_keeps_a_basis_that_has_no_recorded_balance(tmp_path):
     altogether: 2,720.00 USD the book holds and owes, with nothing said about
     it anywhere, and no stranded balance and no disposal for `--verify-costs`
     to report. That is the fault this issue opens with, on the branch that is
-    supposed to keep its basis.
+    supposed to keep its cost basis.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -451,7 +530,7 @@ def test_a_bill_link_keeps_a_basis_that_has_no_recorded_balance(tmp_path):
     row = next((line for line in listing.splitlines()
                 if CREDIT_LINE_SPLIT in line), None)
     assert row is not None, (
-        'the credit line is still owed 2,720.00 USD, and its basis is gone '
+        'the credit line is still owed 2,720.00 USD, and its cost basis is gone '
         f'from the listing:\n{listing}')
     assert '381589/272000 CAD/USD' in row, row
     assert 'none recorded' in row, row
@@ -487,7 +566,7 @@ def test_unapplying_the_bills_link_leaves_no_cost_the_ledger_contradicts(tmp_pat
     assert verified.exit_code == 0, verified.output
     assert 'cost_basis_cost' not in verified.output, verified.output
 
-    # And the split is still a basis — priced by its own transaction now.
+    # And the split is still a cost basis — priced by its own transaction now.
     listing = _balances(runner, book)
     row = next((line for line in listing.splitlines()
                 if CREDIT_LINE_SPLIT in line), None)
@@ -498,7 +577,7 @@ def test_unapplying_the_bills_link_leaves_no_cost_the_ledger_contradicts(tmp_pat
 def test_no_split_keeps_a_balance_it_cannot_account_for(tmp_path):
     """Whatever the link decides, it may not leave a figure nothing reads.
 
-    A `cost_basis_balance` on a split that is no basis is invisible to
+    A `cost_basis_balance` on a split that is no cost basis is invisible to
     `fx-balances` and to `--verify-costs`, and the export writes it back out —
     so the book's own ledger no longer rebuilds it. Stated over the listing
     rather than over either outcome, so it holds whichever way the link

@@ -1,7 +1,7 @@
 """Cash a settlement brought in is spent like any other foreign cash.
 
 Settling a USD invoice into an HKD bank puts 1,560.00 HKD in the book at 0.172
-and opens a basis balance for it, so the money is sellable. Paying a USD
+and opens a cost basis balance for it, so the money is sellable. Paying a USD
 bill back out of that same account is a disposal, and this tool measures every
 foreign disposal against a named cost basis.
 
@@ -12,7 +12,7 @@ over: the balance keeps offering currency the account no longer holds, and the
 cash leaves valued at the payment day's rate rather than at what it cost, so an
 account holding no HKD is left holding a CAD figure whenever the two differ.
 
-So the block is refused where a basis still has a balance to draw down, and the
+So the block is refused where a cost basis still has a balance to draw down, and the
 refusal names the route that works. That route is exercised here too, because a
 message telling the reader to do something has to be a message about something
 they can do.
@@ -46,7 +46,7 @@ def _import(runner, book, ledger, new=False):
 
 
 def _basis_on(listing, account_fragment):
-    """The split GUID of the one basis sitting on a named account."""
+    """The split GUID of the one cost basis sitting on a named account."""
     found = [line.split()[1] for line in listing.splitlines()
              if account_fragment in line]
     assert len(found) == 1, f'{account_fragment}: {found}\n{listing}'
@@ -104,11 +104,11 @@ class TestAPaymentBlockCannotSpendABasisBalance:
         assert result.exit_code == 0, result.output
         assert 'Errors:       0' in result.output, result.output
         listing = runner.invoke(cli, ['fx-balances', str(book)])
-        assert 'Total HKD basis balance: 1,560.00 HKD' in listing.output, listing.output
+        assert 'Total HKD cost basis balance: 1,560.00 HKD' in listing.output, listing.output
 
 
 class TestTheSameCurrencyCaseIsAskedToo:
-    """A USD bill paid from a USD bank spends a basis balance just as much.
+    """A USD bill paid from a USD bank spends a cost basis balance just as much.
 
     And realizes nothing doing it, which is what made it easy to miss: the
     cross-currency arithmetic returns as soon as it sees that the record and
@@ -133,8 +133,8 @@ class TestTheSameCurrencyCaseIsAskedToo:
             'import', str(book), self.BUY, '--include-business-objects',
             '--fx-rates', self.USD_RATES]).exit_code == 0
 
-        # The bank's own row, not the `Total USD basis balance:` line — the
-        # bill's payable is a USD basis too, so the total reads 200.00 and
+        # The bank's own row, not the `Total USD cost basis balance:` line — the
+        # bill's payable is a USD cost basis too, so the total reads 200.00 and
         # would have matched whatever the bank held.
         assert self._bank_row(runner, book).endswith('100.00 USD')
         return book
@@ -193,20 +193,20 @@ class TestAnAccountWithNothingLeftIsStillSpendable:
 class TestTheOtherOrder:
     """Bill first, invoice second — and nothing refuses, by design.
 
-    The refusal asks what balance the account's bases have at the moment cash
-    leaves. Paid first, out of an account with no basis on it yet, the outgoing
+    The refusal asks what balance the account's cost bases have at the moment cash
+    leaves. Paid first, out of an account with no cost basis on it yet, the outgoing
     settlement is waved through; the invoice that follows brings the money in
-    and opens a basis for the whole of it, and the account nets to zero while
-    `fx-balances` still reports the whole of it as basis balance.
+    and opens a cost basis for the whole of it, and the account nets to zero while
+    `fx-balances` still reports the whole of it as cost basis balance.
 
     No check at the departure point can see this: the outflow came first, and
-    the basis that arrives afterwards has no way to know the money was already
+    the cost basis that arrives afterwards has no way to know the money was already
     gone. Nor is "an account may not offer more than it holds" an invariant
     this model keeps — an account that receives 60.00 USD and pays an 8.00 USD
     fee out of the same transaction holds 52.00 and offers 60.00, and that
     book is correct by every rule in `services/foreign_currency.py`. Making
-    the two agree means deciding what an outflow that names no basis does to
-    the bases on its account, which is a change to the model.
+    the two agree means deciding what an outflow that gives no cost basis does to
+    the cost bases on its account, which is a change to the model.
 
     So this is pinned as what happens, not as what should: a test that fails
     the day somebody changes it, with the reasoning above to read.
@@ -242,7 +242,7 @@ class TestTheOtherOrder:
         runner, book = self._both(tmp_path)
 
         listed = runner.invoke(cli, ['fx-balances', str(book)])
-        assert 'Total HKD basis balance: 780.00 HKD' in listed.output, listed.output
+        assert 'Total HKD cost basis balance: 780.00 HKD' in listed.output, listed.output
 
 
 class TestTheRouteTheRefusalNamesWorks:
@@ -324,7 +324,7 @@ class TestTheRouteTheRefusalNamesWorks:
 
         listing = runner.invoke(cli, ['fx-balances', str(book)])
         assert listing.exit_code == 0, listing.output
-        assert 'Total HKD basis balance: 0.00 HKD' in listing.output, listing.output
+        assert 'Total HKD cost basis balance: 0.00 HKD' in listing.output, listing.output
 
     def test_the_account_holds_neither_currency_nor_value(self, tmp_path):
         """The drift, asserted against directly: 0 HKD and 0 CAD, both."""
@@ -346,7 +346,7 @@ class TestTheRouteTheRefusalNamesWorks:
     def test_the_costs_still_agree(self, tmp_path):
         """And there are costs to agree about.
 
-        `--verify-costs` exits 0 over a book with no bases at all, so the
+        `--verify-costs` exits 0 over a book with no cost bases at all, so the
         count is what makes this a statement rather than a tautology.
         """
         runner, book, _ = self._settled(tmp_path)

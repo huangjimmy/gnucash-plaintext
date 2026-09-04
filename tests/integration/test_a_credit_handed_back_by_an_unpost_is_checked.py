@@ -7,7 +7,7 @@ cost is readable it is a cost basis once more.
 
 So the mark alone does not say a pool was consumed. What says it is the split
 not being a cost basis now; the mark only separates a pool that was used up
-from a guid that was never a basis at all. Asked the other way round — the mark
+from a guid that was never a cost basis at all. Asked the other way round — the mark
 first — a sale against a live credit skipped the drawdown, the over-sell
 refusal, the "has it been collected" test and the "is it valued at what the
 basis cost" test alike, and its realized gain was whatever the file said.
@@ -96,7 +96,7 @@ def _a_credit_handed_back(runner, tmp_path):
     """That credit, spent whole on an invoice and loosened by an unpost.
 
     The whole credit, so it is spent rather than divided: a division leaves a
-    remainder holding the balance, which is a sound basis and not the split
+    remainder holding the balance, which is a sound cost basis and not the split
     this is about.
 
     Returns the book and the guids `fx-balances` lists on the receivable.

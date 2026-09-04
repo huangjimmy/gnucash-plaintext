@@ -110,7 +110,7 @@ def _the_repair(runner, book, tmp_path):
     """The end state, stated: three blocks that only make sense together.
 
     The deposit gives up its balance, the invoice's posting split takes on
-    what the fee will have drawn from it, and the fee draws on that basis
+    what the fee will have drawn from it, and the fee draws on that cost basis
     instead. Each balance is what it should be when the file has landed, which
     is what a stated balance means — net of the file's own disposals — and is
     why the third block does not lower the second's figure a second time.
@@ -183,12 +183,12 @@ def test_neither_edit_is_allowed_on_its_own(tmp_path):
 def test_stating_the_balance_gross_of_the_files_own_disposal(tmp_path):
     """2,720.00 where 2,719.28 belongs — what the run does with it.
 
-    A stated balance is what the basis holds once the file has landed, net of
+    A stated balance is what the cost basis holds once the file has landed, net of
     the file's own disposals, and the repair's fee draws 0.72 USD from the
     receivable it re-points at. Stating the gross figure asks the book to
     offer currency the fee has taken.
 
-    Nothing refuses it. The balance is inside what the basis brought in, which
+    Nothing refuses it. The balance is inside what the cost basis brought in, which
     is the question the finished book asks, and the per-currency totals that
     would notice are a warning `--verify-costs` prints and refuses nothing
     over. So the run commits, and the listing goes on offering the 0.72.

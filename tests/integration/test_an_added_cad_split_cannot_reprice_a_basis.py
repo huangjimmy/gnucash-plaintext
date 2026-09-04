@@ -9,7 +9,7 @@ cost, exactly as changing one would.
 after. It reads the accounts to compare from the transaction the book holds,
 which is right for the splits already there and wrong for a new one: an added
 split is on an account that transaction has never seen, so it was dropped from
-the comparison, the two sides matched, and the edit went through. The basis
+the comparison, the two sides matched, and the edit went through. The cost basis
 was then priced at a figure nobody stated.
 
 Removal was always caught, because the removed split is on the booked side.
@@ -107,12 +107,12 @@ def test_adding_a_cad_split_is_refused(tmp_path):
 
 
 def test_restating_the_transactions_own_currency_is_refused(tmp_path):
-    """The currency a transaction is stated in prices the basis as much as any
+    """The currency a transaction is stated in prices the cost basis as much as any
     figure does, and every figure can be left where it is.
 
     `cost_of` reads a CAD-stated transaction as value over amount and a
     foreign-stated one through its CAD splits, so moving `currency.mnemonic:`
-    from USD to CAD re-prices this basis from 25/18 to 1 — 100.00 over 100.00
+    from USD to CAD re-prices this cost basis from 25/18 to 1 — 100.00 over 100.00
     — with all four splits byte-identical. Compared on the splits alone the
     two sides matched and the edit went through.
     """
@@ -141,7 +141,7 @@ def test_under_atomic_this_file_is_refused_for_the_figures_it_leaves_unread(tmp_
     because a repair passes through states it stops in either order. What it
     reads before granting that is the figures the file states, and a split the
     file *adds* states no `share_price:` — there is no booked one to fall back
-    on either, the split being new — so what the basis would rest on
+    on either, the split being new — so what the cost basis would rest on
     afterwards cannot be worked out here at all. An unreadable directive is
     refused rather than deferred.
     """
@@ -169,7 +169,7 @@ def test_under_atomic_a_re_price_the_file_states_in_full_is_allowed(tmp_path):
 
     The same two splits with a rate on each: the file says what the
     transaction is to become, the guard can read it, and the refusal is
-    deferred to the finished book. A re-priced basis is caught there by the
+    deferred to the finished book. A re-priced cost basis is caught there by the
     sales measured against it — this one has none, so nothing contradicts the
     figures the file asked for and they stand. That is the flag working as
     designed, and it is stated here rather than left between two files, since
@@ -207,11 +207,10 @@ def test_adding_a_foreign_split_to_a_cad_stated_transaction_is_refused(tmp_path)
     split on an account it has never used falls outside them — and where the
     transaction is stated in CAD, the rule that catches an added CAD split
     does not apply either. Left out, an update could append 60.00 EUR to a
-    purchase holding a USD basis and be accepted, and no basis would open for
-    those euros: `record_cost_bases` runs where a transaction is created, not
-    where one is edited. The listing would show them reading `none recorded`
+    purchase holding a USD cost basis and be accepted, and no cost basis would
+    open for those euros. The listing would show them reading `none recorded`
     — currency the book holds that nothing can sell — and the per-currency
-    totals leave such a basis out of both sides, so nothing would report it.
+    totals leave such a cost basis out of both sides, so nothing would report it.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'

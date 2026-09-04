@@ -11,7 +11,7 @@ which `test_a_disposal_drawing_on_a_split_that_is_no_basis` pins.
 
 The **balance** on its own is not. It is stored as an ordinary custom key and
 the import's check on a stated balance asks about currency, parseability, sign,
-unit and size, never whether the split is a basis. So the export re-imports
+unit and size, never whether the split is a cost basis. So the export re-imports
 cleanly and the rebuilt book holds the same figure in the same place: the fault
 is carried forward, not caught. Nothing clears it but saying so.
 """

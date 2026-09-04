@@ -97,16 +97,19 @@ from services.foreign_currency import (
     has_cost_basis_balance,
     is_a_spent_credit,
     lower_cost_basis_balance,
+    malformed_cost_basis_balance_of,
     move_disposals_to_the_new_basis,
     note_stated_balance,
-    open_cost_basis_balance_if_none_is_stored,
+    open_what_an_edit_made_a_basis,
     parse_stated_cost,
     record_borrowed_basis,
     record_cost_bases,
     require_cost_basis_unused,
     running_atomic,
+    smallest_unit,
     split_commodity,
     split_guid,
+    the_bases_a_transaction_has,
     total_cost_basis_balance_in,
     transaction_currency,
     write_cost_basis_balance,
@@ -1025,18 +1028,18 @@ def _transactions_a_payment_block_edits(book, given: Set[str]) -> list:
 def _priced_bases_in(transactions) -> Dict[str, Fraction]:
     """Every split these transactions price as a cost basis, and at what.
 
-    Every priced basis, whether or not a balance is written on it. A basis with
+    Every priced cost basis, whether or not a balance is written on it. A cost basis with
     none is one this tool never wrote a balance for — made in the GnuCash GUI,
     or older than the feature — and `fx-balances` lists it reading `none
     recorded`: the currency is there and the transaction says what it cost, and
     only how much of it is still unsold is unknown. Read off the balances
     alone, that split was never looked at when a link took its price away, so
-    no cost was written and it stopped being a basis: the row left the listing
+    no cost was written and it stopped being a cost basis: the row left the listing
     altogether, with 2,720.00 USD the book holds and owes said nowhere, and no
     stranded balance and no disposal for `--verify-costs` to report either.
 
     These transactions and not the book, because a payment block leaves a
-    split unable to price a basis by editing the transaction that split is
+    split unable to price a cost basis by editing the transaction that split is
     in, and the only transaction it edits is the one it links. Read of the
     whole ledger this cost a walk per payment block to learn nothing about
     every other split in the book: a full re-import of a 20,000-split book
@@ -1051,7 +1054,7 @@ def _priced_bases_in(transactions) -> Dict[str, Fraction]:
                     continue
                 cost = cost_of(split)
             except Exception:
-                # A basis whose own figures will not read is
+                # A cost basis whose own figures will not read is
                 # `--verify-costs`'s to report. Nothing here can price it, so
                 # nothing here can tell whether a link changed that.
                 continue
@@ -1066,7 +1069,7 @@ def _the_record_prices_this_currency(record, split) -> bool:
 
     Discarding a link's cost basis rests on the answer being yes: the invoice
     was posted at a rate, so its receivable has priced that currency since the
-    day it was posted, and keeping the deposit's basis as well would give one
+    day it was posted, and keeping the deposit's cost basis as well would give one
     lot of money two.
 
     It is not always yes. An invoice in a foreign currency booked to an income
@@ -1107,9 +1110,9 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
 
     **A part payment discards it too**, and what that costs is worth stating.
     The receivable prices the whole invoice from the day it was posted, so
-    keeping the deposit's basis beside it counts the same money twice — and
+    keeping the deposit's cost basis beside it counts the same money twice — and
     the two are not both refused for long: once the rest of the invoice is
-    paid, its lot closes, the receivable's basis becomes sellable, and the
+    paid, its lot closes, the receivable's cost basis becomes sellable, and the
     book offers 7,720.00 USD where it holds 5,000.00. Measured on a 2,720.00
     USD deposit linked to a 5,000.00 USD invoice and the balance paid after.
     So the currency is the receivable's from the link on, and a sale of it
@@ -1119,13 +1122,13 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
     **Paying an invoice in full**, it is neither a purchase nor a borrowing
     any more: it is that invoice being paid, and the invoice's own posting
     split has had a cost basis for the same USD since it was posted. So
-    the basis the import opened is discarded, or the same USD has two — which
+    the cost basis the import opened is discarded, or the same USD has two — which
     is the state a `payment:` block already avoids when it pays a foreign
     invoice from an account kept in that currency, where the receivable keeps
-    the basis and the bank split is given none.
+    the cost basis and the bank split is given none.
 
     **Paying a bill**, it is still a borrowing. USD drawn on a credit line to
-    pay a supplier is still owed once the payable is paid, so the basis
+    pay a supplier is still owed once the payable is paid, so the cost basis
     stands — kept by writing the price onto the split, since the transaction
     itself can no longer supply one (`record_borrowed_basis` does the same for
     an overpayment's residue).
@@ -1135,13 +1138,13 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
     out by the export, so the ledger no longer rebuilds its own book.
 
     The invoice side is refused where a disposal has already drawn on the
-    basis being discarded. The `share_price:` on the split and the record's
+    cost basis being discarded. The `share_price:` on the split and the record's
     own rate need not agree — the record was posted on one day and the money
     entered at whatever rate its author used — so moving that disposal onto the
-    record's basis would silently re-price it, and `_require_stated_cost`
+    record's cost basis would silently re-price it, and `_require_stated_cost`
     would reject the same disposal on the next import of the same ledger.
     Deleting the disposal, linking, and importing it again against the
-    record's basis keeps every figure checked, and that is what the message
+    record's cost basis keeps every figure checked, and that is what the message
     asks for.
 
     Asked after the block has been applied rather than before, because whether
@@ -1151,7 +1154,7 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
     """
     # The same transactions the pre-image was read from, so this walks what
     # the block could have changed rather than the ledger. `find_split_by_guid`
-    # per basis would make the cost of a payment block the product of the
+    # per cost basis would make the cost of a payment block the product of the
     # bases and the splits; a walk of the book would make it the product of
     # the blocks and the splits.
     if not priced_before:
@@ -1169,9 +1172,9 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
             continue            # gone, or still priced
         if not has_cost_basis_balance(split) and is_a_spent_credit(split):
             # The block has already answered for this one. Applying a
-            # customer's credit takes the basis keys off the part that was
+            # customer's credit takes the cost basis keys off the part that was
             # spent and moves the balance onto the remainder, so the split
-            # stops being a basis with nothing left on it — which is the state
+            # stops being a cost basis with nothing left on it — which is the state
             # this function exists to reach, arrived at by the path that knows
             # how much of the credit was left. Nothing is stranded, so there is
             # nothing here to refuse over: the check fired on a credit
@@ -1195,7 +1198,7 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
             # to a USD income account posts USD against USD, so nothing in that
             # transaction says what the USD cost and its posting split is no
             # basis — link a 2,720.00 USD deposit to pay it and `fx-balances`
-            # went from one basis to "No foreign-currency cost bases found",
+            # went from one cost basis to "No foreign-currency cost bases found",
             # with `--verify-costs` reporting nothing. The currency is still
             # there and still sellable, so the price is kept the way the bill
             # side keeps it.
@@ -1209,11 +1212,12 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
                 f'{guid} — this transaction is paying the record rather than '
                 f'borrowing, so the record\'s own posting split values that '
                 f'currency from now on — but {len(drawn)} '
-                f'disposal(s) are measured against that basis: {listed}. They '
+                f'disposal(s) are measured against that cost basis: {listed}. They '
                 f'were valued at the rate this payment was entered at, which '
                 f'the record need not share, so they cannot simply be pointed '
-                f'at the record\'s basis. Delete them, link the payment, and '
-                f'import them again measured against the record\'s basis.')
+                f'at the record\'s cost basis. Delete them, link the payment, and '
+                f'import them again measured against the record\'s cost basis.')
+        _refuse_to_discard_a_part_sold_balance(split, guid)
         _strip_a_settlements_basis(split)
 
 
@@ -1627,7 +1631,7 @@ _LOTS_HOLDING_UNLISTED_SPLITS = set()
 # file: the book is saved with the orphan still sitting in the abandoned lot,
 # and the import that re-attaches it may be days later in another process. A
 # note that lasted one import would have every later one read the orphan as a
-# credit and strip the basis off a settlement the bank really paid.
+# credit and strip the cost basis off a settlement the bank really paid.
 #
 # The value is the guid of the invoice or bill that was unposted, not just
 # `true`, so a rebuild can find the split that used to be its own. On a
@@ -1763,7 +1767,7 @@ def mark_splits_orphaned_by_unpost(record) -> None:
     What turns on telling them apart is whether moving a split out spends the
     owner's money. Spending a credit takes the cost basis off the split, since
     the currency went with it; doing that to an orphaned settlement takes a
-    basis off currency the bank really paid and the book still holds, and the
+    cost basis off currency the bank really paid and the book still holds, and the
     export then writes that bank payment as `from_credit:` with no account and
     no date — the money's origin gone from the file.
 
@@ -1852,7 +1856,7 @@ def refuse_a_stated_orphan_mark(metadata, where: str) -> None:
 
     Believed, it does the damage the note exists to prevent, twice over. A
     split so marked reads as not an owner's credit, so a settlement genuinely
-    spent from a credit keeps a basis for currency it no longer holds. Worse,
+    spent from a credit keeps a cost basis for currency it no longer holds. Worse,
     a mark naming the invoice or bill is preferred over everything else
     placeable — which is how a rebuild finds its own orphan — so a file could
     pick which of an owner's two credits a record spends, past the guard that
@@ -1876,10 +1880,65 @@ def refuse_a_stated_orphan_mark(metadata, where: str) -> None:
             f'owner with `lot_owner:`.')
 
 
+def _refuse_to_discard_a_part_sold_balance(split, guid: str) -> None:
+    """Refuse to discard a cost basis balance that is below what it brought in.
+
+    The difference is currency sold outside this book. A balance a file states
+    is authoritative — README says so, and it is how a book carrying sales
+    this tool never saw gets one — so a deposit that brought in 2,720.00 USD
+    and reads 2,000.00 has had 720.00 sold somewhere the book does not record.
+    Sales it *does* record are refused a few lines above, by their disposals.
+
+    Discarding such a balance loses the only statement of that 720.00 there
+    is, and nothing afterwards can recover it: the split becomes a settlement,
+    which is no cost basis, and taking the payment off later opens it at the
+    whole 2,720.00 — the book then offering currency that is gone, with every
+    check passing, because 2,720.00 is exactly what the split brought in.
+
+    So the link stops, and says what to write if the difference is not
+    currency this book should account for.
+
+    A figure that will not parse stops it too, and for the same loss. It is a
+    balance somebody wrote, and `cost_basis_balance_of` answers None for it
+    exactly as it does for a split that has none — so read alone, that check
+    would let the strip delete the text `--verify-costs` is reporting, and a
+    later unapply would open the split at its full amount over currency that
+    may be sold. `malformed_cost_basis_balance_of` is what tells the two
+    apart, and every other reader of a balance in this module asks it.
+    """
+    unreadable = malformed_cost_basis_balance_of(split)
+    if unreadable:
+        raise Exception(
+            f'linking this payment discards the cost basis on split {guid}, '
+            f'and its balance reads {unreadable!r}, which is not a figure. '
+            f'How much of that currency is unsold cannot be read, so whether '
+            f'discarding the balance loses anything cannot be answered. '
+            f'Correct it with `{COST_BASIS_BALANCE_KEY}: "<amount>"` on that '
+            f'split, or clear it with `{COST_BASIS_BALANCE_KEY}: ""`, and '
+            f'link the payment again.')
+    balance = cost_basis_balance_of(split)
+    if balance is None:
+        return
+    brought_in = abs(numeric_to_fraction(split.GetAmount()))
+    if balance >= brought_in:
+        return
+    unit = smallest_unit(split)
+    currency = split_commodity(split)
+    raise Exception(
+        f'linking this payment discards the cost basis on split {guid}, and '
+        f'its balance is {money_text(balance, unit)} {currency} of the '
+        f'{money_text(brought_in, unit)} {currency} it brought in. The '
+        f'{money_text(brought_in - balance, unit)} {currency} difference is '
+        f'currency sold outside this book, and discarding the balance is the '
+        f'only record of it going. State `{COST_BASIS_BALANCE_KEY}: ""` on '
+        f'that split first if that difference is not currency this book '
+        f'should account for.')
+
+
 def _strip_a_settlements_basis(split) -> None:
     """Take the cost-basis keys off a split that is settling an invoice or bill.
 
-    A settlement holds no basis: the currency was spent on the invoice, and
+    A settlement holds no cost basis: the currency was spent on the invoice, and
     what that record is owed in is its own posting split's business. The same
     rule `_mark_spent_credit` states for a credit that was applied.
     """
@@ -2058,7 +2117,7 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
     written as a split of nothing.
 
     The credit left behind is currency the book holds and owes back, so it
-    opens a basis — and where the money came from decides at what cost. A bank
+    opens a cost basis — and where the money came from decides at what cost. A bank
     transfer states none, so the record's own carried cost prices it; a credit
     already carried one of its own, and what is left of it moves across.
     """
@@ -2101,7 +2160,7 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
                 if key in (COST_BASIS_BALANCE_KEY, COST_BASIS_COST_KEY)}
                if from_credit else None)
 
-    # Read before the division too, and for the same reason as the basis keys
+    # Read before the division too, and for the same reason as the cost basis keys
     # above: dividing puts the split into the record's lot, and being in a
     # lot is exactly what stops it being an orphan — `_attach_split_to_lot`
     # takes the mark off on the way. Asked afterwards, the answer is always no
@@ -2121,7 +2180,7 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
     elif was_a_bank_paid_orphan:
         # Dividing a settlement an unpost loosened leaves the rest of that
         # settlement, not a credit. The same rule the engine's own carve
-        # follows: the mark goes forward, and no basis opens, because a
+        # follows: the mark goes forward, and no cost basis opens, because a
         # bank-paid orphan carries none — the record it settled holds that on
         # its posting split.
         #
@@ -2144,7 +2203,7 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
         # so a retargeted payment is invisible to `gnc_lot_get_split_list`
         # until the book is written and read back. Searched for, it was never
         # found, and a foreign-currency invoice overpaid by retarget left its
-        # residue with no basis at all — the book offering 100.00 USD while
+        # residue with no cost basis at all — the book offering 100.00 USD while
         # its bank held 200.00, and a sale of the rest refused.
         carried_cost = _carried_cost_of(record)
         if carried_cost is not None:
@@ -2153,10 +2212,10 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
 
 def _carry_basis_to_residue(residue, carried, remainder: Fraction,
                             book=None, spent_guid: str = '') -> None:
-    """Move a divided credit's basis onto the part of it that is left, and the
-    disposals already drawing on it with the basis.
+    """Move a divided credit's cost basis onto the part of it that is left, and the
+    disposals already drawing on it with the cost basis.
 
-    A credit whose basis has no `cost_basis_balance` written on it keeps none:
+    A credit whose cost basis has no `cost_basis_balance` written on it keeps none:
     reading the residue's amount as its balance would re-open currency that may
     be long gone, and nothing recorded what was already sold from it.
 
@@ -2169,7 +2228,7 @@ def _carry_basis_to_residue(residue, carried, remainder: Fraction,
     A balance that will not parse moves across as it reads. The key is present
     or this branch would not run, so a figure that does not parse is a broken
     one rather than a missing one, and writing the remainder over it would put
-    the largest figure the division could produce onto a basis nobody can
+    the largest figure the division could produce onto a cost basis nobody can
     vouch for, while destroying the very text `--verify-costs` reports.
     `20,00` for `20.00` would come back as a clean bill of health.
     """
@@ -2214,7 +2273,7 @@ def _mark_spent_credit(split) -> None:
     wrote it down: nothing about the split afterwards says it came out of
     credit rather than out of a bank.
 
-    What it carried as a credit comes off. Its basis is gone — the currency
+    What it carried as a credit comes off. Its cost basis is gone — the currency
     was spent, and what survived the division took the balance with it — and
     `lot_owner` says a split belongs to an owner's lot, which this one no
     longer does. The export re-derives that line from live lot state, so a
@@ -2229,7 +2288,7 @@ def _mark_spent_credit(split) -> None:
     converted some of that currency in the meantime has no bearing on it.
     Where part of the credit is left the sale goes to the remainder, because
     the pool it drew on continues there. Where none is, the pool ends, and the
-    sale's guid gives a basis that was consumed rather than one that never
+    sale's guid gives a cost basis that was consumed rather than one that never
     was: `establishes_cost_basis` says no to both, and `applied_from_credit`
     is what tells them apart.
     """
@@ -2247,7 +2306,7 @@ def _mark_spent_credit(split) -> None:
     # correct. A credit priced by its own transaction was unaffected, which is
     # why only the base-currency-paid shape showed it.
     #
-    # It does not make this split a basis in the meantime: settling a record
+    # It does not make this split a cost basis in the meantime: settling a record
     # puts it in that record's lot, and `_is_prepayment` says no to a lot an
     # invoice or a bill owns.
     metadata = {key: val for key, val in get_custom_metadata(split).items()
@@ -2289,7 +2348,7 @@ def _retarget_with_prepayment_split(lib, book, record, existing_tx,
     to find it.
 
     Returns the prepayment split it parked. Handing it back saves the caller
-    searching the account for it: whatever basis the money carried belongs on
+    searching the account for it: whatever cost basis the money carried belongs on
     that split, and it is the one split in the book nothing else can name yet.
 
     Sign handling: the new prepayment split must match the counter-split's
@@ -4786,7 +4845,7 @@ def _is_not_a_residue(split) -> bool:
     writes every `prepayment:` line — skips two kinds of split, and carrying
     only the first over made the readers disagree with it:
 
-    - one in a lot naming an invoice or bill, which is that record's own
+    - one in a lot that names an invoice or a bill, which is that record's own
       portion of the deposit;
     - one this tool's own unpost orphaned, which is a settlement waiting to be
       put back rather than money left over. An orphan is *not* the first kind —
@@ -5050,7 +5109,7 @@ def _apply_owner_credit(record) -> None:
     account = record.GetPostedAcc()
     # One walk for both: the keys, and which splits were here beforehand. That
     # second question used to have a walk of its own, and the first was
-    # filtered to the splits carrying basis keys; now that it reads the whole
+    # filtered to the splits carrying cost basis keys; now that it reads the whole
     # account, its own guids are the answer.
     basis_before = _basis_splits_on(account)
     lot_before = _splits_in_lot(record)
@@ -6293,7 +6352,7 @@ def _placeable_lotted_splits(transaction, bank_acct_name: str, own_lot):
     loose sibling in its own lot — was not ambiguous by that measure while the
     mover had two to choose between and took whichever came first. On a foreign
     book the two can carry different costs, so split order would decide which
-    basis was consumed, and with it the gain realized.
+    cost basis was consumed, and with it the gain realized.
     """
     mine_ptr = (qof_pointer(own_lot)
                 if own_lot is not None else None)
@@ -6352,7 +6411,7 @@ def _sits_in_an_owners_credit(split) -> bool:
     takes the cost basis off the split it spent and notes where the money came
     from, exactly as a `from_credit:` block does; a file reaching the same
     physical move through a bare `txn_guid:` gets the same accounting, rather
-    than a split left carrying a basis for currency it no longer holds.
+    than a split left carrying a cost basis for currency it no longer holds.
     """
     lot = split.GetLot()
     if lot is None:
@@ -6362,7 +6421,7 @@ def _sits_in_an_owners_credit(split) -> bool:
         # paid it, and it is a settlement waiting to be put back rather than
         # anybody's credit to spend. True whichever record's unpost left it:
         # `unpost-invoices B` and then a file settling A off B's deposit is one
-        # step and reachable, and calling it a credit there strips the basis
+        # step and reachable, and calling it a credit there strips the cost basis
         # off currency the bank still holds and exports a block that named an
         # account and a date as `from_credit:` carrying neither.
         return False
@@ -6492,7 +6551,7 @@ def _refuse_an_ambiguous_retarget(bank_acct_name: str, txn_guid: str,
     transaction can carry two of an owner's credits, and with no loose split
     beside them the guard saw nothing to be ambiguous about while the mover
     took whichever came first. On a foreign book those two can carry different
-    costs, so split order would decide which basis was consumed and with it the
+    costs, so split order would decide which cost basis was consumed and with it the
     gain realized.
     """
     if len(candidates) < 2:
@@ -8137,7 +8196,7 @@ def _check_declared_prepayment(record, pay_dir, lot_before, kind) -> None:
 
 
 def _record_overpaid_basis(record, lot_before) -> None:
-    """Open a basis for the currency an overpayment leaves in the book.
+    """Open a cost basis for the currency an overpayment leaves in the book.
 
     A payment beyond the record puts two splits on the A/R or A/P account: the
     part that settles it, in the record's lot, and the credit left over, in a
@@ -8163,7 +8222,7 @@ def _record_overpaid_basis(record, lot_before) -> None:
     # account reaches every other record's settlement split on it — none of
     # them in this record's lot — and stamps them with this record's cost:
     # two ordinary foreign invoices sharing one A/R account had the second
-    # payment open a phantom basis on the first invoice's settling split, and
+    # payment open a phantom cost basis on the first invoice's settling split, and
     # the book claimed 400.00 USD sellable while the bank held 300.00.
     payment_txn = None
     for raw in lot.get_split_list():
@@ -8432,21 +8491,21 @@ def stated_money(text, commodity, what: str, scu: int = None) -> GncNumeric:
 def _basis_relevant_accounts(existing_tx) -> set:
     """The accounts whose figures a cost basis in this transaction rests on.
 
-    A basis rests on its own split — the amount that arrived, the value it
+    A cost basis rests on its own split — the amount that arrived, the value it
     arrived at, the rate between them — and on nothing else, *except* where
     the transaction is stated in a foreign currency. There the split's own
     value is in that currency too, so `cost_of` gets the CAD rate by adding up
     the CAD splits: their amounts over what those amounts are worth
-    (`_base_per_unit_of`). Each of those is then a figure the basis rests on.
+    (`_base_per_unit_of`). Each of those is then a figure the cost basis rests on.
 
     A split that is neither is the other side of the transaction, and moving
-    it cannot change what any basis here holds or what it cost. Comparing every
+    it cannot change what any cost basis here holds or what it cost. Comparing every
     split refused an ordinary correction. A USD deposit is entered with its
     other split on a CAD account — Due From Director, say, because nobody yet
     knows what the money was for — and later that split is moved to income,
     because it turns out to have been a sale. The USD split is untouched
     throughout: same account, same amount, same `value:`, same `share_price:`,
-    so `cost_of` returns the same figure before and after and the basis cannot
+    so `cost_of` returns the same figure before and after and the cost basis cannot
     have moved. The edit was refused all the same, and the only way through
     the refusal offered was to delete the transaction and enter it again.
     """
@@ -8491,13 +8550,12 @@ def _is_a_foreign_currency_account(root, name: str) -> bool:
     used — one it is *adding*. Such a split brings currency in or takes it
     out, so it belongs in the comparison even though the account is on neither
     side of the booked figures. Left out, an update could append
-    `Assets:Bank:EUR 60.00 EUR` to a CAD-stated purchase holding a USD basis:
+    `Assets:Bank:EUR 60.00 EUR` to a CAD-stated purchase holding a USD cost basis:
     the accounts to compare came from the transaction the book holds, the new
     split was on none of them, the two sides matched, and the edit went
-    through. `record_cost_bases` runs on the create path only, so no basis
-    opened for those euros — currency in the book reading `none recorded`,
-    which nothing can sell and `--verify-costs` leaves out of both sides of
-    its totals.
+    through. No cost basis opened for those euros — currency in the book reading
+    `none recorded`, which nothing can sell and `--verify-costs` leaves out of
+    both sides of its totals.
 
     Only an added one. Asked of every foreign split, this took in the ones the
     transaction already had — a settlement beside the credit, say — and their
@@ -8524,9 +8582,9 @@ def _is_a_foreign_currency_account(root, name: str) -> bool:
 
 def _basis_figures_in_book(existing_tx, relevant):
     """What a cost basis depends on, as the book holds it: which account each
-    split is on, the amount it moves, the value it moves, and the basis it
+    split is on, the amount it moves, the value it moves, and the cost basis it
     picks. Memos, descriptions, actions and dates are absent because none of
-    them can change what a basis holds or what it cost, and so are the splits
+    them can change what a cost basis holds or what it cost, and so are the splits
     `relevant` leaves out, for the reason given there."""
     rows = []
     for split in existing_tx.GetSplitList():
@@ -8553,8 +8611,8 @@ def _basis_figures_in_directive(directive, booked, relevant, book, priced_by_cad
     a change.
 
     Three kinds of split are compared. The accounts the booked side uses. Any
-    split this file points at a basis with, whichever account it is on: a
-    disposal written onto an account no basis rested on is still a disposal,
+    split this file points at a cost basis with, whichever account it is on: a
+    disposal written onto an account no cost basis rested on is still a disposal,
     and leaving it out would compare two sets that agree while a new pick had
     appeared between them. And, where the cost is worked out from the CAD
     splits, **every** CAD split the file states, including one on an account
@@ -8566,7 +8624,7 @@ def _basis_figures_in_directive(directive, booked, relevant, book, priced_by_cad
     matched and the edit went through. Measured on
     `fx_two_base_splits_at_different_rates.txt`: leaving all four splits
     untouched and adding `Expenses:Other 20.00 CAD` against `Income:Misc
-    -20.00 CAD` re-priced the basis from 25/18 to 19/14, silently. Removing a
+    -20.00 CAD` re-priced the cost basis from 25/18 to 19/14, silently. Removing a
     split was always caught, because a removed split is on the booked side.
     """
     booked_values = {(row[0], row[1]): row[2] for row in booked}
@@ -8667,35 +8725,35 @@ def _require_no_cost_basis_edit(existing_tx, directive) -> None:
     """Refuse an in-place edit that would move what a cost basis rests on.
 
     Only the figures matter. A memo, a description, an action, a date, a
-    doc_link — none of them can change what a basis holds or what it cost, so
-    editing those on a transaction that touches a basis is ordinary and goes
-    through. Changing an amount, a value, an account or the basis a split
+    doc_link — none of them can change what a cost basis holds or what it cost, so
+    editing those on a transaction that touches a cost basis is ordinary and goes
+    through. Changing an amount, a value, an account or the cost basis a split
     picks does change it, and cannot be checked from here: the rules that
     govern a sale run over a transaction's splits once they are book state,
     and an in-place edit has already overwritten what the old amounts drew
     before anything can re-check them. Left alone, that accepted a sale of
-    400.00 USD against a basis holding 60.00, reported `Updated: 1`, and left
-    the basis still reading 60.00.
+    400.00 USD against a cost basis holding 60.00, reported `Updated: 1`, and left
+    the cost basis still reading 60.00.
 
     Deleting the transaction and importing it afresh is the route that works,
-    and reaches the same end state: deleting a sale gives the basis back
+    and reaches the same end state: deleting a sale gives the cost basis back
     exactly what that sale took, and the new import runs every check.
 
     **`--atomic` defers most of this and not all of it.** An atomic run does
     not check blocks as they land: it applies the whole file and reads the
-    book it left, before saving anything, which is what repairing a basis
+    book it left, before saving anything, which is what repairing a cost basis
     needs — the state a repair reaches cannot be arrived at in any order
     without one of these checks refusing on the way. Re-point a disposal and
     its value no longer matches the cost basis it now draws on; take the cost
     basis off first and the disposal draws on a split that is no cost basis.
 
-    What the finished book cannot answer is how much a disposal took. A basis
+    What the finished book cannot answer is how much a disposal took. A cost basis
     balance falls only where `apply_cost_basis_picks` draws it down, and that
     runs on the create path alone, so an edited disposal is never measured
-    against what its basis holds — and the balance afterwards reads the same
+    against what its cost basis holds — and the balance afterwards reads the same
     whether the edit landed or not. So a block restating what a disposal takes
     is refused under the flag as it is without it, while re-pointing one at
-    another basis, which moves no figure, goes through.
+    another cost basis, which moves no figure, goes through.
     """
     involved = any(establishes_cost_basis(split) or cost_basis_guid_of(split)
                    for split in existing_tx.GetSplitList())
@@ -8727,23 +8785,23 @@ def _require_no_cost_basis_edit(existing_tx, directive) -> None:
         already_used={get_account_full_name(split.GetAccount())
                       for split in existing_tx.GetSplitList()
                       if split.GetAccount() is not None})
-    # The currency the transaction is stated in prices a basis as much as any
+    # The currency the transaction is stated in prices a cost basis as much as any
     # figure on it, and is on none of the rows compared above. `cost_of` reads
     # a transaction stated in the book's own currency as value over amount and
     # a foreign-stated one through its CAD splits, so moving
-    # `currency.mnemonic:` from USD to CAD re-priced this fixture's basis from
+    # `currency.mnemonic:` from USD to CAD re-priced this fixture's cost basis from
     # 25/18 to 1 — 100.00 over 100.00 — with all four splits byte-identical
     # and the two sides of the comparison matching.
     #
     # Refused under `--atomic` as well. The deferral is for figures the
-    # finished book can be asked about, and a re-priced basis is caught there
+    # finished book can be asked about, and a re-priced cost basis is caught there
     # only by the sales measured against it: those are compared in the book's
-    # own currency, so a basis with no such sale under it moves at no cost to
+    # own currency, so a cost basis with no such sale under it moves at no cost to
     # any check.
     the_currency_moved = (bool(stated_currency)
                           and stated_currency != transaction_currency(existing_tx))
     if incoming is not None and incoming == booked and not the_currency_moved:
-        return          # nothing a basis rests on has moved
+        return          # nothing a cost basis rests on has moved
 
     guid = existing_tx.GetGUID().to_string()
     if (running_atomic() and not the_currency_moved
@@ -8751,7 +8809,7 @@ def _require_no_cost_basis_edit(existing_tx, directive) -> None:
         # The deferral rests on the finished book asking the same questions,
         # and one of them cannot be asked of a disposal stated in a foreign
         # currency: its value is in no base-currency figure, so there is
-        # nothing to compare against what its basis cost. Deferred there, a
+        # nothing to compare against what its cost basis cost. Deferred there, a
         # basis with only such disposals beneath it was re-priced, saved, and
         # called sound.
         unvaluable = a_disposal_the_finished_book_cannot_value(book, existing_tx)
@@ -8763,36 +8821,38 @@ def _require_no_cost_basis_edit(existing_tx, directive) -> None:
             f'on, and --atomic cannot defer the refusal to edit it here: a '
             f'disposal stated in a foreign currency states its value in no '
             f'{BASE_CURRENCY} figure, so the finished book cannot ask whether '
-            f'it is still valued at what this basis cost. Delete this '
+            f'it is still valued at what this cost basis cost. Delete this '
             f'transaction and import the new version instead: '
             f'`delete-transactions --by-guid {guid.replace("-", "")}` gives '
-            f'the basis back exactly what was taken from it, and the fresh '
+            f'the cost basis back exactly what was taken from it, and the fresh '
             f'import checks the new figures against it.')
 
     raise Exception(
         f'transaction {guid} touches a cost basis, so its amounts, values, '
-        f'accounts, basis picks and the currency it is stated in cannot be '
+        f'accounts, cost basis picks and the currency it is stated in cannot '
+        f'be '
         f'edited in place — a memo or description can. Delete it and import '
         f'the new version instead: '
         f'`delete-transactions --by-guid {guid.replace("-", "")}` gives the '
-        f'basis back exactly what this transaction took, and the fresh import '
+        f'cost basis back exactly what this transaction took, and the fresh '
+        f'import '
         f'checks the new figures against it.')
 
 
 def _say_the_balances_are_the_files_to_state(booked, incoming, guid: str) -> None:
-    """Say so where a block re-points a disposal and nothing draws a basis down.
+    """Say so where a block re-points a disposal and nothing draws a cost basis down.
 
     Re-pointing is what a repair does and is allowed under `--atomic`. What
-    it cannot do is recompute either balance: a basis balance is lowered in
+    it cannot do is recompute either balance: a cost basis balance is lowered in
     `apply_cost_basis_picks`, where a disposal is created, and raised in
     `give_back_to_cost_bases`, where one is deleted, and an edit runs neither.
-    So the basis the disposal leaves stays short by the units it took, and the
-    basis it joins is not drawn down for them.
+    So the cost basis the disposal leaves stays short by the units it took,
+    and the cost basis it joins is not drawn down for them.
 
     Both figures are the file's to state — which is what README says of any
     stated balance, net of the file's own disposals — and the finished book
     cannot tell that they were not: the two errors cancel in the only
-    book-wide question asked. A 10.00 USD fee re-pointed from one basis to
+    book-wide question asked. A 10.00 USD fee re-pointed from one cost basis to
     another leaves the first reading 90.00 with nothing drawing on it and the
     second 60.00 with a fee drawing on it, and every check passes.
 
@@ -8805,9 +8865,9 @@ def _say_the_balances_are_the_files_to_state(booked, incoming, guid: str) -> Non
         return
     _echo_note(
         f'note: transaction {guid} points a disposal at another cost basis. '
-        f'A basis balance is lowered where a disposal is created and raised '
-        f'where one is deleted, and an edit does neither — so the basis this '
-        f'disposal leaves stays short by what it took, and the basis it joins '
+        f'A cost basis balance is lowered where a disposal is created and raised '
+        f'where one is deleted, and an edit does neither — so the cost basis this '
+        f'disposal leaves stays short by what it took, and the cost basis it joins '
         f'is not drawn down for it. State `{COST_BASIS_BALANCE_KEY}:` on both '
         f'in this file if either should read differently.')
 
@@ -8821,13 +8881,13 @@ def _no_disposal_takes_a_new_figure(booked, incoming) -> bool:
     four are compared and the fifth is not.
 
     A figure that moves is refused, and so is a disposal the file adds to a
-    split that had none — both mean currency drawn out of a basis that nothing
+    split that had none — both mean currency drawn out of a cost basis that nothing
     draws down, since the update path never calls `apply_cost_basis_picks`.
 
     Dropping a pick is refused for the same reason read the other way round. A
     sale that draws on nothing takes nothing, which is true of the state the
     file asks for and says nothing about the state it leaves: the currency
-    came out of the basis when the sale was imported, and the only path that
+    came out of the cost basis when the sale was imported, and the only path that
     gives it back is deleting the transaction, which is what
     `give_back_to_cost_bases` is called from. Allowed, the pool would be short
     by what the sale took with nothing in the book recording it, and every
@@ -8911,7 +8971,7 @@ def _mark_applied_from_credit(record, lot_before) -> list:
             # Cleared here or the split sits in that lot still calling
             # itself an orphan.
             #
-            # A settlement holds no basis either, whatever brought it here. No
+            # A settlement holds no cost basis either, whatever brought it here. No
             # route has been found that marks a split carrying one — the
             # residue `record_borrowed_basis` writes to lands in a fresh owner
             # lot, never the posted one — so this is the rule stated rather
@@ -8952,8 +9012,8 @@ def _basis_splits_on(account):
     whole account, because what has to follow the engine's carve is not
     written on the split that gets carved.
 
-    A split carrying basis keys has a balance and a cost to move. A bank-paid
-    orphan usually carries neither — the basis of a settled invoice sits on
+    A split carrying cost basis keys has a balance and a cost to move. A bank-paid
+    orphan usually carries neither — the cost basis of a settled invoice sits on
     its posting split — and has a mark to move instead: without it, the engine
     could carve one and the remainder would arrive unmarked in the same
     abandoned lot, passing every test a credit passes, which is the harm this
@@ -9055,7 +9115,7 @@ def _carry_basis_across_applied_credit(record, before, existed_before=frozenset(
             sibling_guid = split_guid(sibling)
             if sibling_guid == guid:
                 # The applied part is a settlement now, and settlements have
-                # no basis.
+                # no cost basis.
                 #
                 # The mark stays in what is written back, and must: this runs
                 # before `_mark_applied_from_credit`, which reads it to decide
@@ -9083,7 +9143,7 @@ def _carry_basis_across_applied_credit(record, before, existed_before=frozenset(
             if sibling_guid in existed_before:
                 # It was here before the credit was applied, so it is not what
                 # the credit was carved into — whatever its size. Left alone:
-                # a settlement written by an earlier payment carries no basis
+                # a settlement written by an earlier payment carries no cost basis
                 # keys of its own, and the engine copies none onto a split it
                 # did not make.
                 #
@@ -9095,7 +9155,7 @@ def _carry_basis_across_applied_credit(record, before, existed_before=frozenset(
                 # in the same transaction. Taken for the remainder, the
                 # settlement was handed the credit's balance and cost, and the
                 # customer's real remaining credit was left with none: absent
-                # from the listing, and refused as a basis.
+                # from the listing, and refused as a cost basis.
                 continue
             remaining = numeric_to_fraction(sibling.GetAmount())
             if taken or abs(remaining) != carried or (remaining < 0) != (old_amount < 0):
@@ -9120,7 +9180,7 @@ def _carry_basis_across_applied_credit(record, before, existed_before=frozenset(
                 sibling_meta[ORPHANED_BY_UNPOST_KEY] = metadata[
                     ORPHANED_BY_UNPOST_KEY]
                 set_custom_metadata(sibling, sibling_meta)
-            # A basis moves only where the source had one. A split reaches
+            # A cost basis moves only where the source had one. A split reaches
             # this walk whatever it carries, and most carry nothing — a
             # bank-paid orphan, a credit an unpost handed back — so opening a
             # basis for one would invent currency the split never brought in.
@@ -9136,7 +9196,7 @@ def _carry_basis_across_applied_credit(record, before, existed_before=frozenset(
                 write_cost_basis_balance(sibling, available)
             # And what was already measured against this credit is measured
             # against the remainder now. The guid the disposals give is the
-            # applied part's, which gave its basis keys up a few lines above
+            # applied part's, which gave its cost basis keys up a few lines above
             # and settles the invoice — no cost basis, so `--verify-costs`
             # reports them and the export writes a ledger that is refused on
             # the way back in.
@@ -9155,7 +9215,7 @@ def _check_payment_split_lines(book, pay_dir, kind: str, bank_currency: str):
             …
             Income:FX Gain $residual$ CAD
 
-    No key names an account and nothing is configured: the split says where
+    No key gives an account and nothing is configured: the split says where
     the gain belongs, and `$residual$` takes what the rest of the entry leaves
     over, exactly as it does in a transaction.
 
@@ -9238,7 +9298,7 @@ def _check_stated_balances(book, directive) -> None:
     """Read every `cost_basis_balance:` in this directive before it lands.
 
     A stated balance is authoritative and nothing downstream questions it: a
-    sale is measured against it, and valued at the basis cost. That makes it
+    sale is measured against it, and valued at the cost basis cost. That makes it
     the one figure a file can write that conjures currency — 150.00 stated on
     a split that brought in 100.00 leaves 50.00 sellable that never arrived,
     and the gain booked on selling it is computed against a cost the book did
@@ -9249,7 +9309,7 @@ def _check_stated_balances(book, directive) -> None:
     The unparseable case is the quiet one. `60,00` for `60.00` — one wrong
     character in an export — used to leave the split *noted* as having stated
     a balance, so the sale below it in the same file was skipped as already
-    accounted for, while the basis, having no readable balance, was opened at
+    accounted for, while the cost basis, having no readable balance, was opened at
     its full amount. Forty sold USD came back, silently, and the figure then
     parses so nothing afterwards finds it odd.
     """
@@ -9272,8 +9332,8 @@ def _check_stated_balances(book, directive) -> None:
         # figure. A purchase writes two lines and the balance belongs on one
         # of them; put on the other it passes every test of the figure itself
         # — 60.00 is a number, positive, in whole cents, less than the 135.00
-        # that line carries — and says nothing, because no basis lives on a
-        # split in the book's own currency. The basis it was meant for is then
+        # that line carries — and says nothing, because no cost basis lives on a
+        # split in the book's own currency. The cost basis it was meant for is then
         # left without a balance and opens at its full amount, so a file
         # asking for 60.00 available leaves 100.00 in the book with no error.
         # `cost_basis_cost:` is refused on the same line for the same reason.
@@ -9331,7 +9391,7 @@ def _check_stated_balances(book, directive) -> None:
         if balance > acquired:
             raise Exception(
                 f'{where} states {money_text(balance, unit)} {currency}, but '
-                f'that split brings in {money_text(acquired, unit)} — a basis '
+                f'that split brings in {money_text(acquired, unit)} — a cost basis '
                 f'cannot have more available than it acquired, and the '
                 f'difference would be sellable currency the book never held')
 
@@ -9342,7 +9402,7 @@ def _check_stated_costs(book, directive, existing_tx=None) -> None:
     Both ways in go through here, or the same file means two things. The cost
     is read back after the commit — where a refusal can no longer undo an edit
     — so one missing its direction would otherwise leave a transaction
-    rewritten and its basis unopened.
+    rewritten and its cost basis unopened.
 
     A cost on a base-currency split is refused rather than stored, because
     nothing will ever read it: such a split establishes no cost basis, so the
@@ -9500,7 +9560,7 @@ def _settlement_transaction_in(record, lot_before):
 
 
 def _refuse_a_payment_block_spending_a_cost_basis_balance(record, bank_account, kind, lot_before):
-    """A payment block cannot spend foreign cash a basis still has a balance for.
+    """A payment block cannot spend foreign cash a cost basis still has a balance for.
 
     Cash leaving a foreign account is a disposal, and this tool measures every
     foreign disposal against a named cost basis. A payment block has nowhere
@@ -9508,7 +9568,7 @@ def _refuse_a_payment_block_spending_a_cost_basis_balance(record, bank_account, 
     `cost_basis_split_guid:` cannot go on it the way an ordinary
     transaction's selling split carries it.
 
-    Left alone it drifts twice over. The basis keeps offering currency the
+    Left alone it drifts twice over. The cost basis keeps offering currency the
     account no longer holds — settle a USD invoice into an HKD bank and pay a
     USD bill back out of it, and the account is empty while `fx-balances`
     still reports 1,560.00 HKD available (measured). And the cash goes out
@@ -9517,16 +9577,16 @@ def _refuse_a_payment_block_spending_a_cost_basis_balance(record, bank_account, 
     rates differ.
 
     Asked of every foreign bank, not only one in a third currency: paying a
-    USD bill from a USD bank whose bases still have a balance drifts the same
+    USD bill from a USD bank whose cost bases still have a balance drifts the same
     way, and that shape is the commoner one. It reaches none of the
     cross-currency arithmetic — `_book_payment_fx_difference` returns early
     when the record and the bank share a currency — so the question has to be
     asked before that.
 
-    Allowed where the account's bases have nothing left: there is nothing to
+    Allowed where the account's cost bases have nothing left: there is nothing to
     measure against, which is where every settlement into a fresh account
     starts. The way to spend a cost basis balance is the one every other foreign
-    disposal uses — an ordinary transaction whose bank split names its basis,
+    disposal uses — an ordinary transaction whose bank split gives its cost basis's guid,
     attached with `txn_guid:` / `txn_split_guid:`.
     """
     bank_commodity = bank_account.GetCommodity()
@@ -9551,8 +9611,8 @@ def _refuse_a_payment_block_spending_a_cost_basis_balance(record, bank_account, 
             continue
         spent = numeric_to_fraction(split.GetAmount())
         if spent >= 0:
-            # Cash arriving, which opens a basis rather than drawing one
-            # down. `record_cost_bases` gives it a basis balance.
+            # Cash arriving, which opens a cost basis rather than drawing one
+            # down. `record_cost_bases` gives it a cost basis balance.
             return
         offered = total_cost_basis_balance_in(bank_account)
         if offered > 0:
@@ -9627,7 +9687,7 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     # and it is answered where currency is bought — not here.
     #
     # Refused rather than run through: the posting split is base-currency, so
-    # `derived_cost_of` answers 1 rather than None and the basis bail-out
+    # `derived_cost_of` answers 1 rather than None and the cost basis bail-out
     # below does not catch it. Measured on a CAD invoice settled into an HKD
     # bank — it reached the drawdown and failed with "state
     # `cost_basis_balance:` on that split", which cannot be done: the
@@ -9764,13 +9824,13 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     # Money is carried in the currency's smallest unit, so the cost reaches the
     # cent first — through GnuCash's own rounding — and the difference is
     # derived from that rounded figure, which is what lets the entry balance
-    # exactly even when the basis cost does not divide into cents.
+    # exactly even when the cost basis cost does not divide into cents.
     scu = base_commodity.get_fraction()
     cost_value = numeric_to_fraction(to_money(units * basis_cost, scu))
 
     # Everything the block says about its own split lines is judged first,
     # because the next thing this does is lower a cost basis. A refusal after
-    # that point would leave the basis short by what the settlement drew, and
+    # that point would leave the cost basis short by what the settlement drew, and
     # nothing on this path gives it back — the transaction path pairs its
     # drawdown with `give_back_to_cost_bases`, and here the answer is to have
     # nothing to give back. The checks need only the block and the account
@@ -9790,7 +9850,7 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     # The currency has been converted whether or not the rate moved, so the
     # basis is drawn down and the settlement tagged either way. Settling at
     # exactly the booked rate realizes nothing, and only the gain split is
-    # skipped — leaving the basis untouched there would keep offering USD that
+    # skipped — leaving the cost basis untouched there would keep offering USD that
     # is now CAD, and a later sale would book a gain against currency the book
     # no longer holds.
     payment_txn.BeginEdit()
@@ -9873,7 +9933,7 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     # No early return when nothing was realized. There is no gain split to
     # place, but the entry still needs denominating in the base currency and
     # its values restating — and the cash still arrived, so the currency the
-    # book now holds still needs a basis. Returning here skipped all three
+    # book now holds still needs a cost basis. Returning here skipped all three
     # exactly when the settlement came out at the rate it was booked at: the
     # one case a reader would least expect to leave money unsellable, and the
     # one shape left denominated differently on 3.8 than on 4.x, which the
@@ -9920,7 +9980,7 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
         extra_split.SetMemo(pay_dir.metadata.get('memo', ''))
     payment_txn.CommitEdit()
 
-    # Currency this settlement brought in gets a basis, exactly as it would
+    # Currency this settlement brought in gets a cost basis, exactly as it would
     # arriving by any other route. Settling a USD receivable into an HKD bank
     # puts 780.00 HKD in the book at a cost of 0.172 CAD/HKD, and without this
     # the split established a cost with no balance: `fx-balances` listed it as
@@ -9931,14 +9991,14 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     #
     # Nothing to do where the bank is the base currency, which is why this
     # never showed before: `establishes_cost_basis` wants a non-base
-    # commodity, so a CAD bank split is not a basis at all.
+    # commodity, so a CAD bank split is not a cost basis at all.
     record_cost_bases(book, payment_txn)
 
 
 def _draw_down_settled_basis(basis_split, units, kind, record_currency):
-    """Take what a settlement converted out of the basis's basis balance.
+    """Take what a settlement converted out of the cost basis's balance.
 
-    Refused rather than driven negative when the basis has less left than the
+    Refused rather than driven negative when the cost basis has less left than the
     settlement converts — that state means the same currency was already sold
     elsewhere, which no amount of bookkeeping here can reconcile.
     """
@@ -10915,14 +10975,14 @@ class GnuCashImporter:
                 if custom_split_meta:
                     set_custom_metadata(split, custom_split_meta)
 
-                # Q-035: a file that states a cost basis's basis balance is
+                # Q-035: a file that states a cost basis's balance is
                 # stating it net of every sale in that file, so those sales must
                 # not lower it again on re-import. Collected here and noted only
                 # once the transaction is committed — the note is module state
-                # that no rollback undoes, and it should not outlive the basis
+                # that no rollback undoes, and it should not outlive the cost basis
                 # it describes. No file can be written that tells the two
                 # orderings apart: a lost transaction takes its splits' guids
-                # with it, so the sales below it are refused for naming a basis
+                # with it, so the sales below it are refused for giving a cost basis
                 # the book does not have
                 # (test_a_balance_stated_on_a_lost_transaction_reaches_no_later_sale).
                 #
@@ -10932,7 +10992,7 @@ class GnuCashImporter:
                 #
                 # What is asked here is the other half: the file must have
                 # stated it. A split can carry a balance the *book* gave it,
-                # and noting that would tell the sales below to leave a basis
+                # and noting that would tell the sales below to leave a cost basis
                 # alone on the strength of a figure the file never mentioned.
                 if (COST_BASIS_BALANCE_KEY in split_directive.metadata
                         and has_cost_basis_balance(split)):
@@ -10963,8 +11023,8 @@ class GnuCashImporter:
                              _normalise_guid(declared_guid))
 
         # Q-035: a split that picks another split's cost basis is checked
-        # against that basis's basis balance and lowers it; a split that
-        # brings foreign currency in opens a basis of its own. Both run after
+        # against that cost basis's balance and lowers it; a split that
+        # brings foreign currency in opens a cost basis of its own. Both run after
         # CommitEdit, where the splits are readable as book state — so a sale
         # this refuses is undone here rather than left in the book: the import
         # reports the error per transaction and carries on with the rest of the
@@ -10974,8 +11034,8 @@ class GnuCashImporter:
         # before the transaction is created and every pick is validated before
         # the first balance moves — so what is left to fail in `record_cost_bases`
         # is the engine itself: the lot query behind `_is_prepayment`, and the
-        # KVP writes that open a basis. A drawdown outliving its transaction
-        # would leave a basis reading 60.00 USD available with nothing in the
+        # KVP writes that open a cost basis. A drawdown outliving its transaction
+        # would leave a cost basis reading 60.00 USD available with nothing in the
         # book that took the other 40, so the two are undone together.
         # `apply_cost_basis_picks` holds the same invariant for its own loop,
         # and the pair is tested in
@@ -11030,16 +11090,16 @@ class GnuCashImporter:
             raise ValueError(f"Expected TRANSACTION but got {directive.type}")
 
         # Q-035: a transaction that touches a cost basis is not edited in
-        # place. The checks that govern a sale — that a basis has the currency
-        # it is being sold, that the basis is lowered by what the sale takes —
+        # place. The checks that govern a sale — that a cost basis has the currency
+        # it is being sold, that the cost basis is lowered by what the sale takes —
         # run over a transaction's splits once they are book state, and an
         # in-place edit has already overwritten what the old amounts drew
         # before anything can be re-checked. Editing this way accepted a sale
-        # of 400.00 USD against a basis holding 60.00, reported `Updated: 1`,
-        # and left the basis still reading 60.00.
+        # of 400.00 USD against a cost basis holding 60.00, reported `Updated: 1`,
+        # and left the cost basis still reading 60.00.
         #
         # Deleting the transaction and importing it afresh is the supported
-        # route and gives the same end state: deleting a sale gives the basis
+        # route and gives the same end state: deleting a sale gives the cost basis
         # back exactly what that sale took, and the new import runs every
         # check. That is what this refusal points at.
         _require_no_cost_basis_edit(existing_tx, directive)
@@ -11069,13 +11129,9 @@ class GnuCashImporter:
 
         stated_balance_splits = []
 
-        # Which splits were already cost bases. Not which splits existed:
-        # splits are matched by account, so correcting reversed signs reuses
-        # the same split — same guid — and turns something that was no basis
-        # into one. Skipping it because it existed left that currency with no
-        # basis.
-        splits_before = {split_guid(split) for split in existing_tx.GetSplitList()
-                         if establishes_cost_basis(split)}
+        # Which splits were already cost bases, for
+        # `open_what_an_edit_made_a_basis` after the commit.
+        splits_before = the_bases_a_transaction_has(existing_tx)
 
         # All before `BeginEdit`, so a file this refuses has moved nothing.
         # `_restore_txn_type` re-reads the character below, where it is applied;
@@ -11317,7 +11373,7 @@ class GnuCashImporter:
                     _merge_slot_keys_named(split, split_directive.metadata,
                                            KNOWN_SPLIT_METADATA_KEYS)
 
-                    # Q-035: as on the create path — a file stating a basis's
+                    # Q-035: as on the create path — a file stating a cost basis's
                     # basis balance is stating it net of every sale in that
                     # file, so those sales must not lower it again. Noted after
                     # the commit for the same reason: the note is module state
@@ -11332,7 +11388,7 @@ class GnuCashImporter:
                     # The key must be in the *file*, which matters more here
                     # than on the create path: an updated split usually
                     # carries a balance already, from the book, and noting
-                    # that would mark a basis as spoken for by a file that
+                    # that would mark a cost basis as spoken for by a file that
                     # never mentioned it.
                     if (COST_BASIS_BALANCE_KEY in split_directive.metadata
                             and has_cost_basis_balance(split)):
@@ -11349,29 +11405,16 @@ class GnuCashImporter:
         # After the commit, and outside the block that rolls back — a rollback
         # cannot undo a committed edit, so a failure in here reported an error
         # while the rewritten transaction stayed on disk, which is how a
-        # malformed `cost_basis_cost:` left a split changed and with no basis.
+        # malformed `cost_basis_cost:` left a split changed and with no cost basis.
         # An update can bring foreign currency into the book (a CAD placeholder
         # corrected into `Assets:Bank:USD 100.00 USD`), and that currency needs
-        # a basis like any other.
-        #
-        # Only the splits this edit made into bases — `splits_before` above
-        # holds the ones that already were. Not the splits that already
-        # *existed*: a split matched by account and corrected keeps its guid
-        # while becoming a basis it was not, and skipping it for having
-        # existed left that currency with no basis at all. A split that was
-        # already a basis and has no `cost_basis_balance` written on it was
-        # made in the GUI, or predates this, and how much has been sold is
-        # not recorded; opening it at its full amount would offer currency
-        # that may be long gone. Correcting a description was enough to do
-        # that to every such basis in a book.
+        # a cost basis like any other. Which splits get one, and why not the rest,
+        # is `open_what_an_edit_made_a_basis` — the same rule every writer that
+        # edits a transaction asks.
         for split in stated_balance_splits:
             note_stated_balance(split)
 
-        for split in existing_tx.GetSplitList():
-            if split_guid(split) in splits_before:
-                continue
-            if establishes_cost_basis(split):
-                open_cost_basis_balance_if_none_is_stored(split)
+        open_what_an_edit_made_a_basis(existing_tx, splits_before)
 
     @staticmethod
     def import_company(directive: PlaintextDirective, book: Book):
@@ -12433,7 +12476,7 @@ class GnuCashImporter:
                 )
             # Q-035: what the book overpaid a vendor is currency it has a claim
             # on, at the cost it was sent at, and applying part of that claim
-            # carves the split it lives on — so the basis follows what is left,
+            # carves the split it lives on — so the cost basis follows what is left,
             # exactly as it does on the receivable side.
             _apply_owner_credit(bill)
 

@@ -3,7 +3,7 @@
 The key is authoritative — it is how a book carries sales this tool never saw,
 and how an export's own sales avoid being applied twice — so nothing downstream
 questions it: a sale is measured against it, and `_require_stated_cost` values
-what it sells at the basis cost. That makes it the one figure in the file that
+what it sells at the cost basis cost. That makes it the one figure in the file that
 can conjure currency, and it is checked the way a stated cost is: at the door,
 on both ways in, against the split's own figures.
 """
@@ -42,10 +42,10 @@ def test_a_balance_the_split_cannot_have_is_refused(tmp_path, stated, expected):
 def test_a_mistyped_balance_does_not_open_the_basis_in_full(tmp_path):
     """The quiet one: a comma for a point, and 40 sold USD comes back.
 
-    An export carries `cost_basis_balance: "60.00"` on a basis whose 40.00
+    An export carries `cost_basis_balance: "60.00"` on a cost basis whose 40.00
     was sold. Mistyped as `60,00` it does not parse — and unchecked, the split
     was still noted as having stated a balance, so the sale below it was
-    skipped as already accounted for, while the basis itself, having no
+    skipped as already accounted for, while the cost basis itself, having no
     readable balance, was opened at its full 100.00. One wrong character
     returned 40 USD that had gone, with no error and no way to see it: the
     balance now parses, so nothing downstream finds it odd.
@@ -60,7 +60,7 @@ def test_a_mistyped_balance_does_not_open_the_basis_in_full(tmp_path):
     assert 'cost_basis_balance' in result.output, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Total USD basis balance' not in listing, listing
+    assert 'Total USD cost basis balance' not in listing, listing
 
 
 def test_a_balance_on_a_split_that_holds_no_foreign_currency_is_refused(tmp_path):

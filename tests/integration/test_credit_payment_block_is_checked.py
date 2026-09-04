@@ -1321,7 +1321,7 @@ def test_cash_appended_below_a_credit_already_applied_is_added_not_rebuilt(tmp_p
     tail — and the invoice already holds the credit. Reading the file's
     blocks cash-first while the lot holds only the credit paired the two
     wrongly, so an ordinary append became an unpost and rebuild: the orphan
-    warning, fresh entry guids, and on a foreign-currency invoice whose basis
+    warning, fresh entry guids, and on a foreign-currency invoice whose cost basis
     something measures against, a hard refusal instead of a payment.
     """
     runner = CliRunner()

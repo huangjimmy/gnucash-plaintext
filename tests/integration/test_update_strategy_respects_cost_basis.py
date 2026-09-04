@@ -6,8 +6,8 @@ user to re-run with it whenever a GUID-matched transaction's content differs
 rule that governs a sale on the way in has to govern it on the way back too.
 
 Otherwise the guarantee is only skin deep: a sale of 40.00 USD against a
-100.00 USD basis can be edited to 400.00 USD and re-imported cleanly, leaving
-the basis claiming a balance that the book's own transactions contradict.
+100.00 USD cost basis can be edited to 400.00 USD and re-imported cleanly, leaving
+the cost basis claiming a balance that the book's own transactions contradict.
 """
 
 import re
@@ -67,13 +67,13 @@ def _balance_on_the_basis(book):
 def test_editing_a_sale_beyond_its_basis_is_refused_on_reimport(tmp_path):
     """The same refusal a fresh import gives, on the edit path.
 
-    Selling more of a basis than its balance is refused when the sale is
+    Selling more of a cost basis than its balance is refused when the sale is
     written; re-importing an edited copy of that sale must be refused for the
     same reason, or the check is one an editor walks straight past.
     """
     runner, book = _book_with_a_partial_sale(tmp_path)
     before = _balance_on_the_basis(book)
-    assert before is not None, 'the fixture should leave a basis with a balance'
+    assert before is not None, 'the fixture should leave a cost basis with a balance'
 
     edited = tmp_path / 'edited.txt'
     text = _exported(runner, book, tmp_path / 'out.txt')
@@ -85,20 +85,20 @@ def test_editing_a_sale_beyond_its_basis_is_refused_on_reimport(tmp_path):
 
     after = _balance_on_the_basis(book)
     # Refused for the right reason — the cost basis — and pointed at the route
-    # that does work: delete the transaction (which gives the basis back what
+    # that does work: delete the transaction (which gives the cost basis back what
     # it took) and import the new version, where every check runs again.
     assert 'cost basis' in result.output, (
-        f'a sale of 400.00 USD against a basis holding {before} USD was not '
+        f'a sale of 400.00 USD against a cost basis holding {before} USD was not '
         f'refused:\n{result.output}')
     assert 'delete-transactions' in result.output, result.output
     assert after == before, (
-        f'the basis moved from {before} to {after} on a refused edit')
+        f'the cost basis moved from {before} to {after} on a refused edit')
 
 
 def test_editing_only_a_description_on_such_a_transaction_is_accepted(tmp_path):
-    """What a basis rests on is the figures, not the prose.
+    """What a cost basis rests on is the figures, not the prose.
 
-    A memo or description cannot change what a basis holds or what it cost, so
+    A memo or description cannot change what a cost basis holds or what it cost, so
     editing one on a sale is ordinary bookkeeping and goes through — refusing
     it would make every cost-basis transaction unamendable for a typo.
     """
@@ -121,9 +121,9 @@ def test_editing_only_a_description_on_such_a_transaction_is_accepted(tmp_path):
 
 
 def test_an_update_that_brings_in_currency_opens_its_basis(tmp_path):
-    """Currency arriving through an edit opens a basis like any other.
+    """Currency arriving through an edit opens a cost basis like any other.
 
-    `create_transaction` opens a basis for what a transaction brings in;
+    `create_transaction` opens a cost basis for what a transaction brings in;
     `update_transaction` did not, so correcting a placeholder into a USD
     holding left it listed as `none recorded` — over a message saying this tool
     had never written that split, which it had just written — and the currency
@@ -160,7 +160,7 @@ def test_an_update_that_brings_in_currency_opens_its_basis(tmp_path):
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
     assert 'none recorded' not in listing, listing
-    assert 'Total USD basis balance: 100.00' in listing, listing
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
 
 
 @pytest.mark.parametrize('stated', [
@@ -175,7 +175,7 @@ def test_a_refused_update_leaves_the_transaction_alone(tmp_path, stated):
     The cost-basis work an update triggers happens after `CommitEdit`, and a
     rollback cannot undo a committed edit — so a failure there reported an
     error while the rewritten transaction stayed on disk: new splits, a
-    poisoned KVP, and no basis balance, which is exactly the unrecorded
+    poisoned KVP, and no cost basis balance, which is exactly the unrecorded
     state the work exists to prevent. A stated cost is checked before anything
     is written, so the refusal leaves the book as it was.
     """
@@ -213,13 +213,13 @@ def test_a_refused_update_leaves_the_transaction_alone(tmp_path, stated):
 
 
 def test_correcting_a_sign_error_opens_the_basis_it_creates(tmp_path):
-    """A basis can arrive by correcting a split, not only by adding one.
+    """A cost basis can arrive by correcting a split, not only by adding one.
 
     Splits are matched by account, so fixing reversed signs reuses the very
     same split — same guid — and it becomes a purchase where it was not one
     before. Skipping every split that existed before the edit left that
     currency `none recorded`, over a message saying this tool never wrote the
-    split. What matters is whether it was a basis before, not whether it
+    split. What matters is whether it was a cost basis before, not whether it
     existed.
     """
     runner = CliRunner()
@@ -251,7 +251,7 @@ def test_correcting_a_sign_error_opens_the_basis_it_creates(tmp_path):
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
     assert 'none recorded' not in listing, listing
-    assert 'Total USD basis balance: 100.00' in listing, listing
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
 
 
 def test_the_same_export_gives_the_same_balance_either_way_in(tmp_path):
@@ -259,7 +259,7 @@ def test_the_same_export_gives_the_same_balance_either_way_in(tmp_path):
 
     Both paths note that a stated balance is already net of the file's own
     sales, so neither lowers it again. This covers the case where every
-    transaction in the file still exists in the book; a basis whose sale has
+    transaction in the file still exists in the book; a cost basis whose sale has
     since been deleted and is then re-imported is covered by
     `test_deleting_a_sale_then_reimporting_under_update_is_refused`, and what
     a file can do with a stated balance whose transaction is lost by
@@ -292,7 +292,7 @@ def test_an_update_that_writes_a_prepayment_puts_it_in_its_owner_s_lot(tmp_path)
     — when it sits in an owner lot no invoice owns, and `lot_owner:` is what
     puts it there. Only the create path acted on it, so an update that wrote
     such a split dropped the line silently: the split landed in no lot, read
-    as a settlement, and the currency the same file gives a basis through
+    as a settlement, and the currency the same file gives a cost basis through
     `--new` got no balance with no error to say so.
     """
     runner = CliRunner()
@@ -324,7 +324,7 @@ def test_an_update_that_writes_a_prepayment_puts_it_in_its_owner_s_lot(tmp_path)
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Total USD basis balance: 100.00' in listing, listing
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
     assert 'Accounts Receivable USD' in listing, listing
 
     # And the lot is really there, not merely inferred from the listing: the
@@ -338,13 +338,13 @@ def test_an_update_that_writes_a_prepayment_puts_it_in_its_owner_s_lot(tmp_path)
 def test_a_balance_stated_on_a_lost_transaction_reaches_no_later_sale(tmp_path):
     """Why noting a stated balance after the commit cannot be observed.
 
-    "This basis's balance came from the file" is module state that no rollback
+    "This cost basis's balance came from the file" is module state that no rollback
     undoes, so it is noted once the transaction commits rather than while its
     splits are written. Noted too early, a transaction that then failed would
-    still have told the sales below it to leave that basis alone — and this is
+    still have told the sales below it to leave that cost basis alone — and this is
     the test that no file can arrange it.
 
-    Both routes are closed. On the create path the basis goes down with its
+    Both routes are closed. On the create path the cost basis goes down with its
     transaction, guid and all, so the sale that names it is refused for a
     basis the book does not have. On the update path a file has to carry a
     `guid:` on every transaction, so it cannot hold both a failing edit and a
@@ -369,7 +369,7 @@ def test_a_balance_stated_on_a_lost_transaction_reaches_no_later_sale(tmp_path):
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
     assert 'No foreign-currency cost bases found' in listing, listing
 
-    # The update route, on a book that does hold a basis: a file it would take
+    # The update route, on a book that does hold a cost basis: a file it would take
     # is one with a guid on every transaction, which a newly written sale has
     # nothing to put there.
     runner, book = _book_with_a_partial_sale(tmp_path)
@@ -394,11 +394,11 @@ def test_a_balance_stated_on_a_lost_transaction_reaches_no_later_sale(tmp_path):
 def test_deleting_a_sale_then_reimporting_under_update_is_refused(tmp_path):
     """Deleting a sale and re-importing its file cannot double-count it.
 
-    The worry was that the basis transaction would take the update path while
+    The worry was that the cost basis transaction would take the update path while
     the deleted sale was created afresh and lowered the stated balance a second
-    time, leaving the basis 40.00 short. It cannot happen by this route:
+    time, leaving the cost basis 40.00 short. It cannot happen by this route:
     `--strategy update` refuses a transaction the book no longer holds instead
-    of creating it, so the file is rejected and the basis keeps what the
+    of creating it, so the file is rejected and the cost basis keeps what the
     deletion gave back.
     """
     runner, book = _book_with_a_partial_sale(tmp_path)
@@ -417,11 +417,11 @@ def test_deleting_a_sale_then_reimporting_under_update_is_refused(tmp_path):
     # The route is closed, and that is the finding: `--strategy update` refuses
     # a transaction whose guid the book no longer holds rather than creating
     # it, so the deleted sale cannot come back this way and cannot lower the
-    # stated balance a second time. The basis keeps what deleting the sale gave
+    # stated balance a second time. The cost basis keeps what deleting the sale gave
     # back to it.
     assert 'not found in book' in result.output, result.output
     assert _balance_on_the_basis(book) == Fraction(100), (
-        f'the basis moved to {_balance_on_the_basis(book)} on an import that '
+        f'the cost basis moved to {_balance_on_the_basis(book)} on an import that '
         f'refused the only transaction that could have moved it')
 
 
@@ -429,7 +429,7 @@ def test_a_cost_stated_on_a_base_currency_split_is_refused_both_ways_in(tmp_path
     """The same file cannot mean one thing on create and another on update.
 
     `cost_basis_cost:` on a CAD split states what a unit of CAD cost in CAD.
-    Nothing reads it — the split establishes no basis — so it is refused, and
+    Nothing reads it — the split establishes no cost basis — so it is refused, and
     refused identically whichever way the file arrives. Checked only on the
     update path, the line was an error there and an inert KVP through `--new`.
     """

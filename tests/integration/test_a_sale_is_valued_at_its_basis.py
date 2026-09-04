@@ -1,8 +1,8 @@
 """A sale states what the currency it sells cost, to the cent the book holds.
 
-Valuing the currency at its basis is what makes the residual split the gain or
+Valuing the currency at its cost basis is what makes the residual split the gain or
 the loss: the currency leaves at cost, the other splits say what it fetched,
-and the difference is what was made on it. A value that is not the basis puts
+and the difference is what was made on it. A value that is not the cost basis puts
 part of the gain in the wrong place, quietly.
 
 `basis_cost × quantity` can land between cents — 33.00 USD held at a stated
@@ -25,7 +25,7 @@ SOLD = 'tests/fixtures/fx_sell_part_of_a_lot_at_its_basis.txt'
 
 
 def _a_book_holding_100_usd(runner, tmp_path, name):
-    """100.00 USD bought for 140.50 CAD, and the guid of the basis it opened."""
+    """100.00 USD bought for 140.50 CAD, and the guid of the cost basis it opened."""
     book = tmp_path / name
     assert _run(runner, 'import', '--new', str(book), BOUGHT).exit_code == 0
 
@@ -77,6 +77,6 @@ def test_and_the_figure_the_book_holds_is_accepted(tmp_path):
     assert _run(runner, 'export', str(book), str(exported)).exit_code == 0
     text = exported.read_text()
     assert 'Sell 33 USD' in text, text
-    # Valued at its basis, so the residual carries the loss: 46.00 fetched
+    # Valued at its cost basis, so the residual carries the loss: 46.00 fetched
     # for currency that cost 46.37.
     assert 'Income:FX Gain 0.37 CAD' in text, text

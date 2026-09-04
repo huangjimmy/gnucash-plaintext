@@ -4,18 +4,18 @@
 basis runs through states that refusal stops in either order. What it may not
 defer is a block that restates *what a disposal takes*, and the reason is
 where the drawdown lives: `apply_cost_basis_picks` is called from the create
-path alone, so an edited transaction never draws a basis down and never meets
+path alone, so an edited transaction never draws a cost basis down and never meets
 the over-sell refusal either. Nothing at commit time can stand in for that —
-a basis's balance is not lowered by an edit, so the finished book cannot tell
-a 400.00 USD sale against a basis holding 90.00 from a 10.00 one.
+a cost basis's balance is not lowered by an edit, so the finished book cannot tell
+a 400.00 USD sale against a cost basis holding 90.00 from a 10.00 one.
 
 Measured before this was refused: the 10.00 USD fee below, restated as 400.00
 USD valued at 560.00 CAD — 1.40 × 400, so the sale is valued at exactly what
-its basis cost — imported with `--strategy update --atomic`, exited 0, saved
-the book, and left a 400.00 USD disposal against a basis still offering 90.00.
+its cost basis cost — imported with `--strategy update --atomic`, exited 0, saved
+the book, and left a 400.00 USD disposal against a cost basis still offering 90.00.
 `--verify-costs` then called that book sound.
 
-Re-pointing the same fee at another basis is what a repair does and is still
+Re-pointing the same fee at another cost basis is what a repair does and is still
 allowed: the figures do not move, so nothing is drawn down that was not drawn
 down before.
 """
@@ -42,10 +42,10 @@ def _the_fee_block(text):
 
 
 def _the_fee_restated_as_400(runner, book, tmp_path):
-    """The 10.00 USD fee written as 400.00 USD, at the rate its basis cost.
+    """The 10.00 USD fee written as 400.00 USD, at the rate its cost basis cost.
 
     Every other check is satisfied. 560.00 CAD for 400.00 USD is 1.40, which
-    is what the basis cost, so the sale is valued at the basis it picks; the
+    is what the cost basis cost, so the sale is valued at the cost basis it picks; the
     basis is real, is collected, and its balance of 90.00 is inside the 100.00
     it brought in.
     """
@@ -63,7 +63,7 @@ def _the_fee_restated_as_400(runner, book, tmp_path):
 
 
 def _the_fee_pointed_at_the_other_purchase(runner, book, tmp_path):
-    """The same fee, unchanged in every figure, drawing on the 60.00 USD basis."""
+    """The same fee, unchanged in every figure, drawing on the 60.00 USD cost basis."""
     out = tmp_path / 'before.txt'
     assert _run(runner, 'export', str(book), str(out)).exit_code == 0
     text = out.read_text()
@@ -91,9 +91,9 @@ def test_restating_what_it_takes_is_refused(tmp_path):
 
 
 def test_the_fee_is_still_the_fee_the_book_held(tmp_path):
-    """Ten dollars taken from a basis offering ninety, as it was before.
+    """Ten dollars taken from a cost basis offering ninety, as it was before.
 
-    The balance is not what says so — nothing lowers a basis on the update
+    The balance is not what says so — nothing lowers a cost basis on the update
     path, so it reads 90.00 whether the restatement landed or not, which is
     the whole reason the finished book cannot answer this. The fee itself is
     what says so.
@@ -123,7 +123,7 @@ def test_re_pointing_it_at_another_basis_still_commits(tmp_path):
 
     Nothing about what the fee takes moves — the same 10.00 USD at the same
     14.00 CAD — so the file states a disposal the book already holds, against
-    a basis that cost what this one values it at.
+    a cost basis that cost what this one values it at.
     """
     runner = CliRunner()
     book = _a_basis_with_a_fee_drawn_on_it(runner, tmp_path)
@@ -136,9 +136,9 @@ def test_re_pointing_it_at_another_basis_still_commits(tmp_path):
                   '--strategy', 'update', '--fx-rates', RATES)
     assert result.exit_code == 0, result.output
     assert 'Changes saved' in result.output, result.output
-    # And it says what it did not do. A basis balance is lowered where a
+    # And it says what it did not do. A cost basis balance is lowered where a
     # disposal is created and raised where one is deleted; an edit does
-    # neither, so the basis this fee leaves stays 10.00 short and the basis it
+    # neither, so the cost basis this fee leaves stays 10.00 short and the cost basis it
     # joins is not drawn down for it. The finished book cannot tell — one
     # reads 90.00 with nothing drawing on it and the other 60.00 with a fee
     # drawing on it, and the two cancel in the only book-wide question asked.
@@ -152,11 +152,11 @@ def test_re_pointing_it_at_another_basis_still_commits(tmp_path):
 
 
 def test_dropping_the_pick_is_refused_too(tmp_path):
-    """Taking the line off does not give the basis back what the fee took.
+    """Taking the line off does not give the cost basis back what the fee took.
 
     A sale that draws on nothing takes nothing, which is true of the state the
     file asks for and says nothing about the state it is leaving: the 10.00
-    USD came out of the basis when the fee was imported, and only deleting the
+    USD came out of the cost basis when the fee was imported, and only deleting the
     transaction gives it back — `give_back_to_cost_bases` runs on that path
     and on no other. Allowed, the pool would be 10.00 USD short with nothing
     in the book recording where it went, and every question the finished book
@@ -189,11 +189,11 @@ def test_re_pointing_it_at_another_currencys_basis_is_rolled_back(tmp_path):
     """A pool of euros has no US dollars in it to take.
 
     The figures do not move, so the deferred guard lets the block through, and
-    the update path draws no basis down, so nothing looks at the pick as it
+    the update path draws no cost basis down, so nothing looks at the pick as it
     lands. The finished book is where it is caught — and the EUR purchase here
     cost 1.40 CAD, exactly what the USD one cost, so the sale is valued at what
-    its new basis cost and the valuation question has nothing to say. Only
-    asking what the basis holds catches this.
+    its new cost basis cost and the valuation question has nothing to say. Only
+    asking what the cost basis holds catches this.
     """
     runner = CliRunner()
     book = _a_basis_with_a_fee_drawn_on_it(runner, tmp_path)

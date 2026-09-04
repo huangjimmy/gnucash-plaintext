@@ -434,7 +434,7 @@ invoice's lot listed one split, the posting's, though the settling split's own
 **Consequence**: any logic that finds splits by walking a lot — "which
 transaction joined this lot?", "what does this lot hold now?" — silently sees
 nothing for a split attached this way, in the same session that attached it.
-`_record_overpaid_basis` did exactly that and opened no basis at all for a
+`_record_overpaid_basis` did exactly that and opened no cost basis at all for a
 retargeted overpayment's residue, so the book offered 100.00 USD while its bank
 held 200.00 and selling the rest was refused. The fix is to write to the split
 the code already has rather than to search a lot for it; where a search is
@@ -489,16 +489,16 @@ come out differently — measured on GnuCash 5.10, 4.13, 4.4, 3.8 and 5.15:
 | half | slot frame |
 |---|---|
 | applied part (keeps the source split's guid) | the source's slots, **mark included** |
-| carved remainder (a new split) | empty — no mark, no basis |
+| carved remainder (a new split) | empty — no mark, no cost basis |
 
 So the applied part is where the key survives into a state that no longer
 matches it: it is another invoice's settlement now, not the first invoice's
-orphan. `_mark_applied_from_credit` drops it alongside the basis keys. Nothing
+orphan. `_mark_applied_from_credit` drops it alongside the cost basis keys. Nothing
 is stripped from the remainder, because nothing arrives on it.
 
 All three matter, and the import half is the sharpest. A split carrying the key
 reads as *not* an owner's credit, so a settlement genuinely spent from a credit
-would skip taking the basis off; and because a mark naming an invoice is
+would skip taking the cost basis off; and because a mark giving an invoice's guid is
 *preferred* over everything else placeable — which is how a rebuild finds its
 own orphan — a file stating one could choose which of an owner's two credits an
 invoice spends, past the guard that exists to stop split order deciding that.
@@ -507,7 +507,7 @@ On a foreign book those carry different costs, so it would pick the gain too.
 What turns on the difference: moving a split out of a credit lot spends the
 owner's money and must take the cost basis off it; moving one out of an
 abandoned lot is the rebuild putting back what it just detached, and stripping
-a basis there would lose currency the book still holds — the book then offering
+a cost basis there would lose currency the book still holds — the book then offering
 less than its bank has, and the export writing that bank payment as
 `from_credit:` with no account and no date.
 
@@ -525,7 +525,7 @@ and that survives the unpost.
 
 Reading the mark as "not credit to this invoice, credit to everyone else"
 looks right and is not: `unpost-invoices B` then a file settling A off B's
-deposit is one step, and it strips the basis off currency the bank still holds
+deposit is one step, and it strips the cost basis off currency the bank still holds
 while exporting a block that named an account and a date as `from_credit:`
 carrying neither.
 
@@ -535,7 +535,7 @@ settlement a rebuild is entitled to:
 
 | where | what it does with a bank-paid orphan |
 |---|---|
-| `_sits_in_an_owners_credit` (`txn_guid:`, `txn_split_guid:`) | not a credit — no basis strip, no `applied_from_credit` |
+| `_sits_in_an_owners_credit` (`txn_guid:`, `txn_split_guid:`) | not a credit — no cost basis strip, no `applied_from_credit` |
 | `_apply_credit_payment_directive` (`from_credit:`) | refused; the file is asserting what the book contradicts |
 | `_mark_applied_from_credit` (`auto_apply_credit:`) | left unmarked; the engine may take it, but it is not written down as credit |
 
@@ -555,7 +555,7 @@ it is, the invoice it settled being unposted.
 add one after the fact: an abandoned lot and a parked credit are the same three
 facts, which is the whole finding. Such an orphan therefore reads as a credit.
 Measured what that costs: the settlement split carries no cost basis of its own
-— the basis sits on the invoice's posting split — so nothing is stripped and
+— the cost basis sits on the invoice's posting split — so nothing is stripped and
 `fx-balances` still matches the bank. What changes is the label: the export
 writes the bank payment as `from_credit:` with no account and no date.
 Unposting the invoice again under this version writes the mark and restores

@@ -199,7 +199,7 @@ def _stored_cost_is_ignorable(split) -> bool:
     a file this tool then refuses to read.
 
     A cost that will not parse is kept, whatever else is true of its split.
-    Asking whether the split is a basis reads that very cost, so answering
+    Asking whether the split is a cost basis reads that very cost, so answering
     the question is what took the export down — on the one book the report
     sends its reader here to fix. The file is where they fix it, so the bad
     figure has to be in it.
@@ -265,14 +265,14 @@ def each_basis_above_what_draws_on_it(transactions: list) -> list:
     transaction in the book's own order, are not asked to follow this one.
 
     `cost_basis_split_guid:` is resolved as each block is applied, so a sale
-    whose basis the file states further down is refused with "matches no split
+    whose cost basis the file states further down is refused with "matches no split
     in the book" and the import fails. The two transactions this was measured
     on share a posted date, carry no `num` and were entered in the same
     second, so the engine orders them by description — and "Charges for:
     TRANSFER-0000001" comes before the deposit it is drawn on. That book is
     sound: every figure in it agrees, and its own ledger did not rebuild it.
 
-    Which of the two is dated first is not asked. A basis dated after the sale
+    Which of the two is dated first is not asked. A cost basis dated after the sale
     that draws on it is an odd book, but it is one this can still write a
     ledger for, and the alternative is a file that does not read back.
 
@@ -335,7 +335,7 @@ def where_each_undo_block_goes(book, guids: Sequence[str]) -> dict:
     `delete-transactions -o` writes an undo copy, one block per guid, in the
     order the guids were typed — and that order is not the writer's to choose.
     A cost basis cannot be deleted while a sale measures against it, so the
-    sale is named first, and the copy stated the sale above the basis it draws
+    sale is named first, and the copy stated the sale above the cost basis it draws
     on: a file whose opening block gives the guid of a split no block above it
     creates, refused on the way back in, with the transactions it was the only
     copy of already gone from the book.
@@ -370,7 +370,7 @@ def _the_basis_it_gives_was_spent(split, basis_guid) -> bool:
     against it and `_validate_pick` refuses the line.
 
     **Only a consumed pool.** A split that is no cost basis for any other
-    reason keeps its guid in the file, and must: a deposit whose basis a link
+    reason keeps its guid in the file, and must: a deposit whose cost basis a link
     stranded is the fault this issue is named for, and the export writing that
     guid is how the book's own ledger refuses to rebuild it — which is what
     `--verify-costs` reports and what a reader is sent to look at. Dropped
@@ -1401,7 +1401,7 @@ class ExportTransactionsUseCase:
             # of theirs", and restoring one into a fresh book does exactly
             # that. A bank paid this money, so writing the line would rebuild
             # it as a credit somewhere else — listed as spendable, acceptable
-            # to a `from_credit:` block, and stripped of its basis by a bare
+            # to a `from_credit:` block, and stripped of its cost basis by a bare
             # `txn_guid:` retarget. The mark itself cannot travel in a file
             # (a file may not assert it), so the fix is to stop the file
             # asserting the thing the mark contradicts.
@@ -1463,7 +1463,7 @@ class ExportTransactionsUseCase:
         # and only until that record is rebuilt. Written into a file it would
         # come back as an ordinary custom key on whatever split the file lands
         # on, and a split so marked is read as *not* an owner's credit — so a
-        # settlement really spent from a credit would skip taking the basis
+        # settlement really spent from a credit would skip taking the cost basis
         # off, which is the thing that note exists to get right.
         # `lot_guid` with them: it became a reserved key in this release, so
         # a book written before it may hold one as an ordinary custom slot,
@@ -1495,7 +1495,7 @@ class ExportTransactionsUseCase:
             # stays on the sale, which is the book's own record of where its
             # currency came from, but written into a file it is a line the
             # import refuses: nothing in the rebuilt book can be measured
-            # against a split that is no basis. So the sale exports the way a
+            # against a split that is no cost basis. So the sale exports the way a
             # sale that draws on nothing exports, which is what it now is.
             if (key == COST_BASIS_SPLIT_KEY
                     and _the_basis_it_gives_was_spent(split, value)):

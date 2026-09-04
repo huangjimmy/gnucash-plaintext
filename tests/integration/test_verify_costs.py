@@ -2,7 +2,7 @@
 
 A cost is derived from the ledger, never asserted by this tool, so it is only
 as right as the ledger is consistent. Two things are checked: an available
-balance against what its basis brought in, and a stored cost against the
+balance against what its cost basis brought in, and a stored cost against the
 transaction it sits in. Both are exact questions about figures the ledger
 states.
 
@@ -18,6 +18,7 @@ It is a check, not a rule: it reads, reports everything it found, and exits 1
 at the end if anything disagreed.
 """
 
+import re
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -109,19 +110,23 @@ def test_a_stored_cost_that_drifted_from_the_transaction_is_reported(tmp_path):
     # The whole computation, not just the verdict: both guids, the figures the
     # ledger carries, every factor, and both answers with the one used.
     assert 'split guid' in checked.output and 'tx guid' in checked.output, checked.output
-    assert 'value / amount   1.35' in checked.output, checked.output
-    assert 'computed cost    1.35 CAD/USD' in checked.output, checked.output
-    assert 'stored cost      9.99 CAD/USD' in checked.output, checked.output
-    assert 'used             1.35 CAD/USD' in checked.output, checked.output
+    # Each label and its figure, with the padding between them left open:
+    # what is asserted is the line, not how wide the labels happen to be.
+    for label, figure in (('value / amount', '1.35'),
+                          ('computed cost', '1.35 CAD/USD'),
+                          ('stored cost', '9.99 CAD/USD'),
+                          ('used', '1.35 CAD/USD')):
+        assert re.search(rf'{re.escape(label)} +{re.escape(figure)}',
+                         checked.output), (label, checked.output)
 
     # And the listing is still printed — the check reports at the end rather
     # than exiting on the first thing it finds.
-    assert 'Total USD basis balance: 200.00' in checked.output, checked.output
+    assert 'Total USD cost basis balance: 200.00' in checked.output, checked.output
     assert '1.35 CAD/USD' in checked.output, checked.output
 
 
 def test_every_disagreement_is_reported_before_the_exit(tmp_path):
-    """Two bad bases, both reported, one exit code.
+    """Two bad cost bases, both reported, one exit code.
 
     A check that stopped at the first would answer "is anything wrong" while
     hiding what — and a book is verified precisely to learn everything wrong
@@ -201,7 +206,7 @@ def test_a_foreign_invoice_with_tax_is_not_read_as_two_rates(tmp_path):
     was instead.
 
     The cost is the whole transaction's rate as well, not one split's: reading
-    the first CAD split it found priced this basis at 1.3994 from the tax
+    the first CAD split it found priced this cost basis at 1.3994 from the tax
     line, and a book that listed its tax split second would have said 1.40006.
     """
     runner = CliRunner()
@@ -271,14 +276,14 @@ def test_a_balance_above_what_arrived_or_below_zero_is_reported(tmp_path):
 
 
 def test_a_basis_that_cannot_be_read_is_reported_not_crashed_on(tmp_path):
-    """The listing survives a basis whose own figures do not parse.
+    """The listing survives a cost basis whose own figures do not parse.
 
     A `cost_basis_cost` that is not a cost takes the whole listing down if it
     is read while building it — so the command dies with a traceback at
     exactly the moment there is something in the book worth looking at. It is
     listed as unreadable instead, and `--verify-costs` says why.
 
-    The split poisoned here is the overpaid credit, which is the one basis
+    The split poisoned here is the overpaid credit, which is the one cost basis
     whose cost genuinely comes from that KVP: its transaction is USD
     throughout and prices nothing. On a split the transaction *can* price, a
     malformed KVP is never read at all — the transaction is consulted first —
@@ -337,8 +342,8 @@ def test_a_basis_that_cannot_be_read_is_reported_not_crashed_on(tmp_path):
 def test_the_count_is_what_was_checked_not_what_the_listing_shows(tmp_path):
     """Filtering a listing narrows what is shown, not what is verified.
 
-    `--currency HKD` on a book of USD bases lists nothing, and the check still
-    walks every basis in the book. Reporting the filtered count said "checked
+    `--currency HKD` on a book of USD cost bases lists nothing, and the check still
+    walks every cost basis in the book. Reporting the filtered count said "checked
     0" above a report of what those 0 bases got wrong.
     """
     runner = CliRunner()
@@ -397,7 +402,7 @@ def test_the_one_stored_cost_survives_a_round_trip(tmp_path):
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(second)]).output
-    assert 'Total USD basis balance: 200.00' in listing, listing
+    assert 'Total USD cost basis balance: 200.00' in listing, listing
     assert '1.4 CAD/USD' in listing, listing
     assert _verify(runner, second).exit_code == 0, _verify(runner, second).output
 
@@ -428,7 +433,7 @@ def test_a_currency_worth_less_than_a_dollar_is_not_read_as_two_rates(tmp_path):
     checked = _verify(runner, book)
     assert checked.exit_code == 0, checked.output
     assert 'every cost agrees' in checked.output, checked.output
-    assert 'Total HKD basis balance: 366.66' in checked.output, checked.output
+    assert 'Total HKD cost basis balance: 366.66' in checked.output, checked.output
 
 
 def test_a_spending_split_is_not_a_basis_however_its_cost_reads(tmp_path):
@@ -438,7 +443,7 @@ def test_a_spending_split_is_not_a_basis_however_its_cost_reads(tmp_path):
     `cost_basis_cost` on it is inert whatever it says. Reading that cost
     before asking which direction the split moves raised inside the guard,
     which the listing then caught and reported as an unreadable cost basis —
-    exit 1, for a spend that is no basis at all.
+    exit 1, for a spend that is no cost basis at all.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -506,11 +511,11 @@ def test_a_cost_stated_on_a_security_is_refused(tmp_path):
 
 
 def test_two_bases_in_one_transaction_share_its_cost(tmp_path):
-    """One transaction, one rate, however many bases it establishes.
+    """One transaction, one rate, however many cost bases it establishes.
 
     Both USD splits are priced through the same CAD lines, so both cost the
     same — the aggregate of those lines — and neither depends on which of them
-    is read first or on which basis is looked at.
+    is read first or on which cost basis is looked at.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -518,7 +523,7 @@ def test_two_bases_in_one_transaction_share_its_cost(tmp_path):
                                  'tests/fixtures/fx_two_bases_and_two_rates.txt'])
     assert result.exit_code == 0, result.output
 
-    # Both bases are priced through the same CAD lines, so both carry the same
+    # Both cost bases are priced through the same CAD lines, so both carry the same
     # cost — the aggregate — and neither is judged against the other.
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
     assert listing.count('25/18 CAD/USD') == 2, listing
@@ -528,11 +533,11 @@ def test_two_bases_in_one_transaction_share_its_cost(tmp_path):
 
 
 def test_a_stored_cost_that_does_not_parse_is_reported_as_what_it_is(tmp_path):
-    """A line nothing reads cannot make a whole basis unreadable.
+    """A line nothing reads cannot make a whole cost basis unreadable.
 
     `cost_of` never reaches a stored cost on a split its transaction prices,
     so a malformed one there changes no figure in the book. The check reads it
-    deliberately, and reading it must not turn a basis whose amount, value,
+    deliberately, and reading it must not turn a cost basis whose amount, value,
     rate and derived cost are all perfectly legible into "could not be read at
     all" — nor count it twice, once for being examined and once for failing.
     """
@@ -565,7 +570,8 @@ def test_a_stored_cost_that_does_not_parse_is_reported_as_what_it_is(tmp_path):
     assert "reads 'oops'" in checked.output, checked.output
     assert 'which is what is used' in checked.output, checked.output
     # The rest of the row is there, because the rest of the row is readable.
-    assert 'computed cost    1.35 CAD/USD' in checked.output, checked.output
+    assert re.search(r'computed cost +1\.35 CAD/USD', checked.output), \
+        checked.output
 
     # And the listing agrees with it rather than contradicting it.
     listing = runner.invoke(cli, ['fx-balances', str(book)])
@@ -586,7 +592,7 @@ def test_a_split_held_finer_than_the_cent_is_measured_at_its_own_unit(tmp_path):
 
     The import is asserted on its error count and the verify on the number of
     bases it found, not on exit codes: a failed transaction does not set a
-    non-zero exit, and `verify-costs` over a book with no bases at all reports
+    non-zero exit, and `verify-costs` over a book with no cost bases at all reports
     that every cost agrees. Between them, this test passed for a while over an
     empty book — the fixture stated a sub-cent amount that had since become
     refusable, so nothing was imported and nothing was checked.
@@ -608,7 +614,7 @@ def test_a_split_held_finer_than_the_cent_is_measured_at_its_own_unit(tmp_path):
 def test_a_reported_basis_shows_its_figures_at_the_unit_they_are_held_to(tmp_path):
     """What the cost came from, written as the ledger holds it.
 
-    A basis reported for anything at all prints the base-currency splits its
+    A cost basis reported for anything at all prints the base-currency splits its
     cost was added up from. One of these is on an account kept to thousandths,
     where the ledger holds 1.820 CAD: printed at the cent it reads 1.82, which
     says nothing about the unit the figure is kept to, and nothing else tells a
@@ -649,7 +655,7 @@ def test_an_unreadable_basis_is_mentioned_even_when_a_filter_hides_it(tmp_path):
     """A filter narrows the listing, not what the book contains.
 
     `--currency HKD` on a USD book prints "no cost bases found", and that is
-    the listing this reader most needs told a basis could not be read at all —
+    the listing this reader most needs told a cost basis could not be read at all —
     they cannot see it to notice. The notice covers the whole book, like the
     check does.
     """
@@ -743,7 +749,7 @@ def test_a_balance_that_will_not_parse_is_reported_not_read_as_absent(tmp_path):
     """The one balance-side corruption the check could not see.
 
     A `cost_basis_balance` that is not a number reads as no balance at all,
-    so the basis lists as `none recorded` — over a message saying this tool never
+    so the cost basis lists as `none recorded` — over a message saying this tool never
     wrote a balance for it, about a split whose balance it wrote and something
     has since broken. Nothing could be sold against it and nothing said why.
 
