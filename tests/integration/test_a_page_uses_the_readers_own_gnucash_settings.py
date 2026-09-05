@@ -38,6 +38,7 @@ configuration registered under its own guid changes no page that does not name
 it.
 """
 
+import contextlib
 import os
 import re
 import sys
@@ -50,6 +51,17 @@ from cli.main import cli
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 FIXTURES = Path('tests/fixtures')
+
+
+def _remove_if_there(path: Path) -> None:
+    """`unlink` for a file a test may or may not have written.
+
+    `Path.unlink(missing_ok=True)` is Python 3.8, and Debian 10 has 3.7 —
+    where it does not fail the test it is cleaning up after, it raises
+    `TypeError` out of a `finally` and hides whatever the test was reporting.
+    """
+    with contextlib.suppress(FileNotFoundError):
+        path.unlink()
 
 #: A whole invoice, not a sparse one: a seller with an address and
 #: registration numbers, a customer with an address, a posted invoice with a
@@ -176,7 +188,7 @@ def a_setting_of_the_readers(a_fresh_process):
     try:
         yield path
     finally:
-        path.unlink(missing_ok=True)
+        _remove_if_there(path)
         _put_the_default_stylesheet_back()
 
 
@@ -269,7 +281,7 @@ def saved_report(a_fresh_process):
     try:
         yield path
     finally:
-        path.unlink(missing_ok=True)
+        _remove_if_there(path)
 
 
 class TestAReportSavedInGnuCash:
@@ -350,15 +362,15 @@ class TestTheReportTheBookPrintsWith:
         from infrastructure.gnucash.engine import load_gnc_engine
 
         lib = load_gnc_engine()
-        # GnuCash 3.8 and the whole 4.x line have neither the setter nor the
-        # getter — measured on 4.4, 4.8 and 4.13 as well as 3.8 — so a book
-        # on those builds cannot name a report, and its own printing draws
-        # with the default. There is nothing to state there, rather than
-        # something stated differently.
+        # GnuCash 3.x and the whole 4.x line have neither the setter nor the
+        # getter — measured on 3.4, 4.4, 4.8 and 4.13 as well as 3.8 — so a
+        # book on those builds cannot state which report it prints with, and
+        # its own printing draws with the default. There is nothing to state
+        # there, rather than something stated differently.
         #
         # This is the first call in every test of this class, so all of them
-        # skip on four of the ten supported builds: the book-option path is
-        # exercised by six, not nine.
+        # skip on five of the eleven supported builds: the book-option path is
+        # exercised by the other six.
         if not hasattr(lib, 'qof_book_set_default_invoice_report'):
             pytest.skip('this GnuCash has no default-invoice-report option')
         # Three parameters, as `qofbook.h` declares it on every 5.x build:
@@ -616,7 +628,7 @@ def _a_saved_report(a_fresh_process):
     try:
         yield write
     finally:
-        path.unlink(missing_ok=True)
+        _remove_if_there(path)
 
 
 class TestWhenTwoReportsAnswerToOneName:
@@ -891,7 +903,7 @@ class TestWhenTheFileIsUnusable:
                 'print-invoice', str(book), INVOICE,
                 '--format', 'html', '--output', str(out)])
         finally:
-            path.unlink(missing_ok=True)
+            _remove_if_there(path)
 
         assert result.exit_code == 0, result.output
         assert INVOICE in out.read_text(encoding='utf-8')
@@ -917,7 +929,7 @@ class TestWhenTheFileIsUnusable:
                 'print-invoice', str(book), INVOICE,
                 '--format', 'html', '--output', str(out)])
         finally:
-            path.unlink(missing_ok=True)
+            _remove_if_there(path)
 
         assert result.exit_code == 0, result.output
         assert 'saved-reports-2.8' in result.output, result.output

@@ -105,6 +105,32 @@ def test_the_logging_close_path_is_hardened():
         assert getattr(cls, '_gnc_close_hardened', False), f'{cls.__name__} is not hardened'
 
 
+def test_the_progress_column_is_hardened_too():
+    """Writing the descriptor, not only reading it or putting it back.
+
+    `TerminalReporter` flushes the `[ 77%]` column after every test. A closed
+    descriptor raises there from inside `pytest_runtest_logreport`, which
+    pytest reports as an `INTERNALERROR` and not as a failing test — so the
+    run ends mid-suite with every test that ran having passed. Seen on
+    Debian 11 at 2747 of 3556.
+    """
+    io = pytest.importorskip('_pytest._io')
+    assert getattr(io.TerminalWriter, '_gnc_write_hardened', False), (
+        'TerminalWriter.write is not hardened')
+
+
+def test_the_progress_column_still_writes_what_it_is_given():
+    """Hardened, not silenced: only an OSError is swallowed.
+
+    Checked on the wrapper rather than on pytest's own writer, whose output
+    is the stream this test is being reported on.
+    """
+    written = []
+    assert swallow_oserror(lambda _self, text: written.append(text))(
+        object(), 'hello') is None
+    assert written == ['hello']
+
+
 def test_a_closed_descriptor_is_swallowed():
     """The wrapper returns rather than raising when the fd is already gone."""
     def _gone(self):
@@ -147,7 +173,24 @@ class TestTheDescriptorPytestFlushesOnItsWayOut:
         import tests.conftest as conftest
 
         assert conftest._A_SPARE_STDOUT is not None
-        os.fstat(conftest._A_SPARE_STDOUT)      # raises if it is not a real fd
+
+        # `os.fstat` on that descriptor is what this used to do, and it is not
+        # a thing this test can rely on: it is one process-wide fd, taken when
+        # conftest was imported, and the same GnuCash churn the spare exists
+        # for can close it while some unrelated test runs. Measured on Debian
+        # 10 under the eleven-way sweep — `OSError: [Errno 9] Bad file
+        # descriptor`, reported as this hardening being broken when what it had
+        # met was the hazard.
+        #
+        # So what is checked is that a spare can be taken here and now, which
+        # is the mechanism, and does not depend on what ran before.
+        fresh = a_spare_copy_of(1)
+        assert fresh is not None
+        try:
+            os.fstat(fresh)
+        finally:
+            with contextlib.suppress(OSError):
+                os.close(fresh)
 
     def test_a_closed_descriptor_is_put_back(self, tmp_path):
         target = os.open(tmp_path / 'out.txt', os.O_WRONLY | os.O_CREAT)

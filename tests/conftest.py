@@ -13,6 +13,14 @@ from datetime import date, timedelta
 
 import pytest
 
+from infrastructure.pdf.cairo_before_gnucash import load_the_page_engine_first
+
+# Before the first test imports GnuCash. `cli/__init__.py` does this for every
+# command, but a test may reach `import gnucash` without going through the CLI
+# at all, and on Debian 10 that order segfaults — which under pytest is not a
+# failing test but the end of the run.
+load_the_page_engine_first()
+
 
 def swallow_oserror(func, fallback=None):
     """`func` with an OSError treated as "the fd is already gone".
@@ -118,6 +126,33 @@ def _harden_pytest_logging_teardown():
         cls._gnc_close_hardened = True
 
 
+def _harden_the_terminal_writer():
+    """The same GnuCash fd-churn flake again, in pytest's own progress line.
+
+    `TerminalReporter` writes the `[ 77%]` column after each test and flushes
+    as it goes, through `_pytest._io.TerminalWriter.write`. Where GnuCash has
+    closed the descriptor underneath it, that flush raises `OSError: [Errno 9]
+    Bad file descriptor` from inside the `pytest_runtest_logreport` hook —
+    which pytest does not treat as a failing test but as an `INTERNALERROR`,
+    ending the whole run. Measured on Debian 11 under the eleven-way sweep:
+    2747 tests passed, none failed, and the run stopped mid-suite with that
+    traceback and nothing about a test in it.
+
+    The two hardenings above cover reading and restoring the descriptor; this
+    covers writing to it. Same rule as both: only `OSError`, only on the one
+    method, and the progress column is the least load-bearing output pytest
+    produces — losing a `[ 77%]` costs nothing, losing the run costs the sweep.
+    """
+    try:
+        from _pytest._io import TerminalWriter
+    except Exception:
+        return
+    if getattr(TerminalWriter, '_gnc_write_hardened', False):
+        return
+    TerminalWriter.write = swallow_oserror(TerminalWriter.write)
+    TerminalWriter._gnc_write_hardened = True
+
+
 def a_spare_copy_of(fd: int):
     """A duplicate of `fd`, or None where it cannot be taken."""
     return swallow_oserror(lambda _self, target: os.dup(target))(None, fd)
@@ -170,6 +205,7 @@ def pytest_unconfigure(config):
 
 _harden_pytest_capture_teardown()
 _harden_pytest_logging_teardown()
+_harden_the_terminal_writer()
 _A_SPARE_STDOUT = a_spare_copy_of(1)
 
 

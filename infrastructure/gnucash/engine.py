@@ -233,6 +233,7 @@ def verify_ctypes_functions(lib, required_functions=None):
             'qof_instance_set_guid',
             'gnc_lot_begin_edit',
             'gnc_lot_commit_edit',
+            'qof_book_mark_session_dirty',
             'xaccAccountLookup',
             'gncEntryGetBill',
             'gncEntrySetBill',
@@ -558,6 +559,13 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gnc_lot_begin_edit.argtypes            = [ctypes.c_void_p]
     lib.gnc_lot_commit_edit.restype            = None
     lib.gnc_lot_commit_edit.argtypes           = [ctypes.c_void_p]
+    # A book option is written straight into the book's slots on GnuCash 3.4,
+    # whose `qof_book_set_string_option` cannot reach a nested path. Marking
+    # the instance dirty is not enough to get that to disk — the session has
+    # to be told too, or the save writes nothing and the value is gone on the
+    # next open (CLAUDE.md finding 18, on a book rather than a lot).
+    lib.qof_book_mark_session_dirty.restype    = None
+    lib.qof_book_mark_session_dirty.argtypes   = [ctypes.c_void_p]
 
 
 @lru_cache(maxsize=1)

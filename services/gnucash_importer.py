@@ -1735,6 +1735,22 @@ _BLOCKS_SETTLING_FROM_A_TRANSACTION: dict = {}
 TRANSACTIONS_A_MEMO_CORRECTED: set = set()
 
 
+def _sits_in_the_lot(split, wanted) -> bool:
+    """True when the split is in the lot `wanted` points at.
+
+    Asked of the split rather than of the lot, which is the whole point: a
+    split attached with `xaccSplitSetLot` says which lot it is in while the
+    lot's own list does not hold it (CLAUDE.md finding 9).
+
+    `wanted` is a `qof_pointer`, not a lot, because that is what both callers
+    already have and because `GetLotList` yields raw pointers on some builds
+    and `GncLot` wrappers on others (finding 17) — comparing pointers is the
+    one comparison that means the same thing everywhere.
+    """
+    split_lot = split.GetLot()
+    return split_lot is not None and qof_pointer(split_lot) == wanted
+
+
 def _everything_the_lot_holds(lot, account):
     """Every split the lot holds, including any this import put there.
 
@@ -1752,8 +1768,7 @@ def _everything_the_lot_holds(lot, account):
     if wanted not in _LOTS_HOLDING_UNLISTED_SPLITS or account is None:
         return [Split(instance=raw) for raw in lot.get_split_list()]
     return [split for split in account.GetSplitList()
-            if (split_lot := split.GetLot()) is not None
-            and qof_pointer(split_lot) == wanted]
+            if _sits_in_the_lot(split, wanted)]
 
 
 def mark_splits_orphaned_by_unpost(record) -> None:
@@ -2433,18 +2448,6 @@ def _retarget_with_prepayment_split(lib, book, record, existing_tx,
     return new_split
 
 
-def _datetime_to_time64(dt) -> int:
-    """Convert a naive `datetime` (e.g. parsed via `strptime(%Y-%m-%d)`) to
-    a GnuCash time64. Matches the SWIG `gncInvoicePostToAccount` path
-    semantics so the link-based POSTED handler produces a byte-identical
-    `date_posted` / `date_due` to the PostToAccount fallback on the same
-    machine (both round-trip through Python's local-TZ `timestamp()`).
-    Pinned in a single helper so a future SWIG-side change can be matched
-    here in one place.
-    """
-    return int(dt.timestamp())
-
-
 _ATTACH_API_VERIFIED = False
 
 
@@ -2463,15 +2466,37 @@ def _verify_attach_api():
 
     required_swig = [
         'gncInvoiceAttachToTxn', 'gncInvoiceAttachToLot',
-        'gncInvoiceSetPostedAcc', 'gncInvoiceSetDatePosted',
+        'gncInvoiceSetPostedAcc',
         'xaccAccountInsertLot', 'xaccSplitSetLot',
-        # gncInvoice has no public date_due setter; due_date is stored on
-        # the posting transaction (gncInvoiceGetDateDue → xaccTransRetDateDue,
-        # gncInvoicePostToAccount → xaccTransSetDateDue). We set it the same
-        # way.
-        'xaccTransSetDateDue',
     ]
+    # The two dates are set through the wrapper classes rather than listed
+    # above, because the raw `gnucash_core_c` calls take a time64 that only
+    # GnuCash 4 and later read as one: handed epoch seconds, 3.4 posts an
+    # invoice dated 5373-05-01. `Invoice.SetDatePosted` and
+    # `Transaction.SetDateDue` take a `datetime` and mean the same thing on
+    # every supported build — measured in
+    # `tests/research/what_an_invoice_date_setter_takes_probe.py`.
+    #
+    # gncInvoice has no public date_due setter of its own; the due date lives
+    # on the posting transaction, which is where GnuCash's own
+    # `gncInvoicePostToAccount` puts it too.
     missing_swig = [s for s in required_swig if not hasattr(_gc, s)]
+
+    # The two date setters are checked as well, on the classes rather than on
+    # `gnucash_core_c`. Without this the pre-flight stopped covering exactly
+    # the two calls that moved: a build missing `Transaction.SetDateDue`
+    # raises `AttributeError` from inside the edit — after `BeginEdit` and
+    # after the metadata write, before `CommitEdit` — which is the
+    # half-applied state this function exists to make impossible.
+    from gnucash import Transaction as _Transaction
+    from gnucash.gnucash_business import Invoice as _Invoice
+    missing_swig += [
+        f'{owner.__name__}.{method}'
+        for owner, method in ((_Invoice, 'SetDatePosted'),
+                              (_Transaction, 'SetDateDue'))
+        if not hasattr(owner, method)
+    ]
+
     if missing_swig:
         raise RuntimeError(
             'GnuCash SWIG bindings missing required symbols for '
@@ -2500,8 +2525,11 @@ def _attach_existing_tx_as_posted(invoice_or_bill, existing_tx, ar_ap_account,
          posted_txn / posted_lot pointers (so explicit SetPostedTxn /
          SetPostedLot would trip `'invoice->posted_txn == NULL'` /
          `posted_lot == NULL` assertions and must NOT be called).
-      5. gncInvoiceSetPostedAcc / gncInvoiceSetDatePosted /
-         xaccTransSetDateDue populate the remaining posting fields.
+      5. gncInvoiceSetPostedAcc, `Invoice.SetDatePosted` and
+         `Transaction.SetDateDue` populate the remaining posting fields. The
+         two dates go through the wrapper classes with a `datetime`, because
+         the raw `gnucash_core_c` calls take a time64 that only GnuCash 4 and
+         later read as one (CLAUDE.md finding 20).
          `gncInvoice` has no public date_due setter — `gncInvoiceGetDateDue`
          reads through to `xaccTransRetDateDue(posting_txn)`, so we set
          due-date on the *transaction* the same way
@@ -2530,11 +2558,11 @@ def _attach_existing_tx_as_posted(invoice_or_bill, existing_tx, ar_ap_account,
     _verify_attach_api()
 
     ar_ap_acct_inst = int(ar_ap_account.instance)
-    ar_ap_splits = [
-        sp for sp in existing_tx.GetSplitList()
-        if (a := sp.GetAccount()) is not None
-        and int(a.instance) == ar_ap_acct_inst
-    ]
+    ar_ap_splits = []
+    for sp in existing_tx.GetSplitList():
+        account = sp.GetAccount()
+        if account is not None and int(account.instance) == ar_ap_acct_inst:
+            ar_ap_splits.append(sp)
     if not ar_ap_splits:
         raise ValueError(
             f'{kind} "{id_}": linked posted tx '
@@ -2571,8 +2599,7 @@ def _attach_existing_tx_as_posted(invoice_or_bill, existing_tx, ar_ap_account,
     existing_custom = get_custom_metadata(existing_tx) or {}
     existing_custom.update(_BUSINESS_GENERATED_META)
     set_custom_metadata(existing_tx, existing_custom)
-    _gc.xaccTransSetDateDue(existing_tx.instance,
-                            _datetime_to_time64(due_date))
+    existing_tx.SetDateDue(due_date)
     _attach_split_to_lot(ar_ap_split, lot)
     existing_tx.CommitEdit()
 
@@ -2582,7 +2609,7 @@ def _attach_existing_tx_as_posted(invoice_or_bill, existing_tx, ar_ap_account,
     _gc.gncInvoiceAttachToLot(inv_inst, lot.instance)
     _gc.gncInvoiceAttachToTxn(inv_inst, existing_tx.instance)
     _gc.gncInvoiceSetPostedAcc(inv_inst, ar_ap_account.instance)
-    _gc.gncInvoiceSetDatePosted(inv_inst, _datetime_to_time64(post_date))
+    invoice_or_bill.SetDatePosted(post_date)
     invoice_or_bill.CommitEdit()
 
 
@@ -5457,12 +5484,12 @@ def _single_payment_matches(split, pd) -> bool:
         # is what settled it.
         return _normalise_guid(split.GetGUID().to_string()) == wanted_split
     bank_acct_name = _payment_xfer_account_name(md)
-    bank_split = next(
-        (s for s in tx.GetSplitList()
-         if (a := s.GetAccount()) is not None
-         and get_account_full_name(a) == bank_acct_name),
-        None,
-    )
+    bank_split = None
+    for s in tx.GetSplitList():
+        account = s.GetAccount()
+        if account is not None and get_account_full_name(account) == bank_acct_name:
+            bank_split = s
+            break
     if bank_split is None:
         return False
     # Normalised on both sides, as the `from_credit:` branch above already
@@ -5850,10 +5877,12 @@ def _attach_posting_rate(record, book, directive, entry_type, post_date,
         price.set_commodity(commodity)
         price.set_currency(record_commodity)
         price.set_value(GncNumeric(value.numerator, value.denominator))
-        try:
-            price.set_time64(post_date)
-        except AttributeError:                       # GnuCash 3.x
-            price.set_time(post_date)
+        # `set_time64` with a `datetime`, which is the setter on every
+        # supported build — checked on all eleven, 3.4 included, and `set_time`
+        # is on none of them, so the `except AttributeError` that used to be
+        # here could not fire. It read as a version guard for a GnuCash 3.x
+        # that does not exist.
+        price.set_time64(post_date)
         price.set_source_string('user:xfer-dialog')
         price.set_typestr('transaction')
         record.AddPrice(price)
@@ -6164,6 +6193,25 @@ def _refuse_a_payment_that_would_fall_short(md, carried: Fraction,
            f'settles this {kind.lower()} now.'))
 
 
+def _sits_outside_the_bank(split, bank_acct_name: str) -> bool:
+    """True when the split has an account and it is not the bank's.
+
+    The three retarget helpers below each asked this, spelled out, and each
+    read the account twice or bound it with an assignment expression. One
+    function instead: Python 3.7 on Debian 10 has no `:=`, and the question is
+    the same one in all three places.
+
+    A split with no account is not a book this tool can write and, on every
+    supported GnuCash, not one a command can be handed either — 5.x drops such
+    a transaction on load and 4.x and below crash inside `qof_session_load`
+    (CLAUDE.md finding 12). The `is not None` is what keeps the reader safe
+    rather than a case anything reaches.
+    """
+    account = split.GetAccount()
+    return (account is not None
+            and get_account_full_name(account) != bank_acct_name)
+
+
 def _why_nothing_can_move(transaction, bank_acct_name: str, txn_guid: str,
                           kind: str, doc_id: str) -> Exception:
     """The refusal for a `txn_guid:` with no split the retarget may take.
@@ -6191,8 +6239,7 @@ def _why_nothing_can_move(transaction, bank_acct_name: str, txn_guid: str,
     says it.
     """
     takeable = [split for split in transaction.GetSplitList()
-                if (account := split.GetAccount()) is not None
-                and get_account_full_name(account) != bank_acct_name]
+                if _sits_outside_the_bank(split, bank_acct_name)]
     if not takeable:
         return Exception(
             f'{kind} {doc_id}: tx {txn_guid!r} has no split outside '
@@ -6222,8 +6269,7 @@ def _retarget_candidates(transaction, bank_acct_name: str):
     been placed: retargeting is about placing one that has not.
     """
     return [split for split in transaction.GetSplitList()
-            if (account := split.GetAccount()) is not None
-            and get_account_full_name(account) != bank_acct_name
+            if _sits_outside_the_bank(split, bank_acct_name)
             and split.GetLot() is None]
 
 
@@ -6324,10 +6370,8 @@ def _retarget_choices(transaction, bank_acct_name: str, own_lot, record):
     # about what "a split the mover could take" means, and the reader has to
     # be able to read one and know the rest.
     own = [split for split in transaction.GetSplitList()
-           if (account := split.GetAccount()) is not None
-           and get_account_full_name(account) != bank_acct_name
-           and (lot := split.GetLot()) is not None
-           and qof_pointer(lot) == mine_ptr]
+           if _sits_outside_the_bank(split, bank_acct_name)
+           and _sits_in_the_lot(split, mine_ptr)]
     if own:
         return own
 

@@ -166,15 +166,21 @@ class GnuCashFuzzyMatcher:
 def _full_name(acct) -> str:
     """The account's path, root excluded.
 
-    One condition rather than a loop that breaks out of itself: the walk always
-    stops at the root, so "ran out of accounts" was a way out that nothing
-    could take, and a branch nothing can take is a claim about the book that
-    nothing can check. The `a is not None` half stays — it is what makes the
-    stop safe, not a second way to reach it.
+    The walk always stops at the root, so "ran out of accounts" is a way out
+    that nothing can take. The `a is not None` in the `while` is therefore not
+    a second way to reach the end — it is what makes reading the name safe.
+    The name itself decides where the path stops, in the `break`.
+
+    Both tests are in the loop rather than in one `while` condition because
+    reading the name and then testing it needs an assignment expression, and
+    Python 3.7 on Debian 10 has none.
     """
     parts = []
     a = acct
-    while a is not None and (name := a.GetName()) and name != "Root Account":
+    while a is not None:
+        name = a.GetName()
+        if not name or name == "Root Account":
+            break
         parts.append(name)
         a = a.get_parent()
     return ":".join(reversed(parts))

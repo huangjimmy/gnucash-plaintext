@@ -2,12 +2,19 @@
 
 Background — Q-019 needed to populate Business → Company options on a
 test book so the print-invoice / print-bill render path could read them
-via `read_book_company_info`. The first attempt used
-`qof_instance_set_kvp` (variadic) with a 3-element path; ctypes' x86_64
-ABI handling silently no-ops that call for path counts >= 2. The
-working implementation switched to `qof_book_set_string_option(book,
-"options/<section>/<name>", value)` which is non-variadic and lets the C
-side handle GSList construction.
+via `read_book_company_info`. `qof_book_set_string_option(book,
+"options/<section>/<name>", value)` is what does it, non-variadic, letting
+the C side build the GSList.
+
+On GnuCash 3.4 that call writes **nothing at all** when its argument has
+slashes in it, so there the option is written with `qof_instance_set_kvp`
+over the path segments instead — variadic, and measured working at three
+and four segments deep on every supported build in
+`tests/research/whether_a_kvp_path_can_be_three_deep_probe.py`. An earlier
+note here said a multi-segment `qof_instance_set_kvp` silently no-ops under
+ctypes; that is not what happens, and the probe is what settled it. The
+*getter* needs no such fallback: `qof_book_get_string_option` resolves the
+path on 3.4 as it does everywhere.
 
 These tests verify the new API is **write-compatible** with what the
 GnuCash GUI's File→Properties dialog would have produced — same slot
@@ -282,3 +289,53 @@ def test_setting_new_key_preserves_unrelated_slots(fresh_book):
     # Both still present.
     assert _read_business_slot(fresh_book, 'Company Email Address') == 'hi@acme.test'
     assert _read_business_slot(fresh_book, 'Company Name')          == 'Acme'
+
+
+def test_clearing_an_option_removes_its_slot_rather_than_emptying_it(fresh_book):
+    """"Set to nothing" and "never set" must stay the same thing in the file.
+
+    Writing an option empty is how GnuCash deletes it, and
+    `services/invoice_style.py` stores its text behind a prefix precisely so
+    that a footer someone emptied on purpose is distinguishable from one never
+    set. On GnuCash 3.4 the engine setter writes nothing for a path, so the
+    clear goes through the slot fallback — which must delete rather than store
+    `""`, or a book written on Debian 10 carries empty slots no other build
+    produces.
+    """
+    assert _write_business_options(fresh_book, ('Company Name', 'Acme'))[0]
+    assert _read_business_slot(fresh_book, 'Company Name') == 'Acme'
+
+    assert _write_business_options(fresh_book, ('Company Name', ''))[0]
+    assert _read_business_slot(fresh_book, 'Company Name') is None
+
+    root = _read_xml(fresh_book)
+    assert 'Company Name' not in [key.text or ''
+                                  for key in root.iter(f'{{{_SLOT_NS}}}key')]
+
+
+def test_the_book_carries_no_slot_keyed_by_a_whole_path(fresh_book):
+    """The saved book holds `options` → `Business` → the field, and nothing
+    keyed `options/Business/<field>`.
+
+    `qof_book_set_string_option` reads its argument as a path from GnuCash 4
+    on and as a bare slot name on 3.4, so the same call that writes the option
+    everywhere else writes one flat slot there, whose key is the whole string
+    with the slashes in it. Left behind, it is serialised, and the file
+    carries it to every other version — where nothing reads it and nothing
+    takes it away.
+
+    Read from the saved XML rather than through the option reader, because
+    the reader walks the nested path and would never see it. Asserted on every
+    build: a book written on any of them should be the same book.
+    """
+    assert _write_business_options(
+        fresh_book,
+        ('Company Name', 'Acme'),
+        ('Company Email Address', 'hi@acme.test'),
+    )[0]
+
+    root = _read_xml(fresh_book)
+    slotted = [key.text or ''
+               for key in root.iter(f'{{{_SLOT_NS}}}key')]
+    assert 'Company Name' in slotted, slotted
+    assert not [key for key in slotted if '/' in key], slotted

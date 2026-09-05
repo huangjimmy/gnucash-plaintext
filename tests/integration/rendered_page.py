@@ -1,8 +1,8 @@
 """Reading a page GnuCash drew, on every version that draws one.
 
 The page is GnuCash's own Printable Invoice, so its wording is GnuCash's and it
-is not identical across the ten supported builds. A test that pins one build's
-spelling is a test that says the other nine print the page wrong.
+is not identical across the eleven supported builds. A test that pins one
+build's spelling is a test that says the other ten print the page wrong.
 
 What differs is small and known: 3.8 writes `cellspacing="0"` where 5.x writes
 `"0.0"`, and spells its ellipsis `...` where 5.x uses `…`. The wording, the

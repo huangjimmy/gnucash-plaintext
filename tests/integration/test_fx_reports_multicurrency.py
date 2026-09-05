@@ -52,6 +52,49 @@ def test_account_balance_consolidates_a_usd_account_into_cad(tmp_path):
     assert '274.00' in result.output or '200.00' in result.output, result.output
 
 
+def test_the_price_it_writes_is_dated_today_and_not_the_year_4753(tmp_path):
+    """`account-balance --fx-rates` adds prices to the book, dated.
+
+    Read back because nothing else does, and the date is the half a raw
+    `gnc_price_set_time64` gets wrong: given epoch seconds, GnuCash 3.4 stores
+    a date two thousand years out (CLAUDE.md finding 20). Nothing would have
+    reported it — the duplicate check compares values, not dates, and a price
+    dated 4753 wins `gnc_pricedb_lookup_latest` for good, so every later
+    "as of" lookup in GnuCash reads it as today's rate.
+    """
+    from datetime import date, timedelta
+
+    from gnucash.gnucash_core_c import gnc_pricedb_get_db, gnc_pricedb_lookup_latest
+
+    from repositories.gnucash_repository import GnuCashRepository
+
+    runner = CliRunner()
+    today = date.today()
+    book = _book(runner, tmp_path, 'tests/fixtures/fx_buy_and_borrow_usd.txt')
+    written = runner.invoke(cli, ['account-balance', str(book), 'Assets:Bank:USD',
+                                  '--as-of', '2026-12-31', '--fx-rates', RATES])
+    assert written.exit_code == 0, written.output
+
+    repo = GnuCashRepository(str(book))
+    repo.open()
+    try:
+        table = repo.book.get_table()
+        pricedb = gnc_pricedb_get_db(repo.book.instance)
+        raw = gnc_pricedb_lookup_latest(
+            pricedb,
+            table.lookup('CURRENCY', 'USD').instance,
+            table.lookup('CURRENCY', 'CAD').instance)
+        assert raw is not None, 'no USD/CAD price was written'
+        from gnucash import GncPrice
+        when = GncPrice(instance=raw).get_time64()
+    finally:
+        repo.close()
+
+    # Against the day the command ran rather than the day this line runs, so
+    # a suite crossing midnight does not fail on the clock.
+    assert when.date() in (today, today + timedelta(days=1)), (when, today)
+
+
 def test_reports_still_run_on_a_single_currency_book(tmp_path):
     runner = CliRunner()
     book = tmp_path / 'cad.gnucash'

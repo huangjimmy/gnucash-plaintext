@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+try:                       # Python 3.8 and later carry both in the stdlib
+    from typing import Protocol, runtime_checkable
+except ImportError:        # Python 3.7 (Debian 10) has neither; both are
+    # backported by `typing_extensions`, which pyproject already requires
+    # below 3.11 for `NotRequired` and the `TypedDict` backport.
+    from typing_extensions import Protocol, runtime_checkable
 
 from infrastructure.pdf.standard_tx import StandardTransaction
 

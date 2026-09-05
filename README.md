@@ -2964,6 +2964,7 @@ The project is tested against multiple GnuCash versions using different Docker b
 | Debian 13 | 5.10 | `latest` |
 | Debian 12 | 4.13 | `debian12` |
 | Debian 11 | 4.4 | `debian11` |
+| Debian 10 | 3.4 | `debian10` |
 | Ubuntu 26.04 | 5.14 | `ubuntu26` |
 | Ubuntu 24.04 | 5.5 | `ubuntu24` |
 | Ubuntu 22.04 | 4.8 | `ubuntu22` |

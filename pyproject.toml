@@ -30,13 +30,27 @@ statement = [
     # Named apart from `invoice` because installing it does nothing for a
     # printed invoice or bill, which was misleading while the two shared an
     # extra.
-    "weasyprint",
+    #
+    # Capped below Python 3.8, which is Debian 10's, because WeasyPrint needs
+    # a Pango newer than that release carries. 53.0 raises on a missing
+    # `pango_context_set_round_glyph_positions`, and what pip picks unpinned
+    # is worse: it **segfaults** inside `_check_font_configuration` while
+    # being imported, which takes the whole test run with it rather than
+    # failing anything. 52.5 renders there — measured on Debian 10.
+    "weasyprint; python_version>='3.8'",
+    "weasyprint<53; python_version<'3.8'",
 ]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=3.0",
     "ruff>=0.1.0",  # Linter + formatter (replaces flake8, black, isort)
-    "pypdf>=3.0",   # reads a printed PDF's text back, to check it is selectable
+    # Reads a printed PDF's text back, to check it is selectable. Capped below
+    # Python 3.8 because pypdf 5.0.0's wheel says it runs on 3.7 and does not:
+    # `pypdf/_protocols.py` imports `typing.Protocol`, which 3.7 has not, so
+    # pip installs it and every import of it raises. 4.3.1 is the newest that
+    # actually loads there — measured on Debian 10.
+    "pypdf>=3.0; python_version>='3.8'",
+    "pypdf>=3.0,<4.4; python_version<'3.8'",
 ]
 
 [project.scripts]
@@ -122,7 +136,22 @@ exclude_lines = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"  # Minimum supported version (Ubuntu 20.04)
+# The oldest Python any supported build has: Debian 10's 3.7. The walrus
+# operator and `typing.Protocol` both went in unnoticed over three months,
+# because from the day Debian 10 left there was no build that could catch
+# them.
+#
+# At this setting ruff refuses a walrus outright — `invalid-syntax: Cannot use
+# named assignment expression (:=) on Python 3.7`, measured — so lint catches
+# that one on any machine, before the sweep. It says nothing about
+# `typing.Protocol`, which is a library question rather than a syntax one; the
+# Debian 10 build is what catches that.
+#
+# It also stops ruff *making* the tree 3.8-only. At `py38` its unsafe fixes
+# read `if sys.version_info >= (3, 8)` as always true and rewrote the guard in
+# `infrastructure/pdf/cairo_before_gnucash.py` into an unconditional `return
+# False`, which quietly undid the fix for the WeasyPrint segfault.
+target-version = "py37"  # Minimum supported version (Debian 10)
 
 # Exclude files/directories
 exclude = [

@@ -89,16 +89,37 @@ measured on the wrong side of two builds.
 - debian:13 (GnuCash 5.10) - default, `latest`
 - debian:12 (GnuCash 4.13)
 - debian:11 (GnuCash 4.4)
+- debian:10 (GnuCash 3.4) - minimum, Python 3.7
 - ubuntu:26.04 (GnuCash 5.14)
 - ubuntu:24.04 (GnuCash 5.5)
 - ubuntu:22.04 (GnuCash 4.8)
-- ubuntu:20.04 (GnuCash 3.8) - minimum
+- ubuntu:20.04 (GnuCash 3.8)
 - arch (GnuCash 5.15)
 - fedora:41 (GnuCash 5.13)
 - opensuse (GnuCash 5.16)
 
+**Two of these are past their end of life and are served from elsewhere.** The
+Dockerfile points bullseye at `snapshot.debian.org` and buster at
+`archive.debian.org`, both with `Acquire::Check-Valid-Until "false"`, and
+buster needs `libxslt1-dev` where every other base wants `libxslt-dev` and has
+no `weasyprint` package at all.
+
+bullseye is the sharp one, because the mirror lies: `deb.debian.org` still
+publishes a *valid* security index — measured 2026-09-05, `Valid-Until: Mon,
+07 Sep 2026` — while deleting the package files that index lists, so apt reads
+the list, asks for a file and is given a 404. No date check catches that.
+
+**Debian 10 sets the Python floor at 3.7**, which is why `pyproject.toml` says
+`requires-python = ">=3.7"` and ruff `target-version = "py37"`. It had been
+supported before, as a CI job called `GnuCash-34_Debian-10`, and was dropped
+on 2026-03-12 for the mirror reason; the walrus operator and `typing.Protocol`
+then went in over the following three months with no build left to catch them.
+
 ### ❌ Do NOT Support
-- debian:10 (EOL, broken dependencies)
+- debian:9 and older — GnuCash **2.6.15** there, read from stretch's own
+  package index on `archive.debian.org`. Debian 10's 3.4 is the floor: 2.x is
+  the generation before the business-object and KVP APIs this tool is built
+  on, so it is not a matter of a few missing calls.
 
 ## File Organization
 
@@ -106,7 +127,7 @@ measured on the wrong side of two builds.
 - `convert_qfx.py` - reference for QFX parsing requirements
 - `ledger.py` - reference for update workflow requirements
 - `reference_file*.txt` - sample data for understanding format
-- `.claude/` - Claude CLI directory, an agent's own state — **except `.claude/settings.json`**, which is tracked (`.gitignore` says `.claude/*` and then `!.claude/settings.json`) because it is what wires the `PreToolUse` guards that refuse a shell file-edit, an unscoped kill, and "name" used as a verb for something that has no name. `tests/unit/test_the_kill_guard_allows_one_id.py` and `tests/unit/test_the_name_guard_leaves_real_names_alone.py` read it to check each is still wired, and `scripts/test-all-versions-parallel.sh` rsyncs that one file into all ten containers so the assertions have something to read. Re-ignoring or deleting it turns those tests red.
+- `.claude/` - Claude CLI directory, an agent's own state — **except `.claude/settings.json`**, which is tracked (`.gitignore` says `.claude/*` and then `!.claude/settings.json`) because it is what wires the `PreToolUse` guards that refuse a shell file-edit, an unscoped kill, and "name" used as a verb for something that has no name. `tests/unit/test_the_kill_guard_allows_one_id.py` and `tests/unit/test_the_name_guard_leaves_real_names_alone.py` read it to check each is still wired, and `scripts/test-all-versions-parallel.sh` rsyncs that one file into all eleven containers so the assertions have something to read. Re-ignoring or deleting it turns those tests red.
 
 ### Repository Layout
 - `cli/` - Click-based CLI commands; `cli/main.py` is the entry point
@@ -281,7 +302,7 @@ GnuCash Python bindings have different reliability for reading vs writing:
 Test on all supported distributions — the list and the version each carries is
 the one under "Supported Distributions" above, which is read from the images
 themselves:
-- Debian 11 (GnuCash 4.4), 12 (4.13), 13 (5.10)
+- Debian 10 (GnuCash 3.4), 11 (4.4), 12 (4.13), 13 (5.10)
 - Ubuntu 20.04 (GnuCash 3.8), 22.04 (4.8), 24.04 (5.5), 26.04 (5.14)
 - Fedora 41 (5.13), Arch (5.15), openSUSE Tumbleweed (5.16)
 
@@ -754,6 +775,179 @@ That is a 4.x/5.x boundary, the second this suite has measured, and it falls bet
 
 **What follows for the suite**: a test that needs a foreign credit spent in full gives it by guid, with `txn_guid:` and `txn_split_guid:` on a `from_credit:` payment block, so this tool carves it. `tests/fixtures/fx_invoice_spending_a_cad_paid_credit_whole.txt` says so where it is written. `auto_apply_credit: true` reaches the same state on every build from 4.4 up, and a different book on 3.8.
 
+### 20. A date given as epoch seconds lands in the wrong millennium on 3.4
+
+Discovered 2026-09-05, restoring Debian 10.
+
+GnuCash's date setters take a `time64` from version 4 on. On 3.4 the same
+call, given the same integer, stores something else entirely — and stores it
+without complaint:
+
+| call | 3.4 | 5.10 |
+|---|---|---|
+| `Transaction.SetDatePostedSecs(1776211200)` | **4753-05-01** | 2026-04-15 |
+| `gncInvoiceSetDatePosted(inst, 1767571200)` | **5373-05-01** | 2026-01-05 |
+| `Invoice.SetDatePosted(datetime(2026, 1, 5))` | 2026-01-05 | 2026-01-05 |
+| `Transaction.SetDateDue(datetime)` | correct | correct |
+
+**So a date is set by passing a `datetime` to the wrapper class**, never by
+passing seconds to `gnucash_core_c`. The wrapper's typemap does the conversion
+the build wants; the raw call does not.
+
+What it cost: a posted invoice round-tripped its `date:` and `due:` as
+5373-05-01 and 6710-05-01, and two test fixtures built books whose
+transactions were filed under 4753 — where the fuzzy matcher indexes by
+`(date, amount)`, so every lookup missed and every match came back `NEW` with
+no candidate at all.
+
+The version-guard those fixtures used, `gnucash.GncDateTime(...) if
+hasattr(gnucash, 'GncDateTime') else int(d.strftime('%s'))`, never took its
+first arm: `GncDateTime` is absent from the `gnucash` package on **both** 3.4
+and 5.10, so the seconds path always ran. Probes:
+`tests/research/what_a_posted_date_reads_back_as_probe.py` and
+`what_an_invoice_date_setter_takes_probe.py`.
+
+### 21. `qof_book_set_string_option` takes a path from 4.x and a slot name on 3.4
+
+Discovered 2026-09-05.
+
+The same function reads its `opt_name` argument two ways. Writing
+`options/Business/Company Name`:
+
+| GnuCash | what it stores |
+|---|---|
+| 4.x, 5.x | the nested frames `options` → `Business` → `Company Name` |
+| 3.4 | **nothing at all** — the saved book holds no slots whatever |
+
+So on 3.4 every company field — name, address, tax numbers, the date format,
+the invoice footer and CSS — was not written, and read back empty. Silently:
+the call returns void and reports nothing.
+
+**Its getter is not the same.** `qof_book_get_string_option` resolves the
+nested path on 3.4 as it does everywhere — measured against a slot written
+only by `qof_instance_set_kvp` — so the read side needs no fallback and the
+write side can tell whether the engine call landed simply by asking for the
+value back. Only the setter is two-faced, and only when the name has a slash
+in it: given a bare `Company Name` the same call stores and reads back fine on
+3.4, as one top-level slot.
+
+`services/gnucash_report.py` and the company blocks are unaffected on 4.x and
+5.x, because `write_book_string_option` still calls it there **first**. That
+matters beyond the storage: from 4.x on the call also refreshes the book's
+live option database, which is what GnuCash's own report engine reads in the
+same process. Writing the slot directly instead — which was tried — leaves the
+file right and the running report showing the *old* date format.
+
+The fallback is `qof_instance_set_kvp` over the path segments, reached only
+when reading the value back shows the engine call did not land. Two things it
+must get right, both learned the hard way:
+
+- **`options`, the section, and every slash-separated part of the name.** The
+  date format's name is `Fancy Date Format/custom`, so its path is four deep,
+  not three — passed as one segment it becomes a slot whose key contains a
+  slash, which nothing reads.
+- **`qof_book_mark_session_dirty`, not just `qof_instance_set_dirty`.** With
+  only the instance marked, `qof_session_save` writes nothing: the value reads
+  back for the rest of the session and is gone after a reload. That is finding
+  18 one object along.
+
+**And clearing goes through it too.** Writing an option empty is how the
+engine removes it, and `services/invoice_style.py` keeps a prefix on its text
+precisely so "set to nothing" stays distinguishable from "never set". On 3.4
+the engine call does nothing for a slashed name, so a clear reaches the
+fallback — which unsets its `GValue` rather than setting it to `""`, so the
+slot is removed. Otherwise a book written on Debian 10 would be the only one
+carrying empty slots.
+
+**Whatever fetches a `GValue` must `g_value_init(…, G_TYPE_STRING)` first.**
+An absent slot otherwise leaves the value holding nothing, and
+`g_value_get_string` then writes `assertion 'G_VALUE_HOLDS_STRING (value)'
+failed` to stderr — one line per call, no exception — which lands in whatever
+output the caller was reading. That is how it was found: a test asserting on
+stderr, on 4.4, where the fallback runs only for an option that is genuinely
+absent.
+
+Probes: `what_path_a_book_option_wants_probe.py`,
+`what_3_4_stores_for_a_book_option_probe.py`,
+`whether_a_kvp_path_can_be_three_deep_probe.py`,
+`whether_kvp_writes_a_book_option_the_same_probe.py`,
+`whether_the_option_getter_walks_a_path_probe.py`.
+
+### 22. Half-up rounding loses the sign of a negative exact half on 3.4
+
+Discovered 2026-09-05.
+
+| GnuCash | `GncNumeric(-5, 1000).convert(100, GNC_HOW_RND_ROUND_HALF_UP)` | `(+5, 1000)` |
+|---|---|---|
+| 3.4 | **+1/100** | +1/100 |
+| 5.10 | −1/100 | +1/100 |
+
+The magnitude is right and the sign is dropped. A closing entry of two
+half-cents came out with every sign inverted on Debian 10 — the expense
+accounts credited where they should be debited — and it *balanced*, so nothing
+else in the book reported it.
+
+`to_money` rounds `abs(value)` and puts the sign back. Half-up is symmetric
+about zero, so that is the same answer on every build rather than a
+workaround, and it is on the path of every money figure this tool writes.
+
+### 23. WeasyPrint must be imported before GnuCash on Debian 10
+
+Discovered 2026-09-05.
+
+WeasyPrint draws through `cairocffi`, which opens its own libcairo and makes a
+surface while being imported. GnuCash's bindings have already opened libcairo
+through GTK. Measured on Debian 10, one process each way:
+
+```
+import gnucash; import weasyprint   ->  Segmentation fault
+import weasyprint; import gnucash   ->  fine
+```
+
+Not an exception — SIGSEGV, which no Python frame can catch, and which under
+pytest ends the run rather than failing a test (finding 12's hazard, from a
+library rather than a book).
+
+`infrastructure/pdf/cairo_before_gnucash.py` loads it first, called from
+`cli/__init__.py` — which runs before any `cli.*` module — and from
+`tests/conftest.py`, since a test can reach `import gnucash` without the CLI.
+It is a no-op above Python 3.7. It lives in `cli/__init__.py` rather than
+`main.py` because as an import there, isort sorts `infrastructure` after `cli`
+and puts it back too late.
+
+**Two pins go with it**, both in `pyproject.toml` and the Dockerfile, both
+because pip picks a version that cannot work: `weasyprint<53` below Python 3.8
+(53.0 wants a Pango symbol buster has not, and what pip picks unpinned
+segfaults on import), and `pypdf>=3.0,<4.4` below 3.8 (pypdf 5.0.0's wheel
+claims 3.7 and its `_protocols.py` imports `typing.Protocol`). Naming either
+package bare — which `scripts/test-in-docker.sh` did — bypasses the markers
+entirely; it installs `.[dev,statement]` now.
+
+### 24. GnuCash 3.4 ships "Display → Payments" off, and mangles a book option under a non-UTF-8 locale
+
+Discovered 2026-09-05, both from the same printed page.
+
+**The switch.** `invoice.scm` registers `Display / Payments` with a default of
+`#f` on 3.4 and `#t` from 4.x — read out of the shipped Scheme. A paid invoice
+printed on Debian 10 therefore showed its full total as due and no payment
+row at all. `services/gnucash_report.py` sets it alongside the three switches
+it already sets, because what a printed page says is owed should not depend on
+which GnuCash drew it.
+
+**The locale.** Telling the output port `UTF-8` is not enough on 3.4: the
+company name is mangled before it reaches the port, when GnuCash turns the
+option's C string into a Scheme string through the locale's codeset. Measured
+under `LC_ALL=C`, with the book holding the name intact:
+
+```
+3.4    any-name">??ditions Clich?? Inc.<     one ? per UTF-8 byte
+5.10   any-name">\xc3\x89ditions Clich\xc3\xa9 Inc.<
+```
+
+The customer's Japanese name came through the same page unharmed, so it is
+that one accessor rather than the page. The render sets `C.UTF-8` for its own
+length, caught, because a build without that locale must still draw its page.
+
 ---
 
-**Last Updated**: 2026-09-03
+**Last Updated**: 2026-09-05

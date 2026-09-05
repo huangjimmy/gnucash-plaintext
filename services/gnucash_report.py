@@ -284,6 +284,51 @@ def _restore_the_date_style(before) -> None:
     load_gnc_engine().qof_date_format_set(before)
 
 
+def _under_a_utf8_ctype(scheme: str) -> str:
+    """`scheme`, run with a UTF-8 character set and the old one put back.
+
+    GnuCash 3.4 turns a book option's C string into a Scheme string through
+    the locale's codeset, so under `LC_CTYPE=C` the company name reaches the
+    page as one `?` per UTF-8 byte while the book still holds it intact.
+    Telling the output port `UTF-8` does not help: the characters are already
+    gone by the time anything is written.
+
+    **`LC_CTYPE` and not `LC_ALL`.** The codeset is the only category in
+    question — it is what `nl_langinfo(CODESET)` reads — and `LC_ALL` would
+    take `LC_TIME`, `LC_NUMERIC` and `LC_MONETARY` with it on every build. A
+    page whose dates have no book format follows the reader's locale through
+    `qof-print-date`, and its amounts follow `gnc_localeconv` through
+    `xaccPrintAmount`, so a reader in `de_DE.UTF-8` would have had their
+    `1.234,56` turned into `1,234.56` and their dates into `C`'s. No test
+    here could have caught that: every container runs `C.UTF-8` already, so
+    the forced value equals the inherited one.
+
+    Guile's own `setlocale` and not Python's `locale.setlocale`, which was
+    tried and does not work: Guile settles its charset when it starts, so a
+    change made underneath it from Python leaves the page still full of `?`.
+
+    The locale is process-wide, like the date style, so it is restored for the
+    same reason — the next page in this process, and the next test in this
+    pytest run, must not inherit it. `dynamic-wind` rather than a Python
+    `finally` because the value never has to cross back: Guile's
+    `(setlocale LC_CTYPE)` reads the current one, and only Guile can put it
+    back in a way Guile itself notices.
+
+    Every step is caught. A build with no `C.UTF-8` must still draw its page:
+    a name that survives is worth having and not worth refusing over.
+    """
+    return (
+        '(let ((was (catch #t (lambda () (setlocale LC_CTYPE))'
+        ' (lambda ignored #f))))'
+        '  (dynamic-wind'
+        '    (lambda () (catch #t (lambda () (setlocale LC_CTYPE "C.UTF-8"))'
+        ' (lambda ignored #f)))'
+        f'    (lambda () {scheme})'
+        '    (lambda () (catch #t (lambda () (if was (setlocale LC_CTYPE was)))'
+        ' (lambda ignored #f)))))'
+    )
+
+
 def _make_current(session) -> None:
     """Tell GnuCash which book everything else is about.
 
@@ -584,7 +629,8 @@ def render_page_html(session, guid: str, company_extra='',
         # left set silently changes how every later page in the process is
         # dated — including the next test in the same pytest run. So the
         # restore is nested rather than sequenced, and survives a throw from
-        # the unset above.
+        # the unset above. `LC_CTYPE` is the third such global and is put back
+        # by `_under_a_utf8_ctype`, in Guile, where it was set.
         try:
             # Unset on the way out: the caller is about to end this session,
             # and a global still naming it is a pointer to a book that no
@@ -990,6 +1036,18 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     #   Display/Company contact          the book's `contact:`, printed by
     #                                    GnuCash as "Please direct all
     #                                    enquiries to <name>"
+    #   Display/Payments                 a row per payment applied, and an
+    #                                    Amount Due that is what is still
+    #                                    owed. GnuCash ships this on from 4.x
+    #                                    and **off on 3.4** — read out of the
+    #                                    shipped `invoice.scm`, `#t` on 5.10
+    #                                    and `#f` there — so a paid invoice
+    #                                    printed on Debian 10 showed its full
+    #                                    total as due and no payment at all.
+    #                                    Set rather than left to the build,
+    #                                    because what a printed page owes is
+    #                                    not a thing that should depend on
+    #                                    which GnuCash drew it.
     #   Display/Use Detailed Tax Summary one row per tax account — `GST` and
     #                                    `PST` by name and by amount, rather
     #                                    than one combined `Tax` figure. A
@@ -1098,7 +1156,7 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
         (set-port-encoding! port "UTF-8")
         (display template-id port)))
     (set-opt options "General" "Invoice Number" {_scheme_string(guid)})
-    ;; The three display switches, and only for the reports `print-invoice`
+    ;; The four display switches, and only for the reports `print-invoice`
     ;; and `print-bill` advertise. A report loaded with `--report-file` lays
     ;; out a page of the author's design: writing an option the `.scm` file
     ;; declares for a purpose of the author's is the same overreach as
@@ -1112,7 +1170,8 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
         (begin
           (try-set options "Display" "Invoice Notes" #t)
           (try-set options "Display" "Company contact" #t)
-          (try-set options "Display" "Use Detailed Tax Summary" #t)))
+          (try-set options "Display" "Use Detailed Tax Summary" #t)
+          (try-set options "Display" "Payments" #t)))
     ;; The book's own Extra Notes and CSS, where it has them — set with
     ;; `set-invoice-style`, and on whatever report is drawing, because the
     ;; reader asked for them on their pages rather than on one report.
@@ -1134,7 +1193,7 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
       (catch #t (lambda () (gnc-report-remove-by-id report)) (lambda i #f)))))
 '''
     try:
-        run(drawing)
+        run(_under_a_utf8_ctype(drawing))
     except PageNotRenderedError as exc:
         # A file that registered nothing is the likely reason a name was not
         # found, and Python is holding the evidence that Scheme is not.

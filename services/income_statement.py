@@ -67,6 +67,38 @@ class IncomeStatementResult:
     currency_units: Dict[str, int] = field(default_factory=dict)
 
 
+def _change_over_the_period_without_closings(
+        account: Account, start_date: date, past_the_end: date) -> Fraction:
+    """What `GetNoclosingBalanceChangeForPeriod` answers, where it is absent.
+
+    GnuCash gained that call after 3.4, which is what Debian 10 carries, and
+    it is the only thing this report needs that 3.4 has not. What the engine
+    does is a balance change over a period with closing entries left out, and
+    both halves are readable on 3.4: an account lists its own splits, and
+    `GetIsClosingTxn` is the same flag the C function consults.
+
+    Amounts, not values. A split's amount is in its account's own currency and
+    its value is in its transaction's, so a CAD income account credited by a
+    USD invoice would otherwise contribute the invoice's USD figure to a
+    statement drawn in CAD.
+
+    Half open, `start_date` in and `past_the_end` out, which is the period the
+    engine takes and the reason the caller adds the day.
+
+    This account's own splits, no children: the engine is asked with `False`
+    for its `recurse` argument, and `GetSplitList` does not descend either.
+    """
+    total = Fraction(0)
+    for split in account.GetSplitList():
+        transaction = split.GetParent()
+        if transaction.GetIsClosingTxn():
+            continue
+        when = transaction.GetDate().date()
+        if start_date <= when < past_the_end:
+            total += numeric_to_fraction(split.GetAmount())
+    return total
+
+
 class IncomeStatementService:
     """
     Computes income and expense account balances within a date range.
@@ -99,9 +131,13 @@ class IncomeStatementService:
         # The engine's period runs from the start of `start_date` to the start
         # of the end argument, so a transaction dated `end_date` falls outside
         # it. This report's range includes both ends, hence the day added.
-        return numeric_to_fraction(
-            account.GetNoclosingBalanceChangeForPeriod(
-                start_date, end_date + timedelta(days=1), False))
+        past_the_end = end_date + timedelta(days=1)
+        if hasattr(account, 'GetNoclosingBalanceChangeForPeriod'):
+            return numeric_to_fraction(
+                account.GetNoclosingBalanceChangeForPeriod(
+                    start_date, past_the_end, False))
+        return _change_over_the_period_without_closings(
+            account, start_date, past_the_end)
 
     def _account_full_path(self, account: Account) -> str:
         """Build full colon-separated path for an account, excluding root."""

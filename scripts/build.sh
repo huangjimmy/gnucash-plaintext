@@ -54,6 +54,11 @@ case "$WANTED" in
         TAG="debian12"
         GNUCASH_VERSION="4.13"
         ;;
+    debian:10|debian10)
+        BASE_IMAGE="debian:10"
+        TAG="debian10"
+        GNUCASH_VERSION="3.4"
+        ;;
     debian:11|debian11)
         BASE_IMAGE="debian:11"
         TAG="debian11"
@@ -99,10 +104,10 @@ case "$WANTED" in
         ;;
     *)
         echo "Unknown distribution or tag: $WANTED"
-        echo "Supported: debian:13, debian:12, debian:11, ubuntu:20.04, ubuntu:22.04, ubuntu:24.04,"
-        echo "           ubuntu:26.04, fedora:41, arch, opensuse"
-        echo "           (or their tags: latest, debian12, debian11, ubuntu20, ubuntu22,"
-        echo "            ubuntu24, ubuntu26, fedora41, arch, opensuse)"
+        echo "Supported: debian:13, debian:12, debian:11, debian:10, ubuntu:20.04, ubuntu:22.04,"
+        echo "           ubuntu:24.04, ubuntu:26.04, fedora:41, arch, opensuse"
+        echo "           (or their tags: latest, debian12, debian11, debian10, ubuntu20,"
+        echo "            ubuntu22, ubuntu24, ubuntu26, fedora41, arch, opensuse)"
         exit 1
         ;;
 esac

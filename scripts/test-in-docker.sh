@@ -37,9 +37,13 @@ fi
 
 # `pypdf` is test-only: a printed page is a PDF, and the only honest way to
 # check that its text can be selected and copied is to read the text back out
-# of it. Installed here beside weasyprint rather than added to ten Dockerfiles.
+# of it. It comes from the `dev` extra and weasyprint from `statement`, rather
+# than being named here, because both carry version markers that Debian 10
+# needs: named bare, pip installs a pypdf that cannot be imported on Python
+# 3.7 and a WeasyPrint that segfaults against that release's Pango, and the
+# markers in `pyproject.toml` never get a say.
 echo "Installing package..."
-python3 -m pip install -e . weasyprint pypdf --break-system-packages --user -q
+python3 -m pip install -e ".[dev,statement]" --break-system-packages --user -q
 
 # Coverage is measured only when asked for, because the figure that means
 # anything is the union of every supported distribution's run (scripts/

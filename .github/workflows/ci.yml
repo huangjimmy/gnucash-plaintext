@@ -11,7 +11,7 @@ jobs:
     name: Test on ${{ matrix.tag }}
     runs-on: ubuntu-latest
 
-    # All ten supported builds, the same ten `scripts/test-all-versions-parallel.sh`
+    # All eleven supported builds, the same eleven `scripts/test-all-versions-parallel.sh`
     # sweeps for the pre-commit gate. Seven of them until `build.sh` learned to
     # take a tag: fedora, arch and openSUSE build from their own Dockerfiles
     # rather than from a `BASE_IMAGE` build-arg, and the matrix knew only the
@@ -25,8 +25,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tag: [latest, debian12, debian11, ubuntu26, ubuntu24, ubuntu22,
-              ubuntu20, fedora41, arch, opensuse]
+        tag: [latest, debian12, debian11, debian10, ubuntu26, ubuntu24,
+              ubuntu22, ubuntu20, fedora41, arch, opensuse]
 
     steps:
       - name: Checkout code

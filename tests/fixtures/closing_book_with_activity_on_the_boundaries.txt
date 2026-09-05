@@ -1,0 +1,55 @@
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2025-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Expenses:Office
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2025-12-31 * "The day before the year starts"
+	Assets 7.00 CAD
+	Income:Sales -7.00 CAD
+
+2026-01-01 * "The first day of the year"
+	Assets 11.00 CAD
+	Income:Sales -11.00 CAD
+
+2026-06-01 * "An ordinary day in the middle"
+	Assets 1000.00 CAD
+	Income:Sales -1000.00 CAD
+
+2026-07-01 * "Office supplies"
+	Expenses:Office 300.00 CAD
+	Assets -300.00 CAD
+
+2026-12-31 * "The last day of the year"
+	Expenses:Office 13.00 CAD
+	Assets -13.00 CAD
+
+2027-01-01 * "The day after the year ends"
+	Assets 17.00 CAD
+	Income:Sales -17.00 CAD
