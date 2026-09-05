@@ -1,4 +1,4 @@
-"""A payment refused after its settlement drew a basis down changes nothing.
+"""A payment refused after its settlement drew a cost basis down changes nothing.
 
 A settlement values itself against the cost basis it consumes, so the drawdown
 happens before the entry can be judged complete. What a refusal after that
@@ -36,7 +36,7 @@ def test_the_bases_and_the_rest_of_the_file_are_left_alone(tmp_path):
         '--include-business-objects', '--fx-rates', RATES])
     assert result.exit_code == 0, result.output
     before = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Total USD basis balance: 200.00' in before, before
+    assert 'Total USD cost basis balance: 200.00' in before, before
 
     failing = tmp_path / 'failing.txt'
     failing.write_text(Path(NO_GAIN_SPLIT).read_text() + AN_ORDINARY_TRANSACTION)
@@ -45,7 +45,7 @@ def test_the_bases_and_the_rest_of_the_file_are_left_alone(tmp_path):
     assert refused.exit_code != 0, refused.output
     assert 'realizes 3.00 CAD' in refused.output, refused.output
 
-    # Both bases still hold everything they held.
+    # Both cost bases still hold everything they held.
     assert runner.invoke(cli, ['fx-balances', str(book)]).output == before
 
     # And the good transaction beside the refused invoice did not land: this

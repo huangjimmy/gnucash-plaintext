@@ -2,15 +2,15 @@
 CLI command listing foreign-currency cost bases (Q-035).
 
 Every split that brought foreign currency into the book — an invoice's A/R
-split, a bill's A/P split, currency bought or borrowed — establishes a cost
-basis: so many units at a stated cost in the book's own currency. Selling that
-currency picks one or more of these bases by guid, so a user writing a sale
-needs to see what bases exist, what each cost, and how much each has left.
+split, a bill's A/P split, currency bought or borrowed — establishes a **cost
+basis**: so many units, at what they cost in the book's own currency. Selling that
+currency picks one or more of these cost bases by guid, so a user writing a sale
+needs to see what cost bases exist, what each cost, and how much each has left.
 
 The balance of a cost basis is not the balance of an account: it is how much
 of *one split's* currency, at *that split's* cost, has not yet been sold. One
-bank account can hold currency from several bases at different costs, and a
-paid invoice's basis stays listed after the money has moved to the bank.
+bank account can hold currency from several cost bases at different costs, and a
+paid invoice's cost basis stays listed after the money has moved to the bank.
 """
 
 from fractions import Fraction
@@ -66,12 +66,12 @@ def _format_exactly(value, unit: int) -> str:
 
 
 def _format_cost_basis_balance(row) -> str:
-    """A basis this tool never wrote a balance for reads `none recorded`, not
+    """A cost basis this tool never wrote a balance for reads `none recorded`, not
     a number: how much of it is still unsold is not known, and its full amount
     would be a guess that could re-open currency already sold.
 
-    `malformed` is the whole basis, not this column: it is what a row says when
-    reading the basis at all raised — a stored *cost* that will not parse — so
+    `malformed` is the whole cost basis, not this column: it is what a row says when
+    reading the cost basis at all raised — a stored *cost* that will not parse — so
     there is no balance to print and no cost either.
 
     A balance that will not parse reads `none recorded`, the same as one never
@@ -119,7 +119,7 @@ def _finish_verifying(verified) -> None:
 def _report_currency_totals(totals) -> None:
     """Say which currency does not add up, and by how much.
 
-    A warning, and it does not set the exit code. Every basis here passes the
+    A warning, and it does not set the exit code. Every cost basis here passes the
     questions asked of it one at a time — that is what makes this worth
     printing and also what makes it the wrong thing to refuse over: the book is
     readable, its figures are the ones it holds, and what put the two sides out
@@ -127,7 +127,7 @@ def _report_currency_totals(totals) -> None:
     say which of them is right.
 
     Both figures and the difference, because the difference alone says nothing
-    about where to look: 80.00 short of 200.00 is a basis that lost its
+    about where to look: 80.00 short of 200.00 is a cost basis that lost its
     balance, and 80.00 over is one that gained currency that never arrived.
     """
     for row in totals:
@@ -140,22 +140,22 @@ def _report_currency_totals(totals) -> None:
             f"{_format_amount(row['held'], unit)} {currency} between them, "
             f"and the ledger says {_format_amount(row['arrived'], unit)} "
             f"{currency} arrived and {_format_amount(row['sold'], unit)} "
-            f"{currency} was sold against a basis — leaving "
+            f"{currency} was sold against a cost basis — leaving "
             f"{_format_amount(row['ledger'], unit)} {currency}.")
         click.echo(
             f"  {_format_amount(abs(row['difference']), unit)} {currency} is "
-            + ('accounted for by no basis. A balance was lowered without a '
+            + ('accounted for by no cost basis. A balance was lowered without a '
                'sale to lower it, or a sale gave back less than it took.'
                if short else
-               'held by the bases beyond what arrived. A balance was raised '
+               'held by the cost bases beyond what arrived. A balance was raised '
                'without a sale being deleted, or one was stated too high.'))
         click.echo(
-            '  Nothing is refused: every basis is within its own bounds, and '
+            '  Nothing is refused: every cost basis is within its own bounds, and '
             'which side is right is not something the book records.')
 
 
 def _report_malformed(malformed: int, verified) -> None:
-    """Say that a basis could not be read, wherever the listing ends up.
+    """Say that a cost basis could not be read, wherever the listing ends up.
 
     Over the whole book rather than what a filter left, and printed on the
     empty listing too: `--currency HKD` on a USD book said "no cost bases
@@ -175,7 +175,7 @@ def _report_disagreements(disagreements, checked: int) -> None:
     """What `--verify-costs` found, said in full.
 
     Every disagreement is reported, not the first — the run gathers them all
-    and the exit code comes at the end, so one bad basis never hides the rest.
+    and the exit code comes at the end, so one bad cost basis never hides the rest.
 
     Each is printed with the whole computation behind it: both guids to open
     the book at, the amount and value the ledger carries, its balance, the
@@ -183,7 +183,7 @@ def _report_disagreements(disagreements, checked: int) -> None:
     split measured against it, every factor of the derivation, and both
     answers with which one is used. Which figure is wrong is the reader's
     judgement; showing only that two differ leaves them to re-derive it by
-    hand. A basis that could not be read at all carries its traceback for the
+    hand. A cost basis that could not be read at all carries its traceback for the
     same reason.
     """
     if not disagreements:
@@ -194,8 +194,8 @@ def _report_disagreements(disagreements, checked: int) -> None:
     # "and found" rather than "of which", because the two numbers do not count
     # the same things. `checked` is the cost bases in the book; a finding can
     # be about a split that is not one at all — a balance stored where nothing
-    # reads it, a sale drawing on a split that is no basis — so a book with
-    # one stranded balance and no bases read "Checked 0 cost basis(es); 1
+    # reads it, a sale drawing on a split that is no cost basis — so a book with
+    # one stranded balance and no cost bases read "Checked 0 cost basis(es); 1
     # disagree".
     click.echo(f'Checked {checked} cost basis(es), and found '
                f'{len(disagreements)} thing(s) that do not hold:')
@@ -204,27 +204,27 @@ def _report_disagreements(disagreements, checked: int) -> None:
         click.echo(f"{row['date']}  {row['account']}")
         if row['description']:
             click.echo(f"    {row['description']}")
-        click.echo(f"    split guid       {row['guid']}")
-        click.echo(f"    tx guid          {row['tx_guid']}")
+        click.echo(f"    split guid         {row['guid']}")
+        click.echo(f"    tx guid            {row['tx_guid']}")
         if 'amount' in row:
             # Exactly, every one of them: these figures are printed because
-            # something about this basis is wrong, and a rounded one can hide
+            # something about this cost basis is wrong, and a rounded one can hide
             # the very difference being reported — the balance line read
             # "100.00" two lines above a finding about 100001/1000.
-            click.echo(f"    amount           "
+            click.echo(f"    amount             "
                        f"{_format_exactly(row['amount'], row['unit'])} {row['currency']}")
-            click.echo(f"    value            "
+            click.echo(f"    value              "
                        f"{_format_exactly(row['value'], row['tx_unit'])} "
                        f"{row['tx_currency']}   (the transaction's currency)")
             if row['balance'] is not None:
-                click.echo(f"    basis balance    "
+                click.echo(f"    cost basis balance "
                            f"{_format_exactly(row['balance'], row['unit'])} "
                            f"{row['currency']}")
             if row['malformed_balance']:
-                click.echo(f"    basis balance    "
+                click.echo(f"    cost basis balance "
                            f"{row['malformed_balance']!r}   (does not parse)")
             if row['tx_rate'] is not None:
-                click.echo(f"    transaction rate {exact_text(row['tx_rate'])} "
+                click.echo(f"    transaction rate   {exact_text(row['tx_rate'])} "
                            f"{BASE_CURRENCY}/{row['tx_currency']}")
             # The figures the rate was added up from, so a reader can see what
             # the cost came from. Where an account is kept finer than its
@@ -248,12 +248,12 @@ def _report_disagreements(disagreements, checked: int) -> None:
                     shown = f'— (no {BASE_CURRENCY} figure in the transaction)'
                 else:
                     shown = exact_text(factor)
-                click.echo(f'    {label:<16} {shown}')
-            click.echo(f"    computed cost    "
+                click.echo(f'    {label:<18} {shown}')
+            click.echo(f"    computed cost      "
                        f"{_format_cost(row['derived'], row['currency'])}")
-            click.echo(f"    stored cost      "
+            click.echo(f"    stored cost        "
                        f"{_format_cost(row['stored'], row['currency'])}")
-            click.echo(f"    used             "
+            click.echo(f"    used               "
                        f"{_format_cost(row['used'], row['currency'])}")
         for problem in row['problems']:
             click.echo(f'    - {problem}')
@@ -268,7 +268,7 @@ def _report_disagreements(disagreements, checked: int) -> None:
 @click.option('--currency', 'currency', default=None,
               help='Only list cost bases in this currency (e.g. USD).')
 @click.option('--with-balance-only', is_flag=True,
-              help='Show only bases with a balance above zero — hiding both '
+              help='Show only cost bases with a balance above zero — hiding both '
                    'the exhausted ones and any reading `none recorded`.')
 @click.option('--verify-costs', is_flag=True,
               help='Check each cost against the ledger figures it is derived '
@@ -277,12 +277,12 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
     """
     List every foreign-currency cost basis with its cost and its balance.
 
-    Each row is one split: its guid (what a sale names to pick that basis), the
+    Each row is one split: its guid (what a sale names to pick that cost basis), the
     transaction it came from, what one unit cost in the book's currency, how
     much currency it brought in, and how much of it is left to sell.
 
     To sell foreign currency, write the sale's foreign-currency split naming
-    the basis it is measured against:
+    the cost basis it is measured against:
 
     \b
         2026-03-01 * "Sell 200 USD"
@@ -292,16 +292,16 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
             Assets:Bank:CAD 278.00 CAD
             Income:FX Gain $residual$ CAD
 
-    A sale measured against two bases carries two USD splits, one naming each,
-    and each split's amount is how much of that basis it uses.
+    A sale measured against two cost bases carries two USD splits, one giving each,
+    and each split's amount is how much of that cost basis it uses.
 
     `--verify-costs` checks each cost against the ledger it is derived from and
-    reports what disagrees: that no balance is above what its basis brought in
+    reports what disagrees: that no balance is above what its cost basis brought in
     or below zero, and that a stored `cost_basis_cost` parses and
     agrees with the transaction. Both are exact comparisons against figures the
     book already holds; rates are not checked, because a rate runs forward into
     a rounded figure and the figure does not run back into the rate. The whole
-    book is checked and the exit code comes at the end, so one bad basis hides
+    book is checked and the exit code comes at the end, so one bad cost basis hides
     nothing.
 
     \b
@@ -325,13 +325,13 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
         wanted = currency.upper()
         rows = [row for row in rows if row['currency'] == wanted]
     if with_balance_only:
-        # A basis with nothing left cannot be sold against, so it is left out.
+        # A cost basis with nothing left cannot be sold against, so it is left out.
         rows = [row for row in rows
                 if row['balance'] is not None and row['balance'] > 0]
 
     if not rows:
         click.echo('No foreign-currency cost bases found.')
-        # A filter hiding every row does not make a malformed basis go away,
+        # A filter hiding every row does not make a malformed cost basis go away,
         # and it is the one thing a reader most needs told: the notice is over
         # the whole book, like the check below it.
         _report_malformed(malformed, verified)
@@ -340,18 +340,18 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
 
     # Size the account column to the longest name rather than truncating it:
     # a clipped account path ("Liabilities:Accounts Payable U") does not say
-    # which account the basis is on, which is half of what the row is for.
+    # which account the cost basis is on, which is half of what the row is for.
     width = max(len('ACCOUNT'), max(len(row['account']) for row in rows))
     header = (f"{'DATE':<12} {'SPLIT GUID':<34} {'ACCOUNT':<{width}} "
-              f"{'COST':>18} {'ACQUIRED':>14} {'BASIS BALANCE':>14}")
+              f"{'COST':>18} {'BROUGHT IN':>14} {'COST BASIS BALANCE':>18}")
     click.echo(header)
     click.echo('-' * len(header))
     for row in rows:
         click.echo(
             f"{row['date']:<12} {row['guid']:<34} {row['account']:<{width}} "
             f"{_format_cost(row['cost'], row['currency']):>18} "
-            f"{_format_amount(row['acquired'], row['unit']) + ' ' + row['currency']:>14} "
-            f"{_format_cost_basis_balance(row):>14}"
+            f"{_format_amount(row['brought_in'], row['unit']) + ' ' + row['currency']:>14} "
+            f"{_format_cost_basis_balance(row):>18}"
         )
         if row['description']:
             click.echo(f"{'':<12} {row['description']}")
@@ -369,7 +369,7 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
         totals[row['currency']] = totals.get(row['currency'], 0) + row['balance']
         units[row['currency']] = row['unit']
     for code in sorted(totals):
-        click.echo(f'Total {code} basis balance: '
+        click.echo(f'Total {code} cost basis balance: '
                    f'{_format_amount(totals[code], units[code])} {code}')
     if no_balance_recorded:
         click.echo(
@@ -381,10 +381,10 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
 
     _report_malformed(malformed, verified)
 
-    # Last, and only after everything has been listed and every basis checked:
+    # Last, and only after everything has been listed and every cost basis checked:
     # a verification that stopped the command at the first disagreement would
     # answer "is anything wrong" while hiding what, and hide the listing the
-    # reader needs to make sense of it. The count is every basis in the book —
+    # reader needs to make sense of it. The count is every cost basis in the book —
     # `rows` is what the filters left, and filtering a listing narrows what is
     # shown, not what was checked.
     _finish_verifying(verified)

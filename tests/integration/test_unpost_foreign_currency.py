@@ -1,7 +1,7 @@
 """Q-035: unposting a record whose cost basis something is measured against.
 
 A posted record's A/R or A/P split *is* the cost basis, and unposting destroys
-the posting transaction. Anything already measured against that basis would be
+the posting transaction. Anything already measured against that cost basis would be
 left naming a split the book no longer holds, and re-posting mints a new one
 with the whole amount available again — so a sale of 40 of 100 USD silently
 becomes 100 USD available, currency the book no longer has.
@@ -51,7 +51,7 @@ def test_unposting_an_invoice_whose_basis_was_sold_is_refused(tmp_path):
     basis = _basis_guid(runner, book)
     sale = tmp_path / 'sale.txt'
     # The invoice is not paid yet, so the sale says so deliberately — this test
-    # is about what unposting does to a basis in use, not about that rule.
+    # is about what unposting does to a cost basis in use, not about that rule.
     sale.write_text(
         Path('tests/fixtures/fx_sell_usd_partial.txt').read_text()
         .replace('{basis_a}', basis)
@@ -60,7 +60,7 @@ def test_unposting_an_invoice_whose_basis_was_sold_is_refused(tmp_path):
         .replace('share_price: "1.35"', 'share_price: "1.40"')
         .replace('value: "-54.00"', 'value: "-56.00"'))
     assert _run(runner, 'import', str(book), str(sale)).exit_code == 0
-    assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
+    assert 'Total USD cost basis balance: 60.00 USD' in _balances(runner, book)
 
     result = _run(runner, 'unpost-invoices', str(book), 'INV-USD-001')
     assert result.exit_code != 0, result.output
@@ -68,12 +68,12 @@ def test_unposting_an_invoice_whose_basis_was_sold_is_refused(tmp_path):
     assert 'cost basis' in message, message
     assert 'Sell 40 USD' in message, message
 
-    # And the basis is untouched: nothing was half-done.
-    assert 'Total USD basis balance: 60.00 USD' in _balances(runner, book)
+    # And the cost basis is untouched: nothing was half-done.
+    assert 'Total USD cost basis balance: 60.00 USD' in _balances(runner, book)
 
 
 def test_unposting_a_bill_whose_basis_was_settled_is_refused(tmp_path):
-    """The bill mirror: the A/P split is the basis, and settling it with USD
+    """The bill mirror: the A/P split is the cost basis, and settling it with USD
     cash measures against it."""
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'

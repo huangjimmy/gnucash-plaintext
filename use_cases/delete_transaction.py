@@ -29,7 +29,7 @@ class APreparedDelete:
 
     `plaintext` is the undo copy, and what it states about a cost basis is
     true of the book as it stands. Deleting a sale gives its currency back to
-    the basis it drew on, so a transaction written out after a sibling's
+    the cost basis it drew on, so a transaction written out after a sibling's
     deletion states a balance the book no longer had when the command began —
     and the undo copy, re-imported, then leaves the book offering currency its
     bank does not hold. So every transaction a run deletes is written out
@@ -160,14 +160,14 @@ class DeleteTransactionUseCase:
         target = self._the_one_the_book_holds(prepared.guid)
 
         # Q-035: a transaction that establishes a cost basis cannot go while
-        # anything still measures against it — that split *is* the basis.
+        # anything still measures against it — that split *is* the cost basis.
         require_no_cost_basis_dependents(
             self.repository.book, target,
             f'{prepared.date} {prepared.description!r}')
 
         # And read what this transaction takes from each cost basis before it
         # goes, so those amounts can be given back — deleting a sale returns
-        # its currency to the basis it was measured against.
+        # its currency to the cost basis it was measured against.
         taken = amounts_by_cost_basis(target)
 
         self.repository.delete_transaction(target)

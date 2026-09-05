@@ -1,4 +1,4 @@
-"""`--verify-costs` reports a disposal that draws on a split which is no basis.
+"""`--verify-costs` reports a disposal that draws on a split which is no cost basis.
 
 The other half of the same fault. A link can leave a split holding a
 `cost_basis_balance` it can no longer justify — reported already — and clearing

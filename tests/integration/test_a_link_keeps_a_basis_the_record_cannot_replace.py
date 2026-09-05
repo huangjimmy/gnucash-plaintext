@@ -2,15 +2,15 @@
 
 Linking a deposit to pay an invoice discards the deposit's cost basis because
 the invoice's receivable has priced that currency since the day it was posted:
-one lot of money, one basis. That reasoning fails where the record prices
+one lot of money, one cost basis. That reasoning fails where the record prices
 nothing.
 
 A foreign invoice booked to an income account kept in that same currency posts
 foreign against foreign. Nothing in the posting transaction says what the
 currency cost, and `_attach_posting_rate` stores no rate for it either, so its
-receivable split is no cost basis at all. Discarding the deposit's basis there
+receivable split is no cost basis at all. Discarding the deposit's cost basis there
 takes away the only cost the book had for that money — measured, `fx-balances`
-went from one basis of 2,720.00 USD to "No foreign-currency cost bases found",
+went from one cost basis of 2,720.00 USD to "No foreign-currency cost bases found",
 with `--verify-costs` reporting nothing wrong and the currency still sitting in
 the bank, unsellable.
 
@@ -92,7 +92,10 @@ def test_the_deposits_basis_is_kept(tmp_path):
     listing = _run(runner, 'fx-balances', str(book)).output
     assert 'No foreign-currency cost bases found' not in listing, listing
     assert '381589/272000 CAD/USD' in listing, listing
-    assert '2,720.00 USD   2,720.00 USD' in listing, listing
+    # Acquired and still unsold, side by side on the row. Matched with the
+    # spacing left open, so the assertion is about the two figures rather than
+    # about how wide the listing's last column happens to be.
+    assert re.search(r'2,720\.00 USD[^\n]+2,720\.00 USD', listing), listing
 
 
 def test_the_book_still_agrees_with_itself(tmp_path):

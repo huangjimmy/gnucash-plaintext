@@ -3,7 +3,7 @@
 Settling a foreign-currency invoice into a bank kept in another currency
 converts money, so it draws the converted units out of the receivable's cost
 basis — that USD is gone, spent at the rate the bank gave. `unapply-payment`
-and `unlink` put the settlement back to being owed, and the basis has to come
+and `unlink` put the settlement back to being owed, and the cost basis has to come
 back with it: the currency was never sold, it went back to being a receivable.
 
 What it cost while the balance stayed spent, on the book this uses — a 100.00
@@ -166,7 +166,7 @@ def test_the_basis_is_offered_again_once_the_payment_comes_off(command, book, re
 def test_the_record_can_be_settled_again_afterwards(command, book, record):
     """The point of taking a payment off is applying it somewhere.
 
-    Left spent, the basis refused this with "that USD has already been sold
+    Left spent, the cost basis refused this with "that USD has already been sold
     against it" — about money the book had just gone back to being owed.
     """
     off = _take_it_off(command, book, record)
@@ -228,7 +228,7 @@ def test_the_realized_difference_stays_where_the_file_put_it(command, book, reco
     file's own line, in the transaction the file wrote, and neither command
     rewrites that: the whole promise here is that the entry survives whole.
 
-    What that leaves, measured on this book: the basis reads 100.00 USD owed
+    What that leaves, measured on this book: the cost basis reads 100.00 USD owed
     and undisposed while the income statement carries −3.00 CAD of realized
     difference on disposing of it. Both are true of what happened — the money
     did convert, and it is no longer settling this invoice — and no rule in
@@ -282,7 +282,7 @@ def test_a_cad_account_takes_the_cost_and_not_the_cash(command, book, record):
 
 
 def test_a_basis_this_command_creates_is_opened_by_it(command, book, record):
-    """`--to` a USD account can make the restated split a basis of its own.
+    """`--to` a USD account can make the restated split a cost basis of its own.
 
     `establishes_cost_basis` answers False for a settlement *because* it
     carries `cost_basis_split_guid`. Dropping that key on the way out clears
@@ -290,10 +290,10 @@ def test_a_basis_this_command_creates_is_opened_by_it(command, book, record):
     currency becomes a cost basis — and one this command created, which it
     therefore has to open.
 
-    Measured on the bill before it did: `fx-balances` grew a 100.00 USD basis
+    Measured on the bill before it did: `fx-balances` grew a 100.00 USD cost basis
     on `Assets:Bank:USD` reading `none recorded`, left out of the total,
     under the sentence "this tool never wrote one for them". It had. A later
-    sale naming that basis was refused for the same untrue reason, offering a
+    sale giving that cost basis was refused for the same untrue reason, offering a
     hand-written `cost_basis_balance:` as the remedy.
 
     The invoice side never reached it — a credit on a debit-type account
@@ -307,18 +307,18 @@ def test_a_basis_this_command_creates_is_opened_by_it(command, book, record):
 
 
 def test_the_balance_comes_back_to_what_the_basis_brought_in(command, book, record):
-    """The basis is whole again and no more, which `--verify-costs` is for.
+    """The cost basis is whole again and no more, which `--verify-costs` is for.
 
     Two things hold it there and only one is this code's: the units given back
     are the ones the settlement drew, and `raise_cost_basis_balance` caps at
-    what the basis brought in whatever it is handed.
+    what the cost basis brought in whatever it is handed.
 
     Asked of `--verify-costs` rather than of the printed total. On the bill
     the total is legitimately 200.00 USD once the payment comes off — the
     payable owes 100.00 again, and the USD bank now holds the 100.00 the
-    settlement was restated onto — so a total is no test of one basis being
+    settlement was restated onto — so a total is no test of one cost basis being
     over-filled. What is, is the check that no balance stands above what its
-    own basis brought in.
+    own cost basis brought in.
     """
     off = _take_it_off(command, book, record)
     assert off.exit_code == 0, off.output

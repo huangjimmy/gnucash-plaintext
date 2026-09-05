@@ -97,7 +97,7 @@ def delete_transactions(gnucash_file, guids, by_guid, output_file):
         # Both read before anything is deleted. The undo copy states a cost
         # basis above whatever draws on it, and the guids are typed the other
         # way round because that is the only order a delete accepts; and a
-        # transaction written out after a sibling has gone states a basis
+        # transaction written out after a sibling has gone states a cost basis
         # balance the deletion has already raised.
         goes = where_each_undo_block_goes(repo.book, guids)
         prepared = []

@@ -6,14 +6,14 @@ its guid. So deleting the transaction that brought the currency in destroys
 the thing every sale of that currency points at, and the sales are left naming
 a guid the book no longer holds: `fx-balances` can no longer say what they
 cost, the export writes those guids out, and re-importing the file fails on
-them. Nothing gives that currency back either, because the basis it would go
+them. Nothing gives that currency back either, because the cost basis it would go
 back to is gone.
 
 The mirror of the unpost guard. Unposting an invoice destroys its A/R split
 the same way, and that has been refused all along while a sale measures
 against it; this is the other way the same split can be destroyed, and it is
 refused for the same reason and with the same remedy — remove the sales first,
-which gives their currency back, and then the basis is free to go.
+which gives their currency back, and then the cost basis is free to go.
 
 Deleting a *sale* is the ordinary direction and stays ordinary:
 `test_cost_basis_restored_on_delete.py` covers it.
@@ -43,9 +43,9 @@ def _export(runner, book, path):
 
 @pytest.fixture
 def book_with_a_sale(tmp_path):
-    """200 USD bought and borrowed, 40 of it sold against one basis.
+    """200 USD bought and borrowed, 40 of it sold against one cost basis.
 
-    Returns (book, purchase_guid) — the transaction whose split is the basis
+    Returns (book, purchase_guid) — the transaction whose split is the cost basis
     the sale measures against.
     """
     runner = CliRunner()
@@ -60,8 +60,8 @@ def book_with_a_sale(tmp_path):
                     .replace('{basis_a}', basis))
     assert _run(runner, 'import', str(book), str(sale)).exit_code == 0
 
-    # The purchase whose split is that basis. `fx-balances` lists the bought
-    # 100 first and the sale prices itself at 1.35, so the basis the sale
+    # The purchase whose split is that cost basis. `fx-balances` lists the bought
+    # 100 first and the sale prices itself at 1.35, so the cost basis the sale
     # measures against is the one this transaction established.
     exported = _export(runner, book, tmp_path / 'before.txt')
     purchase = re.search(
@@ -117,7 +117,7 @@ class TestNothingIsLost:
         runner = CliRunner()
         _run(runner, 'delete-transactions', str(book), '--by-guid', purchase)
 
-        assert 'Total USD basis balance: 160.00 USD' in _balances(runner, book)
+        assert 'Total USD cost basis balance: 160.00 USD' in _balances(runner, book)
 
 
 class TestOnceTheSaleIsGone:

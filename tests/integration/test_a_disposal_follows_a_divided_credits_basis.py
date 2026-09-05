@@ -1,4 +1,4 @@
-"""Spending part of a credit moves the disposals with the basis.
+"""Spending part of a credit moves the disposals with the cost basis.
 
 Spending part of an owner's credit divides the split it comes from. The part
 applied keeps the source split's guid and settles the record; the currency
@@ -19,7 +19,7 @@ credit's guid divides it here; `auto_apply_credit: true` leaves the division to
 GnuCash, which carves it differently — the applied part keeps the source's
 slots and the remainder comes out empty.
 
-Both are covered for a credit carrying no basis key at all, which is the shape
+Both are covered for a credit carrying no cost basis key at all, which is the shape
 that gets missed: a credit overpaid from a CAD bank stores no cost, spending it
 takes its balance, and an unpost hands it back with neither key and a sale
 still giving its guid. Read off the keys, such a credit is one nothing moves
@@ -30,8 +30,8 @@ owed back to the owner rather than a particular pile of currency, so an
 overpayment settling their next invoice in full is the commonest thing an
 overpayment is for, and whether the company converted some of that currency in
 the meantime has no bearing on it. Nothing is left for the sale to move to, so
-it keeps giving the credit's guid — a basis the book consumed, which the import
-takes and neither lowers nor refuses. A guid that was never a basis still is
+it keeps giving the credit's guid — a cost basis the book consumed, which the import
+takes and neither lowers nor refuses. A guid that was never a cost basis still is
 refused.
 """
 
@@ -318,7 +318,7 @@ def test_the_export_leaves_the_guid_out_once_the_pool_is_spent(tmp_path):
     keeps the guid, which is what it knows about where that currency came
     from; the file does not, because a rebuilt book has nothing to measure
     against it and the import says so. The same rule the export already
-    follows for a `cost_basis_cost` on a split that is no basis.
+    follows for a `cost_basis_cost` on a split that is no cost basis.
     """
     runner = CliRunner()
     book, _ = _a_credit_with_80_sold_from_it(runner, tmp_path)
@@ -339,7 +339,7 @@ def test_a_dashed_guid_is_read_the_same_way(tmp_path):
     """The spelling a file may use, which the readers all take the dashes out of.
 
     `cost_basis_guid_of` and `find_split_by_guid` both normalise, so a sale
-    stating `8ec2f1a0-…` picks its basis and draws it down like any other, and
+    stating `8ec2f1a0-…` picks its cost basis and draws it down like any other, and
     the key is stored on the split as the file spelled it. The export's own
     question — is this guid a pool the book consumed — has to normalise too,
     or it looks up nothing, answers no, and writes out a guid the import then
@@ -369,7 +369,7 @@ def test_a_disposal_of_another_currency_on_it_is_still_reported(tmp_path):
     The state is written into the book rather than imported, because the
     import refuses this outright — `_validate_pick` asks the currency question
     of every file. What reaches it is an `--atomic` re-point, where the pick
-    is allowed to differ and nothing draws a basis down, so this is the
+    is allowed to differ and nothing draws a cost basis down, so this is the
     question the finished book has to ask.
     """
     runner = CliRunner()
@@ -434,7 +434,7 @@ def test_verify_costs_says_nothing_about_the_book_that_keeps_it(tmp_path):
 
 
 def test_a_guid_that_was_never_a_basis_is_still_refused(tmp_path):
-    """Taking a consumed basis does not take any split that is no basis.
+    """Taking a consumed cost basis does not take any split that is no cost basis.
 
     The settlement of the first invoice is on the same account, in the same
     transaction, and lowers its USD the same way — and it was never anybody's
@@ -497,7 +497,7 @@ def test_a_file_cannot_buy_its_way_past_the_refusal_with_the_credit_mark(tmp_pat
 def test_the_sale_is_counted_against_the_remainder(tmp_path):
     """The listing's own arithmetic, which the stale guid took the sale out of.
 
-    A disposal drawing on a split that is no basis is counted against no
+    A disposal drawing on a split that is no cost basis is counted against no
     basis, so the ledger read as though the 80.00 had never been sold.
     """
     runner = CliRunner()
@@ -505,7 +505,7 @@ def test_the_sale_is_counted_against_the_remainder(tmp_path):
     _spend_30_of_it_through_a_block(runner, tmp_path, book)
 
     verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
-    assert '80.00 USD was sold against a basis' in verified.output, \
+    assert '80.00 USD was sold against a cost basis' in verified.output, \
         verified.output
 
 
@@ -559,7 +559,7 @@ def test_the_engine_moves_a_keyless_credits_sale_too(tmp_path):
     """`auto_apply_credit:` divides it, and the sale follows the pool.
 
     The walk that follows an engine-carved credit collected the splits that
-    carry a basis key, so a credit carrying none was never looked at: the
+    carry a cost basis key, so a credit carrying none was never looked at: the
     engine halved it, the sale went on giving the applied part, and that part
     settles the invoice — no cost basis, and marked as a credit the book
     consumed, which is what stops `--verify-costs` reporting it and what makes
@@ -585,7 +585,7 @@ def test_the_engine_moves_a_keyless_credits_sale_too(tmp_path):
 
 
 def _a_keyless_credit_a_sale_draws_on(runner, tmp_path):
-    """A credit carrying neither basis key, with 50.00 USD sold against it.
+    """A credit carrying neither cost basis key, with 50.00 USD sold against it.
 
     A credit overpaid from a CAD bank is priced by its own transaction, so it
     stores no cost of its own; spending it whole on an invoice takes its
@@ -665,7 +665,7 @@ def test_the_sale_follows_a_credit_that_carries_no_basis_key(tmp_path):
 def test_the_rebuilt_book_measures_the_sale_against_the_remainder(tmp_path):
     """The guid is what carries that, and the file carries the guid.
 
-    The remainder is a basis with no balance recorded in the book this ledger
+    The remainder is a cost basis with no balance recorded in the book this ledger
     comes from — spending the credit took the balance, and the unpost handed
     the split back without one — and no line states that, there being no way
     to write "not known" in a file. So the rebuilt book opens a balance for

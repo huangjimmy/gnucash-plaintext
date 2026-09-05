@@ -1,0 +1,18 @@
+# One 3,740.00 USD deposit into the USD bank, settling both USD invoices: a
+# receivable split per invoice, so a payment block can give one and not the
+# other.
+#
+# Every split is USD, so nothing in this transaction says what the USD cost
+# and none of it is a cost basis. Giving one of the settlements a CAD account
+# — which is what `unapply-payment --to` does — prices the transaction, and
+# the bank's whole 3,740.00 with it, though 1,020.00 of it is still the second
+# invoice's.
+2026-08-13 * "Received money for both invoices"
+	guid: "5a1e77cc11d34cf0b2b0c0d5aa9e3311"
+	currency.mnemonic: "USD"
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 000000000000001 3740.00 USD
+		guid: "5a1e77cc11d34cf0b2b0c0d5aa9e3312"
+	Assets:Current assets:Accounts receivable:USD -2720.00 USD
+		guid: "5a1e77cc11d34cf0b2b0c0d5aa9e3313"
+	Assets:Current assets:Accounts receivable:USD -1020.00 USD
+		guid: "5a1e77cc11d34cf0b2b0c0d5aa9e3314"

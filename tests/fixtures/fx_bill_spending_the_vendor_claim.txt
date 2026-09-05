@@ -1,0 +1,32 @@
+# A 100.00 USD bill settled out of the claim prepaid to that supplier.
+#
+# `from_credit: true` says the money is the vendor's own claim rather than a
+# bank payment, and the two guids give the split it comes out of. Spending it
+# takes its `cost_basis_balance` off — because the currency was spent, which
+# says nothing about how much of it had been sold beforehand.
+#
+# TXN_GUID and SPLIT_GUID are filled in by the test from the book.
+bill "BILL-SPENDS-IT"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Supplies"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "BILL-SPENDS-IT"
+		accumulate: true
+	payment:
+		amount: 100.00
+		from_credit: true
+		credit_dated: 2026-02-01
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

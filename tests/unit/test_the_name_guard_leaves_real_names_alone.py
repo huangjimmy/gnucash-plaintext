@@ -37,9 +37,9 @@ REFUSED = [
     'the report names the split',
     'refused, naming them',
     'a block naming a guid',
-    'the guid names the basis it draws on',
+    'the guid names the cost basis it draws on',
     'it names that transaction and the route that works',
-    'the listing names each basis',
+    'the listing names each cost basis',
     'prose is fine until it names it halfway down',
     'naming the transaction it was linked to',
     'naming the lot the payment settled',
@@ -185,7 +185,7 @@ class TestALineTheFileAlreadyHolds:
 
     def test_a_new_one_is_still_refused(self, tmp_path):
         held = 'the report names the split\n'
-        assert self._judge_against(tmp_path, held, 'the guid names the basis')
+        assert self._judge_against(tmp_path, held, 'the guid names the cost basis')
 
     def test_a_file_that_is_not_there_yet_is_judged_whole(self, tmp_path):
         target = tmp_path / 'new.md'

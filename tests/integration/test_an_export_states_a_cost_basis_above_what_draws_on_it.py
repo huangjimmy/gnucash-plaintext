@@ -126,7 +126,7 @@ def test_the_undo_copy_a_delete_writes_states_them_in_that_order(tmp_path):
     assert undone.exit_code == 0, undone.output
     assert re.search(r'Errors:\s+0$', undone.output, re.M), undone.output
 
-    # And the book is back: the deposit's basis, less what the fee took.
+    # And the book is back: the deposit's cost basis, less what the fee took.
     listing = _run(runner, 'fx-balances', str(book))
     assert listing.exit_code == 0, listing.output
     assert '2,719.28 USD' in listing.output, listing.output

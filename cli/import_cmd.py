@@ -158,7 +158,7 @@ def _what_the_book_gets_wrong(book):
 
     The identity is what those two lists are compared on, and it is not the
     sentence, because a sentence states figures and figures move. A book whose
-    USD bases hold 20.00 against a ledger of 100.00 reads "hold 20.00 … says
+    USD cost bases hold 20.00 against a ledger of 100.00 reads "hold 20.00 … says
     100.00 — a difference of 80.00"; add an unrelated 50.00 USD purchase and
     the same untouched fault reads "hold 70.00 … says 150.00", which as text
     is a fault the file introduced and would be rolled back over. So a split's
@@ -168,7 +168,7 @@ def _what_the_book_gets_wrong(book):
 
     **The per-currency totals are not among these questions**, though
     `--verify-costs` prints them. They are a warning there and say so on the
-    page — "Nothing is refused: every basis is within its own bounds, and
+    page — "Nothing is refused: every cost basis is within its own bounds, and
     which side is right is not something the book records" — and a warning is
     not something to throw a run away over. What a rollback answers to is the
     questions that set that command's exit code.
@@ -191,7 +191,7 @@ def _what_the_book_gets_wrong(book):
     block was applied. There is nothing here that `--verify-costs` does not
     also report; a book that passes one passes the other.
 
-    What is deliberately **not** among them is any comparison of what the bases
+    What is deliberately **not** among them is any comparison of what the cost bases
     offer against what the accounts hold. That is not an invariant this model
     keeps: an account that received 60.00 USD and paid an 8.00 USD fee out of
     the same transaction holds 52.00 and offers 60.00, and that book is
@@ -210,7 +210,7 @@ def _what_the_book_gets_wrong(book):
         for problem in row['problems']:
             # The split, and what is wrong with it with the figures taken out.
             # A sentence states figures and figures move: a balance of 150.00
-            # on a basis that brought in 100.00 is the same fault after an
+            # on a cost basis that brought in 100.00 is the same fault after an
             # ordinary sale draws it to 140.00, and after a repair lowers it to
             # 120.00 without finishing. Read as text, both are new faults the
             # file introduced, and an unrelated import is rolled back over one
@@ -224,7 +224,7 @@ def _what_the_book_gets_wrong(book):
             # figure any of them states.
             #
             # What this gives up is a fault the file makes *worse in the same
-            # words*: a balance already above what its basis brought in, raised
+            # words*: a balance already above what its cost basis brought in, raised
             # further, reads as the identity that was there before and commits.
             # The alternative is refusing a repair that improves a fault
             # without finishing it, which is the case this exemption exists
@@ -351,7 +351,7 @@ def _warn_open_prepayment_mismatches(directives, book):
          'any order. It is deferred for a transaction that holds a cost basis '
          'or re-points a disposal at another one; a block restating what a '
          'disposal takes is refused as it lands, this flag or not, because '
-         'nothing draws a basis down on the update path. Without this, a file '
+         'nothing draws a cost basis down on the update path. Without this, a file '
          'whose blocks partly fail keeps the ones that worked and reports the '
          'rest, which is what a bank feed wants and what a repair cannot use.'
 )

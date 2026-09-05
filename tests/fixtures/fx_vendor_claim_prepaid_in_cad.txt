@@ -1,0 +1,70 @@
+# 100.00 USD prepaid to a supplier, paid out of a CAD bank.
+#
+# The claim on the vendor is a *debit* on the payable — positive, unlike a
+# customer's credit, which is money owed back and sits negative on the
+# receivable. That sign is why this shape can bring currency into the book
+# again when the claim is later moved to a bank account, and the customer
+# side cannot.
+#
+# Nothing in the transaction but these two splits: no second settlement, no
+# other claim, nothing an unpost has loosened.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable USD
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Supplies
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+vendor "V-US"
+	name: "US Supplier"
+	currency: USD
+
+2026-02-01 * "Prepaid the supplier 100 USD, paid in CAD"
+	currency.mnemonic: "CAD"
+	Liabilities:Accounts Payable USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "137.00"
+		lot_owner: "vendor:V-US"
+	Assets:Bank -137.00 CAD
+		account.commodity.mnemonic: "CAD"

@@ -1,12 +1,12 @@
-"""Q-035: foreign-currency cost bases, their basis balances, and selling.
+"""Q-035: foreign-currency cost bases, their cost basis balances, and selling.
 
 Every split that brings foreign currency in establishes a cost basis. Selling
-picks one or more of them by guid; each basis's basis balance falls by what
-the sale takes from it, and picking more than a basis has is refused.
+picks one or more of them by guid; each cost basis's balance falls by what
+the sale takes from it, and picking more than a cost basis has is refused.
 
-The basis balance of a cost basis is not an account balance — a paid
-invoice's basis keeps its balance after the money has moved to the bank, and
-one bank account holds currency from several bases at different costs.
+The cost basis balance of a cost basis is not an account balance — a paid
+invoice's cost basis keeps its balance after the money has moved to the bank, and
+one bank account holds currency from several cost bases at different costs.
 """
 
 import re
@@ -43,7 +43,7 @@ def _export_text(runner, book, out):
 
 def _split_guid(exported: str, split_line: str) -> str:
     """The guid of the split whose line reads `split_line` — how a user finds
-    the basis to name, straight out of their own export."""
+    the cost basis to name, straight out of their own export."""
     lines = exported.splitlines()
     for index, line in enumerate(lines):
         if line.strip() == split_line:
@@ -107,13 +107,13 @@ def _buy_and_borrow_book(runner, tmp_path):
     guids = re.findall(
         r'Assets:Bank:USD 100\.00 USD\n\t+guid: "([0-9a-f]{32})"', exported)
     assert len(guids) == 2, exported
-    # The bought basis is dated 2026-01-10, the borrowed one 2026-01-20; the
+    # The bought cost basis is dated 2026-01-10, the borrowed one 2026-01-20; the
     # export is chronological.
     return book, guids[0], guids[1]
 
 
 def test_every_way_currency_arrives_is_listed_with_its_cost(tmp_path):
-    """An invoice, a bill, a purchase and a borrowing each establish a basis."""
+    """An invoice, a bill, a purchase and a borrowing each establish a cost basis."""
     runner = CliRunner()
     book, bought, borrowed = _buy_and_borrow_book(runner, tmp_path)
     listing = _balances(runner, book)
@@ -122,7 +122,7 @@ def test_every_way_currency_arrives_is_listed_with_its_cost(tmp_path):
     # guess which way round a bare 1.35 goes.
     assert '1.35 CAD/USD' in listing, listing
     assert '1.3 CAD/USD' in listing, listing
-    assert 'Total USD basis balance: 200.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 200.00 USD' in listing, listing
 
     invoice_book = tmp_path / 'inv.gnucash'
     _import_new(runner, invoice_book, 'tests/fixtures/fx_usd_invoice_cad_income.txt',
@@ -130,19 +130,19 @@ def test_every_way_currency_arrives_is_listed_with_its_cost(tmp_path):
     invoice_listing = _balances(runner, invoice_book)
     assert 'Assets:Accounts Receivable USD' in invoice_listing, invoice_listing
     assert '1.4 CAD/USD' in invoice_listing, invoice_listing
-    assert 'Total USD basis balance: 100.00' in invoice_listing, invoice_listing
+    assert 'Total USD cost basis balance: 100.00' in invoice_listing, invoice_listing
 
     bill_book = tmp_path / 'bill.gnucash'
     _import_new(runner, bill_book, 'tests/fixtures/fx_usd_bill_cad_expense.txt',
                 '--fx-rates', RATES)
     bill_listing = _balances(runner, bill_book)
     assert 'Accounts Payable USD' in bill_listing, bill_listing
-    assert 'Total USD basis balance: 100.00' in bill_listing, bill_listing
+    assert 'Total USD cost basis balance: 100.00' in bill_listing, bill_listing
 
 
 def test_two_bases_at_the_same_cost_stay_two(tmp_path):
-    """Same cost, same currency, same account — still two bases, each with its
-    own basis balance, because each is its own split."""
+    """Same cost, same currency, same account — still two cost bases, each with its
+    own cost basis balance, because each is its own split."""
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
     fixture = tmp_path / 'same_cost.txt'
@@ -154,11 +154,11 @@ def test_two_bases_at_the_same_cost_stay_two(tmp_path):
     listing = _balances(runner, book)
     guids = re.findall(r'\b([0-9a-f]{32})\b', listing)
     assert len(set(guids)) == 2, listing
-    assert 'Total USD basis balance: 200.00' in listing, listing
+    assert 'Total USD cost basis balance: 200.00' in listing, listing
 
 
 def test_selling_against_one_basis_books_the_gain_and_lowers_that_basis(tmp_path):
-    """40 of 100 USD sold: the basis keeps 60.00 available, and the residual
+    """40 of 100 USD sold: the cost basis keeps 60.00 available, and the residual
     split books the difference between cost and proceeds."""
     runner = CliRunner()
     book, bought, _borrowed = _buy_and_borrow_book(runner, tmp_path)
@@ -170,7 +170,7 @@ def test_selling_against_one_basis_books_the_gain_and_lowers_that_basis(tmp_path
 
     listing = _balances(runner, book)
     assert '60.00 USD' in listing, listing
-    assert 'Total USD basis balance: 160.00' in listing, listing
+    assert 'Total USD cost basis balance: 160.00' in listing, listing
 
     exported = _export_text(runner, book, tmp_path / 'after.txt')
     # 40 USD at cost 1.35 is 54.00; sold for 55.60; the residual is the 1.60 gain.
@@ -180,8 +180,8 @@ def test_selling_against_one_basis_books_the_gain_and_lowers_that_basis(tmp_path
 
 
 def test_a_sale_can_spread_across_several_bases(tmp_path):
-    """150 USD sold as 100 from one basis and 50 from another: two USD splits,
-    one naming each, and both balances fall by what that sale took."""
+    """150 USD sold as 100 from one cost basis and 50 from another: two USD splits,
+    one giving each, and both balances fall by what that sale took."""
     runner = CliRunner()
     book, bought, borrowed = _buy_and_borrow_book(runner, tmp_path)
 
@@ -191,7 +191,7 @@ def test_a_sale_can_spread_across_several_bases(tmp_path):
     assert result.exit_code == 0, result.output
 
     listing = _balances(runner, book)
-    assert 'Total USD basis balance: 50.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 50.00 USD' in listing, listing
     assert '0.00 USD' in listing, listing
 
     exported = _export_text(runner, book, tmp_path / 'after.txt')
@@ -207,11 +207,11 @@ def test_selling_more_than_a_basis_has_is_refused(tmp_path):
                        basis_a=bought)
     result = _import(runner, book, sale)
     message = result.output + str(result.exception)
-    assert 'exceeds its basis balance' in message, message
+    assert 'exceeds its cost basis balance' in message, message
 
-    # And nothing was recorded: the basis still has all 100.00 available.
+    # And nothing was recorded: the cost basis still has all 100.00 available.
     listing = _balances(runner, book)
-    assert 'Total USD basis balance: 200.00' in listing, listing
+    assert 'Total USD cost basis balance: 200.00' in listing, listing
 
 
 def test_selling_at_a_cost_the_basis_does_not_carry_is_refused(tmp_path):
@@ -258,7 +258,7 @@ def test_available_balance_survives_export_and_re_import(tmp_path):
     # Re-importing the same sale into the original book is a duplicate and
     # changes nothing — the balance is derived from the book, not decremented.
     assert _import(runner, book, sale).exit_code == 0
-    assert 'Total USD basis balance: 160.00' in _balances(runner, book)
+    assert 'Total USD cost basis balance: 160.00' in _balances(runner, book)
 
 
 def test_an_overpayment_opens_a_basis_like_a_borrowing(tmp_path):
@@ -267,8 +267,8 @@ def test_an_overpayment_opens_a_basis_like_a_borrowing(tmp_path):
 
     The overpayment is a credit balance on the receivable — the customer's
     money, held and owed back — which is a borrowing in the shape of the A/P
-    side. Counting only the settling split opened a basis for half of what the
-    bank held, and a sale of the rest was refused as exceeding its basis.
+    side. Counting only the settling split opened a cost basis for half of what the
+    bank held, and a sale of the rest was refused as exceeding its cost basis.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -277,7 +277,7 @@ def test_an_overpayment_opens_a_basis_like_a_borrowing(tmp_path):
                 '--fx-rates', RATES)
 
     listing = _balances(runner, book)
-    assert 'Total USD basis balance: 200.00' in listing, listing
+    assert 'Total USD cost basis balance: 200.00' in listing, listing
     rows = [line for line in listing.splitlines() if 'Accounts Receivable USD' in line]
     assert len(rows) == 2, listing
     for row in rows:
@@ -285,9 +285,9 @@ def test_an_overpayment_opens_a_basis_like_a_borrowing(tmp_path):
 
     # Paid in the invoice's own currency, the payment has no CAD figure in it
     # to derive a cost from — every split is USD and `share_price` describes a
-    # rate of 1 — so this is the one basis whose cost is written down, and it
+    # rate of 1 — so this is the one cost basis whose cost is written down, and it
     # is written with its direction. The bank's own 200.00 USD split carries
-    # no basis at all for the same reason, which is what keeps the currency
+    # no cost basis at all for the same reason, which is what keeps the currency
     # from being counted twice.
     exported = _export_text(runner, book, tmp_path / 'out.txt')
     assert 'cost_basis_cost: "1.4 CAD/USD"' in exported, exported
@@ -296,10 +296,10 @@ def test_an_overpayment_opens_a_basis_like_a_borrowing(tmp_path):
 
 
 def test_the_overpaid_currency_can_then_be_sold(tmp_path):
-    """A basis that lists is a basis that sells.
+    """A cost basis that lists is a cost basis that sells.
 
     The book holds 200.00 USD after the overpayment, so all 200.00 can be sold
-    — 100 against the invoice's basis and 100 against the credit's, both
+    — 100 against the invoice's cost basis and 100 against the credit's, both
     carried at 1.40. The 290.00 CAD it fetches against 280.00 of cost leaves a
     10.00 CAD gain, and nothing is left available.
     """
@@ -319,13 +319,13 @@ def test_the_overpaid_currency_can_then_be_sold(tmp_path):
 
     exported = _export_text(runner, book, tmp_path / 'out.txt')
     assert 'Income:FX Gain -10.00 CAD' in exported, exported
-    assert 'Total USD basis balance: 0.00' in _balances(runner, book), _balances(runner, book)
+    assert 'Total USD cost basis balance: 0.00' in _balances(runner, book), _balances(runner, book)
 
 
 def test_a_second_record_does_not_open_bases_on_the_first(tmp_path):
     """Two foreign records sharing one receivable stay independent.
 
-    Opening a basis for an overpayment means finding the split the payment
+    Opening a cost basis for an overpayment means finding the split the payment
     left behind. Looking for it across the whole account finds every *other*
     record's settlement split too — none of them in this record's lot — and
     stamps them with this record's cost. Two ordinary invoices on one A/R
@@ -345,7 +345,7 @@ def test_a_second_record_does_not_open_bases_on_the_first(tmp_path):
     listing = _balances(runner, book)
     # 100.00 from the first invoice, 100.00 it was overpaid by, 100.00 from the
     # second — which is exactly what the USD bank holds.
-    assert 'Total USD basis balance: 300.00' in listing, listing
+    assert 'Total USD cost basis balance: 300.00' in listing, listing
     rows = [line for line in listing.splitlines() if 'USD' in line and 'CAD/USD' in line]
     assert len(rows) == 3, listing
 
@@ -359,7 +359,7 @@ def test_a_second_record_does_not_open_bases_on_the_first(tmp_path):
 def test_paying_down_a_payable_opens_no_basis(tmp_path):
     """A debit on a payable is money sent, not currency held.
 
-    A vendor prepayment is a debit on that same account and *is* a basis, so
+    A vendor prepayment is a debit on that same account and *is* a cost basis, so
     the direction alone cannot separate them — the lot does: a settlement
     belongs to the bill it settles, a prepayment to nothing yet. Counting
     either direction offered 100.00 USD that had already left the book.
@@ -380,14 +380,14 @@ def test_a_hand_written_overpayment_opens_one_basis_only(tmp_path):
 
     The 100.00 USD arrives in the bank and the receivable carries the credit
     that says it is owed back. Only the bank side is currency the book can
-    sell, and its basis is there; counting the credit as well would offer
+    sell, and its cost basis is there; counting the credit as well would offer
     200.00 USD against 100.00 held.
 
     This is the shape that has no lot at all, which the prepayment test
     (`_is_prepayment`) answers False for. That was raised as a defect — a
-    hand-written credit no longer establishing a basis, its currency
+    hand-written credit no longer establishing a cost basis, its currency
     unsellable — and this test is why it is not one: the currency arrived in
-    the bank, the bank split is a basis for it, and it is sellable from there.
+    the bank, the bank split is a cost basis for it, and it is sellable from there.
     Answering True for the lot-less credit as well would list the same 100.00
     USD twice. What the credit records is the obligation, not a second holding.
 
@@ -401,7 +401,7 @@ def test_a_hand_written_overpayment_opens_one_basis_only(tmp_path):
                 'tests/fixtures/hand_written_customer_overpayment.txt')
 
     listing = _balances(runner, book)
-    assert 'Total USD basis balance: 100.00' in listing, listing
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
     assert listing.count('1.4 CAD/USD') == 1, listing
 
 
@@ -415,7 +415,7 @@ def test_refunding_a_prepayment_opens_no_basis(tmp_path):
     owns — and counting every debit offered 100.00 USD that had already left.
 
     The prepayment itself is one lump written twice, and is listed once: the
-    bank took the money, so the bank split is the basis and the credit facing
+    bank took the money, so the bank split is the cost basis and the credit facing
     it is the obligation. `lot_owner:` says which side of a receivable this
     is, not how many holdings there are — counting the credit as well listed
     the same 100.00 USD twice, disagreeing with the hand-written overpayment
@@ -426,12 +426,12 @@ def test_refunding_a_prepayment_opens_no_basis(tmp_path):
     _import_new(runner, book, 'tests/fixtures/fx_refund_usd_prepayment.txt')
 
     listing = _balances(runner, book)
-    # One lump of currency, one basis: the bank's 100.00 USD. The credit
+    # One lump of currency, one cost basis: the bank's 100.00 USD. The credit
     # facing it records the obligation, not a second holding — the same
     # answer the hand-written overpayment above gets, and `lot_owner:` does
     # not change what the money is. The refund adds nothing either: it sends
     # that money away.
-    assert 'Total USD basis balance: 100.00' in listing, listing
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
     assert listing.count('1.37 CAD/USD') == 1, listing
     assert 'Assets:Bank:USD' in listing, listing
     assert 'Receivable' not in listing, listing
@@ -442,7 +442,7 @@ def test_a_prepayment_arriving_as_base_currency_opens_it_on_the_receivable(tmp_p
 
     A customer prepays 100 USD and the bank takes CAD: there is no
     foreign-currency split beside the credit, and the book holds no USD
-    anywhere. The credit is the basis — 100.00 USD at 1.37 — and a basis's
+    anywhere. The credit is the cost basis — 100.00 USD at 1.37 — and a cost basis's
     total is not an account's balance.
     """
     runner = CliRunner()
@@ -451,7 +451,7 @@ def test_a_prepayment_arriving_as_base_currency_opens_it_on_the_receivable(tmp_p
 
     listing = _balances(runner, book)
     assert 'Accounts Receivable USD' in listing, listing
-    assert 'Total USD basis balance: 100.00' in listing, listing
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
     assert '1.37 CAD/USD' in listing, listing
 
 
@@ -461,13 +461,13 @@ def test_a_settlement_arriving_as_base_currency_opens_no_second_basis(tmp_path):
     Written by hand with the money arriving as CAD, a settlement and a
     prepayment are the same three lines; only the lot differs, and neither
     hand-written split has one. This is the settlement half: the receivable
-    already opened its 100.00 USD basis when it was written, and the credit
+    already opened its 100.00 USD cost basis when it was written, and the credit
     that closes it brings nothing in.
 
     Reading every lot-less credit as a prepayment — which is what recognising
     the prepayment half by shape alone would mean — lists this settlement as a
-    second basis and offers 200.00 USD from a book holding none. The
-    prepayment says which it is with `lot_owner:`, and opens its basis in full
+    second cost basis and offers 200.00 USD from a book holding none. The
+    prepayment says which it is with `lot_owner:`, and opens its cost basis in full
     (see the test above).
     """
     runner = CliRunner()
@@ -475,15 +475,15 @@ def test_a_settlement_arriving_as_base_currency_opens_no_second_basis(tmp_path):
     _import_new(runner, book, 'tests/fixtures/fx_settlement_arriving_as_cad.txt')
 
     listing = _balances(runner, book)
-    assert 'Total USD basis balance: 100.00' in listing, listing
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
     assert listing.count('1.4 CAD/USD') == 1, listing
     assert '1.37 CAD/USD' not in listing, listing
 
 
 def test_a_refused_transaction_leaves_every_basis_where_it_was(tmp_path):
-    """A file that names a basis and is then refused moves nothing.
+    """A file that gives a cost basis and is then refused moves nothing.
 
-    The transaction here picks a basis for 40.00 USD and states, on the split
+    The transaction here picks a cost basis for 40.00 USD and states, on the split
     below, a cost that cannot be read. The whole thing is refused before it is
     created — a stated cost is checked first, ahead of the transaction and
     ahead of the pick — so no balance is ever lowered, the rest of the file
@@ -506,7 +506,7 @@ def test_a_refused_transaction_leaves_every_basis_where_it_was(tmp_path):
     assert 'Transactions: 1' in result.output, result.output    # the other one
 
     listing = _balances(runner, book)
-    assert 'Total USD basis balance: 200.00' in listing, listing
+    assert 'Total USD cost basis balance: 200.00' in listing, listing
     assert '60.00 USD' not in listing, listing
 
     exported = _export_text(runner, book, tmp_path / 'after.txt')
@@ -518,13 +518,13 @@ def test_prepaying_a_vendor_from_a_usd_bank_moves_the_basis_across(tmp_path):
 
     Sending a vendor 100 USD out of the USD the book holds leaves a claim on
     that vendor for the same 100 USD, and the claim is where the currency now
-    is: the payable debit establishes a basis. The bank side is a spend like
-    any other, so it names the basis it spends and that basis goes to zero —
+    is: the payable debit establishes a cost basis. The bank side is a spend like
+    any other, so it gives the guid of the cost basis it spends and that cost basis goes to zero —
     the 100 USD stays counted once, on the account that now holds it.
 
     Written without naming it, the outgoing side draws down nothing and the
-    listing keeps offering the bank's basis: 200.00 USD against 100.00 held.
-    That is the same rule as any sale that names no basis, and it is asserted
+    listing keeps offering the bank's cost basis: 200.00 USD against 100.00 held.
+    That is the same rule as any sale that gives no cost basis, and it is asserted
     here so the vendor case is not read as an exception to it.
     """
     runner = CliRunner()
@@ -540,8 +540,8 @@ def test_prepaying_a_vendor_from_a_usd_bank_moves_the_basis_across(tmp_path):
 
     listing = _balances(runner, book)
     assert 'Accounts Payable USD' in listing, listing
-    assert 'Total USD basis balance: 100.00' in listing, listing
-    assert '0.00 USD' in listing, listing            # the bank's basis, spent
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
+    assert '0.00 USD' in listing, listing            # the bank's cost basis, spent
 
     # The same prepayment naming nothing on its way out.
     bare_book = tmp_path / 'bare.gnucash'
@@ -552,7 +552,7 @@ def test_prepaying_a_vendor_from_a_usd_bank_moves_the_basis_across(tmp_path):
         .replace('\t\tcost_basis_split_guid: "{basis_a}"\n', ''))
     result = _import(runner, bare_book, bare)
     assert result.exit_code == 0, result.output
-    assert 'Total USD basis balance: 200.00' in _balances(runner, bare_book)
+    assert 'Total USD cost basis balance: 200.00' in _balances(runner, bare_book)
 
 
 def test_a_refund_naming_no_lot_reads_as_the_receivable_it_resembles(tmp_path):
@@ -586,13 +586,13 @@ def test_a_refund_naming_no_lot_reads_as_the_receivable_it_resembles(tmp_path):
 
 
 def test_currency_arriving_in_a_liability_counts_as_having_arrived(tmp_path):
-    """One lump, one basis — including when the lump arrives as a credit.
+    """One lump, one cost basis — including when the lump arrives as a credit.
 
     A vendor prepaid from a USD credit line writes the draw and the claim in
     one transaction. The draw is where the currency entered the book, and a
     liability rises as its amount goes *negative*, so a test for "did this
     currency arrive elsewhere" that looks for a positive amount is blind to
-    it: the payable debit then opened a second basis and the listing offered
+    it: the payable debit then opened a second cost basis and the listing offered
     200.00 USD for one 100.00 USD draw.
     """
     runner = CliRunner()
@@ -601,7 +601,7 @@ def test_currency_arriving_in_a_liability_counts_as_having_arrived(tmp_path):
                 'tests/fixtures/fx_vendor_prepayment_from_a_usd_credit_line.txt')
 
     listing = _balances(runner, book)
-    assert 'Total USD basis balance: 100.00' in listing, listing
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
     assert 'USD Credit Line' in listing, listing
     assert 'Accounts Payable' not in listing, listing
 
@@ -616,11 +616,11 @@ def test_an_overpayment_retargeted_into_the_lot_opens_the_credits_basis(tmp_path
     splits on the receivable: the part that settled the invoice, in its lot,
     and the credit, in a lot of its own.
 
-    The credit is currency the book holds and owes back, so it is a basis like
+    The credit is currency the book holds and owes back, so it is a cost basis like
     any other, and its cost is the one the invoice was carried at: paid in the
     invoice's own currency, the transaction states no CAD figure to derive it
     from. Without it the book claimed 100.00 USD sellable while its bank held
-    200.00, and selling what it actually had was refused for exceeding a basis
+    200.00, and selling what it actually had was refused for exceeding a cost basis
     nothing had opened.
     """
     from repositories.gnucash_repository import GnuCashRepository, SessionMode
@@ -662,11 +662,11 @@ def test_an_overpayment_retargeted_into_the_lot_opens_the_credits_basis(tmp_path
                                  '--include-business-objects', '--fx-rates', RATES])
     assert result.exit_code == 0, result.output
 
-    # Both halves are bases, at the rate the invoice was booked at, and the
+    # Both halves are cost bases, at the rate the invoice was booked at, and the
     # book offers exactly the 200.00 USD its bank holds.
     listing = _balances(runner, book)
     assert listing.count('1.4 CAD/USD') == 2, listing
-    assert 'Total USD basis balance: 200.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 200.00 USD' in listing, listing
 
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
@@ -701,7 +701,7 @@ def test_an_overpayment_retargeted_into_the_lot_opens_the_credits_basis(tmp_path
     # And a second invoice may then spend that credit the short way — naming
     # the transaction and nothing else. The money is the customer's, sitting in
     # a lot of the customer's, so this settles out of credit whether or not the
-    # file uses the word: the split's basis is spent with it, and the book goes
+    # file uses the word: the split's cost basis is spent with it, and the book goes
     # back to offering the 100.00 USD its bank actually holds free.
     second = tmp_path / 'second.txt'
     second.write_text(
@@ -714,11 +714,11 @@ def test_an_overpayment_retargeted_into_the_lot_opens_the_credits_basis(tmp_path
     # The credit was spent, so it is no longer currency the book holds: the
     # deposit of 2026-02-25 drops off the listing, and what is left is the two
     # invoices' own receivables — 200.00 USD, which is what the bank holds.
-    # Left with its basis it would offer 300.00 against a bank holding 200.00,
+    # Left with its cost basis it would offer 300.00 against a bank holding 200.00,
     # money the book cannot produce and no other figure disagrees with.
     listing = _balances(runner, book)
     assert '2026-02-25' not in listing, listing
-    assert 'Total USD basis balance: 200.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 200.00 USD' in listing, listing
     assert listing.count('CAD/USD') == 2, listing
 
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
@@ -804,14 +804,14 @@ def test_a_bare_retarget_dividing_a_credit_carries_its_cost(tmp_path):
 
     # The row for the deposit is what the division left: 60.00 still owed
     # back, at the 1.4 it arrived at. INV-USD-THIRD's own 1.37 row beneath it
-    # is its receivable, which is a separate basis and rightly at its own rate.
+    # is its receivable, which is a separate cost basis and rightly at its own rate.
     listing = _balances(runner, book)
     remainder = next((line for line in listing.splitlines()
                       if line.startswith('2026-02-25')), '')
     assert '1.4 CAD/USD' in remainder, listing
     assert '60.00 USD' in remainder, listing
     assert '1.37' not in remainder, listing
-    assert 'Total USD basis balance: 200.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 200.00 USD' in listing, listing
     assert runner.invoke(cli, ['fx-balances', str(book),
                                '--verify-costs']).exit_code == 0
 
@@ -917,7 +917,7 @@ def test_naming_a_credits_split_by_guid_spends_it_like_any_other(tmp_path):
     # answer the bare spelling gives on the same move.
     listing = _balances(runner, book)
     assert '2026-02-25' not in listing, listing
-    assert 'Total USD basis balance: 200.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 200.00 USD' in listing, listing
     assert runner.invoke(cli, ['fx-balances', str(book),
                                '--verify-costs']).exit_code == 0
 
@@ -1122,11 +1122,11 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
     assert 'orphaned_by_unpost' not in _split_kvp(book, settling_guid), \
         _split_kvp(book, settling_guid)
 
-    # And the basis is where it was: the 100.00 the bank holds, at the rate the
+    # And the cost basis is where it was: the 100.00 the bank holds, at the rate the
     # invoice was booked at. Read as a credit spent, this split would have been
     # stripped and the book would offer nothing against a bank holding 100.00.
     listing = _balances(runner, book)
-    assert 'Total USD basis balance: 100.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 100.00 USD' in listing, listing
     assert runner.invoke(cli, ['fx-balances', str(book),
                                '--verify-costs']).exit_code == 0
 
@@ -1174,7 +1174,7 @@ def test_an_orphan_partly_spent_elsewhere_stops_being_that_invoices_own(tmp_path
 
     Measured on GnuCash 5.10, 4.13, 4.4, 3.8 and 5.15, the two halves come out
     differently. The carved remainder gets an empty slot frame — no mark, and
-    no basis either. The *applied* part keeps the source split's guid and its
+    no cost basis either. The *applied* part keeps the source split's guid and its
     slots, so it arrives still marked as the first invoice's orphan, though
     it is now the second invoice's settlement.
 
@@ -1247,7 +1247,7 @@ def test_an_orphan_partly_spent_elsewhere_stops_being_that_invoices_own(tmp_path
     # moved it. Stamped otherwise, the invoice it settled exports as
     # `from_credit:` with no account and no date — the money's origin gone,
     # which is what the mark is for. The reading that decides this happens
-    # after the basis rewrite above, so the rewrite has to leave the mark in
+    # after the cost basis rewrite above, so the rewrite has to leave the mark in
     # place for it to read.
     assert 'applied_from_credit' not in _split_kvp(book, applied_guid), \
         _split_kvp(book, applied_guid)
@@ -1268,7 +1268,7 @@ def test_an_orphan_partly_spent_elsewhere_stops_being_that_invoices_own(tmp_path
         exported, 'Assets:Accounts Receivable USD -60.00 USD')
     assert 'orphaned_by_unpost' in _split_kvp(book, remainder_guid), \
         _split_kvp(book, remainder_guid)
-    # And no basis was invented for it on the way: a bank-paid orphan carries
+    # And no cost basis was invented for it on the way: a bank-paid orphan carries
     # none, the invoice's posting split holds it.
     assert 'cost_basis_balance' not in _split_kvp(book, remainder_guid), \
         _split_kvp(book, remainder_guid)
@@ -1306,7 +1306,7 @@ def test_dividing_a_bank_paid_orphan_leaves_the_rest_a_bank_payment(tmp_path):
     An invoice takes 40.00 of a 100.00 settlement an unpost left loose and
     declares the 60.00 it leaves. That 60.00 is what the 100.00 was — money a
     bank paid, waiting to be put back — so the mark goes forward onto it, and
-    no basis opens: the basis of the invoice that deposit settled is on that
+    no cost basis opens: the cost basis of the invoice that deposit settled is on that
     invoice's posting split, and pricing the residue at this invoice's rate
     reports a gain the customer's money never made.
 
@@ -1522,7 +1522,7 @@ def test_another_invoices_orphan_is_still_a_bank_payment(tmp_path):
 
     What settles it is the fact the split carries: a bank paid that money and
     it never came out of credit. Read as a credit because it sits in an
-    owner's lot, the basis comes off currency the bank still holds and a block
+    owner's lot, the cost basis comes off currency the bank still holds and a block
     that named an account and a date exports back as `from_credit:` carrying
     neither.
     """
@@ -1581,7 +1581,7 @@ def test_another_invoices_orphan_is_still_a_bank_payment(tmp_path):
     assert 'from_credit' not in block, block
     assert 'Assets:Bank:USD' in block, block
     assert '2026-02-25' in block, block
-    assert 'Total USD basis balance: 100.00 USD' in _balances(runner, book), \
+    assert 'Total USD cost basis balance: 100.00 USD' in _balances(runner, book), \
         _balances(runner, book)
     assert runner.invoke(cli, ['fx-balances', str(book),
                                '--verify-costs']).exit_code == 0
@@ -1680,7 +1680,7 @@ def test_an_unposted_bills_orphan_is_not_read_as_a_vendor_credit(tmp_path):
     (CLAUDE.md finding 7). This path both writes and strips a cost basis, so
     an error here is the quiet kind.
 
-    Read as the vendor's credit, the rebuild would take the basis off currency
+    Read as the vendor's credit, the rebuild would take the cost basis off currency
     the book actually paid out, and the export would call a bank payment a
     credit applied.
     """
@@ -1766,7 +1766,7 @@ def test_a_bill_spending_a_parked_vendor_claim_records_it_as_credit(tmp_path):
     Overpaying a vendor leaves money the vendor holds and the book is owed
     back, parked in a lot of the vendor's. A later bill naming that
     transaction and nothing else spends it, and that is a credit being spent
-    however the file spells it: the basis comes off the currency, and the
+    however the file spells it: the cost basis comes off the currency, and the
     export says where the money came from.
     """
     runner = CliRunner()
@@ -1822,7 +1822,7 @@ def test_a_bill_spending_a_parked_vendor_claim_records_it_as_credit(tmp_path):
     assert 'bank_account:' not in block.split('payment:')[1], block
 
     # The claim was spent, so it is no longer currency the book is owed, and
-    # `--verify-costs` agrees the bases left match what the book holds.
+    # `--verify-costs` agrees the cost bases left match what the book holds.
     assert '2026-02-25' not in _balances(runner, book), _balances(runner, book)
     assert runner.invoke(cli, ['fx-balances', str(book),
                                '--verify-costs']).exit_code == 0

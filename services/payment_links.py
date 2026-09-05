@@ -1255,15 +1255,15 @@ def the_amount_the_new_account_takes(held: str, quoted: str, account,
     came in at — and a `value:` in the currency the transaction is quoted in,
     and a cost basis is opened from the two. Restating a settlement writes an
     amount onto an account and states neither figure, so nothing opens, draws
-    down or gives back a basis.
+    down or gives back a cost basis.
 
     Measured: unlinking a USD settlement onto a JPY account wrote −14946 JPY,
     and `fx-balances` then listed the USD receivable and no JPY at all — yen
-    held in the book with no basis behind them.
+    held in the book with no cost basis behind them.
 
     `BASE_CURRENCY` is the book's own currency and not foreign, so it needs no
     cost basis and the conversion is complete in itself. Any other currency
-    would need a basis opened here, which is the sale-and-purchase machinery
+    would need a cost basis opened here, which is the sale-and-purchase machinery
     and not an undo.
 
     Converted through CAD, because that is what a rates file quotes: the value
@@ -1296,7 +1296,7 @@ def the_amount_the_new_account_takes(held: str, quoted: str, account,
     destination = commodity.get_mnemonic()
     unit = account.GetCommoditySCU() or commodity.get_fraction()
     # The commodity the split already holds. Nothing new enters the book — the
-    # amount is the figure it was — so no basis is owed and this is allowed
+    # amount is the figure it was — so no cost basis is owed and this is allowed
     # whether or not that commodity is foreign.
     if destination == held:
         _refuse_a_figure_the_account_cannot_state(
@@ -1313,7 +1313,7 @@ def the_amount_the_new_account_takes(held: str, quoted: str, account,
     if destination != BASE_CURRENCY:
         # The two an account may be kept in, each written once: the commodity
         # the split holds, which brings nothing new into the book, and the
-        # book's own currency, which owes no basis. The *quoted* currency is
+        # book's own currency, which owes no cost basis. The *quoted* currency is
         # not a third — it is one of those two or it is refused like this one,
         # and offering it sent a reader from one refusal to the next. Where
         # the split holds the book's own currency the two collapse to one, and
@@ -1334,7 +1334,7 @@ def the_amount_the_new_account_takes(held: str, quoted: str, account,
             f'settlement states neither figure. Use an account kept in '
             f'{" or ".join(instead)}. Buying {destination} is a transaction '
             f'of its own.')
-    # The book's own currency from here, so no basis is owed either way.
+    # The book's own currency from here, so no cost basis is owed either way.
     #
     # The entry is quoted in it, and the split's value is therefore already
     # the figure — written when the entry was made, so it is read rather than

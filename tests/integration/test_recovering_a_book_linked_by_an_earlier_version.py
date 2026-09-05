@@ -1,13 +1,13 @@
 """Q-040: getting a book that was linked by an earlier version back in order.
 
 A link used to move the split that priced a USD deposit and leave the
-deposit's basis balance written on it: unlisted, unreadable, and still given by
+deposit's cost basis balance written on it: unlisted, unreadable, and still given by
 any disposal that had drawn on it. Books in that state exist, and this is how
 they come out of it.
 
 Two shapes, and which one a book is in decides the work:
 
-* nothing drew on the stranded basis — one file clears it;
+* nothing drew on the stranded cost basis — one file clears it;
 * something did — the disposal has to be deleted first, because re-pointing it
   in place is refused and would re-price it besides.
 
@@ -84,7 +84,7 @@ def _link_the_old_way(book_path):
     takes the price off it. The balance stays where it was.
 
     Done here rather than by running the link, because the link no longer does
-    it: with a disposal drawing on the deposit's basis it is refused outright,
+    it: with a disposal drawing on the deposit's cost basis it is refused outright,
     which is the whole point of the fix. A book in this state can only be one
     an earlier version wrote.
     """
@@ -149,7 +149,7 @@ def test_verify_costs_says_which_split_to_correct(tmp_path):
 def test_a_stranded_balance_nothing_drew_on_is_cleared_in_one_file(tmp_path):
     """`cost_basis_balance: ""` takes the figure off, and that is the whole fix.
 
-    The receivable's posting split is then the single basis for that money,
+    The receivable's posting split is then the single cost basis for that money,
     which is where the link should have left the book.
     """
     runner = CliRunner()
@@ -179,9 +179,9 @@ def test_a_stranded_balance_nothing_drew_on_is_cleared_in_one_file(tmp_path):
 def test_a_disposal_must_be_deleted_before_the_balance_can_be_cleared(tmp_path):
     """Re-pointing it in place is refused, so it is deleted and written again.
 
-    Deleting gives the stranded basis back what the disposal took, the balance
+    Deleting gives the stranded cost basis back what the disposal took, the balance
     is then cleared, and the disposal is imported again measured against the
-    receivable's basis — where the money it spent actually is.
+    receivable's cost basis — where the money it spent actually is.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'

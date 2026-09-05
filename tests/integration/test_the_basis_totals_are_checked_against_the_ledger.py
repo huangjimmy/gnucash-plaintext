@@ -1,12 +1,12 @@
-"""What a currency's bases hold between them, against what the ledger says.
+"""What a currency's cost bases hold between them, against what the ledger says.
 
-`--verify-costs` asks each basis about itself: is its balance between zero and
+`--verify-costs` asks each cost basis about itself: is its balance between zero and
 what it brought in, and does a stored cost agree with the transaction. Both are
 questions about one split, and a book can pass every one of them while the
 currency as a whole does not add up.
 
-The book-wide question is per currency: what the bases hold between them
-against what arrived less what was sold against a basis. Two sides written by
+The book-wide question is per currency: what the cost bases hold between them
+against what arrived less what was sold against a cost basis. Two sides written by
 different mechanisms — a KVP on one, the transactions themselves on the other —
 so they can disagree, and nothing was looking.
 
@@ -35,11 +35,11 @@ def _book(tmp_path):
 
 
 def _quietly_lower_one_balance(book, to='20.00'):
-    """Take currency off a basis without recording a sale.
+    """Take currency off a cost basis without recording a sale.
 
     Which is what a hand-edit, a half-finished script, or a bug in this tool
     leaves behind — and what no per-basis check can see: 20.00 is between zero
-    and the 100.00 that arrived, so the basis passes every question asked of
+    and the 100.00 that arrived, so the cost basis passes every question asked of
     it on its own.
     """
     from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
@@ -62,7 +62,7 @@ def _quietly_lower_one_balance(book, to='20.00'):
             transaction.CommitEdit()
             repo.save()
             return
-        raise AssertionError('no basis to lower')
+        raise AssertionError('no cost basis to lower')
     finally:
         repo.close()
 
@@ -80,11 +80,11 @@ def book_that_does_not(tmp_path):
 
 
 class TestASaleAgainstABasisWithNoBalanceRecorded:
-    """Both sides skip the same bases, or the check invents a discrepancy.
+    """Both sides skip the same cost bases, or the check invents a discrepancy.
 
-    A basis with no balance recorded is left out of what the bases hold and
+    A cost basis with no balance recorded is left out of what the cost bases hold and
     out of what arrived — nothing knows how much of it is unsold. Its sales
-    were counted anyway, so the ledger figure came down while the basis's own
+    were counted anyway, so the ledger figure came down while the cost basis's own
     arrival never went up, and the run reported currency accounted for by no
     basis on a book that is entirely consistent.
     """
@@ -101,7 +101,7 @@ class TestASaleAgainstABasisWithNoBalanceRecorded:
         from services.foreign_currency import establishes_cost_basis, iter_splits
 
         book = _book(tmp_path)
-        # Sell against one basis, then take that basis's balance away — the
+        # Sell against one cost basis, then take that cost basis's balance away — the
         # state a book from the GnuCash GUI is in, and what `_mark_spent_credit`
         # and `_strip_a_settlements_basis` leave behind.
         listed = CliRunner().invoke(cli, ['fx-balances', str(book)])
@@ -114,7 +114,7 @@ class TestASaleAgainstABasisWithNoBalanceRecorded:
         assert CliRunner().invoke(cli, ['import', str(book), str(sale),
                                         '--fx-rates', RATES]).exit_code == 0
 
-        # Only the basis the sale named. Stripping every basis leaves nothing
+        # Only the cost basis the sale named. Stripping every cost basis leaves nothing
         # on either side and no currency to compare, so the check says nothing
         # whatever it does — a test that cannot fail. The book must keep one
         # basis with a balance for the sums to be sums at all.
@@ -136,7 +136,7 @@ class TestASaleAgainstABasisWithNoBalanceRecorded:
                 set_custom_metadata(split, held)
                 transaction.CommitEdit()
                 stripped += 1
-            assert stripped == 1, f'expected to strip one basis, did {stripped}'
+            assert stripped == 1, f'expected to strip one cost basis, did {stripped}'
             repo.save()
         finally:
             repo.close()
@@ -145,7 +145,7 @@ class TestASaleAgainstABasisWithNoBalanceRecorded:
                                           '--verify-costs'])
 
         # Any warning at all, not one wording of it: counted unconditionally
-        # the sale made the bases look 40.00 USD *over* what arrived, which is
+        # the sale made the cost bases look 40.00 USD *over* what arrived, which is
         # the other branch of the same message.
         assert 'warning: the USD cost bases' not in result.output, result.output
 
@@ -156,7 +156,7 @@ class TestABookThatAddsUp:
                                           '--verify-costs'])
 
         assert result.exit_code == 0, result.output
-        assert 'accounted for by no basis' not in result.output, result.output
+        assert 'accounted for by no cost basis' not in result.output, result.output
 
 
 class TestABookThatDoesNot:
@@ -191,4 +191,4 @@ class TestABookThatDoesNot:
                                           str(book_that_does_not)])
 
         assert result.exit_code == 0, result.output
-        assert 'accounted for by no basis' not in result.output, result.output
+        assert 'accounted for by no cost basis' not in result.output, result.output

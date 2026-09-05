@@ -211,7 +211,7 @@ def test_a_file_that_moves_the_figures_of_an_exempt_fault_still_commits(tmp_path
     runner = CliRunner()
     book = _a_book_already_wrong(runner, tmp_path)
 
-    # Lower a basis balance with no sale to account for it, which is what puts
+    # Lower a cost basis balance with no sale to account for it, which is what puts
     # the two sides of the currency total out. `_a_book_already_wrong` on its
     # own has a stranded balance and totals that still level.
     out = _exported(runner, book, tmp_path / 'out.txt')
@@ -229,7 +229,7 @@ def test_a_file_that_moves_the_figures_of_an_exempt_fault_still_commits(tmp_path
                 '--strategy', 'update').exit_code == 0
 
     before = _run(runner, 'fx-balances', str(book), '--verify-costs').output
-    assert 'accounted for by no basis' in before, before
+    assert 'accounted for by no cost basis' in before, before
 
     # USD, so both sides of the currency total move, and unrelated to either
     # fault: currency bought outright, bringing its own cost with it. The

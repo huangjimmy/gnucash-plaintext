@@ -603,7 +603,7 @@ class TestUnlinkingALinkedTransaction:
 
     def test_a_third_foreign_currency_is_refused_even_with_rates(
             self, tmp_path):
-        """Converting into one would leave currency no basis accounts for.
+        """Converting into one would leave currency no cost basis accounts for.
 
         The arithmetic is fine — it is what the figure leaves behind that is
         not. A split bringing foreign currency into the book carries a
@@ -696,7 +696,7 @@ class TestUnlinkingALinkedTransaction:
         """An HKD-quoted entry cannot send its split to an HKD account.
 
         The value branch reads a figure the split already carries, which made
-        it look like a case needing no rate and therefore no basis. It is not:
+        it look like a case needing no rate and therefore no cost basis. It is not:
         the value is denominated in the *transaction's* currency, so where
         that is a third foreign currency the branch wrote HKD into a CAD book
         with nothing accounting for it — the very thing the third-currency

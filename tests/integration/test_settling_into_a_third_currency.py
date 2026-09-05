@@ -160,7 +160,7 @@ class TestAnInvoiceAlreadyInTheBaseCurrency:
     The old code refused the whole shape at the top — badly worded for this
     case ("neither is CAD" when the invoice *was* CAD), but it refused.
     Removing that guard let this run on: the posting split is base-currency,
-    so `derived_cost_of` answers 1 rather than None and the basis bail-out
+    so `derived_cost_of` answers 1 rather than None and the cost basis bail-out
     does not catch it, and the run reached the drawdown and demanded
     `cost_basis_balance:` on a CAD split — a key the importer refuses on a
     CAD split, on a split no directive writes. It had committed a
@@ -211,7 +211,7 @@ class TestTheCurrencyItBroughtIn:
     Settling a USD receivable into an HKD bank puts 780.00 HKD in the book at
     0.172 CAD/HKD. That split establishes a cost basis by every measure the
     tool uses — a non-base currency, acquired, with a derivable cost — but the
-    settlement path never opened its basis balance, so `fx-balances`
+    settlement path never opened its cost basis balance, so `fx-balances`
     listed it as `none recorded` and a later sale naming it was refused for having
     no balance recorded. The same 780 HKD arriving as an ordinary transaction
     was sellable: how the money came in decided whether the book would let go
@@ -226,7 +226,7 @@ class TestTheCurrencyItBroughtIn:
         assert listed.exit_code == 0, listed.output
         assert 'Assets:Bank:HKD' in listed.output
         assert '780.00 HKD' in listed.output
-        assert 'Total HKD basis balance: 780.00 HKD' in listed.output
+        assert 'Total HKD cost basis balance: 780.00 HKD' in listed.output
 
     def test_its_balance_is_recorded(self, tmp_path):
         book, result = _import(tmp_path, BOTH)
@@ -275,7 +275,7 @@ class TestWhenTheRateDidNotMove:
 
         listed = CliRunner().invoke(cli, ['fx-balances', str(gnc)])
         assert listed.exit_code == 0, listed.output
-        assert 'Total HKD basis balance: 1,000.00 HKD' in listed.output, listed.output
+        assert 'Total HKD cost basis balance: 1,000.00 HKD' in listed.output, listed.output
         assert 'none recorded' not in listed.output, listed.output
 
 
@@ -362,13 +362,13 @@ class TestOverpaidAcrossThreeCurrencies:
         listed = CliRunner().invoke(cli, ['fx-balances', str(book)])
         assert listed.exit_code == 0, listed.output
         assert '1.3416 CAD/USD' in listed.output, listed.output
-        assert 'Total USD basis balance: 100.00 USD' in listed.output, listed.output
+        assert 'Total USD cost basis balance: 100.00 USD' in listed.output, listed.output
 
     def test_that_rate_is_in_the_file_the_book_exports(self, tmp_path):
         """Because nothing stores it: the transaction is what carries it.
 
         Opening the credit's balance and storing its cost are two acts, and
-        the second only happens for a basis with no balance yet. On this shape
+        the second only happens for a cost basis with no balance yet. On this shape
         the settlement's own pass opens the balance first, so the cost is
         never written down — the rate is read off the transaction, whose
         splits are valued in CAD, every time it is asked for.
@@ -393,7 +393,7 @@ class TestOverpaidAcrossThreeCurrencies:
         listed = runner.invoke(cli, ['fx-balances', str(rebuilt)])
         assert listed.exit_code == 0, listed.output
         assert '1.3416 CAD/USD' in listed.output, listed.output
-        assert 'Total USD basis balance: 100.00 USD' in listed.output, listed.output
+        assert 'Total USD cost basis balance: 100.00 USD' in listed.output, listed.output
         checked = runner.invoke(cli, ['fx-balances', str(rebuilt),
                                       '--verify-costs'])
         assert checked.exit_code == 0, checked.output

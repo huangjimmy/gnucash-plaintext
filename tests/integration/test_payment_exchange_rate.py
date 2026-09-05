@@ -165,8 +165,8 @@ def test_paying_a_usd_invoice_at_another_rate_realizes_the_difference(tmp_path):
     assert 'value: "-140.00"' in exported, exported
     assert 'cost_basis_split_guid:' in exported, exported
 
-    # Settling into CAD consumed the basis: that USD is gone.
-    assert 'Total USD basis balance: 0.00 USD' in _balances(runner, book)
+    # Settling into CAD consumed the cost basis: that USD is gone.
+    assert 'Total USD cost basis balance: 0.00 USD' in _balances(runner, book)
 
 
 def test_paying_a_usd_bill_at_another_rate_realizes_the_difference(tmp_path):
@@ -182,7 +182,7 @@ def test_paying_a_usd_bill_at_another_rate_realizes_the_difference(tmp_path):
     assert 'Assets:Bank -137.00 CAD' in exported, exported
     assert 'Income:FX Gain -3.00 CAD' in exported, exported         # credit: a gain
     assert 'value: "140.00"' in exported, exported
-    assert 'Total USD basis balance: 0.00 USD' in _balances(runner, book)
+    assert 'Total USD cost basis balance: 0.00 USD' in _balances(runner, book)
 
 
 def test_a_realizing_payment_must_say_where_the_gain_belongs(tmp_path):
@@ -264,7 +264,7 @@ def test_a_gain_split_in_another_currency_is_refused(tmp_path):
 
 def test_settling_in_the_records_own_currency_realizes_nothing(tmp_path):
     """A USD invoice paid into a USD bank moves money at the cost it already
-    carries. The A/R split stays the basis for that 100 USD, and the bank split
+    carries. The A/R split stays the cost basis for that 100 USD, and the bank split
     does not become a second one — the book holds 100 USD, not 200."""
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -273,8 +273,8 @@ def test_settling_in_the_records_own_currency_realizes_nothing(tmp_path):
     assert result.exit_code == 0, result.output
 
     listing = _balances(runner, book)
-    assert listing.count('100.00 USD     100.00 USD') == 1, listing
-    assert 'Total USD basis balance: 100.00 USD' in listing, listing
+    assert len(re.findall(r'100\.00 USD[^\n]+100\.00 USD', listing)) == 1, listing
+    assert 'Total USD cost basis balance: 100.00 USD' in listing, listing
     assert 'Assets:Bank:USD' not in listing, listing
 
     # No gain split anywhere in the payment entry — the fixture declares an
@@ -290,7 +290,7 @@ def test_a_converting_settlement_can_be_written_out_as_a_transaction(tmp_path):
     the gain — and claim it with `txn_guid:` / `txn_split_guid:`.
 
     Nothing is derived here, so the payment block needs no rate at all, and the
-    invoice still ends up paid with its basis consumed.
+    invoice still ends up paid with its cost basis consumed.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -319,7 +319,7 @@ def test_a_converting_settlement_can_be_written_out_as_a_transaction(tmp_path):
     assert 'Assets:Bank 137.00 CAD' in exported, exported
     assert 'Income:FX Gain 3.00 CAD' in exported, exported
     assert 'payment: none' not in exported, exported
-    assert 'Total USD basis balance: 0.00 USD' in _balances(runner, book)
+    assert 'Total USD cost basis balance: 0.00 USD' in _balances(runner, book)
 
 
 def test_a_converting_payment_survives_export_and_re_import(tmp_path):
@@ -352,7 +352,7 @@ def test_a_converting_payment_survives_export_and_re_import(tmp_path):
     assert 'Income:FX Gain 3.00 CAD' in round_tripped, round_tripped
     assert 'Assets:Bank 137.00 CAD' in round_tripped, round_tripped
     assert 'value: "-140.00"' in round_tripped, round_tripped
-    assert 'Total USD basis balance: 0.00 USD' in _balances(runner, fresh)
+    assert 'Total USD cost basis balance: 0.00 USD' in _balances(runner, fresh)
 
 
 def test_same_currency_payment_still_settles_without_a_rate(tmp_path):
@@ -400,7 +400,7 @@ def test_a_converting_payment_that_overpays_values_both_parts(tmp_path):
 
 
 def test_a_converting_bill_payment_that_overpays_values_both_parts(tmp_path):
-    """The bill mirror: the prepayment it leaves is a basis like any other.
+    """The bill mirror: the prepayment it leaves is a cost basis like any other.
 
     Less cash extinguishing more liability is a gain, so the 3.00 CAD is
     credited here. And the 100.00 USD sent beyond the bill is currency the
@@ -427,7 +427,7 @@ def test_a_converting_bill_payment_that_overpays_values_both_parts(tmp_path):
     assert 'Income:FX Gain -3.00 CAD' in text, text
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Total USD basis balance: 100.00' in listing, listing
+    assert 'Total USD cost basis balance: 100.00' in listing, listing
     # And at the rate it was actually sent at, 274/200, not the 1.40 the bill
     # was carried at — the whole point of taking the cost from the payment's
     # own figures rather than writing the record's onto it.

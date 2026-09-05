@@ -644,7 +644,7 @@ def test_two_payments_of_the_same_shape_are_paired_the_only_way_that_works(tmp_p
 
     What follows a false "changed" is the expensive part — the invoice is
     unposted and rebuilt, its payments orphaned and re-made, and on a
-    foreign-currency invoice whose basis something measures against, refused
+    foreign-currency invoice whose cost basis something measures against, refused
     outright.
     """
     runner = CliRunner()
