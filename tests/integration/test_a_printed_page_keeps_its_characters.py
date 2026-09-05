@@ -400,3 +400,76 @@ class TestTheBillSideOfThePage:
 
     def test_the_vendors_own_free_text_is_printed(self, printed_bill):
         assert 'Référence fournisseur: №4501' in printed_bill, printed_bill
+
+
+class TestThePageGivesTheLocaleBack:
+    """The render sets one, so it has to put it back.
+
+    A UTF-8 locale is what stops GnuCash 3.4 turning a book option's
+    characters into `?` on the way to the page, and a locale is process-wide:
+    left set, it changes how everything after it in the same process reads and
+    writes — the next page, and the next test in this pytest run. It is the
+    third global this module touches, beside the current session and the date
+    style, and the only one Guile has to put back itself, because Guile
+    settles its charset from its own `setlocale` rather than from the
+    process's.
+    """
+
+    @pytest.fixture
+    def started_from_c(self):
+        """`LC_CTYPE=C` for the test, and what was there put back after.
+
+        `LC_CTYPE` is the category the render sets, because the codeset is the
+        only thing in question — the dates and amounts on a page follow the
+        reader's own locale and must keep doing so.
+
+        Pinned rather than read, because reading it is what makes this test
+        unable to fail: another test in this file draws a page before it, so
+        an unrestored value is already `C.UTF-8` by the time a `before` is
+        taken, and `before == after` then holds whether or not anything
+        restores anything. Measured — with the restore removed the test still
+        passed, and `tests/research/what_a_render_does_to_the_process_locale_probe.py`
+        is what showed the leak was real and the test blind to it.
+        """
+        import locale as locale_module
+
+        was = locale_module.setlocale(locale_module.LC_CTYPE)
+        locale_module.setlocale(locale_module.LC_CTYPE, 'C')
+        try:
+            yield locale_module
+        finally:
+            locale_module.setlocale(locale_module.LC_CTYPE, was)
+
+    def test_printing_leaves_the_locale_as_it_found_it(self, started_from_c,
+                                                       tmp_path):
+        book = _book_with_both_pages(tmp_path)
+        before = started_from_c.setlocale(started_from_c.LC_CTYPE)
+        assert before == 'C', before
+
+        out = tmp_path / 'inv.html'
+        rendered = CliRunner().invoke(cli, [
+            'print-invoice', str(book), 'INV-UNICODE-001', '--format', 'html',
+            '--output', str(out)])
+        assert rendered.exit_code == 0, rendered.output
+        assert 'Éditions Cliché Inc.' in out.read_text(encoding='utf-8')
+
+        assert started_from_c.setlocale(started_from_c.LC_CTYPE) == before
+
+    def test_and_gives_it_back_when_the_page_is_refused(self, started_from_c,
+                                                        tmp_path):
+        """The restore is not on the happy path only.
+
+        A report no build registers is refused after the locale is set and
+        before any page is drawn, which is the throw the `dynamic-wind` exists
+        to survive.
+        """
+        book = _book_with_both_pages(tmp_path)
+        before = started_from_c.setlocale(started_from_c.LC_CTYPE)
+
+        refused = CliRunner().invoke(cli, [
+            'print-invoice', str(book), 'INV-UNICODE-001', '--format', 'html',
+            '--report', 'No Report Is Registered Under This Name',
+            '--output', str(tmp_path / 'never.html')])
+        assert refused.exit_code != 0, refused.output
+
+        assert started_from_c.setlocale(started_from_c.LC_CTYPE) == before

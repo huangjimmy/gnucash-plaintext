@@ -63,13 +63,16 @@ def hkd_book():
         tx = Transaction(book)
         tx.BeginEdit()
         tx.SetCurrency(hkd)
-        tx.SetDatePostedSecs(
-            int(gnucash.GncDateTime(
-                gnucash.GncDate(d.year, d.month, d.day)
-            ).GetTime64())
-            if hasattr(gnucash, "GncDateTime")
-            else int(d.strftime("%s"))
-        )
+        # The setter the importer itself uses, and the only one that means the
+        # same thing on every supported build. `SetDatePostedSecs` with plain
+        # epoch seconds reads back as **4753-05-01** on GnuCash 3.4 — measured
+        # in `tests/research/what_a_posted_date_reads_back_as_probe.py` — so a
+        # book built that way indexed under a date no lookup would ever ask
+        # for, and every match here came back NEW.
+        #
+        # `gnucash.GncDateTime` is on neither 3.4 nor 5.10, so the branch that
+        # chose between them always took the seconds arm anyway.
+        tx.SetDatePostedSecsNormalized(d)
         for acct_obj, num, denom in splits:
             sp = GncSplit(book)
             sp.SetParent(tx)

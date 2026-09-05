@@ -376,6 +376,28 @@ def _mark_instance_dirty(obj_ptr: int) -> None:
         lib.qof_instance_set_dirty(ctypes.c_void_p(obj_ptr))
 
 
+def _mark_session_dirty(book_ptr: int) -> None:
+    """Tell the session the book changed, so a save writes the file.
+
+    `qof_instance_set_dirty` marks the object; this marks the session that
+    holds it. A book option written with only the first reads back for the
+    rest of the run and is gone after a reload, because `qof_session_save`
+    was never given a reason to write anything — CLAUDE.md finding 18, on the
+    book rather than on a lot.
+    """
+    with contextlib.suppress(Exception):
+        # Declared here and not only in `infrastructure/gnucash/engine.py`,
+        # for the reason `_mark_instance_dirty` above does the same: this
+        # module loads a handle of its own, and the shared loader's argtypes
+        # are set on a different `CDLL` object. The engine's declaration still
+        # earns its keep — `verify_ctypes_functions` is what checks the build
+        # has the symbol at all.
+        lib = _load_gnc_engine()
+        lib.qof_book_mark_session_dirty.restype = None
+        lib.qof_book_mark_session_dirty.argtypes = [ctypes.c_void_p]
+        lib.qof_book_mark_session_dirty(ctypes.c_void_p(book_ptr))
+
+
 def _set_string_slot(obj, slot_name: str, value: str) -> bool:
     """Set a string KVP slot on a GnuCash object. Returns True on success.
 
@@ -526,6 +548,32 @@ def write_book_string_option(book, section: str, name: str, value: str) -> None:
 
     One body, two contracts, so the ctypes call and the dirty-marking below
     exist once.
+
+    `qof_book_set_string_option` first, because on every GnuCash from 4 on it
+    does more than write the slot: it refreshes the book's option database,
+    which is what GnuCash's own report engine reads in the same process. A
+    page printed right after a raw slot write shows the *old* date format —
+    the file is right and the running report is not.
+
+    That call reads its argument as a slash-separated path from GnuCash 4 on
+    and as a **bare slot name** on 3.4, where `options/Business/Company Name`
+    therefore stored nothing at all, silently, and every company field read
+    back empty. So the write is checked rather than assumed, and where it did
+    not land the slot is written with `qof_instance_set_kvp` over the three
+    path segments — the primitive every other slot in this tool goes through.
+    Both spellings are measured in
+    `tests/research/what_path_a_book_option_wants_probe.py`, and the two
+    routes are shown to write the same slot subtree in
+    `whether_kvp_writes_a_book_option_the_same_probe.py`.
+
+    Checked by reading back rather than by asking the version, because the
+    version is not the question — what the call did with the argument is, and
+    that is answerable directly.
+
+    The fallback marks the **session** as well as the instance.
+    `qof_instance_set_dirty` alone leaves `qof_session_save` writing nothing:
+    the slot reads back for the rest of the session and is gone after a
+    reload, which is CLAUDE.md finding 18 one object along.
     """
     obj_ptr = int(book.instance)
     lib = _load_gnc_engine()
@@ -540,10 +588,114 @@ def write_book_string_option(book, section: str, name: str, value: str) -> None:
         opt_path,
         value.encode('utf-8'),
     )
-    # qof_book_set_string_option marks the book dirty internally,
-    # but call our helper too so the session save reliably re-emits
-    # the slots (matches the pattern of every other write here).
     _mark_instance_dirty(obj_ptr)
+
+    # An absent slot reads as `None` and counts as the empty string, because
+    # writing `""` is how the engine *removes* an option — see `STORED` in
+    # `services/invoice_style.py`, which exists to keep "set to nothing" and
+    # "never set" distinguishable precisely because of it. Compared without
+    # this, `None == ''` is never true, so clearing an option fell through to
+    # the 3.4 path on every build and wrote an empty slot where the engine had
+    # just taken one away.
+    if (get_book_string_option(book, section, name) or '') == value:
+        return
+
+    _write_book_option_slot_directly(book, obj_ptr, section, name, value)
+
+
+def _option_path_segments(section: str, name: str) -> list:
+    """`options`, the section, and every slash-separated part of the name.
+
+    A name is not always one slot. The date format is written as
+    `Fancy Date Format/custom`, because GnuCash stores it as a frame holding
+    the style and, under `custom`, the format string — the same shape the
+    Scheme reads as `("Business" ("Fancy Date Format" "custom"))`. Passed as
+    one segment it becomes a slot whose key has a slash in it, which nothing
+    reads and GnuCash never writes.
+    """
+    return [part.encode('utf-8')
+            for part in ['options', section] + name.split('/')]
+
+
+def _write_book_option_slot_directly(book, obj_ptr: int, section: str,
+                                     name: str, value: str) -> None:
+    """The book option written as a plain nested slot.
+
+    For GnuCash 3.4, whose `qof_book_set_string_option` writes **nothing at
+    all** when its argument has slashes in it — measured in
+    `tests/research/whether_the_option_getter_walks_a_path_probe.py`, where a
+    book saved after that call holds no slots whatever. Not a flat slot to be
+    tidied up afterwards: nothing, silently, which is why the caller checks by
+    reading back rather than trusting the call.
+
+    Its *getter* is not the same: `qof_book_get_string_option` resolves the
+    path on 3.4 as it does everywhere, so the read side needs no fallback and
+    the read-back guard above means what it says.
+    """
+    lib = _load_gnc_engine()
+    gobj = _load_gobject()
+    if gobj is None:
+        raise RuntimeError(
+            'libgobject-2.0 is not loadable, so no book option can be written')
+
+    gobj.g_value_init.argtypes = [ctypes.POINTER(_GValue), ctypes.c_ulong]
+    gobj.g_value_init.restype = ctypes.POINTER(_GValue)
+    gobj.g_value_set_string.argtypes = [ctypes.POINTER(_GValue), ctypes.c_char_p]
+    gobj.g_value_set_string.restype = None
+    gobj.g_value_unset.argtypes = [ctypes.POINTER(_GValue)]
+    gobj.g_value_unset.restype = None
+    lib.qof_instance_set_kvp.restype = None
+
+    segments = _option_path_segments(section, name)
+
+    if value == '':
+        # No value at all, which is how the slot is removed rather than set to
+        # "". Writing an option empty is how the engine deletes it everywhere
+        # else, and the difference is one this format keeps:
+        # `services/invoice_style.py` stores behind a prefix precisely so "set
+        # to nothing" and "never set" stay distinguishable. A book written on
+        # Debian 10 should not be the one carrying empty slots.
+        #
+        # NULL and not a `GValue` emptied with `g_value_unset`. Both delete
+        # the slot, and only one of them is unambiguously quiet about it:
+        # `kvp_value_from_gvalue` returns early on NULL, where a zeroed value
+        # reaches `g_return_val_if_fail (G_VALUE_TYPE (gval))` — which logs at
+        # CRITICAL before returning the same NULL.
+        #
+        # Measured on 3.4, the only build that reaches this: the emptied value
+        # printed nothing, on either stream, so the message GnuCash's source
+        # says is there does not arrive where a caller would see it. NULL is
+        # chosen for taking the early return rather than to silence something
+        # observed — and it drops the asymmetry of a `finally` that had to
+        # know which branch had built a value.
+        lib.qof_instance_set_kvp(
+            ctypes.c_void_p(obj_ptr),
+            None,
+            ctypes.c_uint(len(segments)),
+            *segments,
+        )
+    else:
+        gval = _GValue()
+        gobj.g_value_init(ctypes.byref(gval), _G_TYPE_STRING)
+        gobj.g_value_set_string(ctypes.byref(gval), value.encode('utf-8'))
+        try:
+            lib.qof_instance_set_kvp(
+                ctypes.c_void_p(obj_ptr),
+                ctypes.byref(gval),
+                ctypes.c_uint(len(segments)),
+                *segments,
+            )
+        finally:
+            gobj.g_value_unset(ctypes.byref(gval))
+
+    _mark_instance_dirty(obj_ptr)
+    _mark_session_dirty(obj_ptr)
+
+    # Absent counts as empty here too, for the same reason the caller's guard
+    # says so: a cleared option is one with no slot.
+    if (get_book_string_option(book, section, name) or '') != value:
+        raise RuntimeError(
+            f'options/{section}/{name} did not take the value written to it')
 
 
 def get_book_string_option(book, section: str, name: str) -> Optional[str]:

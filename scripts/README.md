@@ -101,6 +101,7 @@ Build a Docker image for a specific distribution.
 ./scripts/build.sh              # Default (Debian 13, GnuCash 5.10)
 ./scripts/build.sh debian:12    # Debian 12, GnuCash 4.13
 ./scripts/build.sh debian:11    # Debian 11, GnuCash 4.4
+./scripts/build.sh debian:10    # Debian 10, GnuCash 3.4
 ./scripts/build.sh ubuntu:26.04 # Ubuntu 26.04, GnuCash 5.14
 ./scripts/build.sh ubuntu:24.04 # Ubuntu 24.04, GnuCash 5.5
 ./scripts/build.sh ubuntu:22.04 # Ubuntu 22.04, GnuCash 4.8
@@ -163,6 +164,7 @@ The scripts use these image tags:
 | `latest` | debian:13 | 5.10 |
 | `debian12` | debian:12 | 4.13 |
 | `debian11` | debian:11 | 4.4 |
+| `debian10` | debian:10 | 3.4 |
 | `ubuntu26` | ubuntu:26.04 | 5.14 |
 | `ubuntu24` | ubuntu:24.04 | 5.5 |
 | `ubuntu22` | ubuntu:22.04 | 4.8 |

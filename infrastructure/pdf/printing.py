@@ -167,7 +167,7 @@ def a_display():
       fifty pages starts one. `xvfb-run` cannot be shared that way — it
       wraps a *command*, so fifty pages are fifty servers;
     * `xvfb-run` without `Xvfb` — kept as a fallback for a machine that has
-      the wrapper and hides the server behind it, which none of the ten
+      the wrapper and hides the server behind it, which none of the eleven
       supported images is.
 
     None of the three, and the sentence names the package to install rather

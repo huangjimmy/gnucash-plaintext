@@ -42,9 +42,10 @@ desc = safe_ctypes_string(lib.gncEntryGetDescription, entry_ptr)
 ```
 
 ### Step 4: Platform Testing Checklist
-You MUST test on all supported platforms — all ten, which is what
+You MUST test on all supported platforms — all eleven, which is what
 `./scripts/test-all-versions-parallel.sh` runs in one go:
-- [ ] Ubuntu 20.04 (GnuCash 3.8) - minimum version
+- [ ] Debian 10 (GnuCash 3.4, Python 3.7) - minimum version
+- [ ] Ubuntu 20.04 (GnuCash 3.8)
 - [ ] Debian 11 (GnuCash 4.4)
 - [ ] Ubuntu 22.04 (GnuCash 4.8)
 - [ ] Debian 12 (GnuCash 4.13)

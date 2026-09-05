@@ -67,6 +67,7 @@ KNOWN = {
         'gobj.g_value_set_string',
         'gobj.g_value_unset',
         'lib.qof_book_get_string_option',
+        'lib.qof_book_mark_session_dirty',
         'lib.qof_book_set_string_option',
         'lib.qof_instance_get_kvp',
         'lib.qof_instance_set_dirty',
@@ -161,11 +162,17 @@ def _symbols_declared_in_a_loop(tree):
             continue
         for element in node.iter.elts:
             first = element.elts[0] if isinstance(element, ast.Tuple) else element
-            # `ast.Constant` only: it is what a string literal parses to from
-            # Python 3.8, and `ast.Str` — the pre-3.8 spelling kept as a
-            # deprecated alias — was removed in 3.12, which Arch ships.
+            # Both spellings, and neither named outright. `ast.Constant` is
+            # what a string literal parses to from Python 3.8; on 3.7, which
+            # Debian 10 has, it parses to `ast.Str` instead — and `ast.Str`
+            # was removed in 3.12, which Arch ships, so writing it here would
+            # break the build at the other end of the range. Looked up, it is
+            # an empty tuple where the class is gone, and `isinstance` against
+            # that matches nothing rather than raising.
             if isinstance(first, ast.Constant) and isinstance(first.value, str):
                 names.add(first.value)
+            elif isinstance(first, getattr(ast, 'Str', ())):
+                names.add(first.s)
     return names
 
 

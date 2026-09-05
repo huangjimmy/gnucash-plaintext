@@ -274,6 +274,19 @@ class TestSeveralInvoicesInOnePdf:
 
         pages = [readable(page.extract_text())
                  for page in pypdf.PdfReader(str(out)).pages]
-        assert len(pages) == 2, pages
-        assert 'BILL-PRINT-001' in pages[0], pages[0]
-        assert 'BILL-PRINT-002' in pages[1], pages[1]
+
+        # Neither bill shares a sheet with the other, and the second starts
+        # after the first has finished. Not "two pages": how many sheets a
+        # bill takes is the layout engine's, and this page is laid out by
+        # **WebKit** — `print-bill --format pdf` goes through
+        # `laid_out_by_webkit`, and WeasyPrint is not on this path at all;
+        # it draws only `income-statement --pdf`. Measured: the WebKit on
+        # Debian 10 sets the same HTML in three sheets where a newer one sets
+        # it in two. What the page break has to do is keep the bills apart,
+        # and that is what this reads.
+        first = [n for n, page in enumerate(pages) if 'BILL-PRINT-001' in page]
+        second = [n for n, page in enumerate(pages) if 'BILL-PRINT-002' in page]
+        assert first, pages
+        assert second, pages
+        assert not set(first) & set(second), (first, second, pages)
+        assert max(first) < min(second), (first, second, pages)

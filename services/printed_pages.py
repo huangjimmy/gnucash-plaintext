@@ -85,11 +85,13 @@ def combine_pages(fragments) -> str:
     body_open = _first(_BODY_OPEN, first, '<body>')
     head = _first(_HEAD, first, '', group=1)
 
-    # `<div>` and not `<section>`: the DOCTYPE carried above is GnuCash's, and
-    # its report writes HTML 4.01 Transitional, which has no `section`. The
-    # two lay out identically — every engine styles `section` as a block from
-    # its HTML5 UA sheet whatever the doctype says — so the choice costs
-    # nothing and keeps the page conforming to what it declares itself to be.
+    # `<div>` and not `<section>`: where the DOCTYPE above is GnuCash's, its
+    # report writes HTML 4.01 Transitional, which has no `section`. On
+    # GnuCash 3.4 the report writes no DOCTYPE at all and the page takes the
+    # HTML5 fallback instead, so the declaration is not always 4.01 — but
+    # `div` conforms to both, and the two lay out identically anyway: every
+    # engine styles `section` as a block from its HTML5 UA sheet whatever the
+    # doctype says. So the choice costs nothing under either declaration.
     pages = ''.join(
         f'<div style="page-break-after: always;">{_body_of(f)}</div>'
         for f in fragments)
@@ -100,18 +102,22 @@ def combine_pages(fragments) -> str:
 def _first(pattern, fragment: str, fallback: str, group: int = 0) -> str:
     """What `fragment` opens with, or `fallback` where it says nothing.
 
-    Reached only by a build whose report writes a shell none of the ten
-    supported ones writes, and the fallbacks differ in what they cost. The
-    DOCTYPE, `<html>` and `<body>` ones are what a page needs to be a page at
-    all — one with no DOCTYPE renders in quirks mode. The head's is
-    an empty string, which is a page that prints unstyled; it is not a refusal
-    like `_body_of`'s, because a page laid out in a browser's default
-    fonts is still the page, where one with no body is not.
+    The fallbacks differ in what they cost. The DOCTYPE, `<html>` and
+    `<body>` ones are what a page needs to be a page at all — one with no
+    DOCTYPE renders in quirks mode. The head's is an empty string, which is a
+    page that prints unstyled; it is not a refusal like `_body_of`'s, because
+    a page laid out in a browser's default fonts is still the page, where one
+    with no body is not.
 
-    The pragma is on the fallback alone — the branch that finds the tag is
-    every run there has ever been.
+    **The DOCTYPE fallback is not a dead branch.** GnuCash 3.4 writes no
+    DOCTYPE, so every combined page on Debian 10 takes it and gains standards
+    mode from it — measured in
+    `tests/research/what_shell_a_printed_page_has_probe.py`, and the reason
+    `test_one_page_is_the_same_page_whichever_way_it_is_written` compares only
+    the tags the verbatim page actually has. Every other build writes all
+    four, so it is the one supported build that reaches this at all.
     """
     found = pattern.search(fragment)
-    if found is None:  # pragma: no cover - no supported build omits these
+    if found is None:
         return fallback
     return found.group(group)

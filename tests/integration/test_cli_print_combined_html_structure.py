@@ -158,7 +158,17 @@ def test_one_page_is_the_same_page_whichever_way_it_is_written(tmp_path):
     combined = one_file.read_text()
     verbatim = (outdir / f'{id1}.html').read_text()
 
-    for tag in ('<!DOCTYPE', '<html', '<body'):
+    # Only what the verbatim page has, because that is the claim: the rebuild
+    # drops nothing GnuCash drew. GnuCash 3.4 writes no `<!DOCTYPE` at all —
+    # measured in `tests/research/what_shell_a_printed_page_has_probe.py` —
+    # and the combining path adds one there, which is a page gaining standards
+    # mode rather than losing anything. Demanding the tag outright made this
+    # raise `ValueError: substring not found` on that build, before any
+    # comparison happened.
+    present = [tag for tag in ('<!DOCTYPE', '<html', '<body')
+               if tag in verbatim]
+    assert '<html' in present and '<body' in present, verbatim[:600]
+    for tag in present:
         opening = verbatim[verbatim.index(tag):
                            verbatim.index('>', verbatim.index(tag)) + 1]
         assert opening in combined, (opening, combined[:600])
@@ -221,7 +231,27 @@ def test_the_combined_page_keeps_the_reports_styling(tmp_path):
     # its stylesheet set — `html-document.scm` writes that body tag with the
     # comment "this lovely little number just makes sure that <body>
     # attributes like bgcolor get included".
-    assert "<html dir='auto'>" in html, html[:2000]
+    #
+    # Taken from a page GnuCash drew, rather than written out here, because
+    # the opening tag is GnuCash's and not every build writes the same one:
+    # 5.x opens `<html dir='auto'>` and 3.4 opens `<html>`. What this checks
+    # either way is that combining kept whatever the report produced — the bug
+    # was `inner.replace('<html>', '')` missing the attributed form and
+    # stripping nothing.
+    #
+    # `-o <dir>/` and not `-o <file>`, which is the whole point: the file form
+    # goes through the combining path too, so both sides would come from the
+    # same `_first(_HTML_OPEN, …)` and the assertion would hold however the
+    # tag was mangled. The directory form is what GnuCash drew, untouched.
+    verbatim_dir = tmp_path / 'verbatim'
+    one = runner.invoke(cli, [
+        'print-invoice', str(gnc), id1, '--format', 'html',
+        '-o', f'{verbatim_dir}/',
+    ])
+    assert one.exit_code == 0, f'print-invoice: {one.output}'
+    single = (verbatim_dir / f'{id1}.html').read_text()
+    opening = single[single.index('<html'):single.index('>', single.index('<html')) + 1]
+    assert opening in html, (opening, html[:2000])
     assert '<body bgcolor=' in html, html[:2000]
     # Two rules the report's own CSS carries, and the entries table is the
     # part of the page that reads as a table only because of them.

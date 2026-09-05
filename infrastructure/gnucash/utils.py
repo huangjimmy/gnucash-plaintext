@@ -265,9 +265,26 @@ def to_money(value: Fraction, scu: int) -> GncNumeric:
     rounding and answers 63.22, a cent adrift — which is why the arithmetic is
     handed to the engine rather than done here.
 
+    The magnitude is what gets rounded, and the sign is put back afterwards,
+    because GnuCash 3.4 loses it. Measured there and on 5.10:
+
+        GnuCash    (-5/1000).convert(100, HALF_UP)   (+5/1000)
+        3.4        +1/100                            +1/100
+        5.10       -1/100                            +1/100
+
+    A closing entry of two half-cents came out with every sign inverted on
+    Debian 10 — the expense accounts credited where they should be debited —
+    and it balanced, so nothing else reported it. Half-up is symmetric about
+    zero, so rounding `abs` and re-signing is the same answer everywhere and
+    not a workaround that costs the other builds anything.
     """
-    exact = GncNumeric(Fraction(value).numerator, Fraction(value).denominator)
-    return exact.convert(scu, GNC_HOW_RND_ROUND_HALF_UP)
+    exact_value = Fraction(value)
+    magnitude = GncNumeric(abs(exact_value).numerator,
+                           abs(exact_value).denominator)
+    rounded = magnitude.convert(scu, GNC_HOW_RND_ROUND_HALF_UP)
+    if exact_value < 0:
+        return rounded.neg()
+    return rounded
 
 
 def money_text(value: Fraction, scu: int) -> str:

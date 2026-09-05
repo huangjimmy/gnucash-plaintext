@@ -386,18 +386,16 @@ class AccountBalanceUseCase:
             fx_rates:   FxRates instance with currency->CAD rates
             price_date: Date to use for new price entries (always today)
         """
-        import calendar
         import ctypes
-        import time
+        from datetime import datetime
 
-        from gnucash import GncNumeric
+        from gnucash import GncNumeric, GncPrice
         from gnucash.gnucash_core_c import (
             PRICE_SOURCE_USER_PRICE,
             gnc_price_create,
             gnc_price_set_commodity,
             gnc_price_set_currency,
             gnc_price_set_source,
-            gnc_price_set_time64,
             gnc_price_set_typestr,
             gnc_price_set_value,
             gnc_pricedb_add_price,
@@ -419,12 +417,15 @@ class AccountBalanceUseCase:
         lib.gnc_price_get_value.restype = GncNumericC
         lib.gnc_price_get_value.argtypes = [ctypes.c_void_p]
 
-        # time64 for price_date (noon UTC)
-        price_struct = time.struct_time((
-            price_date.year, price_date.month, price_date.day,
-            12, 0, 0, 0, 0, 0,
-        ))
-        price_time64 = calendar.timegm(price_struct)
+        # Noon, so the day is the day whatever the reader's timezone does with
+        # midnight. Given to the wrapper as a `datetime` and never as seconds:
+        # `gnc_price_set_time64` takes a time64 that only GnuCash 4 and later
+        # read as one, and handed epoch seconds 3.4 dates the price in the
+        # wrong millennium (CLAUDE.md finding 20). A price dated ~4753 then
+        # wins `gnc_pricedb_lookup_latest` for good, so every later "as of"
+        # lookup in GnuCash reads it as the current rate.
+        price_at = datetime(price_date.year, price_date.month, price_date.day,
+                            12, 0, 0)
 
         for currency_code in sorted(fx_rates.available_currencies):
             if currency_code == "CAD":
@@ -456,7 +457,12 @@ class AccountBalanceUseCase:
                 # commodity/currency/value require raw SwigPyObject (.instance)
                 gnc_price_set_commodity(price, commodity.instance)
                 gnc_price_set_currency(price, cad_commodity.instance)
-                gnc_price_set_time64(price, price_time64)
+                # Through the wrapper, which converts the `datetime` the way
+                # this build wants; the raw call takes seconds and 3.4 reads
+                # those as a date two thousand years out. `set_time64` is on
+                # `GncPrice` on every supported build, 3.4 included — checked,
+                # and `set_time` is on none of them.
+                GncPrice(instance=price).set_time64(price_at)
                 gnc_price_set_source(price, PRICE_SOURCE_USER_PRICE)
                 gnc_price_set_typestr(price, "last")
                 gnc_price_set_value(price, gnc_val.instance)

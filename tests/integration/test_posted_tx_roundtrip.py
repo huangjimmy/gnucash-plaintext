@@ -133,11 +133,15 @@ def _snapshot(gnc_path):
     repo.open()
     try:
         all_txs = repo.get_all_transactions()
+        def _posts_a_record(tx):
+            """True when GnuCash reads this transaction as an invoice posting."""
+            posted = gc.gncInvoiceGetInvoiceFromTxn(tx.instance)
+            return posted is not None and int(posted) != 0
+
         posting_tx_guids = sorted(
             tx.GetGUID().to_string()
             for tx in all_txs
-            if (p := gc.gncInvoiceGetInvoiceFromTxn(tx.instance)) is not None
-            and int(p) != 0
+            if _posts_a_record(tx)
         )
         all_tx_guids = sorted(tx.GetGUID().to_string() for tx in all_txs)
 

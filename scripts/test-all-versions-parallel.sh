@@ -17,7 +17,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Supported versions
-VERSIONS=("latest" "debian12" "debian11" "ubuntu26" "ubuntu24" "ubuntu22" "ubuntu20" "fedora41" "arch" "opensuse")
+VERSIONS=("latest" "debian12" "debian11" "debian10" "ubuntu26" "ubuntu24" "ubuntu22" "ubuntu20" "fedora41" "arch" "opensuse")
 
 echo "Testing against all supported versions IN PARALLEL..."
 echo "This is ~4x faster than sequential testing"
@@ -28,7 +28,7 @@ TEMP_BASE=$(mktemp -d -t gnucash-test-XXXXXX)
 echo "Temp workspace: $TEMP_BASE"
 
 # With GNC_COVERAGE set, every container writes its coverage data into one
-# shared directory, under a name of its own, so ten of them can write side by
+# shared directory, under a name of its own, so eleven of them can write side by
 # side and `coverage combine` adds them up afterwards. The union is the only
 # figure worth gating on: version-specific paths run on the distributions that
 # have those versions and nowhere else.
@@ -135,14 +135,15 @@ echo "Running tests in parallel..."
 FAILED_VERSIONS=()
 PASSED_VERSIONS=()
 PIDS=()
-# How many containers may run at once. Unset means all ten, which is what this
-# script has always done and what a machine with the memory for it wants.
+# How many containers may run at once. Unset means all eleven, which is what
+# this script has always done and what a machine with the memory for it wants.
 #
-# Ten suites at once is ten Python processes each holding a GnuCash book, and
-# on a machine without room for that the kernel kills one of them: the run then
-# reports a test failure, in whichever container the kernel picked rather than
-# in whichever one is at fault. Measured here — fedora41 alone passed all 3477
-# tests while the same suite under the ten-way run was killed part way through.
+# Eleven suites at once is eleven Python processes each holding a GnuCash book,
+# and on a machine without room for that the kernel kills one of them: the run
+# then reports a test failure, in whichever container the kernel picked rather
+# than in whichever one is at fault. Measured here — fedora41 alone passed all
+# 3477 tests while the same suite under the ten-way run of the day was killed
+# part way through.
 #
 # So it is a number rather than a flag, and the default is unchanged.
 MAX_PARALLEL="${GNC_MAX_PARALLEL:-0}"

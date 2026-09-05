@@ -59,11 +59,10 @@ def simple_book():
     tx = Transaction(book)
     tx.BeginEdit()
     tx.SetCurrency(hkd)
-    tx.SetDatePostedSecs(
-        int(gnucash.GncDateTime(gnucash.GncDate(2026, 4, 15)).GetTime64())
-        if hasattr(gnucash, "GncDateTime")
-        else int(date(2026, 4, 15).strftime("%s"))
-    )
+    # The setter the importer uses. `SetDatePostedSecs` with plain epoch
+    # seconds reads back as 4753-05-01 on GnuCash 3.4 — see
+    # `tests/research/what_a_posted_date_reads_back_as_probe.py`.
+    tx.SetDatePostedSecsNormalized(date(2026, 4, 15))
     for acct_obj, num, denom in [(boci, 24710, 100), (dining, -24710, 100)]:
         sp = GncSplit(book)
         sp.SetParent(tx)
