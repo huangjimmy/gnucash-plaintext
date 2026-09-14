@@ -1,0 +1,10 @@
+# The NASDAQ:AMZN price of prices_of_a_currency_and_a_stock.txt moved from
+# 2026-01-06 to 2026-01-09 through its guid.
+#
+# What this fixture produces: the same price, same guid, at 2026-01-09
+# 21:00:00 UTC.
+#
+# Verified by tests/integration/test_a_price_is_changed_through_its_guid.py.
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	time: "2026-01-09 21:00:00 +0000"

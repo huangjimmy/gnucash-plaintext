@@ -1077,10 +1077,13 @@ class TestGuidCollisionAcrossObjectTypes:
         the parent→children tree via the proper SWIG API instead of using
         the QofQuery results directly.
         """
-        from gnucash import Query, Session, Transaction
-        s = Session(f"xml://{gnc_path}")
+        from gnucash import Query, Transaction
+
+        from repositories.gnucash_repository import GnuCashRepository
+        repo = GnuCashRepository(gnc_path)
+        repo.open()
         try:
-            book = s.book
+            book = repo.book
             if qof_type == 'Account':
                 root = book.get_root_account()
 
@@ -1106,7 +1109,7 @@ class TestGuidCollisionAcrossObjectTypes:
             )
             return Transaction(instance=results[0]).GetGUID().to_string()
         finally:
-            s.end()
+            repo.close()
 
     def test_customer_guid_collides_with_existing_transaction_errors(self, tmp_path):
         """Existing transaction has guid X; importing customer with guid: X must error."""

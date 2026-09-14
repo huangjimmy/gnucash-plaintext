@@ -1776,10 +1776,10 @@ def test_a_credit_sees_cash_that_arrived_by_retarget(tmp_path):
 
     Cash blocks are applied before credit ones, so a credit takes what is left
     after them — and how the cash got there cannot change that figure. A block
-    naming an existing transaction with `txn_guid:` attaches its split with
-    `xaccSplitSetLot`, which sets the split's lot but does not add it to that
-    lot's split list until the book has been written and read back, so reading
-    the lot to find what has been paid sees nothing of it.
+    giving an existing transaction's guid in `txn_guid:` once had its split
+    attached with `xaccSplitSetLot`, which sets the split's lot but does not
+    add it to that lot's split list, so reading the lot to find what had been
+    paid saw nothing of it.
 
     Measured against a 100.00 invoice with 80.00 retargeted onto it and a
     50.00 credit named below: the credit is measured against 100.00 rather
@@ -2094,10 +2094,9 @@ def test_a_file_stating_what_a_division_leaves_is_not_warned_about(tmp_path):
 
     A file carries an account's open credits alongside the invoices that spend
     them, and the import compares the two. That comparison runs before the book
-    is saved, over lots whose split lists have not caught up: moving a split
-    with `xaccSplitSetLot` does not take it out of the lot it came from as far
-    as `gnc_lot_get_balance` is concerned, so a credit that was just divided
-    still reads at its old size.
+    is saved. When splits were moved with `xaccSplitSetLot`, the lot a split
+    came from still listed it, so `gnc_lot_get_balance` read a credit that was
+    just divided at its old size.
 
     So a file stating the truth — 20.00 left of a 50.00 credit after a 30.00
     invoice took its share — was warned about for stating it, and told the book

@@ -32,19 +32,16 @@ from repositories.gnucash_repository import GnuCashRepository, SessionMode
 def _book_holding(*numerators):
     """A CAD book whose expense accounts are kept to thousandths."""
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split
+    from gnucash import Account, GncNumeric, Split
     from gnucash import Transaction as Tx
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
-    book = session.book
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -83,8 +80,8 @@ def _book_holding(*numerators):
         back.SetAmount(GncNumeric(-numerator, 1000))
         transaction.CommitEdit()
 
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
     return path
 
 

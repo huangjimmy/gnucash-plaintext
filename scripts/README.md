@@ -144,6 +144,26 @@ Run tests in the Docker container. Automatically installs the package with depen
 - `./scripts/test.sh` - Same as host (Docker-in-Docker supported)
 - `pytest tests/` - Faster, skips Docker wrapper
 
+**Memory cap:** each test container may use 1 GB. The whole suite peaks at 317–393 MB across the eleven builds, so a run that reaches the cap is keeping memory it should not; it stops with exit 137 and the script says so. Change the cap with `GNC_TEST_MEMORY`, which takes any `docker run --memory` value:
+
+```bash
+GNC_TEST_MEMORY=2g ./scripts/test.sh latest
+```
+
+### `profile-test-memory` - See Where the Tests' Memory Goes
+
+Run the tests the way `test` does, with memory recorded before and after every test.
+
+```bash
+./scripts/profile-test-memory.sh                  # all tests, latest image
+./scripts/profile-test-memory.sh debian10         # all tests on Debian 10
+./scripts/profile-test-memory.sh latest tests/integration/test_payment_roundtrip.py
+```
+
+It prints the pytest result, the process's memory at the start, at the end and at most, how many GnuCash sessions were created, ended and destroyed, and the test files that added the most memory (`GNC_PROFILE_TOP` sets how many). One row per test is kept in `.memory-profile/<tag>.tsv`, beside the pytest output in `.memory-profile/<tag>.log`; `GNC_PROFILE_DIR` puts them elsewhere.
+
+One pytest process runs the whole suite, so memory any test keeps is kept for the rest of the run. That is how a session ended without being destroyed, which keeps its whole book in memory, grew the suite to 1.7 GB (docs/issues/Q-041).
+
 ### `run` - Run Arbitrary Command
 
 Run any command in the Docker container.

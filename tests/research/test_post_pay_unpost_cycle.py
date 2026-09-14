@@ -221,12 +221,15 @@ def _read_entry_guids(gnc_path, inv_id):
     """
     import ctypes
 
-    from gnucash import Query, Session
+    from gnucash import Query
     from gnucash.gnucash_business import Invoice
 
-    ses = Session(f"xml://{gnc_path}")
+    from repositories.gnucash_repository import GnuCashRepository
+
+    repo = GnuCashRepository(gnc_path)
+    repo.open()
     try:
-        book = ses.book
+        book = repo.book
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(book)
@@ -248,7 +251,7 @@ def _read_entry_guids(gnc_path, inv_id):
         q.destroy()
         return guids
     finally:
-        ses.end()
+        repo.close()
 
 
 def _write_diffs(dest_dir, rel_dir, snapshots):

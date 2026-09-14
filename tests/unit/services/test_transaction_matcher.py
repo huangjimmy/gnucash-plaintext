@@ -8,28 +8,22 @@ import sys
 
 import pytest
 
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
 
 class TestTransactionMatcherSignature:
     """Test transaction signature generation"""
 
     def test_get_signature_simple(self, temp_gnucash_with_transactions):
         """Test signature generation for a simple transaction"""
-        from gnucash import Session
-
         from services.transaction_matcher import TransactionMatcher
 
         # Open temp file
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get first transaction
             from gnucash import Query, Transaction
@@ -64,7 +58,7 @@ class TestTransactionMatcherSignature:
             assert accounts == tuple(sorted(accounts))
 
         finally:
-            session.end()
+            repo.close()
 
     def test_get_signature_for_plaintext(self):
         """Test creating signature from plaintext data"""
@@ -107,21 +101,16 @@ class TestTransactionMatcherDuplicates:
 
     def test_find_duplicates_no_duplicates(self, temp_gnucash_with_transactions):
         """Test when there are no duplicates"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.transaction_matcher import TransactionMatcher
 
         # Open temp file
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing transactions
             from gnucash import Query, Transaction
@@ -172,24 +161,19 @@ class TestTransactionMatcherDuplicates:
             assert len(conflicts) == 0
 
         finally:
-            session.end()
+            repo.close()
 
     def test_find_duplicates_exact_duplicate(self, temp_gnucash_with_transactions):
         """Test detecting exact duplicate transaction"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.transaction_matcher import TransactionMatcher
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing transactions
             from gnucash import Query, Transaction
@@ -239,24 +223,19 @@ class TestTransactionMatcherDuplicates:
             assert len(conflicts) == 0
 
         finally:
-            session.end()
+            repo.close()
 
     def test_find_duplicates_conflict(self, temp_gnucash_with_transactions):
         """Test detecting conflict (same signature, different amounts)"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.transaction_matcher import TransactionMatcher
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing transactions
             from gnucash import Query, Transaction
@@ -306,7 +285,7 @@ class TestTransactionMatcherDuplicates:
             assert len(conflicts) == 1
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestTransactionMatcherDocLink:
@@ -322,20 +301,13 @@ class TestTransactionMatcherDocLink:
         self, temp_gnucash_with_transactions
     ):
         """Transactions without doc_link match each other (None == None)."""
-        from gnucash import Session
-
         from services.transaction_matcher import TransactionMatcher
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             from gnucash import Query, Transaction
             query = Query()
             query.search_for('Trans')
@@ -353,26 +325,19 @@ class TestTransactionMatcherDocLink:
             ) is True
 
         finally:
-            session.end()
+            repo.close()
 
     def test_has_duplicate_signature_different_doc_link_is_not_duplicate(
         self, temp_gnucash_with_transactions
     ):
         """Incoming transaction with a different doc_link is NOT a duplicate."""
-        from gnucash import Session
-
         from services.transaction_matcher import TransactionMatcher
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             from gnucash import Query, Transaction
             query = Query()
             query.search_for('Trans')
@@ -390,7 +355,7 @@ class TestTransactionMatcherDocLink:
             ) is False
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestTransactionMatcherHelpers:
@@ -398,21 +363,13 @@ class TestTransactionMatcherHelpers:
 
     def test_has_duplicate_signature(self, temp_gnucash_with_transactions):
         """Test checking for duplicate signature"""
-        from gnucash import Session
-
         from services.transaction_matcher import TransactionMatcher
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get transactions
             from gnucash import Query, Transaction
@@ -441,24 +398,19 @@ class TestTransactionMatcherHelpers:
             assert has_dup is False
 
         finally:
-            session.end()
+            repo.close()
 
     def test_get_duplicate_count(self, temp_gnucash_with_transactions):
         """Test counting duplicates"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.transaction_matcher import TransactionMatcher
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing transactions (should be 3, no duplicates)
             from gnucash import Query, Transaction
@@ -510,7 +462,7 @@ class TestTransactionMatcherHelpers:
             assert dup_count == 1
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestTransactionMatcherGUID:
@@ -518,21 +470,13 @@ class TestTransactionMatcherGUID:
 
     def test_find_by_guid(self, temp_gnucash_with_transactions):
         """Test finding transaction by GUID"""
-        from gnucash import Session
-
         from services.transaction_matcher import TransactionMatcher
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get transactions
             from gnucash import Query, Transaction
@@ -561,4 +505,4 @@ class TestTransactionMatcherGUID:
             assert found is None
 
         finally:
-            session.end()
+            repo.close()

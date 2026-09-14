@@ -1,0 +1,28 @@
+# A USD bank, one deposit and one customer: something of each kind of block
+# an export writes, so the place price blocks take among them can be seen.
+#
+# What this fixture produces: accounts Assets, Assets:Bank and Equity, a
+# 100.00 USD deposit on 2026-01-04, and customer C-001.
+#
+# Verified by tests/integration/test_exporting_prices_is_asked_for.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity
+	type: Equity
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+customer "C-001"
+	name: "Example Customer"
+	currency: USD
+
+2026-01-04 * "Opening deposit"
+	currency.mnemonic: "USD"
+	Assets:Bank 100.00 USD
+	Equity -100.00 USD

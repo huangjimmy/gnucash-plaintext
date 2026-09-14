@@ -29,20 +29,16 @@ from click.testing import CliRunner
 from cli.main import cli
 
 
-def _new_session(path=None, new=True):
-    from gnucash import Session
+def _book_at(path=None, new=True):
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
     if path is None:
         fd, path = tempfile.mkstemp(suffix='.gnucash')
         os.close(fd)
         os.unlink(path)
-    try:
-        from gnucash import SessionOpenMode
-        mode = (SessionOpenMode.SESSION_NEW_STORE if new
-                else SessionOpenMode.SESSION_NORMAL_OPEN)
-        return Session(f'xml://{path}', mode), path
-    except ImportError:
-        return Session(f'xml://{path}', is_new=new), path
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW if new else SessionMode.NORMAL)
+    return repo, path
 
 
 @pytest.fixture
@@ -51,8 +47,8 @@ def coarsened_book():
     import gnucash
     from gnucash import Account, GncNumeric, Split, Transaction
 
-    session, path = _new_session()
-    book = session.book
+    repo, path = _book_at()
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -86,18 +82,18 @@ def coarsened_book():
     back.SetValue(GncNumeric(-1819, 100))
     back.SetAmount(GncNumeric(-1819, 100))
     transaction.CommitEdit()
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
 
     # Reopened and tightened, the way the GnuCash UI does it.
-    session, _ = _new_session(path, new=False)
-    target = (session.book.get_root_account()
+    repo, _ = _book_at(path, new=False)
+    target = (repo.book.get_root_account()
               .lookup_by_name('Expenses').lookup_by_name('Coarsened'))
     target.BeginEdit()
     target.SetCommoditySCU(1)
     target.CommitEdit()
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
 
     yield path
     if os.path.exists(path):

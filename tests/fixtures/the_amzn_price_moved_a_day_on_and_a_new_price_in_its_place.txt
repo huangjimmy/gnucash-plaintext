@@ -1,0 +1,23 @@
+# One file that moves the book's AMZN price off 2026-01-06 through its guid,
+# and gives a new AMZN price for 2026-01-06.
+#
+# The new price is written first. Where the blocks sit in the file makes no
+# difference: once the move is applied the day is free.
+#
+# What this fixture produces: the price with guid
+# 4a1a4c0c7328491fbde9f8099ba280c8 at 2026-01-08 21:00 UTC, and a new AMZN
+# price of 219.00 USD at 2026-01-06 21:00 UTC.
+#
+# Verified by tests/integration/test_a_price_is_changed_through_its_guid.py.
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-01-06 21:00:00 +0000"
+	value: "21900/100"
+	source: "Finance::Quote"
+	type: "last"
+
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	time: "2026-01-08 21:00:00 +0000"

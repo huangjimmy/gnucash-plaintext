@@ -5,12 +5,18 @@ Provides high-level interface for working with GnuCash files.
 Manages sessions, transactions, accounts, and file operations.
 """
 
+import os
+import re
+import shutil
+import tempfile
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 from gnucash import Account, Query, Session, Split, Transaction
 from gnucash.gnucash_core import GnuCashBackendException
 
+from infrastructure.gnucash.engine import load_gnc_engine
 from infrastructure.gnucash.utils import transaction_under_construction
 
 if TYPE_CHECKING:
@@ -27,15 +33,34 @@ class BookUnavailableError(RuntimeError):
     """
 
 
-def _what_gnucash_meant(error: Exception) -> str:
+_LOCKED = (
+    'The book is locked, which means GnuCash has it open — or a run '
+    'that did not finish left the lock behind. Close it in GnuCash, '
+    'or delete the `.LCK` and `.LNK` files beside the book, and try '
+    'again.')
+
+_NO_SUCH_BOOK = (
+    'There is no file at that path. Check the path; a new book is created '
+    'with `import --new`.')
+
+_A_FILE_IS_ALREADY_THERE = (
+    'There is already a file at that path, and a new book is not written over '
+    'it. Give a path where no file is.')
+
+_NO_DIRECTORY_FOR_THE_BOOK = (
+    'The directory the new book would go in does not exist. Create it first, '
+    'or give a path in a directory that does.')
+
+
+def _what_gnucash_meant(error: Exception, creating: bool = False) -> str:
     """A backend refusal, as the sentence that says which state the book is in."""
     text = str(error)
     if 'ERR_BACKEND_LOCKED' in text:
-        return (
-            'The book is locked, which means GnuCash has it open — or a run '
-            'that did not finish left the lock behind. Close it in GnuCash, '
-            'or delete the `.LCK` and `.LNK` files beside the book, and try '
-            'again.')
+        return _LOCKED
+    if 'ERR_BACKEND_STORE_EXISTS' in text:
+        return _A_FILE_IS_ALREADY_THERE
+    if 'ERR_FILEIO_FILE_NOT_FOUND' in text:
+        return _NO_DIRECTORY_FOR_THE_BOOK if creating else _NO_SUCH_BOOK
     if 'ERR_BACKEND_READONLY' in text:
         return (
             'The book is somewhere this command cannot write. GnuCash locks a '
@@ -49,6 +74,22 @@ def _what_gnucash_meant(error: Exception) -> str:
             'file GnuCash writes by default; a directory, a plaintext ledger '
             'or a book kept in a database is not one.')
     return f'GnuCash could not open the book: {text}'
+
+
+@lru_cache(maxsize=1)
+def _a_session_without_its_lock_closes_another_file() -> bool:
+    """Whether this GnuCash's XML backend closes a lock it never took when a session ends.
+
+    On 3.4, 3.8 and 4.4 a session whose backend took no lock — a book opened
+    read-only, and on 3.4 and 3.8 a missing or a locked book, or a new book
+    where a file already is or in a directory that does not exist — still
+    closes its lock descriptor when it ends, and that field holds the number
+    the previous backend at the same address used. Whatever file has that number by then is
+    closed. 4.8 and later close nothing of the kind. Measured on all eleven
+    builds (CLAUDE.md finding 27).
+    """
+    found = re.match(r'(\d+)\.(\d+)', (load_gnc_engine().gnc_version() or b'').decode())
+    return found is not None and (int(found.group(1)), int(found.group(2))) < (4, 8)
 
 
 class SessionMode:
@@ -71,6 +112,9 @@ class GnuCashRepository:
         self.file_path = file_path
         self.session = None
         self._book = None
+        # The directory holding the copy a book to read was opened from, on a
+        # GnuCash where `_a_session_without_its_lock_closes_another_file`.
+        self._private_copy = None
 
     def open(self, mode: str = SessionMode.NORMAL):
         """
@@ -83,6 +127,29 @@ class GnuCashRepository:
             raise RuntimeError("Session already open")
 
         uri = f"xml://{self.file_path}"
+
+        # Where a session that took no lock closes a file of the process's
+        # when it ends, no such session is made. What GnuCash would refuse
+        # before taking a lock is refused here first: a missing or a locked
+        # book, and a new book where a file already is or in a directory that
+        # does not exist. A book to read is opened for writing as a private
+        # copy, whose backend takes a lock of its own and closes only that;
+        # the book itself gets no lock, as a read-only open gives it none, and
+        # nothing is saved from the copy.
+        creating = mode == SessionMode.NEW
+        if _a_session_without_its_lock_closes_another_file():
+            if creating:
+                if os.path.lexists(self.file_path):
+                    raise BookUnavailableError(_A_FILE_IS_ALREADY_THERE)
+                if not os.path.isdir(os.path.dirname(os.path.abspath(self.file_path))):
+                    raise BookUnavailableError(_NO_DIRECTORY_FOR_THE_BOOK)
+            elif not os.path.lexists(self.file_path):
+                raise BookUnavailableError(_NO_SUCH_BOOK)
+            elif mode == SessionMode.NORMAL and os.path.lexists(f'{self.file_path}.LCK'):
+                raise BookUnavailableError(_LOCKED)
+            elif mode == SessionMode.READ_ONLY and os.path.isfile(self.file_path):
+                uri = self._a_private_copy()
+                mode = SessionMode.NORMAL
 
         # Use version-specific session API (try new API first). A refusal is
         # translated here rather than at each of the thirty commands: some
@@ -110,21 +177,63 @@ class GnuCashRepository:
                 else:
                     self.session = Session(uri)
         except GnuCashBackendException as e:
-            raise BookUnavailableError(_what_gnucash_meant(e)) from e
+            self._discard_the_private_copy()
+            raise BookUnavailableError(_what_gnucash_meant(e, creating)) from e
+        except BaseException:
+            # Whatever else stops the open, the copy goes with it: a caller
+            # whose `open()` raised has no session to close.
+            self._discard_the_private_copy()
+            raise
 
         self._book = self.session.book
 
+    def _a_private_copy(self) -> str:
+        """The book copied into a directory of its own, as the URI to open it by."""
+        directory = tempfile.mkdtemp(prefix='gnucash-read-only-')
+        copy = os.path.join(directory, os.path.basename(self.file_path))
+        try:
+            shutil.copyfile(self.file_path, copy)
+        except OSError as error:
+            shutil.rmtree(directory, ignore_errors=True)
+            raise BookUnavailableError(f'GnuCash could not open the book: {error}') from error
+        self._private_copy = directory
+        return f'xml://{copy}'
+
+    def _discard_the_private_copy(self):
+        if self._private_copy is not None:
+            shutil.rmtree(self._private_copy, ignore_errors=True)
+            self._private_copy = None
+
     def close(self):
-        """Close GnuCash file session."""
+        """Close GnuCash file session, and free the book it loaded.
+
+        `end()` closes the file and leaves the book in memory; `destroy()` ends
+        the session and frees the book. Ended alone, every book a process opened
+        stayed until the process exited: 100 opens of a 300-transaction book
+        kept 48.5 MiB, and the test suite, which opens about 12,000 books in one
+        process, grew to 1.7 GB.
+
+        `destroy()` is called alone, never after `end()`. On GnuCash 3.4, 3.8
+        and 4.4 ending a session twice closes the book's lock file twice, by
+        its number, and the second close takes any file opened under that
+        number in between (CLAUDE.md finding 26).
+
+        Nothing read from the book may be used after this: its accounts,
+        commodities and transactions are freed with it.
+        """
         if self.session is not None:
-            self.session.end()
+            session = self.session
             self.session = None
             self._book = None
+            session.destroy()
+        self._discard_the_private_copy()
 
     def save(self):
         """Save changes to GnuCash file."""
         if self.session is None:
             raise RuntimeError("No session open")
+        if self._private_copy is not None:
+            raise RuntimeError("The book was opened read-only, so nothing is saved to it")
         self.session.save()
 
     @property

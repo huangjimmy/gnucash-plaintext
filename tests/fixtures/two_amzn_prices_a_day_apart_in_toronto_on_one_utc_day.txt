@@ -1,0 +1,37 @@
+# Two NASDAQ:AMZN prices in USD on two days in Toronto and on one day in UTC.
+#
+# The first is at 2026-01-06 04:59:59 UTC, which is 23:59:59 on 2026-01-05 in
+# Toronto, the time GnuCash 5.x's stock transaction assistant gives a price.
+# The second is at 2026-01-06 10:59:00 UTC, the time GnuCash's Price Editor
+# gives a date (Q-041, table 2). In Toronto each is on a day of its own; in UTC
+# both are on 2026-01-06.
+#
+# What this fixture produces, imported under TZ=America/Toronto: a book holding
+# both prices.
+#
+# Verified by tests/integration/test_a_block_that_moves_no_price_is_not_checked_for_its_day.py.
+2026-01-01 commodity AMZN
+	mnemonic: "AMZN"
+	fullname: "Amazon.com Inc"
+	namespace: "NASDAQ"
+	fraction: 10000
+
+price
+	guid: "6d1e5a4f2b3c4d5e8f9a0b1c2d3e4f5a"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-01-06 04:59:59 +0000"
+	value: "21500/100"
+	source: "Finance::Quote"
+	type: "last"
+
+price
+	guid: "7e2f6b5a3c4d5e6f9a0b1c2d3e4f5a6b"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-01-06 10:59:00 +0000"
+	value: "21700/100"
+	source: "Finance::Quote"
+	type: "last"

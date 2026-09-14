@@ -1,0 +1,19 @@
+# CAD in USD on 2026-01-05, with a guid, three days after the book's USD in CAD.
+#
+# Its source is the USD in CAD price's own, `user:price-editor`: moved onto a
+# day holding a higher-ranked price, GnuCash would leave it where it was
+# instead of deleting the other, and hide the deletion the moving test is about.
+#
+# What this fixture produces: one CAD in USD price, guid
+# 6c3c6e2e954a413ba7d8fa21bc5de2a0, at 2026-01-05 18:00 UTC.
+#
+# Verified by tests/integration/test_a_second_price_on_one_day_is_refused.py.
+price
+	guid: "6c3c6e2e954a413ba7d8fa21bc5de2a0"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	currency.mnemonic: "USD"
+	time: "2026-01-05 18:00:00 +0000"
+	value: "0.731"
+	source: "user:price-editor"
+	type: "last"

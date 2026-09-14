@@ -39,16 +39,15 @@ def _make_book_with_num_only_tx(path: str, num_value: str) -> None:
     Assets:Bank:Checking -50 CAD on 2024-02-15.
     """
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
+
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
     try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
-
-    try:
-        book = session.book
+        book = repo.book
         root = book.get_root_account()
         cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -86,10 +85,9 @@ def _make_book_with_num_only_tx(path: str, num_value: str) -> None:
         s2.SetAmount(GncNumeric(-5000, 100))
 
         tx.CommitEdit()
-        session.save()
+        repo.save()
     finally:
-        session.end()
-        session.destroy()
+        repo.close()
 
 
 def test_num_only_roundtrips_through_plaintext():

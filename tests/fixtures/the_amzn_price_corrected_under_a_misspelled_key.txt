@@ -1,0 +1,15 @@
+# The NASDAQ:AMZN price, given by its guid, with its value corrected under a
+# misspelled key: `valeu:` for `value:`.
+#
+# A price has no custom metadata to keep a key it does not read, so a key it
+# does not read would be dropped and the correction lost, with the price
+# reported unchanged.
+#
+# What this fixture produces, on a book holding
+# prices_of_a_currency_and_a_stock.txt: nothing; the block is refused, the
+# refusal lists `valeu`, and the price keeps 218.45.
+#
+# Verified by tests/integration/test_a_price_block_with_a_key_a_price_does_not_take_is_refused.py.
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	valeu: "22000/100"

@@ -159,6 +159,12 @@ class DirectiveType(Enum):
     PAYMENT_TRANSACTION = 19
     PAYMENT_SPLIT = 20
 
+    # Q-041: one entry of the book's price database — what one unit of a
+    # commodity was worth in a currency at a moment. A header block like
+    # `company`, with no date on its line: its `time:` is a moment, and a date
+    # in front of it would say less than the block does.
+    PRICE = 21
+
 
 
 class PlaintextDirective:
@@ -310,6 +316,7 @@ class PlaintextParser:
             (split_account_name, split_amount, split_symbol) = parse_split(line)
             (key, value) = parse_metadata(line)
             company_head = parse_company_head(line.strip())
+            price_head = parse_price_head(line.strip())
             payment_txn_guid = parse_payment_transaction(line.strip())
             payment_split_guid = parse_payment_split(line.strip())
             customer_id = parse_customer(line.strip())
@@ -397,6 +404,19 @@ class PlaintextParser:
                 self.current_directive = obj
             elif company_head:
                 obj = PlaintextDirective(DirectiveType.COMPANY, line_level, line, parent_directive)
+                parent_directive.children.append(obj)
+                self.current_directive = obj
+            elif price_head:
+                # A price stands on its own. Written inside another block it
+                # would be a child nothing reads, which is what every other
+                # unread line here is refused for.
+                if parent_directive.type != DirectiveType.ROOT:
+                    self.errors.append(
+                        f'Error processing line {line_number}: a `price` block '
+                        f'stands on its own, not inside '
+                        f'{parent_directive.type.name.lower()}.')
+                    break
+                obj = PlaintextDirective(DirectiveType.PRICE, line_level, line, parent_directive)
                 parent_directive.children.append(obj)
                 self.current_directive = obj
             elif customer_id is not None:
@@ -502,7 +522,13 @@ invoice_pattern = r'^invoice\s+"(.*?)"\s*$'
 vendor_pattern = r'^vendor\s+"(.*?)"\s*$'
 bill_pattern = r'^bill\s+"(.*?)"\s*$'
 company_pattern = r'^company\s*$'
+price_pattern = r'^price\s*$'
 block_pattern = r'^\s*(entry|posted|payment|breakdown|open_prepayment):\s*$'
+
+
+def parse_price_head(line: str) -> bool:
+    """Match the header line of a `price` block (Q-041)."""
+    return re.match(price_pattern, line) is not None
 
 
 def parse_company_head(line: str) -> bool:

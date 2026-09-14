@@ -373,25 +373,27 @@ def test_archive_vendors_batch_mixed(tmp_path):
 
 def _customer_guid_for_id(gnc_path, cust_id):
     """Read a customer's GUID from the saved gnucash file via the bindings."""
-    from gnucash import Session
-    s = Session(f"xml://{gnc_path}")
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc_path)
+    repo.open()
     try:
-        cust = s.book.CustomerLookupByID(cust_id)
+        cust = repo.book.CustomerLookupByID(cust_id)
         assert cust is not None, f"Setup fixture missing customer {cust_id!r}"
         return cust.GetGUID().to_string()
     finally:
-        s.end()
+        repo.close()
 
 
 def _vendor_guid_for_id(gnc_path, vend_id):
-    from gnucash import Session
-    s = Session(f"xml://{gnc_path}")
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc_path)
+    repo.open()
     try:
-        v = s.book.VendorLookupByID(vend_id)
+        v = repo.book.VendorLookupByID(vend_id)
         assert v is not None, f"Setup fixture missing vendor {vend_id!r}"
         return v.GetGUID().to_string()
     finally:
-        s.end()
+        repo.close()
 
 
 def test_delete_customer_by_guid_no_invoices(tmp_path):

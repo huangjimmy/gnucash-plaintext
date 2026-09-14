@@ -1,0 +1,29 @@
+# Two new prices in one file, USD in CAD and EUR in CAD, given one guid the book
+# does not hold.
+#
+# A guid is one price. Created in turn, both would take it, and the book would
+# be saved with two prices holding one guid.
+#
+# What this fixture produces, on a book holding
+# prices_of_a_currency_and_a_stock.txt: nothing; both blocks are refused.
+#
+# Verified by tests/integration/test_one_guid_given_in_two_price_blocks_is_refused.py.
+price
+	guid: "9c9d9e9f40414243a4a5a6a7a8a9aaab"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-01-09 12:00:00 +0000"
+	value: "1.3650"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	guid: "9c9d9e9f40414243a4a5a6a7a8a9aaab"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2026-01-09 12:00:00 +0000"
+	value: "1.4810"
+	source: "user:price-editor"
+	type: "last"

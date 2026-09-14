@@ -1,0 +1,14 @@
+# A NASDAQ:MSFT price in a file that declares no such commodity, imported into
+# a book that has none.
+#
+# What this fixture produces: nothing; the refusal, which prints NASDAQ:MSFT.
+#
+# Verified by tests/integration/test_a_file_of_prices_imports_on_its_own.py.
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "MSFT"
+	currency.mnemonic: "USD"
+	time: "2026-01-06 21:00:00 +0000"
+	value: "423.10"
+	source: "Finance::Quote"
+	type: "last"

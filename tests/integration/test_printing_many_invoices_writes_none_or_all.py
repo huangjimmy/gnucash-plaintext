@@ -66,13 +66,16 @@ def _move_a_payable_split(path, cents, thousandths):
     reason: the account's unit takes the figure, the GUI writes it, and this
     tool's importer will not.
     """
-    from gnucash import GncNumeric, Query, Session, Transaction
+    from gnucash import GncNumeric, Query, Transaction
 
-    session = Session(f'xml://{path}')
+    from repositories.gnucash_repository import GnuCashRepository
+
+    repo = GnuCashRepository(path)
+    repo.open()
     try:
         query = Query()
         query.search_for('Trans')
-        query.set_book(session.book)
+        query.set_book(repo.book)
         moved = 0
         for raw in query.run():
             transaction = Transaction(instance=raw)
@@ -89,9 +92,9 @@ def _move_a_payable_split(path, cents, thousandths):
                 moved += 1
         query.destroy()
         assert moved == 1, f'expected one split at {cents / 100}, moved {moved}'
-        session.save()
+        repo.save()
     finally:
-        session.end()
+        repo.close()
     return path
 
 

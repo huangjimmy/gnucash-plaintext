@@ -179,12 +179,15 @@ def _read_entry_guids(gnc_path, bill_id):
     the query is identical."""
     import ctypes
 
-    from gnucash import Query, Session
+    from gnucash import Query
     from gnucash.gnucash_business import Invoice
 
-    ses = Session(f"xml://{gnc_path}")
+    from repositories.gnucash_repository import GnuCashRepository
+
+    repo = GnuCashRepository(gnc_path)
+    repo.open()
     try:
-        book = ses.book
+        book = repo.book
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(book)
@@ -206,7 +209,7 @@ def _read_entry_guids(gnc_path, bill_id):
         q.destroy()
         return guids
     finally:
-        ses.end()
+        repo.close()
 
 
 def _snapshot(runner, gnc, tmp_path, dest_dir, label):

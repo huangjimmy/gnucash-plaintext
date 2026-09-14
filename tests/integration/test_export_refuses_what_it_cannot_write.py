@@ -23,6 +23,7 @@ import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 
 def _book_holding(numerator, denominator=1000, extra=()):
@@ -32,18 +33,15 @@ def _book_holding(numerator, denominator=1000, extra=()):
     that every offender is reported rather than only the first.
     """
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
-    book = session.book
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -91,8 +89,8 @@ def _book_holding(numerator, denominator=1000, extra=()):
         back.SetAmount(GncNumeric(-num, denominator))
         transaction.CommitEdit()
 
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
     return path
 
 
@@ -151,13 +149,14 @@ def _book_with_an_offender_on_each_side():
 
 def _move_a_bank_split(path, cents, thousandths):
     """The same move on the bank side, for a transaction-section offender."""
-    from gnucash import GncNumeric, Query, Session, Transaction
+    from gnucash import GncNumeric, Query, Transaction
 
-    session = Session(f'xml://{path}')
+    repo = GnuCashRepository(path)
+    repo.open()
     try:
         query = Query()
         query.search_for('Trans')
-        query.set_book(session.book)
+        query.set_book(repo.book)
         moved = 0
         for raw in query.run():
             transaction = Transaction(instance=raw)
@@ -174,9 +173,9 @@ def _move_a_bank_split(path, cents, thousandths):
                 moved += 1
         query.destroy()
         assert moved == 1, f'expected one bank split at {cents / 100}, moved {moved}'
-        session.save()
+        repo.save()
     finally:
-        session.end()
+        repo.close()
     return path
 
 
@@ -186,13 +185,14 @@ def _move_a_receivable_split(path, cents, thousandths):
     Which is how a book comes to hold such a figure: the account's unit takes
     it and the GUI writes it, while this tool's importer refuses to.
     """
-    from gnucash import GncNumeric, Query, Session, Transaction
+    from gnucash import GncNumeric, Query, Transaction
 
-    session = Session(f'xml://{path}')
+    repo = GnuCashRepository(path)
+    repo.open()
     try:
         query = Query()
         query.search_for('Trans')
-        query.set_book(session.book)
+        query.set_book(repo.book)
         moved = 0
         for raw in query.run():
             transaction = Transaction(instance=raw)
@@ -209,9 +209,9 @@ def _move_a_receivable_split(path, cents, thousandths):
                 moved += 1
         query.destroy()
         assert moved == 1, f'expected one split at {cents / 100}, moved {moved}'
-        session.save()
+        repo.save()
     finally:
-        session.end()
+        repo.close()
     return path
 
 

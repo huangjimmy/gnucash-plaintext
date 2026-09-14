@@ -9,6 +9,8 @@ from datetime import datetime
 
 import pytest
 
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
 
 class TestValidationError:
     """Test ValidationError class"""
@@ -112,21 +114,15 @@ class TestTransactionValidation:
 
     def test_validate_valid_transaction(self, temp_gnucash_with_transactions):
         """Test validating a valid transaction"""
-        from gnucash import Session, Transaction
+        from gnucash import Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get first transaction
             from gnucash import Query
@@ -143,25 +139,19 @@ class TestTransactionValidation:
             assert validation_result.is_valid()
 
         finally:
-            session.end()
+            repo.close()
 
     def test_validate_transaction_balance(self, temp_gnucash_with_transactions):
         """Test validating transaction balance"""
-        from gnucash import Session, Transaction
+        from gnucash import Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
 
             from gnucash import Query
             query = Query()
@@ -179,24 +169,19 @@ class TestTransactionValidation:
             assert is_balanced is True
 
         finally:
-            session.end()
+            repo.close()
 
     def test_validate_transaction_no_splits(self, temp_gnucash_file):
         """Test validating transaction with no splits"""
-        from gnucash import Session, Transaction
+        from gnucash import Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}')
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
             commod_table = book.get_table()
             cad = commod_table.lookup('CURRENCY', 'CAD')
 
@@ -216,7 +201,7 @@ class TestTransactionValidation:
             assert any(e.code == "NO_SPLITS" for e in validation_result.errors)
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestAccountValidation:
@@ -224,21 +209,13 @@ class TestAccountValidation:
 
     def test_validate_valid_account(self, temp_gnucash_file):
         """Test validating a valid account"""
-        from gnucash import Session
-
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -251,7 +228,7 @@ class TestAccountValidation:
             assert validation_result.is_valid()
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestAccountHierarchyValidation:
@@ -259,21 +236,13 @@ class TestAccountHierarchyValidation:
 
     def test_validate_account_hierarchy(self, temp_gnucash_file):
         """Test validating account hierarchy"""
-        from gnucash import Session
-
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             validator = LedgerValidator()
@@ -283,7 +252,7 @@ class TestAccountHierarchyValidation:
             assert validation_result.is_valid()
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestTransactionsValidation:
@@ -291,21 +260,15 @@ class TestTransactionsValidation:
 
     def test_validate_transactions(self, temp_gnucash_with_transactions):
         """Test validating list of transactions"""
-        from gnucash import Session, Transaction
+        from gnucash import Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get all transactions
             from gnucash import Query
@@ -322,24 +285,19 @@ class TestTransactionsValidation:
             assert validation_result.is_valid()
 
         finally:
-            session.end()
+            repo.close()
 
     def test_validate_transactions_with_duplicates(self, temp_gnucash_with_transactions):
         """Test validating transactions with duplicates"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing transactions
             from gnucash import Query
@@ -387,7 +345,7 @@ class TestTransactionsValidation:
             assert any(w.code == "DUPLICATES_FOUND" for w in validation_result.warnings)
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestLedgerValidation:
@@ -395,21 +353,15 @@ class TestLedgerValidation:
 
     def test_validate_ledger(self, temp_gnucash_with_transactions):
         """Test validating entire ledger"""
-        from gnucash import Session, Transaction
+        from gnucash import Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             # Get all transactions
@@ -427,7 +379,7 @@ class TestLedgerValidation:
             assert validation_result.is_valid()
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestDateValidation:
@@ -435,21 +387,15 @@ class TestDateValidation:
 
     def test_check_transaction_date_order(self, temp_gnucash_with_transactions):
         """Test checking transaction date order"""
-        from gnucash import Session, Transaction
+        from gnucash import Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get all transactions
             from gnucash import Query
@@ -469,25 +415,19 @@ class TestDateValidation:
             assert len(validation_result.get_all_issues()) == 0
 
         finally:
-            session.end()
+            repo.close()
 
     def test_check_future_transactions(self, temp_gnucash_with_transactions):
         """Test checking for future transactions"""
-        from gnucash import Session, Transaction
+        from gnucash import Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get all transactions
             from gnucash import Query
@@ -510,7 +450,7 @@ class TestDateValidation:
             assert len(validation_result.info) == len(transactions)
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestReportFormatting:
@@ -559,19 +499,15 @@ class TestValidateTransactionEdgeCases:
 
     def test_empty_splits_produces_no_splits_error(self, temp_gnucash_with_transactions):
         """validate_transaction() on a transaction with no splits must produce NO_SPLITS error."""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
             cad = book.get_table().lookup('CURRENCY', 'CAD')
 
             # Create a transaction with no splits
@@ -587,7 +523,7 @@ class TestValidateTransactionEdgeCases:
             error_codes = [e.code for e in result.errors]
             assert 'NO_SPLITS' in error_codes
         finally:
-            session.end()
+            repo.close()
 
 
     def test_is_transaction_balanced_false_for_partial_splits(self, temp_gnucash_with_transactions):
@@ -605,19 +541,15 @@ class TestValidateTransactionEdgeCases:
         check correctly detects an imbalanced subset and would flag a real imbalanced
         transaction if one were loadable.
         """
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book)
@@ -634,7 +566,7 @@ class TestValidateTransactionEdgeCases:
                 "_is_transaction_balanced should return False for a single-split subset"
             )
         finally:
-            session.end()
+            repo.close()
 
 
 class TestBalanceAcrossDifferentDenominators:
@@ -692,19 +624,15 @@ class TestCheckTransactionDateOrderEdgeCases:
 
     def test_single_transaction_no_error(self, temp_gnucash_with_transactions):
         """check_transaction_date_order() with only 1 transaction returns no errors."""
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book)
@@ -715,7 +643,7 @@ class TestCheckTransactionDateOrderEdgeCases:
             assert result.errors == []
             assert result.info == []
         finally:
-            session.end()
+            repo.close()
 
     def test_empty_list_no_error(self):
         """check_transaction_date_order() with empty list returns clean result."""
@@ -735,19 +663,15 @@ class TestCheckFutureTransactions:
         When reference_date is set far in the future, no transaction should be flagged.
         This exercises the explicit reference_date parameter branch.
         """
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book)
@@ -758,25 +682,21 @@ class TestCheckFutureTransactions:
             result = validator.check_future_transactions(txs, reference_date=datetime(2030, 1, 1))
             assert result.info == []
         finally:
-            session.end()
+            repo.close()
 
     def test_explicit_reference_date_flags_future_transaction(self, temp_gnucash_with_transactions):
         """
         When reference_date is set before the transactions, they should all be flagged.
         """
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
         from services.ledger_validator import LedgerValidator
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book)
@@ -789,7 +709,7 @@ class TestCheckFutureTransactions:
             assert all(c == 'FUTURE_DATE' for c in future_codes)
             assert len(result.info) == len(txs)
         finally:
-            session.end()
+            repo.close()
 
 
 class TestFormatValidationReportEdgeCases:

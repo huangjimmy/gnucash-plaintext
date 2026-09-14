@@ -122,9 +122,11 @@ class GnuCashFuzzyMatcher:
                 key = (d, positive)
                 self._index.setdefault(key, []).append(entry)
         finally:
-            # Always close session — releases the entire GnuCash book from memory
+            # Always close. The index holds plain values, and `close` destroys
+            # the session, which ends it and frees the book; ending it alone
+            # left the whole book in memory.
             with contextlib.suppress(Exception):
-                self._repo.session.end()
+                self._repo.close()
 
         self._built = True
 

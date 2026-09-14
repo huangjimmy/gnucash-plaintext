@@ -24,24 +24,22 @@ import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 
 @pytest.fixture
 def book_and_guid():
     """A CAD book holding 1.819 on a thousandths account, and its tx GUID."""
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
-    book = session.book
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -78,8 +76,8 @@ def book_and_guid():
     transaction.CommitEdit()
     guid = transaction.GetGUID().to_string()
 
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
     yield path, guid
     if os.path.exists(path):
         os.unlink(path)

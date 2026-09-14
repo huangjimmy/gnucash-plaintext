@@ -1,0 +1,18 @@
+# A second USD rate in CAD on 2026-01-02, the day
+# prices_of_a_currency_and_a_stock.txt already prices, with a different value
+# and no guid.
+#
+# GnuCash keeps one price a day for a commodity in a currency, so this is
+# refused, listing the price already there.
+#
+# What this fixture produces: nothing; the refusal.
+#
+# Verified by tests/integration/test_a_second_price_on_one_day_is_refused.py.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-01-02 18:00:00 +0000"
+	value: "1.37"
+	source: "user:price-editor"
+	type: "last"

@@ -23,31 +23,27 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_session(path):
-    """Open a new GnuCash session at *path* (SESSION_NEW_STORE)."""
-    from gnucash import Session
-    try:
-        from gnucash import SessionOpenMode
-        return Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        return Session(f'xml://{path}', is_new=True)
+def _new_book(path):
+    """A new GnuCash book at *path*, opened through the repository."""
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
+    return repo
 
 
-def _open_session(path):
-    """Open an existing GnuCash session at *path*."""
-    from gnucash import Session
-    try:
-        from gnucash import SessionOpenMode
-        return Session(f'xml://{path}', SessionOpenMode.SESSION_NORMAL_OPEN)
-    except ImportError:
-        return Session(f'xml://{path}')
+def _open_book(path):
+    """The existing GnuCash book at *path*, opened through the repository."""
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NORMAL)
+    return repo
 
 
 def _make_book():
     """
     Create a minimal GnuCash book with CAD accounts for testing.
 
-    Returns (session, book, path). Caller must call session.end() and
+    Returns (repo, book, path). Caller must call repo.close() and
     clean up path after use.
     """
     import gnucash
@@ -57,8 +53,8 @@ def _make_book():
     os.close(fd)
     os.unlink(path)
 
-    session = _make_session(path)
-    book = session.book
+    repo = _new_book(path)
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -76,7 +72,7 @@ def _make_book():
     expenses = _acct('Expenses', gnucash.ACCT_TYPE_EXPENSE, root)
     _acct('Dining', gnucash.ACCT_TYPE_EXPENSE, expenses)
 
-    return session, book, path
+    return repo, book, path
 
 
 def _build_directive(date_str, tx_desc, splits, metadata=None):
@@ -111,7 +107,7 @@ class TestKvpRoundtrip:
 
         from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             cad = book.get_table().lookup('CURRENCY', 'CAD')
             root = book.get_root_account()
@@ -139,12 +135,12 @@ class TestKvpRoundtrip:
             set_custom_metadata(tx, metadata)
 
             tx.CommitEdit()
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
             # Re-open and read back
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             from gnucash import Query
             q = Query()
             q.search_for('Trans')
@@ -154,7 +150,7 @@ class TestKvpRoundtrip:
 
             result = get_custom_metadata(txs[0])
             assert result == metadata
-            session2.end()
+            repo2.close()
 
         finally:
             if os.path.exists(path):
@@ -175,7 +171,7 @@ class TestKvpRoundtrip:
 
         from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             cad = book.get_table().lookup('CURRENCY', 'CAD')
             root = book.get_root_account()
@@ -200,13 +196,13 @@ class TestKvpRoundtrip:
 
             set_custom_metadata(s1, {'cost_basis_balance': '100.00'})
             tx.CommitEdit()
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
+            repo2 = _open_book(path)
             q = Query()
             q.search_for('Trans')
-            q.set_book(session2.book)
+            q.set_book(repo2.book)
             reopened = [Transaction(instance=t) for t in q.run()][0]
             split = [s for s in reopened.GetSplitList()
                      if get_custom_metadata(s)][0]
@@ -216,16 +212,16 @@ class TestKvpRoundtrip:
                     if key != 'cost_basis_balance'}
             set_custom_metadata(split, kept)
             reopened.CommitEdit()
-            session2.save()
-            session2.end()
+            repo2.save()
+            repo2.close()
 
-            session3 = _open_session(path)
+            repo3 = _open_book(path)
             q3 = Query()
             q3.search_for('Trans')
-            q3.set_book(session3.book)
+            q3.set_book(repo3.book)
             final = [Transaction(instance=t) for t in q3.run()][0]
             assert all(get_custom_metadata(s) == {} for s in final.GetSplitList())
-            session3.end()
+            repo3.close()
 
         finally:
             if os.path.exists(path):
@@ -240,7 +236,7 @@ class TestKvpRoundtrip:
 
         from infrastructure.gnucash.kvp import get_custom_metadata
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             cad = book.get_table().lookup('CURRENCY', 'CAD')
             root = book.get_root_account()
@@ -268,7 +264,7 @@ class TestKvpRoundtrip:
             result = get_custom_metadata(tx)
             assert result == {}
 
-            session.end()
+            repo.close()
 
         finally:
             if os.path.exists(path):
@@ -283,7 +279,7 @@ class TestKvpRoundtrip:
 
         from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             cad = book.get_table().lookup('CURRENCY', 'CAD')
             root = book.get_root_account()
@@ -310,7 +306,7 @@ class TestKvpRoundtrip:
             tx.CommitEdit()
 
             assert get_custom_metadata(tx) == {}
-            session.end()
+            repo.close()
 
         finally:
             if os.path.exists(path):
@@ -325,7 +321,7 @@ class TestKvpRoundtrip:
 
         from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             cad = book.get_table().lookup('CURRENCY', 'CAD')
             root = book.get_root_account()
@@ -350,11 +346,11 @@ class TestKvpRoundtrip:
             s2.SetValue(GncNumeric(-3000, 100))
 
             tx.CommitEdit()
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             from gnucash import Query
             q = Query()
             q.search_for('Trans')
@@ -368,7 +364,7 @@ class TestKvpRoundtrip:
             )
             result = get_custom_metadata(dining_split)
             assert result == {'vendor': 'Acme', 'ref': '42'}
-            session2.end()
+            repo2.close()
 
         finally:
             if os.path.exists(path):
@@ -390,7 +386,7 @@ class TestCreateTransactionKvpMetadata:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = _build_directive('2024-01-10', 'Lunch', [
                 {'account': 'Expenses:Dining', 'amount': '25.00'},
@@ -398,11 +394,11 @@ class TestCreateTransactionKvpMetadata:
             ], metadata={'receipt': 'R-999', 'notes': 'business lunch'})
 
             GnuCashImporter.create_transaction(directive, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book2)
@@ -415,7 +411,7 @@ class TestCreateTransactionKvpMetadata:
             # 'notes' is a known key → must NOT be stored as custom KVP
             assert 'notes' in txs[0].GetNotes() or txs[0].GetNotes() == 'business lunch'
             assert 'notes' not in custom
-            session2.end()
+            repo2.close()
 
         finally:
             if os.path.exists(path):
@@ -431,7 +427,7 @@ class TestCreateTransactionKvpMetadata:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = _build_directive('2024-01-11', 'Office dinner', [
                 {'account': 'Expenses:Dining', 'amount': '80.00'},
@@ -443,11 +439,11 @@ class TestCreateTransactionKvpMetadata:
             })
 
             GnuCashImporter.create_transaction(directive, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book2)
@@ -457,7 +453,7 @@ class TestCreateTransactionKvpMetadata:
             custom = get_custom_metadata(txs[0])
             for known_key in ('guid', 'notes', 'doc_link'):
                 assert known_key not in custom, f"'{known_key}' should not be in custom KVP"
-            session2.end()
+            repo2.close()
 
         finally:
             if os.path.exists(path):
@@ -473,7 +469,7 @@ class TestCreateTransactionKvpMetadata:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = _build_directive('2024-01-12', 'Split meta test', [
                 {'account': 'Expenses:Dining', 'amount': '40.00',
@@ -482,11 +478,11 @@ class TestCreateTransactionKvpMetadata:
             ])
 
             GnuCashImporter.create_transaction(directive, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book2)
@@ -501,7 +497,7 @@ class TestCreateTransactionKvpMetadata:
             assert custom.get('vendor') == 'Pizza Palace'
             # 'memo' is a known split key → must NOT be stored as custom KVP
             assert 'memo' not in custom
-            session2.end()
+            repo2.close()
 
         finally:
             if os.path.exists(path):
@@ -517,7 +513,7 @@ class TestCreateTransactionKvpMetadata:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = _build_directive('2024-01-13', 'Standard tx', [
                 {'account': 'Expenses:Dining', 'amount': '10.00', 'memo': 'lunch'},
@@ -525,11 +521,11 @@ class TestCreateTransactionKvpMetadata:
             ], metadata={'notes': 'just a note'})
 
             GnuCashImporter.create_transaction(directive, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book2)
@@ -537,7 +533,7 @@ class TestCreateTransactionKvpMetadata:
             assert len(txs) == 1
 
             assert get_custom_metadata(txs[0]) == {}
-            session2.end()
+            repo2.close()
 
         finally:
             if os.path.exists(path):
@@ -560,7 +556,7 @@ class TestExportEmitsCustomMetadata:
         from repositories.gnucash_repository import GnuCashRepository
         from use_cases.export_transactions import ExportTransactionsUseCase
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             cad = book.get_table().lookup('CURRENCY', 'CAD')
             root = book.get_root_account()
@@ -585,8 +581,8 @@ class TestExportEmitsCustomMetadata:
 
             set_custom_metadata(tx, {'invoice_no': 'INV-001', 'project': 'alpha'})
             tx.CommitEdit()
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
             repo = GnuCashRepository(path)
             repo.open()
@@ -615,7 +611,7 @@ class TestExportEmitsCustomMetadata:
         from repositories.gnucash_repository import GnuCashRepository
         from use_cases.export_transactions import ExportTransactionsUseCase
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             cad = book.get_table().lookup('CURRENCY', 'CAD')
             root = book.get_root_account()
@@ -640,8 +636,8 @@ class TestExportEmitsCustomMetadata:
             s2.SetValue(GncNumeric(-2000, 100))
 
             tx.CommitEdit()
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
             repo = GnuCashRepository(path)
             repo.open()
@@ -669,7 +665,7 @@ class TestExportEmitsCustomMetadata:
         from repositories.gnucash_repository import GnuCashRepository
         from use_cases.export_transactions import ExportTransactionsUseCase
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             cad = book.get_table().lookup('CURRENCY', 'CAD')
             root = book.get_root_account()
@@ -693,8 +689,8 @@ class TestExportEmitsCustomMetadata:
             s2.SetValue(GncNumeric(-500, 100))
 
             tx.CommitEdit()
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
             repo = GnuCashRepository(path)
             repo.open()
@@ -730,7 +726,7 @@ class TestFullRoundtrip:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_transactions import ExportTransactionsUseCase
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = _build_directive('2024-02-01', 'Roundtrip tx', [
                 {'account': 'Expenses:Dining', 'amount': '60.00'},
@@ -738,8 +734,8 @@ class TestFullRoundtrip:
             ], metadata={'tax_category': 'meals_entertainment', 'fiscal_year': '2024'})
 
             GnuCashImporter.create_transaction(directive, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
             repo = GnuCashRepository(path)
             repo.open()
@@ -766,7 +762,7 @@ class TestFullRoundtrip:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_transactions import ExportTransactionsUseCase
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = _build_directive('2024-02-02', 'Split roundtrip tx', [
                 {'account': 'Expenses:Dining', 'amount': '35.00',
@@ -775,8 +771,8 @@ class TestFullRoundtrip:
             ])
 
             GnuCashImporter.create_transaction(directive, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
             repo = GnuCashRepository(path)
             repo.open()
@@ -813,7 +809,7 @@ class TestUpdateTransactionKvpMetadata:
 
         from infrastructure.gnucash.kvp import set_custom_metadata
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             cad = book.get_table().lookup('CURRENCY', 'CAD')
             root = book.get_root_account()
@@ -840,8 +836,8 @@ class TestUpdateTransactionKvpMetadata:
             tx.CommitEdit()
             guid = tx.GetGUID().to_string()
 
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
             yield path, guid
 
@@ -860,8 +856,8 @@ class TestUpdateTransactionKvpMetadata:
         from services.gnucash_importer import GnuCashImporter
 
         path, guid = book_with_tx
-        session = _open_session(path)
-        book = session.book
+        repo = _open_book(path)
+        book = repo.book
 
         q = Query()
         q.search_for('Trans')
@@ -875,11 +871,11 @@ class TestUpdateTransactionKvpMetadata:
         ], metadata={'new_key': 'new_value'})
 
         GnuCashImporter.update_transaction(existing_tx, directive, book)
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
 
-        session2 = _open_session(path)
-        book2 = session2.book
+        repo2 = _open_book(path)
+        book2 = repo2.book
         q2 = Query()
         q2.search_for('Trans')
         q2.set_book(book2)
@@ -889,7 +885,7 @@ class TestUpdateTransactionKvpMetadata:
         custom = get_custom_metadata(updated)
         assert custom.get('new_key') == 'new_value'
         assert custom.get('keep_key') == 'keep_me'
-        session2.end()
+        repo2.close()
 
     def test_update_overwrites_existing_custom_metadata_keys(self, book_with_tx):
         """update_transaction overwrites custom KVP keys that already exist."""
@@ -899,8 +895,8 @@ class TestUpdateTransactionKvpMetadata:
         from services.gnucash_importer import GnuCashImporter
 
         path, guid = book_with_tx
-        session = _open_session(path)
-        book = session.book
+        repo = _open_book(path)
+        book = repo.book
 
         q = Query()
         q.search_for('Trans')
@@ -914,11 +910,11 @@ class TestUpdateTransactionKvpMetadata:
         ], metadata={'existing_key': 'updated_value'})
 
         GnuCashImporter.update_transaction(existing_tx, directive, book)
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
 
-        session2 = _open_session(path)
-        book2 = session2.book
+        repo2 = _open_book(path)
+        book2 = repo2.book
         q2 = Query()
         q2.search_for('Trans')
         q2.set_book(book2)
@@ -929,7 +925,7 @@ class TestUpdateTransactionKvpMetadata:
         assert custom.get('existing_key') == 'updated_value'
         # key not mentioned in directive but was in original → preserved
         assert custom.get('keep_key') == 'keep_me'
-        session2.end()
+        repo2.close()
 
     def test_update_split_custom_metadata_merged(self, book_with_tx):
         """update_transaction merges split-level custom KVP metadata."""
@@ -940,8 +936,8 @@ class TestUpdateTransactionKvpMetadata:
 
         path, guid = book_with_tx
         # First add custom metadata to the split
-        session = _open_session(path)
-        book = session.book
+        repo = _open_book(path)
+        book = repo.book
         q = Query()
         q.search_for('Trans')
         q.set_book(book)
@@ -953,14 +949,14 @@ class TestUpdateTransactionKvpMetadata:
             if split.GetAccount().GetName() == 'Dining':
                 set_custom_metadata(split, {'split_key': 'original', 'stable': 'yes'})
         existing_tx.CommitEdit()
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
 
         import time
 
         # Now update with a directive that adds a new split key
-        session2 = _open_session(path)
-        book2 = session2.book
+        repo2 = _open_book(path)
+        book2 = repo2.book
         q2 = Query()
         q2.search_for('Trans')
         q2.set_book(book2)
@@ -973,11 +969,11 @@ class TestUpdateTransactionKvpMetadata:
         ])
 
         GnuCashImporter.update_transaction(existing_tx2, directive, book2)
-        session2.save()
-        session2.end()
+        repo2.save()
+        repo2.close()
 
-        session3 = _open_session(path)
-        book3 = session3.book
+        repo3 = _open_book(path)
+        book3 = repo3.book
         q3 = Query()
         q3.search_for('Trans')
         q3.set_book(book3)
@@ -990,7 +986,7 @@ class TestUpdateTransactionKvpMetadata:
         custom = get_custom_metadata(dining_split)
         assert custom.get('split_key') == 'updated'
         assert custom.get('stable') == 'yes'
-        session3.end()
+        repo3.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1004,7 +1000,7 @@ class TestCustomMetadataKeyValidation:
 
         from infrastructure.gnucash.kvp import set_custom_metadata
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             from gnucash import GncNumeric, Split, Transaction
             cad = book.get_table().lookup('CURRENCY', 'CAD')
@@ -1030,7 +1026,7 @@ class TestCustomMetadataKeyValidation:
                 set_custom_metadata(tx, {'a:b': 'value'})
 
             tx.RollbackEdit()
-            session.end()
+            repo.close()
         finally:
             import os
             if os.path.exists(path):
@@ -1045,7 +1041,7 @@ class TestCustomMetadataKeyValidation:
 
         from infrastructure.gnucash.kvp import set_custom_metadata
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             from gnucash import GncNumeric, Split, Transaction
             cad = book.get_table().lookup('CURRENCY', 'CAD')
@@ -1071,7 +1067,7 @@ class TestCustomMetadataKeyValidation:
                 set_custom_metadata(tx, {'a:b:c': 'value'})
 
             tx.RollbackEdit()
-            session.end()
+            repo.close()
         finally:
             import os
             if os.path.exists(path):
@@ -1084,7 +1080,7 @@ class TestCustomMetadataKeyValidation:
         """Keys with dots (e.g. 'tax.category') are valid and round-trip correctly."""
         from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             from gnucash import GncNumeric, Split, Transaction
             cad = book.get_table().lookup('CURRENCY', 'CAD')
@@ -1112,7 +1108,7 @@ class TestCustomMetadataKeyValidation:
             result = get_custom_metadata(tx)
             assert result.get('tax.category') == 'meals'
             assert result.get('receipt.id') == 'R-42'
-            session.end()
+            repo.close()
         finally:
             import os
             if os.path.exists(path):
@@ -1127,7 +1123,7 @@ class TestCustomMetadataKeyValidation:
 
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = _build_directive('2024-03-04', 'Colon key import', [
                 {'account': 'Expenses:Dining', 'amount': '10.00'},
@@ -1137,7 +1133,7 @@ class TestCustomMetadataKeyValidation:
             with pytest.raises(ValueError, match="must not contain ':'"):
                 GnuCashImporter.create_transaction(directive, book)
 
-            session.end()
+            repo.close()
         finally:
             import os
             if os.path.exists(path):
@@ -1155,7 +1151,7 @@ class TestCustomMetadataKeyValidation:
 
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             # Create a transaction first
             directive = _build_directive('2024-03-05', 'Update colon test', [
@@ -1163,11 +1159,11 @@ class TestCustomMetadataKeyValidation:
                 {'account': 'Assets:Bank:Checking', 'amount': '-20.00'},
             ])
             GnuCashImporter.create_transaction(directive, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book2)
@@ -1182,7 +1178,7 @@ class TestCustomMetadataKeyValidation:
             with pytest.raises(ValueError, match="must not contain ':'"):
                 GnuCashImporter.update_transaction(existing_tx, bad_directive, book2)
 
-            session2.end()
+            repo2.close()
         finally:
             if os.path.exists(path):
                 os.unlink(path)

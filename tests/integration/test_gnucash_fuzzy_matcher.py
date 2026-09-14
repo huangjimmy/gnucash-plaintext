@@ -24,20 +24,19 @@ from services.gnucash_fuzzy_matcher import GnuCashFuzzyMatcher, MatchStatus
 def hkd_book():
     """Temp GnuCash book with BOC HKD accounts for fuzzy matcher tests."""
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Transaction
+    from gnucash import Account, GncNumeric, Transaction
     from gnucash import Split as GncSplit
+
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
     fd, path = tempfile.mkstemp(suffix=".gnucash")
     os.close(fd)
     os.unlink(path)
 
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f"xml://{path}", SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f"xml://{path}", is_new=True)
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
-    book = session.book
+    book = repo.book
     root = book.get_root_account()
     table = book.get_table()
     hkd = table.lookup("CURRENCY", "HKD")
@@ -89,8 +88,8 @@ def hkd_book():
     # This is the realistic PARTIAL_MATCH scenario: user manually chose Dining
     add_tx(date(2026, 4, 15), [(boci, 24710, 100), (dining, -24710, 100)])
 
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
 
     yield path, {
         "bank": "Assets:BOC HKD Saving",
@@ -135,6 +134,20 @@ def _tx(
 # ---------------------------------------------------------------------------
 
 class TestGnuCashFuzzyMatcher:
+    def test_the_book_is_closed_once_indexed(self, hkd_book):
+        """The index holds plain values, so the book it was read from is closed and freed.
+
+        Ending the session alone leaves the whole book in memory; the
+        repository's `close` ends it and destroys it (CLAUDE.md finding 26).
+        """
+        path, accts = hkd_book
+        repo = GnuCashRepository(path)
+        m = GnuCashFuzzyMatcher(repo)
+
+        m.match(_tx(date(2026, 4, 20), accts["bank"], accts["dining"], amount="999.99"))
+
+        assert repo.session is None
+
     def test_new_no_match(self, hkd_book):
         path, accts = hkd_book
         m = _matcher(path)

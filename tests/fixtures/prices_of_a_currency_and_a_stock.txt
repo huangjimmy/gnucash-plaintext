@@ -1,0 +1,35 @@
+# A file holding nothing but two prices and the commodity one of them needs.
+#
+# The NASDAQ:AMZN price gives its guid and a full UTC time, as `export` writes
+# a price. The USD rate gives neither a guid nor a time of day: `time:` is a
+# bare date and `value:` a decimal, as a price is typed by hand.
+#
+# What this fixture produces: a book holding two prices, AMZN in USD at
+# 2026-01-06 21:00:00 UTC and USD in CAD on 2026-01-02 at GnuCash's time for a
+# date.
+#
+# Verified by tests/integration/test_a_file_of_prices_imports_on_its_own.py.
+2026-01-01 commodity AMZN
+	mnemonic: "AMZN"
+	fullname: "Amazon.com Inc"
+	namespace: "NASDAQ"
+	fraction: 10000
+
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-01-06 21:00:00 +0000"
+	value: "21845/100"
+	source: "Finance::Quote"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-01-02"
+	value: "1.3642"
+	source: "user:price-editor"
+	type: "last"

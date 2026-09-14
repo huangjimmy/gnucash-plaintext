@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from infrastructure.pdf.standard_tx import Split, StandardTransaction
-from repositories.gnucash_repository import GnuCashRepository
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.gnucash_fuzzy_matcher import GnuCashFuzzyMatcher, MatchStatus
 from services.ready_to_import_writer import AUTOPAY_ACCOUNT, ReadyToImportWriter
 from services.reconcile_preview_reader import ReconcilePreviewReader
@@ -22,20 +22,17 @@ from services.statement_reconciler import StatementReconciler
 def simple_book():
     """Minimal GnuCash book: one manually-entered credit card charge."""
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Transaction
+    from gnucash import Account, GncNumeric, Transaction
     from gnucash import Split as GncSplit
 
     fd, path = tempfile.mkstemp(suffix=".gnucash")
     os.close(fd)
     os.unlink(path)
 
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f"xml://{path}", SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f"xml://{path}", is_new=True)
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
-    book = session.book
+    book = repo.book
     root = book.get_root_account()
     table = book.get_table()
     hkd = table.lookup("CURRENCY", "HKD")
@@ -71,8 +68,8 @@ def simple_book():
         sp.SetAmount(GncNumeric(num, denom))
     tx.CommitEdit()
 
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
 
     yield path
 

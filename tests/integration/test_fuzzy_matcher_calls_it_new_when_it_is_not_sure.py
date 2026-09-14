@@ -31,21 +31,19 @@ def book():
     """An HKD book holding one ordinary charge, one zero-amount transaction,
     and one charge carrying a `doc_link` from a previous import."""
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Transaction
+    from gnucash import Account, GncNumeric, Transaction
     from gnucash import Split as GncSplit
 
     from infrastructure.gnucash.kvp import set_custom_metadata
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
-    gbook = session.book
+    gbook = repo.book
     root = gbook.get_root_account()
     hkd = gbook.get_table().lookup('CURRENCY', 'HKD')
 
@@ -92,8 +90,8 @@ def book():
     set_custom_metadata(linked, {'doc_link': 'file:///statements/boci-2026-04.pdf'})
     linked.CommitEdit()
 
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
 
     yield path, {
         'bank': 'Assets:BOC HKD Saving',

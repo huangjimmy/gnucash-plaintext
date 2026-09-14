@@ -1,0 +1,15 @@
+# A second NASDAQ:AMZN price in USD, on 2026-01-07, the day after the one in
+# prices_of_a_currency_and_a_stock.txt.
+#
+# What this fixture produces: a price on its own day, created.
+#
+# Verified by tests/integration/test_a_second_price_on_one_day_is_refused.py.
+price
+	guid: "5b2b5d1d8439402a96c7f910acb391d9"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-01-07 21:00:00 +0000"
+	value: "22010/100"
+	source: "Finance::Quote"
+	type: "last"

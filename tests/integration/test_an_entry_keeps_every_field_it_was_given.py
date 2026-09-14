@@ -314,28 +314,24 @@ class TestTheyAreFieldsAndNotMetadata:
         """
         book = _book(tmp_path)
 
-        from gnucash import Query, Session
+        from gnucash import Query
         from gnucash.gnucash_business import Entry
 
-        # `SessionOpenMode` arrived in GnuCash 4.0; on 3.8 a session is opened
-        # read-only by taking no lock. Both spellings are GnuCash's own, which
-        # is what this test is for.
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{book}',
-                              SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            session = Session(f'xml://{book}', ignore_lock=True)
+        from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
+        # Opened read-only through the repository, whose session is GnuCash's
+        # own; everything read below goes through GnuCash's accessors alone.
+        repo = GnuCashRepository(str(book))
+        repo.open(SessionMode.READ_ONLY)
         try:
             q = Query()
             q.search_for('gncEntry')
-            q.set_book(session.book)
+            q.set_book(repo.book)
             notes = {Entry(instance=raw).GetDescription():
                      Entry(instance=raw).GetNotes() for raw in q.run()}
             q.destroy()
         finally:
-            session.end()
-            session.destroy()
+            repo.close()
 
         assert notes['Consulting, February'] == \
             'Agreed rate for the first quarter, per "Schedule A"'

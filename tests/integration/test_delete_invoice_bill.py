@@ -102,11 +102,14 @@ def _record_ids_after_reload(gnc, search_for, owner_type_int):
     """Return the list of ids for invoices (owner_type=2) or bills
     (owner_type=4) in the saved .gnucash file. Used to assert that a
     deletion truly survived save+reload, not just an in-memory mutation."""
-    from gnucash import Query, Session
+    from gnucash import Query
     from gnucash.gnucash_business import Invoice
-    ses = Session(f"xml://{gnc}")
+
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc)
+    repo.open()
     try:
-        book = ses.book
+        book = repo.book
         q = Query()
         q.search_for(search_for)
         q.set_book(book)
@@ -118,7 +121,7 @@ def _record_ids_after_reload(gnc, search_for, owner_type_int):
         q.destroy()
         return sorted(ids)
     finally:
-        ses.end()
+        repo.close()
 
 
 def _invoice_ids(gnc):
@@ -135,15 +138,15 @@ def _taxtable_names(gnc):
     Tax tables aren't reachable via QofQuery (CLAUDE.md finding #3),
     so we call the same `_iter_taxtables` / `_taxtable_name_str`
     helpers the importer uses."""
-    from gnucash import Session
-
+    from repositories.gnucash_repository import GnuCashRepository
     from services.gnucash_importer import _iter_taxtables, _taxtable_name_str
-    ses = Session(f"xml://{gnc}")
+    repo = GnuCashRepository(gnc)
+    repo.open()
     try:
-        book = ses.book
+        book = repo.book
         return sorted(_taxtable_name_str(p) for p in _iter_taxtables(book))
     finally:
-        ses.end()
+        repo.close()
 
 
 def _create_duplicate_invoice(gnc, dup_id, customer_id, currency_code):
@@ -155,11 +158,13 @@ def _create_duplicate_invoice(gnc, dup_id, customer_id, currency_code):
     SWIG constructor directly. After this returns there are two
     distinct gncInvoice records with the same id.
     """
-    from gnucash import Session
     from gnucash.gnucash_business import Invoice
-    ses = Session(f"xml://{gnc}")
+
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc)
+    repo.open()
     try:
-        book = ses.book
+        book = repo.book
         cust = book.CustomerLookupByID(customer_id)
         assert cust is not None, (
             f"Setup: customer {customer_id!r} must already exist in {gnc}")
@@ -168,9 +173,9 @@ def _create_duplicate_invoice(gnc, dup_id, customer_id, currency_code):
         # under `book` with the given id. No uniqueness check is done
         # at the C level — that's only enforced by our importer.
         Invoice(book, dup_id, currency, cust)
-        ses.save()
+        repo.save()
     finally:
-        ses.end()
+        repo.close()
 
 
 def _invoice_guid(gnc, inv_id):
@@ -180,13 +185,15 @@ def _invoice_guid(gnc, inv_id):
     Uses `_swig_invoice_guid_str` rather than SWIG `Invoice.GetGUID()`
     because the latter raises AttributeError on debian13 / ubuntu24
     (per CLAUDE.md hard-won finding)."""
-    from gnucash import Query, Session
+    from gnucash import Query
     from gnucash.gnucash_business import Invoice
 
+    from repositories.gnucash_repository import GnuCashRepository
     from services.gnucash_importer import _swig_invoice_guid_str
-    ses = Session(f"xml://{gnc}")
+    repo = GnuCashRepository(gnc)
+    repo.open()
     try:
-        book = ses.book
+        book = repo.book
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(book)
@@ -199,7 +206,7 @@ def _invoice_guid(gnc, inv_id):
         q.destroy()
         return guid
     finally:
-        ses.end()
+        repo.close()
 
 
 # ── delete-invoices happy path ────────────────────────────────────────────────

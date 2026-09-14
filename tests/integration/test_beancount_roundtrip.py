@@ -281,19 +281,18 @@ def _make_roundtrip_book():
     import os
 
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
+
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
 
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
-    book = session.book
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -358,8 +357,8 @@ def _make_roundtrip_book():
         (checking,      -20000, None, None),
     ])
 
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
 
     return path
 

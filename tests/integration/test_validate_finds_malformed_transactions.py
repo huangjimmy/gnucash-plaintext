@@ -24,24 +24,22 @@ import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 
 @pytest.fixture
 def book_with_a_lone_split():
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
     try:
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            session = Session(f'xml://{path}', is_new=True)
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
 
-        book = session.book
+        book = repo.book
         root = book.get_root_account()
         cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -68,8 +66,8 @@ def book_with_a_lone_split():
         only_split.SetValue(GncNumeric(0, 100))
         lonely.CommitEdit()
 
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
         yield path
     finally:
         if os.path.exists(path):
@@ -85,19 +83,16 @@ def book_with_an_imbalance():
     balanced one carrying a split in `Imbalance-CAD`.
     """
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
     try:
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            session = Session(f'xml://{path}', is_new=True)
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
 
-        book = session.book
+        book = repo.book
         root = book.get_root_account()
         cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -134,8 +129,8 @@ def book_with_an_imbalance():
         back.SetValue(GncNumeric(700, 100))
         lopsided.CommitEdit()          # GnuCash parks the missing 3.00
 
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
         yield path
     finally:
         if os.path.exists(path):
@@ -146,19 +141,16 @@ def book_with_an_imbalance():
 def book_named_like_an_imbalance():
     """A user account called `Imbalance Reserve`, holding an ordinary entry."""
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
     try:
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            session = Session(f'xml://{path}', is_new=True)
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
 
-        book = session.book
+        book = repo.book
         root = book.get_root_account()
         cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -195,8 +187,8 @@ def book_named_like_an_imbalance():
         b.SetValue(GncNumeric(-1000, 100))
         ordinary.CommitEdit()
 
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
         yield path
     finally:
         if os.path.exists(path):
@@ -236,13 +228,14 @@ class TestTwoAccountUnitsInOneTransaction:
 
     def test_values_are_normalised_to_the_transaction_currency(self, tmp_path):
         """Measured, not assumed — it is what makes the check safe."""
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
-        session = Session(f'xml://{self._book(tmp_path)}')
+        repo = GnuCashRepository(self._book(tmp_path))
+        repo.open()
         try:
             query = Query()
             query.search_for('Trans')
-            query.set_book(session.book)
+            query.set_book(repo.book)
             values, amounts = set(), set()
             for raw in query.run():
                 for split in Transaction(instance=raw).GetSplitList():
@@ -250,7 +243,7 @@ class TestTwoAccountUnitsInOneTransaction:
                     amounts.add(split.GetAmount().denom())
             query.destroy()
         finally:
-            session.end()
+            repo.close()
 
         assert values == {100}, values
         assert amounts == {100, 1000}, amounts
@@ -266,19 +259,20 @@ class TestTwoAccountUnitsInOneTransaction:
 class TestADifferenceGnuCashHadToPark:
     def test_the_book_holds_an_imbalance_split(self, book_with_an_imbalance):
         """The premise: the transaction balances, and an Imbalance split is why."""
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
-        session = Session(f'xml://{book_with_an_imbalance}')
+        repo = GnuCashRepository(book_with_an_imbalance)
+        repo.open()
         try:
             query = Query()
             query.search_for('Trans')
-            query.set_book(session.book)
+            query.set_book(repo.book)
             names = [s.GetAccount().GetName()
                      for raw in query.run()
                      for s in Transaction(instance=raw).GetSplitList()]
             query.destroy()
         finally:
-            session.end()
+            repo.close()
 
         assert any(n.startswith('Imbalance') for n in names), names
 
@@ -353,19 +347,15 @@ class TestAnImbalanceNamedAfterASecurity:
             Account,
             GncCommodity,
             GncNumeric,
-            Session,
             Split,
             Transaction,
         )
 
         path = str(tmp_path / 'fund.gnucash')
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            session = Session(f'xml://{path}', is_new=True)
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
 
-        book = session.book
+        book = repo.book
         root = book.get_root_account()
         table = book.get_table()
         cad = table.lookup('CURRENCY', 'CAD')
@@ -396,26 +386,27 @@ class TestAnImbalanceNamedAfterASecurity:
         only.SetAmount(GncNumeric(12345, 1000))
         lopsided.CommitEdit()
 
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
         return path
 
     def test_the_premise_gnucash_named_it_after_the_fund(self, tmp_path):
         """Or this is a test about a book that does not exist."""
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
         path = self._book_with_a_fund_imbalance(tmp_path)
-        session = Session(f'xml://{path}')
+        repo = GnuCashRepository(path)
+        repo.open()
         try:
             query = Query()
             query.search_for('Trans')
-            query.set_book(session.book)
+            query.set_book(repo.book)
             names = {split.GetAccount().GetName()
                      for raw in query.run()
                      for split in Transaction(instance=raw).GetSplitList()}
             query.destroy()
         finally:
-            session.end()
+            repo.close()
 
         assert 'Imbalance-FUNDX' in names, names
 
@@ -442,16 +433,13 @@ class TestTheOtherAccountTheScrubInvents:
     def _book_with_an_orphan_account(self, tmp_path):
         """An account named the way the scrub names one, with a split on it."""
         import gnucash
-        from gnucash import Account, GncNumeric, Session, Split, Transaction
+        from gnucash import Account, GncNumeric, Split, Transaction
 
         path = str(tmp_path / 'orphan.gnucash')
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            session = Session(f'xml://{path}', is_new=True)
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
 
-        book = session.book
+        book = repo.book
         root = book.get_root_account()
         cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -482,8 +470,8 @@ class TestTheOtherAccountTheScrubInvents:
         back.SetValue(GncNumeric(1000, 100))
         transaction.CommitEdit()
 
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
         return path
 
     def test_validate_flags_it(self, tmp_path):
@@ -509,18 +497,19 @@ class TestASplitWithNoCounterpart:
         If GnuCash had added a counterpart the transaction would be ordinary
         and the check below would be reporting something else.
         """
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
-        session = Session(f'xml://{book_with_a_lone_split}')
+        repo = GnuCashRepository(book_with_a_lone_split)
+        repo.open()
         try:
             query = Query()
             query.search_for('Trans')
-            query.set_book(session.book)
+            query.set_book(repo.book)
             counts = [len(Transaction(instance=raw).GetSplitList())
                       for raw in query.run()]
             query.destroy()
         finally:
-            session.end()
+            repo.close()
 
         assert 1 in counts, counts
 
