@@ -1,0 +1,12 @@
+# The 2026-01-06 NASDAQ:AMZN price moved, through its guid, onto 2026-01-07,
+# the day another_amzn_price_a_day_later.txt already prices.
+#
+# The edit would leave two prices on one day, so it is refused, listing the
+# price already there.
+#
+# What this fixture produces: nothing; the refusal.
+#
+# Verified by tests/integration/test_a_second_price_on_one_day_is_refused.py.
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	time: "2026-01-07 15:00:00 +0000"

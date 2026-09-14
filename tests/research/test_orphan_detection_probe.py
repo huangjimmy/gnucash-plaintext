@@ -312,27 +312,29 @@ def test_orphan_backreference_probe(tmp_path):
                   "paid in full from Assets:Bank on 2026-01-15.\n")
 
         # ── PRE-UNPOST ───────────────────────────────────────────────────────
-        from gnucash import Session
-        ses = Session(f"xml://{gnc}")
+        from repositories.gnucash_repository import GnuCashRepository
+        repo = GnuCashRepository(gnc)
+        repo.open()
         try:
             lib = _load_lib()
-            tx_ptr = _find_bank_tx(ses.book)
+            tx_ptr = _find_bank_tx(repo.book)
             pre_record = _dump_tx(lib, tx_ptr, "PRE-UNPOST  (step C world)", out)
         finally:
-            ses.end()
+            repo.close()
 
         # ── UNPOST ───────────────────────────────────────────────────────────
         r = runner.invoke(cli, ["unpost-invoices", str(gnc), "INV-001"])
         assert r.exit_code == 0, r.output
 
         # ── POST-UNPOST ──────────────────────────────────────────────────────
-        ses = Session(f"xml://{gnc}")
+        repo = GnuCashRepository(gnc)
+        repo.open()
         try:
             lib = _load_lib()
-            tx_ptr = _find_bank_tx(ses.book)
+            tx_ptr = _find_bank_tx(repo.book)
             post_record = _dump_tx(lib, tx_ptr, "POST-UNPOST (step D world)", out)
         finally:
-            ses.end()
+            repo.close()
 
         # ── DIFF SUMMARY ─────────────────────────────────────────────────────
         out.write("\n── what changed ────────────────────────────────────────\n")
@@ -605,25 +607,27 @@ def test_orphan_backreference_probe_bill(tmp_path):
         out.write("Fixture: one vendor V001, one bill BILL-001 ($100), "
                   "paid in full from Assets:Bank on 2026-01-15.\n")
 
-        from gnucash import Session
-        ses = Session(f"xml://{gnc}")
+        from repositories.gnucash_repository import GnuCashRepository
+        repo = GnuCashRepository(gnc)
+        repo.open()
         try:
             lib = _load_lib()
-            tx_ptr = _find_bank_tx(ses.book)
+            tx_ptr = _find_bank_tx(repo.book)
             pre_record = _dump_tx(lib, tx_ptr, "PRE-UNPOST  (bill step C)", out)
         finally:
-            ses.end()
+            repo.close()
 
         r = runner.invoke(cli, ["unpost-bills", str(gnc), "BILL-001"])
         assert r.exit_code == 0, r.output
 
-        ses = Session(f"xml://{gnc}")
+        repo = GnuCashRepository(gnc)
+        repo.open()
         try:
             lib = _load_lib()
-            tx_ptr = _find_bank_tx(ses.book)
+            tx_ptr = _find_bank_tx(repo.book)
             post_record = _dump_tx(lib, tx_ptr, "POST-UNPOST (bill step D)", out)
         finally:
-            ses.end()
+            repo.close()
 
         out.write("\n── what changed ────────────────────────────────────────\n")
         for k in ("description", "notes", "txn_type",
@@ -679,19 +683,22 @@ def test_find_orphan_payments_prototype_bill(tmp_path):
                             "--include-business-objects"])
     assert r.exit_code == 0, r.output
 
-    from gnucash import Query, Session
+    from gnucash import Query
     from gnucash.gnucash_business import Invoice  # bills use the same SWIG type
-    ses = Session(f"xml://{gnc}")
+
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc)
+    repo.open()
     try:
         q = Query()
         q.search_for('gncInvoice')
-        q.set_book(ses.book)
+        q.set_book(repo.book)
         bill = next(wrap_invoice_or_bill(res) for res in q.run()
                     if wrap_invoice_or_bill(res).GetID() == "BILL-001")
-        pre_list = find_pre_unpost_payments(ses.book, bill)
+        pre_list = find_pre_unpost_payments(repo.book, bill)
         q.destroy()
     finally:
-        ses.end()
+        repo.close()
 
     assert len(pre_list) == 1, f"Expected one pre-unpost bill payment, got {pre_list}"
     assert pre_list[0]['bank_account'] == 'Assets.Bank'
@@ -701,14 +708,16 @@ def test_find_orphan_payments_prototype_bill(tmp_path):
     r = runner.invoke(cli, ["unpost-bills", str(gnc), "BILL-001"])
     assert r.exit_code == 0, r.output
 
-    ses = Session(f"xml://{gnc}")
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc)
+    repo.open()
     try:
         # Same call signature works because the helper filters by AP/AR
         # account-type (11 or 12), customer_id treats V001/C001 identically.
         post_list = find_orphan_payments_post_unpost(
-            ses.book, invoice_id="BILL-001", customer_id="V001")
+            repo.book, invoice_id="BILL-001", customer_id="V001")
     finally:
-        ses.end()
+        repo.close()
 
     assert len(post_list) == 1, f"Expected one bill orphan, got {post_list}"
     assert post_list[0]['customer_id'] == 'V001'
@@ -727,19 +736,22 @@ def test_find_orphan_payments_prototype(tmp_path):
     assert r.exit_code == 0, r.output
 
     # PRE-UNPOST: list the about-to-be-orphan payments from the lot.
-    from gnucash import Query, Session
+    from gnucash import Query
     from gnucash.gnucash_business import Invoice
-    ses = Session(f"xml://{gnc}")
+
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc)
+    repo.open()
     try:
         q = Query()
         q.search_for('gncInvoice')
-        q.set_book(ses.book)
+        q.set_book(repo.book)
         inv = next(wrap_invoice_or_bill(res) for res in q.run()
                    if wrap_invoice_or_bill(res).GetID() == "INV-001")
-        pre_list = find_pre_unpost_payments(ses.book, inv)
+        pre_list = find_pre_unpost_payments(repo.book, inv)
         q.destroy()
     finally:
-        ses.end()
+        repo.close()
 
     assert len(pre_list) == 1, f"Expected one pre-unpost payment, got {pre_list}"
     assert pre_list[0]['bank_account'] == 'Assets.Bank'
@@ -750,12 +762,14 @@ def test_find_orphan_payments_prototype(tmp_path):
     r = runner.invoke(cli, ["unpost-invoices", str(gnc), "INV-001"])
     assert r.exit_code == 0, r.output
 
-    ses = Session(f"xml://{gnc}")
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc)
+    repo.open()
     try:
         post_list = find_orphan_payments_post_unpost(
-            ses.book, invoice_id="INV-001", customer_id="C001")
+            repo.book, invoice_id="INV-001", customer_id="C001")
     finally:
-        ses.end()
+        repo.close()
 
     assert len(post_list) == 1, f"Expected one orphan, got {post_list}"
     assert post_list[0]['customer_id'] == 'C001'

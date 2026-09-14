@@ -1,0 +1,28 @@
+# A CAD sale of 100.00 into the bank, with the guid of its transaction given.
+#
+# What this fixture produces: the accounts, and one transaction with guid
+# 8a8b8c8d8e8f40418243844586878889.
+#
+# Verified by tests/integration/test_a_price_and_another_object_never_share_a_guid.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-15 * "A sale"
+	guid: "8a8b8c8d8e8f40418243844586878889"
+	currency.mnemonic: "CAD"
+	Assets:Bank 100.00 CAD
+	Income:Sales -100.00 CAD

@@ -8,26 +8,23 @@ import sys
 
 import pytest
 
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
 
 class TestConflictInfo:
     """Test ConflictInfo class"""
 
     def test_create_conflict_info(self, temp_gnucash_with_transactions):
         """Test creating ConflictInfo from two transactions"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictResolver
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing transaction
             from gnucash import Query
@@ -75,24 +72,19 @@ class TestConflictInfo:
             assert len(conflict_info.incoming_splits) == 2
 
         finally:
-            session.end()
+            repo.close()
 
     def test_amounts_differ_true(self, temp_gnucash_with_transactions):
         """Test detecting when amounts differ"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictInfo
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing
             from gnucash import Query
@@ -133,24 +125,19 @@ class TestConflictInfo:
             assert conflict_info.amounts_differ() is True
 
         finally:
-            session.end()
+            repo.close()
 
     def test_amounts_differ_false(self, temp_gnucash_with_transactions):
         """Test detecting when amounts are the same"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictInfo
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing
             from gnucash import Query
@@ -191,24 +178,19 @@ class TestConflictInfo:
             assert conflict_info.amounts_differ() is False
 
         finally:
-            session.end()
+            repo.close()
 
     def test_get_summary(self, temp_gnucash_with_transactions):
         """Test getting conflict summary"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictInfo
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing
             from gnucash import Query
@@ -256,7 +238,7 @@ class TestConflictInfo:
             assert "Conflict" in summary  # New description
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestConflictResolver:
@@ -264,20 +246,15 @@ class TestConflictResolver:
 
     def test_resolve_skip_strategy(self, temp_gnucash_with_transactions):
         """Test resolving conflicts with SKIP strategy"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictResolver, ResolutionStrategy
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get existing
             from gnucash import Query
@@ -324,24 +301,19 @@ class TestConflictResolver:
             assert len(unresolved) == 1
 
         finally:
-            session.end()
+            repo.close()
 
     def test_resolve_keep_existing_strategy(self, temp_gnucash_with_transactions):
         """Test resolving conflicts with KEEP_EXISTING strategy"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictResolver, ResolutionStrategy
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             from gnucash import Query
             query = Query()
@@ -385,24 +357,19 @@ class TestConflictResolver:
             assert len(unresolved) == 0
 
         finally:
-            session.end()
+            repo.close()
 
     def test_resolve_keep_incoming_strategy(self, temp_gnucash_with_transactions):
         """Test resolving conflicts with KEEP_INCOMING strategy"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictResolver, ResolutionStrategy
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             from gnucash import Query
             query = Query()
@@ -447,24 +414,19 @@ class TestConflictResolver:
             assert len(unresolved) == 0
 
         finally:
-            session.end()
+            repo.close()
 
     def test_resolve_single(self, temp_gnucash_with_transactions):
         """Test resolving single conflict"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictResolver, ResolutionStrategy
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             from gnucash import Query
             query = Query()
@@ -514,24 +476,19 @@ class TestConflictResolver:
             assert result is None
 
         finally:
-            session.end()
+            repo.close()
 
     def test_get_resolution_choices(self, temp_gnucash_with_transactions):
         """Test getting resolution choices for a conflict"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictInfo, ConflictResolver, ResolutionStrategy
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             from gnucash import Query
             query = Query()
@@ -580,24 +537,19 @@ class TestConflictResolver:
             assert ResolutionStrategy.SKIP in strategies
 
         finally:
-            session.end()
+            repo.close()
 
     def test_format_conflict_report(self, temp_gnucash_with_transactions):
         """Test formatting conflict report"""
-        from gnucash import GncNumeric, Session, Split, Transaction
+        from gnucash import GncNumeric, Split, Transaction
 
         from services.conflict_resolver import ConflictInfo, ConflictResolver
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
 
             from gnucash import Query
             query = Query()
@@ -646,7 +598,7 @@ class TestConflictResolver:
             assert "No conflicts to report" in empty_report
 
         finally:
-            session.end()
+            repo.close()
 
 
 # ---------------------------------------------------------------------------
@@ -688,19 +640,15 @@ class TestAmountsDifferEdgeCases:
 
     def test_amounts_differ_different_split_counts(self, temp_gnucash_with_transactions):
         """amounts_differ() returns True when split counts differ."""
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
         from services.conflict_resolver import ConflictInfo
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book)
@@ -718,23 +666,19 @@ class TestAmountsDifferEdgeCases:
             ]
             assert info.amounts_differ() is True
         finally:
-            session.end()
+            repo.close()
 
     def test_amounts_differ_same_splits_returns_false(self, temp_gnucash_with_transactions):
         """amounts_differ() returns False when splits are identical."""
-        from gnucash import Query, Session, Transaction
+        from gnucash import Query, Transaction
 
         from services.conflict_resolver import ConflictInfo
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                              SessionOpenMode.SESSION_NORMAL_OPEN)
-        except ImportError:
-            session = Session(f'xml://{temp_gnucash_with_transactions}')
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
 
         try:
-            book = session.book
+            book = repo.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book)
@@ -753,4 +697,4 @@ class TestAmountsDifferEdgeCases:
             ]
             assert info.amounts_differ() is False
         finally:
-            session.end()
+            repo.close()

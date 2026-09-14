@@ -682,14 +682,9 @@ def find_prepayments_in_book(book: Book,
                 # epsilon standing in for a float's inability to hit zero.
                 #
                 # Both halves read from the account's splits, as the sibling
-                # listing does. `gnc_lot_get_balance` sums the lot's own list,
-                # which does not include a split attached with
-                # `xaccSplitSetLot` in this session (finding 9), while the
-                # share subtracted from it is derived from the account — so on
-                # a book this process has just written, the subtraction could
-                # take off more than the balance it was taken from. This
-                # command opens a fresh book so the two agree today; matching
-                # them removes the question.
+                # listing does, so the balance and the share subtracted from it
+                # come from one reading and the subtraction cannot take off
+                # more than the balance it was taken from.
                 balance = (held.get(lot_key, (Fraction(0), None))[0]
                            - orphan_share.get(lot_key, Fraction(0)))
                 if balance == 0:

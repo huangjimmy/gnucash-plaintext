@@ -14,27 +14,23 @@ import pytest
 from infrastructure.gnucash.utils import wrap_invoice_or_bill
 
 # ---------------------------------------------------------------------------
-# Session helpers (same pattern as test_kvp_metadata.py)
+# Book helpers (same pattern as test_kvp_metadata.py)
 # ---------------------------------------------------------------------------
 
-def _make_session(path):
-    """Open a new GnuCash session at *path* (SESSION_NEW_STORE)."""
-    from gnucash import Session
-    try:
-        from gnucash import SessionOpenMode
-        return Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        return Session(f'xml://{path}', is_new=True)
+def _new_book(path):
+    """A new GnuCash book at *path*, opened through the repository."""
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
+    return repo
 
 
-def _open_session(path):
-    """Open an existing GnuCash session at *path*."""
-    from gnucash import Session
-    try:
-        from gnucash import SessionOpenMode
-        return Session(f'xml://{path}', SessionOpenMode.SESSION_NORMAL_OPEN)
-    except ImportError:
-        return Session(f'xml://{path}')
+def _open_book(path):
+    """The existing GnuCash book at *path*, opened through the repository."""
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NORMAL)
+    return repo
 
 
 def _make_biz_book():
@@ -46,7 +42,7 @@ def _make_biz_book():
       - Income:Services             (INCOME)
       - Expenses:Purchases          (EXPENSE)
 
-    Returns (session, book, path). Caller is responsible for cleanup.
+    Returns (repo, book, path). Caller is responsible for cleanup.
     """
     import gnucash
     from gnucash import Account
@@ -55,8 +51,8 @@ def _make_biz_book():
     os.close(fd)
     os.unlink(path)
 
-    session = _make_session(path)
-    book = session.book
+    repo = _new_book(path)
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -82,7 +78,7 @@ def _make_biz_book():
     expenses = _acct('Expenses', gnucash.ACCT_TYPE_EXPENSE, root)
     _acct('Purchases', gnucash.ACCT_TYPE_EXPENSE, expenses)
 
-    return session, book, path
+    return repo, book, path
 
 
 def _cleanup(path):
@@ -226,24 +222,24 @@ class TestCustomerKvp:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d = _build_customer_directive(
                 'CUST-001', 'Acme Logistics',
                 extra_meta={'jw.country': 'CA', 'jw.postal_code': 'H3A 3H3'},
             )
             GnuCashImporter.import_customer(d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             customers = _lookup_customers(book2)
             assert len(customers) == 1
             custom = get_custom_metadata(customers[0])
             assert custom.get('jw.country') == 'CA'
             assert custom.get('jw.postal_code') == 'H3A 3H3'
-            session2.end()
+            repo2.close()
         finally:
             _cleanup(path)
 
@@ -252,7 +248,7 @@ class TestCustomerKvp:
         from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
         from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d = _build_customer_directive('CUST-002', 'Beta Corp')
             from services.gnucash_importer import GnuCashImporter
@@ -262,14 +258,14 @@ class TestCustomerKvp:
             assert len(customers) == 1
             set_custom_metadata(customers[0], {'jw.country': 'US', 'erp.id': 'ERP-42'})
 
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             use_case = ExportBusinessObjectsUseCase(book2)
             output = use_case.execute()
-            session2.end()
+            repo2.close()
 
             assert 'jw.country: "US"' in output
             assert 'erp.id: "ERP-42"' in output
@@ -281,21 +277,21 @@ class TestCustomerKvp:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d = _build_customer_directive(
                 'CUST-003', 'Gamma Ltd',
                 extra_meta={'jw.country': 'CA', 'jw.tier': 'premium'},
             )
             GnuCashImporter.import_customer(d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             use_case = ExportBusinessObjectsUseCase(book2)
             output = use_case.execute()
-            session2.end()
+            repo2.close()
 
             assert 'jw.country: "CA"' in output
             assert 'jw.tier: "premium"' in output
@@ -307,7 +303,7 @@ class TestCustomerKvp:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d1 = _build_customer_directive(
                 'CUST-010', 'Alpha Inc',
@@ -316,14 +312,14 @@ class TestCustomerKvp:
             d2 = _build_customer_directive('CUST-011', 'Beta Inc')
             GnuCashImporter.import_customer(d1, book)
             GnuCashImporter.import_customer(d2, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             use_case = ExportBusinessObjectsUseCase(book2)
             output = use_case.execute()
-            session2.end()
+            repo2.close()
 
             # Split output into customer blocks
             blocks = [b for b in output.split('\n\n') if b.startswith('customer')]
@@ -339,7 +335,7 @@ class TestCustomerKvp:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d = _build_customer_directive(
                 'CUST-020', 'Delta Corp',
@@ -350,11 +346,11 @@ class TestCustomerKvp:
                 },
             )
             GnuCashImporter.import_customer(d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             customers = _lookup_customers(book2)
             assert len(customers) == 1
             custom = get_custom_metadata(customers[0])
@@ -363,7 +359,7 @@ class TestCustomerKvp:
             assert 'email' not in custom
             # Only the truly custom key should be present
             assert custom.get('jw.country') == 'CA'
-            session2.end()
+            repo2.close()
         finally:
             _cleanup(path)
 
@@ -372,7 +368,7 @@ class TestCustomerKvp:
         from infrastructure.gnucash.kvp import set_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             # We test set_custom_metadata directly — import_customer only calls it
             # for keys not in KNOWN_CUSTOMER_METADATA_KEYS, but 'jw:country' is not
@@ -385,7 +381,7 @@ class TestCustomerKvp:
             with pytest.raises(ValueError, match="must not contain ':'"):
                 set_custom_metadata(customers[0], {'jw:country': 'CA'})
 
-            session.end()
+            repo.close()
         finally:
             _cleanup(path)
 
@@ -400,24 +396,24 @@ class TestVendorKvp:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d = _build_vendor_directive(
                 'VEND-001', 'Office Supplies Inc',
                 extra_meta={'jw.country': 'CA', 'jw.vendor_type': 'supplies'},
             )
             GnuCashImporter.import_vendor(d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             vendors = _lookup_vendors(book2)
             assert len(vendors) == 1
             custom = get_custom_metadata(vendors[0])
             assert custom.get('jw.country') == 'CA'
             assert custom.get('jw.vendor_type') == 'supplies'
-            session2.end()
+            repo2.close()
         finally:
             _cleanup(path)
 
@@ -427,7 +423,7 @@ class TestVendorKvp:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d = _build_vendor_directive('VEND-002', 'Tech Parts Ltd')
             GnuCashImporter.import_vendor(d, book)
@@ -435,14 +431,14 @@ class TestVendorKvp:
             assert len(vendors) == 1
             set_custom_metadata(vendors[0], {'jw.rating': 'preferred', 'erp.code': 'V-007'})
 
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             use_case = ExportBusinessObjectsUseCase(book2)
             output = use_case.execute()
-            session2.end()
+            repo2.close()
 
             assert 'jw.rating: "preferred"' in output
             assert 'erp.code: "V-007"' in output
@@ -454,21 +450,21 @@ class TestVendorKvp:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d = _build_vendor_directive(
                 'VEND-003', 'Cloud Services Co',
                 extra_meta={'jw.country': 'US', 'jw.payment_terms': 'net30'},
             )
             GnuCashImporter.import_vendor(d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             use_case = ExportBusinessObjectsUseCase(book2)
             output = use_case.execute()
-            session2.end()
+            repo2.close()
 
             assert 'jw.country: "US"' in output
             assert 'jw.payment_terms: "net30"' in output
@@ -486,7 +482,7 @@ class TestInvoiceKvp:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             # Create customer first
             cust_d = _build_customer_directive('CUST-INV-001', 'Invoice Customer')
@@ -497,11 +493,11 @@ class TestInvoiceKvp:
                 extra_meta={'jw.po_ref': 'PO-2024-001', 'jw.project': 'Alpha'},
             )
             GnuCashImporter.import_invoice(inv_d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             invoices = _lookup_invoices(book2)
             # Filter to customer invoices only (not bills)
             cust_invoices = []
@@ -516,7 +512,7 @@ class TestInvoiceKvp:
             custom = get_custom_metadata(cust_invoices[0])
             assert custom.get('jw.po_ref') == 'PO-2024-001'
             assert custom.get('jw.project') == 'Alpha'
-            session2.end()
+            repo2.close()
         finally:
             _cleanup(path)
 
@@ -526,7 +522,7 @@ class TestInvoiceKvp:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             cust_d = _build_customer_directive('CUST-INV-002', 'Export Invoice Customer')
             GnuCashImporter.import_customer(cust_d, book)
@@ -546,14 +542,14 @@ class TestInvoiceKvp:
             assert len(cust_invoices) == 1
             set_custom_metadata(cust_invoices[0], {'jw.po_ref': 'PO-EXPORT-001'})
 
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             use_case = ExportBusinessObjectsUseCase(book2)
             output = use_case.execute()
-            session2.end()
+            repo2.close()
 
             assert 'jw.po_ref: "PO-EXPORT-001"' in output
         finally:
@@ -564,7 +560,7 @@ class TestInvoiceKvp:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             cust_d = _build_customer_directive('CUST-INV-003', 'Roundtrip Invoice Customer')
             GnuCashImporter.import_customer(cust_d, book)
@@ -574,14 +570,14 @@ class TestInvoiceKvp:
                 extra_meta={'jw.po_ref': 'PO-2024-RT', 'jw.department': 'engineering'},
             )
             GnuCashImporter.import_invoice(inv_d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             use_case = ExportBusinessObjectsUseCase(book2)
             output = use_case.execute()
-            session2.end()
+            repo2.close()
 
             assert 'jw.po_ref: "PO-2024-RT"' in output
             assert 'jw.department: "engineering"' in output
@@ -599,7 +595,7 @@ class TestBillKvp:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             vend_d = _build_vendor_directive('VEND-BILL-001', 'Bill Vendor')
             GnuCashImporter.import_vendor(vend_d, book)
@@ -609,11 +605,11 @@ class TestBillKvp:
                 extra_meta={'jw.po_ref': 'PO-BILL-001', 'jw.approver': 'Alice'},
             )
             GnuCashImporter.import_bill(bill_d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             invoices = _lookup_invoices(book2)
             bills = []
             for inv in invoices:
@@ -627,7 +623,7 @@ class TestBillKvp:
             custom = get_custom_metadata(bills[0])
             assert custom.get('jw.po_ref') == 'PO-BILL-001'
             assert custom.get('jw.approver') == 'Alice'
-            session2.end()
+            repo2.close()
         finally:
             _cleanup(path)
 
@@ -637,7 +633,7 @@ class TestBillKvp:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             vend_d = _build_vendor_directive('VEND-BILL-002', 'Export Bill Vendor')
             GnuCashImporter.import_vendor(vend_d, book)
@@ -657,14 +653,14 @@ class TestBillKvp:
             assert len(bills) == 1
             set_custom_metadata(bills[0], {'jw.cost_centre': 'DEPT-42'})
 
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             use_case = ExportBusinessObjectsUseCase(book2)
             output = use_case.execute()
-            session2.end()
+            repo2.close()
 
             assert 'jw.cost_centre: "DEPT-42"' in output
         finally:
@@ -675,7 +671,7 @@ class TestBillKvp:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             vend_d = _build_vendor_directive('VEND-BILL-003', 'Roundtrip Bill Vendor')
             GnuCashImporter.import_vendor(vend_d, book)
@@ -685,14 +681,14 @@ class TestBillKvp:
                 extra_meta={'jw.po_ref': 'PO-BILL-RT', 'jw.category': 'office'},
             )
             GnuCashImporter.import_bill(bill_d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             use_case = ExportBusinessObjectsUseCase(book2)
             output = use_case.execute()
-            session2.end()
+            repo2.close()
 
             assert 'jw.po_ref: "PO-BILL-RT"' in output
             assert 'jw.category: "office"' in output
@@ -710,7 +706,7 @@ class TestAccountKvp:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             # The book already has an 'Expenses' root parent; add a child
             d = _build_account_directive(
@@ -719,18 +715,18 @@ class TestAccountKvp:
                 extra_meta={'erp.cost_centre': 'DEPT-42', 'erp.gl_code': 'GL-500'},
             )
             GnuCashImporter.create_account(d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             root = book2.get_root_account()
             acct = root.lookup_by_name('Expenses').lookup_by_name('Operations')
             assert acct is not None, "Account 'Expenses:Operations' not found"
             custom = get_custom_metadata(acct)
             assert custom.get('erp.cost_centre') == 'DEPT-42'
             assert custom.get('erp.gl_code') == 'GL-500'
-            session2.end()
+            repo2.close()
         finally:
             _cleanup(path)
 
@@ -740,15 +736,15 @@ class TestAccountKvp:
         from repositories.gnucash_repository import GnuCashRepository
         from use_cases.export_transactions import ExportTransactionsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             root = book.get_root_account()
             acct = root.lookup_by_name('Expenses').lookup_by_name('Purchases')
             assert acct is not None
             set_custom_metadata(acct, {'erp.cost_centre': 'DEPT-42'})
 
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
             repo = GnuCashRepository(path)
             repo.open()
@@ -772,7 +768,7 @@ class TestAccountKvp:
         from services.gnucash_importer import GnuCashImporter
         from use_cases.export_transactions import ExportTransactionsUseCase
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d = _build_account_directive(
                 'Expenses:Consulting',
@@ -780,8 +776,8 @@ class TestAccountKvp:
                 extra_meta={'erp.cost_centre': 'DEPT-99', 'erp.project': 'consulting'},
             )
             GnuCashImporter.create_account(d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
             repo = GnuCashRepository(path)
             repo.open()
@@ -804,7 +800,7 @@ class TestAccountKvp:
         from infrastructure.gnucash.kvp import get_custom_metadata
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_biz_book()
+        repo, book, path = _make_biz_book()
         try:
             d = _build_account_directive(
                 'Expenses:Research',
@@ -817,11 +813,11 @@ class TestAccountKvp:
                 },
             )
             GnuCashImporter.create_account(d, book)
-            session.save()
-            session.end()
+            repo.save()
+            repo.close()
 
-            session2 = _open_session(path)
-            book2 = session2.book
+            repo2 = _open_book(path)
+            book2 = repo2.book
             root = book2.get_root_account()
             acct = root.lookup_by_name('Expenses').lookup_by_name('Research')
             assert acct is not None
@@ -835,6 +831,6 @@ class TestAccountKvp:
                 )
             # Custom key must be present
             assert custom.get('erp.cost_centre') == 'DEPT-RD'
-            session2.end()
+            repo2.close()
         finally:
             _cleanup(path)

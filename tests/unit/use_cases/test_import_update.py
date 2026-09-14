@@ -19,13 +19,11 @@ import pytest
 # Fixtures
 # ---------------------------------------------------------------------------
 
-def _open_session(path):
-    from gnucash import Session
-    try:
-        from gnucash import SessionOpenMode
-        return Session(f'xml://{path}', SessionOpenMode.SESSION_NORMAL_OPEN)
-    except ImportError:
-        return Session(f'xml://{path}')
+def _open_book(path):
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NORMAL)
+    return repo
 
 
 @pytest.fixture
@@ -44,15 +42,14 @@ def gnucash_with_exportable_transaction():
 
     try:
         import gnucash
-        from gnucash import Account, GncNumeric, Session, Split, Transaction
+        from gnucash import Account, GncNumeric, Split, Transaction
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            session = Session(f'xml://{path}', is_new=True)
+        from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
-        book = session.book
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
+
+        book = repo.book
         root = book.get_root_account()
         commod_table = book.get_table()
         cad = commod_table.lookup('CURRENCY', 'CAD')
@@ -111,8 +108,8 @@ def gnucash_with_exportable_transaction():
 
         tx.CommitEdit()
         guid = tx.GetGUID().to_string()
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
 
         yield path, guid
 
@@ -179,8 +176,8 @@ class TestImportUpdateByGuid:
         assert result.error_count == 0
 
         # Verify description changed and GUID still present
-        session = _open_session(path)
-        book = session.book
+        repo = _open_book(path)
+        book = repo.book
         q = Query()
         q.search_for('Trans')
         q.set_book(book)
@@ -189,7 +186,7 @@ class TestImportUpdateByGuid:
         assert guid in guids, "GUID must be preserved after update"
         updated_tx = next(t for t in txs if t.GetGUID().to_string() == guid)
         assert updated_tx.GetDescription() == 'Updated lunch description'
-        session.end()
+        repo.close()
 
     def test_update_changes_amount(self, gnucash_with_exportable_transaction):
         """
@@ -229,8 +226,8 @@ class TestImportUpdateByGuid:
 
         assert result.updated_count == 1
 
-        session = _open_session(path)
-        book = session.book
+        repo = _open_book(path)
+        book = repo.book
         q = Query()
         q.search_for('Trans')
         q.set_book(book)
@@ -239,7 +236,7 @@ class TestImportUpdateByGuid:
         amounts = {s.GetAccount().GetName(): s.GetValue() for s in updated_tx.GetSplitList()}
         assert amounts['Dining'].num() == 4000
         assert amounts['Checking'].num() == -4000
-        session.end()
+        repo.close()
 
     def test_skip_strategy_does_not_update(self, gnucash_with_exportable_transaction):
         """
@@ -407,15 +404,15 @@ class TestStableRoundtrip:
             os.unlink(pt_path)
 
         # Exactly one transaction must exist (no duplicates)
-        session = _open_session(path)
-        book = session.book
+        repo = _open_book(path)
+        book = repo.book
         q = Query()
         q.search_for('Trans')
         q.set_book(book)
         txs = [Transaction(instance=t) for t in q.run()]
         assert len(txs) == 1
         assert txs[0].GetGUID().to_string() == guid
-        session.end()
+        repo.close()
 
 
 class TestImportResultSummary:

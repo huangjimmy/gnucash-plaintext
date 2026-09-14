@@ -414,10 +414,8 @@ def settles_more_than_one_record(transaction) -> bool:
         if lot is None:
             continue
         # Asked whether the account still lists it before anything is
-        # asked of the pointer itself: a split can hold one the book has
-        # let go of, and this is called from the import mid-run, where an
-        # unpost can empty and free a lot underneath a split attached with
-        # `xaccSplitSetLot` (CLAUDE.md §9).
+        # asked of the pointer itself, as every reader of a lot pointer in
+        # the importer does (`_lot_is_still_on_its_account`).
         if not _lot_is_still_on_its_account(split, lot):
             continue
         # `qof_instance`, because `GetLot()` hands back a raw pointer on

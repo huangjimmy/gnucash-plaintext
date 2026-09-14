@@ -1,0 +1,25 @@
+# Two USD rates in CAD on 2026-02-02, three hours apart, in one file.
+#
+# GnuCash would keep only one of them, and which one would depend on the order
+# of the file, so both are refused.
+#
+# What this fixture produces: nothing; two refusals.
+#
+# Verified by tests/integration/test_a_second_price_on_one_day_is_refused.py.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-02-02 12:00:00 +0000"
+	value: "1.36"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-02-02 15:00:00 +0000"
+	value: "1.37"
+	source: "user:price-editor"
+	type: "last"

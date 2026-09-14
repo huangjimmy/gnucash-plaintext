@@ -1,0 +1,19 @@
+# Two edits in one file that swap the days of two AMZN prices: the 2026-01-06
+# price moves onto 2026-01-07, and the 2026-01-07 price onto 2026-01-06.
+#
+# Each moves onto the day the other still holds, and neither can go first:
+# GnuCash deletes the price already on a day a price is moved onto (Q-041,
+# table 1).
+#
+# What this fixture produces, on a book holding
+# prices_of_a_currency_and_a_stock.txt and another_amzn_price_a_day_later.txt:
+# nothing; both are refused, and each refusal lists the other price.
+#
+# Verified by tests/integration/test_a_second_price_on_one_day_is_refused.py.
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	time: "2026-01-07 21:00:00 +0000"
+
+price
+	guid: "5b2b5d1d8439402a96c7f910acb391d9"
+	time: "2026-01-06 21:00:00 +0000"

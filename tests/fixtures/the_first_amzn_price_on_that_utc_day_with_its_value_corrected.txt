@@ -1,0 +1,12 @@
+# The first price of two_amzn_prices_a_day_apart_in_toronto_on_one_utc_day.txt,
+# given by its guid with a corrected value and nothing else.
+#
+# The block leaves `time:` out, so the price stays where it is: correcting a
+# value moves nothing onto any day.
+#
+# What this fixture produces: that price, updated to 216.00, at the time it had.
+#
+# Verified by tests/integration/test_a_block_that_moves_no_price_is_not_checked_for_its_day.py.
+price
+	guid: "6d1e5a4f2b3c4d5e8f9a0b1c2d3e4f5a"
+	value: "21600/100"

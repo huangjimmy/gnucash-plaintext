@@ -118,11 +118,14 @@ def _entry_guids_for_invoice(runner, gnc, inv_id):
     Used to assert the non-destructive-vs-rebuild distinction between
     the unpost CLI path and the re-import path.
     """
-    from gnucash import Query, Session
+    from gnucash import Query
     from gnucash.gnucash_business import Invoice
-    ses = Session(f"xml://{gnc}")
+
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc)
+    repo.open()
     try:
-        book = ses.book
+        book = repo.book
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(book)
@@ -147,7 +150,7 @@ def _entry_guids_for_invoice(runner, gnc, inv_id):
         q.destroy()
         return guids
     finally:
-        ses.end()
+        repo.close()
 
 
 # ── Path A: re-import with `posted: none` ─────────────────────────────────────

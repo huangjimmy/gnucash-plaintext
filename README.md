@@ -38,8 +38,8 @@ GnuCash file. The workflow is:
 2. **Edit** the text however you like — by hand, with a script, by piping it
    through an LLM, or as part of a larger tool chain.
 3. **Import** back into GnuCash. Accounts, transactions, splits, commodities,
-   prices, customers, vendors, invoices, bills, and payments all round-trip
-   without loss.
+   prices (exported with `--include-prices`), customers, vendors, invoices,
+   bills, and payments all round-trip without loss.
 
 Because every object carries its GnuCash GUID through the cycle, edits target
 the *same* underlying objects on re-import — no duplicates, no orphaned
@@ -100,12 +100,13 @@ GUI remains the source of truth.
 
 GnuCash plaintext is inspired by beancount, and it aims to be compatible with beancount as much as possible.
 
-Right now, GnuCash plaintext supports GnuCash `Account`, `Commodity`, `Transaction`, and `Split`.
+Right now, GnuCash plaintext supports GnuCash `Account`, `Commodity`, `Price`, `Transaction`, and `Split`.
 
 | GnuCash concept supported by GnuCash plaintext    | beancount corresponding concept                   |
 |---------------------------------------------------|---------------------------------------------------|
 | Account                                           | Account                                           |
 | Commodity / Currency                              | Commodities / Currencies                          |
+| Price (an entry of the price database)            | Prices                                            |
 | Transaction                                       | Transaction                                       |
 | Split                                             | Posting (of Transaction)                          |
 | Document Link (of a transaction)                  | N/A                                               |
@@ -196,6 +197,82 @@ You may declare Bitcoin like below
 	namespace: "Crypto"
 	fraction: 100000000
 ```
+
+### Prices
+
+GnuCash keeps a price database: what one unit of a currency, a stock or a fund was worth in another currency, at a moment in time. GnuCash's Price Editor, its transfer dialog, the register, the stock assistants, CSV price import and Finance::Quote all write to it, and GnuCash's reports value holdings from it.
+
+A `price` block is one entry of that database. The price of one NASDAQ:AMZN share in USD, fetched by Finance::Quote:
+
+```
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-01-06 21:00:00 +0000"
+	value: "21845/100"
+	source: "Finance::Quote"
+	type: "last"
+```
+
+An exchange rate is the same block with `commodity.namespace: "CURRENCY"`. One USD in CAD on 2026-01-02, typed by hand:
+
+```
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-01-02"
+	value: "1.3642"
+	source: "user:price-editor"
+	type: "last"
+```
+
+| key | what it says | needed to create a price |
+|---|---|---|
+| `guid` | the price's GnuCash guid. `export` always writes it, and `import` finds the price by it | no |
+| `commodity.namespace`, `commodity.mnemonic` | what is priced. A commodity other than GnuCash's own currencies must be declared, in the same file or already in the book | yes |
+| `currency.mnemonic` | the currency `value` is stated in | yes |
+| `time` | when the price applies | yes |
+| `value` | what one unit of the commodity is worth in the currency, as an exact fraction (`"21845/100"`) or a decimal (`"1.3642"`) | yes |
+| `source` | what put the price in the book | no |
+| `type` | the kind of price: `last`, `bid`, `ask`, `nav`, `transaction`, `unknown`, or any other word | no |
+
+A block giving any other key is refused, and the refusal lists the key. A price has no custom metadata to keep it in, so a key `import` does not read would be dropped, and a correction written as `valeu:` would be lost with the price reported `unchanged`.
+
+`import` applies price blocks from any file, with no flag, and a file holding nothing but prices imports on its own. `export` leaves prices out unless asked; see [Export and import prices](#export-and-import-prices).
+
+#### `time:` is a moment, not only a date
+
+GnuCash stores a price's time to the second, and the different ways a price enters a book store different times: the Price Editor stores 10:59 UTC on the day typed (00:00 local before GnuCash 4.13), the stock transaction assistant 23:59:59 local, and Finance::Quote the moment it fetched a quote with no date. So `export` writes the time in full, in UTC, and a ledger reads the same whichever machine exported it: `time: "2026-01-06 21:00:00 +0000"`.
+
+`import` takes a time with any offset. A bare date, `time: "2026-01-02"`, is stored at the time GnuCash's own transfer dialog and CSV price import give a date: 10:59 UTC in most timezones. The measurements behind this, for every GnuCash path and every supported version, are in [Q-041](docs/issues/Q-041-a-price-cannot-be-recorded-for-a-past-date-or-kept-through-export-and-import.md).
+
+#### One price a day
+
+GnuCash keeps at most one price for a commodity in a currency on one day, and "day" is the local day of the machine the price is added on. The two count whichever way round a price is written: a price of USD in CAD and a price of CAD in USD share one day. So `import`:
+
+- **edits the price in place** when the book holds a price with the block's `guid:` — the guid stays, even when `time:` moves the price to another day. A key the block leaves out changes nothing. The run reports it `updated`, or `unchanged` when nothing differs;
+- **leaves the price as it is** when a block with no `guid:` states exactly a price the book holds — the same commodity, currency, time, value, source and type — and reports it `unchanged`, so a file imported twice changes nothing;
+- **creates a price** otherwise, with the block's `guid:` when it gives one, and reports it `created`;
+- **refuses the block** when the book already holds another price for that commodity and currency on that day, either way round, or when an edit would move a price onto such a day. The refusal lists that price's guid, time and source; to change that price, give its guid;
+- **refuses both blocks** when one file gives two prices for the same commodity and currency on the same day, either way round;
+- **refuses every block giving a `guid:` that another `price` block in the same file gives**, since a guid is one price: two new prices would both take it, and of two edits the later would win;
+- **checks only a block that puts a price on a day**: a new price, or an edit that changes `time:`. A block that changes nothing, or an edit to `value:`, `source:` or `type:`, moves no price and is not refused for its day. A book can hold two prices of a pair on one day of the machine importing, when they were added on a machine where that day was two;
+- **applies edits before new prices**, so one file may move a price off a day and give a new price for that day, in either order. An edit moving a price onto a day that another edit in the file frees waits for that edit, so the order of the blocks does not matter. Two edits that wait for each other, such as two prices swapping days, are both refused;
+- **refuses a block whose `guid:` another kind of object in the book holds**, such as a transaction, an account or a customer, because GnuCash keeps each guid to one object. A block of another kind giving a price's guid is refused the same way;
+- **refuses a block that gives an existing price another commodity or currency.** A price is of one commodity in one currency, and GnuCash files it under that pair; a price in another currency is recorded as a price of its own.
+
+Adding a price through GnuCash's own call, or moving a price's time onto such a day, would quietly delete the other price instead, which is why the import refuses rather than let it.
+
+#### `source:` and `type:` belong to the price
+
+A price's source is what put it in the book, and GnuCash uses it to decide which of two prices on one day to keep when its own Price Editor or Finance::Quote adds one. `export` writes the source and type exactly as the book holds them, and `import` stores exactly what the block states. gnucash-plaintext never gives a price a source of its own.
+
+- A new price whose block has no `source:` gets GnuCash's own default, `invalid`, and the next export writes `source: "invalid"`. A block with no `type:` leaves the type empty, and the next export writes no `type:` line.
+- GnuCash's sources, from the one it keeps first to the one it keeps last: `user:price-editor`, `Finance::Quote`, `user:price`, `user:xfer-dialog`, `user:split-register`, `user:split-import`, `user:stock-split`, `user:stock-transaction`, `user:invoice-post`, `temporary`, `invalid`.
+- A source the running GnuCash cannot store is refused: GnuCash would silently store it as `invalid`, the source it keeps last. Any other word is refused on every version; `user:stock-transaction` is refused before GnuCash 4.13 and `user:split-import` before 4.8, because those versions do not have them.
 
 ### Transactions
 
@@ -727,6 +804,67 @@ instead:
 ```bash
 gnucash-plaintext export-accounts mybook.gnucash accounts.txt --as-of 2024-01-01
 ```
+
+### Export and import prices
+
+A book's [prices](#prices) are left out of `export` unless asked for, as business objects are: a book that fetches quotes every day holds thousands of them. Ask with `--include-prices`, and the prices go into the same file as everything else:
+
+```bash
+# The whole book, prices included, in one file
+gnucash-plaintext export mybook.gnucash ledger.txt --include-prices
+
+# With business objects too
+gnucash-plaintext export mybook.gnucash ledger.txt --include-business-objects --include-prices
+```
+
+The price blocks come after the commodities and accounts they refer to, and before business objects and transactions.
+
+`--start-date` and `--end-date` keep only the prices dated inside the range, as they keep only the transactions dated inside it. Both days are included: `--start-date 2026-01-01 --end-date 2026-01-31` keeps a price or a transaction dated 2026-01-01 and one dated 2026-01-31. Each date also works on its own. A price belongs to no account, so `--account` does not affect which prices are written.
+
+#### Only the prices: `export-prices`
+
+`export-prices` writes a book's price blocks and nothing else, apart from the commodity declarations those prices use, so the file imports on its own into a book that lacks those commodities:
+
+```bash
+# Every price in the book
+gnucash-plaintext export-prices mybook.gnucash prices.txt
+
+# The current price of each commodity in each currency
+gnucash-plaintext export-prices mybook.gnucash prices.txt --latest 1
+
+# The last five prices of each, as they stood at the end of 2025
+gnucash-plaintext export-prices mybook.gnucash prices.txt --latest 5 --end-date 2025-12-31
+
+# Every price of 2025
+gnucash-plaintext export-prices mybook.gnucash prices.txt --start-date 2025-01-01 --end-date 2025-12-31
+```
+
+Each option works on its own, none requires another, and any of them can be given together:
+
+| option | what it keeps |
+|---|---|
+| `--start-date YYYY-MM-DD` | prices dated on or after that day; a price dated that day is kept |
+| `--end-date YYYY-MM-DD` | prices dated on or before that day; a price dated that day is kept |
+| `--latest N` | the N most recent prices of each commodity in each currency, counting back from `--end-date`, or from today without it. With `--start-date`, a commodity priced fewer than N times since that day gives the prices it has. N is 1 or more |
+
+- A day is the day GnuCash shows for the price on the machine running the command, so a price stored at 23:59:59 local on 2025-12-31 is kept by `--end-date 2025-12-31` although its UTC time is on 2026-01-01.
+- Each commodity in each currency is counted separately, and so is each direction: a book holding both USD in CAD and CAD in USD gives one of each for `--latest 1`.
+
+#### Importing prices
+
+`import` applies every price block a file holds, with no flag and no other command, so a file from `export-prices` imports as it is:
+
+```bash
+gnucash-plaintext import mybook.gnucash prices.txt
+```
+
+The import summary counts them, and each refused block is listed with the reason:
+
+```
+  Prices:       2 created, 1 updated, 40 unchanged, 1 refused
+```
+
+An unchanged file imported again changes nothing and does not save the book. What makes a block `updated`, `unchanged` or refused is set out under [One price a day](#one-price-a-day).
 
 ### Rename an account
 
@@ -2833,6 +2971,8 @@ gnucash-plaintext account-balance mybook.gnucash \
 
 Non-CAD leaf accounts include `share_price` (exchange rate used) and `original` (amount in
 the native currency) metadata lines, matching the transaction plaintext format.
+
+The rates `account-balance --fx-rates` writes into the pricedb are ordinary [prices](#prices): source `user:price`, dated the day the command runs, at 12:00 local. `export-prices` writes them like any other price. To record a rate for another day, import a `price` block instead.
 
 ### Validate GnuCash ledger
 

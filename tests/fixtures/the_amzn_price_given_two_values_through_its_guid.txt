@@ -1,0 +1,18 @@
+# Two edits in one file of the NASDAQ:AMZN price, each giving its guid and a
+# different value.
+#
+# Applied in turn, the second would win, so the order of the blocks would decide
+# the value.
+#
+# What this fixture produces, on a book holding
+# prices_of_a_currency_and_a_stock.txt: nothing; both blocks are refused, and
+# the price keeps 218.45.
+#
+# Verified by tests/integration/test_one_guid_given_in_two_price_blocks_is_refused.py.
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	value: "21900/100"
+
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	value: "22000/100"

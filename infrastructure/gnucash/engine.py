@@ -74,6 +74,20 @@ def guid_from_hex(guid_norm: str) -> GncGuidC:
     return guid
 
 
+class GDateC(ctypes.Structure):
+    """Mirrors GLib's GDate: two unsigned ints of bit fields, eight bytes.
+
+    What `gdate_to_time64` takes, by value — the call GnuCash's transfer
+    dialog and CSV price import turn a date into a time with.
+    """
+    _fields_ = [('julian_days', ctypes.c_uint), ('dmy', ctypes.c_uint)]
+
+
+# What `gnc_pricedb_foreach_price` calls once per price: (GNCPrice*, user data),
+# returning TRUE to go on.
+PRICE_FOREACH_FUNC = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
+
+
 class GList(ctypes.Structure):
     """GLib GList structure for safe traversal of lists returned by GnuCash C functions.
 
@@ -238,6 +252,23 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncEntryGetBill',
             'gncEntrySetBill',
             'gncEntrySetInvoice',
+            # The price database, and the days GnuCash reckons its prices on
+            # (Q-041). Measured present on every supported build.
+            'gnc_pricedb_get_db',
+            'gnc_pricedb_add_price',
+            'gnc_pricedb_foreach_price',
+            'gnc_price_create',
+            'gnc_price_lookup',
+            'gnc_price_set_source_string',
+            'gnc_price_get_source_string',
+            'gdate_to_time64',
+            'gnc_time64_get_day_start',
+            'gnc_dmy2time64',
+            'gnc_dmy2time64_end',
+            'gnc_time64_get_today_end',
+            # The release, which decides how a book to read is opened
+            # (`repositories/gnucash_repository.py`, CLAUDE.md finding 27).
+            'gnc_version',
         ]
 
     missing = [f for f in required_functions if not hasattr(lib, f)]
@@ -566,6 +597,79 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     # next open (CLAUDE.md finding 18, on a book rather than a lot).
     lib.qof_book_mark_session_dirty.restype    = None
     lib.qof_book_mark_session_dirty.argtypes   = [ctypes.c_void_p]
+    # ── The price database ───────────────────────────────────────────────────
+    # One entry per commodity, currency and moment (Q-041), written through
+    # the calls GnuCash's own Price Editor makes. A time is a time64 passed
+    # straight through, never SWIG's `set_time64` with an integer, which 3.4
+    # misreads (CLAUDE.md finding 20). `gnc_price_lookup` is a function on
+    # every supported build, measured, not the header macro it once was.
+    lib.gnc_pricedb_get_db.restype             = ctypes.c_void_p
+    lib.gnc_pricedb_get_db.argtypes            = [ctypes.c_void_p]
+    lib.gnc_pricedb_add_price.restype          = ctypes.c_int
+    lib.gnc_pricedb_add_price.argtypes         = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gnc_pricedb_foreach_price.restype      = ctypes.c_int
+    lib.gnc_pricedb_foreach_price.argtypes     = [ctypes.c_void_p, PRICE_FOREACH_FUNC,
+                                                  ctypes.c_void_p, ctypes.c_int]
+    lib.gnc_price_create.restype               = ctypes.c_void_p
+    lib.gnc_price_create.argtypes              = [ctypes.c_void_p]
+    lib.gnc_price_lookup.restype               = ctypes.c_void_p
+    lib.gnc_price_lookup.argtypes              = [ctypes.POINTER(GncGuidC), ctypes.c_void_p]
+    lib.gnc_price_begin_edit.restype           = None
+    lib.gnc_price_begin_edit.argtypes          = [ctypes.c_void_p]
+    lib.gnc_price_commit_edit.restype          = None
+    lib.gnc_price_commit_edit.argtypes         = [ctypes.c_void_p]
+    lib.gnc_price_unref.restype                = None
+    lib.gnc_price_unref.argtypes               = [ctypes.c_void_p]
+    lib.gnc_price_set_commodity.restype        = None
+    lib.gnc_price_set_commodity.argtypes       = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gnc_price_set_currency.restype         = None
+    lib.gnc_price_set_currency.argtypes        = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gnc_price_set_time64.restype           = None
+    lib.gnc_price_set_time64.argtypes          = [ctypes.c_void_p, ctypes.c_int64]
+    lib.gnc_price_set_source_string.restype    = None
+    lib.gnc_price_set_source_string.argtypes   = [ctypes.c_void_p, ctypes.c_char_p]
+    lib.gnc_price_set_typestr.restype          = None
+    lib.gnc_price_set_typestr.argtypes         = [ctypes.c_void_p, ctypes.c_char_p]
+    lib.gnc_price_set_value.restype            = None
+    lib.gnc_price_set_value.argtypes           = [ctypes.c_void_p, GncNumericC]
+    lib.gnc_price_get_commodity.restype        = ctypes.c_void_p
+    lib.gnc_price_get_commodity.argtypes       = [ctypes.c_void_p]
+    lib.gnc_price_get_currency.restype         = ctypes.c_void_p
+    lib.gnc_price_get_currency.argtypes        = [ctypes.c_void_p]
+    lib.gnc_price_get_time64.restype           = ctypes.c_int64
+    lib.gnc_price_get_time64.argtypes          = [ctypes.c_void_p]
+    lib.gnc_price_get_value.restype            = GncNumericC
+    lib.gnc_price_get_value.argtypes           = [ctypes.c_void_p]
+    lib.gnc_price_get_source_string.restype    = ctypes.c_char_p
+    lib.gnc_price_get_source_string.argtypes   = [ctypes.c_void_p]
+    lib.gnc_price_get_typestr.restype          = ctypes.c_char_p
+    lib.gnc_price_get_typestr.argtypes         = [ctypes.c_void_p]
+    lib.gnc_commodity_get_namespace.restype    = ctypes.c_char_p
+    lib.gnc_commodity_get_namespace.argtypes   = [ctypes.c_void_p]
+    lib.gnc_commodity_get_mnemonic.restype     = ctypes.c_char_p
+    lib.gnc_commodity_get_mnemonic.argtypes    = [ctypes.c_void_p]
+    # Days, as GnuCash reckons them where the command runs: a date to the time
+    # GnuCash gives a date (`gdate_to_time64`, through a GLib GDate), a moment
+    # to the start of its day, and a date to the start and end of that day.
+    lib.g_date_clear.restype                   = None
+    lib.g_date_clear.argtypes                  = [ctypes.c_void_p, ctypes.c_uint]
+    lib.g_date_set_dmy.restype                 = None
+    lib.g_date_set_dmy.argtypes                = [ctypes.c_void_p, ctypes.c_uint8,
+                                                  ctypes.c_int, ctypes.c_uint16]
+    lib.gdate_to_time64.restype                = ctypes.c_int64
+    lib.gdate_to_time64.argtypes               = [GDateC]
+    lib.gnc_time64_get_day_start.restype       = ctypes.c_int64
+    lib.gnc_time64_get_day_start.argtypes      = [ctypes.c_int64]
+    lib.gnc_dmy2time64.restype                 = ctypes.c_int64
+    lib.gnc_dmy2time64.argtypes                = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
+    lib.gnc_dmy2time64_end.restype             = ctypes.c_int64
+    lib.gnc_dmy2time64_end.argtypes            = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
+    lib.gnc_time64_get_today_end.restype       = ctypes.c_int64
+    lib.gnc_time64_get_today_end.argtypes      = []
+    # The GnuCash release this process runs, "3.8" or "5.10". Measured present
+    # on every supported build.
+    lib.gnc_version.restype                    = ctypes.c_char_p
+    lib.gnc_version.argtypes                   = []
 
 
 @lru_cache(maxsize=1)

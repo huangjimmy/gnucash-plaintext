@@ -19,13 +19,14 @@ class TestExecuteAccountsOnly:
         from repositories.gnucash_repository import GnuCashRepository
         from use_cases.export_transactions import ExportTransactionsUseCase
 
+        # Read while the book is open: closing it frees the accounts.
         with GnuCashRepository(temp_gnucash_file) as repo:
             use_case = ExportTransactionsUseCase(repo)
             result = use_case.execute_accounts_only()
+            account_names = [
+                acct.GetName() for acct, _ in result.accounts
+            ]
 
-        account_names = [
-            acct.GetName() for acct, _ in result.accounts
-        ]
         assert "Checking" in account_names
         assert "Groceries" in account_names
         assert "Dining" in account_names
@@ -59,11 +60,12 @@ class TestExecuteAccountsOnly:
         from repositories.gnucash_repository import GnuCashRepository
         from use_cases.export_transactions import ExportTransactionsUseCase
 
+        # Read while the book is open: closing it frees the commodities.
         with GnuCashRepository(temp_gnucash_file) as repo:
             use_case = ExportTransactionsUseCase(repo)
             result = use_case.execute_accounts_only()
+            tickers = [c.get_mnemonic() for c, _ in result.commodities]
 
-        tickers = [c.get_mnemonic() for c, _ in result.commodities]
         assert len(tickers) == len(set(tickers))
 
     def test_accounts_not_duplicated(self, temp_gnucash_file):
@@ -71,11 +73,12 @@ class TestExecuteAccountsOnly:
         from repositories.gnucash_repository import GnuCashRepository
         from use_cases.export_transactions import ExportTransactionsUseCase
 
+        # Read while the book is open: closing it frees the accounts.
         with GnuCashRepository(temp_gnucash_file) as repo:
             use_case = ExportTransactionsUseCase(repo)
             result = use_case.execute_accounts_only()
+            guids = [acct.GetGUID().to_string() for acct, _ in result.accounts]
 
-        guids = [acct.GetGUID().to_string() for acct, _ in result.accounts]
         assert len(guids) == len(set(guids))
 
     def test_accounts_without_transactions_are_included(self, temp_gnucash_file):

@@ -43,6 +43,7 @@ htmlcov/
 .coverage
 .coverage.*
 .coverage-data/
+.memory-profile/
 .cache
 nosetests.xml
 coverage.xml

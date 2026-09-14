@@ -17,12 +17,10 @@ import pytest
 
 
 def _open_read_only(path):
-    from gnucash import Session
-    try:
-        from gnucash import SessionOpenMode
-        return Session(f"xml://{path}", SessionOpenMode.SESSION_READ_ONLY)
-    except ImportError:
-        return Session(f"xml://{path}", ignore_lock=True)
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.READ_ONLY)
+    return repo
 
 
 def find(root, path):
@@ -42,74 +40,74 @@ class TestGetBalanceAsOfDate:
         """Balance is 0 before any transactions exist"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             acc = find(root, "Income:Salary:Base")
             bal = BookCloser().get_balance_as_of_date(acc, date(2023, 12, 31))
             assert bal == Fraction(0)
         finally:
-            session.end()
+            repo.close()
 
     def test_includes_transaction_on_exact_date(self, temp_gnucash_for_close_books):
         """Balance on Jan 31 includes the January salary"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             acc = find(root, "Income:Salary:Base")
             bal = BookCloser().get_balance_as_of_date(acc, date(2024, 1, 31))
             assert bal == Fraction(-3000)  # only Jan salary
         finally:
-            session.end()
+            repo.close()
 
     def test_accumulates_across_months(self, temp_gnucash_for_close_books):
         """Balance after Feb includes both Jan and Feb salaries"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             acc = find(root, "Income:Salary:Base")
             bal = BookCloser().get_balance_as_of_date(acc, date(2024, 2, 28))
             assert bal == Fraction(-6000)  # Jan + Feb
         finally:
-            session.end()
+            repo.close()
 
     def test_excludes_future_transactions(self, temp_gnucash_for_close_books):
         """Balance as of June does not include the August freelance income"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             acc = find(root, "Income:Freelance")
             bal = BookCloser().get_balance_as_of_date(acc, date(2024, 6, 30))
             assert bal == Fraction(0)
         finally:
-            session.end()
+            repo.close()
 
     def test_two_level_expense_balance(self, temp_gnucash_for_close_books):
         """2-level expense sub-account (Expenses:Travel:Train) balance correct"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             acc = find(root, "Expenses:Travel:Train")
             bal = BookCloser().get_balance_as_of_date(acc, date(2024, 12, 31))
             assert bal == Fraction(150)
         finally:
-            session.end()
+            repo.close()
 
     def test_exclude_guids_zeroes_account(self, temp_gnucash_for_close_books):
         """Excluding all transaction GUIDs for an account yields zero"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             acc = find(root, "Income:Interest")
             exclude = {
                 split.GetParent().GetGUID().to_string()
@@ -120,7 +118,7 @@ class TestGetBalanceAsOfDate:
             )
             assert bal == Fraction(0)
         finally:
-            session.end()
+            repo.close()
 
 
 # ---------------------------------------------------------------------------
@@ -135,23 +133,23 @@ class TestIsClosed:
         """Returns False before any closing"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             assert not BookCloser().is_closed(root, date(2024, 12, 31))
         finally:
-            session.end()
+            repo.close()
 
     def test_closed_before_all_transactions(self, temp_gnucash_for_close_books):
         """Returns True for a date before any transactions (all balances zero)"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             assert BookCloser().is_closed(root, date(2023, 12, 31))
         finally:
-            session.end()
+            repo.close()
 
     def test_placeholder_accounts_dont_affect_is_closed(
         self, temp_gnucash_for_close_books
@@ -159,16 +157,16 @@ class TestIsClosed:
         """Placeholder Income/Expense accounts (no direct splits) don't block is_closed"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             closer = BookCloser()
             # Placeholder Income, Expenses, Income:Salary, Expenses:Travel
             # have no splits → balance = 0 → should not prevent is_closed
             # Before any transactions: all leaf AND placeholder balances are 0
             assert closer.is_closed(root, date(2023, 12, 31))
         finally:
-            session.end()
+            repo.close()
 
 
 # ---------------------------------------------------------------------------
@@ -183,39 +181,39 @@ class TestGroupAccountsByCurrency:
         """CAD group contains all 5 CAD leaf income/expense accounts"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             groups = BookCloser().group_accounts_by_currency(root, date(2024, 12, 31))
 
             assert "CAD" in groups
             names = {a.GetName() for a, _ in groups["CAD"]}
             assert names == {"Base", "Bonus", "Interest", "Train", "Flight", "Groceries"}
         finally:
-            session.end()
+            repo.close()
 
     def test_usd_group_contains_usd_leaf_accounts(self, temp_gnucash_for_close_books):
         """USD group contains Income:Freelance and Expenses:SaaS"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             groups = BookCloser().group_accounts_by_currency(root, date(2024, 12, 31))
 
             assert "USD" in groups
             names = {a.GetName() for a, _ in groups["USD"]}
             assert names == {"Freelance", "SaaS"}
         finally:
-            session.end()
+            repo.close()
 
     def test_placeholder_accounts_not_included(self, temp_gnucash_for_close_books):
         """Placeholder Income:Salary has no splits → not included in groups"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             groups = BookCloser().group_accounts_by_currency(root, date(2024, 12, 31))
 
             # "Salary" (placeholder) and "Travel" (placeholder) should not appear
@@ -224,29 +222,29 @@ class TestGroupAccountsByCurrency:
             assert "Salary" not in cad_names
             assert "Travel" not in cad_names
         finally:
-            session.end()
+            repo.close()
 
     def test_asset_accounts_not_included(self, temp_gnucash_for_close_books):
         """Asset accounts never appear in the groups"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             groups = BookCloser().group_accounts_by_currency(root, date(2024, 12, 31))
             all_names = {a.GetName() for accs in groups.values() for a, _ in accs}
             assert "Checking" not in all_names
             assert "USD" not in all_names  # Assets:Bank:USD
         finally:
-            session.end()
+            repo.close()
 
     def test_cad_balances_correct(self, temp_gnucash_for_close_books):
         """Each CAD account's balance in the group matches expected value"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             groups = BookCloser().group_accounts_by_currency(root, date(2024, 12, 31))
 
             balances = {a.GetName(): b for a, b in groups["CAD"]}
@@ -257,19 +255,19 @@ class TestGroupAccountsByCurrency:
             assert balances["Flight"] == Fraction(800)
             assert balances["Groceries"] == Fraction(400)
         finally:
-            session.end()
+            repo.close()
 
     def test_empty_before_transactions(self, temp_gnucash_for_close_books):
         """Before any transactions, all balances are zero → empty dict"""
         from services.book_closer import BookCloser
 
-        session = _open_read_only(temp_gnucash_for_close_books)
+        repo = _open_read_only(temp_gnucash_for_close_books)
         try:
-            root = session.book.get_root_account()
+            root = repo.book.get_root_account()
             groups = BookCloser().group_accounts_by_currency(root, date(2023, 12, 31))
             assert groups == {}
         finally:
-            session.end()
+            repo.close()
 
 
 # ---------------------------------------------------------------------------
@@ -417,7 +415,7 @@ class TestCreateClosingTransaction:
     """create_closing_transaction — creates a balanced closing entry"""
 
     def _close_cad(self, temp_gnucash_for_close_books):
-        """Helper: open, group CAD accounts, create equity+closing tx, return session+tx."""
+        """Helper: open, group CAD accounts, create equity+closing tx, return repo+tx."""
         from repositories.gnucash_repository import GnuCashRepository
         from services.book_closer import BookCloser
 

@@ -455,18 +455,18 @@ def lot_holdings_of(account):
     """{lot pointer: (balance, earliest transaction date)} for one AR/AP account.
 
     Read from the account's splits and grouped by the lot each one says it is
-    in — never from `gnc_lot_get_balance`, which sums the lot's own split list.
-    A split moved with `xaccSplitSetLot` is not taken out of that list until
-    the book has been written and read back (CLAUDE.md finding 9), so in the
-    session that applies a credit the lot it came from still reports it.
+    in, rather than from `gnc_lot_get_balance`, which sums the lot's own split
+    list. The two once disagreed within a session: a split moved with
+    `xaccSplitSetLot` stayed on the list of the lot it came from (CLAUDE.md
+    finding 9), so the lot a credit was applied from still reported it.
 
     Every reader of "what does this lot hold" in this file goes through here,
     so the file cannot answer that question two ways: the summary an export
     writes, the check an import makes against it, and the ownerless-lot warning
     all agree, in a fresh session and in the one that just moved a split.
 
-    `gnc_lot_is_closed` is the same stale reading — a lot is closed when it
-    holds nothing — so a balance of zero answers that too.
+    A balance of zero also answers whether the lot is closed, from the same
+    reading, rather than `gnc_lot_is_closed`.
     """
     held = {}
     for split in account.GetSplitList():
@@ -565,10 +565,7 @@ def _ownerless_open_credit_lots(account):
     _lib = _load()
 
     # Through `lot_holdings_of`, like the summary above it. Both answer "what
-    # does this lot hold", and a file that answers that two ways will drift:
-    # the reading this replaces is short by any split moved with
-    # `xaccSplitSetLot` in this session, which is exactly the case the summary
-    # was changed away from.
+    # does this lot hold", and a file that answers that two ways will drift.
     held = lot_holdings_of(account)
 
     bad = []
@@ -671,16 +668,15 @@ class ExportTransactionsUseCase:
 
         all_transactions.sort(key=cmp_to_key(the_order_the_book_keeps_them_in))
 
-        # Filter transactions by date range if specified
-        if start_date and end_date:
-            filtered_transactions = []
-            for tx in all_transactions:
-                tx_date = tx.GetDate().strftime("%Y-%m-%d")
-                if start_date <= tx_date <= end_date:
-                    filtered_transactions.append(tx)
-            transactions = filtered_transactions
-        else:
-            transactions = all_transactions
+        # Filter transactions by date. Each date applies on its own: a start
+        # date alone leaves out what came before it, and an end date alone
+        # leaves out what came after it. When the filter needed both, a lone
+        # date was ignored and every transaction in the book was written.
+        transactions = [
+            tx for tx in all_transactions
+            if (not start_date or tx.GetDate().strftime("%Y-%m-%d") >= start_date)
+            and (not end_date or tx.GetDate().strftime("%Y-%m-%d") <= end_date)
+        ]
 
         # Filter transactions by account if specified
         if account_filter:
@@ -887,6 +883,13 @@ class ExportTransactionsUseCase:
             self._format_commodity(commodity, transaction, lines, date_override=as_of_date)
         for account, transaction in result.accounts:
             self._format_account(account, transaction, lines, date_override=as_of_date)
+        return '\n'.join(lines) + '\n' if lines else ''
+
+    def format_commodities(self, commodities) -> str:
+        """Commodity declarations alone, dated as a commodity no transaction dates is: by the book file."""
+        lines = []
+        for commodity in commodities:
+            self._format_commodity(commodity, None, lines)
         return '\n'.join(lines) + '\n' if lines else ''
 
     def format_accounts_section(self, result: ExportResult) -> str:

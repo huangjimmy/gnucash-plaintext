@@ -25,15 +25,14 @@ def _make_gnucash_with_transaction():
     os.unlink(path)
 
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
 
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
-    book = session.book
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
+
+    book = repo.book
     root = book.get_root_account()
     commod_table = book.get_table()
     cad = commod_table.lookup('CURRENCY', 'CAD')
@@ -80,8 +79,8 @@ def _make_gnucash_with_transaction():
 
     tx.CommitEdit()
     guid = tx.GetGUID().to_string()
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
 
     return path, guid
 
@@ -98,15 +97,14 @@ def _make_gnucash_with_two_transactions():
     os.unlink(path)
 
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
 
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
-    book = session.book
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
+
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -153,8 +151,8 @@ def _make_gnucash_with_two_transactions():
 
     guid1 = _mk(4500, 'Dinner out', 15)
     guid2 = _mk(2300, 'Lunch', 16)
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
 
     return path, guid1, guid2
 
@@ -307,21 +305,17 @@ class TestDeleteTransactionsCli:
 
             # Verify both are back in the book. Use try/finally so the
             # session lock is released even if the assertion below fails.
+            repo = GnuCashRepository(path)
+            repo.open()
             try:
-                from gnucash import Session, SessionOpenMode
-                session = Session(f'xml://{path}', SessionOpenMode.SESSION_NORMAL_OPEN)
-            except ImportError:
-                from gnucash import Session
-                session = Session(f'xml://{path}')
-            try:
-                book = session.book
+                book = repo.book
                 q = Query()
                 q.search_for('Trans')
                 q.set_book(book)
                 descs = sorted(Transaction(instance=t).GetDescription()
                                for t in q.run())
             finally:
-                session.end()
+                repo.close()
             assert descs == ['Dinner out', 'Lunch'], descs
         finally:
             if os.path.exists(path):
@@ -355,20 +349,16 @@ class TestDeleteTransactionsCli:
             assert import_result.imported_count == 1
 
             # Verify transaction is back in the book
-            try:
-                from gnucash import Session, SessionOpenMode
-                session = Session(f'xml://{path}', SessionOpenMode.SESSION_NORMAL_OPEN)
-            except ImportError:
-                from gnucash import Session
-                session = Session(f'xml://{path}')
-            book = session.book
+            repo = GnuCashRepository(path)
+            repo.open()
+            book = repo.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book)
             txs = [Transaction(instance=t) for t in q.run()]
             assert len(txs) == 1
             assert txs[0].GetDescription() == 'Dinner out'
-            session.end()
+            repo.close()
         finally:
             if os.path.exists(path):
                 os.unlink(path)

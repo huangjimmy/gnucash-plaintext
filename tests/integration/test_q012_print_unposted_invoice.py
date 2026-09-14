@@ -67,14 +67,16 @@ def _import_new(runner, gnc, fixture):
 def _render_invoice_html(gnc_path: str, invoice_id: str) -> str:
     """The page GnuCash draws — the same path `print-invoice` takes,
     minus the WebKit step that lays it out."""
-    from gnucash import Query, Session
+    from gnucash import Query
     from gnucash.gnucash_business import Invoice
 
+    from repositories.gnucash_repository import GnuCashRepository
     from services.invoice_renderer import render_to_html
 
-    ses = Session(f"xml://{gnc_path}")
+    repo = GnuCashRepository(gnc_path)
+    repo.open()
     try:
-        book = ses.book
+        book = repo.book
         q = Query()
         q.search_for('gncInvoice')
         q.set_book(book)
@@ -84,9 +86,9 @@ def _render_invoice_html(gnc_path: str, invoice_id: str) -> str:
         )
         q.destroy()
         assert inv is not None, f"Invoice {invoice_id!r} not found"
-        return render_to_html(inv, ses)
+        return render_to_html(inv, repo.session)
     finally:
-        ses.end()
+        repo.close()
 
 
 @pytest.fixture

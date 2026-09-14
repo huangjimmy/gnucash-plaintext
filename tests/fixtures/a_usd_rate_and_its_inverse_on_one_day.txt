@@ -1,0 +1,26 @@
+# USD in CAD and CAD in USD, both on 2026-02-02, in one file.
+#
+# GnuCash keeps one price a day for two currencies, whichever way round they
+# are written (Q-041, table 1), so it would keep one of these and which one
+# would depend on their order in the file.
+#
+# What this fixture produces: nothing; both blocks are refused.
+#
+# Verified by tests/integration/test_a_second_price_on_one_day_is_refused.py.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-02-02 12:00:00 +0000"
+	value: "1.36"
+	source: "user:price"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	currency.mnemonic: "USD"
+	time: "2026-02-02 15:00:00 +0000"
+	value: "0.735"
+	source: "user:price"
+	type: "last"

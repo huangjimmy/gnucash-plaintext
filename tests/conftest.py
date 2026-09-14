@@ -336,17 +336,15 @@ def temp_gnucash_file():
     try:
         # Import GnuCash modules
         import gnucash
-        from gnucash import Account, GncNumeric, Session, Split, Transaction
+        from gnucash import Account, GncNumeric, Split, Transaction
 
-        # Determine GnuCash API version for session API
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{path}', is_new=True)
+        from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
-        book = session.book
+        # Through the repository, which frees the book when it closes
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
+
+        book = repo.book
         root = book.get_root_account()
         commod_table = book.get_table()
         cad = commod_table.lookup('CURRENCY', 'CAD')
@@ -395,8 +393,8 @@ def temp_gnucash_file():
         expenses.append_child(dining)
 
         # Save and close
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
 
         yield path
 
@@ -428,17 +426,15 @@ def temp_gnucash_with_transactions():
 
     try:
         import gnucash
-        from gnucash import Account, GncNumeric, Session, Split, Transaction
+        from gnucash import Account, GncNumeric, Split, Transaction
 
-        # Open session
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{path}', is_new=True)
+        from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
-        book = session.book
+        # Through the repository, which frees the book when it closes
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
+
+        book = repo.book
         root = book.get_root_account()
         commod_table = book.get_table()
         cad = commod_table.lookup('CURRENCY', 'CAD')
@@ -538,8 +534,8 @@ def temp_gnucash_with_transactions():
         tx3.CommitEdit()
 
         # Save and close
-        session.save()
-        session.end()
+        repo.save()
+        repo.close()
 
         yield path
 

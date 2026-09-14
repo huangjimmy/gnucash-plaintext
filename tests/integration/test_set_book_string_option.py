@@ -154,18 +154,18 @@ def _write_business_options(gnc_path, *pairs):
     with ERR_FILEIO_BACKUP_ERROR. Real callers (the GnuCash GUI, the
     print-bill setup helper) also batch their writes for the same
     reason."""
-    import gnucash
-
     from infrastructure.gnucash.kvp import set_book_string_option
-    sess = gnucash.Session(f'xml://{gnc_path}')
+    from repositories.gnucash_repository import GnuCashRepository
+    repo = GnuCashRepository(gnc_path)
+    repo.open()
     try:
         results = [
-            set_book_string_option(sess.book, 'Business', key, value)
+            set_book_string_option(repo.book, 'Business', key, value)
             for key, value in pairs
         ]
-        sess.save()
+        repo.save()
     finally:
-        sess.end()
+        repo.close()
     return results
 
 

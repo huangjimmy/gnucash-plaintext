@@ -621,6 +621,11 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             click.echo(f"  Updated:      {result.updated_count}")
             click.echo(f"  Commodities:  {result.commodities_created} created, "
                        f"{result.commodities_updated} updated")
+            if result.prices_seen:
+                click.echo(f"  Prices:       {result.prices_created} created, "
+                           f"{result.prices_updated} updated, "
+                           f"{result.prices_unchanged} unchanged, "
+                           f"{result.prices_refused} refused")
             click.echo(f"  Accounts:     {result.accounts_created}")
             click.echo(f"  Skipped:      {result.skipped_count} (duplicates)")
             click.echo(f"  Conflicts:    {len(result.conflicts)}")
@@ -643,6 +648,10 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             # that found no open credit, or an owner/account mismatch. Goes to
             # stderr so it stands out and survives piping stdout elsewhere.
             for err in (result.errors or []):
+                # A price refusal already says which block it is.
+                if err.get('kind') == 'price':
+                    click.echo(f"    error: {err['error']}", err=True)
+                    continue
                 props = err.get('transaction') or {}
                 label = (props.get('tx_desc') or props.get('date')
                          or '<transaction>')
@@ -723,6 +732,8 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 or result.commodities_created > 0
                 or result.commodities_updated_on_disk > 0
                 or result.accounts_created > 0
+                or result.prices_created > 0
+                or result.prices_updated > 0
                 or biz_objects_changed > 0
             )
             # `--atomic` commits the file or rolls it back, the way a database

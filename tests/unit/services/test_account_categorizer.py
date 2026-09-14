@@ -8,27 +8,21 @@ import sys
 
 import pytest
 
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
 
 class TestAccountCategory:
     """Test account category detection"""
 
     def test_get_category_asset(self, temp_gnucash_file):
         """Test getting category for asset accounts"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer, AccountCategory
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -40,25 +34,17 @@ class TestAccountCategory:
             assert category == AccountCategory.ASSET
 
         finally:
-            session.end()
+            repo.close()
 
     def test_get_category_expense(self, temp_gnucash_file):
         """Test getting category for expense accounts"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer, AccountCategory
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -70,25 +56,17 @@ class TestAccountCategory:
             assert category == AccountCategory.EXPENSE
 
         finally:
-            session.end()
+            repo.close()
 
     def test_get_type_name(self, temp_gnucash_file):
         """Test getting human-readable type names"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -101,7 +79,7 @@ class TestAccountCategory:
             assert categorizer.get_type_name(groceries) == "Expense"
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestAccountCheckers:
@@ -109,21 +87,13 @@ class TestAccountCheckers:
 
     def test_is_asset_account(self, temp_gnucash_file):
         """Test checking if account is asset"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -136,25 +106,17 @@ class TestAccountCheckers:
             assert categorizer.is_asset_account(groceries) is False
 
         finally:
-            session.end()
+            repo.close()
 
     def test_is_expense_account(self, temp_gnucash_file):
         """Test checking if account is expense"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -167,7 +129,7 @@ class TestAccountCheckers:
             assert categorizer.is_expense_account(checking) is False
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestAccountCategorization:
@@ -175,21 +137,13 @@ class TestAccountCategorization:
 
     def test_categorize_accounts(self, temp_gnucash_file):
         """Test categorizing a list of accounts"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer, AccountCategory
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -208,25 +162,17 @@ class TestAccountCategorization:
             assert dining in categorized[AccountCategory.EXPENSE]
 
         finally:
-            session.end()
+            repo.close()
 
     def test_get_accounts_by_category(self, temp_gnucash_file):
         """Test getting accounts by category"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer, AccountCategory
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             categorizer = AccountCategorizer()
@@ -250,7 +196,7 @@ class TestAccountCategorization:
             assert "Checking" in asset_names
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestAccountHierarchy:
@@ -258,21 +204,13 @@ class TestAccountHierarchy:
 
     def test_get_account_hierarchy(self, temp_gnucash_file):
         """Test getting account hierarchy"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer, AccountCategory
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -288,25 +226,17 @@ class TestAccountHierarchy:
             assert hierarchy[2] == ("Checking", AccountCategory.ASSET)
 
         finally:
-            session.end()
+            repo.close()
 
     def test_validate_account_hierarchy(self, temp_gnucash_file):
         """Test validating account hierarchy"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -320,7 +250,7 @@ class TestAccountHierarchy:
             assert error is None
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestAccountSearch:
@@ -328,21 +258,13 @@ class TestAccountSearch:
 
     def test_find_matching_accounts(self, temp_gnucash_file):
         """Test finding accounts by name pattern"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             categorizer = AccountCategorizer()
@@ -360,25 +282,17 @@ class TestAccountSearch:
             assert "Groceries" in names
 
         finally:
-            session.end()
+            repo.close()
 
     def test_get_leaf_accounts(self, temp_gnucash_file):
         """Test getting leaf accounts"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             categorizer = AccountCategorizer()
@@ -396,7 +310,7 @@ class TestAccountSearch:
             assert "Expenses" not in leaf_names
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestAccountInfo:
@@ -404,21 +318,13 @@ class TestAccountInfo:
 
     def test_get_account_summary(self, temp_gnucash_file):
         """Test getting account summary"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer, AccountCategory
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             from tests.conftest import find_account
@@ -435,7 +341,7 @@ class TestAccountInfo:
             assert 'placeholder' in summary
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestTransactionMethods:
@@ -443,21 +349,15 @@ class TestTransactionMethods:
 
     def test_categorize_split_accounts(self, temp_gnucash_with_transactions):
         """Test categorizing split accounts"""
-        from gnucash import Session, Transaction
+        from gnucash import Transaction
 
         from services.account_categorizer import AccountCategorizer, AccountCategory
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_with_transactions}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
 
             # Get first transaction (Groceries)
             from gnucash import Query
@@ -476,7 +376,7 @@ class TestTransactionMethods:
             assert len(categorized[AccountCategory.EXPENSE]) == 1
 
         finally:
-            session.end()
+            repo.close()
 
 
 class TestPlaceholderAccounts:
@@ -484,21 +384,13 @@ class TestPlaceholderAccounts:
 
     def test_get_placeholder_accounts_empty(self, temp_gnucash_file):
         """Test getting placeholder accounts when none exist"""
-        from gnucash import Session
-
         from services.account_categorizer import AccountCategorizer
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{temp_gnucash_file}',
-                            SessionOpenMode.SESSION_READ_ONLY)
-        except ImportError:
-            # Fall back to older GnuCash API (< 4.0)
-            session = Session(f'xml://{temp_gnucash_file}',
-                            ignore_lock=True)
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
 
         try:
-            book = session.book
+            book = repo.book
             root = book.get_root_account()
 
             categorizer = AccountCategorizer()
@@ -508,4 +400,4 @@ class TestPlaceholderAccounts:
             assert len(placeholders) == 0
 
         finally:
-            session.end()
+            repo.close()

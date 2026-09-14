@@ -1,0 +1,13 @@
+# The CAD in USD price of `a_cad_in_usd_rate_a_few_days_later.txt`, moved
+# through its guid onto 2026-01-02, the day the book prices USD in CAD.
+#
+# GnuCash keeps one price a day for two currencies, whichever way round they
+# are written (Q-041, table 1), so the move would delete the USD in CAD price.
+#
+# What this fixture produces: nothing; the refusal, which lists the USD in CAD
+# price already on that day.
+#
+# Verified by tests/integration/test_a_second_price_on_one_day_is_refused.py.
+price
+	guid: "6c3c6e2e954a413ba7d8fa21bc5de2a0"
+	time: "2026-01-02 18:00:00 +0000"

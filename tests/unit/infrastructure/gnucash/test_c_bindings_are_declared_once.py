@@ -254,25 +254,21 @@ def test_the_known_list_has_nothing_stale_on_it():
                     for path, names in sorted(stale.items())))
 
 
-def test_only_one_place_puts_a_split_in_an_existing_lot():
-    """`xaccSplitSetLot` is called through `_attach_split_to_lot` and nowhere else.
+def test_no_split_is_put_in_a_lot_with_xaccSplitSetLot():  # noqa: N802 — GnuCash's own C name
+    """Nothing calls `xaccSplitSetLot`; a split goes into a lot with `gnc_lot_add_split`.
 
-    It puts the split in the lot without adding it to that lot's split list,
-    so every reader of "what does this lot hold" is short by one split until
-    the book is written and read back. `_attach_split_to_lot` leaves a note
-    saying which lots that has happened to, and readers walk the whole account
-    for those and take the cheap answer for the rest — a receivable carries
-    the history of the business, so paying that cost everywhere is not free.
+    `xaccSplitSetLot` sets the split's lot without adding the split to the
+    lot's own split list (CLAUDE.md finding 9). Every reader of "what does this
+    lot hold" is then short by that split, and destroying the book segfaults
+    inside `gnc_lot_remove_split`. Measured on GnuCash 5.10, after a save as
+    well, by
+    `tests/research/whether_a_split_put_in_a_lot_survives_destroying_the_book_probe.py`.
+    A book holding such a split cannot be freed, so `GnuCashRepository.close`
+    could not free any book, and a process kept every book it opened.
 
-    A call that reaches past the helper leaves no note, and the readers go on
-    believing a short list. That is not a failure anything would show: the
-    figures still balance, the invoice just reads as owing more than it does.
-
-    Searched over the whole tree, not the importer alone, and matching both
-    spellings — `gc.xaccSplitSetLot(...)` and a bare `xaccSplitSetLot(...)` off
-    a `from gnucash.gnucash_core_c import …`. A note that only one module is
-    obliged to leave is not a rule, and the same reader in another module would
-    be the one believing the short list.
+    Searched over the whole tree and matching every spelling:
+    `gc.xaccSplitSetLot(...)`, a bare `xaccSplitSetLot(...)` off a
+    `from gnucash.gnucash_core_c import …`, and SWIG's `split.SetLot(...)`.
     """
     calls = []
     for root in SEARCHED:
@@ -281,30 +277,16 @@ def test_only_one_place_puts_a_split_in_an_existing_lot():
             for node in ast.walk(ast.parse(path.read_text())):
                 if not isinstance(node, ast.Call):
                     continue
-                named = ((isinstance(node.func, ast.Attribute)
-                          and node.func.attr == 'xaccSplitSetLot')
-                         or (isinstance(node.func, ast.Name)
-                             and node.func.id == 'xaccSplitSetLot'))
-                if named:
+                is_that_call = ((isinstance(node.func, ast.Attribute)
+                                 and node.func.attr in ('xaccSplitSetLot', 'SetLot'))
+                                or (isinstance(node.func, ast.Name)
+                                    and node.func.id == 'xaccSplitSetLot'))
+                if is_that_call:
                     calls.append(f'{relative}:{node.lineno}')
-    assert calls == ['services/gnucash_importer.py:'
-                     + str(_attach_split_to_lot_line())], (
-        f'xaccSplitSetLot is called at {calls} — it belongs in '
-        f'_attach_split_to_lot alone, which records the lot so readers know '
-        f'its split list is short.')
-
-
-def _attach_split_to_lot_line():
-    """The line `_attach_split_to_lot` makes its one call on."""
-    tree = ast.parse((REPO_ROOT / 'services' / 'gnucash_importer.py').read_text())
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == '_attach_split_to_lot':
-            for inner in ast.walk(node):
-                if (isinstance(inner, ast.Call)
-                        and isinstance(inner.func, ast.Attribute)
-                        and inner.func.attr == 'xaccSplitSetLot'):
-                    return inner.lineno
-    raise AssertionError('_attach_split_to_lot does not call xaccSplitSetLot')
+    assert calls == [], (
+        f'xaccSplitSetLot is called at {calls} — put the split in its lot with '
+        f'gnc_lot_add_split, which lists it in the lot as well, so the book '
+        f'can still be freed.')
 
 
 def test_the_ratchet_sees_a_bare_cdll_import():

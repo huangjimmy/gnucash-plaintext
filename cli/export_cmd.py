@@ -2,16 +2,36 @@
 CLI command for exporting GnuCash transactions to plaintext.
 """
 
+import datetime
 import os
+import re
 
 import click
 
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from services.prices import (
+    commodities_of,
+    format_price_blocks,
+    prices_in_book,
+    select_prices,
+)
 from use_cases.export_business_objects import ExportBusinessObjectsUseCase
 from use_cases.export_transactions import (
     ExportTransactionsUseCase,
     UnwritableFigureError,
 )
+
+
+def _the_day(option, value):
+    """A `YYYY-MM-DD` option as a date, or None when it was not given."""
+    if not value:
+        return None
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+        try:
+            return datetime.date(int(value[0:4]), int(value[5:7]), int(value[8:10]))
+        except ValueError:
+            pass
+    raise click.UsageError(f'{option} {value} is not a date; give it as YYYY-MM-DD.')
 
 
 @click.command()
@@ -24,9 +44,11 @@ from use_cases.export_transactions import (
 @click.option('--account', '-a', help='Filter by account path')
 @click.option('--all-accounts', 'all_accounts', is_flag=True, help='Export all accounts even if they have no transactions (implied by --include-business-objects)')
 @click.option('--include-business-objects', is_flag=True, help='Include business objects (customers, invoices, etc.)')
+@click.option('--include-prices', is_flag=True,
+              help="Include the book's prices, which an export leaves out unless asked, in the same file")
 @click.option('--with-balance', 'with_balance', is_flag=True,
               help='Append running account balance after each split (useful for bank reconciliation)')
-def export_transactions(gnucash_file, output_file, input_file, output_path, start_date, end_date, account, all_accounts, include_business_objects, with_balance):
+def export_transactions(gnucash_file, output_file, input_file, output_path, start_date, end_date, account, all_accounts, include_business_objects, include_prices, with_balance):
     """
     Export transactions from GnuCash file to plaintext format.
 
@@ -64,6 +86,10 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
     # Validate file existence
     if not os.path.exists(gnucash_file):
         raise click.UsageError(f"Input file does not exist: {gnucash_file}")
+    # The range keeps transactions and prices alike, so a date that is not
+    # one is refused before either is read.
+    start_day = _the_day('--start-date', start_date)
+    end_day = _the_day('--end-date', end_date)
     try:
         # Open repository
         repo = GnuCashRepository(gnucash_file)
@@ -107,6 +133,25 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
             )
             count = len(result.transactions)
 
+            # Prices (Q-041), only when asked, and only those inside the dates
+            # given: a price is dated like a transaction, so the same range
+            # keeps it. A price belongs to no account, so `--account` keeps
+            # them all. The commodities they are prices of are declared with
+            # the others, so the ledger imports on its own even where no
+            # account holds that commodity.
+            prices_section = ''
+            if include_prices:
+                book_prices = select_prices(
+                    prices_in_book(repo.book),
+                    start_date=start_day,
+                    end_date=end_day)
+                declared = {(commodity.get_namespace(), commodity.get_mnemonic())
+                            for commodity, _transaction in result.commodities}
+                for commodity in commodities_of(book_prices, repo.book):
+                    if (commodity.get_namespace(), commodity.get_mnemonic()) not in declared:
+                        result.commodities.append((commodity, None))
+                prices_section = format_price_blocks(book_prices)
+
             # Rendered in full before the file is opened. Formatting can
             # refuse — a split holding a figure finer than its currency cannot
             # be written as plaintext — and opening first meant the target was
@@ -116,12 +161,19 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
             transactions_refusal = None
             try:
                 if include_business_objects:
-                    # Import-ready order: accounts, then business objects, then
-                    # transactions.
+                    # Import-ready order: accounts, then prices, then business
+                    # objects, then transactions.
                     text = (use_case.format_accounts_section(result)
                             + "\n"
+                            + (prices_section + "\n" if prices_section else "")
                             + business_objects_output
                             + "\n\n"
+                            + use_case.format_transactions_section(result))
+                elif prices_section:
+                    text = (use_case.format_accounts_section(result)
+                            + "\n"
+                            + prices_section
+                            + "\n"
                             + use_case.format_transactions_section(result))
                 else:
                     text = use_case.format_as_plaintext(result)

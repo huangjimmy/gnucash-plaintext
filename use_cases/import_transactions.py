@@ -20,6 +20,7 @@ from services.gnucash_importer import (
 )
 from services.ledger_validator import LedgerValidator
 from services.plaintext_parser import DirectiveType, PlaintextParser
+from services.prices import apply_price_blocks
 from services.transaction_matcher import TransactionMatcher
 
 
@@ -62,6 +63,13 @@ class ImportResult:
         # nothing else — reported, but not a reason to write the book.
         self.commodities_updated_on_disk = 0
         self.accounts_created = 0
+        # Price blocks (Q-041): how many the file held, and what the book did
+        # with each. `seen` decides whether the summary has a line for them.
+        self.prices_seen = 0
+        self.prices_created = 0
+        self.prices_updated = 0
+        self.prices_unchanged = 0
+        self.prices_refused = 0
         self.skipped_count = 0
         self.error_count = 0
         self.duplicates = []
@@ -437,6 +445,20 @@ class ImportTransactionsUseCase:
                     logging.warning(error_msg)
                     result.errors.append({'error': error_msg})
                     result.error_count += 1
+
+        # Prices (Q-041), after the commodities they are prices of and before
+        # the business objects and transactions an export writes after them.
+        # A refused block is reported like any other failure, and the rest of
+        # the file still imports.
+        prices = apply_price_blocks(parser.root_directive.children, book)
+        result.prices_seen = prices.seen
+        result.prices_created = prices.created
+        result.prices_updated = prices.updated
+        result.prices_unchanged = prices.unchanged
+        result.prices_refused = prices.refused
+        for message in prices.refusals:
+            result.errors.append({'error': message, 'kind': 'price'})
+            result.error_count += 1
 
         # Between the accounts and the transactions: owners and tax tables, so
         # a transaction naming one finds it. Invoices and bills are not here —

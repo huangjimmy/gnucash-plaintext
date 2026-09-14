@@ -18,7 +18,7 @@ import tempfile
 
 import pytest
 
-from repositories.gnucash_repository import GnuCashRepository
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from use_cases.import_transactions import ImportTransactionsUseCase
 
 
@@ -26,18 +26,15 @@ from use_cases.import_transactions import ImportTransactionsUseCase
 def book_path():
     """A CAD book with a bank and an expense account."""
     import gnucash
-    from gnucash import Account, Session
+    from gnucash import Account
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
-    book = session.book
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -54,8 +51,8 @@ def book_path():
     expenses = child(root, 'Expenses', gnucash.ACCT_TYPE_EXPENSE)
     child(expenses, 'Dining', gnucash.ACCT_TYPE_EXPENSE)
 
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
     yield path
     if os.path.exists(path):
         os.unlink(path)

@@ -48,6 +48,22 @@ class TestExportFiltering:
             assert len(filtered_result.transactions) == 2, \
                 "Should have exactly 2 filtered transactions"
 
+    def test_a_start_date_on_its_own_leaves_out_the_transactions_before_it(self, temp_gnucash_with_transactions):
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            result = ExportTransactionsUseCase(repo).execute(start_date="2024-01-20")
+
+            dates = sorted(tx.GetDate().strftime("%Y-%m-%d") for tx in result.transactions)
+
+            assert dates == ["2024-01-20", "2024-01-25"]
+
+    def test_an_end_date_on_its_own_leaves_out_the_transactions_after_it(self, temp_gnucash_with_transactions):
+        with GnuCashRepository(temp_gnucash_with_transactions) as repo:
+            result = ExportTransactionsUseCase(repo).execute(end_date="2024-01-20")
+
+            dates = sorted(tx.GetDate().strftime("%Y-%m-%d") for tx in result.transactions)
+
+            assert dates == ["2024-01-15", "2024-01-20"]
+
     def test_account_filter_exports_all_commodities_and_accounts(self, temp_gnucash_with_transactions):
         """
         When filtering by account, export ALL commodities and ALL accounts,

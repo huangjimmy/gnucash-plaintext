@@ -33,15 +33,17 @@ import tempfile
 
 import pytest
 
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
 def _make_book():
     """
-    Create a minimal GnuCash session with CAD accounts.
+    Create a minimal GnuCash book with CAD accounts.
 
-    Returns (session, book) — caller is responsible for session.end().
+    Returns (repo, book) — caller is responsible for repo.close().
 
     Account hierarchy:
         Assets:Bank:Checking  CAD
@@ -51,19 +53,16 @@ def _make_book():
         Equity:Opening        CAD
     """
     import gnucash
-    from gnucash import Account, Session
+    from gnucash import Account
 
     fd, path = tempfile.mkstemp(suffix='.gnucash')
     os.close(fd)
     os.unlink(path)
 
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
 
-    book = session.book
+    book = repo.book
     root = book.get_root_account()
     cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -91,7 +90,7 @@ def _make_book():
     equity = _acct('Equity', gnucash.ACCT_TYPE_EQUITY, root)
     _acct('Opening', gnucash.ACCT_TYPE_EQUITY, equity)
 
-    return session, book, path
+    return repo, book, path
 
 
 def _split_directive(account_name, amount_str):
@@ -146,7 +145,7 @@ class TestCreateTransactionErrors:
         """
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             splits = [
                 _split_directive('Assets:DoesNotExist', '50.00'),
@@ -157,7 +156,7 @@ class TestCreateTransactionErrors:
             with pytest.raises(Exception, match="Assets:DoesNotExist"):
                 GnuCashImporter.create_transaction(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -165,7 +164,7 @@ class TestCreateTransactionErrors:
         """Error must be a descriptive Exception, not the raw AttributeError from None."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             splits = [
                 _split_directive('Expenses:Ghost', '10.00'),
@@ -180,7 +179,7 @@ class TestCreateTransactionErrors:
                 "Must not propagate raw AttributeError from NoneType")
             assert 'Expenses:Ghost' in str(exc_info.value)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -191,7 +190,7 @@ class TestCreateTransactionErrors:
         """
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             splits = [
                 _split_directive('Expenses:Dining', '30.00'),
@@ -202,7 +201,7 @@ class TestCreateTransactionErrors:
             with pytest.raises(Exception, match="Assets:Bank:NoSuchAccount"):
                 GnuCashImporter.create_transaction(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -210,7 +209,7 @@ class TestCreateTransactionErrors:
         """Same 'not AttributeError' check for the split-loop path."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             splits = [
                 _split_directive('Expenses:Dining', '30.00'),
@@ -224,7 +223,7 @@ class TestCreateTransactionErrors:
             assert not isinstance(exc_info.value, AttributeError)
             assert 'Assets:Phantom' in str(exc_info.value)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -232,7 +231,7 @@ class TestCreateTransactionErrors:
         """Sanity-check: a transaction with valid accounts must not raise."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             splits = [
                 _split_directive('Expenses:Dining', '30.00'),
@@ -246,7 +245,7 @@ class TestCreateTransactionErrors:
             assert result.GetDescription() == 'Test'
             assert result.GetDate().strftime('%Y-%m-%d') == '2024-06-15'
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -258,21 +257,18 @@ class TestCreateTransactionErrors:
 class TestUpdateTransactionErrors:
 
     def _make_book_with_transaction(self):
-        """Create book + one transaction; returns (session, book, tx, path)."""
+        """Create book + one transaction; returns (repo, book, tx, path)."""
         import gnucash
-        from gnucash import Account, GncNumeric, Session, Split, Transaction
+        from gnucash import Account, GncNumeric, Split, Transaction
 
         fd, path = tempfile.mkstemp(suffix='.gnucash')
         os.close(fd)
         os.unlink(path)
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            session = Session(f'xml://{path}', is_new=True)
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
 
-        book = session.book
+        book = repo.book
         root = book.get_root_account()
         cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -307,13 +303,13 @@ class TestUpdateTransactionErrors:
         s2.SetValue(GncNumeric(-3000, 100))
 
         tx.CommitEdit()
-        return session, book, tx, path
+        return repo, book, tx, path
 
     def test_unknown_split_account_raises_value_error(self):
         """update_transaction with a nonexistent split account raises ValueError."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, tx, path = self._make_book_with_transaction()
+        repo, book, tx, path = self._make_book_with_transaction()
         try:
             splits = [
                 _split_directive('Expenses:Dining', '30.00'),
@@ -325,7 +321,7 @@ class TestUpdateTransactionErrors:
             with pytest.raises(ValueError, match="Account not found"):
                 GnuCashImporter.update_transaction(tx, directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -333,7 +329,7 @@ class TestUpdateTransactionErrors:
         """ValueError message must include the missing account name."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, tx, path = self._make_book_with_transaction()
+        repo, book, tx, path = self._make_book_with_transaction()
         try:
             splits = [
                 _split_directive('Expenses:Dining', '30.00'),
@@ -347,7 +343,7 @@ class TestUpdateTransactionErrors:
 
             assert 'Assets:Bank:Ghost' in str(exc_info.value)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -358,7 +354,7 @@ class TestUpdateTransactionErrors:
         """
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, tx, path = self._make_book_with_transaction()
+        repo, book, tx, path = self._make_book_with_transaction()
         try:
             splits = [
                 _split_directive('Expenses:Dining', '30.00'),
@@ -374,7 +370,7 @@ class TestUpdateTransactionErrors:
             tx.BeginEdit()
             tx.RollbackEdit()
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -403,7 +399,7 @@ class TestImportTaxTableErrors:
     def test_first_entry_unknown_account_raises_exception(self):
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             entries = [self._taxtable_entry_directive('Income:TaxBucket')]
             directive = self._taxtable_directive('GST', entries)
@@ -411,14 +407,14 @@ class TestImportTaxTableErrors:
             with pytest.raises(Exception, match="Income:TaxBucket"):
                 GnuCashImporter.import_taxtable(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
     def test_subsequent_entry_unknown_account_raises_exception(self):
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             # First entry uses a valid account so taxtable is created
             entries = [
@@ -430,7 +426,7 @@ class TestImportTaxTableErrors:
             with pytest.raises(Exception, match="Income:GhostAccount"):
                 GnuCashImporter.import_taxtable(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -442,22 +438,19 @@ class TestImportTaxTableErrors:
 class TestImportInvoiceErrors:
 
     def _make_book_with_customer(self):
-        """Returns (session, book, path) with a customer 'C001' in the book."""
+        """Returns (repo, book, path) with a customer 'C001' in the book."""
         import gnucash
-        from gnucash import Account, Session
+        from gnucash import Account
         from gnucash.gnucash_business import Customer
 
         fd, path = tempfile.mkstemp(suffix='.gnucash')
         os.close(fd)
         os.unlink(path)
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            session = Session(f'xml://{path}', is_new=True)
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
 
-        book = session.book
+        book = repo.book
         root = book.get_root_account()
         cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -481,7 +474,7 @@ class TestImportInvoiceErrors:
         customer.SetName('Test Customer')
         customer.CommitEdit()
 
-        return session, book, path
+        return repo, book, path
 
     def _invoice_directive(self, customer_id, entries):
         from services.plaintext_parser import DirectiveType, PlaintextDirective
@@ -541,7 +534,7 @@ class TestImportInvoiceErrors:
         """Missing income account on invoice entry must raise Exception."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = self._make_book_with_customer()
+        repo, book, path = self._make_book_with_customer()
         try:
             entries = [self._invoice_entry_directive('Income:DoesNotExist')]
             directive = self._invoice_directive('C001', entries)
@@ -549,7 +542,7 @@ class TestImportInvoiceErrors:
             with pytest.raises(Exception, match="Income:DoesNotExist"):
                 GnuCashImporter.import_invoice(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -557,7 +550,7 @@ class TestImportInvoiceErrors:
         """Missing AR account on POSTED directive must raise Exception."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = self._make_book_with_customer()
+        repo, book, path = self._make_book_with_customer()
         try:
             entries = [
                 self._invoice_entry_directive('Income:Sales'),
@@ -568,7 +561,7 @@ class TestImportInvoiceErrors:
             with pytest.raises(Exception, match="Assets:NoSuchARAccount"):
                 GnuCashImporter.import_invoice(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -576,7 +569,7 @@ class TestImportInvoiceErrors:
         """Missing bank account on PAYMENT directive must raise Exception."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = self._make_book_with_customer()
+        repo, book, path = self._make_book_with_customer()
         try:
             entries = [
                 self._invoice_entry_directive('Income:Sales'),
@@ -588,7 +581,7 @@ class TestImportInvoiceErrors:
             with pytest.raises(Exception, match="Assets:Bank:NoSuchBank"):
                 GnuCashImporter.import_invoice(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -600,22 +593,19 @@ class TestImportInvoiceErrors:
 class TestImportBillErrors:
 
     def _make_book_with_vendor(self):
-        """Returns (session, book, path) with vendor 'V001' in the book."""
+        """Returns (repo, book, path) with vendor 'V001' in the book."""
         import gnucash
-        from gnucash import Account, Session
+        from gnucash import Account
         from gnucash.gnucash_business import Vendor
 
         fd, path = tempfile.mkstemp(suffix='.gnucash')
         os.close(fd)
         os.unlink(path)
 
-        try:
-            from gnucash import SessionOpenMode
-            session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-        except ImportError:
-            session = Session(f'xml://{path}', is_new=True)
+        repo = GnuCashRepository(path)
+        repo.open(SessionMode.NEW)
 
-        book = session.book
+        book = repo.book
         root = book.get_root_account()
         cad = book.get_table().lookup('CURRENCY', 'CAD')
 
@@ -641,7 +631,7 @@ class TestImportBillErrors:
         vendor.SetName('Test Vendor')
         vendor.CommitEdit()
 
-        return session, book, path
+        return repo, book, path
 
     def _bill_directive(self, vendor_id, entries):
         from services.plaintext_parser import DirectiveType, PlaintextDirective
@@ -699,7 +689,7 @@ class TestImportBillErrors:
         """Missing expense account on bill entry must raise Exception."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = self._make_book_with_vendor()
+        repo, book, path = self._make_book_with_vendor()
         try:
             entries = [self._bill_entry_directive('Expenses:DoesNotExist')]
             directive = self._bill_directive('V001', entries)
@@ -707,7 +697,7 @@ class TestImportBillErrors:
             with pytest.raises(Exception, match="Expenses:DoesNotExist"):
                 GnuCashImporter.import_bill(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -715,7 +705,7 @@ class TestImportBillErrors:
         """Missing AP account on POSTED directive must raise Exception."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = self._make_book_with_vendor()
+        repo, book, path = self._make_book_with_vendor()
         try:
             entries = [
                 self._bill_entry_directive('Expenses:Supplies'),
@@ -726,7 +716,7 @@ class TestImportBillErrors:
             with pytest.raises(Exception, match="Liabilities:NoSuchAPAccount"):
                 GnuCashImporter.import_bill(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -734,7 +724,7 @@ class TestImportBillErrors:
         """Missing bank account on PAYMENT directive must raise Exception."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = self._make_book_with_vendor()
+        repo, book, path = self._make_book_with_vendor()
         try:
             entries = [
                 self._bill_entry_directive('Expenses:Supplies'),
@@ -746,7 +736,7 @@ class TestImportBillErrors:
             with pytest.raises(Exception, match="Assets:Bank:NoSuchBank"):
                 GnuCashImporter.import_bill(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -902,7 +892,7 @@ class TestCreateCommodity:
         """
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = self._commodity_directive()
             GnuCashImporter.create_commodity(directive, book)
@@ -910,7 +900,7 @@ class TestCreateCommodity:
             result = table.lookup('FUND', 'XTEST')
             assert result is not None
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -920,14 +910,14 @@ class TestCreateCommodity:
 
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = self._commodity_directive(namespace='CURRENCY')
             with pytest.raises(Exception, match='ISO 4217'):
                 GnuCashImporter.create_commodity(directive, book)
             assert book.get_table().lookup('CURRENCY', 'XTEST') is None
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -935,7 +925,7 @@ class TestCreateCommodity:
         """Calling create_commodity twice for the same symbol must not raise."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = self._commodity_directive()
             GnuCashImporter.create_commodity(directive, book)
@@ -946,7 +936,7 @@ class TestCreateCommodity:
             result = table.lookup('FUND', 'XTEST')
             assert result is not None
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -954,7 +944,7 @@ class TestCreateCommodity:
         from services.gnucash_importer import GnuCashImporter
         from services.plaintext_parser import DirectiveType, PlaintextDirective
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             bad = PlaintextDirective(DirectiveType.TRANSACTION, 0, '')
             bad.props = {}
@@ -962,7 +952,7 @@ class TestCreateCommodity:
             with pytest.raises(ValueError, match="Expected CREATE_COMMODITY"):
                 GnuCashImporter.create_commodity(bad, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -988,14 +978,14 @@ class TestCreateAccount:
         from infrastructure.gnucash.utils import find_account
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = self._account_directive('Assets:Bank:Savings')
             GnuCashImporter.create_account(directive, book)
             root = book.get_root_account()
             assert find_account(root, 'Assets:Bank:Savings') is not None
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -1003,34 +993,34 @@ class TestCreateAccount:
         """Calling create_account twice for the same name must not raise."""
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = self._account_directive('Assets:Bank:Savings')
             GnuCashImporter.create_account(directive, book)
             GnuCashImporter.create_account(directive, book)  # second call — no error
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
     def test_create_account_unknown_parent_raises(self):
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             # Parent "NoParent" does not exist
             directive = self._account_directive('NoParent:NewAccount')
             with pytest.raises(Exception, match="NoParent"):
                 GnuCashImporter.create_account(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)
 
     def test_create_account_unknown_commodity_raises(self):
         from services.gnucash_importer import GnuCashImporter
 
-        session, book, path = _make_book()
+        repo, book, path = _make_book()
         try:
             directive = self._account_directive(
                 'Assets:Bank:Savings',
@@ -1040,6 +1030,6 @@ class TestCreateAccount:
             with pytest.raises(Exception, match="NOTACURRENCY"):
                 GnuCashImporter.create_account(directive, book)
         finally:
-            session.end()
+            repo.close()
             if os.path.exists(path):
                 os.unlink(path)

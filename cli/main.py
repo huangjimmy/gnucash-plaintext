@@ -23,6 +23,7 @@ from cli.delete_transaction_cmd import delete_transactions
 from cli.export_accounts_cmd import export_accounts
 from cli.export_beancount_cmd import export_beancount
 from cli.export_cmd import export_transactions
+from cli.export_prices_cmd import export_prices
 from cli.export_transaction_cmd import export_transaction
 from cli.find_orphan_payments_cmd import find_orphan_payments
 from cli.find_prepayments_cmd import find_prepayments
@@ -92,6 +93,7 @@ def cli():
 # Register commands
 cli.add_command(export_transactions, name='export')
 cli.add_command(export_accounts, name='export-accounts')
+cli.add_command(export_prices, name='export-prices')
 cli.add_command(import_transactions, name='import')
 cli.add_command(validate_ledger, name='validate')
 cli.add_command(export_beancount, name='export-beancount')

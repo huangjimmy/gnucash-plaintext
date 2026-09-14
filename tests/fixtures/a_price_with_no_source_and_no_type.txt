@@ -1,0 +1,15 @@
+# A EUR rate in CAD with no `source:` and no `type:` line.
+#
+# gnucash-plaintext gives a price no source of its own, so the price keeps
+# GnuCash's default: source `invalid`, and no type.
+#
+# What this fixture produces: that price, created.
+#
+# Verified by
+# tests/integration/test_a_prices_source_and_type_are_kept_as_gnucash_wrote_them.py.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2026-01-02 12:00:00 +0000"
+	value: "1.51"

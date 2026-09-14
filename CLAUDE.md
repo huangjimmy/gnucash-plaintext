@@ -461,6 +461,8 @@ held 200.00 and selling the rest was refused. The fix is to write to the split
 the code already has rather than to search a lot for it; where a search is
 unavoidable, walk the *account's* splits and filter by `split.GetLot()`.
 
+**And a book holding such a split cannot be freed** (measured 2026-09-14, finding 26). Destroying its session segfaults inside `qof_book_destroy`, in `gnc_lot_remove_split`, and a save beforehand does not help. So nothing calls `xaccSplitSetLot`: `_attach_split_to_lot` uses `gnc_lot_add_split`, and `test_c_bindings_are_declared_once.py` refuses the call anywhere. `gnc_lot_add_split` has its own trap. Handed a split from another account, it attaches nothing and says nothing, so the split must be on the lot's account first; every caller puts it there or refuses.
+
 ### 10. Unposting leaves the lot behind, indistinguishable from a credit lot
 
 Discovered 2026-08-06 while working out which splits a `txn_guid:` retarget may
@@ -948,6 +950,102 @@ The customer's Japanese name came through the same page unharmed, so it is
 that one accessor rather than the page. The render sets `C.UTF-8` for its own
 length, caught, because a build without that locale must still draw its page.
 
+### 25. A price's time is a moment, and GnuCash gives it a different one on each path and each version
+
+Discovered 2026-09-13, recording past exchange rates and stock prices (Q-041). Every figure was measured by driving GnuCash's own dialogs, register, assistants and Finance::Quote on all eleven builds, under Xvfb; the probes are in `tests/research/` and the full tables are tables 2 and 3 of `docs/issues/Q-041-a-price-cannot-be-recorded-for-a-past-date-or-kept-through-export-and-import.md`.
+
+The same date entered for a price is stored at a different second depending on where it was entered and which GnuCash stored it. Toronto, UTC−5:
+
+| where the price comes from | 3.4 – 4.8 | 4.13 | 5.5 – 5.16 |
+|---|---|---|---|
+| Price Editor | 00:00:00 local | 10:59:00 UTC | 10:59:00 UTC |
+| Transfer dialog, exchange-rate dialog, CSV price import | 10:59:00 UTC | 10:59:00 UTC | 10:59:00 UTC |
+| Register (3.4, 3.8, 4.4 local midnight; 4.8 10:59 UTC) | 00:00:00 local / 10:59:00 UTC | 10:59:00 UTC | 10:59:00 UTC |
+| Stock split assistant | 00:00:00 local | 10:59:00 UTC | 10:59:00 UTC |
+| Stock transaction assistant | not in these builds | 10:59:00 UTC | 23:59:59 local, the next UTC day |
+| Finance::Quote, a dated quote | 12:00:00 local, or the quote's own time | as 3.4 – 4.8 | 10:59:00 UTC |
+| Finance::Quote, an undated quote or a currency rate | the moment of the fetch | the moment of the fetch | the moment of the fetch |
+
+10:59 UTC is not a fixed hour. It is what `gdate_to_time64` gives a date, and it moves with the zone: 09:59 UTC in Kiritimati (UTC+14, and 07:59 UTC there on 3.4 and 3.8), 11:59 UTC in Pago Pago (UTC−11). The date field `gnc_date_edit_get_date` gives 00:00 local up to 4.8 and the same neutral time from 4.13. Opening a price in the Price Editor and pressing OK rewrites its time to that build's answer, with nothing changed.
+
+**What follows for any code that reads or writes a price:**
+
+- **A price's time is written to the second, never as a date.** One book holds prices at 00:00 local, 10:59 UTC, 12:00 local, 16:00 local, 23:59:59 local and a fetch moment, side by side. A date alone cannot say which of those a price is, so a book rebuilt from it would differ from the book it came from. `services/prices.py` writes `time:` in UTC, so the ledger reads the same whichever machine exported it.
+- **Two prices are on the same day when `gnc_time64_get_day_start` gives both the same start**, the local day of the process. That is the day `gnc_pricedb_add_price` replaces on (Q-041 table 1). A comparison of UTC dates is wrong: a 23:59:59-local price from the stock transaction assistant is on the next UTC day, and in Tokyo a 3.4 Price Editor price is on the previous one. The same rule means a book can hold two prices of a pair on one local day of another machine: built in Toronto with prices at 04:59:59 and 10:59 UTC on one date, it holds both when opened in UTC. So only a block that puts a price on a day, a new price or a changed time, is checked against that day.
+- **One price a day holds for a commodity and a currency whichever way round a price is written.** Measured on all eleven builds: adding HKD in USD on a day holding USD in HKD, with the same source, deletes USD in HKD, and a lower-ranked source is turned away instead. `gnc_price_set_time64` moving a price onto a day holding another price of the pair, in either direction, deletes the price already there. So a same-day check keyed on `(commodity, currency)` misses half the collisions, and `services/prices.py` keys it on the two whichever way round.
+- **A date with no time is stored with `gdate_to_time64`**, the call the transfer dialog and CSV import use on every build, and never at midnight or noon chosen by hand.
+- **A time is set with ctypes `gnc_price_set_time64`**, never SWIG `set_time64` with an integer, which 3.4 misreads (finding 20).
+
+### 26. An ended session keeps its whole book, a book holding a split put in a lot by `xaccSplitSetLot` cannot be destroyed, and ending before destroying closes a file twice on 3.4 – 4.4
+
+Discovered 2026-09-14, when the full suite on all eleven builds at once used up a 24 GB host.
+
+`session.end()` closes the file and leaves the book in memory; `session.destroy()` frees it. `GnuCashRepository.close` called only `end()`. A command opens one book and exits, so no command showed it. One pytest process opens about 12,000 books, and it kept every one.
+
+| measured | `end()` alone | `end()` then `destroy()` |
+|---|---|---|
+| 100 opens of a 300-transaction book (`what_a_closed_book_keeps_in_memory_probe.py`) | +48.5 MiB | flat |
+| full suite on Debian 13, resident memory | 94 MB at the start, 1729 MB at the end | 95 MB at the start, 343 MB at the end |
+
+**Destroying could not simply be added.** The importer attached settlements with `xaccSplitSetLot` (finding 9). Destroying a book holding such a split segfaults in `qof_book_destroy` → `xaccTransClearSplits` → `gnc_lot_remove_split`, and saving first does not help (`whether_a_split_put_in_a_lot_survives_destroying_the_book_probe.py`). With destroy on close alone, 42 of 296 test files crashed, every one with that backtrace.
+
+So:
+
+- `GnuCashRepository.close` destroys the session, which ends it and frees the book. **Nothing read from the book may be used after that**: accounts, commodities and transactions are freed with it. Three tests in `test_export_accounts.py` read accounts or commodities after their `with` block had closed the book, and only the leak had kept that working.
+- `_attach_split_to_lot` uses `gnc_lot_add_split`, and `test_c_bindings_are_declared_once.py` refuses `xaccSplitSetLot` anywhere.
+- `gnc_lot_add_split` does not attach a split from another account, and says nothing: the split is left in no lot. Every caller puts the split on the lot's account first, or refuses it.
+
+**Nothing else creates a session either.** After the repository was fixed, about 680 books a run were still kept: tests created `Session(...)` themselves and only ended it, and `GnuCashFuzzyMatcher` ended its repository's session instead of closing the repository. Every test now opens a book through `GnuCashRepository`, the matcher calls `close()`, and `tests/unit/repositories/test_a_book_is_opened_only_through_the_repository.py` refuses a `Session(...)` anywhere outside the repository, in the application or in any file pytest collects. A run destroys every session it creates: 12,164 of 12,164 on Debian 13.
+
+The full suite then peaks at these resident sizes:
+
+| build | peak |
+|---|---|
+| Debian 13, 12, 11, 10 | 343, 338, 362, 341 MB |
+| Ubuntu 26.04, 24.04, 22.04, 20.04 | 383, 330, 317, 345 MB |
+| Fedora 41, Arch, openSUSE | 338, 393, 337 MB |
+
+**`destroy()` is called alone, never after `end()`.** `destroy()` ends the session itself, and on 3.4, 3.8 and 4.4 ending a session that is already ended closes the book's lock file a second time, by its number. Whatever took that number in between is closed instead. Measured on all eleven builds (`whether_ending_a_session_twice_closes_a_file_twice_probe.py`):
+
+| GnuCash | `end()`, a file opened, then `destroy()` | `destroy()` alone |
+|---|---|---|
+| 3.4, 3.8, 4.4 | the file is closed from under the process: `[Errno 9] Bad file descriptor` | lock file closed once, `.LCK` removed, the book opens again at once |
+| 4.8 and later | the file stays open | the same |
+
+Nothing in this code opens a file between the two calls, but GnuCash does run threads of its own: under `strace -f` on 3.8, one printed-page test file started 164 processes and threads, among them the thread that writes a book, which opens and closes files while the main thread carries on. Every book closed with `end()` then `destroy()` showed `close(lock) = 0` and then `close(lock) = -1 EBADF`. On Ubuntu 20.04 the suite failed once while that was so: a test opened the page it had just printed, and the read gave `OSError: [Errno 9] Bad file descriptor`. It failed once more after `close` called `destroy()` alone, in the same test, as Guile writing that page (`fport_write … Bad file descriptor`), and passed the other 13 full runs, 8 of them with every failed read and write logged together with the backtrace of the last close of that descriptor, which logged none. That failure had another cause: a session that took no lock closes a lock descriptor it never had (finding 27). `destroy()` alone frees the book as well: on 3.8, 100 opens closed by `destroy()` alone kept 0.3 MiB, where `end()` alone kept 50.9 MiB. `tests/unit/repositories/test_a_session_is_destroyed_without_being_ended_first.py` refuses `end()` on a session anywhere in the application or in any file pytest collects.
+
+**Tools kept for the next time:** `scripts/profile-test-memory.sh [tag] [path]` records memory before and after every test and counts sessions created, ended and destroyed. `scripts/test.sh` caps each container at 1 GB (`GNC_TEST_MEMORY` changes it), so a leak like this stops the run with exit 137 instead of using up the host. A capped run is killed wherever the running total crosses the cap, so the test it dies in is not the cause; the profile shows where the memory went. Regression test: `tests/integration/test_a_closed_book_gives_its_memory_back.py`.
+
+### 27. On 3.4, 3.8 and 4.4 a session that took no lock closes a file of the process's when it ends
+
+Discovered 2026-09-14, from `[Errno 9] Bad file descriptor` failing the commit gate now and then on Ubuntu 20.04 and Debian 11, each time somewhere else.
+
+A book opened for writing holds `<book>.LCK` open, and when the session ends GnuCash's XML backend (`GncXmlBackend::session_end`) closes that lock descriptor. On 3.4, 3.8 and 4.4 it closes it even when the session never took the lock. The field then holds the number the previous backend at the same address used. If a file of the process has that number by then, that file is closed.
+
+Measured by opening a book for writing and closing it, opening a file (it takes the freed number), doing the step below, and asking whether the file is still open, five times each (`tests/research/whether_closing_a_read_only_book_closes_a_file_it_never_opened_probe.py`, `tests/research/whether_a_book_that_fails_to_open_closes_a_file_it_never_opened_probe.py`):
+
+| the step | 3.4 | 3.8 | 4.4 |
+|---|---|---|---|
+| a book opened read-only, then closed, by `destroy()` or by `end()` | closed 5 of 5 | 5 of 5 | 5 of 5 |
+| a missing book, read-only or for writing | 5 of 5 | 4 or 5 of 5 | 0 |
+| a book another session holds the lock of, for writing | 0 in the probe, and the regression test failed | 4 or 5 of 5 | 0 |
+| a new book where a file already is | 5 of 5 | 5 of 5 | 0 |
+| a new book in a directory that does not exist | 5 of 5 | 4 of 5 | 0 |
+| a file that is not a book; a directory; a book, or a new book, in a directory the process cannot write | 0 | 0 | 0 |
+
+The read-only case was measured on all eleven builds, and on 4.8 and every later build the file stayed open. Every case that closes the file is one GnuCash refuses, or skips, before taking the lock; a file that is not a book gets as far as the lock, and then closes only its own.
+
+**How it was found.** Waiting for the race did not work: 16 full runs and 20 runs of the tests before the failing one passed. What did was a library preloaded into a full run that logged every `close()` failing with EBADF, with its C backtrace and the Python stack. A close of a number that is not open is the harmless half of a close that takes another file whenever that number is open. On 3.8 the census counted 2,388 of them in the pytest process from `GncXmlBackend::session_end`, under `qof_session_destroy`, on descriptors 16 and 23 and on values such as 874559168: a field never set. Every one came from a read-only command (`export`, `print-invoice`, `fx-balances`, the `find-*` commands) closing its book. Debian 11 showed the same frames.
+
+**What it explains.** Every "Bad file descriptor" this suite has met on these builds: pytest's saved capture descriptors and its log file, which `tests/conftest.py` absorbs in five places; a test reading the page it had just printed; Guile writing that page; and a child process whose stdout pipe was taken before the fork, so it wrote nothing and exited 120. It is older than destroy on close, because `end()` runs the same `session_end`.
+
+**The fix is in `GnuCashRepository.open`, on a GnuCash below 4.8**, read from `gnc_version()`: it makes no session that takes no lock.
+
+- A book to read is copied into a private directory and opened for writing there. Its backend takes a lock of its own, on the copy, and closes only that. The book itself gets no lock, as a read-only open gives it none, `save()` refuses, and `close()` removes the copy.
+- A missing book, a locked book opened for writing, and a new book where a file already is or in a directory that does not exist are refused before GnuCash is asked, with the sentence GnuCash's own refusal is translated to on every build.
+
+Regression test: `tests/integration/test_closing_a_book_closes_no_file_but_its_own.py`, twelve tests through `GnuCashRepository`.
+
 ---
 
-**Last Updated**: 2026-09-05
+**Last Updated**: 2026-09-14

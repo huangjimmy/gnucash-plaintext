@@ -80,7 +80,17 @@ if [ "$(id -u)" != 0 ]; then
     UNPRIVILEGED=(-e GNC_UNPRIVILEGED_RUN=1)
 fi
 
+# A memory cap, so a test process that keeps growing is stopped instead of
+# using up the host. The whole suite peaks at 317–393 MB of resident memory
+# across the eleven builds (scripts/profile-test-memory.sh, 2026-09-14). Before
+# GnuCashRepository.close freed the books it opened, it reached 1.7 GB, and
+# eleven such containers at once used up a 24 GB host with no swap.
+# GNC_TEST_MEMORY changes the cap; it takes any `docker run --memory` value.
+MEMORY_CAP="${GNC_TEST_MEMORY:-1g}"
+
+set +e
 docker run --rm \
+    --memory "$MEMORY_CAP" --memory-swap "$MEMORY_CAP" \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp/home \
     "${UNPRIVILEGED[@]}" \
@@ -89,3 +99,12 @@ docker run --rm \
     "${COV_MOUNT[@]}" \
     -v "$PROJECT_PATH:/workspace" \
     "$IMAGE_NAME" /workspace/scripts/test-in-docker.sh $TEST_PATH
+status=$?
+set -e
+
+if [ "$status" = 137 ]; then
+    echo "" >&2
+    echo "The test container was killed (exit 137). Reaching its memory cap of $MEMORY_CAP does that." >&2
+    echo "See which tests the memory goes to: ./scripts/profile-test-memory.sh $TAG $TEST_PATH" >&2
+fi
+exit $status

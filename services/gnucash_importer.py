@@ -905,6 +905,9 @@ def _guid_in_use_anywhere(book, guid_norm: str) -> Optional[str]:
     if lib.xaccAccountLookup(ctypes.byref(guid_from_hex(guid_norm)),
                              int(book.instance)):
         return 'account'
+    if lib.gnc_price_lookup(ctypes.byref(guid_from_hex(guid_norm)),
+                            int(book.instance)):
+        return 'price'
 
     for type_name, called in _COLLECTIONS_WITHOUT_A_LOOKUP:
         if _entity_in_collection(book, type_name, guid_norm) is not None:
@@ -1615,12 +1618,6 @@ def _attach_record_owner_to_lot(lib, record, lot_ptr):
     lib.gncOwnerAttachToLot(owner_p, lot_ptr)
 
 
-# Lots this import has put a split into with `xaccSplitSetLot`, which does not
-# add it to the lot's own split list — so for these, and only these, that list
-# understates what the lot holds until the book is written and read back.
-# Cleared at the start of each import by `begin_lot_attachments`.
-_LOTS_HOLDING_UNLISTED_SPLITS = set()
-
 # Written on a split left behind by an unpost. Unposting detaches the invoice
 # or bill but leaves the lot on the account holding whatever settled it, so
 # nothing about the lot afterwards distinguishes it from an owner's parked
@@ -1654,8 +1651,8 @@ def begin_lot_attachments() -> None:
     rule again.
 
     **Anything that creates commodities or applies payments has to come
-    through here or through `begin_currency_declarations`.** The three sets
-    below are process-wide, and one of them is load-bearing: `holdable_unit`
+    through here or through `begin_currency_declarations`.** What is cleared
+    below is process-wide, and one of it is load-bearing: `holdable_unit`
     reads `_PERSISTED_CURRENCY_FRACTION` to decide what figures a book can
     hold, so a reader that reaches `create_commodity` without a reset judges
     this file's amounts against the *previous* file's restated currency. The
@@ -1665,13 +1662,7 @@ def begin_lot_attachments() -> None:
     Not a defensive check, because there is nowhere honest to put one — the
     state is legitimately empty on a first run and legitimately full a moment
     later. What keeps it true is that both readers are named here.
-
-    The lot half is deliberately one-directional: forgetting to clear costs an
-    account walk for a lot that no longer needs one, since a stale entry only
-    sends `_still_owed` down the slower path that is right either way. Never
-    clearing it *during* an import is what matters, and nothing does.
     """
-    _LOTS_HOLDING_UNLISTED_SPLITS.clear()
     _PAYMENTS_THIS_RUN_MADE.clear()
     TRANSACTIONS_A_MEMO_CORRECTED.clear()
     _MEMOS_THE_TRANSACTIONS_STATE.clear()
@@ -1738,12 +1729,10 @@ TRANSACTIONS_A_MEMO_CORRECTED: set = set()
 def _sits_in_the_lot(split, wanted) -> bool:
     """True when the split is in the lot `wanted` points at.
 
-    Asked of the split rather than of the lot, which is the whole point: a
-    split attached with `xaccSplitSetLot` says which lot it is in while the
-    lot's own list does not hold it (CLAUDE.md finding 9).
+    Asked of the split: the lot it says it is in.
 
-    `wanted` is a `qof_pointer`, not a lot, because that is what both callers
-    already have and because `GetLotList` yields raw pointers on some builds
+    `wanted` is a `qof_pointer`, not a lot, because that is what the caller
+    already has and because `GetLotList` yields raw pointers on some builds
     and `GncLot` wrappers on others (finding 17) — comparing pointers is the
     one comparison that means the same thing everywhere.
     """
@@ -1751,24 +1740,15 @@ def _sits_in_the_lot(split, wanted) -> bool:
     return split_lot is not None and qof_pointer(split_lot) == wanted
 
 
-def _everything_the_lot_holds(lot, account):
+def _everything_the_lot_holds(lot):
     """Every split the lot holds, including any this import put there.
 
-    The lot's own list answers for everything GnuCash wrote, and is what a
-    reader should ask: a receivable carries the whole history of the business,
-    and walking its account instead costs a wrapper per split on it.
-
-    But `xaccSplitSetLot` sets a split's lot pointer without appending to that
-    list (CLAUDE.md finding 9), so for a lot this import attached to, the list
-    is short by what it attached. Those are exactly the lots
-    `_attach_split_to_lot` writes down, and only for those is the account
-    walked — the splits themselves still say which lot they are in.
+    The lot's own list, which is complete: `_attach_split_to_lot` puts a split
+    in a lot with `gnc_lot_add_split`, which lists it there. A receivable
+    carries the whole history of the business, so the list is asked rather
+    than the account walked.
     """
-    wanted = qof_pointer(lot)
-    if wanted not in _LOTS_HOLDING_UNLISTED_SPLITS or account is None:
-        return [Split(instance=raw) for raw in lot.get_split_list()]
-    return [split for split in account.GetSplitList()
-            if _sits_in_the_lot(split, wanted)]
+    return [Split(instance=raw) for raw in lot.get_split_list()]
 
 
 def mark_splits_orphaned_by_unpost(record) -> None:
@@ -1809,7 +1789,7 @@ def mark_splits_orphaned_by_unpost(record) -> None:
     # Not the lot's own list: a settlement this same import attached is not on
     # it (finding 9), and that is the one most likely to be orphaned — the file
     # settled the invoice and then something else about it forced the rebuild.
-    for split in _everything_the_lot_holds(lot, record.GetPostedAcc()):
+    for split in _everything_the_lot_holds(lot):
         parent = split.GetParent()
         # The posting's own split goes with the posting, which unposting
         # deletes. Marking it would write to a split about to cease to exist.
@@ -2019,27 +1999,31 @@ def _forget_orphaned_by_unpost(split) -> None:
 
 
 def _attach_split_to_lot(split, lot) -> None:
-    """Put a split in a lot, and record that the lot's own list will not say so.
+    """Put a split in a lot, listed in the lot's own split list as well.
 
-    The one way this module attaches a split to an existing lot. Not because
-    the call needs wrapping — it is a single line — but because the note it
-    leaves is what lets every reader of "what does this lot hold" stay cheap:
-    without it they must walk the whole account, and a receivable carries the
-    whole history of the business.
+    The one way this module attaches a split to an existing lot, and it uses
+    `gnc_lot_add_split`, never `xaccSplitSetLot`. `xaccSplitSetLot` sets the
+    split's lot without adding the split to the lot's list (CLAUDE.md finding
+    9), so every reader of "what does this lot hold" is short by that split,
+    and a book holding one segfaults when it is destroyed, which kept
+    `GnuCashRepository.close` from freeing any book.
+    `test_c_bindings_are_declared_once.py` refuses a call to it anywhere.
 
-    A caller that reaches past this and calls `xaccSplitSetLot` itself leaves
-    no note, and readers go on believing a lot list that is short by one split.
-    `test_c_bindings_are_declared_once.py`'s sibling check refuses that, the
-    same way the ctypes ratchet refuses a second declaration.
+    The split must already be on the lot's account. `gnc_lot_add_split` does
+    not attach a split from another account, and says nothing: the split is
+    left in no lot (measured by
+    `tests/research/whether_a_split_put_in_a_lot_survives_destroying_the_book_probe.py`).
+    Every caller first puts the split on the invoice's or bill's posted
+    account, or refuses a split that is not on it.
 
-    It is also where an unpost's note comes off, and for the same reason it is
-    where the other note goes on: being in a lot is exactly what stops a split
-    being an orphan, so every path that ends one ends here. Clearing it at the
-    four call sites instead left two of them — `txn_split_guid:` and the credit
-    block — carrying a key that outlived what it described.
+    It is also where an unpost's note comes off: being in a lot is exactly what
+    stops a split being an orphan, so every path that ends one ends here.
+    Clearing it at the four call sites instead left two of them —
+    `txn_split_guid:` and the credit block — carrying a key that outlived what
+    it described.
     """
-    gc.xaccSplitSetLot(split.instance, lot.instance)
-    _LOTS_HOLDING_UNLISTED_SPLITS.add(qof_pointer(lot))
+    from infrastructure.gnucash.engine import load_gnc_engine
+    load_gnc_engine().gnc_lot_add_split(qof_pointer(lot), qof_pointer(split))
     _forget_orphaned_by_unpost(split)
 
 
@@ -2213,13 +2197,13 @@ def _settle_from_one_split(lib, book, record, existing_tx, counter_split,
         #
         # Written onto the split this returned rather than found by walking
         # the record's lot, which is how the ApplyPayment path finds the
-        # splits the engine made. Measured: `xaccSplitSetLot` sets the split's
-        # lot pointer but does not add it to that lot's split list in memory,
-        # so a retargeted payment is invisible to `gnc_lot_get_split_list`
-        # until the book is written and read back. Searched for, it was never
-        # found, and a foreign-currency invoice overpaid by retarget left its
-        # residue with no cost basis at all — the book offering 100.00 USD while
-        # its bank held 200.00, and a sale of the rest refused.
+        # splits the engine made. Measured, when a retargeted payment was
+        # attached with `xaccSplitSetLot`: that call does not add the split to
+        # the lot's split list, so walking the lot never found it, and a
+        # foreign-currency invoice overpaid by retarget left its residue with
+        # no cost basis at all — the book offering 100.00 USD while its bank
+        # held 200.00, and a sale of the rest refused. The split in hand needs
+        # no search, however it was attached.
         carried_cost = _carried_cost_of(record)
         if carried_cost is not None:
             record_borrowed_basis(residue, carried_cost)
@@ -2467,7 +2451,7 @@ def _verify_attach_api():
     required_swig = [
         'gncInvoiceAttachToTxn', 'gncInvoiceAttachToLot',
         'gncInvoiceSetPostedAcc',
-        'xaccAccountInsertLot', 'xaccSplitSetLot',
+        'xaccAccountInsertLot',
     ]
     # The two dates are set through the wrapper classes rather than listed
     # above, because the raw `gnucash_core_c` calls take a time64 that only
@@ -5969,14 +5953,14 @@ def _lot_is_still_on_its_account(split, lot) -> bool:
     since the answer comes from the account rather than from the pointer. See
     `_live_lot_pointers`, which every other reader here goes through.
 
-    How a split comes to hold a pointer the book has let go of, within one
-    import: this tool settles an invoice by attaching a split with
-    `xaccSplitSetLot`, which does not add it to the lot's own split list
-    (finding 9). If that same run then unposts it — a later
-    directive in the same file restating it — GnuCash sees a lot whose listed
-    splits are only the posting's, empties it, and frees it, while the
-    settlement goes on pointing there. It is the reason
-    `mark_splits_orphaned_by_unpost` reads the account rather than the lot.
+    How a split came to hold a pointer the book had let go of, within one
+    import: settlements were attached with `xaccSplitSetLot`, which does not
+    add the split to the lot's own split list (finding 9). If that same run
+    then unposted the invoice — a later directive in the same file restating
+    it — GnuCash saw a lot whose listed splits were only the posting's,
+    emptied it, and freed it, while the settlement went on pointing there.
+    `_attach_split_to_lot` now uses `gnc_lot_add_split`, which lists the
+    split, so the lot is not emptied from under it that way.
 
     Not directly tested: constructing it needs one file that both settles an
     invoice and restates it, since a save and reload between the two rebuilds
@@ -6065,12 +6049,11 @@ def _recorded_owner_of(split):
             return None
     elif not _lot_is_still_on_its_account(split, lot):
         # A pointer the account no longer lists is a lot the book has let go
-        # of, and asking it anything is a question about freed memory. The
-        # split can hold one: `gnc_lot_remove_split` frees a lot once its
-        # *listed* splits run out, and a split attached with `xaccSplitSetLot`
-        # is not on that list (CLAUDE.md finding 9). Same membership-before-
-        # dereference rule the retarget readers follow, and this is reached
-        # ahead of them — `_refuse_another_owners_split` runs first.
+        # of, and asking it anything is a question about freed memory
+        # (`_lot_is_still_on_its_account` says how a split came to hold one).
+        # Same membership-before-dereference rule the retarget readers follow,
+        # and this is reached ahead of them — `_refuse_another_owners_split`
+        # runs first.
         return None
     elif lib.gncOwnerGetOwnerFromLot(ctypes.c_void_p(int(lot)), owner_ptr) != 1:
         return None
@@ -6532,11 +6515,10 @@ def _live_lot_pointers(account):
     and unposting does not destroy the lot either — finding 10 in CLAUDE.md is
     that it leaves it on the account, which is what makes the rest of this
     necessary. But `gnc_lot_remove_split` destroys a lot once its *listed*
-    splits run out, and finding 9 is that a split attached with
-    `xaccSplitSetLot` is not on that list: a lot can be emptied and freed while
-    a split this tool attached is still pointing at it. Membership is what
-    answers that safely, and the cost of asking is one list walk against a
-    segfault.
+    splits run out, and a split attached with `xaccSplitSetLot` (finding 9)
+    was not on that list, so a lot could be emptied and freed while such a
+    split still pointed at it. Membership is what answers that safely, and the
+    cost of asking is one list walk against a segfault.
     """
     from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine
 
@@ -6634,9 +6616,8 @@ def _refuse_a_split_settling_another_record(record, split, kind: str,
     if lot is None:
         return
     # Membership before dereference, as every other reader of a lot pointer
-    # here does: `gnc_lot_remove_split` frees a lot once its listed splits run
-    # out, and a split attached with `xaccSplitSetLot` is not on that list
-    # (finding 9), so a split can hold a pointer the book has let go of.
+    # here does (`_lot_is_still_on_its_account` says how a split came to hold
+    # a pointer the book had let go of).
     if not _lot_is_still_on_its_account(split, lot):
         return
     raw = qof_instance(lot)
@@ -7908,12 +7889,11 @@ def _apply_the_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
         counter_split = choices[0] if choices else None
         counter_amount_abs = the_settlement_amount(
             existing_tx, counter_split, post_acct, bank_acct_name)
-        # Not `lot.get_balance()`: a lot does not count a split attached with
-        # `xaccSplitSetLot` until the book has been written and read back, and
-        # that is how an earlier `txn_guid:` block on this same record
-        # attached its own. Two retargeted cash blocks would each be measured
-        # against the whole total, and the second would read as an overpayment
-        # of everything the first had already paid.
+        # What is still owed, counting what an earlier `txn_guid:` block on
+        # this same record attached a moment ago. Compared with the whole
+        # total instead, two retargeted cash blocks would each be measured
+        # against all of it, and the second would read as an overpayment of
+        # everything the first had already paid.
         invoice_remaining_abs = _still_owed(record, lot, post_acct)
 
         # Both of these before the overpayment arm below, which `return`s.
@@ -8294,26 +8274,18 @@ def _still_owed(record, lot, post_account) -> Fraction:
     than the lot's balance because a record whose posting transaction is
     attached rather than freshly posted has not joined that lot yet.
 
-    What has been paid comes from the lot's own splits, which is cheap and is
-    right for every payment GnuCash wrote — until this import attaches one
-    with `xaccSplitSetLot`, which puts the split in the lot without adding it
-    to that list (CLAUDE.md finding 9). For those lots, and only those, the
-    account is walked instead and each split asked which lot it is in.
+    What has been paid comes from the lot's own splits. That list includes
+    every payment this import attached, because `_attach_split_to_lot` puts a
+    split in a lot with `gnc_lot_add_split`, which lists it.
 
-    Measured, asking only the lot: a 100.00 invoice carrying an 80.00
+    Measured when a payment attached with `xaccSplitSetLot` was missing from
+    that list (CLAUDE.md finding 9): a 100.00 invoice carrying an 80.00
     retargeted cash block and a 50.00 credit block read as owing its whole
     100.00 when the credit was applied, so the credit was attached whole
     instead of divided — the lot at −30.00 with `IsPaid` false, and the
     customer's 50.00 inside a lot they cannot spend from. Cash blocks are
     applied before credit ones precisely so the credit takes what is left, and
     how the cash arrived cannot be allowed to change that figure.
-
-    The account walk is not free: `GetSplitList()` builds a fresh wrapper for
-    every split on the account each time it is called, and a receivable
-    carries the whole history of the business. Paying it once per payment
-    block on every invoice would make an import's cost the product of the two
-    — so it is paid only where the cheap answer is known to be wrong, which is
-    the handful of lots `_attach_split_to_lot` has touched in this run.
     """
     posting_txn = record.GetPostedTxn()
     posting_guid = posting_txn.GetGUID().to_string() if posting_txn else None
@@ -8342,7 +8314,7 @@ def _still_owed(record, lot, post_account) -> Fraction:
             return Fraction(0)          # the posting itself is not a payment
         return toward_settlement * numeric_to_fraction(split.GetAmount())
 
-    for split in _everything_the_lot_holds(lot, post_account):
+    for split in _everything_the_lot_holds(lot):
         owed -= _reduction(split)
     return owed
 

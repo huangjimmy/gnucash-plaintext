@@ -21,15 +21,14 @@ def _make_gnucash_with_transaction():
     os.unlink(path)
 
     import gnucash
-    from gnucash import Account, GncNumeric, Session, Split, Transaction
+    from gnucash import Account, GncNumeric, Split, Transaction
 
-    try:
-        from gnucash import SessionOpenMode
-        session = Session(f'xml://{path}', SessionOpenMode.SESSION_NEW_STORE)
-    except ImportError:
-        session = Session(f'xml://{path}', is_new=True)
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
-    book = session.book
+    repo = GnuCashRepository(path)
+    repo.open(SessionMode.NEW)
+
+    book = repo.book
     root = book.get_root_account()
     commod_table = book.get_table()
     cad = commod_table.lookup('CURRENCY', 'CAD')
@@ -76,8 +75,8 @@ def _make_gnucash_with_transaction():
 
     tx.CommitEdit()
     guid = tx.GetGUID().to_string()
-    session.save()
-    session.end()
+    repo.save()
+    repo.close()
 
     return path, guid
 
@@ -103,20 +102,16 @@ class TestDeleteTransactionUseCase:
                 repo.close()
 
             # Verify transaction is gone
-            try:
-                from gnucash import Session, SessionOpenMode
-                session = Session(f'xml://{path}', SessionOpenMode.SESSION_NORMAL_OPEN)
-            except ImportError:
-                from gnucash import Session
-                session = Session(f'xml://{path}')
-            book = session.book
+            repo = GnuCashRepository(path)
+            repo.open()
+            book = repo.book
             q = Query()
             q.search_for('Trans')
             q.set_book(book)
             txs = [Transaction(instance=t) for t in q.run()]
             guids = [t.GetGUID().to_string() for t in txs]
             assert guid not in guids
-            session.end()
+            repo.close()
         finally:
             if os.path.exists(path):
                 os.unlink(path)
