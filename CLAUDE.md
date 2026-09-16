@@ -661,7 +661,11 @@ A split whose `<split:account>` element is missing is not a book this tool can w
 | 5.5, 5.10, 5.13, 5.14, 5.15, 5.16 | drops the whole transaction; the book that comes back is short an entry and every split in it has an account |
 | 4.13, 4.8, 4.4, 3.8 | **segfault**, inside `qof_session_load`, before any of this tool's code is given control |
 
-**What it settles**: a split with no account cannot reach a command on any supported version, so a null-account check in the reading path is dead code on all ten. `cli/find_transactions_cmd.py` carried one in its ctypes walk and it is gone, on this evidence rather than on the 5.x half alone.
+**What it settles**: a split with no account cannot be *loaded from a file* on any supported version, so a null-account check in the path that reads a book from disk is dead code on all ten. `cli/find_transactions_cmd.py` carried one in its ctypes walk and it is gone, on this evidence rather than on the 5.x half alone.
+
+**It settles nothing about a split GnuCash has just made** (measured 2026-09-16). Committing a multi-currency transaction on a book whose "Use Trading Accounts" option is on creates trading splits, and on GnuCash 4.8 one of them is in the transaction's split list *before its account is attached*. Anything walking the splits of a transaction it has just committed meets it. `record_cost_bases` did, and asked it what commodity it held: importing a US dollar purchase funded from a Canadian bank gave `'NoneType' object has no attribute 'GetCommodity'` twice and exited 1 having already written the book. The same ledger into the same book imports at exit 0 on 3.4, 3.8, 4.4, 4.13, 5.5, 5.10, 5.13, 5.14, 5.15 and 5.16.
+
+So `services/foreign_currency.py`'s `split_commodity` answers the empty string for a split with no account, which every caller already reads as "not foreign currency", and the guard stays. Regression test: `tests/integration/test_a_foreign_purchase_imports_into_a_trading_accounts_book.py`.
 
 **What it costs**: nothing this tool does can prevent the 4.x crash — it happens while the file is being parsed, several frames below `GnuCashRepository.open`. There is no `try` that catches it and no state to check first.
 
@@ -1076,7 +1080,7 @@ Discovered 2026-09-14, printing the balance sheet and income statement as plaint
 
 The file is package data of `infrastructure.gnucash`, declared in `pyproject.toml`. The suite installs the project editable, and `tests/` is a package, so pytest imports the source folder: a file the wheel leaves out passes every test that runs the command. A wheel built before the file was declared held `services/gnucash_statements.py` and not the report it loads. `tests/unit/test_every_file_in_a_shipped_package_is_shipped.py` fails on any file inside a shipped package that no `package-data` pattern matches.
 
-**A price added for the run is the report's price, and is never saved.** Take a book opened read-only. Create a price with `gnc_price_create`, and add it with `gnc_pricedb_add_price` at `gnc_dmy2time64_end` of the report date. GnuCash's Balance Sheet then uses that price at `pricedb-nearest`. It does so when the book has no price that day, when the book has a price that day from the same source, and when the book's nearest price is twelve hours after the end of the day. The book's prices read back unchanged after it is closed. Measured on 5.10 and 3.8 (`tests/research/a_rates_file_as_prices_probe.py`). `--fx-rates` and `--prices` are built on it, in `services/report_prices.py`.
+**A price added for the run is the report's price, and is never saved.** Take a book opened read-only. Create a price with `gnc_price_create`, and add it with `gnc_pricedb_add_price` at `gnc_dmy2time64_end` of the report date. GnuCash's Balance Sheet then uses that price at `pricedb-nearest`. It does so when the book has no price that day, when the book has a price that day from the same source, and when the book's nearest price is twelve hours after the end of the day. The book's prices read back unchanged after it is closed. Measured on 5.10, 3.8 and 3.4 (`tests/research/a_rates_file_as_prices_probe.py`). `--fx-rates` and `--prices` are built on it, in `services/report_prices.py`.
 
 ### 29. From GnuCash 4.13, unposting an invoice deletes a journal entry whose splits are all on receivables
 

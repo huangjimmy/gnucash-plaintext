@@ -1,18 +1,18 @@
 """Whether a rate added to the price database in memory, never saved, is the rate GnuCash's Balance Sheet uses (Q-042).
 
 The book is `tests/fixtures/a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt`,
-imported to the path given as the first argument. It holds USD in CAD 1.30 on
-01-02 and 1.40 on 02-02, both at 12:00 UTC, and 1,500.00 USD in Assets:USD
-Bank from 01-20 on.
+imported to the path given as the first argument. It prices USD in CAD at 1.30
+on 2025-05-05, 1.35 on 2026-03-31, 1.38 on 2026-07-15 and 1.42 on 2026-12-31,
+all at 12:00 UTC, and holds 7,480.00 USD in Assets:USD Bank from 2026-09-30 on.
 
 Each case opens the book read-only, adds USD in CAD 1.50 at the end of the
 report date (the moment the report is for), source `user:price-editor`,
-renders the Balance Sheet in CAD, prints the USD Bank line, and closes without
-saving:
+renders the Balance Sheet in CAD, prints what the page says about the USD bank
+account, and closes without saving:
 
-1. as of 2026-01-25: the book has no USD price that day;
-2. as of 2026-02-02: the book already has USD in CAD 1.40 that day;
-3. as of 2026-02-01: the book's nearest USD price is 02-02 at 12:00, twelve
+1. as of 2026-11-30: the book has no USD price that day;
+2. as of 2026-12-31: the book already has USD in CAD 1.42 that day;
+3. as of 2026-12-30: the book's nearest USD price is 12-31 at 12:00, twelve
    hours after the end of the day.
 
 Then the book's prices are listed, to show nothing was saved.
@@ -49,17 +49,30 @@ def add_in_memory(book, commodity_mnemonic, currency_mnemonic, moment, num, deno
 
 
 def usd_bank_line(page):
-    for line in page.splitlines():
-        if line.strip().startswith('USD Bank'):
-            return line.strip()
-    return '(no USD Bank line)'
+    """The `Assets:USD Bank` line and the keys written under it.
+
+    The page is a block: the account line states what the account holds, and
+    its `share_price:` and `value:` sit under it, a tab further in. Matching a
+    bare `USD Bank` finds nothing at all, the line carrying the account's whole
+    path.
+    """
+    lines = page.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip().startswith('Assets:USD Bank '):
+            said = [line.strip()]
+            for nested in lines[index + 1:]:
+                if not nested.startswith('\t\t'):
+                    break
+                said.append(nested.strip())
+            return '; '.join(said)
+    return '(no Assets:USD Bank line)'
 
 
 def main():
     path = sys.argv[1]
     lib = load_gnc_engine()
     print(f'GnuCash {lib.gnc_version().decode()}')
-    for as_of in (date(2026, 1, 25), date(2026, 2, 2), date(2026, 2, 1)):
+    for as_of in (date(2026, 11, 30), date(2026, 12, 31), date(2026, 12, 30)):
         repo = GnuCashRepository(path)
         repo.open(SessionMode.READ_ONLY)
         try:

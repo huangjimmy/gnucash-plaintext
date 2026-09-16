@@ -1,25 +1,43 @@
-# A book kept in CAD that holds US dollars, Hong Kong dollars and shares, with
-# the prices GnuCash's own reports convert them by.
+# One CAD book over two years, holding every figure the two statements have to
+# be able to print, and billing right through both so that any fiscal year cuts
+# across the trading rather than lining up with it.
 #
 # Every top-level account is held in CAD, so the book is kept in CAD (Q-042).
-# Beneath them:
+# What happens:
 #
-# - Assets:USD Bank: 3,000.00 USD opened on 01-03, less 2,000.00 USD paid for
-#   10 NASDAQ:AMZN on 01-04, plus 500.00 USD of consulting income on 01-20.
-# - Assets:HKD Bank: 5,500.00 HKD opened on 01-03.
-# - Assets:CAD Bank: 1,000.00 CAD opened on 01-03, less 100.00 CAD of fees on
-#   01-21.
-# - Assets:AMZN: the 10 shares, bought for 2,000.00 USD.
+# - 2025-04-01  20,000.00 CAD of opening capital.
+# - 2025-05-05  10,000.00 USD bought for 13,000.00 CAD at 1.30, the cost basis
+#               the later USD sale is measured against.
+# - 2025-06-08  5,500.00 HKD bought for 1,000.00 CAD at 5.5 HKD per CAD.
+# - 2025-07-12  4,000.00 USD borrowed.
+# - 2025-08-15  20 NASDAQ:AMZN bought at 200.00 USD.
+# - 2026-06-30  8 AMZN sold at 260.00 USD, taking 480.00 USD.
+# - 2026-07-15  3,000.00 USD sold at 1.38 that cost 1.30, taking 240.00 CAD.
+# - 2026-09-30  1,500.00 USD of the loan repaid with 100.00 USD of interest.
+# - Fees: 50.00 CAD on 2025-12-20 and 150.00 CAD on 2026-12-20.
 #
-# Prices, all at 12:00 UTC: USD in CAD 1.30 on 01-02 and 1.40 on 02-02; HKD
-# only the other way round, CAD in HKD 5.5 on 01-10; NASDAQ:AMZN in USD 210 on
-# 01-15 and 220 on 02-15.
+# Consulting is billed every quarter and collected a month later, except the
+# last, which is still owed. Each quarter differs, so a fiscal year that ends
+# anywhere picks up a different four:
 #
-# What this fixture produces: the book above. GnuCash's Balance Sheet report as of
-# 2026-01-25 values the USD at the 02-02 rate, its default price being the one
-# nearest in time.
+#     2025-06-30  1,000.00      2026-03-31  1,600.00      2026-09-30  2,000.00
+#     2025-09-30  1,200.00      2026-04-10    900.00      2026-12-31  2,200.00
+#     2025-12-31  1,400.00      2026-06-30  1,800.00
 #
-# Verified by tests/integration/test_the_statements_are_printed_by_customized_gnucash_reports.py.
+# So the fiscal years a Canadian filer actually uses come out differently:
+#
+#     ending 2026-03-31   consulting 5,200.00, and no gain taken
+#     ending 2026-04-25   consulting 6,100.00 — the 04-10 bill lands inside it
+#     ending 2026-06-30   consulting 6,900.00, and the shares sold on the last day
+#     ending 2026-12-31   consulting 8,500.00, both gains, and the interest
+#
+# What is still held at 2026-12-31: 19,840.00 CAD, 7,480.00 USD, 5,500.00 HKD,
+# 12 AMZN and a 2,200.00 CAD receivable, against 2,500.00 USD still owed.
+#
+# Prices, all at 12:00 UTC: USD in CAD 1.30 on 2025-05-05, 1.35 on 2026-03-31,
+# 1.38 on 2026-07-15 and 1.42 on 2026-12-31; CAD in HKD 5.5 on 2025-06-08 and
+# 5.0 on 2026-12-31; NASDAQ:AMZN in USD 200 on 2025-08-15, 260 on 2026-06-30
+# and 280 on 2026-12-31.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
@@ -40,68 +58,85 @@
 	fullname: "Amazon.com Inc"
 	namespace: "NASDAQ"
 	fraction: 10000
-2026-01-01 open Assets
+2025-01-01 open Assets
 	type: "Asset"
 	placeholder: #True
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-01-01 open Assets:USD Bank
-	type: "Bank"
-	commodity.namespace: "CURRENCY"
-	commodity.mnemonic: "USD"
-2026-01-01 open Assets:HKD Bank
-	type: "Bank"
-	commodity.namespace: "CURRENCY"
-	commodity.mnemonic: "HKD"
-2026-01-01 open Assets:CAD Bank
+2025-01-01 open Assets:CAD Bank
 	type: "Bank"
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-01-01 open Assets:AMZN
+2025-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2025-01-01 open Assets:HKD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2025-01-01 open Assets:AMZN
 	type: "Stock"
 	commodity.namespace: "NASDAQ"
 	commodity.mnemonic: "AMZN"
-2026-01-01 open Equity
+2025-01-01 open Assets:Receivable
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Liabilities:USD Loan
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2025-01-01 open Equity
 	type: "Equity"
 	placeholder: #True
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-01-01 open Equity:Opening USD
-	type: "Equity"
-	commodity.namespace: "CURRENCY"
-	commodity.mnemonic: "USD"
-2026-01-01 open Equity:Opening HKD
-	type: "Equity"
-	commodity.namespace: "CURRENCY"
-	commodity.mnemonic: "HKD"
-2026-01-01 open Equity:Opening CAD
+2025-01-01 open Equity:Opening CAD
 	type: "Equity"
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-01-01 open Income
+2025-01-01 open Income
 	type: "Income"
 	placeholder: #True
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-01-01 open Income:Consulting
+2025-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Income:Realized Gains
 	type: "Income"
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-01-01 open Expenses
+2025-01-01 open Income:Realized FX Gains
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Expenses
 	type: "Expense"
 	placeholder: #True
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-01-01 open Expenses:Fees
+2025-01-01 open Expenses:Fees
 	type: "Expense"
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
+2025-01-01 open Expenses:Interest
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
 
 price
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
 	currency.mnemonic: "CAD"
-	time: "2026-01-02 12:00:00 +0000"
+	time: "2025-05-05 12:00:00 +0000"
 	value: "13/10"
 	source: "user:price-editor"
 	type: "last"
@@ -110,8 +145,26 @@ price
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
 	currency.mnemonic: "CAD"
-	time: "2026-02-02 12:00:00 +0000"
-	value: "14/10"
+	time: "2026-03-31 12:00:00 +0000"
+	value: "27/20"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-07-15 12:00:00 +0000"
+	value: "69/50"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "71/50"
 	source: "user:price-editor"
 	type: "last"
 
@@ -119,17 +172,17 @@ price
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
 	currency.mnemonic: "HKD"
-	time: "2026-01-10 12:00:00 +0000"
+	time: "2025-06-08 12:00:00 +0000"
 	value: "55/10"
 	source: "user:price-editor"
 	type: "last"
 
 price
-	commodity.namespace: "NASDAQ"
-	commodity.mnemonic: "AMZN"
-	currency.mnemonic: "USD"
-	time: "2026-01-15 12:00:00 +0000"
-	value: "210"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	currency.mnemonic: "HKD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "5"
 	source: "user:price-editor"
 	type: "last"
 
@@ -137,40 +190,168 @@ price
 	commodity.namespace: "NASDAQ"
 	commodity.mnemonic: "AMZN"
 	currency.mnemonic: "USD"
-	time: "2026-02-15 12:00:00 +0000"
-	value: "220"
+	time: "2025-08-15 12:00:00 +0000"
+	value: "200"
 	source: "user:price-editor"
 	type: "last"
 
-2026-01-03 * "Opening USD"
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
 	currency.mnemonic: "USD"
-	Assets:USD Bank 3000.00 USD
-	Equity:Opening USD -3000.00 USD
+	time: "2026-06-30 12:00:00 +0000"
+	value: "260"
+	source: "user:price-editor"
+	type: "last"
 
-2026-01-03 * "Opening HKD"
-	currency.mnemonic: "HKD"
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "280"
+	source: "user:price-editor"
+	type: "last"
+
+2025-04-01 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 20000.00 CAD
+	Equity:Opening CAD -20000.00 CAD
+
+2025-05-05 * "Buy 10,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 10000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "13000.00"
+	Assets:CAD Bank -13000.00 CAD
+
+2025-06-08 * "Buy 5,500.00 HKD at 5.5 per CAD"
+	currency.mnemonic: "CAD"
 	Assets:HKD Bank 5500.00 HKD
-	Equity:Opening HKD -5500.00 HKD
+		account.commodity.mnemonic: "HKD"
+		share_price: "2/11"
+		value: "1000.00"
+	Assets:CAD Bank -1000.00 CAD
 
-2026-01-03 * "Opening CAD"
+2025-06-30 * "Consulting billed, Q1"
+	currency.mnemonic: "CAD"
+	Assets:Receivable 1000.00 CAD
+	Income:Consulting -1000.00 CAD
+
+2025-07-12 * "Borrow 4,000.00 USD"
+	currency.mnemonic: "USD"
+	Assets:USD Bank 4000.00 USD
+	Liabilities:USD Loan -4000.00 USD
+
+2025-07-30 * "Consulting collected, Q1"
 	currency.mnemonic: "CAD"
 	Assets:CAD Bank 1000.00 CAD
-	Equity:Opening CAD -1000.00 CAD
+	Assets:Receivable -1000.00 CAD
 
-2026-01-04 * "Buy 10 AMZN"
+2025-08-15 * "Buy 20 AMZN at 200.00 USD"
 	currency.mnemonic: "USD"
-	Assets:AMZN 10.0000 AMZN
+	Assets:AMZN 20.0000 AMZN
 		account.commodity.mnemonic: "AMZN"
 		share_price: "200"
-		value: "2000.00"
-	Assets:USD Bank -2000.00 USD
+		value: "4000.00"
+	Assets:USD Bank -4000.00 USD
 
-2026-01-20 * "Consulting"
-	currency.mnemonic: "USD"
-	Assets:USD Bank 500.00 USD
-	Income:Consulting -500.00 USD
-
-2026-01-21 * "Bank fee"
+2025-09-30 * "Consulting billed, Q2"
 	currency.mnemonic: "CAD"
-	Expenses:Fees 100.00 CAD
-	Assets:CAD Bank -100.00 CAD
+	Assets:Receivable 1200.00 CAD
+	Income:Consulting -1200.00 CAD
+
+2025-10-30 * "Consulting collected, Q2"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1200.00 CAD
+	Assets:Receivable -1200.00 CAD
+
+2025-12-20 * "Bank fees"
+	currency.mnemonic: "CAD"
+	Expenses:Fees 50.00 CAD
+	Assets:CAD Bank -50.00 CAD
+
+2025-12-31 * "Consulting billed, Q3"
+	currency.mnemonic: "CAD"
+	Assets:Receivable 1400.00 CAD
+	Income:Consulting -1400.00 CAD
+
+2026-01-30 * "Consulting collected, Q3"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1400.00 CAD
+	Assets:Receivable -1400.00 CAD
+
+2026-03-31 * "Consulting billed, Q4"
+	currency.mnemonic: "CAD"
+	Assets:Receivable 1600.00 CAD
+	Income:Consulting -1600.00 CAD
+
+2026-04-10 * "Consulting billed, a job out of cycle"
+	currency.mnemonic: "CAD"
+	Assets:Receivable 900.00 CAD
+	Income:Consulting -900.00 CAD
+
+2026-04-30 * "Consulting collected, Q4"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1600.00 CAD
+	Assets:Receivable -1600.00 CAD
+
+2026-05-10 * "Consulting collected, the out of cycle job"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 900.00 CAD
+	Assets:Receivable -900.00 CAD
+
+2026-06-30 * "Consulting billed, Q5"
+	currency.mnemonic: "CAD"
+	Assets:Receivable 1800.00 CAD
+	Income:Consulting -1800.00 CAD
+
+2026-06-30 * "Sell 8 AMZN at 260.00 USD"
+	currency.mnemonic: "USD"
+	Assets:AMZN -8.0000 AMZN
+		account.commodity.mnemonic: "AMZN"
+		share_price: "200"
+		value: "-1600.00"
+	Assets:USD Bank 2080.00 USD
+	Income:Realized Gains -480.00 USD
+
+2026-07-15 * "Sell 3,000.00 USD at 1.38"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -3000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-3900.00"
+	Assets:CAD Bank 4140.00 CAD
+	Income:Realized FX Gains -240.00 CAD
+
+2026-07-30 * "Consulting collected, Q5"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1800.00 CAD
+	Assets:Receivable -1800.00 CAD
+
+2026-09-30 * "Consulting billed, Q6"
+	currency.mnemonic: "CAD"
+	Assets:Receivable 2000.00 CAD
+	Income:Consulting -2000.00 CAD
+
+2026-09-30 * "Repay 1,500.00 USD of the loan with interest"
+	currency.mnemonic: "USD"
+	Liabilities:USD Loan 1500.00 USD
+	Expenses:Interest 100.00 USD
+	Assets:USD Bank -1600.00 USD
+
+2026-10-30 * "Consulting collected, Q6"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 2000.00 CAD
+	Assets:Receivable -2000.00 CAD
+
+2026-12-20 * "Bank fees"
+	currency.mnemonic: "CAD"
+	Expenses:Fees 150.00 CAD
+	Assets:CAD Bank -150.00 CAD
+
+2026-12-31 * "Consulting billed, Q7, still owed at the year end"
+	currency.mnemonic: "CAD"
+	Assets:Receivable 2200.00 CAD
+	Income:Consulting -2200.00 CAD

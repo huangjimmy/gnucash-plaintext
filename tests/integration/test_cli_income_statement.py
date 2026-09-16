@@ -6,6 +6,9 @@ Tests the full CLI path: argument parsing → GnuCash's report → text/HTML out
 The figures are GnuCash's, measured on GnuCash 5.10: 7,200.00 CAD of income and
 1,350.00 CAD of expenses, beside 500.00 USD of income and 100.00 USD of
 expenses that the book holds no USD price for.
+
+The statement is written as a plaintext block (Q-042), so a test asks for an
+account's line by its path and for a key by its name.
 """
 
 import os
@@ -13,7 +16,9 @@ import os
 from click.testing import CliRunner
 
 from cli.main import cli
-from tests.integration.text_report_pages import figures
+from tests.integration.text_report_pages import amount_of as _amount
+from tests.integration.text_report_pages import key_of as _key
+from tests.integration.text_report_pages import under as _under
 
 FULL_YEAR_ARGS = ["--fiscal-year-end", "2024-12-31"]
 
@@ -90,27 +95,38 @@ class TestTextOutput:
     def test_contains_revenue_total(self, temp_gnucash_for_close_books):
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
         assert result.exit_code == 0, result.output
-        assert figures(result.output, "Total Revenue") == ["C$7,200.00"]
+        assert _key(result.output, "total_revenue") == "7200.00 CAD"
 
     def test_contains_expense_total(self, temp_gnucash_for_close_books):
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
         assert result.exit_code == 0, result.output
-        assert figures(result.output, "Total Expenses") == ["C$1,350.00"]
+        assert _key(result.output, "total_expenses") == "1350.00 CAD"
 
     def test_contains_net_income(self, temp_gnucash_for_close_books):
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
         assert result.exit_code == 0, result.output
-        assert figures(result.output, "Net income for Period") == ["C$5,850.00"]
+        assert _key(result.output, "net_income") == "5850.00 CAD"
 
-    def test_a_usd_account_shows_its_balance_beside_its_value(self, temp_gnucash_for_close_books):
-        """The book holds no USD price, so GnuCash's report values the USD at nothing."""
+    def test_a_usd_account_states_what_it_holds_and_what_gnucash_made_of_it(
+            self, temp_gnucash_for_close_books):
+        """The book holds no USD price, so GnuCash values the USD at nothing.
+
+        And the line states no price at all rather than a zero one: a price of
+        zero would read as "a US dollar is worth nothing", which is a claim the
+        book does not make.
+        """
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
         assert result.exit_code == 0, result.output
-        assert figures(result.output, "Freelance") == ["$500.00", "C$0.00"]
+        assert _amount(result.output, "Income:Freelance") == "500.00 USD"
+        assert _under(result.output, "Income:Freelance") == {
+            "account.commodity.mnemonic": "USD",
+            "value": "0.00"}
 
-    def test_shows_the_period_in_its_title(self, temp_gnucash_for_close_books):
+    def test_the_block_opens_with_the_day_the_period_starts(self, temp_gnucash_for_close_books):
+        """A period needs both ends: the directive gives the first, `end:` the last."""
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
-        assert result.output.splitlines()[0].startswith("Income Statement For Period Covering")
+        assert result.output.splitlines()[0] == "2024-01-01 income-statement"
+        assert _key(result.output, "end") == "2024-12-31"
 
     def test_write_to_file(self, temp_gnucash_for_close_books, tmp_path):
         out_file = str(tmp_path / "report.txt")
@@ -123,7 +139,7 @@ class TestTextOutput:
         assert os.path.exists(out_file)
         with open(out_file, encoding="utf-8") as f:
             content = f.read()
-        assert figures(content, "Net income for Period") == ["C$5,850.00"]
+        assert _key(content, "net_income") == "5850.00 CAD"
 
 
 # ---------------------------------------------------------------------------
@@ -140,8 +156,11 @@ class TestFxRatesIntegration:
             "--fx-rates", fx_file,
         )
         assert result.exit_code == 0, result.output
-        assert figures(result.output, "Freelance") == ["$500.00", "C$675.00"]
-        assert figures(result.output, "Net income for Period") == ["C$6,390.00"]
+        assert _under(result.output, "Income:Freelance") == {
+            "account.commodity.mnemonic": "USD",
+            "share_price": "1.35",
+            "value": "675.00"}
+        assert _key(result.output, "net_income") == "6390.00 CAD"
 
     def test_a_rate_for_a_currency_gnucash_does_not_know_is_refused(
             self, temp_gnucash_for_close_books, tmp_path):

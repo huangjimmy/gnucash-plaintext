@@ -156,12 +156,27 @@ def split_guid(split) -> str:
 def split_commodity(split) -> str:
     """The mnemonic of the commodity this split's account is denominated in.
 
-    No null-account guard: a split without one cannot be in a book this reads.
-    GnuCash 5.x drops the whole transaction while loading and 4.x and earlier
-    segfault inside `qof_session_load` (CLAUDE.md §12), so the empty string it
-    answered for one was a value nothing could ask for.
+    A split with no account answers the empty string, which every caller reads
+    as "not foreign currency". That is not the case CLAUDE.md §12 describes —
+    a split whose `<split:account>` is missing from a *file* never reaches this
+    code, because GnuCash 5.x drops the whole transaction while loading and 4.x
+    and earlier segfault inside `qof_session_load`. This is a split GnuCash
+    makes itself: committing a multi-currency transaction on a book with
+    "Use Trading Accounts" on creates trading splits, and on GnuCash 4.8 one of
+    them is in the transaction's split list before its account is attached.
+    `record_cost_bases` walks every split of the transaction it has just
+    committed, so it meets that split mid-commit and asked it what it holds.
+
+    Measured on 4.8, importing a US dollar purchase funded from a Canadian
+    bank into a trading-accounts book: `'NoneType' object has no attribute
+    'GetCommodity'`, twice, and the import exits 1 having written the book.
+    The same ledger and the same book import at exit 0 on 3.4, 3.8, 4.4, 4.13,
+    5.5, 5.10, 5.13, 5.14, 5.15 and 5.16.
     """
-    commodity = split.GetAccount().GetCommodity()
+    account = split.GetAccount()
+    if account is None:
+        return ''
+    commodity = account.GetCommodity()
     return commodity.get_mnemonic() if commodity is not None else ''
 
 
@@ -341,10 +356,9 @@ def establishes_cost_basis(split) -> bool:
     # in — a plain stock purchase in a single-currency book grew a cost-basis
     # KVP, listed in `fx-balances` as `50 CAD/USTECH`, and could no longer be
     # corrected with `--strategy update`.
-    # No null-account guard, for the reason `split_commodity` gives: a split
-    # without an account cannot be in a book this reads at all — GnuCash 5.x
-    # drops the whole transaction while loading and 4.x segfaults inside
-    # `qof_session_load` (CLAUDE.md §12).
+    # The account is there to be read: `split_commodity` above answered a
+    # mnemonic, and it answers the empty string for a split that has none —
+    # which the check above has already turned away.
     account = split.GetAccount()
     if account.GetCommodity().get_namespace() != 'CURRENCY':
         return False
@@ -417,8 +431,13 @@ def _currency_arrived_elsewhere(split) -> bool:
     second arrival. That also keeps this from asking about a split whose own
     answer would ask back.
     """
-    # A split in a book is always in a transaction, and every split there has
-    # an account (CLAUDE.md §12).
+    # A split in a book is always in a transaction. Not every split in that
+    # transaction has an account: committing a multi-currency transaction on a
+    # book using trading accounts makes trading splits, and on GnuCash 4.8 one
+    # of them is in the split list before its account is attached. Such a split
+    # is screened out below by its commodity — `split_commodity` answers the
+    # empty string for it, which matches no real commodity — so nothing here
+    # asks it for an account.
     transaction = split.GetParent()
     commodity = split_commodity(split)
     this_one = split_guid(split)

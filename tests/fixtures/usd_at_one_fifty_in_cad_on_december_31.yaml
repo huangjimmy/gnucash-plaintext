@@ -1,0 +1,4 @@
+# One US dollar is 1.50 CAD on 2026-12-31, stated with both currencies and a
+# date (Q-042).
+USD/CAD:
+  2026-12-31: 1.50

@@ -1,0 +1,56 @@
+# A CAD book whose income and expenses are all in US dollars, and which holds
+# no USD price at all.
+#
+# GnuCash values what it cannot price at nothing, so the retained earnings
+# convert to 0.00 CAD — while the book plainly has them: 500.00 USD of
+# consulting against 100.00 USD of fees. The page states the key at 0.00 and
+# the account lines at `value: "0.00"`, which together say "this money was
+# valued at nothing". A key that vanished instead would say the book had no
+# such earnings.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fees
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-02-01 * "Consulting, in US dollars"
+	currency.mnemonic: "USD"
+	Assets:USD Bank 500.00 USD
+	Income:Consulting -500.00 USD
+
+2026-03-01 * "Fees, in US dollars"
+	currency.mnemonic: "USD"
+	Expenses:Fees 100.00 USD
+	Assets:USD Bank -100.00 USD

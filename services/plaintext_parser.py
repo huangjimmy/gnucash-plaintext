@@ -285,12 +285,28 @@ class PlaintextParser:
         for line_number, line in enumerate(plaintext_lines, start=1):
             if line.strip() == "":
                 continue
-            # Q-019: skip `#` comment lines. The print-invoice / print-bill
-            # plaintext renderer prepends caveats (e.g. "tax figures are
-            # provisional", "Issued by: ...") on lines starting with `#`;
-            # the parser must tolerate them so rendered output re-imports
-            # cleanly.
-            if line.lstrip().startswith('#'):
+            # A line written for a reader rather than for the book, opened by
+            # `#`, `;` or `;;`.
+            #
+            # `#` is Q-019: the print-invoice / print-bill plaintext renderer
+            # prepends caveats ("tax figures are provisional", "Issued by: …")
+            # on `#` lines, and a rendered invoice has to re-import cleanly
+            # without those reaching the recipient's book.
+            #
+            # `;` and `;;` are what a ledger keeps notes with, and this tool
+            # already reads both elsewhere: a beancount file's comments are `;`
+            # (`services/beancount_parser.py`), and the reconcile preview this
+            # tool writes opens its sections with `;;`, which
+            # `services/reconcile_preview_reader.py` skips. A person who edits
+            # a preview and imports it, or who writes notes the way every other
+            # plaintext ledger does, was told the line is "not a line this
+            # format reads" — refused for being a comment, in a file this tool
+            # had written the comments into.
+            #
+            # Only at the beginning of a line, as `#` is. The format has no
+            # trailing comments, so a `;` after a value is part of that value
+            # and a description reading "paid; see note" means what it says.
+            if line.lstrip()[:1] in ('#', ';'):
                 continue
 
             leading_spaces = re.match(r'^[\t\s]*', line).group(0)

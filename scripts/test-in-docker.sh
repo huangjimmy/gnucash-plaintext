@@ -8,8 +8,16 @@
 
 set -e
 
-# Default to running all tests
-TEST_PATH="${1:-tests/}"
+# Default to running all tests.
+#
+# Every path given, not just the first. `TEST_PATH="${1:-tests/}"` took one and
+# dropped the rest in silence, so a run of eight files tested whichever sorted
+# first and reported a pass for the lot — the count never moved with the list,
+# which is the only sign there was.
+TEST_PATHS=("$@")
+if [ ${#TEST_PATHS[@]} -eq 0 ]; then
+    TEST_PATHS=(tests/)
+fi
 
 # This script may run as a non-root user (scripts/test.sh passes --user so the
 # files written into the mounted workspace stay owned by the host user). A
@@ -54,6 +62,6 @@ if [ -n "$GNC_COVERAGE" ]; then
 fi
 
 echo ""
-echo "Running tests: $TEST_PATH"
+echo "Running tests: ${TEST_PATHS[*]}"
 echo "================================"
-PATH="$HOME/.local/bin:$PATH" python3 -m pytest "$TEST_PATH" -v --tb=short "${COV_ARGS[@]}"
+PATH="$HOME/.local/bin:$PATH" python3 -m pytest "${TEST_PATHS[@]}" -v --tb=short "${COV_ARGS[@]}"

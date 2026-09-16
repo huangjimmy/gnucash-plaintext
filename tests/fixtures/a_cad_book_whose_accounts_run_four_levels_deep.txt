@@ -1,0 +1,71 @@
+# A CAD book whose accounts run four levels deep, which is one deeper than
+# GnuCash's statements list by default.
+#
+#   Assets                        (level 1, holds nothing itself)
+#   Assets:Bank                   (level 2, holds nothing itself)
+#   Assets:Bank:Chequing          (level 3, holds 300.00 CAD)
+#   Assets:Bank:Chequing:Payroll  (level 4, holds 700.00 CAD)
+#
+# GnuCash's own statements default `Accounts / Levels of Subaccounts` to 3, and
+# at that limit its account table folds the fourth level into the third: its
+# page prints one row, `Chequing C$1,000.00`, and no Payroll row at all
+# (measured on 5.10). A block lists every account instead, each line stating
+# only what that account itself holds, so this book prints both 300.00 and
+# 700.00 and the reader can see where the money is.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:Chequing
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:Chequing:Payroll
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Fees
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Fees:Late
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-02 * "Opening, split between the third and fourth levels"
+	currency.mnemonic: "CAD"
+	Assets:Bank:Chequing 300.00 CAD
+	Assets:Bank:Chequing:Payroll 700.00 CAD
+	Equity:Opening -1000.00 CAD
+
+2026-02-01 * "A late fee, booked three levels down under Income"
+	currency.mnemonic: "CAD"
+	Assets:Bank:Chequing:Payroll 50.00 CAD
+	Income:Fees:Late -50.00 CAD
