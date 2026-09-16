@@ -1,0 +1,12 @@
+# A customer whose `guid:` is the word True, unquoted.
+#
+# The format reads an unquoted True as a truth value, not as text, so the
+# block states no characters a guid could be read from.
+#
+# What this fixture produces: nothing. The import refuses the block.
+#
+# Verified by tests/integration/test_a_guid_that_is_not_text_is_refused.py.
+customer "C-TRUE"
+	name: "Guid Written As True"
+	currency: CAD
+	guid: True

@@ -1,0 +1,11 @@
+# Indented two tabs to a level, then three tabs.
+#
+# What this fixture produces: nothing. Line 9 is indented with two tabs, which
+# makes two tabs one level, and line 10 with three, which is no whole number of
+# levels, so the file is refused at line 10.
+#
+# Verified by tests/integration/test_a_file_indented_two_ways_is_refused.py.
+2026-01-01 open Assets
+		type: Asset
+			commodity.namespace: "CURRENCY"
+		commodity.mnemonic: "CAD"

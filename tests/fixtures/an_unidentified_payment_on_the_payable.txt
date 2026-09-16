@@ -1,0 +1,33 @@
+# 50.00 CAD paid out of the bank and put on the payable, belonging to no vendor.
+#
+# GnuCash's register takes this: money paid before the bill arrives is entered
+# against Accounts Payable before anyone records whose it is. The payable split
+# is in no lot and has no owner, so it is no vendor's credit and pays no bill.
+#
+# What this fixture produces: one CAD transaction, Assets:Bank -50.00 against
+# Liabilities:Accounts Payable +50.00, the payable split in no lot.
+#
+# Verified by tests/integration/test_a_lot_with_no_owner_is_given_one_or_listed.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Accounts Payable
+	type: Accounts Payable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-03-02 * "Paid ahead, bill not received"
+	guid: "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+	currency.mnemonic: "CAD"
+	Assets:Bank -50.00 CAD
+	Liabilities:Accounts Payable 50.00 CAD
+		guid: "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"

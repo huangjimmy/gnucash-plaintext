@@ -1,0 +1,38 @@
+# `an_unpaid_invoice_beside_its_deposit_unapplied.txt` with Acme's deposit put
+# in a credit lot of Acme's by `lot_owner:`: in a lot, and one that settles no
+# invoice. Load after `payment_roundtrip_accounts.txt`.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-001"
+		accumulate: true
+
+2026-01-15 * "Supplies paid"
+	Assets:Bank -100.00 CAD
+		memo: "Payment INV-001"
+	Expenses:Supplies 100.00 CAD
+
+2026-01-15 * "Acme"
+	Assets:Bank 100.00 CAD
+		memo: "Payment INV-001"
+	Assets:Accounts Receivable -100.00 CAD
+		memo: "Payment INV-001"
+		lot_owner: "customer:C001"

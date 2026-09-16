@@ -47,7 +47,6 @@ from infrastructure.gnucash.kvp import get_custom_metadata, held_value
 from infrastructure.gnucash.utils import (
     encode_value_as_string,
     exact_text,
-    format_amount_for_commodity,
     money_text,
     numeric_to_fraction,
     qof_instance,
@@ -349,8 +348,6 @@ def payment_residue(transaction, in_lot_split, also_settling=()):
         if split.GetGUID().to_string() in claimed:
             continue
         account = split.GetAccount()
-        if account is None:
-            continue
         if gc.xaccAccountGetType(account.instance) not in (
                 gc.ACCT_TYPE_RECEIVABLE, gc.ACCT_TYPE_PAYABLE):
             continue
@@ -406,18 +403,15 @@ def settles_more_than_one_record(transaction) -> bool:
     """
     import gnucash.gnucash_core_c as gc
 
-    from services.gnucash_importer import _lot_is_still_on_its_account
-
     settling = 0
     for split in transaction.GetSplitList():
         lot = split.GetLot()
         if lot is None:
             continue
-        # Asked whether the account still lists it before anything is
-        # asked of the pointer itself, as every reader of a lot pointer in
-        # the importer does (`_lot_is_still_on_its_account`).
-        if not _lot_is_still_on_its_account(split, lot):
-            continue
+        # Asked of the pointer directly. A split held a lot its account had
+        # let go of only while settlements were attached with
+        # `xaccSplitSetLot`, and nothing calls that any more (CLAUDE.md
+        # findings 9 and 26).
         # `qof_instance`, because `GetLot()` hands back a raw pointer on
         # some builds and a wrapped `GNCLot` on others (CLAUDE.md §17).
         if gc.gncInvoiceGetInvoiceFromLot(qof_instance(lot)):
@@ -480,16 +474,9 @@ def payment_block_lines(transaction, in_lot_split, bank_account: str,
     block that would make a bank payment in any book it was read into.
     """
     if split_was_applied_from_credit(in_lot_split):
-        # A credit settlement is never grouped, so it is never handed
-        # companions. Said rather than ignored: accepted and dropped, a
-        # companion is a settlement missing from the ledger with nothing
-        # saying so, which is exactly how the grouped-credit defect read.
-        if also_settling:
-            raise ValueError(
-                'a credit settlement is written one split to a block, so it '
-                f'takes no companions; {len(also_settling)} were passed. '
-                'Group credit splits by their own guid — see '
-                'settlements_by_transaction.')
+        # Written one split to a block: `settlements_by_transaction` keys a
+        # credit settlement by its own split, so no caller has companions to
+        # hand one.
         return [
             '\tpayment:',
             f'\t\tamount: {payment_amount_text(in_lot_split, where)}',
@@ -635,8 +622,6 @@ def settlements_by_transaction(lot):
     for raw_split in lot.get_split_list():
         split = Split(instance=raw_split)
         txn = split.GetParent()
-        if txn is None:
-            continue
         # The posting transaction is not a payment of itself.
         if gc.gncInvoiceGetInvoiceFromTxn(txn.instance) is not None:
             continue
@@ -697,13 +682,7 @@ def payment_amount_text(split, where: str, also_settling=()) -> str:
                  for each in (split, *also_settling)), Fraction(0))
     refuse_a_figure_the_currency_cannot_hold(
         total, account, 'the payment amount', where)
-    commodity = account.GetCommodity() if account is not None else None
-    scu = account.GetCommoditySCU() if account is not None else None
-    if not scu:
-        # One fallback for both, so a grouped payment and a single one are
-        # written the same way on an account with no unit of its own.
-        # The `Fraction` goes straight in: `format_amount_for_commodity` takes
-        # one, and wrapping it in a `GncNumeric` first only round-tripped it
-        # through int64 for the same answer.
-        return format_amount_for_commodity(total, commodity)
-    return money_text(total, scu)
+    # The account's own unit, which is never 0: that is the answer only for an
+    # account with no commodity, and the import refuses one, as GnuCash's own
+    # account dialog does.
+    return money_text(total, account.GetCommoditySCU())

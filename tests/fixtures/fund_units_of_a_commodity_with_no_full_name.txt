@@ -1,0 +1,30 @@
+# Fund units bought for 100.00 CAD, of a commodity whose full name is empty.
+#
+# What this fixture produces: one CAD transaction, the bank -100.00 against
+# 10.000 units of FUND:NONAME, whose commodity has an empty full name.
+#
+# Verified by tests/integration/test_beancount_export_of_a_commodity_with_no_full_name.py.
+2026-01-01 commodity NONAME
+	mnemonic: "NONAME"
+	fullname: ""
+	namespace: "FUND"
+	fraction: 1000
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Fund
+	type: Mutual Fund
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "NONAME"
+2026-03-01 * "Fund units of a commodity with no full name"
+	currency.mnemonic: "CAD"
+	Assets:Bank -100.00 CAD
+	Assets:Fund 10.000 NONAME
+		account.commodity.mnemonic: "NONAME"
+		share_price: "10"
+		value: "100.00"

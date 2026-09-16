@@ -28,6 +28,9 @@ from gnucash.gnucash_core_c import (  # noqa: E402
     qof_book_session_not_saved,
 )
 
+# The suite's `_patch_session_save`: every save deletes the backup a save in
+# the same second would collide with.
+import tests.conftest  # noqa: E402,F401
 from infrastructure.gnucash.engine import load_gnc_engine  # noqa: E402
 
 
@@ -193,7 +196,6 @@ s.destroy()
 
 # --- an existing book: does a price alone reach disk? ---------------------
 print('existing book, a price and nothing else:')
-time.sleep(1)
 s = session(url, 'SESSION_NORMAL_OPEN')
 add_price(s.book, 'USD', datetime(2026, 2, 1, 12, 0, 0), 'user:price-editor', 13642, 10000)
 print('  not-saved flag after add:', qof_book_session_not_saved(s.book.instance))
@@ -207,7 +209,6 @@ s.end()
 s.destroy()
 
 print('existing book, a price and qof_book_mark_session_dirty:')
-time.sleep(1)
 s = session(url, 'SESSION_NORMAL_OPEN')
 add_price(s.book, 'CNY', datetime(2026, 2, 1, 12, 0, 0), 'user:price-editor', 19, 100)
 qof_book_mark_session_dirty(s.book.instance)

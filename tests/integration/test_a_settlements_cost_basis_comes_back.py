@@ -33,7 +33,12 @@ from infrastructure.gnucash.utils import (
     numeric_to_fraction,
 )
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
-from services.foreign_currency import cost_basis_guid_of, iter_splits
+from services.foreign_currency import (
+    COST_BASIS_BALANCE_KEY,
+    cost_basis_guid_of,
+    find_split_by_guid,
+    iter_splits,
+)
 
 FIXTURES = Path('tests/fixtures')
 RATES = str(FIXTURES / 'fx_rates_usd_dated.yaml')
@@ -328,6 +333,46 @@ def test_the_balance_comes_back_to_what_the_basis_brought_in(command, book, reco
         cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
     assert 'every cost agrees' in checked.output, checked.output
+
+
+def _write_the_drawn_basis_balance_as(book, text):
+    """Put `text` in the `cost_basis_balance` of the cost basis the settlement
+    draws on, as a book arriving from elsewhere can hold it."""
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.NORMAL)
+    try:
+        drawn = {cost_basis_guid_of(split) for split in iter_splits(repo.book)}
+        drawn.discard('')
+        drawn.discard(None)
+        assert len(drawn) == 1, drawn
+        basis = find_split_by_guid(repo.book, drawn.pop())
+        metadata = dict(get_custom_metadata(basis))
+        metadata[COST_BASIS_BALANCE_KEY] = text
+        parent = basis.GetParent()
+        parent.BeginEdit()
+        set_custom_metadata(basis, metadata)
+        parent.CommitEdit()
+        repo.save()
+    finally:
+        repo.close()
+
+
+def test_a_basis_whose_balance_will_not_parse_keeps_the_key_saying_which_it_drew_on(
+        command, book, record):
+    """Nothing can be given back to a balance nobody can read.
+
+    The balance stays as it was, for `--verify-costs` to report, and the
+    settlement keeps `cost_basis_split_guid`: dropped, nothing would say which
+    cost basis the settlement drew from, or how much it took.
+    """
+    _write_the_drawn_basis_balance_as(book, '0,00')
+
+    off = _take_it_off(command, book, record)
+
+    assert off.exit_code == 0, off.output
+    assert 'cost_basis_split_guid' in _exported(book, book.parent)
+    assert "'0,00'" in CliRunner().invoke(
+        cli, ['fx-balances', str(book), '--verify-costs']).output
 
 
 def test_a_second_run_finds_no_payment_to_take_off(command, book, record):

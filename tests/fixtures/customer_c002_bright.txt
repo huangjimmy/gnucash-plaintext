@@ -1,0 +1,11 @@
+# Customer C002, Bright, invoiced in CAD, and nothing else.
+#
+# A second customer, read into a book whose credit is C001's, so a file can
+# give that credit to someone else.
+#
+# What this fixture produces: customer C002.
+#
+# Verified by tests/integration/test_a_lot_with_no_owner_is_given_one_or_listed.py.
+customer "C002"
+	name: "Bright"
+	currency: CAD

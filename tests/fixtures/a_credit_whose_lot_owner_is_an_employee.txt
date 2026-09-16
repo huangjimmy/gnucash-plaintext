@@ -1,0 +1,14 @@
+# A receivable credit whose `lot_owner:` gives an employee.
+#
+# `lot_owner:` puts a split in a lot of a customer's or a vendor's, the two
+# owners the format writes. An employee is neither, so nothing can put the
+# split in a lot of theirs.
+#
+# What this fixture produces: nothing. The import refuses the transaction.
+#
+# Verified by tests/integration/test_a_lot_owner_that_is_no_customer_or_vendor_is_refused.py.
+2026-01-05 * "Prepayment owned by an employee"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
+		lot_owner: "employee:E001"

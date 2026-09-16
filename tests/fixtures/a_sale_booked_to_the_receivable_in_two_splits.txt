@@ -1,0 +1,19 @@
+# 100.00 CAD of sales booked to the receivable in two splits, 60.00 and 40.00.
+#
+# An invoice's posting puts its total on the receivable as one split, which is
+# the split its lot holds. This transaction has two there, so it cannot be
+# taken as any invoice's posting.
+#
+# What this fixture produces: one CAD transaction, two receivable splits
+# against one income split, neither receivable split in a lot.
+#
+# Verified by tests/integration/test_a_posting_the_book_holds_is_refused_where_it_cannot_be_the_records.py.
+2026-01-01 * "Sales, booked by hand"
+	guid: "8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable 60.00 CAD
+		account.commodity.mnemonic: "CAD"
+	Assets:Accounts Receivable 40.00 CAD
+		account.commodity.mnemonic: "CAD"
+	Income:Sales -100.00 CAD
+		account.commodity.mnemonic: "CAD"

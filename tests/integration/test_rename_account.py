@@ -60,6 +60,20 @@ def _rename(runner, gf, guid, to):
     return runner.invoke(cli, ['rename-account', str(gf), '--guid', guid, '--to', to])
 
 
+def test_root_account_as_the_parent_moves_it_to_the_top(tmp_path):
+    """`Root Account` is GnuCash's own name for the top of the tree."""
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    guid = _accounts(gf)['Assets:Bank:Checking']
+
+    r = _rename(runner, gf, guid, 'Root Account:Checking')
+    assert r.exit_code == 0, r.output
+
+    after = _accounts(gf)
+    assert after['Checking'] == guid
+    assert 'Assets:Bank:Checking' not in after
+
+
 def test_leaf_rename_same_parent(tmp_path):
     runner = CliRunner()
     gf = _new_book(runner, tmp_path)

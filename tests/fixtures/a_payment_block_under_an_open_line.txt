@@ -1,0 +1,17 @@
+# A `payment:` block written under an `open` line.
+#
+# What this fixture produces: nothing. Under an `open` line only the account's
+# keys and its `open_prepayment:` blocks are read, so the file is refused at
+# line 16 before anything in it is carried out.
+#
+# Verified by tests/integration/test_only_keys_and_open_prepayment_blocks_are_read_under_an_open_line.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	payment:
+		amount: 5.00 CAD

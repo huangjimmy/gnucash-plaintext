@@ -537,6 +537,17 @@ def test_a_rate_quoted_for_the_day_itself_says_nothing(tmp_path):
     assert 'carried forward' not in unlink.output, unlink.output
 
 
+def test_a_rate_quoted_for_no_day_at_all_says_nothing(tmp_path):
+    """`USD: 1.35` is one rate for every day, so no day is carried forward."""
+    runner = CliRunner()
+    book = _linked_to_the_wrong_invoice(runner, tmp_path)
+
+    unlink = _run(runner, 'unapply-payment', str(book), 'INV-USD-001',
+                  '--to', DUE_FROM, '--fx-rates', 'tests/fixtures/usd_cad_rates.yaml')
+    assert unlink.exit_code == 0, unlink.output
+    assert 'carried forward' not in unlink.output, unlink.output
+
+
 def test_a_dated_cad_line_in_the_rates_file_says_nothing_either(tmp_path):
     """A rate for the book's own currency is 1, and no quote is consulted.
 

@@ -1,0 +1,67 @@
+# Acme is a customer and a vendor. INV-NET and BILL-NET are 100.00 CAD each,
+# and a journal entry typed as a payment moves 100.00 from what Acme owes
+# (`Assets:Accounts Receivable`) to what is owed to Acme
+# (`Liabilities:Accounts Payable`). No split of the entry is off a receivable
+# or a payable.
+#
+# The test puts the entry's receivable split in INV-NET's lot and its payable
+# split in BILL-NET's, as GnuCash's View > Lots does, so the entry settles
+# both.
+#
+# Load after `payment_roundtrip_accounts.txt`.
+#
+# Verified by
+# tests/integration/test_unposting_an_invoice_netted_against_a_bill_reports_no_bank_payment.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+vendor "V001"
+	name: "Acme"
+	currency: CAD
+
+2026-02-01 * "Net what Acme owes against what is owed to Acme"
+	guid: "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1"
+	txn_type: P
+	Liabilities:Accounts Payable 100.00 CAD
+		guid: "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+	Assets:Accounts Receivable -100.00 CAD
+		guid: "b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3"
+
+invoice "INV-NET"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-10
+	entry:
+		date: 2026-01-10
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-10
+		due: 2026-02-10
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-NET"
+		accumulate: true
+
+bill "BILL-NET"
+	vendor_id: "V001"
+	currency: CAD
+	date_opened: 2026-01-12
+	entry:
+		date: 2026-01-12
+		description: "Supplies"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+	posted:
+		date: 2026-01-12
+		due: 2026-02-12
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-NET"
+		accumulate: true

@@ -1,0 +1,28 @@
+# A book whose top-level accounts are held in two currencies, CAD and USD, and
+# that gives no `base_currency:`.
+#
+# Nothing says which currency the book is kept in, so a report on it is
+# refused rather than taken to be in CAD (Q-042).
+#
+# What this fixture produces: Assets in CAD and Liabilities in USD, and no
+# `company` block.
+#
+# Verified by tests/integration/test_the_currency_a_book_is_kept_in.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"

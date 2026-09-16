@@ -12,8 +12,8 @@
 # - RTLD behavior: not yet characterized; load_gnc_engine() RTLD_GLOBAL
 #   promotion applied defensively (safe on all distros)
 # - .so path: /usr/lib64/libgnc-engine.so  (no gnucash/ subdirectory)
-# - dejavu-fonts required: minimal openSUSE container has NO system fonts;
-#   weasyprint's pango/HarfBuzz stack segfaults with zero fonts installed
+# - dejavu-fonts: the minimal openSUSE container has NO system fonts, and a
+#   printed PDF's text is set in an installed font
 # - python3 required for the standard library, not for the interpreter: the
 #   base image carries `python3XX-base`, which omits `sqlite3`. Nothing in the
 #   suite imports it, so a plain run passes — but `coverage` keeps its data in
@@ -49,8 +49,8 @@ RUN zypper install -y \
 
 WORKDIR /workspace
 
-RUN python3 -m pip install pytest pytest-cov weasyprint --break-system-packages 2>/dev/null || \
+RUN python3 -m pip install pytest pytest-cov --break-system-packages 2>/dev/null || \
     (python3 -m pip install --upgrade pip && \
-     python3 -m pip install pytest pytest-cov weasyprint --break-system-packages)
+     python3 -m pip install pytest pytest-cov --break-system-packages)
 
 CMD ["bash"]

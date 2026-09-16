@@ -1,0 +1,6 @@
+# A book's company, with a two-line address and a phone number.
+company
+	name: "Acme Ltd"
+	addr[0]: "1 Main Street"
+	addr[1]: "Springfield ON"
+	phone: "555-0100"

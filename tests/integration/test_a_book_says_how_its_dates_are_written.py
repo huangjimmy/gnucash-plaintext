@@ -354,6 +354,36 @@ class TestABookThatUsedItAsACustomKey:
         assert 'date_format' not in held, held
 
 
+class TestClearingIt:
+    """`date_format: ""` takes the book's format away, as every other key does.
+
+    On GnuCash 3.4 this is the one write that reaches the slot itself: the
+    engine call does nothing with a name holding a slash, and the format's name
+    is `Fancy Date Format/custom` (CLAUDE.md finding 21).
+    """
+
+    def test_the_option_is_gone_and_the_export_no_longer_states_it(self, book, tmp_path):
+        cleared = tmp_path / 'cleared.txt'
+        cleared.write_text('company\n  date_format: ""\n', encoding='utf-8')
+        result = CliRunner().invoke(cli, [
+            'import', str(book), str(cleared), '--include-business-objects'])
+        assert result.exit_code == 0, result.output
+
+        repo = GnuCashRepository(str(book))
+        repo.open(SessionMode.READ_ONLY)
+        try:
+            held = get_book_string_option(repo.book, 'Business', 'Fancy Date Format/custom')
+        finally:
+            repo.close()
+        assert not held, held
+
+        out = tmp_path / 'exported.txt'
+        exported = CliRunner().invoke(cli, [
+            'export', str(book), '--output', str(out), '--include-business-objects'])
+        assert exported.exit_code == 0, exported.output
+        assert 'date_format' not in out.read_text(encoding='utf-8')
+
+
 class TestABookWhoseOnlyCopyIsTheOldOne:
     """The legacy state itself: in the custom slot, and nowhere else.
 

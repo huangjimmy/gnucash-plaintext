@@ -1,0 +1,24 @@
+# A tax table at 9.975%, a rate with three decimals.
+#
+# What this fixture produces: one tax table with one entry. The export writes
+# its rate as the book stores it, `9.975%`, with nothing added to it.
+#
+# Verified by tests/integration/test_a_tax_rate_is_written_as_the_book_stores_it.py.
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax:QST
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+taxtable "QST"
+	entry:
+		account: "Liabilities:Tax:QST"
+		rate: 9.975%
+		type: PERCENT

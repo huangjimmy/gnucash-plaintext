@@ -237,6 +237,17 @@ def test_naming_a_split_that_is_no_cost_basis_is_refused(tmp_path):
     message = result.output + str(result.exception)
     assert 'matches no split' in message, message
 
+    # The CAD side of the purchase: a split, and in the book, but it holds no
+    # US dollars to sell.
+    cad = _split_guid(_export_text(runner, book, tmp_path / 'cad.txt'),
+                      'Assets:Bank -135.00 CAD')
+    of_cad = _write_sale(tmp_path, 'tests/fixtures/fx_sell_usd_partial.txt',
+                         basis_a=cad)
+    result = _import(runner, book, of_cad)
+    message = result.output + str(result.exception)
+    assert f'{cad!r} is a CAD split but this split sells USD' in message, message
+    assert 'Total USD cost basis balance: 200.00' in _balances(runner, book)
+
 
 def test_available_balance_survives_export_and_re_import(tmp_path):
     """The balance is book state, so it round-trips — and re-importing the same
@@ -1505,6 +1516,59 @@ def test_a_foreign_credit_is_listed_in_its_own_currency(tmp_path):
                                    '--include-business-objects', '--fx-rates', RATES])
     assert overpaid.exit_code == 0, overpaid.output
 
+    listed = runner.invoke(cli, ['find-prepayments', str(book)])
+    assert listed.exit_code == 0, listed.output
+    assert 'USD 100.00' in listed.output, listed.output
+    assert 'CAD 100.00' not in listed.output, listed.output
+
+
+def test_a_bill_overpaid_out_of_a_cad_bank_divides_the_payable_split(tmp_path):
+    """The payable mirror: the split divided is +200.00 USD worth 274.00 CAD.
+
+    Dividing it takes the sign from the split, for the amount and for the
+    value alike, and on this side both are positive. The bill takes 100.00 USD
+    and the vendor's claim is the other 100.00 USD, listed in dollars.
+    """
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    _import_new(runner, book,
+                'tests/fixtures/fx_usd_bill_settled_exactly_by_retarget_setup.txt',
+                '--fx-rates', RATES)
+
+    bank = tmp_path / 'bank.txt'
+    bank.write_text(
+        Path('tests/fixtures/fx_cad_bank_overpaying_a_usd_payable.txt').read_text())
+    assert runner.invoke(cli, ['import', str(book), str(bank),
+                               '--fx-rates', RATES]).exit_code == 0
+
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.READ_ONLY)
+    try:
+        from gnucash import Query, Transaction
+        query = Query()
+        query.search_for('Trans')
+        query.set_book(repo.book)
+        txn_guid = None
+        for raw in query.run():
+            transaction = Transaction(instance=raw)
+            if transaction.GetDescription().startswith('US Vendor'):
+                txn_guid = transaction.GetGUID().to_string()
+        query.destroy()
+    finally:
+        repo.close()
+    assert txn_guid is not None
+
+    attach = tmp_path / 'attach.txt'
+    attach.write_text(
+        Path('tests/fixtures/fx_usd_bill_overpaid_from_the_cad_bank.txt')
+        .read_text().replace('TXN_GUID', txn_guid))
+    overpaid = runner.invoke(cli, ['import', str(book), str(attach),
+                                   '--include-business-objects', '--fx-rates', RATES])
+    assert overpaid.exit_code == 0, overpaid.output
+
+    exported = _export_text(runner, book, tmp_path / 'out.txt')
+    assert exported.count('\tLiabilities:Accounts Payable USD 100.00 USD\n') == 2, exported
     listed = runner.invoke(cli, ['find-prepayments', str(book)])
     assert listed.exit_code == 0, listed.output
     assert 'USD 100.00' in listed.output, listed.output

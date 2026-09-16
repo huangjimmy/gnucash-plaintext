@@ -5,6 +5,10 @@ as-of date for the balance sheet, optional rate and price files, and an
 optional output file. Only the fiscal-year form over stdout was covered
 (T-009), so every refusal and every alternative was untested — including the
 one that decides which dates a whole statement is computed over.
+
+Book (tests/fixtures/closing_book.txt): Sales 1,000.00 in June 2026 and Office
+300.00 in July, so Assets 1,000.00 at the end of June and 700.00 at the end of
+the year, in GnuCash's own figures.
 """
 
 from pathlib import Path
@@ -12,6 +16,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.integration.text_report_pages import figures
 
 BOOK = str(Path('tests/fixtures/closing_book.txt'))
 
@@ -31,7 +36,7 @@ class TestChoosingThePeriod:
             '--start', '2026-01-01', '--end', '2026-12-31'])
 
         assert result.exit_code == 0, result.output
-        assert 'INCOME STATEMENT' in result.output
+        assert figures(result.output, 'Net income for Period') == ['C$700.00']
 
     def test_a_fiscal_year_end_cannot_be_combined_with_a_range(self, tmp_path):
         """Two answers to one question, and the command says so."""
@@ -43,7 +48,7 @@ class TestChoosingThePeriod:
         assert result.exit_code != 0
         assert 'cannot be combined' in result.output
 
-    def test_no_period_at_all_is_refused_with_both_spellings_named(self, tmp_path):
+    def test_no_period_at_all_is_refused_with_both_spellings_given(self, tmp_path):
         gf = _book(tmp_path)
         result = CliRunner().invoke(cli, ['report', str(gf), 'income-statement'])
 
@@ -59,6 +64,22 @@ class TestChoosingThePeriod:
 
         assert result.exit_code != 0
         assert 'Provide a period' in result.output
+
+    def test_a_range_that_runs_backwards_is_refused(self, tmp_path):
+        """A period that ends before it starts is a typo, not a period.
+
+        GnuCash draws a statement over an inverted range without complaint —
+        every figure comes out zero — so nothing downstream reports it. The
+        sibling command refuses it and this one has to as well: these are the
+        figures a return is prepared from.
+        """
+        gf = _book(tmp_path)
+        result = CliRunner().invoke(cli, [
+            'report', str(gf), 'income-statement',
+            '--start', '2026-12-31', '--end', '2026-01-01'])
+
+        assert result.exit_code != 0, result.output
+        assert 'on or before' in result.output, result.output
 
     def test_a_date_that_is_not_a_date_says_the_format(self, tmp_path):
         gf = _book(tmp_path)
@@ -80,7 +101,7 @@ class TestTheBalanceSheetDate:
             '--fiscal-year-end', '2026-12-31', '--as-of', '2026-06-30'])
 
         assert result.exit_code == 0, result.output
-        assert 'BALANCE SHEET' in result.output
+        assert figures(result.output, 'Total Assets') == ['C$1,000.00']
 
 
 class TestWritingToAFile:
@@ -93,40 +114,27 @@ class TestWritingToAFile:
 
         assert result.exit_code == 0, result.output
         assert f'Written to {out}' in result.output
-        text = out.read_text()
-        assert 'INCOME STATEMENT' in text
-        assert 'BALANCE SHEET' in text
+        text = out.read_text(encoding='utf-8')
+        assert figures(text, 'Net income for Period') == ['C$700.00']
+        assert figures(text, 'Total Assets') == ['C$700.00']
         # Written, not echoed as well.
-        assert 'INCOME STATEMENT' not in result.output
+        assert 'Net income for Period' not in result.output
 
 
-class TestWhenAStatementCannotBeComputed:
-    def test_a_rates_file_that_misses_a_currency_is_reported(self, tmp_path):
-        """Rates were asked for and one is missing: the statement is refused.
-
-        Consolidating into the book's currency needs a rate for every other
-        currency in it, and the income statement checks that before computing
-        anything. The command has to turn that refusal into a message rather
-        than a traceback. Reached the ordinary way — a rates file that covers
-        some of the book, which is what an out-of-date one is.
-        """
-        gf = tmp_path / 'fx.gnucash'
-        created = CliRunner().invoke(cli, [
-            'import', '--new', str(gf),
-            'tests/fixtures/income_in_two_currencies.txt'])
-        assert created.exit_code == 0, created.output
-
-        incomplete = tmp_path / 'incomplete.yaml'
-        incomplete.write_text('JPY: 0.0091\n')
+class TestWhenARatesFileCannotPriceTheReport:
+    def test_a_rate_into_another_currency_is_reported_rather_than_traced(self, tmp_path):
+        """A rate is a price in the report's currency, CAD here, and this one is in EUR."""
+        gf = _book(tmp_path)
+        rates = tmp_path / 'rates.yaml'
+        rates.write_text('USD/EUR: 0.9\n', encoding='utf-8')
 
         result = CliRunner().invoke(cli, [
             'report', str(gf), 'income-statement',
-            '--fiscal-year-end', '2026-12-31', '--fx-rates', str(incomplete)])
+            '--fiscal-year-end', '2026-12-31', '--fx-rates', str(rates)])
 
         assert result.exit_code != 0, result.output
         assert 'Traceback' not in result.output
-        assert 'Missing FX rates for' in result.output
-        assert 'USD' in result.output
+        assert 'USD/EUR' in result.output and 'CAD' in result.output, result.output
 
 
 class TestRateFiles:

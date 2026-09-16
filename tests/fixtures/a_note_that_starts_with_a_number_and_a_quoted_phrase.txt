@@ -1,0 +1,21 @@
+# A transaction whose note is a number followed by a quoted phrase.
+#
+# `notes: 3 "late fees"` has the shape of a split: a name, then an amount, then
+# a commodity in quotes. Only the colon after `notes` says it is a key.
+#
+# What this fixture produces: one transaction whose notes read `3 "late fees"`.
+#
+# Verified by tests/integration/test_a_key_whose_value_reads_like_an_amount_is_a_key.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-02-01 * "Late fees"
+	currency.mnemonic: "CAD"
+	notes: 3 "late fees"
+	Expenses 3.00 CAD
+	Assets -3.00 CAD

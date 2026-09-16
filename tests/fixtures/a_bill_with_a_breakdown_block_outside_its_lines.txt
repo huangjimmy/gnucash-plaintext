@@ -1,0 +1,30 @@
+# BILL-001, with a `breakdown:` block written under the bill instead of under its line.
+#
+# The bill side of `an_invoice_with_a_breakdown_block_outside_its_lines.txt`:
+# nothing reads a `breakdown:` block under the bill itself.
+#
+# What this fixture produces: nothing. The bill is refused.
+#
+# Verified by tests/integration/test_a_record_block_is_read_whole.py.
+vendor "V001"
+	name: "Supplier"
+	currency: CAD
+
+bill "BILL-001"
+	vendor_id: "V001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Supplies"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 50
+		taxable: true
+		tax_included: false
+	breakdown:
+		account: "Liabilities:Accounts Payable"
+		rate: 5
+		amount: 2.50
+	posted: none
+	payment: none

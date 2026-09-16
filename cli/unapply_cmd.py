@@ -67,6 +67,10 @@ def unapply_payment(gnucash_file, record_id, to_account_name, txn_guids,
         # Figure then currency, as `unlink` writes it and as the balance line
         # below writes it — one order for one operation.
         click.echo(f'   • {amount} {currency}  (was payment tx {tx_guid})')
+    owner = 'vendor' if is_bill else 'customer'
+    for _tx_guid, amount, currency in result.credited:
+        click.echo(f"   {amount} {currency} stays on {result.to_account} as the "
+                   f"{owner}'s credit")
     state = 'Outstanding' if result.remaining_balance != 0 else 'fully paid'
     # In the record's own currency: the balance is the record's figure, and a
     # USD invoice in a CAD book does not share the book's.

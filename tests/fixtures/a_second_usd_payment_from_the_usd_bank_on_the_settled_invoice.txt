@@ -1,0 +1,38 @@
+# INV-USD from `a_usd_invoice_paid_from_the_usd_bank.txt`, read back with a
+# second payment out of the same USD bank: 50.00 USD, all of it declared as a
+# prepayment. The invoice's lot is closed, so the payment joins none and
+# becomes the customer's credit.
+customer "C-USD"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD"
+	customer_id: "C-USD"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		bank_account: "Assets:Bank:USD"
+		memo: "Paid in dollars"
+	payment:
+		date: 2026-02-26
+		amount: 50
+		bank_account: "Assets:Bank:USD"
+		prepayment: 50
+		memo: "Paid again in dollars"

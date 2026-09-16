@@ -1,0 +1,21 @@
+# A transaction whose guid is given and whose second split takes `$residual$`.
+#
+# What this fixture produces: Assets and Expenses in CAD, and one transaction of
+# 50.00 CAD with the guid 0123456789abcdef0123456789abcdef, whose split on
+# Assets takes the residual, -50.00 CAD. Imported a second time it is the same
+# transaction.
+#
+# Verified by tests/integration/test_a_residual_line_imported_again_is_not_an_edit.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-02-01 * "Office chair"
+	guid: "0123456789abcdef0123456789abcdef"
+	currency.mnemonic: "CAD"
+	Expenses 50.00 CAD
+	Assets $residual$ CAD

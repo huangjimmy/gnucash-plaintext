@@ -107,7 +107,10 @@ def take_the_payment_off(gnucash_file: str, record_id: str,
     repo.open(mode=SessionMode.NORMAL)
     try:
         to_account = find_account(repo.book.get_root_account(), to_account_name)
-        if to_account is None:
+        # Not the root, which `find_account` answers for "" and for "Root
+        # Account": it holds the tree and no commodity, so a split given it
+        # failed deep in the figures with a traceback.
+        if to_account is None or to_account.is_root():
             raise click.ClickException(
                 f'--to account {to_account_name!r} not found in the book')
         result = execute_unapply(repo.book, record_id, to_account,

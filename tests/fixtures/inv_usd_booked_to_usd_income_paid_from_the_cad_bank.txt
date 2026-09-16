@@ -1,0 +1,66 @@
+# INV-USD-INC for 100.00 USD, its line booked to `Income:Sales USD`, paid from
+# the CAD bank: `amount: 100` with `settled_amount: 137.00`.
+#
+# The posting is USD against USD, so nothing in it says what the USD cost in
+# CAD. There is no cost to measure the settlement against, and nothing is
+# realized.
+#
+# What this fixture produces: the invoice paid, the bank holding 137.00 CAD,
+# no realized difference written, and no cost basis.
+#
+# Verified by
+# tests/integration/test_a_usd_invoice_booked_to_usd_income_is_paid_from_a_cad_bank_realizing_nothing.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales USD
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-INC"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales USD"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-INC"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank"
+		settled_amount: 137.00
+		memo: "Payment for INV-USD-INC"

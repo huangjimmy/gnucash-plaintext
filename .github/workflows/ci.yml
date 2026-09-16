@@ -53,7 +53,60 @@ jobs:
         # writes whatever the mode says, so the one test that takes write
         # permission off a directory could not fail here — the gate reported
         # green on every version and CI red on every version.
-        run: ./scripts/test.sh ${{ matrix.tag }}
+        #
+        # With coverage on, so these eleven runs are also what the union job
+        # below adds up. `scripts/test.sh` writes
+        # `.coverage-data/.coverage.<tag>`, a name per build, which is what lets
+        # eleven separate jobs be combined afterwards without writing over each
+        # other. Nothing is gated on it here beyond the build's own figure: the
+        # union is the figure that means anything.
+        run: GNC_COVERAGE=1 ./scripts/test.sh ${{ matrix.tag }}
+
+      - name: Check this build's own coverage
+        # A single build is not the union and cannot be. The paths a particular
+        # GnuCash takes run on the builds carrying that version and nowhere
+        # else, so every build's own report counts another build's code as
+        # missed. Measured on 2026-09-16, one build alone reaches 99.04% (arch,
+        # ubuntu26) to 99.44% (latest, ubuntu24, fedora41, opensuse) of the tree
+        # the eleven together cover whole.
+        #
+        # Those were all read in one image. This step reports in the build's
+        # own, where the denominator is whichever Python parses the tree:
+        # arch's data is 14,521 statements in the arch image and 14,603 in the
+        # image the union job reports from, both at 99%. So a figure here and
+        # the table in docs/issues/T-009 differ in the last place, which is one
+        # more reason for the bar to sit clear of them rather than against them.
+        #
+        # So this bar sits a point below the lowest of those. A new path that
+        # only one version runs lowers the other ten legitimately, and failing
+        # them for it would be this check punishing the union it exists to
+        # protect — while a real regression, a test file that stopped being
+        # collected or a command whose body no longer runs, lands far below 98
+        # rather than a fraction under 99. The gate that admits nothing is the
+        # union job, and it is the one to read when this passes and that fails.
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp/home \
+            -e COVERAGE_FILE=/cov/.coverage.${{ matrix.tag }} \
+            -v ${{ github.workspace }}/.coverage-data:/cov \
+            -v ${{ github.workspace }}:/workspace \
+            gnucash-dev:${{ matrix.tag }} \
+            sh -c "mkdir -p /tmp/home/.local && cd /workspace && \
+              python3 -m pip install -e '.[dev]' -q --break-system-packages --user && \
+              PATH=/tmp/home/.local/bin:\$PATH coverage report --fail-under=98"
+        # Note: --break-system-packages is safe in Docker (isolated environment)
+
+      - name: Keep this build's coverage for the union
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.tag }}
+          path: .coverage-data/.coverage.${{ matrix.tag }}
+          # The file's name begins with a dot, and v4 leaves hidden files out
+          # unless told otherwise — without this the artifact uploads empty and
+          # the union job has nothing to combine.
+          include-hidden-files: true
+          retention-days: 7
 
       - name: Run deployment test
         run: ./scripts/test-deployment.sh ${{ matrix.tag }}
@@ -69,8 +122,9 @@ jobs:
               ruff check ."
         # Note: --break-system-packages is safe in Docker (isolated environment)
 
-  coverage:
-    name: Code Coverage
+  union-coverage:
+    name: Union coverage, all eleven builds
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -81,47 +135,52 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image
-        run: docker build -t gnucash-dev:latest .
+        # Only the image this job combines and reports in. The suites
+        # themselves have already run, once each, in the eleven matrix jobs
+        # above; nothing is run again here. Before this job existed, a twelfth
+        # run of the whole `latest` suite happened for the sole purpose of
+        # producing a figure one build cannot reach.
+        run: ./scripts/build.sh latest
 
-      - name: Run tests with coverage
-        # As the invoking user, like every other run of this suite. Left as
-        # root this job failed outright, the same way the matrix job above did
-        # and for the same reason: root writes whatever the mode says, so the
-        # read-only-directory test asserted against a command that succeeded.
-        # No figure reached Codecov at all — the step was red and the upload
-        # never ran. Not through `scripts/test.sh` only because this job wants
-        # `coverage.xml` for Codecov, which that script does not produce: it
-        # writes the per-version data the union sweep combines.
+      - name: Collect what every build measured
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+          path: .coverage-data
+
+      - name: Gate the union at 100%
+        # The figure this project gates on. A line no supported version reaches
+        # is a line nothing tests, and a line no version *can* reach is itself
+        # the defect — so the answer is a test or a deletion, never a lower
+        # number. `--report-only` combines the eleven files and reports them;
+        # the script runs no suite of its own here.
         #
-        # `--cov` and not `--cov=.`, so the file set is the `source` in
-        # pyproject.toml — the one the gate measures. Spelled `.` it counted a
-        # different set of files, which is how one number can drift from the
-        # other while both are called coverage.
-        #
-        # `GNC_UNPRIVILEGED_RUN` because `--user` alone is a promise nothing
-        # checks: drop it here again and the read-only-directory test skips
-        # quietly, its lines leave the figure this job sends to Codecov, and
-        # the run stays green. The flag makes that a failure.
-        #
-        # Derived, not asserted, the way `scripts/test.sh` derives it: `--user
-        # "$(id -u):$(id -g)"` is `--user 0:0` when the invoker is root, and a
-        # flag saying otherwise sends its reader hunting a `--user` that was
-        # never dropped. GitHub's runner is not root today, which is exactly
-        # the kind of thing that is true until it is not.
+        # `touch` changes the timestamps, not the data. The script warns when
+        # the source is newer than the coverage data, because a figure measured
+        # against a tree that has since changed reads exactly like a current
+        # one — and in this job that warning is true by construction and means
+        # nothing, since the checkout above writes the whole tree after the
+        # matrix jobs wrote their data, from the same commit.
         run: |
-          UNPRIVILEGED=()
-          if [ "$(id -u)" != 0 ]; then
-            UNPRIVILEGED=(-e GNC_UNPRIVILEGED_RUN=1)
-          fi
+          touch .coverage-data/.coverage.*
+          ./scripts/coverage.sh --report-only --threshold 100
+
+      - name: Write the union as XML for Codecov
+        # Codecov is sent the union, which is what the gate above measures. Sent
+        # one build's run instead it reported a figure no part of this project
+        # gates on, and the two drifted with every version-specific path added.
+        run: |
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             -e HOME=/tmp/home \
-            "${UNPRIVILEGED[@]}" \
+            -e COVERAGE_FILE=/cov/.coverage \
+            -v ${{ github.workspace }}/.coverage-data:/cov \
             -v ${{ github.workspace }}:/workspace \
             gnucash-dev:latest \
             sh -c "mkdir -p /tmp/home/.local && cd /workspace && \
               python3 -m pip install -e '.[dev]' -q --break-system-packages --user && \
-              PATH=/tmp/home/.local/bin:\$PATH pytest tests/ --cov --cov-report=xml --cov-report=term"
+              PATH=/tmp/home/.local/bin:\$PATH coverage xml -o /workspace/coverage.xml"
         # Note: --break-system-packages is safe in Docker (isolated environment)
 
       - name: Upload coverage to Codecov

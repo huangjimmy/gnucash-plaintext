@@ -27,8 +27,15 @@ WARNING: The date + amount matching in this demo is for illustration only.
 
 import glob as glob_module
 import os
+import sys
 import tempfile
-import time
+from pathlib import Path
+
+# The repository root, so the demo can load the suite's `_patch_session_save`:
+# every save deletes the backup a save in the same second would collide with.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import tests.conftest  # noqa: E402,F401
 
 # ---------------------------------------------------------------------------
 # Sample data
@@ -433,11 +440,9 @@ def main():
 
         print("Step 2: Apply Payment on invoice (GnuCash GUI equivalent)")
         create_invoice_payment(path)
-        time.sleep(1)  # avoid backup timestamp collision on rapid session reopen
 
         print("Step 3: Import bank OFX entry (import-bank equivalent)")
         create_bank_import(path)
-        time.sleep(1)
 
         print("Step 4: Show the conflict")
         show_conflict(path)

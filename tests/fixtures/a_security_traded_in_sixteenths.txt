@@ -1,0 +1,40 @@
+# A security whose smallest unit is a sixteenth of a share, holding 3/16 of one.
+#
+# What this fixture produces: CAD; OLDCO in the namespace NYSE with a fraction of
+# 16; Assets and Assets:Broker Cash in CAD and Assets:OLDCO in OLDCO; and one
+# transaction buying 0.1875 of a share, which is 3/16, for 7.50 CAD. A sixteenth
+# is not a tenth or a hundredth, so the quantity has no decimal form at the
+# commodity's own unit and is written as the exact decimal it is.
+#
+# Verified by tests/integration/test_a_security_traded_in_sixteenths_keeps_its_quantity.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity OLDCO
+	mnemonic: "OLDCO"
+	fullname: "Old Company"
+	namespace: "NYSE"
+	fraction: 16
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Broker Cash
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:OLDCO
+	type: "Stock"
+	commodity.namespace: "NYSE"
+	commodity.mnemonic: "OLDCO"
+
+2026-02-02 * "Buy 3/16 of a share of OLDCO"
+	currency.mnemonic: "CAD"
+	Assets:OLDCO 0.1875 OLDCO
+		account.commodity.mnemonic: "OLDCO"
+		share_price: "40"
+		value: "7.50"
+	Assets:Broker Cash -7.50 CAD

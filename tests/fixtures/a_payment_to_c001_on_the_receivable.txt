@@ -1,0 +1,16 @@
+# 50.00 CAD paid out of the bank to C001, against the receivable.
+#
+# The receivable split gives `lot_owner: customer:C001`, and `lot_guid:` with
+# the placeholder LOT_GUID. The test puts the guid of a lot in its place, or
+# removes the line so the import looks for C001's credit itself.
+#
+# What this fixture produces: one CAD transaction, Assets:Bank -50.00 against
+# Assets:Accounts Receivable +50.00, the receivable split given to C001.
+#
+# Verified by tests/integration/test_a_lot_with_no_owner_is_given_one_or_listed.py.
+2026-03-05 * "Paid back to Acme"
+	currency.mnemonic: "CAD"
+	Assets:Bank -50.00 CAD
+	Assets:Accounts Receivable 50.00 CAD
+		lot_owner: customer:C001
+		lot_guid: "LOT_GUID"

@@ -237,6 +237,24 @@ def _what_the_book_gets_wrong(book):
     return problems
 
 
+def _say_what_was_orphaned(book, orphan_warnings) -> None:
+    """The payments this run's unposts left loose, as the book now holds them.
+
+    Asked of the book rather than remembered from the unpost, because a later
+    step of the same run can put a settlement back, and a run that is refused
+    saves nothing and orphans nothing. Both the real run and the dry run ask
+    it of the book they are looking at — the real one after saving, the dry
+    run of the book in memory, where the unpost and any put-back have both
+    already happened and only the save was skipped.
+    """
+    from services.gnucash_importer import still_orphaned_by_an_unpost
+    for kind, ident, orphans in orphan_warnings:
+        left = [orphan for orphan in orphans
+                if still_orphaned_by_an_unpost(book, orphan.tx_guid)]
+        if left:
+            click.echo(format_orphan_warning_block(kind, left, ident=ident), err=True)
+
+
 def _warn_open_prepayment_mismatches(directives, book):
     """Recompute open prepayment credits from the book and warn (never fail)
     when a declared `open_prepayment:` block disagrees with reality.
@@ -254,9 +272,9 @@ def _warn_open_prepayment_mismatches(directives, book):
         account = d.props.get('account')
         if not account:
             continue
+        # Each is an `open_prepayment:` block: the parser refuses anything else
+        # under an `open` line.
         for child in d.children:
-            if child.type != DirectiveType.OPEN_PREPAYMENT:
-                continue
             md = child.metadata
             kind = ('customer' if md.get('customer')
                     else 'vendor' if md.get('vendor') else None)
@@ -439,6 +457,9 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
     # Whether anything has reached the book yet, which decides whether a
     # failure below may take a `--new` file away with it.
     saved = False
+    # `(kind, id, orphans)` for each unpost the import reports, given once the
+    # book is saved (`still_orphaned_by_an_unpost`).
+    orphan_warnings = []
     # Whether the run reported anything it could not do. Read after the
     # session is closed, so the exit and any cleanup happen in that order.
     failed = False
@@ -558,10 +579,8 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                         on_directive_status=lambda kind, ident, status: click.echo(
                             f'{kind} "{ident}": {status}'
                         ),
-                        on_orphan_warning=lambda kind, ident, orphans: click.echo(
-                            format_orphan_warning_block(kind, orphans, ident=ident),
-                            err=True,
-                        ),
+                        on_orphan_warning=lambda kind, ident, orphans:
+                            orphan_warnings.append((kind, ident, orphans)),
                         fx_rates=fx_rates,
                     )
                 except Exception as exc:
@@ -689,12 +708,6 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     ]
                     click.echo(f"  {(label + ':'):<12} {', '.join(parts)}")
 
-            if result.conflicts:
-                click.echo("")
-                click.echo("Conflicts detected:")
-                for conflict in result.conflicts:
-                    click.echo(f"  - {conflict.existing_description} vs {conflict.incoming_description}")
-
             if result.errors:
                 click.echo("")
                 click.echo("Errors:")
@@ -784,12 +797,31 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     has_changes = False
                     rolled_back = True
 
+            # A dry run says what the real run would leave orphaned, whatever
+            # else the file did. A file of nine good blocks and one bad one
+            # imports the nine, and the records those nine rebuild are
+            # unposted in memory here exactly as the real run would unpost
+            # them — so a partial dry run has orphans to report, and it is the
+            # commonest shape rather than an exotic one. Gated on the errors
+            # it said nothing, and the real run that followed printed the
+            # warning the preview had been consulted to find.
+            #
+            # `rolled_back` is the one exception: an `--atomic` run refused by
+            # the finished book applies nothing at all.
+            if dry_run and not rolled_back:
+                _say_what_was_orphaned(repo.book, orphan_warnings)
+
             if not dry_run and has_changes:
                 click.echo("")
                 click.echo("Saving changes...")
                 repo.save()
                 saved = True
                 click.echo("✓ Changes saved")
+
+                # What the unposts left, as the saved book holds it. A payment
+                # the run put back is no orphan, and a run that saves nothing
+                # orphans nothing, so the warnings wait for this.
+                _say_what_was_orphaned(repo.book, orphan_warnings)
 
                 # Write newly created transactions (transaction blocks only, with GUIDs)
                 if output_new and result.new_transactions:

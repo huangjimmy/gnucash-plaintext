@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### The balance sheet and the income statement are printed by customized GnuCash reports, in the currency the book is kept in
+
+**`balance-sheet`, `income-statement` and `report` print their pages through GnuCash's own report engine, and no figure on a page is calculated by gnucash-plaintext.** The plaintext page is drawn by two reports in `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm`, which the package ships: each is written from GnuCash's own `balance-sheet.scm` or `income-statement.scm`, registered with `gnc:define-report` as GnuCash's are, given the same options, making the same calls for every figure, and changed to return its page as plain text rather than HTML. GnuCash runs it, adds up every balance and converts every currency through the book's price database. `--output-format html` gives the page of GnuCash's Balance Sheet or Income Statement report as GnuCash ships it, and `pdf` prints that page through WebKit, the way a printed invoice is.
+
+**The page is in the currency the book is kept in.** GnuCash stores no currency for a book — measured on 3.4, 3.8, 4.4 and 5.10, the root account holds no commodity and a report told nothing comes out in US dollars — so the commands take the first of these that gives one: `--currency`, the `company` block's `base_currency:` key, or the currency of the book's top-level accounts where every top-level account that holds a currency holds the same one. Where none of them does, the command is refused and the refusal says how to state it. A book kept in HKD that also holds USD and CAD prints in HK$, with GnuCash doing the conversion.
+
+**The prices are GnuCash's, and a file may add some for one run.** `Price Source` is GnuCash's own default — `pricedb-nearest` on every build — unless `--price-source` gives one of the choices that build offers, and a choice it does not offer is refused with the ones it does listed. `--fx-rates` and `--prices` add their rates to the book's price database for the run alone: the book is opened read-only and never saved, so nothing is kept, and a price recorded for good still goes in a `price` block. A rate may be a fraction, and a price with no date is added at the end of each day the run's statements cover.
+
+**Why a report runs rather than a conversion call.** `xaccAccountGetBalanceAsOfDateInCurrency` exists on every supported build and does not give what GnuCash shows: for the same USD bank account as of 2026-01-25 it answers C$1,400.00 on 3.4, 3.8 and 4.4, and C$1,300.00 from 4.8, where GnuCash's own Balance Sheet report gives C$2,100.00. A person checking the page against GnuCash's report is checking it against the thing that drew it.
+
+On the book the issue records — a USD, an HKD and a CAD bank account and ten NASDAQ:AMZN shares, kept in CAD — the plaintext page gives USD Bank C$2,100.00, AMZN C$2,940.00 at its market price and total assets C$6,940.00 as of 2026-01-25, with net income C$600.00 for that January: the figures GnuCash's own reports give, on all eleven supported builds. A book with GnuCash's "Use Trading Accounts" option on prints the shares' gain as Trading Gains C$140.00 and no Unrealized Gains line, which is what GnuCash's report prints for such a book.
+
 ### Link an existing expense transaction to a bill payment
 
 **A supplier paid before the bill was posted can now be linked to it.** The only entry available at the time puts the cost on an expense account — a director paying out of pocket, a purchase on the company card, the owner settling it as capital:
@@ -88,11 +100,63 @@ The exception does not ask which of the two is dated first, so a cost basis date
 
 **And that copy states the balances the book held when the command began.** Deleting a sale gives its currency back to the cost basis it drew on, so a deposit written out after the fee had gone stated the whole of what it brought in rather than what was left of it — and re-importing the copy left the book offering currency its bank does not hold, silently, because a balance a file states is taken as already net of the sales below it. Every transaction such a run deletes is written out before any of them goes.
 
+### The credit an overpayment leaves is one cost basis, however the payment is divided
+
+**A credit the file divides is a cost basis, as one the import divides is.** A 200.00 USD wire against a 100.00 USD invoice can be given as one receivable split, which `txn_guid:` with `prepayment:` divides, or already divided, with `txn_split_guid:` giving the settling split. Given divided, the 100.00 USD left over opened no cost basis balance: `fx-balances` listed it as "none recorded" where the wire came from a CAD bank, and did not list it at all where it came into a USD bank in an entry stated in USD. It now opens one the same way the import's division does: at the rate the payment converted at, or, where the entry states no cost, at the rate the invoice was posted at, stored on the split as `cost_basis_cost`.
+
+**The payable side is the same.** What is left over after paying a vendor beyond the bill is this book's money sitting with them, and it is priced the same two ways: at what the payment converted at where it went out of the CAD bank, and at the rate the bill was posted at where it went out of the USD one.
+
+### A corrected payment memo reaches the bank split on a bill posted to a plain liability
+
+**The bank split follows a corrected memo whatever type the record's account is.** A payment's memo is written on the split that settles the record, and the bank split beside it follows where it still reads the same. On a bill posted to a plain `type: Liability` account, only the settlement took the correction, and the bank split kept the old memo. What settles a record is the split in its lot, and that is what is asked now.
+
+### `unpost-invoices` and `unpost-bills` report no payment that went through no bank
+
+**A payment with no split off a receivable or a payable is not listed as orphaned.** GnuCash lets a journal entry net an invoice against a bill, typed as a payment, with each split put in its record's lot. Measured on 3.8 and 4.4, that entry kept its payment type, and unposting the invoice listed it as an orphaned bank-side payment with a blank account and 0.00, with the advice to delete it, while it still settled the bill. On 5.10 GnuCash reads it back as a link and deletes it with the posting, and nothing was listed there either.
+
+### A cost basis balance that will not parse survives GnuCash dividing a credit
+
+**`auto_apply_credit: true` carries an unreadable balance across as it reads.** A book another program wrote can hold a credit whose `cost_basis_balance` is not a figure, such as `20,00`. Divided by a `from_credit:` block, the remainder has always kept that text, so `fx-balances --verify-costs` goes on reporting it. Divided by GnuCash through `auto_apply_credit: true`, the remainder was written the whole of what was left, `60.00`, and the text the check reports was gone. It is kept now.
+
 ### `fx-balances` prints two column headings differently
 
 **`BROUGHT IN` stands over the units a cost basis brought in, and `COST BASIS BALANCE` over what is left of them.** The first was `ACQUIRED`, a word used for that column and nowhere else; what the figure is called everywhere it is computed, checked and reported is what a cost basis *brought in*. The totals line under the listing reads `Total USD cost basis balance:`, where it read `Total USD basis balance:` — **not** a substring of the new text, so a script matching that line stops matching rather than matching something wrong. The last column is four characters wider to fit its heading.
 
 **The `--verify-costs` report block changed with it.** Its `available` label — which has said `basis balance` since v0.4.0 — now reads `cost basis balance`, and every label in that block is two characters wider so the values still line up: `split guid`, `tx guid`, `amount`, `value`, `transaction rate`, `computed cost`, `stored cost`, `used` and the factor rows. The samples in README and `docs/multi-currency.md` show what the command prints.
+
+### What the commands cost, measured across the supported GnuCash versions
+
+**[docs/performance.md](docs/performance.md) states what each command costs and how the engine version changes it.** Newer GnuCash reads faster and writes slower: the same 2,000-transaction `import --new` takes 2.8 s on GnuCash 3.4 and 5.2 s on 5.16, while re-importing an unchanged ledger, exporting, `fx-balances --verify-costs` and `find-transactions` are two to three times faster on 5.16 than on 3.4. The Python version is not the cause — a fixed arithmetic loop runs the same on 3.7 and 3.14 — and the private copy this tool makes before reading a book below GnuCash 4.8 is 0.2 ms of a 2.0 ms open. The doc also carries the suite times per build, for contributors choosing which one to run.
+
+### Every line and branch is covered, and three gates hold it there
+
+**The suite covers 100% of the lines and branches in `cli/`, `services/`, `infrastructure/`, `use_cases/` and `repositories/`, counted across all eleven supported GnuCash builds.** That is 14,603 statements and 5,294 branches with none missed, against 94% at v0.4.0 and 89% when the measurement started. The lines were the instrument and not the goal: nearly every remaining gap was a behaviour nothing had asked about, and asking found the defects listed above — the credit an overpayment leaves counted twice when the file divides the payment, a corrected memo that never reached the bank split of a bill posted to a plain liability, a payment through no bank reported as an orphan by `unpost-invoices`, and an unreadable cost basis balance destroyed when GnuCash divided the credit carrying it.
+
+**Only the union of the eleven reaches it.** One build on its own measures between 99.04% and 99.44% of the same tree, because a path a particular GnuCash takes runs on the builds carrying that version and nowhere else: the date setter 3.4 needs, the lot wrapper 5.15 returns, the private copy taken before reading a book below 4.8. Each of those is ordinary code on one build and unreachable on the other ten.
+
+**That figure is the Python.** The report file that draws the plaintext balance sheet and income statement is Scheme, run by GnuCash rather than by this process, so no line counter sees it. What covers it is the statement tests, which assert every figure on both pages against what GnuCash's own reports give — for a book kept in HKD, a CAD book holding US dollars, Hong Kong dollars and shares, a book owing US dollars it borrowed with Canadian ones, a book running a loss, a book using trading accounts, and a book with no accounts at all.
+
+**`./scripts/coverage.sh` gates at 100 now, the pre-commit hook gates the same figure, and CI gates twice** — each of the eleven builds against 98% of its own run, then all eleven combined against 100%. The hook runs the eleven suites it already ran, with coverage on, so the gate costs it nothing extra. CI runs one suite fewer than before: the job that adds the eleven together re-runs nothing, where a twelfth full run of the `latest` suite used to exist only to produce a Codecov figure no gate read. Codecov is sent the union now, and [docs/issues/T-009](docs/issues/T-009-line-and-branch-coverage-is-not-measured-or-gated.md) carries the per-build figures.
+
+### Breaking: ledger shapes that no longer import
+
+**A line the import cannot read is refused rather than passed over.** Each of these imported before — some silently, some by being ignored — and a file holding one now fails with the line it is on, before anything is written. A hand-written ledger is the file to check; an export written by this tool holds none of them.
+
+- **Blocks out of their order inside an `invoice` or a `bill`.** They come as `entry:` blocks, then `posted:`, then `payment:` — the order the export and a printed page write, and the order README gives.
+- **A line that is not a block, not a split and not a `key: value`.** A note typed where a key belongs, or a split whose amount is written in a way the format does not read, went missing from the book with nothing said.
+- **A block indented under a `transaction`**, such as `posted:`. Every line under a transaction was taken for a split, so the run failed with `'account'` — the name of a key the block did not have — and no line number.
+- **Anything but keys and `open_prepayment:` blocks under an `open` line**, and anything but `PaymentSplit` lines under a payment's `Transaction` block. A `payment:` block under an `open` line, or a split line written among a payment's splits, parsed cleanly and did nothing.
+- **A tax table with no name (`taxtable ""`) or with no `entry:` block.** GnuCash's own dialog saves neither. The empty-name one was created, and an export then wrote no `tax_table:` on the lines using it, so re-importing that export changed every one of them.
+- **An account with no name: `open ""`, and `open Assets::Savings`**, which gives an empty name between two colons. The rest of the file is still imported.
+- **The old spellings `split_guid:` and `payment_split_guid:`.** A split gives its guid with `guid:` and a payment gives its settling split with `txn_split_guid:`. Read as unknown keys, the old ones were stored beside a guid GnuCash had minted itself, or ignored so that the payment was recorded against the wrong split.
+- **`lot_owner:` without an owner kind.** It is `customer:ID` or `vendor:ID`; an id with no kind matches no lot.
+- **Two `posted:` blocks on one record, and two `payment:` blocks giving one split.** A record is posted once, and one split is one settlement stated once.
+- **A payment figure nothing can read.** `amount:`, `prepayment:`, `settled_amount:` and `share_price:` are numbers written with a point.
+- **A payment giving its own record's posting as `txn_guid:`**, and one giving a `bank_account:` its transaction never used. The export prints the posting's guid a few lines above the `payment:` block that takes `txn_guid:`, so it is an ordinary thing to write by mistake.
+- **A split on an account GnuCash keeps with no commodity.** A split is written as an amount of its account's commodity, and `export` already refused such a book; `import` took it at exit 0.
+- **A file indented two ways.** The first indented line sets whether the file uses tabs or spaces and how many make a level; a later line indented the other way cannot be placed.
+
+**And a save GnuCash refuses is a failed command.** GnuCash keeps a backup under the second the save happens in, and when that name is already taken the save stops with `ERR_FILEIO_BACKUP_ERROR` and the book is not written — measured on 5.10, a book option set before such a save reads back unset afterwards. That was read as a harmless collision, so every affected command reported itself done while nothing had been saved.
 
 ### Refusal wording
 

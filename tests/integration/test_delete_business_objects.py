@@ -273,6 +273,33 @@ def test_archive_customer_not_found(tmp_path):
     _has_not_found_line(result.output, "DOES-NOT-EXIST")
 
 
+def test_archive_customer_with_no_invoices_says_archived_and_nothing_more(tmp_path):
+    """A customer with no invoices is archived, with no count after it."""
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+    quiet = runner.invoke(cli, ["import", str(gf), "tests/fixtures/a_customer_with_no_invoices.txt",
+                                "--include-business-objects"])
+    assert quiet.exit_code == 0, quiet.output
+
+    result = runner.invoke(cli, ["archive-customers", str(gf), "C-QUIET"])
+
+    assert result.exit_code == 0, result.output
+    assert re.search(r'(?m)^C-QUIET \([0-9a-f]{32}\): archived\s*$', result.output), result.output
+
+
+def test_archive_customer_by_a_guid_the_book_has_not_got(tmp_path):
+    runner = CliRunner()
+    gf = tmp_path / "test.gnucash"
+    import_fixture(runner, gf)
+
+    result = runner.invoke(cli, ["archive-customers", str(gf), "--by-guid",
+                                 "0123456789abcdef0123456789abcdef"])
+
+    assert result.exit_code == 1
+    _has_not_found_line(result.output, "0123456789abcdef0123456789abcdef")
+
+
 def test_archive_customers_batch_mixed(tmp_path):
     """archive-customers batch: active succeeds, already-archived fails, exit 1."""
     runner = CliRunner()

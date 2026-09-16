@@ -1,0 +1,22 @@
+# A draft invoice for customer C-TWICE, in a book already holding two
+# customers with that ID.
+#
+# `customer_id:` is the only thing saying whose invoice it is, and two
+# customers answer to it.
+#
+# What this fixture produces: nothing. The import refuses the invoice.
+#
+# Verified by tests/integration/test_an_id_two_records_have_is_refused.py.
+invoice "INV-TWICE"
+	customer_id: "C-TWICE"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false

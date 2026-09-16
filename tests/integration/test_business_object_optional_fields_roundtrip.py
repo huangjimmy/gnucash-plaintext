@@ -70,6 +70,16 @@ class TestAnInvoicesOwnReferences:
         assert 'notes: "Quoted 2026-02-20, net 30"' in text
 
 
+class TestABillsOwnReferences:
+    def test_the_billing_id_and_notes_are_written(self, tmp_path):
+        """A bill carries both as an invoice does, read by the bill's own import."""
+        text = _exported(tmp_path)
+        bill = text[text.index('bill "BILL-FULL-001"'):]
+
+        assert 'billing_id: "SUP-5531"' in bill, bill
+        assert 'notes: "Delivered 2026-03-02"' in bill, bill
+
+
 class TestAPaymentsChequeNumber:
     def test_it_is_written(self, tmp_path):
         text = _exported(tmp_path)
@@ -98,5 +108,6 @@ class TestItAllComesBack:
                   '--include-business-objects']).exit_code == 0
         second = out.read_text()
         assert 'billing_id: "PO-99871"' in second
+        assert 'billing_id: "SUP-5531"' in second
         assert 'email: "ap@example.test"' in second
         assert 'num: "1042"' in second

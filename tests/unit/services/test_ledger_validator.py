@@ -338,7 +338,7 @@ class TestTransactionsValidation:
             transactions.append(dup_tx)
 
             validator = LedgerValidator()
-            validation_result = validator.validate_transactions(transactions, check_duplicates=True)
+            validation_result = validator.validate_transactions(transactions)
 
             # Should have warning about duplicates
             assert validation_result.has_warnings()
@@ -384,38 +384,6 @@ class TestLedgerValidation:
 
 class TestDateValidation:
     """Test date-related validation"""
-
-    def test_check_transaction_date_order(self, temp_gnucash_with_transactions):
-        """Test checking transaction date order"""
-        from gnucash import Transaction
-
-        from services.ledger_validator import LedgerValidator
-
-        repo = GnuCashRepository(temp_gnucash_with_transactions)
-        repo.open(SessionMode.READ_ONLY)
-
-        try:
-            book = repo.book
-
-            # Get all transactions
-            from gnucash import Query
-            query = Query()
-            query.search_for('Trans')
-            query.set_book(book)
-            result = query.run()
-            transactions = [Transaction(instance=tx) for tx in result]
-
-            # Sort by date
-            transactions.sort(key=lambda tx: tx.GetDate())
-
-            validator = LedgerValidator()
-            validation_result = validator.check_transaction_date_order(transactions)
-
-            # Should have no issues (sorted)
-            assert len(validation_result.get_all_issues()) == 0
-
-        finally:
-            repo.close()
 
     def test_check_future_transactions(self, temp_gnucash_with_transactions):
         """Test checking for future transactions"""
@@ -618,42 +586,6 @@ class _Numeric:
 
     def denom(self):
         return self._denom
-
-
-class TestCheckTransactionDateOrderEdgeCases:
-
-    def test_single_transaction_no_error(self, temp_gnucash_with_transactions):
-        """check_transaction_date_order() with only 1 transaction returns no errors."""
-        from gnucash import Query, Transaction
-
-        from services.ledger_validator import LedgerValidator
-
-        repo = GnuCashRepository(temp_gnucash_with_transactions)
-        repo.open(SessionMode.NORMAL)
-
-        try:
-            book = repo.book
-            q = Query()
-            q.search_for('Trans')
-            q.set_book(book)
-            txs = [Transaction(instance=t) for t in q.run()][:1]  # only first
-
-            validator = LedgerValidator()
-            result = validator.check_transaction_date_order(txs)
-            assert result.errors == []
-            assert result.info == []
-        finally:
-            repo.close()
-
-    def test_empty_list_no_error(self):
-        """check_transaction_date_order() with empty list returns clean result."""
-        from services.ledger_validator import LedgerValidator
-
-        validator = LedgerValidator()
-        result = validator.check_transaction_date_order([])
-        assert result.errors == []
-        assert result.warnings == []
-        assert result.info == []
 
 
 class TestCheckFutureTransactions:

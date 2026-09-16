@@ -1,0 +1,33 @@
+# INV-THIRD for C001: three of a line priced at 100/3 CAD, posted for 100.00.
+#
+# A price no decimal says exactly is written as the fraction it is, and the
+# export writes it back that way, so the line has to read back as itself.
+#
+# What this fixture produces: customer C001 and INV-THIRD posted to
+# Assets:Accounts Receivable for 100.00 CAD.
+#
+# Verified by tests/integration/test_a_line_priced_at_a_fraction_reads_back_as_itself.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-THIRD"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A third of a job, three times"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 3
+		price: 100/3
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-THIRD"
+		accumulate: true
+	payment: none

@@ -27,8 +27,13 @@ built on **guile-2.2**, every other build on guile-3.0 — and guile-3.0
 co-installs beside 2.2 happily, so on that build a newest-first search by name
 is one `apt install guile-3.0` away from initialising the wrong runtime.
 
-So the soname is read off GnuCash's own libraries, which name what they are
+So the soname is read off GnuCash's own libraries, which record what they are
 linked to, and the loader resolves it exactly as it would for GnuCash itself.
+That is the only library tried. A soname that does not load means guile is not
+installed — the state Fedora and openSUSE ship `gnucash` in, and the reason both
+Dockerfiles install `guile` — and the answer then is to say so, not to
+initialise whichever libguile a search by name happens to find.
+
 That is the rule `engine.py` follows when it promotes GnuCash's `.so` by path
 rather than trusting the loader to pick a library called "the engine".
 
@@ -38,14 +43,8 @@ pointer; called without a declaration, ctypes passes a Python `int` as a C
 `engine.py` documents, with the same segfault.
 """
 import ctypes
-import ctypes.util
 import re
 from pathlib import Path
-
-# Last resort, when GnuCash's libraries name none and none is mapped: newest
-# first, and the names differ by distribution — Fedora ships `guile3.0` with
-# no unversioned symlink at all.
-_CANDIDATES = ('guile-3.0', 'guile-2.2', 'guile-2.0', 'guile')
 
 # A libguile already open in this process, from `/proc/self/maps`.
 _MAPPED = re.compile(r'\s(/\S*/libguile[^\s/]*\.so[^\s/]*)$')
@@ -65,71 +64,41 @@ class GuileUnavailableError(RuntimeError):
 
 
 def mapped_libguile():
-    """The libguile this process already has open, or None.
+    """The libguile this process has open, or None.
 
-    Read from `/proc/self/maps`. A fallback, and second in line: it answers
-    None before the first render — importing the GnuCash bindings maps no
-    libguile, measured — and afterwards it names whatever was loaded, which is
-    this module's own choice. So it is the answer only where GnuCash's
-    libraries name none, and otherwise it is how a test can see that the
-    soname resolved to a real file.
+    Read from `/proc/self/maps`. It answers None before the first render —
+    importing the GnuCash bindings maps no libguile, measured — and afterwards
+    gives the file the soname below resolved to, which is how a test sees that
+    the library loaded is the one GnuCash is linked against.
     """
-    try:
-        maps = Path('/proc/self/maps').read_text()
-    except OSError:
-        return None
-    for line in maps.splitlines():
-        found = _MAPPED.search(line)
-        if found:
-            return found.group(1)
-    return None
+    lines = Path('/proc/self/maps').read_text().splitlines()
+    return next((found.group(1) for found in map(_MAPPED.search, lines) if found), None)
 
 
 def gnucash_libguile_soname():
-    """What GnuCash's own libraries say they are linked to, or None.
+    """The libguile soname GnuCash's own libraries record they are linked to.
 
-    Every build has some `libgnc*` that names its libguile — on GnuCash 3.8
+    Every build has some `libgnc*` that records its libguile — on GnuCash 3.8
     it is `libgncmod-app-utils.so` and on 5.x `libgnc-app-utils.so`, among
     others — so the directories the engine is found in are read until one
     does. Returning a soname rather than a path lets the dynamic loader
     resolve it the way it resolves it for GnuCash.
+
+    Raises `StopIteration` where no library records one, which no supported
+    image is.
     """
     from infrastructure.gnucash.engine import ENGINE_LIB_PATHS
 
-    seen = set()
+    directories = []
     for engine in ENGINE_LIB_PATHS:
         for directory in (Path(engine).parent, Path(engine).parent.parent):
-            if directory in seen or not directory.is_dir():
-                continue
-            seen.add(directory)
-            for path in sorted(directory.glob('libgnc*.so*')):
-                try:
-                    found = _NEEDED.search(path.read_bytes())
-                except OSError:
-                    continue
-                if found:
-                    return found.group().decode()
-    return None
-
-
-def _candidates():
-    """Every libguile worth trying, best answer first.
-
-    GnuCash's own soname first, then anything already mapped, then a search by
-    name. Each is a *claim* about which library to use and none of them is a
-    claim that it is installed: the soname is read out of GnuCash's ELF, which
-    names what it was linked against whether or not that library is on the
-    machine — the exact state Fedora and openSUSE ship, and the reason both
-    Dockerfiles install `guile` explicitly. So they are tried in turn, and only
-    a name that actually loads is the answer.
-    """
-    for candidate in (gnucash_libguile_soname(), mapped_libguile()):
-        if candidate:
-            yield candidate
-    for name in _CANDIDATES:
-        found = ctypes.util.find_library(name)
-        if found:
-            yield found
+            if directory not in directories and directory.is_dir():
+                directories.append(directory)
+    return next(found.group().decode()
+                for directory in directories
+                for path in sorted(directory.glob('libgnc*.so*'))
+                for found in [_NEEDED.search(path.read_bytes())]
+                if found)
 
 
 def load_guile():
@@ -142,29 +111,24 @@ def load_guile():
     if _loaded is not None:
         return _loaded
 
-    lib = None
-    tried = []
-    for candidate in _candidates():
-        tried.append(candidate)
-        try:
-            # RTLD_GLOBAL for the reason engine.py promotes GnuCash's engine:
-            # the Scheme modules GnuCash dlopens resolve their `scm_*` against
-            # whatever is globally visible, and a locally-loaded copy leaves
-            # them to find another.
-            lib = ctypes.CDLL(candidate, mode=ctypes.RTLD_GLOBAL)
-            break
-        except OSError:
-            continue
-
-    if lib is None:  # pragma: no cover - every supported image ships guile
+    try:
+        # RTLD_GLOBAL for the reason engine.py promotes GnuCash's engine: the
+        # Scheme modules GnuCash dlopens resolve their `scm_*` against
+        # whatever is globally visible, and a locally-loaded copy leaves them
+        # to find another.
+        lib = ctypes.CDLL(gnucash_libguile_soname(), mode=ctypes.RTLD_GLOBAL)
+    except (OSError, StopIteration) as missing:  # pragma: no cover - every supported image ships guile
         raise GuileUnavailableError(
             'libguile could not be loaded, so GnuCash\'s own invoice report '
-            'cannot be run and a page cannot be rendered. '
-            + (f'GnuCash is linked against {tried[0]} and it is not installed'
-               if tried else 'Nothing on this machine names one')
-            + '. Install guile — `dnf install guile` on Fedora, '
-              '`zypper install guile` on openSUSE; most other distributions '
-              'install it with GnuCash itself.')
+            'cannot be run and a page cannot be rendered '
+            # `str()` and not the exception itself: an exception instance is
+            # always truthy, so `missing or …` never reached the fallback —
+            # and the arm the fallback was written for is the one that raises
+            # `StopIteration`, whose `str()` is empty. That printed `(). `.
+            f'({str(missing) or "no GnuCash library records a libguile"}). '
+            'Install guile — `dnf install guile` on Fedora, '
+            '`zypper install guile` on openSUSE; most other distributions '
+            'install it with GnuCash itself.') from missing
 
     # `scm_init_guile` returns void and takes nothing, and both are declared
     # rather than left to ctypes' default of `c_int`: an undeclared return type

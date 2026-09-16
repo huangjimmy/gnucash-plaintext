@@ -1,0 +1,31 @@
+# A cost basis cost stated on a split whose account was never opened.
+#
+# 100.00 USD is bought for 135.00 CAD into `Assets:Bank:USD`, and the file
+# opens no such account. With no account there is no currency to read the cost
+# in, so the transaction is refused for the account itself rather than for the
+# cost.
+#
+# What this fixture produces: a refusal giving `Assets:Bank:USD` as not found,
+# and no transaction.
+#
+# Verified by tests/integration/test_a_stated_cost_is_refused_for_what_it_states.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "Buy 100 USD at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "135.00"
+		cost_basis_cost: "1.35"
+	Assets:Bank -135.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-135.00"

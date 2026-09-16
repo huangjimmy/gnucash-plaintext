@@ -18,6 +18,7 @@ Removal was always caught, because the removed split is on the booked side.
 import re
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
@@ -134,20 +135,24 @@ def test_restating_the_transactions_own_currency_is_refused(tmp_path):
     assert _cost_of_the_basis(runner, book) == before
 
 
-def test_under_atomic_this_file_is_refused_for_the_figures_it_leaves_unread(tmp_path):
-    """The deferral is granted on figures that can be read, and these cannot.
+def test_under_atomic_a_re_price_the_file_states_in_full_is_allowed(tmp_path):
+    """Where every figure can be read, the deferral does what it is for.
 
     `--atomic` defers the refusal to edit a transaction a cost basis rests on,
     because a repair passes through states it stops in either order. What it
-    reads before granting that is the figures the file states, and a split the
-    file *adds* states no `share_price:` — there is no booked one to fall back
-    on either, the split being new — so what the cost basis would rest on
-    afterwards cannot be worked out here at all. An unreadable directive is
-    refused rather than deferred.
+    reads before granting that is the figures the file states. Each added
+    split states both its amounts, so its price is the one they give, and the
+    file says what the transaction is to become: the refusal is deferred to
+    the finished book. A re-priced cost basis is caught there by the sales
+    measured against it — this one has none, so nothing contradicts the
+    figures the file asked for and they stand, at 190.00 CAD over 140.00 USD,
+    19/14. That is the flag working as designed, and it is stated here rather
+    than left between two files, since the rest of this one is about the same
+    edit being refused.
     """
     runner = CliRunner()
     book, text = _book_and_export(runner, tmp_path)
-    before = _cost_of_the_basis(runner, book)
+    assert _cost_of_the_basis(runner, book) == '25/18'
 
     edited = tmp_path / 'edited.txt'
     edited.write_text(
@@ -157,6 +162,105 @@ def test_under_atomic_this_file_is_refused_for_the_figures_it_leaves_unread(tmp_
 
     result = _run(runner, 'import', str(book), str(edited), '--atomic',
                   '--strategy', 'update')
+    assert result.exit_code == 0, result.output
+    assert 'Changes saved' in result.output, result.output
+    assert _cost_of_the_basis(runner, book) == '19/14'
+
+    verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
+    assert verified.exit_code == 0, verified.output
+
+
+@pytest.mark.parametrize('price', ['0.9', 'abc'], ids=['another-price', 'not-a-number'])
+def test_a_price_stated_without_a_value_is_weighed_on_its_own(tmp_path, price):
+    """The fee split with its `value:` taken off and a `share_price:` of its own.
+
+    With one amount and the price, the price is what values the split, so it is
+    the figure the cost basis would rest on: 0.9 is not the 4/5 the book holds,
+    and `abc` cannot be read at all. Either way the edit cannot be made in
+    place.
+    """
+    runner = CliRunner()
+    book, text = _book_and_export(runner, tmp_path)
+    before = _cost_of_the_basis(runner, book)
+    transaction = _the_transaction(text)
+    fee = re.search(r'\tExpenses:Bank Fees 10\.00 CAD\n(?:\t\t[^\n]*\n)*', transaction).group(0)
+    kept = ''.join(line + '\n' for line in fee.splitlines()
+                   if not line.startswith(('\t\tvalue:', '\t\tshare_price:')))
+    edited = tmp_path / 'edited.txt'
+    edited.write_text(transaction.replace(fee, kept + f'\t\tshare_price: "{price}"\n'))
+
+    result = _run(runner, 'import', str(book), str(edited), '--strategy', 'update')
+
+    message = result.output + str(result.exception)
+    assert result.exit_code != 0, message
+    assert 'cannot be edited in place' in message, message
+    assert _cost_of_the_basis(runner, book) == before
+
+
+@pytest.mark.parametrize('edits, refusal', [
+    ([('\tExpenses:Bank Fees 10.00 CAD\n', '\tExpenses:Bank Fees $residual$ CAD\n')],
+     'cannot be edited in place'),
+    ([('\t\tvalue: "8.00"\n', '\t\tvalue: "eight"\n')], 'cannot be edited in place'),
+    ([('\tExpenses:Bank Fees 10.00 CAD\n', '\tExpenses:Bank Fees 12.00 CAD\n'),
+      ('\t\tvalue: "8.00"\n', '')], 'cannot be edited in place'),
+    ([('\tExpenses:Bank Fees 10.00 CAD\n', '\tExpenses:Bank Fees --10.00 CAD\n')],
+     'cannot be edited in place'),
+    ([('\tExpenses:Bank Fees 10.00 CAD\n', '\tExpenses:Bank Fees 1O.00 CAD\n')],
+     'could not be read'),
+], ids=['a-residual-amount', 'a-value-that-is-not-a-number', 'a-new-amount-with-no-value',
+        'an-amount-with-two-signs', 'an-amount-that-is-not-a-number'])
+def test_a_fee_split_whose_figures_cannot_be_weighed_is_refused(tmp_path, edits, refusal):
+    """The fee split edited so what the cost basis would rest on cannot be read.
+
+    A `$residual$` amount, a value that is not a number, and a new amount with
+    no value to go with it all leave the cost basis with a figure nothing can
+    weigh, so the transaction cannot be edited in place. An amount that is not
+    a number is a line the parser cannot read, and the file is refused before
+    anything is compared. Measured on 5.10 and 3.4.
+    """
+    runner = CliRunner()
+    book, text = _book_and_export(runner, tmp_path)
+    before = _cost_of_the_basis(runner, book)
+    transaction = _the_transaction(text)
+    edited_text = transaction
+    for old, new in edits:
+        assert old in edited_text, edited_text
+        edited_text = edited_text.replace(old, new)
+    edited = tmp_path / 'edited.txt'
+    edited.write_text(edited_text)
+
+    result = _run(runner, 'import', str(book), str(edited), '--strategy', 'update')
+
+    message = result.output + str(result.exception)
+    assert result.exit_code != 0, message
+    assert refusal in message, message
+    assert _cost_of_the_basis(runner, book) == before
+
+
+def test_under_atomic_added_splits_of_nothing_are_refused_for_the_price_they_leave_unread(tmp_path):
+    """Two 0.00 CAD splits, each stating a value of 0.00 and no price.
+
+    A split of no amount has no price its two amounts give, a split the file
+    adds has no booked one to fall back on, and GnuCash's own answer for one
+    differs by version (0 on 5.10 and 1 on 3.4, for a value of 0.00). So what
+    the cost basis would rest on afterwards cannot be worked out here, and the
+    directive is refused rather than deferred.
+    """
+    runner = CliRunner()
+    book, text = _book_and_export(runner, tmp_path)
+    before = _cost_of_the_basis(runner, book)
+    added = _without_comments(Path(ADDED_CAD_SPLITS).read_text())
+    for written in ('20.00 CAD', 'value: "16.00"', 'value: "-16.00"'):
+        assert written in added, added
+    nothing = (added.replace('20.00 CAD', '0.00 CAD')
+               .replace('value: "16.00"', 'value: "0.00"')
+               .replace('value: "-16.00"', 'value: "0.00"'))
+    edited = tmp_path / 'edited.txt'
+    edited.write_text(_accounts_for(text) + _the_transaction(text) + nothing)
+
+    result = _run(runner, 'import', str(book), str(edited), '--atomic',
+                  '--strategy', 'update')
+
     message = result.output + str(result.exception)
     assert result.exit_code != 0, message
     assert 'cannot be edited in place' in message, message
@@ -164,26 +268,16 @@ def test_under_atomic_this_file_is_refused_for_the_figures_it_leaves_unread(tmp_
     assert _cost_of_the_basis(runner, book) == before
 
 
-def test_under_atomic_a_re_price_the_file_states_in_full_is_allowed(tmp_path):
-    """And where every figure is stated, the deferral does what it is for.
+def test_under_atomic_a_price_beside_both_amounts_changes_nothing_they_give(tmp_path):
+    """The same two splits with `share_price: "1"` beside their values.
 
-    The same two splits with a rate on each: the file says what the
-    transaction is to become, the guard can read it, and the refusal is
-    deferred to the finished book. A re-priced cost basis is caught there by the
-    sales measured against it — this one has none, so nothing contradicts the
-    figures the file asked for and they stand. That is the flag working as
-    designed, and it is stated here rather than left between two files, since
-    the rest of this one is about the same edit being refused.
-
-    `share_price: "1"` is what those splits are then worth: 20.00 CAD each,
-    rather than the 16.00 the fixture values them at, so the cost comes out at
-    190.00 over 148.00 — 95/74 — and not the 19/14 the fixture's own figures
-    would give. The rate is stated because a split the file adds has no booked
-    one to fall back on, which is the refusal above.
+    Each states both its amounts, 20.00 CAD valued 16.00, so the price is the
+    one those two give. The stated 1 would value them at 20.00 and the cost
+    basis at 190.00 over 148.00, 95/74. It is warned about and the two amounts
+    decide, so the cost basis is 19/14, as without the line.
     """
     runner = CliRunner()
     book, text = _book_and_export(runner, tmp_path)
-    assert _cost_of_the_basis(runner, book) == '25/18'
 
     added = _without_comments(Path(ADDED_CAD_SPLITS).read_text()).replace(
         '\t\tvalue:', '\t\tshare_price: "1"\n\t\tvalue:')
@@ -193,8 +287,8 @@ def test_under_atomic_a_re_price_the_file_states_in_full_is_allowed(tmp_path):
     result = _run(runner, 'import', str(book), str(edited), '--atomic',
                   '--strategy', 'update')
     assert result.exit_code == 0, result.output
-    assert 'Changes saved' in result.output, result.output
-    assert _cost_of_the_basis(runner, book) == '95/74'
+    assert 'the price is the one the two amounts give' in result.output, result.output
+    assert _cost_of_the_basis(runner, book) == '19/14'
 
     verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
     assert verified.exit_code == 0, verified.output

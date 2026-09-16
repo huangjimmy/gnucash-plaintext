@@ -1,0 +1,41 @@
+# INV-A's payment block, stating a `txn_guid:` that matches no transaction in
+# this book, with the date, amount, account and memo of the deposit that
+# settles Beta's INV-B. That is what a mistyped guid looks like, and what a
+# page written against another book looks like.
+#
+# What this fixture produces: where the book can read whose money the deposit
+# is, it is Beta's, so this block is read as a payment of its own and INV-A is
+# settled by a new one. Where it cannot — a customer whose id is empty, which
+# GnuCash's own dialogs allow — the block is read as describing the deposit,
+# and the import is refused rather than entering the same money twice.
+#
+# Load after `payment_roundtrip_accounts.txt` and
+# `a_deposit_settling_inv_b_for_another_customer.txt`.
+#
+# Verified by
+# tests/integration/test_a_payment_giving_a_guid_that_matches_nothing_is_refused_where_the_deposits_owner_cannot_be_read.py.
+invoice "INV-A"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-A"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "eeee0000eeee0000eeee0000eeee0000"
+		memo: "Deposit"

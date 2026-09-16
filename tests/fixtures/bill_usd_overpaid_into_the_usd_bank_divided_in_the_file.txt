@@ -1,0 +1,52 @@
+# 200.00 USD paid to V-US out of the USD bank against BILL-USD-OVER for 100.00
+# USD, entered in USD, so nothing in the entry says what the USD cost. The
+# entry already divides the payable side: 100.00 settling the bill and 100.00
+# left over. The bill's payment block gives the settling split with
+# `txn_split_guid:` and declares the rest with `prepayment: 100`.
+#
+# What this fixture produces: the 100.00 USD left over is the vendor's debt to
+# this book, and a cost basis at 1.40, the rate the bill was posted at, with a
+# cost basis balance of 100.00. The entry states no cost, so `cost_basis_cost`
+# is stored on the split.
+#
+# Load after `fx_usd_bill_cad_expense.txt`, with
+# `--fx-rates tests/fixtures/fx_rates_usd_dated.yaml`.
+#
+# Verified by
+# tests/integration/test_the_credit_an_overpaying_wire_leaves_is_counted_once_however_it_is_divided.py.
+2026-02-25 * "US Vendor - wire for BILL-USD-OVER"
+	guid: "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD -200.00 USD
+		account.commodity.mnemonic: "USD"
+	Liabilities:Accounts Payable USD 100.00 USD
+		guid: "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2"
+		account.commodity.mnemonic: "USD"
+	Liabilities:Accounts Payable USD 100.00 USD
+		guid: "f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3"
+		account.commodity.mnemonic: "USD"
+
+bill "BILL-USD-OVER"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Parts"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-OVER"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		account: "Assets:Bank:USD"
+		txn_guid: "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+		txn_split_guid: "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2"
+		prepayment: 100
+		memo: "Wire for BILL-USD-OVER"

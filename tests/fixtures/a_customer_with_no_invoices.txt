@@ -1,0 +1,10 @@
+# A customer with no invoices.
+#
+# What this fixture produces: customer C-QUIET, Quiet Co., in CAD, active, and
+# linked to nothing. Imported beside business_objects.txt, it is the one active
+# owner there that no invoice or bill is for.
+#
+# Verified by tests/integration/test_delete_business_objects.py.
+customer "C-QUIET"
+	name: "Quiet Co."
+	currency: CAD

@@ -220,3 +220,16 @@ def test_version_marker_is_set_and_round_trips(tmp_path):
                                '--include-business-objects']).exit_code == 0
     text = out.read_text()
     assert 'schema_version' in text and '"3"' in text
+
+
+def test_a_book_key_already_holding_the_value_is_reported_unchanged(tmp_path):
+    """The second migration sets the key to the value the first gave it, and says so."""
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    d = _migrations(tmp_path, {
+        '0001.txt': 'set-book-key --key schema_version --value 3\n',
+        '0002.txt': 'set-book-key --key schema_version --value 3\n',
+    })
+    r = runner.invoke(cli, ['migrate', str(gf), str(d)])
+    assert r.exit_code == 0, r.output
+    assert "book key 'schema_version' already = '3' — nothing to change" in r.output

@@ -1,0 +1,33 @@
+# A credit block whose `amount:` is a word rather than a figure.
+#
+# The block gives a real credit through `txn_guid:` and `txn_split_guid:`,
+# which the test fills in, so the amount is the only thing wrong with it.
+#
+# What this fixture produces: nothing. The import refuses the invoice.
+#
+# Verified by tests/integration/test_a_credit_block_giving_a_split_it_cannot_spend_is_refused.py.
+invoice "INV-CREDIT-WORD"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-CREDIT-WORD"
+		accumulate: true
+	payment:
+		amount: thirty
+		from_credit: true
+		credit_dated: 2026-01-10
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

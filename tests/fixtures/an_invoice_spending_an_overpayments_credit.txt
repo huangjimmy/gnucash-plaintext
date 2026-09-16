@@ -1,0 +1,35 @@
+# INV-B for 50.00 CAD, paid in full from the credit an overpayment left C001.
+#
+# `q015_oh_inv_export_emits.txt` pays its 100.00 invoice 150, which leaves
+# C001 a 50.00 credit. The test replaces TXN_GUID and SPLIT_GUID with that
+# credit's transaction and split.
+#
+# What this fixture produces: INV-B posted, its lot holding the credit split.
+#
+# Verified by
+# tests/integration/test_taking_a_payment_off_onto_its_receivable_leaves_the_owners_credit.py.
+invoice "INV-B"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-B"
+		accumulate: true
+	payment:
+		amount: 50.00
+		from_credit: true
+		credit_dated: 2026-01-10
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

@@ -61,32 +61,41 @@ The beancount subsystem stands out as a block rather than a tail: `import-beanco
 
 ## Where it stands now
 
-Union of all ten supported builds — `latest` (5.10), `debian12` (4.13), `debian11` (4.4), `ubuntu26` (5.14), `ubuntu24` (5.5), `ubuntu22` (4.8), `ubuntu20` (3.8), `fedora41` (5.13), `arch` (5.15), `opensuse` (5.16) — 2312 tests, 2026-08-11:
+Union of all eleven supported builds — `latest` (5.10), `debian12` (4.13), `debian11` (4.4), `debian10` (3.4), `ubuntu26` (5.14), `ubuntu24` (5.5), `ubuntu22` (4.8), `ubuntu20` (3.8), `fedora41` (5.13), `arch` (5.15), `opensuse` (5.16) — 4100 tests, 2026-09-16:
 
-**94%** — 504 statements and 439 branches that no supported version executes, against 1004 and 560 at the baseline. Thirty-nine files are at 100% and no longer appear in the report at all.
+**100%** — 14,603 statements and 5,294 branches, none of them missed, against 504 statements and 439 branches missed at 94% and 1,004 and 560 at the baseline. Every file under `cli/`, `services/`, `infrastructure/`, `use_cases/` and `repositories/` is covered whole, so none of them appears in the report: it prints one line, `99 files skipped due to complete coverage.`
 
-`THRESHOLD` in `scripts/coverage.sh` is 94, so the figure cannot slip back.
+`THRESHOLD` in `scripts/coverage.sh` is 100, so a change that adds a line no supported version runs is refused rather than measured.
 
-| file | lines | branches | covered |
-|---|---|---|---|
-| `services/gnucash_importer.py` | 242 | 201 | 90% |
-| `use_cases/unpost_business_objects.py` | 43 | 29 | 88% |
-| `services/foreign_currency.py` | 30 | 28 | 93% |
-| `services/invoice_renderer.py` | 18 | 21 | 93% |
-| `use_cases/export_transactions.py` | 17 | 26 | 95% |
-| `infrastructure/gnucash/utils.py` | 17 | 9 | 89% |
-| `use_cases/account_balance.py` | 10 | 7 | 92% |
-| `use_cases/import_transactions.py` | 9 | 5 | 95% |
-| `use_cases/export_business_objects.py` | 9 | 11 | 96% |
-| `services/bill_renderer.py` | 9 | 10 | 95% |
+**Only the union gets there.** Each build's own figure, from its own data file in the same sweep:
 
-The rest is a tail of eight-or-fewer per file. Two whole subsystems have left the table: `cli/import_beancount_cmd.py` and `cli/export_beancount_cmd.py`, at 15% and 28%, are now at 100% — the command bodies are exercised through the CLI, including every per-object failure path, and the refusals they grew along the way are each paired with a fixture and listed in `RELEASE_NOTES.md`.
+| build | GnuCash | that build alone |
+|---|---|---|
+| latest | 5.10 | 99.44% |
+| ubuntu24 | 5.5 | 99.44% |
+| fedora41 | 5.13 | 99.44% |
+| opensuse | 5.16 | 99.44% |
+| ubuntu20 | 3.8 | 99.38% |
+| debian11 | 4.4 | 99.25% |
+| ubuntu22 | 4.8 | 99.25% |
+| debian12 | 4.13 | 99.23% |
+| debian10 | 3.4 | 99.17% |
+| arch | 5.15 | 99.04% |
+| ubuntu26 | 5.14 | 99.04% |
+
+Between 0.56 and 0.96 points of every one of those reports is code another version runs — a 3.4 date setter, a 5.15 lot wrapper, the private copy taken below 4.8 — which is the whole argument for gating the union and nothing else, in one table.
+
+**What the figure does not include.** coverage.py measures Python, and the plaintext balance sheet and income statement are drawn by `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm` — 443 lines of Scheme that GnuCash runs, not this process. It sits under `infrastructure/` and is not in the 100%. What covers it is `tests/integration/test_the_statements_are_printed_by_customized_gnucash_reports.py`, which asserts every figure on both pages for a book kept in HKD holding USD and CAD, a CAD book holding USD, HKD and shares, a book owing USD it borrowed with CAD, a book running a loss, a book whose "Use Trading Accounts" option is on, a book whose currency cannot be determined, and a book with no accounts at all.
+
+One branch there is reached by no book in the suite, and the reason is worth recording rather than papering over: the income statement's `trading` section and its `Total Trading` run only when the period holds trading-account balances. GnuCash creates trading splits as it records a transaction, so a book whose option is set and whose transactions were then *imported* has trading accounts with nothing in them — measured, that book's income statement prints Revenues and Expenses alone, while its balance sheet prints `Trading Gains C$140.00` through the balance-sheet path, which is tested. Reaching the income statement's section needs a book whose transactions GnuCash itself entered with the option on, which nothing in this suite produces. An `income-statement` call on the existing trading book would pass while covering none of it.
+
+Two whole subsystems left the table on the way: `cli/import_beancount_cmd.py` and `cli/export_beancount_cmd.py`, at 15% and 28% at the baseline — the command bodies are exercised through the CLI now, including every per-object failure path, and the refusals they grew along the way are each paired with a fixture and listed in `RELEASE_NOTES.md`.
 
 **What closing the gap actually produced.** The lines were the instrument, not the goal: nearly every gap was a behaviour nothing had asked about, and asking found defects rather than merely covering statements. Among them — a payment block that entered the same money twice when its `txn_guid:` was mistyped; a book made unexportable by a currency GnuCash restated between versions; an import that rewrote the book on every run over a ledger that had not changed; a printed page that leaked its owner's private keys and reported a credit settlement as a bank payment; the `export` and `print-invoice` truncation described in CLAUDE.md finding 14; and a `payment:` block spending a foreign account whose cost bases still held a balance.
 
 **What was deleted rather than covered**, in the same spirit as the ten branches Q-035 removed: `get_all_sub_accounts`, `to_string_in_fraction_format`, `render_to_pdf`, the `available_of`/`open_available` family, three duplicated copies of `holdable_unit`, a null-account guard in `cli/find_transactions_cmd.py` (finding 12 above is the measurement that settles it), and the `try`/`except` wrappers around SWIG calls that cannot raise on any supported build.
 
-**What is listed rather than covered.** `cli/_saving.py:22-24` — the branch that swallows `ERR_FILEIO_BACKUP_ERROR` — is reachable only when two saves land inside the same second, which is the collision the suite deliberately sleeps a second to avoid. A test that depends on the timing going the other way is a flake, so the path is recorded here instead.
+**What a book state reached rather than timing.** `cli/_saving.py` read `ERR_FILEIO_BACKUP_ERROR` as a harmless collision of two saves in one second and reported the command done. Measured on 5.10, GnuCash writes nothing when the backup name is taken, so every such command reported a change the book never received. The error is a failed save now, like any other. `tests/integration/test_a_save_gnucash_refuses_is_reported_and_changes_nothing.py` reaches it without depending on timing: it takes the backup names for the next minute before the command saves, in a process where `tests/conftest.py` does not delete them.
 
 ## Closed as part of Q-035
 
@@ -135,16 +144,21 @@ What Q-035 removed from that file is the two *lot-reading* loops, not the file: 
 
 The bare `CDLL(None)` handles matter most. The shared loader promotes the library to `RTLD_GLOBAL` by its known path *before* calling `CDLL(None)`, which is what guarantees the same instance the GnuCash Python extension is using. A module loading its own handle skips that, and on Ubuntu — where the extension loads with `RTLD_LOCAL` — can bind a different copy of the library than the one holding the book.
 
+## What holds the figure there
+
+Three gates, and they read the same number:
+
+- **`./scripts/coverage.sh`** gates at 100 by default. `--threshold` still takes a number, for reading a tree in the middle of a change; it is not a way to lower the bar.
+- **`scripts/hooks/pre-commit`** runs the eleven suites it already ran, now under `GNC_COVERAGE=1`, and blocks a commit whose union is short exactly as it blocks one that fails lint. It costs the sweep nothing extra — the same eleven runs answer both questions — and it prints the missed lines in full rather than a tail, because that list is the whole of what a person needs to act on.
+- **CI gates twice.** Each of the eleven matrix builds reports its own figure against 98%, and `union-coverage` combines all eleven and gates at 100%. That job runs no suite of its own; it replaced a twelfth full run of the `latest` suite that existed only to produce a figure one build cannot reach. Codecov is sent the union now, for the same reason.
+
+The 98% per-build bar is a point below the lowest build in the table above, which is deliberate. A path only one version runs lowers every other build's figure legitimately, so a bar tight against 99.04% would fail ten builds for a change that leaves the union whole; a real regression — a test file that stopped being collected, a command whose body no longer runs — lands far below 98 rather than a fraction under 99.
+
+The threshold stays in `scripts/coverage.sh` rather than moving to `fail_under` in `[tool.coverage.report]`, which was the earlier plan and is wrong: every reporter reads that setting, including the eleven per-build reports in CI and any `pytest --cov` a contributor runs, and not one of those can reach 100. The figure belongs to the union, so it lives with the script that measures the union.
+
 ## Remaining work
 
-Reach 100% line and branch on the union, then turn the gate on:
-
-1. Cover or delete what the "Where it stands now" table lists, file by file. Where a line cannot be reached, deleting it is the answer — an unreachable line is the defect, and a test that reaches it by contortion only hides that. `services/gnucash_importer.py` is half of what is left on its own.
-2. Raise `THRESHOLD` in `scripts/coverage.sh` as each file is closed — it stands at 94 — and at 100 move it to `fail_under` in `[tool.coverage.report]`. It tracks the measured floor rather than the destination so that the bare command passes and refuses to let the figure slip; a default of 100 today would fail on every run, and a gate that always fails is a gate somebody turns off.
-3. `scripts/hooks/pre-commit` runs `test-all-versions-parallel.sh` already; run it under `GNC_COVERAGE=1` and gate on the combined figure there, so a commit that adds an unreached line is blocked the way a lint failure is.
-4. Empty the `KNOWN` list in `test_c_bindings_are_declared_once.py`, file by file, starting with the two bare `CDLL(None)` handles.
-
-The gate is deliberately not switched on yet: a gate that fails on the first commit after it lands is turned off again by the next person who needs to commit.
+1. Empty the `KNOWN` list in `test_c_bindings_are_declared_once.py`, file by file, starting with the two bare `CDLL(None)` handles.
 
 `# pragma: no cover` stays rare and reasoned. A defensive `raise` for a SWIG symbol whose absence means a broken install is a fair use; "hard to test" is not.
 

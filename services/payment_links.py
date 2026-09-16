@@ -34,6 +34,7 @@ inside the functions that use them, which is how the rest of this package breaks
 the same cycle.
 """
 
+from decimal import Decimal, localcontext
 from fractions import Fraction
 
 from gnucash.gnucash_core_c import (
@@ -53,7 +54,6 @@ from gnucash.gnucash_core_c import (
 
 from infrastructure.gnucash.utils import (
     get_account_full_name,
-    is_power_of_ten,
     money_text,
     numeric_to_fraction,
     qof_pointer,
@@ -210,8 +210,6 @@ def holds_money(account) -> bool:
     the commodity because the type does not answer it: `type: Asset` beside
     `commodity.namespace: "FUND"` is a book this tool builds.
     """
-    if account is None:
-        return False
     commodity = account.GetCommodity()
     return (commodity is not None
             and (commodity.get_namespace() or '').upper() == 'CURRENCY')
@@ -231,12 +229,11 @@ def the_records_own_posting_books(record, account) -> bool:
     what the book actually holds: the entry accounts, the payable, and any tax
     lines. Where the two differ the split is somebody else's cost, nothing
     replaces it, and taking it would leave the P&L short.
+
+    Asked only on the way to linking a payment, which is refused for a record
+    that is not posted, so there is always a posting to read.
     """
-    if record is None:
-        return False
     posting = record.GetPostedTxn()
-    if posting is None:
-        return False
     wanted = get_account_full_name(account)
     for split in posting.GetSplitList():
         on = split.GetAccount()
@@ -267,12 +264,11 @@ def accounts_the_posting_books(record) -> list:
     quotes it must be dropped there rather than printed with nothing in it:
     the refusal said the bill posted to "nothing yet", which reads as a bill
     that has not been posted, and it had been.
+
+    Asked only on the way to linking a payment, which is refused for a record
+    that is not posted.
     """
-    if record is None:
-        return []
     posting = record.GetPostedTxn()
-    if posting is None:
-        return []
     return sorted({get_account_full_name(split.GetAccount())
                    for split in posting.GetSplitList()
                    if split.GetAccount() is not None
@@ -336,10 +332,10 @@ def require_every_duplicated_split_to_be_applied(
                if a_duplicate(split.GetAccount())]
     if not applied:
         return
+    # A split is always in a transaction, and a payment is linked only to a
+    # posted record.
     transaction = applied[0].GetParent()
     posting = record.GetPostedTxn()
-    if transaction is None or posting is None:
-        return
     applied_guids = {split_guid(split) for split in applied}
 
     def on_it(splits, account_name):
@@ -445,8 +441,6 @@ def may_become_the_settlement(account, record) -> bool:
     got the narrow rule back in silence, and a bill's expense split was
     refused with nothing in the message to say why.
     """
-    if account is None:
-        return False
     # A split already on the record's own receivable or payable is the
     # settlement as it stands and has no other account to take. It has to be turned
     # away before the posting is consulted, because the posting books that
@@ -528,8 +522,6 @@ def refuse_a_posting_transaction(
         qof_instance,
         wrap_invoice_or_bill,
     )
-    if transaction is None:
-        return
     raw = gc.gncInvoiceGetInvoiceFromTxn(qof_instance(transaction))
     if not raw:
         return
@@ -596,8 +588,6 @@ def the_records_own_account(kind: str) -> str:
 
 def commodity_of(account) -> str:
     """An account's currency, as a mnemonic, or `''` where it has none."""
-    if account is None:
-        return ''
     commodity = account.GetCommodity()
     return commodity.get_mnemonic() if commodity is not None else ''
 
@@ -769,12 +759,12 @@ def _the_book_holds(book, txn_guid: str) -> bool:
     """
     from services.gnucash_importer import _find_transaction_by_guid
 
-    if not txn_guid:
-        return False
-    try:
-        return _find_transaction_by_guid(book, txn_guid) is not None
-    except ValueError:
-        return False
+    # Never empty: a block gives split guids only under the `Transaction` whose
+    # guid this is. And never one that will not parse: the import refuses such
+    # a guid, in a key or in a `Transaction` line, before it compares a record
+    # with its file (`_refuse_a_payment_guid_nothing_can_parse`), and counting
+    # slots is part of that comparison.
+    return _find_transaction_by_guid(book, txn_guid) is not None
 
 
 def the_settlement_amount(existing_tx, counter_split, post_acct,
@@ -812,7 +802,7 @@ def the_settlement_amount(existing_tx, counter_split, post_acct,
 
 
 def refuse_to_move_a_split_out_of_its_lot(split, declared: str,
-                                          txn_guid: str, record=None,
+                                          txn_guid: str, record,
                                           key: str = '`txn_split_guid:`') -> None:
     """A split already in a lot is somebody's settlement or credit.
 
@@ -825,7 +815,7 @@ def refuse_to_move_a_split_out_of_its_lot(split, declared: str,
     (CLAUDE.md finding 10), so a rebuild meets its own splits still lotted, and
     refusing them would fail after the posting had already been destroyed.
 
-    **And not this record's own live lot**, where `record` is given. A split
+    **And not this record's own live lot.** A split
     sitting in it is this record's settlement already, so there is nothing to
     take it off and nothing left short — the case is re-stating a payment the
     book has, which is what re-importing an export does. The sibling refusal
@@ -852,10 +842,10 @@ def refuse_to_move_a_split_out_of_its_lot(split, declared: str,
         return
     if _orphaned_from(split):
         return
-    if record is not None:
-        mine = record.GetPostedLot()
-        if mine is not None and qof_pointer(mine) == qof_pointer(lot):
-            return
+    # A payment is applied only to a posted record, and a posted record always
+    # has its lot.
+    if qof_pointer(record.GetPostedLot()) == qof_pointer(lot):
+        return
     raise Exception(
         f'{key} {declared!r} on tx {txn_guid!r} is in lot '
         f'{_lot_guid_str(lot)} already. A split in a lot is settling an '
@@ -1011,24 +1001,6 @@ def refuse_several_splits_this_cannot_divide(book, txn_guid: str,
         f'that settles this {kind_of(record)}.')
 
 
-def the_account_the_amount_came_from(counter_split, post_acct):
-    """Which account `the_settlement_amount` weighed, so a guard can say so.
-
-    Its own, ordinarily. Where the split is parked in another currency the
-    figure came off the bank instead, and it is in the record's currency — so
-    the record's account is what describes it.
-
-    It matters because `_refuse_a_payment_that_would_fall_short` skips itself
-    when the account it is handed is not the record's currency. Handed the
-    account the parked split sits on, it skipped for exactly the case this path
-    was taught to read: measured, a block stating `amount: 100` against a bank
-    that received 60 settled the invoice by 60 and said nothing.
-    """
-    if commodity_of(counter_split.GetAccount()) == commodity_of(post_acct):
-        return counter_split.GetAccount()
-    return post_acct
-
-
 def refuse_an_overpayment_this_cannot_carve(counter_split, post_acct, carried,
                                             outstanding, txn_guid: str,
                                             kind: str, doc_id: str,
@@ -1150,23 +1122,10 @@ def refuse_a_settlement_read_off_the_wrong_split(settled, parked_split,
     # +100.00, and is settled by a refund of +100.00 — so this refused a link
     # that had always worked, and told the reader to correct an `account:` that
     # was right.
-    # Abstain where the posting cannot be read, rather than assume a
-    # direction. Folded into the invoice's, a `None` would have refused every
-    # *bill* reaching it — a payable posts negative and settles positive — and
-    # told the reader to correct an `account:` that was right. `_still_owed`
-    # meets the same `None` and falls back rather than guessing; there is
-    # nothing here to fall back to, so the question goes unasked and the
-    # guards around it stand. Measured: the `txn_guid:`-alone branch on a bill
-    # reaches this with a posting in hand, so no supported path takes the
-    # abstention today.
     #
-    # `posted` is keyword-only and has no default for that reason: `None` here
-    # turns the whole sign check off, so a caller has to say it means to, the
-    # way `kind` has to be said rather than guessed. The difference is that
-    # `None` is a real answer for this one — there are postings that cannot be
-    # read — where for `kind` there was none.
-    if posted is None:
-        return
+    # `posted` is keyword-only and has no default, the way `kind` has to be
+    # said rather than guessed: it is what the record's posting put on the
+    # account, and every caller reads it off a posted record.
     toward_settlement = -1 if posted >= 0 else 1
     if amount * toward_settlement > 0:
         return
@@ -1412,12 +1371,31 @@ def _refuse_a_figure_the_account_cannot_state(figure: Fraction, account,
     # is not that unit: a `Fraction` is reduced, so −40.50 is −81/2 and the
     # denominator is 2 — no power of ten, and the message printed `-81/2 CAD`
     # at somebody reading a refusal about their bank account.
-    shown = str(figure)
-    for candidate in (account.GetCommodity().get_fraction() or 1,
-                      100, 1000, 10 ** 6):
-        if is_power_of_ten(candidate) and (figure * candidate).denominator == 1:
-            shown = money_text(figure, candidate)
-            break
+    #
+    # So the places are counted from the figure itself, and never fewer than
+    # the commodity's own. A figure read off a split is a whole number of a
+    # power-of-ten unit, so its decimal places are finite, and the division
+    # below is exact at that precision. A list of units to try ended in the
+    # reduced fraction for a figure finer than the last one in it.
+    with localcontext() as exact:
+        exact.prec = 40
+        written = (Decimal(figure.numerator)
+                   / Decimal(figure.denominator)).normalize()
+    fraction = account.GetCommodity().get_fraction() or 1
+    places = max(-written.as_tuple().exponent, len(str(fraction)) - 1, 0)
+    # Capped, because a figure whose denominator is not a power of ten has no
+    # terminating expansion: the division above then runs to the 40 places it
+    # is allowed, and `10 ** 40` is a number no `gint64` holds —
+    # `gnc_numeric_convert` raised `OverflowError` on it, turning a refusal a
+    # reader can act on into a traceback. A split can carry such a figure:
+    # `commodity_scu: 3` on a receivable is accepted, and a third of a dollar
+    # is a whole number of thirds.
+    #
+    # 18 rather than a second branch that prints the fraction instead. The
+    # message says what the split is worth so a reader can see what the
+    # account would lose, and eighteen places says that for any figure a book
+    # can hold, while `10 ** 18` still fits the engine's own integer.
+    shown = money_text(figure, 10 ** min(places, 18))
     raise AccountCannotTakeTheSplitError(
         f'{where}: {get_account_full_name(account)!r} is kept to a smallest '
         f'unit of {Fraction(1, unit)} {destination}, and the payment split is '
@@ -1499,9 +1477,9 @@ def relink_a_parked_split(lib, existing_tx, parked_split, post_acct,
         # back 100.50 either way round, so the rounding this guards against is
         # not one this tool has been shown to do. `TestAParkedCurrencyCoarser`
         # `ThanTheRecords` pins the invariant rather than a defect.
-        commodity = post_acct.GetCommodity()
-        if commodity is not None:
-            existing_tx.SetCurrency(commodity)
+        # The receivable or payable a record posts to always has a commodity:
+        # posting refuses an account whose currency is not the record's.
+        existing_tx.SetCurrency(post_acct.GetCommodity())
         parked_split.SetAmount(settled)
         parked_split.SetValue(settled)
         bank_split.SetValue(bank_split.GetAmount())

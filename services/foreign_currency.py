@@ -237,23 +237,26 @@ def derived_cost_of(split) -> Optional[Fraction]:
     amount = _fraction(split.GetAmount())
     if amount == 0:
         return None
+    # A split in a book is always in a transaction.
     transaction = split.GetParent()
-    if transaction is None:
-        return None
     tx_currency = transaction_currency(transaction)
 
     # `share_price` is value per unit, stated in the transaction's currency.
     per_unit = abs(_fraction(split.GetValue()) / amount)
     if tx_currency != BASE_CURRENCY:
-        base_per_tx_currency = _base_per_unit_of(transaction, tx_currency)
+        base_per_tx_currency = _base_per_unit_of(transaction)
         if base_per_tx_currency is None:
             return None
         per_unit *= base_per_tx_currency
     return per_unit or None
 
 
-def _base_per_unit_of(transaction, tx_currency: str) -> Optional[Fraction]:
+def _base_per_unit_of(transaction) -> Optional[Fraction]:
     """What one unit of the transaction's currency is worth in the book's.
+
+    Asked only of a transaction stated in another currency: in the book's own,
+    a split's value over its amount already is the cost, and both callers
+    check that first.
 
     Taken from the splits on base-currency accounts, whose amount over value
     is that same rate the other way up — all of them together, as one sum over
@@ -279,8 +282,6 @@ def _base_per_unit_of(transaction, tx_currency: str) -> Optional[Fraction]:
     the splits are ordered. Choosing one split instead would answer with
     whichever came first.
     """
-    if tx_currency == BASE_CURRENCY:
-        return Fraction(1)
     base_total = Fraction(0)
     value_total = Fraction(0)
     for other in transaction.GetSplitList():
@@ -349,8 +350,6 @@ def establishes_cost_basis(split) -> bool:
         return False
     if cost_basis_guid_of(split):
         return False
-    if split.GetParent() is None:
-        return False
 
     amount = _fraction(split.GetAmount())
     if amount == 0:
@@ -418,9 +417,9 @@ def _currency_arrived_elsewhere(split) -> bool:
     second arrival. That also keeps this from asking about a split whose own
     answer would ask back.
     """
+    # A split in a book is always in a transaction, and every split there has
+    # an account (CLAUDE.md §12).
     transaction = split.GetParent()
-    if transaction is None:
-        return False
     commodity = split_commodity(split)
     this_one = split_guid(split)
     for other in transaction.GetSplitList():
@@ -429,8 +428,6 @@ def _currency_arrived_elsewhere(split) -> bool:
         if split_commodity(other) != commodity:
             continue
         account = other.GetAccount()
-        if account is None:
-            continue
         if account.GetType() in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
             continue
         # Which direction counts as an arrival is the account type's business,
@@ -732,11 +729,12 @@ def total_cost_basis_balance_in(account) -> Fraction:
 
 
 def lower_cost_basis_balance(split, amount: Fraction) -> Fraction:
-    """Charge `amount` against a cost basis and record what is left."""
+    """Charge `amount` against a cost basis and record what is left.
+
+    Both callers refuse a cost basis with no balance recorded before they
+    charge it, so there is always a balance here to lower.
+    """
     current = cost_basis_balance_of(split)
-    if current is None:
-        raise Exception(
-            f'cost basis {split_guid(split)} has no balance recorded')
     remaining = current - amount
     write_cost_basis_balance(split, remaining)
     return remaining
@@ -885,6 +883,16 @@ def record_borrowed_basis(split, cost: Fraction) -> None:
     holds, and a sale of the rest was refused for exceeding a cost basis that was
     never opened.
     """
+    if _fraction(split.GetAmount()) == 0:
+        # A split of nothing holds no currency, so there is none owed back and
+        # nothing for a later sale to be measured against. It is a book a
+        # person can make rather than a shape this tool writes: GnuCash's
+        # View → Lots puts a 0.00 split in a record's lot, and
+        # `unapply-payment --all` takes every split the lot holds, with no
+        # figure deciding which. Opening a cost basis here would record 0.00
+        # units as available and then price them, dividing the base-currency
+        # value by the units the split does not hold.
+        return
     if has_cost_basis_balance(split):
         return
     if cost_of(split) is not None:
@@ -922,26 +930,31 @@ def write_cost_basis_cost(split, cost: Fraction) -> None:
     every gain measured against it would be out by the difference.
     """
     currency = split_commodity(split)
+    # Each caller refuses a split of nothing before reaching here, and has to:
+    # `record_borrowed_basis` returns early for one, and the importer's link
+    # path walks only splits that were cost bases a moment earlier, which a
+    # 0.00 split is not (`establishes_cost_basis`). A split holding no units
+    # would divide by zero below — `unapply-payment --all` on a lot GnuCash's
+    # View → Lots put a 0.00 split in reached exactly that, and is the reason
+    # the first of those guards exists.
+    #
+    # The base currency is always in the book's table, which GnuCash fills
+    # with every ISO currency when it makes a book.
     units = abs(_fraction(split.GetAmount()))
-    effective = cost
-    if units != 0:
-        account = split.GetAccount()
-        book = account.get_book() if account is not None else None
-        base = (book.get_table().lookup('CURRENCY', BASE_CURRENCY)
-                if book is not None else None)
-        if base is not None:
-            base_value = numeric_to_fraction(to_money(units * cost, base.get_fraction()))
-            effective = base_value / units
+    base = split.GetAccount().get_book().get_table().lookup(
+        'CURRENCY', BASE_CURRENCY)
+    base_value = numeric_to_fraction(to_money(units * cost, base.get_fraction()))
+    effective = base_value / units
 
     metadata = dict(get_custom_metadata(split))
     metadata[COST_BASIS_COST_KEY] = f'{exact_text(effective)} {BASE_CURRENCY}/{currency}'
+    # Bracketed whether or not the caller already has the transaction open:
+    # GnuCash counts nested edits and commits only at the outermost, and a
+    # slot written outside any edit never reaches disk (CLAUDE.md finding 11).
     transaction = split.GetParent()
-    reopen = transaction is not None and not transaction.IsOpen()
-    if reopen:
-        transaction.BeginEdit()
+    transaction.BeginEdit()
     set_custom_metadata(split, metadata)
-    if reopen:
-        transaction.CommitEdit()
+    transaction.CommitEdit()
 
 
 def amounts_by_cost_basis(transaction) -> Dict[str, Fraction]:
@@ -1047,18 +1060,13 @@ def apply_cost_basis_picks(book, transaction) -> Dict[str, Fraction]:
                 f'{_format(available, unit)} left)')
         checked.append((basis, total))
 
-    # Lowering more than one cost basis is not atomic by itself, so it is made so
-    # here: a failure part-way through gives back what this call already took
-    # before it re-raises. Reporting the drawdown only on the way out would
-    # hand the caller an empty dict for the very case it exists to undo.
+    # Nothing is left to refuse by here: every balance was read and checked
+    # above, before the first one moves, so the loop below cannot stop
+    # part-way through.
     taken: Dict[str, Fraction] = {}
-    try:
-        for basis, total in checked:
-            lower_cost_basis_balance(basis, total)
-            taken[split_guid(basis)] = total
-    except Exception:
-        give_back_to_cost_bases(book, taken)
-        raise
+    for basis, total in checked:
+        lower_cost_basis_balance(basis, total)
+        taken[split_guid(basis)] = total
     return taken
 
 
@@ -1254,9 +1262,9 @@ def a_sale_valued_against_another_cost(selling_split, basis,
     transaction = selling_split.GetParent()
     if transaction is None or transaction_currency(transaction) != BASE_CURRENCY:
         return None
+    # Priced: both callers ask this only of a split that establishes a cost
+    # basis, and a split establishes one only once something says its cost.
     basis_cost = cost_of(basis)
-    if basis_cost is None:
-        return None
     sold = abs(_fraction(selling_split.GetAmount()))
     stated = abs(_fraction(selling_split.GetValue()))
     currency = split_commodity(selling_split)
@@ -1299,18 +1307,16 @@ def cost_basis_users(book, record) -> List[str]:
     the book no longer holds, and re-posting mints a new split with the whole
     amount available again — so a sale of 40 of 100 USD silently becomes 100
     USD available, currency the book no longer has.
+
+    Asked only of a posted record: the importer and `unpost-invoices` /
+    `unpost-bills` each check that before they ask.
     """
     posting_txn = record.GetPostedTxn()
-    posted_account = record.GetPostedAcc()
-    if posting_txn is None or posted_account is None:
-        return []
-    posted_name = get_account_full_name(posted_account)
+    posted_name = get_account_full_name(record.GetPostedAcc())
 
-    basis = None
-    for split in posting_txn.GetSplitList():
-        if get_account_full_name(split.GetAccount()) == posted_name:
-            basis = split
-            break
+    basis = next((split for split in posting_txn.GetSplitList()
+                  if get_account_full_name(split.GetAccount()) == posted_name),
+                 None)
     if basis is None or not establishes_cost_basis(basis):
         return []
 
@@ -1320,8 +1326,6 @@ def cost_basis_users(book, record) -> List[str]:
         if cost_basis_guid_of(split) != guid:
             continue
         transaction = split.GetParent()
-        if transaction is None:
-            continue
         label = transaction.GetDescription() or '(no description)'
         date = transaction.GetDate().strftime('%Y-%m-%d')
         users.append(f'{date} {label!r} '
@@ -1343,8 +1347,6 @@ def disposals_drawing_on(book, basis_split) -> List[str]:
         if cost_basis_guid_of(split) != guid:
             continue
         parent = split.GetParent()
-        if parent is None:
-            continue
         label = parent.GetDescription() or '(no description)'
         found.append(f"{parent.GetDate().strftime('%Y-%m-%d')} {label!r} "
                      f'({_format(abs(_fraction(split.GetAmount())), smallest_unit(split))} '
@@ -1445,8 +1447,6 @@ def move_disposals_to_the_new_basis(book, spent_guid: str, remainder) -> int:
         if cost_basis_guid_of(split) != spent_guid:
             continue
         transaction = split.GetParent()
-        if transaction is None:
-            continue
         metadata = dict(get_custom_metadata(split))
         metadata[COST_BASIS_SPLIT_KEY] = new_guid
         # Bracketed, like every other KVP write: one written outside an edit
@@ -1471,7 +1471,7 @@ def transactions_measuring_against(book, transaction) -> List[str]:
         if cost_basis_guid_of(split) not in basis_guids:
             continue
         parent = split.GetParent()
-        if parent is None or parent.GetGUID().to_string() == transaction.GetGUID().to_string():
+        if parent.GetGUID().to_string() == transaction.GetGUID().to_string():
             continue
         label = parent.GetDescription() or '(no description)'
         users.append(f"{parent.GetDate().strftime('%Y-%m-%d')} {label!r} "
@@ -1691,12 +1691,19 @@ def why_it_is_no_basis(split) -> str:
     predicate that failed.
     """
     account = split.GetAccount()
-    commodity = account.GetCommodity() if account is not None else None
-    currency = commodity.get_mnemonic() if commodity is not None else ''
-    if not currency or currency == BASE_CURRENCY:
-        return (f'it is a {currency or "?"} split, and a cost basis is about '
+    commodity = account.GetCommodity()
+    if commodity is None:
+        # A book GnuCash loads and keeps can hold a split on an account with
+        # no commodity
+        # (tests/research/whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py).
+        return (f'its account {get_account_full_name(account)!r} has no '
+                f'commodity, so the split holds no currency for a cost basis '
+                f'to be about')
+    currency = commodity.get_mnemonic()
+    if currency == BASE_CURRENCY:
+        return (f'it is a {currency} split, and a cost basis is about '
                 f'currency the book does not count in')
-    if commodity is not None and commodity.get_namespace() != 'CURRENCY':
+    if commodity.get_namespace() != 'CURRENCY':
         return (f'{currency} is a security rather than a currency — shares are '
                 f'counted and priced, not converted')
     if cost_basis_guid_of(split):
@@ -1705,7 +1712,7 @@ def why_it_is_no_basis(split) -> str:
     amount = _fraction(split.GetAmount())
     if amount == 0:
         return 'it moves nothing, so it brought no currency in'
-    account_type = account.GetType() if account is not None else None
+    account_type = account.GetType()
     if account_type in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
         # A business account is the one place where direction alone does not
         # answer it, so saying "it lowers this account's currency" here is
@@ -1728,12 +1735,13 @@ def why_it_is_no_basis(split) -> str:
     if not _raises_a_foreign_balance(split, account, amount):
         return (f'it lowers this account\'s {currency} rather than raising it, '
                 f'so it spends currency rather than bringing it in')
-    if cost_of(split) is None:
-        return ('nothing says what its currency cost: every split in its '
-                f'transaction is {currency}, so there is no {BASE_CURRENCY} '
-                f'figure to divide, and no `{COST_BASIS_COST_KEY}` is stored '
-                f'on it either')
-    return 'it is not one, and no single reason can be given'
+    # The one question `establishes_cost_basis` asks after all of the above,
+    # and both callers ask this only of a split it said no to — so its cost is
+    # what is missing.
+    return ('nothing says what its currency cost: every split in its '
+            f'transaction is {currency}, so there is no {BASE_CURRENCY} '
+            f'figure to divide, and no `{COST_BASIS_COST_KEY}` is stored '
+            f'on it either')
 
 
 def _a_figure_on_a_split_that_is_no_basis(split) -> Optional[Dict]:
@@ -1859,17 +1867,10 @@ def verify_cost_bases(book, totals: bool = True) -> Dict:
             continue
 
         checked += 1
-        try:
-            row = cost_trace(split)
-        except Exception:
-            found.append({
-                'guid': split_guid(split),
-                'account': get_account_full_name(split.GetAccount()),
-                'date': '', 'description': '', 'tx_guid': '',
-                'problems': ['this cost basis could not be read at all'],
-                'traceback': traceback.format_exc(),
-            })
-            continue
+        # Not guarded: every figure the trace reads was read without failing
+        # a moment ago to decide this is a cost basis, and the one that can
+        # fail — a stored cost that will not parse — the trace catches itself.
+        row = cost_trace(split)
 
         problems = []
 
@@ -2033,14 +2034,14 @@ def cost_trace(split) -> Dict:
     # cost — and reporting a 1 there would be stating something the code never
     # computed. Where a second factor is needed and missing, it is listed as
     # missing rather than left out, because that is why no cost came of it.
-    tx_rate = (_base_per_unit_of(transaction, tx_currency)
+    tx_rate = (_base_per_unit_of(transaction)
                if transaction is not None and tx_currency != BASE_CURRENCY
                else None)
-    factors = []
-    if amount != 0:
-        factors.append(('value / amount', value / amount))
-        if tx_currency != BASE_CURRENCY:
-            factors.append((f'{BASE_CURRENCY} per {tx_currency}', tx_rate))
+    # Never a zero amount: this is asked only of a split that establishes a
+    # cost basis, and one that moves nothing establishes none.
+    factors = [('value / amount', value / amount)]
+    if tx_currency != BASE_CURRENCY:
+        factors.append((f'{BASE_CURRENCY} per {tx_currency}', tx_rate))
     derived = derived_cost_of(split)
     # `cost_of` never reaches a stored cost on a split the transaction prices,
     # so a malformed one there is inert to everything else — but this reads it

@@ -30,6 +30,15 @@ from infrastructure.gnucash.utils import (
 CLOSING_DESCRIPTION_PREFIX = "Closing entry"
 
 
+class AccountWithoutCommodityError(Exception):
+    """An income or expense account whose balance has no currency to close into.
+
+    Carries the sentence a reader is given. Raised rather than returned so the
+    run stops before any closing entry is written: a closing that left one
+    account out would put a wrong figure in retained earnings and say nothing.
+    """
+
+
 def is_closing_txn(tx) -> bool:
     """True if a transaction is a book-closing entry. GnuCash's authoritative
     signal is the closing-transaction flag (`xaccTransGetIsClosingTxn`); the
@@ -117,10 +126,22 @@ class BookCloser:
             if account_type not in (ACCT_TYPE_INCOME, ACCT_TYPE_EXPENSE):
                 continue
 
+            # Nothing this tool writes makes an account without a commodity and
+            # GnuCash's own dialog will not either, but a book from another
+            # tool can hold one and GnuCash keeps it through a save and a
+            # reload (`whether_a_reload_keeps_a_security_currency_or_an_account
+            # _with_no_commodity_probe.py`). Its balance has no currency to be
+            # grouped under: read as impossible this was an `AttributeError` on
+            # `NoneType`, and skipped it would leave that balance out of
+            # retained earnings with nothing said — a wrong figure rather than
+            # a refused run.
             commodity = account.GetCommodity()
             if commodity is None:
-                continue
-
+                raise AccountWithoutCommodityError(
+                    f"{account.GetName()!r} has no commodity, so its balance has no "
+                    f"currency to close into. Give the account a commodity in GnuCash, "
+                    f"or move its transactions to an account that has one, and close "
+                    f"the books again.")
             currency_code = commodity.get_mnemonic()
             balance = self.get_balance_as_of_date(account, closing_date, exclude_guids)
 

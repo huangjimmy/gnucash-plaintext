@@ -832,6 +832,15 @@ An **account** can be denominated more finely than its commodity, and this tool 
 
 What the finer account is for is everything that is *not* a booked amount — a unit price, a quantity, a rate. Fuel at 1.819 a litre is a price, and it is stated at that precision; what the split books is 10 litres at 18.19, and that is the figure the currency has to be able to hold.
 
+**A split that states both amounts has the price they give.** GnuCash's transfer dialog takes one amount and then either the rate or the other amount. A block may state all three, and every export does: it writes `share_price:` beside `value:` as the price those two give, `6323/4500` for 45.00 USD valued at 63.23 CAD. Where a file's `share_price:` is not that price, the two amounts decide, on a new transaction and under `--strategy update` alike, and the import warns:
+
+```
+warning: the share_price on split 'Expenses:Travel USD' states 1.5, and its
+amount and value give 6323/4500: the price is the one the two amounts give
+```
+
+A split that states an amount and a `share_price:` and no `value:` is valued at the amount times the price, rounded by GnuCash to the smallest unit of the transaction's currency.
+
 The coarser of the two, in both directions. An account kept to whole dollars refuses 18.19 as well — a fine number of Canadian dollars and not a number of *those* — rather than rounding it to 18 and leaving GnuCash to park the difference in `Imbalance-CAD` under a summary reporting no errors.
 
 ---

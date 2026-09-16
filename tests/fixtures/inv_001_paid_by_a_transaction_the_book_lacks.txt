@@ -1,0 +1,32 @@
+# INV-001's block as a page printed from another book writes it: its payment
+# gives that book's transaction by `txn_guid:`, which this book does not hold,
+# and describes the payment by day, figure, account and memo.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-001"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100.00
+		bank_account: "Assets:Bank"
+		txn_guid: "feedfacefeedfacefeedfacefeedface"
+		memo: "Payment INV-001"

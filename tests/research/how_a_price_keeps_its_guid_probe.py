@@ -39,6 +39,12 @@ import gnucash
 from gnucash import Account, GncCommodity, Session
 from gnucash.gnucash_core_c import ACCT_TYPE_BANK
 
+sys.path.insert(0, os.getcwd())
+
+# The suite's `_patch_session_save`: every save deletes the backup a save in
+# the same second would collide with.
+import tests.conftest  # noqa: E402,F401
+
 ROOTS = (
     '/usr/lib/x86_64-linux-gnu/gnucash/gnucash',
     '/usr/lib/x86_64-linux-gnu/gnucash',
@@ -218,13 +224,11 @@ stated, added = new_price(book, 'MSFT', local(2026, 1, 6, 16), 'user:price-edito
 print(f'  stated guid {STATED_NEW} -> reads back {guid_of(stated)}, added {added}')
 sess.save()
 sess.end()
-time.sleep(1)
 sess = session(url, 'SESSION_READ_ONLY')
 show('after save and reload', sess.book)
 print(f'  3: lookup {own_guid} -> {lookup(sess.book, own_guid)}')
 print(f'  3: lookup {STATED_NEW} -> {lookup(sess.book, STATED_NEW)}')
 sess.end()
-time.sleep(1)
 
 print('== 2b: an existing book, the only change a price with a stated guid')
 sess = session(url, 'SESSION_NORMAL_OPEN')
@@ -233,11 +237,9 @@ p, added = new_price(sess.book, 'GOOG', local(2026, 1, 7, 16), 'user:price-edito
 print(f'  added {added}, reads back {guid_of(p)}, not-saved flag {qof_book_session_not_saved(ptr(sess.book))}')
 sess.save()
 sess.end()
-time.sleep(1)
 sess = session(url, 'SESSION_READ_ONLY')
 print(f'  lookup {STATED_EXISTING} after reload -> {lookup(sess.book, STATED_EXISTING)}')
 sess.end()
-time.sleep(1)
 
 print('== 4: an existing book, the AMZN price edited in place (value, then time to another day)')
 sess = session(url, 'SESSION_NORMAL_OPEN')
@@ -252,7 +254,6 @@ gnc_price_commit_edit(p)
 print(f'  value edited; not-saved flag {qof_book_session_not_saved(ptr(sess.book))}')
 sess.save()
 sess.end()
-time.sleep(1)
 sess = session(url, 'SESSION_NORMAL_OPEN')
 print(f'  after reload: lookup {own_guid} -> {lookup(sess.book, own_guid)}')
 string_to_guid(own_guid.encode(), ctypes.addressof(g))
@@ -263,12 +264,10 @@ gnc_price_commit_edit(p)
 print(f'  time moved to 2026-01-09; not-saved flag {qof_book_session_not_saved(ptr(sess.book))}')
 sess.save()
 sess.end()
-time.sleep(1)
 sess = session(url, 'SESSION_READ_ONLY')
 print(f'  after reload: lookup {own_guid} -> {lookup(sess.book, own_guid)}')
 show('all prices', sess.book)
 sess.end()
-time.sleep(1)
 
 print('== 5: gnc_pricedb_add_price replacing a same-day price: whose guid survives')
 sess = session(url, 'SESSION_NORMAL_OPEN')
@@ -278,12 +277,10 @@ r, added = new_price(sess.book, 'MSFT', local(2026, 1, 6, 11), 'Finance::Quote',
 print(f'  same-day MSFT, lower-ranked source, guid {guid_of(r)}, added {added}')
 sess.save()
 sess.end()
-time.sleep(1)
 sess = session(url, 'SESSION_READ_ONLY')
 show('after reload', sess.book)
 print(f'  lookup the stated {STATED_NEW} -> {lookup(sess.book, STATED_NEW)}')
 sess.end()
-time.sleep(1)
 
 print('== 6: gnc_pricedb_remove_price on the GOOG price')
 sess = session(url, 'SESSION_NORMAL_OPEN')
@@ -293,7 +290,6 @@ print(f'  removed {gnc_pricedb_remove_price(gnc_pricedb_get_db(ptr(sess.book)), 
       f' not-saved flag {qof_book_session_not_saved(ptr(sess.book))}')
 sess.save()
 sess.end()
-time.sleep(1)
 sess = session(url, 'SESSION_READ_ONLY')
 print(f'  lookup {STATED_EXISTING} after reload -> {lookup(sess.book, STATED_EXISTING)}')
 show('after reload', sess.book)

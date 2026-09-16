@@ -1,0 +1,37 @@
+# A bill with two `posted:` blocks, on two different dates.
+#
+# A bill is posted once, to one account on one day. Two blocks leave both
+# unsaid, so the import refuses the bill rather than choose one.
+#
+# What this fixture produces: nothing. The import refuses the bill.
+#
+# Verified by tests/integration/test_a_record_with_two_posted_blocks_is_refused.py.
+vendor "V001"
+	name: "Supplier"
+	currency: CAD
+
+bill "BILL-POSTED-TWICE"
+	vendor_id: "V001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Paper"
+		action: "Material"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-POSTED-TWICE"
+		accumulate: true
+	posted:
+		date: 2026-01-05
+		due: 2026-02-04
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "Bill BILL-POSTED-TWICE, again"
+		accumulate: true

@@ -169,6 +169,25 @@ class TestReadyToImportWriter:
         assert "=====" in content  # section headers present
         assert content  # not empty
 
+    def test_a_result_that_is_no_partial_match_is_refused(self, tmp_path):
+        """The partial-match section is written from partial matches, so a
+        caller handing it another kind of result is told which kind it was."""
+        with pytest.raises(ValueError, match="Expected PARTIAL_MATCH, got"):
+            self._write(tmp_path, partial=[_dup_result()])
+
+    def test_a_partial_match_with_nothing_to_merge_is_refused(self, tmp_path):
+        result = MatchResult(status=MatchStatus.PARTIAL_MATCH,
+                             existing=_make_entry(), merged_tx=None)
+        with pytest.raises(ValueError, match="must have existing and merged_tx"):
+            self._write(tmp_path, partial=[result])
+
+    def test_a_transaction_from_no_statement_has_no_doc_link(self, tmp_path):
+        tx = _new_tx()
+        tx.source_pdfs = []
+        content = self._write(tmp_path, new=[tx])
+        assert '2026-04-15 * "AUTOPAY INGROUP"' in content
+        assert "doc_link" not in content
+
 
 class TestWhatADescriptionMayHold:
     r"""This file is written to be imported, so `import` is what reads it.

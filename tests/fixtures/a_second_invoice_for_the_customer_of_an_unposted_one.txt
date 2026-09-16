@@ -1,0 +1,29 @@
+# A second invoice for customer C001, posted and not paid.
+#
+# Read into the book q014_invoice_posted_paid.txt makes, once INV-001 has been
+# unposted. GnuCash sees the payment that unpost left behind as C001's credit,
+# so its own credit application can settle this invoice with it.
+#
+# What this fixture produces: INV-002, 100.00 CAD, posted to
+# Assets:Accounts Receivable.
+#
+# Verified by tests/integration/test_an_orphan_gnucash_applied_to_another_invoice_is_no_orphan.py.
+invoice "INV-002"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-002"
+		accumulate: true

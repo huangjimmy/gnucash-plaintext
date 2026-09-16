@@ -1,0 +1,20 @@
+# An expense account filed under an asset account.
+#
+# What this fixture produces: Assets, an asset account, and beneath it
+# Assets:Parking, an expense account. GnuCash keeps such a book, and a check
+# of the account hierarchy calls Parking a category mismatch.
+#
+# Verified by tests/unit/services/test_account_categorizer.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Parking
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"

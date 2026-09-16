@@ -1,0 +1,30 @@
+# 100.00 USD arriving as one entry: 60.00 clearing the receivable, 40.00 booked to income.
+#
+# The transaction of `money_arriving_as_two_receivable_splits.txt`, with the
+# same guids, and its second split on `Income:Other USD` rather than on the
+# receivable. A payment may take a split off an account money passes through,
+# and never off an income account for an invoice: that would take the sale off
+# the profit and loss.
+#
+# What this fixture produces: a USD transaction with three splits, one of them
+# on the receivable and one on income, neither in a lot.
+#
+# Verified by
+# tests/integration/test_a_grouped_payment_giving_a_split_on_income_is_refused.py.
+2026-01-01 open Income:Other USD
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-02-27 * "Money in, a receivable line and an income line"
+	guid: "5e6f708192a3b4c5d6e7f80912233445"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		guid: "6f708192a3b4c5d6e7f8091223344556"
+		account.commodity.mnemonic: "USD"
+	Assets:Accounts Receivable USD -60.00 USD
+		guid: "708192a3b4c5d6e7f809122334455667"
+		account.commodity.mnemonic: "USD"
+	Income:Other USD -40.00 USD
+		guid: "8192a3b4c5d6e7f80912233445566778"
+		account.commodity.mnemonic: "USD"

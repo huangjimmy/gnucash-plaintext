@@ -1,0 +1,37 @@
+# `inv_001_paid_60_on_the_15th.txt` with that payment's date changed to
+# 2026-01-16 and a second payment of 40.00 added on 2026-01-20. A changed date
+# describes another movement, so the payment the book holds pairs with no block
+# and the file is not only adding a payment.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-001"
+		accumulate: true
+	payment:
+		date: 2026-01-16
+		amount: 60
+		bank_account: "Assets:Bank"
+		memo: "First part"
+	payment:
+		date: 2026-01-20
+		amount: 40
+		bank_account: "Assets:Bank"
+		memo: "Second part"

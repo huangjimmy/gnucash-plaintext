@@ -1,0 +1,5 @@
+# A `company` block changing the phone number and saying nothing else. An
+# absent key is not an instruction, so the name and the address stay as they
+# are.
+company
+	phone: "555-0199"

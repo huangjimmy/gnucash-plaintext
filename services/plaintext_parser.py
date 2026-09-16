@@ -179,10 +179,6 @@ class PlaintextDirective:
         self.parent = parent
         self.line = line
 
-    def __str__(self):
-        return (f'PlaintextDirective(type={self.type}, level={self.level}, '
-                f'props={self.props}, metadata={self.metadata}, children={len(self.children)})')
-
 
 class PlaintextIndentation:
     """Tracks indentation style (tabs or spaces and count)"""
@@ -325,6 +321,9 @@ class PlaintextParser:
             vendor_id = parse_vendor(line.strip())
             bill_id = parse_bill(line.strip())
             block_type = parse_block(line.strip())
+            # How many directives the parent held before this line, so one the
+            # line adds can be checked against where it was written.
+            children_before = len(parent_directive.children)
 
             if account_date is not None:
                 obj = PlaintextDirective(DirectiveType.OPEN_ACCOUNT, line_level, line, parent_directive)
@@ -348,6 +347,17 @@ class PlaintextParser:
                 parent_directive.children.append(obj)
                 self.current_directive = obj
             elif split_account_name is not None:
+                # An account, then the amount. A line with the account left
+                # out still matches the split pattern, with an empty account,
+                # and an empty account name finds the book's root account:
+                # the split was booked there with `Errors: 0`, and the book
+                # could not be exported afterwards (measured on 5.10).
+                if not split_account_name:
+                    self.errors.append(
+                        f'Error processing line {line_number}: a split line gives '
+                        f'its account, then its amount and commodity, and this '
+                        f'one has no account: {line.strip()!r}.')
+                    break
                 obj = PlaintextDirective(DirectiveType.SPLIT, line_level, line, parent_directive)
                 obj.props['amount'] = split_amount
                 obj.props['symbol'] = split_symbol
@@ -474,6 +484,59 @@ class PlaintextParser:
                     namespace = value
                     symbol = parent_directive.props['symbol']
                     self.commodities[f'{namespace}.{symbol}'] = parent_directive
+            else:
+                # Read by nothing. Passed over, the line went missing from the
+                # book with nothing said — a note typed where a key belongs,
+                # or a split whose amount is written in a way no pattern here
+                # reads — so it is refused like every other unread line.
+                self.errors.append(
+                    f'Error processing line {line_number}: {line.strip()!r} is not '
+                    f'a line this format reads: not a block, not a split, and not '
+                    f'a `key: value`.')
+                break
+
+            # Under an `open` line the import reads the account's keys and its
+            # `open_prepayment:` blocks, and nothing else. A `payment:` block
+            # or a transaction written there imported as nothing and reported
+            # no error, so it is refused for the reason a `price` block inside
+            # another block is.
+            if (parent_directive.type == DirectiveType.OPEN_ACCOUNT
+                    and len(parent_directive.children) > children_before
+                    and parent_directive.children[-1].type != DirectiveType.OPEN_PREPAYMENT):
+                self.errors.append(
+                    f'Error processing line {line_number}: under an `open` line '
+                    f'only its keys and `open_prepayment:` blocks are read. This '
+                    f'{parent_directive.children[-1].type.name.lower()} is under '
+                    f"the open of {parent_directive.props['account']}, where "
+                    f'nothing would read it.')
+                break
+            # And under a transaction its keys and its splits. Every line there
+            # was taken for a split, so a `posted:` block failed the import
+            # with `'account'` — the key it lacked — and no line number.
+            if (parent_directive.type == DirectiveType.TRANSACTION
+                    and len(parent_directive.children) > children_before
+                    and parent_directive.children[-1].type != DirectiveType.SPLIT):
+                self.errors.append(
+                    f'Error processing line {line_number}: under a transaction '
+                    f'only its keys and its splits are read. This '
+                    f'{parent_directive.children[-1].type.name.lower()} is under '
+                    f"the transaction on {parent_directive.props['date']}, where "
+                    f'nothing would read it.')
+                break
+            # And under a payment's `Transaction "..."` line, its `PaymentSplit`
+            # lines. A split line written there parsed with no error and the
+            # payment applied only the `PaymentSplit` beside it (measured on
+            # 5.10), the line read by nobody.
+            if (parent_directive.type == DirectiveType.PAYMENT_TRANSACTION
+                    and len(parent_directive.children) > children_before
+                    and parent_directive.children[-1].type != DirectiveType.PAYMENT_SPLIT):
+                self.errors.append(
+                    f'Error processing line {line_number}: under a `Transaction "..."` '
+                    f'line only its `PaymentSplit` lines are read. This '
+                    f'{parent_directive.children[-1].type.name.lower()} is under '
+                    f"the transaction {parent_directive.props['guid']}, where "
+                    f'nothing would read it.')
+                break
 
     def find_parent_directive(self, line_level: int, ctx_obj):
         """Find parent directive for given level"""

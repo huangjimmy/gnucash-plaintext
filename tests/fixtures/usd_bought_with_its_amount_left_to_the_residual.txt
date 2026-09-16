@@ -1,0 +1,31 @@
+# 1000.00 USD bought for 1350.00 CAD, the USD split's amount left to `$residual$`.
+#
+# The transaction is in USD. The CAD split is valued -1000.00 USD, so the USD
+# split takes +1000.00 USD. That split states `cost_basis_balance: 1500.00`:
+# 500.00 USD more than it brings in, currency the book never held.
+#
+# What this fixture produces: a refusal, since a cost basis cannot have more
+# available than it acquired.
+#
+# Verified by tests/integration/test_stated_balance_is_checked.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-10 * "Buy 1000 USD"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD $residual$ USD
+		account.commodity.mnemonic: "USD"
+		cost_basis_balance: 1500.00
+	Assets:Bank -1350.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "-1000.00"

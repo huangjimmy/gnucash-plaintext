@@ -45,8 +45,10 @@ from infrastructure.gnucash.utils import (
     get_account_full_name,
     money_text,
     numeric_to_fraction,
+    qof_pointer,
 )
 from services.foreign_currency import (
+    APPLIED_FROM_CREDIT_KEY,
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
     cost_basis_guid_of,
@@ -56,10 +58,13 @@ from services.foreign_currency import (
     iter_splits,
     open_cost_basis_balance_if_none_is_stored,
     open_what_an_edit_made_a_basis,
+    record_borrowed_basis,
     split_guid,
     the_bases_a_transaction_has,
 )
 from services.gnucash_importer import (
+    _attach_record_owner_to_lot,
+    _carried_cost_of,
     _find_bill_by_guid,
     _find_bills_by_id,
     _find_invoice_by_guid,
@@ -80,6 +85,9 @@ class UnapplyResult:
     to_account: str = ''
     # one (tx_guid, amount_str, currency) per payment peeled off
     unapplied: List[tuple] = field(default_factory=list)
+    # The payments among them that `--to` left on the receivable or payable
+    # they were already on, and so are the owner's credit now.
+    credited: List[tuple] = field(default_factory=list)
     remaining_balance: Decimal = Decimal('0')  # lot's outstanding after unapply
     # How finely the record's currency divides (GnuCash's commodity fraction):
     # 100 where there are hundredths, 1 for a currency with no minor unit.
@@ -219,18 +227,15 @@ def _drop_a_cost_the_transaction_states_itself(book, settlements) -> None:
         if split_guid(split) in settlements:
             continue
         transaction = split.GetParent()
-        if transaction is None:
-            continue
         if not any(split_guid(sibling) in settlements
                    for sibling in transaction.GetSplitList()):
             continue
         metadata = dict(get_custom_metadata(split))
         if COST_BASIS_COST_KEY not in metadata:
             continue
-        try:
-            if derived_cost_of(split) is None:
-                continue
-        except Exception:
+        # Not guarded: `derived_cost_of` reads no stored figure, so there is
+        # nothing in the split for it to fail on.
+        if derived_cost_of(split) is None:
             continue
         remaining = {key: value for key, value in metadata.items()
                      if key != COST_BASIS_COST_KEY}
@@ -444,10 +449,51 @@ def _numeric(value: Fraction) -> GncNumericC:
 
 
 def _amount(numc: GncNumericC) -> Decimal:
-    """Exact value of a gnc_numeric, never via float."""
-    if not numc.denom:
-        return Decimal('0')
+    """Exact value of a gnc_numeric, never via float.
+
+    Only ever handed a split's amount, which always has a denominator.
+    """
     return Decimal(numc.num) / Decimal(numc.denom)
+
+
+def _keep_them_as_the_owners_credit(book, record, splits) -> None:
+    """Put each settlement `--to` left on its own receivable or payable in a lot of the owner's.
+
+    Taken off the record and given the account it is already on, a settlement
+    is no longer that record's and is still the owner's money. Left in no lot
+    it was owned by nobody: `find-prepayments` did not list it, and a book
+    rebuilt from the export made it a credit the book itself did not hold.
+    GnuCash keeps a payment that pays no invoice as a credit in a lot of the
+    owner's, and so does this.
+
+    On a foreign record the credit is currency the book holds and owes back,
+    so it is a cost basis, as an overpayment's credit is (`record_borrowed_basis`).
+    A spent credit still carries the cost it was received at and gets back the
+    balance spending it took; a bank payment is given the cost the record
+    carries. Measured on 5.10: without it the book held 200.00 USD of cost
+    basis and a book rebuilt from its export 300.00.
+    """
+    if not splits:
+        return
+    lib = load_gnc_engine()
+    basis_cost = _carried_cost_of(record)
+    for split in splits:
+        account = split.GetAccount()
+        account.BeginEdit()
+        lot = lib.gnc_lot_new(int(book.instance))
+        lib.xaccAccountInsertLot(int(account.instance), lot)
+        lib.gnc_lot_add_split(lot, qof_pointer(split))
+        _attach_record_owner_to_lot(lib, record, lot)
+        account.CommitEdit()
+        # A credit again, not a credit spent.
+        held = dict(get_custom_metadata(split))
+        if held.pop(APPLIED_FROM_CREDIT_KEY, None) is not None:
+            transaction = split.GetParent()
+            transaction.BeginEdit()
+            set_custom_metadata(split, held)
+            transaction.CommitEdit()
+        if basis_cost is not None:
+            record_borrowed_basis(split, basis_cost)
 
 
 def unapply_payments(book: Book, record, to_account, *, kind='invoice',
@@ -516,16 +562,12 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
     # Keyed by transaction GUID, never by amount (amounts can collide).
     payments = {}   # tx_guid -> {'splits': [ptr], 'amount': Decimal, 'currency': str}
     g = lib.gnc_lot_get_split_list(int(lot.instance))
-    seen = set()
     while g:
         arr = ctypes.cast(g, ctypes.POINTER(ctypes.c_void_p * 2)).contents
         sp = arr[0]
         g = arr[1]
-        if not sp or sp in seen:
-            continue
-        seen.add(sp)
-        if lib.xaccAccountGetType(lib.xaccSplitGetAccount(sp)) not in (11, 12):
-            continue
+        # A lot lists each of its splits once, and every one of them is on the
+        # lot's own account: the record's receivable or payable.
         tx = lib.xaccSplitGetParent(sp)
         tg = _guid_of(tx)
         if tg == posting_guid:
@@ -641,9 +683,16 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
     # `--all` on a record with several payments a full scan per split.
     drawn = []
     each_transaction_and_the_cost_bases_it_had = {}
+    # The settlements `--to` leaves on the account they are already on — the
+    # receivable or payable itself — asked while that is still true, and
+    # their wrapped splits kept from the walk below.
+    staying = {_guid_of(sp) for sp, _ in takings
+               if lib.xaccSplitGetAccount(sp) == to_ptr}
+    wrapped = {}
     for split in iter_splits(book):
         if split_guid(split) not in wanted:
             continue
+        wrapped[split_guid(split)] = split
         basis_guid = cost_basis_guid_of(split)
         if basis_guid:
             drawn.append((split, basis_guid,
@@ -653,10 +702,9 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
         # `open_what_an_edit_made_a_basis` below, carried out of this walk so
         # that it is the only one.
         transaction = split.GetParent()
-        if transaction is not None:
-            each_transaction_and_the_cost_bases_it_had[
-                transaction.GetGUID().to_string()] = (
-                    transaction, the_bases_a_transaction_has(transaction))
+        each_transaction_and_the_cost_bases_it_had[
+            transaction.GetGUID().to_string()] = (
+                transaction, the_bases_a_transaction_has(transaction))
 
     for sp, takes in takings:
         tx = lib.xaccSplitGetParent(sp)
@@ -673,6 +721,8 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
     _drop_a_cost_the_transaction_states_itself(book, wanted)
     _open_what_the_restatement_made_a_basis(
         each_transaction_and_the_cost_bases_it_had)
+    _keep_them_as_the_owners_credit(
+        book, record, [wrapped[guid] for guid in sorted(staying)])
     res.warnings.extend(_rates_that_came_from_an_earlier_day(fx_rates,
                                                             rates_taken))
 
@@ -682,6 +732,8 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
         res.unapplied.append((tg,
                               money_text(Fraction(payments[tg]['amount']), res.unit),
                               payments[tg]['currency']))
+        if any(_guid_of(sp) in staying for sp in payments[tg]['splits']):
+            res.credited.append(res.unapplied[-1])
 
     res.remaining_balance = _amount(lib.gnc_lot_get_balance(int(lot.instance)))
     res.status = 'unapplied'

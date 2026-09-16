@@ -15,7 +15,7 @@ import tempfile
 from datetime import date
 from decimal import Decimal
 
-from infrastructure.gnucash.utils import gnc_numeric_to_fraction_or_decimal
+from infrastructure.gnucash.utils import numeric_to_fraction
 
 WANTED = date(2026, 4, 15)
 
@@ -63,7 +63,8 @@ def test_what_the_engine_reports(capsys):
     tx.CommitEdit()
 
     read_in_session = tx.GetDate()
-    amounts = [Decimal(gnc_numeric_to_fraction_or_decimal(sp.GetAmount()))
+    amounts = [Decimal(numeric_to_fraction(sp.GetAmount()).numerator)
+               / Decimal(numeric_to_fraction(sp.GetAmount()).denominator)
                for sp in tx.GetSplitList()]
     session.save()
     session.end()

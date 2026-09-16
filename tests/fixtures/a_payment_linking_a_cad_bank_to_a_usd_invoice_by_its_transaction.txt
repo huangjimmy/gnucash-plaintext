@@ -1,0 +1,38 @@
+# INV-USD-001, a USD invoice, linked to money that arrived in the CAD bank,
+# giving the transaction alone.
+#
+# The same payment as `a_payment_linking_a_cad_bank_to_a_usd_invoice.txt`,
+# without `txn_split_guid:`. The block then leaves the run to find the split
+# that settles the invoice, and that path works out what the settlement is
+# worth before it asks whether it can: the parked split is CAD and so is the
+# bank, so nothing in the transaction is USD and there is no figure to read.
+#
+# What this fixture produces: the refusal the other spelling gives, stating
+# both currencies and what to write instead.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-03-01
+    amount: 100
+    account: "Assets:Bank"
+    txn_guid: "d4e5f60718293a4b5c6d7e8f90011223"

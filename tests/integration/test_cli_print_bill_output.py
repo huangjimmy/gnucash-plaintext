@@ -92,6 +92,24 @@ class TestPlaintext:
         assert (outdir / 'BILL-PRINT-002.txt').exists()
         assert 'Office chairs' in (outdir / 'BILL-PRINT-001.txt').read_text()
 
+    def test_an_unposted_bill_prints_that_it_has_no_payment(self, tmp_path):
+        """An unposted bill has no posted lot, so no payment is read from one."""
+        runner = CliRunner()
+        gnc = tmp_path / 'book.gnucash'
+        created = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
+        assert created.exit_code == 0, created.output
+        imported = runner.invoke(cli, ['import', str(gnc),
+                                       str(FIXTURES / 'q019_unposted_cash_bill.txt'),
+                                       '--include-business-objects'])
+        assert imported.exit_code == 0, imported.output
+
+        result = runner.invoke(cli, [
+            'print-bill', str(gnc), 'BILL-Q19-CASH-TAX-400',
+            '--format', 'plaintext', '-o', '-'])
+
+        assert result.exit_code == 0, result.output
+        assert '\tpayment: none' in result.output, result.output
+
 
 class TestHtml:
     def test_two_bills_combine_into_one_page(self, tmp_path):

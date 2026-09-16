@@ -1,0 +1,21 @@
+# A `posted:` block written under a transaction.
+#
+# What this fixture produces: nothing. Under a transaction only its keys and its
+# splits are read, so the file is refused at line 20 before anything in it is
+# carried out.
+#
+# Verified by tests/integration/test_only_keys_and_splits_are_read_under_a_transaction.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-02-01 * "Office chair"
+	currency.mnemonic: "CAD"
+	Expenses 50.00 CAD
+	Assets -50.00 CAD
+	posted:
+		date: 2026-02-01

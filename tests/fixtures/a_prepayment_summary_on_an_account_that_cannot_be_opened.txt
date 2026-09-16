@@ -1,0 +1,23 @@
+# An `open_prepayment:` summary under an account whose type is not one GnuCash has.
+#
+# What this fixture produces: Assets and Assets:Bank in CAD, and a refusal for
+# Assets:Owed, whose type `NotAType` is no account type. The summary under it
+# declares 5.00 CAD of credit for customer C1, and the book holds no such
+# account, so it holds no such credit either.
+#
+# Verified by tests/integration/test_a_prepayment_summary_on_an_account_that_cannot_be_opened.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Owed
+	type: NotAType
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	open_prepayment:
+		customer: "C1"
+		amount: 5.00 CAD

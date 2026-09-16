@@ -121,15 +121,12 @@ def _count_invoices_for_owner(book: Book, owner_id: str, owner_type_int: int) ->
         inv = wrap_invoice_or_bill(r)
         if inv.GetOwnerType() != owner_type_int:
             continue
-        try:
-            if owner_type_int == 2:  # Customer
-                owner = inv.GetOwner().GetCustomer()
-            else:                    # Vendor
-                owner = inv.GetOwner().GetVendor()
-            if owner and owner.GetID() == owner_id:
-                count += 1
-        except Exception:
-            pass
+        # Neither call raises: the owner is asked for by the type it has, 2 for
+        # a customer and 4 for a vendor, as the docstring above says.
+        owner = (inv.GetOwner().GetCustomer() if owner_type_int == 2
+                 else inv.GetOwner().GetVendor())
+        if owner and owner.GetID() == owner_id:
+            count += 1
     return count
 
 

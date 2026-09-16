@@ -1,0 +1,24 @@
+# Two `open` lines whose account names have an empty part.
+#
+# What this fixture produces: Assets and Assets:Bank, and two refusals. `open ""`
+# gives no name at all, and `open Assets::Savings` gives an empty name between
+# Assets and Savings. Neither is an account GnuCash can hold under a name, so
+# neither is created.
+#
+# Verified by tests/integration/test_an_account_is_not_opened_without_a_name.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open ""
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets::Savings
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"

@@ -1,0 +1,11 @@
+# A company address with its second line left out.
+#
+# What this fixture produces: a company whose address holds `42 Example Street`,
+# an empty second line, and `Springfield ON`. The export writes the two lines
+# that hold something, each under the index it has, and no `addr[1]`.
+#
+# Verified by tests/integration/test_a_company_address_keeps_the_index_of_each_line.py.
+company
+	name: "Example Co"
+	addr[0]: "42 Example Street"
+	addr[2]: "Springfield ON"

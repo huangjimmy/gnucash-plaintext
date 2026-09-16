@@ -70,7 +70,7 @@ class GnuCashFuzzyMatcher:
         # duplicate, silently, on an install that cannot work anyway.
         import gnucash as gc
 
-        from infrastructure.gnucash.utils import gnc_numeric_to_fraction_or_decimal
+        from infrastructure.gnucash.utils import numeric_to_fraction
         from repositories.gnucash_repository import SessionMode
         _al_types = {
             gc.ACCT_TYPE_ASSET, gc.ACCT_TYPE_BANK, gc.ACCT_TYPE_CASH,
@@ -88,7 +88,12 @@ class GnuCashFuzzyMatcher:
                 for sp in raw_splits:
                     acct = sp.GetAccount()
                     name = _full_name(acct)
-                    amount = Decimal(gnc_numeric_to_fraction_or_decimal(sp.GetAmount()))
+                    # The exact fraction, divided out. `Decimal` takes no
+                    # `Fraction`, and a split of 3/16 of a share has no decimal
+                    # form at its commodity's unit, so handing one over raised
+                    # and no statement could be matched against the book.
+                    held = numeric_to_fraction(sp.GetAmount())
+                    amount = Decimal(held.numerator) / Decimal(held.denominator)
                     splits_data.append((name, amount))
                     # `GetAccount()` a line above answered, so asking its type
                     # is not a thing that fails. A split with no account cannot
@@ -168,18 +173,13 @@ class GnuCashFuzzyMatcher:
 def _full_name(acct) -> str:
     """The account's path, root excluded.
 
-    The walk always stops at the root, so "ran out of accounts" is a way out
-    that nothing can take. The `a is not None` in the `while` is therefore not
-    a second way to reach the end — it is what makes reading the name safe.
-    The name itself decides where the path stops, in the `break`.
-
-    Both tests are in the loop rather than in one `while` condition because
-    reading the name and then testing it needs an assignment expression, and
-    Python 3.7 on Debian 10 has none.
+    The walk always stops at the root, whose name ends it in the `break`: a
+    split's account sits in the book's tree, so the walk never runs out of
+    parents first, and the loop has no other way out.
     """
     parts = []
     a = acct
-    while a is not None:
+    while True:
         name = a.GetName()
         if not name or name == "Root Account":
             break

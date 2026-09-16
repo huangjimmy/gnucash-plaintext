@@ -1,0 +1,33 @@
+# A book whose top-level Assets and Equity accounts are held in HKD, beside a
+# top-level Investments account holding NASDAQ:AMZN shares.
+#
+# Only top-level accounts held in a currency decide the book's currency; an
+# account holding shares is held in no currency (Q-042). So this book is kept
+# in HKD.
+#
+# What this fixture produces: Assets and Equity in HKD, and Investments in
+# NASDAQ:AMZN.
+#
+# Verified by tests/integration/test_the_currency_a_book_is_kept_in.py.
+2026-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity AMZN
+	mnemonic: "AMZN"
+	fullname: "Amazon.com Inc"
+	namespace: "NASDAQ"
+	fraction: 10000
+2026-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Investments
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"

@@ -177,7 +177,6 @@ add('GOOG', 1)
 
 sess.save()
 sess.end()
-time.sleep(1)
 reread = session('xml://' + path, 'SESSION_READ_ONLY')
 after_reload = {}
 

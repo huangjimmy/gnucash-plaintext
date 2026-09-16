@@ -132,7 +132,6 @@ class TestValidateLedger:
             # Validate without optional checks
             result = use_case.execute(
                 check_duplicates=False,
-                check_date_order=False,
                 check_future_dates=False
             )
 

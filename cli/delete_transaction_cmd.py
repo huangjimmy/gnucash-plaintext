@@ -79,14 +79,6 @@ def delete_transactions(gnucash_file, guids, by_guid, output_file):
               589d2f1c7a1b4e5a803b1ce9a72f0344 \\
               -o batch_backup.txt
     """
-    # Click enforces `required=True` for the flag, but we keep an
-    # explicit guard so the use case is callable from tests with
-    # by_guid=False without silently picking GUID anyway.
-    if not by_guid:
-        raise click.UsageError(
-            "--by-guid is required; no other addressing scheme is "
-            "currently supported for transactions.")
-
     repo = GnuCashRepository(gnucash_file)
     repo.open(mode=SessionMode.NORMAL)
     backups = []

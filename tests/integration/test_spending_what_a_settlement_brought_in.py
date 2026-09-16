@@ -28,6 +28,8 @@ from click.testing import CliRunner
 from gnucash import Query, Transaction
 
 from cli.main import cli
+from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
+from infrastructure.gnucash.utils import find_account
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 BOTH = 'tests/fixtures/fx_hkd_settled_in_then_spent_out.txt'
@@ -120,6 +122,7 @@ class TestTheSameCurrencyCaseIsAskedToo:
     BILL = 'tests/fixtures/fx_usd_bill_cad_expense.txt'
     PAY = 'tests/fixtures/fx_bill_paid_from_a_usd_bank_with_a_basis.txt'
     BUY = 'tests/fixtures/buy_100_usd_at_1_35.txt'
+    BORROW = 'tests/fixtures/usd_borrowed_into_the_bank_at_a_stated_cost.txt'
     USD_RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
 
     def _book_with_usd_at_a_basis(self, runner, tmp_path):
@@ -170,6 +173,71 @@ class TestTheSameCurrencyCaseIsAskedToo:
             '--fx-rates', self.USD_RATES])
 
         assert self._bank_row(runner, book).endswith('100.00 USD')
+
+    @staticmethod
+    def _change_the_bank_basis(book, change):
+        """Rewrite the KVP of the bank's cost basis, as a hand edit or an older
+        tool leaves it."""
+        repo = GnuCashRepository(str(book))
+        repo.open(mode=SessionMode.NORMAL)
+        try:
+            account = find_account(repo.book.get_root_account(), 'Assets:Bank:USD')
+            split = next(s for s in account.GetSplitList()
+                         if get_custom_metadata(s).get('cost_basis_balance'))
+            transaction = split.GetParent()
+            transaction.BeginEdit()
+            set_custom_metadata(split, change(dict(get_custom_metadata(split))))
+            transaction.CommitEdit()
+            repo.save()
+        finally:
+            repo.close()
+
+    def _pay(self, runner, book):
+        return runner.invoke(cli, [
+            'import', str(book), self.PAY, '--include-business-objects',
+            '--fx-rates', self.USD_RATES])
+
+    def test_a_cost_basis_with_no_balance_recorded_leaves_nothing_to_refuse_over(self, tmp_path):
+        """A balance never written offers nothing, so the payment is not refused.
+
+        A cost basis made in the GnuCash GUI, or older than this tool's
+        balances, has no balance recorded, so how much of its currency is left
+        is not known and none of it is offered. That is the hole
+        `total_cost_basis_balance_in` records: what the refusal guards is an
+        account whose balances this tool has kept.
+        """
+        runner = CliRunner()
+        book = self._book_with_usd_at_a_basis(runner, tmp_path)
+        self._change_the_bank_basis(book, lambda kvp: {
+            key: value for key, value in kvp.items() if key != 'cost_basis_balance'})
+
+        result = self._pay(runner, book)
+
+        assert result.exit_code == 0, result.output
+        assert 'Errors:       0' in result.output, result.output
+
+    def test_a_cost_basis_whose_cost_cannot_be_read_leaves_nothing_to_refuse_over(self, tmp_path):
+        """A cost basis whose own cost does not read is not counted either.
+
+        Its balance is a number, but nothing can be measured against a cost
+        basis whose cost will not parse, and `fx-balances` lists it as
+        malformed. Counting it would refuse the payment over currency no
+        disposal could draw on.
+        """
+        runner = CliRunner()
+        book = tmp_path / 'book.gnucash'
+        assert runner.invoke(cli, [
+            'import', '--new', str(book), self.BILL,
+            '--include-business-objects', '--fx-rates', self.USD_RATES]).exit_code == 0
+        result = runner.invoke(cli, ['import', str(book), self.BORROW])
+        assert 'Errors:       0' in result.output, result.output
+        assert self._bank_row(runner, book).endswith('100.00 USD')
+        self._change_the_bank_basis(book, lambda kvp: {**kvp, 'cost_basis_cost': 'oops'})
+
+        result = self._pay(runner, book)
+
+        assert result.exit_code == 0, result.output
+        assert 'Errors:       0' in result.output, result.output
 
 
 class TestAnAccountWithNothingLeftIsStillSpendable:

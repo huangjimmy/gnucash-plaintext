@@ -23,7 +23,6 @@ that would go wrong there.
 import ctypes.util
 
 from infrastructure.guile import (
-    _candidates,
     gnucash_libguile_soname,
     load_guile,
     mapped_libguile,
@@ -36,19 +35,6 @@ class TestWhichLibraryIsChosen:
 
         assert soname, 'no GnuCash library on this build names a libguile'
         assert soname.startswith('libguile-'), soname
-
-    def test_gnucashs_answer_is_tried_first_and_is_not_the_only_one(self):
-        """What GnuCash names is a claim about *which* library, never a claim
-        that it is installed — the soname is read out of an ELF file, and that
-        file says what it was linked against on a machine that has no libguile
-        at all. Which is why the candidates are a list that gets tried, rather
-        than one name that gets loaded: on Fedora and openSUSE, `gnucash`
-        alone does not install guile.
-        """
-        candidates = list(_candidates())
-
-        assert candidates, 'nothing at all to try'
-        assert candidates[0] == gnucash_libguile_soname(), candidates
 
     def test_the_interpreter_loaded_is_the_one_gnucash_names(self):
         wanted = gnucash_libguile_soname()

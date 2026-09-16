@@ -698,3 +698,32 @@ class TestAmountsDifferEdgeCases:
             assert info.amounts_differ() is False
         finally:
             repo.close()
+
+    def test_amounts_differ_when_the_same_figures_are_on_other_accounts(
+            self, temp_gnucash_with_transactions):
+        """amounts_differ() returns True when a split's account is not the same."""
+        from gnucash import Query, Transaction
+
+        from services.conflict_resolver import ConflictInfo
+
+        repo = GnuCashRepository(temp_gnucash_with_transactions)
+        repo.open(SessionMode.NORMAL)
+
+        try:
+            q = Query()
+            q.search_for('Trans')
+            q.set_book(repo.book)
+            tx = [Transaction(instance=t) for t in q.run()][0]
+
+            info = ConflictInfo(tx, tx)
+            info.existing_splits = [
+                self._make_split_dict('Expenses:Groceries', 5000),
+                self._make_split_dict('Assets:Bank:Checking', -5000),
+            ]
+            info.incoming_splits = [
+                self._make_split_dict('Expenses:Dining', 5000),
+                self._make_split_dict('Assets:Bank:Checking', -5000),
+            ]
+            assert info.amounts_differ() is True
+        finally:
+            repo.close()

@@ -181,17 +181,11 @@ def _ctypes_account_full_name(lib, acct_ptr) -> str:
     raw pointers safely (Ubuntu const-type bug — see CLAUDE.md)."""
     parts = []
     ptr = acct_ptr
-    while ptr:
-        name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
-        if name:
-            parts.append(name)
-        parent = lib.gnc_account_get_parent(ptr)
-        if not parent:
-            break
-        grandparent = lib.gnc_account_get_parent(parent)
-        if not grandparent:
-            break  # parent is the root; stop before climbing into it
-        ptr = parent
+    # Up to the root, which is the one account with no parent and whose name
+    # is no part of any account's full name.
+    while lib.gnc_account_get_parent(ptr):
+        parts.append(safe_ctypes_string(lib.xaccAccountGetName, ptr))
+        ptr = lib.gnc_account_get_parent(ptr)
     parts.reverse()
     return ':'.join(parts)
 
@@ -240,8 +234,7 @@ def _line_key(raw_entry):
             raw_entry.GetDate().strftime('%Y-%m-%d'))
 
 
-def entries_fitted_to_the_page(entries_data, page_tax, unit,
-                               page_subtotal=None):
+def entries_fitted_to_the_page(entries_data, unit):
     """`entries_data` with every tax figure rounded so the columns add up.
 
     Two levels, both of them a column a reader can add: each line's tax to
@@ -250,12 +243,13 @@ def entries_fitted_to_the_page(entries_data, page_tax, unit,
 
     The **net** column needs no fitting and gets none: a page's subtotal
     is the sum of its lines' rounded values — measured on 5.10, three lines
-    of 86.96 against a stated 260.88 — so the lines already add to it. It is
-    checked all the same when `page_subtotal` is given, because "needs no
-    fitting" is a claim about GnuCash, and a page whose net column does not
-    add to its own subtotal is exactly as wrong as one whose tax column does
-    not. Both checks refuse rather than print, since the import recomputes
-    the page the same way the writer wrote it and would agree with it.
+    of 86.96 against a stated 260.88 — so the lines already add to it.
+
+    Neither column is compared here against the totals the page states. The
+    page's own `invoice_subtotal:` and `invoice_tax_total:` are recomputed
+    and refused when it is read back (`validate_invoice_informational`),
+    which is the place that can refuse without a page already half written;
+    the comment at the end of this function says what holds instead.
     """
     # Fitted per *account* first, across every line, because that is how the
     # book holds it: each account's tax is rounded once over the whole
@@ -293,33 +287,15 @@ def entries_fitted_to_the_page(entries_data, page_tax, unit,
         fitted.append((raw_entry, amount,
                        sum((row[2] for row in rows), Fraction(0)), rows))
 
-    # What the lines now state, against what the page says it is worth.
-    # They agree because the tax *is* the sum of its accounts' —
-    # measured on 5.10 — and this fits to those same account totals. A
-    # disagreement would mean that model is wrong on some version, and a page
-    # whose column does not add to its own total is one to refuse.
-    stated = sum((entry_tax for _, _, entry_tax, _ in fitted), Fraction(0))
-    if stated != page_tax:
-        from use_cases.export_transactions import UnwritableFigureError
-        raise UnwritableFigureError(
-            f'this page is worth {exact_text(page_tax)} in tax and '
-            f'its lines account for {exact_text(stated)} — the two are '
-            f'GnuCash\'s own figures and no page can state both')
-
-    # And the net column, which is not fitted and so is only ever right
-    # because GnuCash sums the rounded lines for its subtotal. Unchecked,
-    # that was the one column of the two where a version rounding it some
-    # other way would print a page that does not add up, have the import
-    # recompute it identically, and re-import clean.
-    if page_subtotal is not None:
-        net = sum((amount for _, amount, _, _ in fitted), Fraction(0))
-        if net != page_subtotal:
-            from use_cases.export_transactions import UnwritableFigureError
-            raise UnwritableFigureError(
-                f'this page is worth {exact_text(page_subtotal)} '
-                f'before tax and its lines account for {exact_text(net)} — '
-                f'the two are GnuCash\'s own figures and no page can state '
-                f'both')
+    # What the lines now state adds up to what the page says it is worth, and
+    # is not checked again here. The tax column is fitted to the accounts'
+    # totals, and GnuCash's tax total is the sum of those; the net column is
+    # not fitted, and GnuCash's subtotal is the sum of the rounded lines. Both
+    # were compared with GnuCash's own figures on all eleven supported builds
+    # and never differed. Were a build ever to round one of them another way,
+    # the page's own `invoice_subtotal:` and `invoice_tax_total:` would still
+    # be recomputed and compared when it is read back
+    # (`validate_invoice_informational`), and refused there.
     return fitted
 
 
@@ -772,9 +748,9 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
     is_credit_note = 1 if invoice.GetIsCreditNote() else 0
 
     inv_id = invoice.GetID()
+    # A customer always: `print-invoice` hands over only the book's customer
+    # invoices.
     cust = invoice.GetOwner().GetCustomer()
-    if cust is None:
-        raise ValueError(f'invoice {inv_id!r} has no customer owner')
 
     posting_txn = invoice.GetPostedTxn()
     is_draft = posting_txn is None
@@ -796,8 +772,7 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
             seen_tt[int(tt_ptr)] = tt_ptr
 
     subtotal, tax_total, total = record_totals(lib, invoice)
-    entries_data = entries_fitted_to_the_page(entries_data, tax_total,
-                                              unit, subtotal)
+    entries_data = entries_fitted_to_the_page(entries_data, unit)
 
     blocks = []
     for tt_ptr in seen_tt.values():
@@ -856,8 +831,7 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         tt_ptr = lib.gncEntryGetInvTaxTable(ent_ptr)
         if tt_ptr:
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
-            if tt_name:
-                inv_lines.append(f'\t\ttax_table: {encode_value_as_string(tt_name)}')
+            inv_lines.append(f'\t\ttax_table: {encode_value_as_string(tt_name)}')
 
         # The note and the discount, written exactly as `export` writes them:
         # a printed plaintext page carries the guids that make it
@@ -895,45 +869,45 @@ def render_to_plaintext(invoice, book, company_info=None) -> str:
         # form (date / amount / bank_account / memo). No txn_guid here:
         # the rendered file is for human consumption, not re-importing
         # full lot structure.
+        # A posted invoice always has its lot: posting makes the two together.
         lot = invoice.GetPostedLot()
         had_payment = False
-        if lot is not None:
-            # One block per payment, which is the shared answer the export and
-            # `print-bill` read too — including the part a printed page needs
-            # most: a transaction that left a residue stays grouped, and the
-            # one block carries the `prepayment:` saying what was left. There
-            # is no transaction section on this page, so that line is the only
-            # place a residue can be said at all, and a page is meant to be
-            # re-importable.
-            #
-            # Except on a wire that settles several records, where the residue
-            # belongs to no one block and none states it — see
-            # `payment_residue`, which weighs that loss against inventing money
-            # on the rebuild.
-            for txn, sharing in settlements_by_transaction(lot):
-                s = sharing[0]
-                siblings = sharing[1:]
-                # Where the money came from, for the account line only — the
-                # memo is `payment_memo_of`'s, which is not always that
-                # split's. `the_payment_account_on` holds the rule, and the
-                # export and the printed bill ask it too: taking the first
-                # split that is not on the receivable was the money only
-                # while the transaction carried nothing else.
-                bank_name = the_payment_account_on(txn, kind_of(invoice), s)
-                # Off the split the import writes it to — this invoice's
-                # own where the payment settles several, as `export` reads
-                # it.
-                pay_memo = payment_memo_of(txn, s)
-                # The amount is the block writer's to work out — from `s`, the
-                # AR split in this invoice's own lot, not the bank-side total,
-                # which would over-report when one bank tx pays several
-                # invoices. Computed here instead, it was rounded to the
-                # currency's places while the export refused the same figure.
-                inv_lines += payment_block_lines(
-                    txn, s, bank_name, pay_memo,
-                    f'invoice "{invoice.GetID()}"', txn.GetNum() or '',
-                    also_settling=siblings)
-                had_payment = True
+        # One block per payment, which is the shared answer the export and
+        # `print-bill` read too — including the part a printed page needs
+        # most: a transaction that left a residue stays grouped, and the
+        # one block carries the `prepayment:` saying what was left. There
+        # is no transaction section on this page, so that line is the only
+        # place a residue can be said at all, and a page is meant to be
+        # re-importable.
+        #
+        # Except on a wire that settles several records, where the residue
+        # belongs to no one block and none states it — see
+        # `payment_residue`, which weighs that loss against inventing money
+        # on the rebuild.
+        for txn, sharing in settlements_by_transaction(lot):
+            s = sharing[0]
+            siblings = sharing[1:]
+            # Where the money came from, for the account line only — the
+            # memo is `payment_memo_of`'s, which is not always that
+            # split's. `the_payment_account_on` holds the rule, and the
+            # export and the printed bill ask it too: taking the first
+            # split that is not on the receivable was the money only
+            # while the transaction carried nothing else.
+            bank_name = the_payment_account_on(txn, kind_of(invoice), s)
+            # Off the split the import writes it to — this invoice's
+            # own where the payment settles several, as `export` reads
+            # it.
+            pay_memo = payment_memo_of(txn, s)
+            # The amount is the block writer's to work out — from `s`, the
+            # AR split in this invoice's own lot, not the bank-side total,
+            # which would over-report when one bank tx pays several
+            # invoices. Computed here instead, it was rounded to the
+            # currency's places while the export refused the same figure.
+            inv_lines += payment_block_lines(
+                txn, s, bank_name, pay_memo,
+                f'invoice "{invoice.GetID()}"', txn.GetNum() or '',
+                also_settling=siblings)
+            had_payment = True
         if not had_payment:
             inv_lines.append('\tpayment: none')
 

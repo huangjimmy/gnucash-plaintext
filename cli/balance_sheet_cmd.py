@@ -1,68 +1,74 @@
-"""CLI command: balance sheet as of a date (F-002).
+"""CLI command: the balance sheet of a book as of a date, printed by a customized GnuCash report (Q-042).
 
-`balance-sheet <book> --as-of YYYY-MM-DD [--fx-rates rates.yaml] [--output file]`
+`balance-sheet <book> --as-of YYYY-MM-DD [--currency HKD] [--fx-rates file] [--prices file]
+[--price-source pricedb-latest] [--output-format text|html|pdf] [--output file]`
 
-Assets / Liabilities / Equity as of the date, with a Current Year Earnings line
-so it balances whether or not the books are closed.
+The figures are GnuCash's, in the currency the book is kept in: its balances,
+converted by GnuCash through the book's price database and the prices any
+`--fx-rates` or `--prices` file adds to it for this run.
 """
 import sys
-from typing import Optional
 
 import click
 
 from cli._dates import parse_date
-from repositories.gnucash_repository import GnuCashRepository
-from services.balance_sheet import BalanceSheet
-from services.balance_sheet_renderer import render_text
-from services.fx_rates import FxRates, MissingFxRateError
+from cli._gnucash_statements import (
+    CURRENCY_HELP,
+    OUTPUT_FORMATS,
+    PRICE_SOURCE_HELP,
+    PRICES_HELP,
+    RATES_HELP,
+    add_the_files_prices,
+    check_output,
+    page_for,
+    read_price_files,
+    the_currency,
+    write_out,
+)
+from cli._warnings import said_once
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from services.gnucash_report import PageNotRenderedError
+from services.gnucash_statements import render_balance_sheet
 
 
 @click.command("balance-sheet")
 @click.argument("gnucash_file", type=click.Path(exists=True))
 @click.option("--as-of", "as_of", required=True, callback=parse_date,
               help="Balance-sheet date (YYYY-MM-DD).")
+@click.option("--currency", default=None, help=CURRENCY_HELP)
 @click.option("--fx-rates", "fx_rates_file", default=None, type=click.Path(exists=True),
-              help="YAML FX rates → CAD (for multi-currency T2 consolidation).")
+              help=RATES_HELP)
 @click.option("--prices", "prices_file", default=None, type=click.Path(exists=True),
-              help="YAML security prices, per unit in each security's own trading "
-                   "currency (same shape as --fx-rates). Marks Stock/Mutual Fund "
-                   "holdings to market (shares × price) with an Unrealized Gains "
-                   "line; a foreign-currency holding also needs --fx-rates. "
-                   "Without it, securities show at cost.")
+              help=PRICES_HELP)
+@click.option("--price-source", default=None, help=PRICE_SOURCE_HELP)
+@click.option("--output-format", type=click.Choice(OUTPUT_FORMATS, case_sensitive=False),
+              default="text", show_default=True, help="Output format.")
 @click.option("--output", "output_file", default=None, type=click.Path(),
-              help="Output file. Defaults to stdout.")
-def balance_sheet(gnucash_file, as_of, fx_rates_file, prices_file, output_file):
-    """Generate a balance sheet as of a date."""
-    fx: Optional[FxRates] = None
-    if fx_rates_file:
-        try:
-            fx = FxRates.load(fx_rates_file)
-        except (FileNotFoundError, ValueError) as e:
-            raise click.ClickException(str(e)) from e
-
-    prices: Optional[FxRates] = None
-    if prices_file:
-        try:
-            prices = FxRates.load(prices_file)
-        except (FileNotFoundError, ValueError) as e:
-            raise click.ClickException(str(e)) from e
+              help="Output file. Required for html and pdf; defaults to stdout for text.")
+def balance_sheet(gnucash_file, as_of, currency, fx_rates_file, prices_file, price_source,
+                  output_format, output_file):
+    """The balance sheet as of a date, printed by a customized GnuCash report, in the book's currency."""
+    check_output(output_format, output_file)
+    quotes = read_price_files(fx_rates_file, prices_file)
+    # A sink of this run's own. `said_once` keys each warning on what it is
+    # about, and one made here starts empty every invocation — a sink shared
+    # at module level would keep one run's keys and silence the next, which in
+    # a process that invokes the command twice is every test that does.
+    warn = said_once()
 
     repo = GnuCashRepository(gnucash_file)
-    repo.open()
+    repo.open(SessionMode.READ_ONLY)
     try:
-        result = BalanceSheet().compute(repo.book.get_root_account(), as_of, fx, prices)
-    except (ValueError, MissingFxRateError) as e:
-        raise click.ClickException(str(e)) from e
+        report_currency = the_currency(repo.book, currency)
+        add_the_files_prices(repo.book, quotes, report_currency, [as_of])
+        page = render_balance_sheet(repo.session, report_currency, as_of, page_for(output_format),
+                                    price_source=price_source, warn=warn)
+    except PageNotRenderedError as refusal:
+        raise click.ClickException(str(refusal)) from refusal
     finally:
         repo.close()
 
-    text = render_text(result)
-    if output_file:
-        with open(output_file, "w", encoding="utf-8") as f:   # not the locale's
-            f.write(text)
-        click.echo(f"Written to {output_file}")
-    else:
-        click.echo(text)
+    write_out(page, output_format, output_file)
 
 
 if __name__ == "__main__":

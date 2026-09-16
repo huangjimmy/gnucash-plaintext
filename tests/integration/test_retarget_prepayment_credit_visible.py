@@ -64,21 +64,23 @@ def _bank_tx_guid(gf, amount, bank='Assets.Bank'):
 
 
 def _ownerless_credit_lots(gf):
-    """The book's open AR/AP credit lots that have no owner — the healthy
-    invariant is an empty list."""
+    """The book's open AR/AP credit lots that no owner can be read for, as
+    `find-prepayments` warns about them."""
     from repositories.gnucash_repository import GnuCashRepository
-    from use_cases.export_transactions import find_ownerless_credit_lots
+    from use_cases.unpost_business_objects import find_prepayments_in_book
     repo = GnuCashRepository(str(gf))
     repo.open()
     try:
-        return find_ownerless_credit_lots(repo.book)
+        unowned = []
+        find_prepayments_in_book(repo.book, unowned=unowned)
+        return unowned
     finally:
         repo.close()
 
 
 def _craft_ownerless_ar_credit(gf, amount=Fraction(-77)):
-    """Directly park an AR credit split in a lot with NO owner attached — the
-    exact defect the guard must catch (what a buggy import path would leave).
+    """Directly park an AR credit split in a lot with NO owner attached — what
+    GnuCash's View → Lots leaves, and what a buggy import path would leave.
 
     `amount` is an exact Fraction and is written at the unit its account is
     kept to, so a book kept finer than the cent can hold what it is given:
@@ -227,7 +229,7 @@ def test_retarget_overpayment_leaves_no_ownerless_credit_lot(tmp_path):
 
 def test_find_prepayments_warns_on_ownerless_credit_lot(tmp_path):
     """The CLI guard: if an ownerless credit lot ever exists, find-prepayments
-    must surface it loudly rather than let it hide. Crafts the defect directly."""
+    must surface it loudly rather than let it hide. Crafts one directly."""
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
     _craft_ownerless_ar_credit(gf, amount=Fraction(-77))
@@ -243,6 +245,23 @@ def test_find_prepayments_warns_on_ownerless_credit_lot(tmp_path):
     out = r.output.lower()
     assert 'no owner' in out or 'ownerless' in out, r.output
     assert '77' in r.output, r.output
+
+
+def test_the_export_writes_no_open_prepayment_for_an_ownerless_credit_lot(tmp_path):
+    """`open_prepayment:` gives an owner, and this credit has none to give.
+
+    So the receivable's block carries no such line, and the export still
+    writes the book.
+    """
+    runner = CliRunner()
+    gf = _setup_book(runner, tmp_path)
+    _craft_ownerless_ar_credit(gf, amount=Fraction(-77))
+    out = tmp_path / 'out.txt'
+
+    r = runner.invoke(cli, ['export', str(gf), str(out)])
+
+    assert r.exit_code == 0, r.output
+    assert 'open_prepayment:' not in out.read_text(), out.read_text()
 
 
 def test_an_ownerless_credit_is_warned_about_at_its_accounts_unit(tmp_path):

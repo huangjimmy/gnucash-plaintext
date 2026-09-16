@@ -1,0 +1,29 @@
+# A tax table whose first block is a `breakdown:`, then its one `entry:`.
+#
+# `breakdown:` is a block of an invoice or bill line, and nothing reads one
+# under a tax table. Passed over, the file's line went missing with nothing
+# said. And the table's other entries were read as every block after the
+# first, so with the `breakdown:` first, the one entry was read twice.
+#
+# What this fixture produces: nothing. The tax table is refused and no book is
+# written.
+#
+# Verified by tests/integration/test_a_tax_table_block_is_read_whole.py.
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:GST
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+taxtable "GST"
+	breakdown:
+		account: "Liabilities:GST"
+		rate: 5
+		amount: 5.00
+	entry:
+		account: "Liabilities:GST"
+		rate: 5
+		type: percent

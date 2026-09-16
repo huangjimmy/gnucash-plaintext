@@ -1,0 +1,58 @@
+# C001's credit made by a journal entry with no bank split, and INV-001
+# spending it, each with a memo.
+#
+# The same entry `a_customers_credit_made_by_a_journal_entry.txt` makes, with
+# its credit split's memo stated as "Attributed to Acme", and the same invoice
+# `an_invoice_spending_the_journal_entrys_credit.txt` posts, with its credit
+# block's memo stated as "Spent on INV-001".
+#
+# What this fixture produces, read into the book those two built: the credit
+# split takes the block's memo, "Spent on INV-001". A block whose memo is the
+# one the file gives the bank split is a ledger an earlier release wrote and
+# changes nothing, but this entry has no split off the receivable, so there is
+# no bank split for the block to be stating.
+#
+# Load after `payment_roundtrip_accounts.txt` and those two fixtures.
+#
+# Verified by
+# tests/integration/test_a_credit_blocks_memo_lands_on_a_journal_entrys_credit_with_no_bank_split.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+2026-01-06 * "Attributed to Acme"
+	guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable -50.00 CAD
+		guid: "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1"
+		lot_owner: customer:C001
+		memo: "Attributed to Acme"
+	Assets:Accounts Receivable 50.00 CAD
+		guid: "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+
+invoice "INV-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-001"
+		accumulate: true
+	payment:
+		amount: 50.00
+		from_credit: true
+		credit_dated: 2026-01-06
+		txn_guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+		txn_split_guid: "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1"
+		memo: "Spent on INV-001"

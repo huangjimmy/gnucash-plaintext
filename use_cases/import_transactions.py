@@ -1,7 +1,7 @@
 """
 Use case for importing plaintext transactions to GnuCash.
 
-Orchestrates services and repository to parse, validate, and import transactions.
+Orchestrates services and repository to parse and import transactions.
 Supports full GnuCash plaintext format with commodity declarations, account declarations,
 and transactions.
 """
@@ -18,7 +18,6 @@ from services.gnucash_importer import (
     note_what_the_file_states,
     the_guid_a_block_names,
 )
-from services.ledger_validator import LedgerValidator
 from services.plaintext_parser import DirectiveType, PlaintextParser
 from services.prices import apply_price_blocks
 from services.transaction_matcher import TransactionMatcher
@@ -104,25 +103,28 @@ def _guid_match_content_differs(child, existing_tx) -> bool:
     Amounts are compared exactly via `Fraction(num, denom)`, never float, so an
     unchanged re-import never reports a difference and an edited amount always
     does. Used only to decide whether to hint at `--strategy update`; it never
-    changes import behaviour."""
-    from decimal import Decimal, InvalidOperation
+    changes import behaviour.
+
+    A split stated as `$residual$` has no figure of its own: it takes whatever
+    balances the others. So it matches any split on its account, after the
+    splits that do state one have found theirs. Compared as the text, the same
+    ledger imported twice was reported as an edit."""
+    import re
+    from decimal import Decimal
     from fractions import Fraction
 
     from infrastructure.gnucash.utils import get_account_full_name
 
     def _incoming():
+        # Every child is a split: the parser refuses anything else under a
+        # transaction.
         out = []
         for s in child.children:
-            acct = s.props.get('account')
-            if not acct:
-                continue
             raw = str(s.props.get('amount', '0')).replace('+', '').strip()
-            try:
-                val = str(Fraction(Decimal(raw)))
-            except (InvalidOperation, ValueError, ZeroDivisionError):
-                val = raw
-            out.append((acct, val))
-        return sorted(out)
+            val = (str(Fraction(Decimal(raw)))
+                   if re.fullmatch(r'-?\d+(?:\.\d+)?', raw) else None)
+            out.append((s.props['account'], val))
+        return out
 
     def _existing():
         out = []
@@ -134,9 +136,18 @@ def _guid_match_content_differs(child, existing_tx) -> bool:
             amt = sp.GetAmount()
             out.append((get_account_full_name(a),
                         str(Fraction(amt.num(), amt.denom()))))
-        return sorted(out)
+        return out
 
-    return _incoming() != _existing()
+    incoming, remaining = _incoming(), _existing()
+    if len(incoming) != len(remaining):
+        return True
+    for account, value in sorted(incoming, key=lambda pair: pair[1] is None):
+        found = next((pair for pair in remaining
+                      if pair[0] == account and value in (None, pair[1])), None)
+        if found is None:
+            return True
+        remaining.remove(found)
+    return False
 
 
 class ImportTransactionsUseCase:
@@ -152,13 +163,11 @@ class ImportTransactionsUseCase:
         self.repository = repository
         self.matcher = TransactionMatcher()
         self.resolver = ConflictResolver()
-        self.validator = LedgerValidator()
 
     def execute(
         self,
         plaintext_transactions: List[Dict],
         resolution_strategy: ResolutionStrategy = ResolutionStrategy.SKIP,
-        validate: bool = True
     ) -> ImportResult:
         """
         Import transactions from plaintext format.
@@ -166,7 +175,6 @@ class ImportTransactionsUseCase:
         Args:
             plaintext_transactions: List of transaction dicts
             resolution_strategy: How to handle conflicts
-            validate: Whether to validate transactions before import
 
         Returns:
             ImportResult with summary
@@ -199,34 +207,23 @@ class ImportTransactionsUseCase:
         result.duplicates = duplicates
         result.skipped_count = len(duplicates)
 
-        # Validate new transactions
-        if validate and new:
-            validation_result = self.validator.validate_transactions(new, check_duplicates=False)
-            if not validation_result.is_valid():
-                result.errors.append({
-                    'error': 'Validation failed',
-                    'details': validation_result.get_summary()
-                })
-                # Counted, like every other error path here. The exit code is
-                # `error_count > 0` now, so "the run reported an error" and
-                # "`error_count` is non-zero" have to mean the same thing —
-                # this was the one place in the file where they did not.
-                result.error_count += 1
-                # Don't import if validation fails
-                return result
+        # No validation step. A transaction reaches here only once it has been
+        # built, which it is not without a split or a currency GnuCash knows,
+        # and GnuCash balanced it as its edit was committed — so the ledger
+        # validator could find only warnings in it, never a reason to stop.
 
         # Resolve conflicts
         if conflicts:
-            # Need to find corresponding existing transactions for conflicts
-            conflict_pairs = []
-            for conflict_tx in conflicts:
-                conflict_sig = self.matcher.get_signature(conflict_tx)
-                # Find existing transaction with same signature
-                for existing_tx in existing_transactions:
-                    existing_sig = self.matcher.get_signature(existing_tx)
-                    if existing_sig == conflict_sig:
-                        conflict_pairs.append((existing_tx, conflict_tx))
-                        break
+            # Each conflict beside the first existing transaction with its
+            # signature. There always is one: a conflict is an incoming
+            # transaction whose signature an existing one already has.
+            first_with_signature = {}
+            for existing_tx in existing_transactions:
+                first_with_signature.setdefault(
+                    self.matcher.get_signature(existing_tx), existing_tx)
+            conflict_pairs = [
+                (first_with_signature[self.matcher.get_signature(conflict_tx)], conflict_tx)
+                for conflict_tx in conflicts]
 
             to_import_from_conflicts, unresolved = self.resolver.resolve(
                 conflict_pairs,
@@ -269,6 +266,17 @@ class ImportTransactionsUseCase:
         # Get currency
         currency_code = plaintext_tx.get('currency', 'USD')
         currency = self.repository.get_commodity('CURRENCY', currency_code)
+
+        # Both refused before the transaction exists. Given no splits, GnuCash
+        # destroys the transaction as its edit is committed, and reading it
+        # afterwards ended the process with a segfault in `get_signature`.
+        # Given a currency it does not know, the first split failed with
+        # "'NoneType' object has no attribute 'get_fraction'"
+        # (`tests/research/what_execute_does_with_no_splits_or_an_unknown_currency_probe.py`).
+        if not plaintext_tx['splits']:
+            raise ValueError('a transaction needs at least one split')
+        if currency is None:
+            raise ValueError(f'{currency_code} is not a currency GnuCash knows')
 
         # Everything from the moment the transaction exists is inside the
         # guard — the description is subscripted, not `.get`, so a dict
@@ -597,10 +605,9 @@ class ImportTransactionsUseCase:
                     result.imported_count += 1
                     # Counted here, so a `payment:` block writing a memo
                     # onto a transaction this run created is not counted
-                    # again as one it updated.
-                    if tx is not None:
-                        result.new_transaction_guids.add(
-                            tx.GetGUID().to_string())
+                    # again as one it updated. `create_transaction` returns the
+                    # transaction or raises; it never answers None.
+                    result.new_transaction_guids.add(tx.GetGUID().to_string())
                     result.new_transactions.append(tx)
 
                 except Exception as e:

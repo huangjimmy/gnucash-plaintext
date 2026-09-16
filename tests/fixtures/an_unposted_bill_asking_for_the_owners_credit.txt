@@ -1,0 +1,26 @@
+# A bill with `auto_apply_credit: true` and no `posted:` block.
+#
+# The vendor's credit settles what a posted bill put on the payable. This bill
+# is not posted, so there is nothing on the payable for a credit to settle.
+#
+# What this fixture produces: nothing. The import refuses the bill.
+#
+# Verified by tests/integration/test_the_owners_credit_is_refused_for_an_unposted_record.py.
+vendor "V001"
+	name: "Supplier"
+	currency: CAD
+
+bill "BILL-UNPOSTED-CREDIT"
+	vendor_id: "V001"
+	currency: CAD
+	date_opened: 2026-01-01
+	auto_apply_credit: true
+	entry:
+		date: 2026-01-01
+		description: "Paper"
+		action: "Material"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false

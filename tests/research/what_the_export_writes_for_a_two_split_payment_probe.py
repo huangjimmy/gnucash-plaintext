@@ -31,10 +31,10 @@ FIXTURES = Path('tests/fixtures')
 # Every command through `_run`, and importing `tests.conftest` is the half
 # that matters: it deletes the backup and log files a second save inside one
 # second would collide on. This probe is run as a script, so pytest loads no
-# conftest for it, and GnuCash's ERR_FILEIO_BACKUP_ERROR is swallowed by the
-# CLI's save handler — three imports back to back would each exit 0 while
-# only the first reached the disk, and the block printed below would be
-# missing the payment the probe exists to show.
+# conftest for it, and GnuCash's ERR_FILEIO_BACKUP_ERROR stops a second save
+# inside one second — three imports back to back would fail from the second
+# on, and the block printed below would be missing the payment the probe
+# exists to show.
 
 
 def main():

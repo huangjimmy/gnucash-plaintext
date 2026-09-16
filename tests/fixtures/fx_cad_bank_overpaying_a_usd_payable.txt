@@ -1,0 +1,15 @@
+# 274.00 CAD out of the bank against a 100.00 USD bill: 200.00 USD of payable
+# paid, so 100.00 USD more than the bill. The payable mirror of
+# `fx_cad_bank_overpaying_a_usd_receivable.txt`.
+#
+# The transaction's currency is CAD and the payable's is USD, so the split a
+# retarget divides has an amount of 200.00 USD and a value of 274.00 CAD, and
+# on this side both are positive.
+2026-02-25 * "US Vendor — overpayment for BILL-USD-RETARGET"
+	currency.mnemonic: "CAD"
+	Assets:Bank -274.00 CAD
+		memo: "Payment for BILL-USD-RETARGET"
+	Liabilities:Accounts Payable USD 200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.37"
+		value: "274.00"

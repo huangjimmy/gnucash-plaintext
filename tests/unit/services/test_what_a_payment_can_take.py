@@ -18,7 +18,6 @@ from fractions import Fraction
 import pytest
 
 from services.gnucash_importer import (
-    _refuse_a_payment_that_would_fall_short,
     _refuse_if_below_the_accounts_unit,
     _takeable_from,
 )
@@ -85,49 +84,3 @@ def test_nothing_takeable_is_refused_rather_than_returned():
     with pytest.raises(Exception, match='less than the unit this account'):
         _refuse_if_below_the_accounts_unit(
             Fraction(5, 100), account, 'Invoice', 'INV-1')
-
-
-class FakeCommodityNamed(FakeCommodity):
-    def __init__(self, mnemonic):
-        self._mnemonic = mnemonic
-
-    def get_mnemonic(self):     # noqa: N802
-        return self._mnemonic
-
-
-class FakeAccountIn(FakeAccount):
-    def __init__(self, unit, mnemonic):
-        super().__init__(unit)
-        self._commodity = FakeCommodityNamed(mnemonic)
-
-    def GetCommodity(self):     # noqa: N802
-        return self._commodity
-
-
-def test_a_payment_is_not_judged_against_a_figure_in_another_currency():
-    """Two numbers in different money are not comparable, so nothing is said.
-
-    A block naming only its transaction is what a bank feed's transactions are
-    attached with, and the side that is not the bank can be an Imbalance split
-    in the bank's currency rather than the invoice's. `amount:` is written in
-    the invoice's money. Compared anyway, a 74.00 of one currency reads as
-    falling short of a 100.00 of another and the file is refused for a
-    shortfall that exists only in the arithmetic.
-
-    Driven directly because no file reaches it: it needs a transaction whose
-    other side is in neither the invoice's currency nor the bank's, which is
-    a book this tool does not write.
-    """
-    receivable = FakeAccountIn(100, 'USD')
-    elsewhere = FakeAccountIn(100, 'GBP')
-
-    # Same money, and genuinely short: refused, naming both figures.
-    with pytest.raises(Exception, match='part-paid'):
-        _refuse_a_payment_that_would_fall_short(
-            {'amount': '100'}, Fraction(74), Fraction(100), receivable,
-            'Invoice', 'INV-1', 'abc', receivable)
-
-    # Different money: the same numbers say nothing about each other.
-    _refuse_a_payment_that_would_fall_short(
-        {'amount': '100'}, Fraction(74), Fraction(100), receivable,
-        'Invoice', 'INV-1', 'abc', elsewhere)

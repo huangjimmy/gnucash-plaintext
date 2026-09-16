@@ -1,0 +1,31 @@
+# C-JOB's own invoice for 30.00, spending the 50.00 credit the payment of its
+# job's invoice left. The credit is bigger than the invoice, so the import
+# divides it: 30.00 settles INV-C2 and 20.00 stays C-JOB's credit.
+#
+# TXN_GUID and SPLIT_GUID are the credit's transaction and split, filled in
+# by the test.
+invoice "INV-C2"
+	customer_id: "C-JOB"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "More work"
+		action: "Hours"
+		account: "Income"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-03-01
+		ar_account: "Receivable"
+		memo: "INV-C2"
+		accumulate: true
+	payment:
+		amount: 50.00
+		from_credit: true
+		credit_dated: 2026-01-10
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"

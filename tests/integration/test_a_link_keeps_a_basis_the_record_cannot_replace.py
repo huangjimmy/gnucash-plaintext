@@ -41,6 +41,31 @@ def _with_payment(text, header, payment_lines):
     return '\n'.join(lines[:start] + block + payment_lines + lines[end:]) + '\n'
 
 
+def _a_stored_cost_nothing_reads_on_the_posting_split(book):
+    """`cost_basis_cost: "oops"` on the invoice's receivable split, as a book edited elsewhere can hold."""
+    from gnucash import gnucash_core_c as gc
+
+    from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
+    from infrastructure.gnucash.utils import qof_instance
+    from repositories.gnucash_repository import GnuCashRepository, SessionMode
+    from services.foreign_currency import COST_BASIS_COST_KEY, iter_splits
+
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.NORMAL)
+    try:
+        posting = next(split for split in iter_splits(repo.book)
+                       if split.GetLot() is not None
+                       and gc.gncInvoiceGetInvoiceFromLot(qof_instance(split.GetLot())))
+        transaction = posting.GetParent()
+        transaction.BeginEdit()
+        set_custom_metadata(posting, {**get_custom_metadata(posting),
+                                      COST_BASIS_COST_KEY: 'oops'})
+        transaction.CommitEdit()
+        repo.save()
+    finally:
+        repo.close()
+
+
 def _the_deposit_paid_the_invoice(runner, tmp_path):
     book = tmp_path / 'book.gnucash'
     made = runner.invoke(cli, ['import', '--new', str(book), SOURCE,
@@ -96,6 +121,50 @@ def test_the_deposits_basis_is_kept(tmp_path):
     # spacing left open, so the assertion is about the two figures rather than
     # about how wide the listing's last column happens to be.
     assert re.search(r'2,720\.00 USD[^\n]+2,720\.00 USD', listing), listing
+
+
+def test_a_stored_cost_nothing_reads_on_the_posting_split_prices_nothing(tmp_path):
+    """A figure nobody can read says nothing about what the currency cost.
+
+    The receivable split still holds no cost anyone can read, so the invoice
+    still prices nothing and the deposit's price is kept. The unreadable text
+    is left where it is, for `--verify-costs` to report.
+
+    The file is the invoice block alone. Read with its transactions under
+    `--strategy update`, the posting transaction's own check meets the figure
+    first and refuses that transaction, which is a different question.
+    """
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    made = runner.invoke(cli, ['import', '--new', str(book), SOURCE,
+                               '--include-business-objects', '--fx-rates', RATES])
+    assert made.exit_code == 0, made.output
+    out = tmp_path / 'out.txt'
+    assert _run(runner, 'export', str(book), str(out),
+                '--include-business-objects').exit_code == 0
+    text = out.read_text()
+    deposit_tx = re.search(
+        r'2026-08-13 \* "Received[^\n]*\n\t+guid: "([0-9a-f]{32})"', text).group(1)
+    record = text[text.index('invoice "INV-USD-OWN-CURRENCY"'):]
+    record = record[:record.index('\n\n')] if '\n\n' in record else record
+    _a_stored_cost_nothing_reads_on_the_posting_split(book)
+    linked = tmp_path / 'linked.txt'
+    linked.write_text(_with_payment(record + '\n', 'invoice "INV-USD-OWN-CURRENCY"', [
+        '\tpayment:',
+        '\t\tdate: 2026-08-13',
+        '\t\tamount: 2720',
+        '\t\taccount: "Assets:Bank:USD"',
+        f'\t\ttxn_guid: "{deposit_tx}"',
+    ]))
+
+    result = _run(runner, 'import', str(book), str(linked),
+                  '--include-business-objects', '--fx-rates', RATES)
+
+    assert result.exit_code == 0, result.output
+    listing = _run(runner, 'fx-balances', str(book)).output
+    assert '381589/272000 CAD/USD' in listing, listing
+    verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
+    assert 'oops' in verified.output, verified.output
 
 
 def test_the_book_still_agrees_with_itself(tmp_path):

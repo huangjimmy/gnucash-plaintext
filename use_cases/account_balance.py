@@ -246,9 +246,9 @@ class AccountBalanceUseCase:
                     f"No FX rate for {currency} -> CAD in GnuCash pricedb. "
                     f"Provide rates via --fx-rates."
                 )
+            # A price's value always has a denominator: GnuCash stores a rate
+            # as a fraction.
             val = lib.gnc_price_get_value(int(existing))
-            if val.denom == 0:
-                raise MissingFxRateError(f"Invalid pricedb entry for {currency} -> CAD")
             return Fraction(val.num, val.denom).limit_denominator(1_000_000)
 
         return get_rate
@@ -283,6 +283,21 @@ class AccountBalanceUseCase:
         # Raise early when the prefix names an account that doesn't exist
         if account_prefix is not None and not accounts:
             raise ValueError(f"Account not found: {account_prefix!r}")
+
+        # And for an account with no commodity, among these or under them: its
+        # balance has no currency to be stated in, and one under a parent has
+        # none for the parent's total to convert from. GnuCash loads and keeps
+        # such an account, splits and all
+        # (tests/research/whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py).
+        for account in accounts:
+            held = []
+            _collect_accounts(account, held)
+            for each in held:
+                if each.GetCommodity() is None:
+                    raise ValueError(
+                        f"{_get_account_path(each)!r} has no commodity, so its "
+                        f"balance has no currency to be stated in. Give the "
+                        f"account a commodity, and ask again.")
 
         # Rate function from explicit yaml fx_rates
         explicit_rate_fn = None
@@ -436,6 +451,14 @@ class AccountBalanceUseCase:
                 continue
 
             new_rate = fx_rates.rate_fraction(currency_code)
+            # A price is a fraction of two 64-bit whole numbers. A rate with
+            # more digits than that was refused from inside SWIG, as "argument
+            # 2 of type 'gint64'", which says nothing about the rates file.
+            if abs(new_rate.numerator) >= 2 ** 63 or new_rate.denominator >= 2 ** 63:
+                raise ValueError(
+                    f"the {currency_code} rate {new_rate} cannot be written as a "
+                    f"GnuCash price, which holds a rate as a fraction of two "
+                    f"64-bit whole numbers")
 
             # Compare against existing latest price to avoid duplicate entries.
             # Both sides are exact rationals, so "already this rate" is an
@@ -446,8 +469,7 @@ class AccountBalanceUseCase:
             needs_update = True
             if existing is not None:
                 existing_val = lib.gnc_price_get_value(int(existing))
-                if (existing_val.denom != 0
-                        and numeric_to_fraction(existing_val) == new_rate):
+                if numeric_to_fraction(existing_val) == new_rate:
                     needs_update = False
 
             if needs_update:

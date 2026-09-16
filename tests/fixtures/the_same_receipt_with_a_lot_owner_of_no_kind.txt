@@ -1,0 +1,16 @@
+# The receipt from a_receipt_booked_to_the_receivable_with_its_guid.txt,
+# restated with `lot_owner: C001` on its receivable split.
+#
+# `C001` gives an ID and no kind, so it says neither which kind of owner nor,
+# so, which owner. Restating the receipt this way has to be refused as creating
+# it this way is, rather than leave the split loose and report it updated.
+#
+# What this fixture produces: nothing. The import refuses the transaction.
+#
+# Verified by tests/integration/test_a_lot_owner_that_is_no_customer_or_vendor_is_refused.py.
+2026-01-05 * "Money received, not yet attributed"
+	guid: "9c8b7a6d5e4f30211a2b3c4d5e6f7a8b"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
+		lot_owner: C001

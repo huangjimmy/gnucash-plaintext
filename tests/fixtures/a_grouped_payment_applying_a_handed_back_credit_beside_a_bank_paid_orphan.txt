@@ -1,0 +1,45 @@
+# A 200.00 USD invoice for C-US whose grouped payment block applies two splits
+# of one transaction: a credit an unpost handed back, and a settlement a bank
+# paid that another unpost loosened.
+#
+# Imported after `fx_invoice_usd_overpaid_into_usd_bank.txt`, whose 100.00 USD
+# credit `fx_invoice_auto_applying_the_whole_credit.txt` spent whole.
+# `unpost-invoices INV-USD-AUTO` hands the credit back, carrying
+# `applied_from_credit`, and here a cost basis balance stated with
+# `--strategy update`. `unpost-invoices INV-USD-OVER` loosens that invoice's own
+# settlement. The test puts the transaction's guid in place of TXN_GUID, the
+# settlement's in place of SETTLEMENT_GUID and the credit's in place of
+# CREDIT_GUID.
+#
+# What this fixture produces: INV-USD-G settled by both splits. The credit keeps
+# `applied_from_credit` and its cost and gives up its cost basis balance, and
+# the settlement is not recorded as credit.
+#
+# Verified by
+# tests/integration/test_a_grouped_payment_spending_a_handed_back_credit_takes_its_balance_off.py.
+invoice "INV-USD-G"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-10
+	entry:
+		date: 2026-03-10
+		description: "Grouped"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 200
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-10
+		due: 2026-04-10
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-G"
+		accumulate: true
+	payment:
+		date: 2026-03-10
+		amount: 200
+		account: "Assets:Bank:USD"
+		Transaction "TXN_GUID"
+			PaymentSplit "SETTLEMENT_GUID"
+			PaymentSplit "CREDIT_GUID"

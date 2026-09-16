@@ -9,7 +9,7 @@ import copy
 from contextlib import contextmanager, suppress
 from decimal import Decimal
 from fractions import Fraction
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from gnucash import Account, GncCommodity, GncNumeric, Transaction
 from gnucash.gnucash_core_c import GNC_HOW_RND_ROUND_HALF_UP
@@ -202,17 +202,16 @@ def string_to_gnc_numeric(s, currency: GncCommodity) -> GncNumeric:
     down to one.
 
     Args:
-        s: String representation of number (e.g., '123.45', '50/3')
+        s: String representation of a decimal number (e.g., '123.45')
         currency: Currency commodity for fraction info
 
     Returns:
         GncNumeric object
     """
     s = str(s)
-    if '/' in s:
-        return GncNumeric(s)
-
-    exact = Fraction(Decimal(s.replace(',', '.')))
+    # A point, never a comma: in most of the world a comma separates
+    # thousands, and `1,350` read as `1.350` is a thousandth of the figure.
+    exact = Fraction(Decimal(s))
     fraction = currency.get_fraction()
     scaled = exact * fraction
     # Only money is held to a currency's unit. This is called with whatever
@@ -364,30 +363,6 @@ def numeric_to_fraction(number) -> Fraction:
     return Fraction(int(numerator), int(denominator))
 
 
-def gnc_numeric_to_fraction_or_decimal(number: GncNumeric) -> Union[Fraction, Decimal]:
-    """
-    Convert GncNumeric to Python Fraction or Decimal.
-
-    Args:
-        number: GnuCash numeric value
-
-    Returns:
-        Fraction if denominator is not power of 10, otherwise Decimal
-    """
-    number = copy.copy(number)
-    numerator = int(number.num())
-    denominator = int(number.denom())
-    denom_str = str(denominator)
-
-    # Check if denominator is power of 10 (1, 10, 100, 1000, etc.)
-    if denom_str[0] == '1' and all(c == '0' for c in denom_str[1:]):
-        num_decimal = Decimal(numerator)
-        denom_decimal = Decimal(denominator)
-        return num_decimal / denom_decimal
-    else:
-        return Fraction(numerator, denominator)
-
-
 def to_string_with_decimal_point_placed(number: GncNumeric) -> str:
     """A figure whose own denominator says how many decimals it has — a rate or
     a quantity — as text, or as the fraction it is when it has no decimal form.
@@ -419,28 +394,10 @@ def to_string_with_decimal_point_placed(number: GncNumeric) -> str:
         return '0.' + '0' * (point_place - len(numerator)) + numerator
 
 
-def format_amount_for_commodity(number, commodity) -> str:
-    """Exact amount string at the commodity's own decimal count.
-
-    GnuCash records each commodity's smallest unit as `get_fraction()` (100 for
-    a 2-decimal currency like CAD, 1 for JPY/0-decimal, 1000 for 3-decimal). We
-    read the value exactly via num()/denom() (or numerator/denominator for a
-    Fraction) into a Decimal and quantize to that many places — never via
-    `to_double()` (precision loss) and never guessing decimals from the
-    numeric's own denominator (which may not be the commodity's SCU)."""
-    frac = commodity.get_fraction() if commodity is not None else 100
-    places = max(0, len(str(int(frac))) - 1)
-    if isinstance(number, Fraction):
-        d = Decimal(number.numerator) / Decimal(number.denominator)
-    else:
-        d = Decimal(number.num()) / Decimal(number.denom())
-    return str(d.quantize(Decimal(1).scaleb(-places)))
-
-
 #: Every key this format reads as a boolean, wherever it sits.
 #:
-#: A boolean is written `#True` / `#False` — the same `#` that marks `#None`
-#: and `#3/4`, and what `encode_value_as_string` produces for a `bool`. It is
+#: A boolean is written `#True` / `#False` — the same `#` that marks `#None`,
+#: and what `encode_value_as_string` produces for a `bool`. It is
 #: the only spelling that survives the round trip: a bare `true` decodes to
 #: the *string* `'true'`, which is why `taxable: True` once read as false
 #: (the flag was compared against `'true'` while `True` decoded to a bool)
@@ -487,9 +444,6 @@ def escape_string(s: str) -> str:
     `str.maketrans` translates in one pass, so the backslashes this emits are
     not themselves escaped again.
     """
-    if s is None:
-        return s
-
     translation_table = str.maketrans({
         '"': '\\"',
         '\\': '\\\\',
@@ -504,7 +458,7 @@ def encode_value_as_string(value) -> str:
     Encode value as string for plaintext format with proper quoting.
 
     Args:
-        value: Value to encode (None, bool, int, float, Fraction, or str)
+        value: Value to encode (None, bool, int, float, or str)
 
     Returns:
         Encoded string representation
@@ -515,8 +469,6 @@ def encode_value_as_string(value) -> str:
         return f'#{value}'
     if isinstance(value, (int, float)):
         return f'{value}'
-    if isinstance(value, Fraction):
-        return f'#{value.numerator}/{value.denominator}'
     if isinstance(value, str):
         return f'"{escape_string(value)}"'
     # Fallback for other types
@@ -537,9 +489,6 @@ def unescape_string(s: str) -> str:
     keeps both characters, so text a hand-written file never meant as an
     escape survives instead of being dropped.
     """
-    if s is None:
-        return s
-
     known = {'"': '"', '\\': '\\', 'n': '\n', 'r': '\r'}
     out = []
     index = 0
@@ -578,6 +527,31 @@ class NumberAsWritten(int):
         return made
 
 
+class DecimalAsWritten(float):
+    """A decimal decoded from a file, carrying the digits it was written with.
+
+    A float holds about sixteen significant digits, and a figure written with
+    more comes out of one as a different number. Measured on 5.10: a line read
+    from `price: 0.1234567890123456789` was stored as 0.12345678901234568. A
+    price is a ratio and is held exactly, so the text the file wrote is what
+    has to reach the reader.
+
+    So the digits stay on the value, as they do on `NumberAsWritten`: this is a
+    `float` to anything that asks for one, and `str()` and `repr()` give back
+    the text, which `Fraction` reads exactly.
+    """
+
+    def __new__(cls, source: str):
+        made = super().__new__(cls, source)
+        made.source = source
+        return made
+
+    def __str__(self):
+        return self.source
+
+    __repr__ = __str__
+
+
 def decode_value_from_string(s: str):
     """
     Decode value from plaintext string representation.
@@ -608,7 +582,7 @@ def decode_value_from_string(s: str):
         if s_no_hash.isnumeric():
             return NumberAsWritten(s_no_hash)
         try:
-            return float(s_no_hash)
+            return DecimalAsWritten(s_no_hash)
         except ValueError:
             pass
     elif s.startswith('"'):
@@ -622,7 +596,7 @@ def decode_value_from_string(s: str):
         if s.lstrip('-').isnumeric():
             return NumberAsWritten(s)
         try:
-            return float(s)
+            return DecimalAsWritten(s)
         except ValueError:
             pass
     return s

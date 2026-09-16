@@ -1,0 +1,16 @@
+# 50.00 CAD received into the bank against the receivable, with the
+# transaction's own guid.
+#
+# Booked plain: the receivable split is in no lot. The guid is what lets
+# `--strategy update` find this transaction again, so
+# the_same_receipt_with_a_lot_owner_of_no_kind.txt can restate it.
+#
+# What this fixture produces: one CAD transaction, Assets:Bank against
+# Assets:Accounts Receivable.
+#
+# Verified by tests/integration/test_a_lot_owner_that_is_no_customer_or_vendor_is_refused.py.
+2026-01-05 * "Money received, not yet attributed"
+	guid: "9c8b7a6d5e4f30211a2b3c4d5e6f7a8b"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD

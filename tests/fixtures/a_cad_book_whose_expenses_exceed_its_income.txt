@@ -1,0 +1,64 @@
+# A book kept in CAD whose expenses in 2026 exceed its income.
+#
+# What this fixture produces: Assets:Bank 800.00 CAD, from 1,000.00 CAD opened
+# on 01-02, 100.00 CAD of sales on 02-01 and 300.00 CAD of rent paid on 03-01.
+# Income:Sales 100.00 CAD and Expenses:Rent 300.00 CAD, so a net loss of
+# 200.00 CAD for 2026.
+#
+# Verified by tests/integration/test_the_statements_are_printed_by_customized_gnucash_reports.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening Balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Rent
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-02 * "Opening balance"
+	currency.mnemonic: "CAD"
+	Assets:Bank 1000.00 CAD
+	Equity:Opening Balances -1000.00 CAD
+
+2026-02-01 * "Sale"
+	currency.mnemonic: "CAD"
+	Assets:Bank 100.00 CAD
+	Income:Sales -100.00 CAD
+
+2026-03-01 * "Rent"
+	currency.mnemonic: "CAD"
+	Expenses:Rent 300.00 CAD
+	Assets:Bank -300.00 CAD

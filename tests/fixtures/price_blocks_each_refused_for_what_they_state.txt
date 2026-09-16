@@ -1,0 +1,76 @@
+# Nine price blocks, each refused for what it states.
+#
+# What this fixture produces, on a book holding
+# prices_of_a_currency_and_a_stock.txt: nothing. Every block is refused, with its
+# reason, and the two prices the book holds are left as they are:
+#
+# - a USD rate whose value divides by zero;
+# - a USD rate whose value is too large for GnuCash to store;
+# - a USD rate dated a day that does not exist;
+# - a USD rate whose time is neither a date nor a moment;
+# - a rate in XYZ, which is no currency GnuCash knows;
+# - a price giving a namespace and no mnemonic;
+# - the NASDAQ:AMZN price, by its guid, given another commodity;
+# - a new USD rate with no value;
+# - a USD rate whose guid is not a guid.
+#
+# Verified by tests/integration/test_a_price_block_is_refused_for_what_it_states.py.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-03-02"
+	value: "1/0"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-03-03"
+	value: "99999999999999999999"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-02-30"
+	value: "1.36"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "yesterday"
+	value: "1.36"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "XYZ"
+	time: "2026-03-04"
+	value: "1.36"
+
+price
+	commodity.namespace: "CURRENCY"
+	currency.mnemonic: "CAD"
+	time: "2026-03-05"
+	value: "1.36"
+
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-03-06"
+
+price
+	guid: "not-a-guid"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-03-07"
+	value: "1.36"

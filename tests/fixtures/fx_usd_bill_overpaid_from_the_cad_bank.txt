@@ -1,0 +1,32 @@
+# The bill, attached to the CAD payment that overpays it, declaring the
+# 100.00 USD it leaves as a claim on the vendor. The payable mirror of
+# `fx_usd_invoice_overpaid_from_the_cad_bank.txt`.
+#
+# The split the retarget divides is the +200.00 USD payable side, 274.00 being
+# its CAD value, so `amount: 200` and `prepayment: 100` are both USD.
+bill "BILL-USD-RETARGET"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Expenses:Consulting"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-RETARGET"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		bank_account: "Assets:Bank"
+		txn_guid: "TXN_GUID"
+		prepayment: 100
+		memo: "Payment for BILL-USD-RETARGET"

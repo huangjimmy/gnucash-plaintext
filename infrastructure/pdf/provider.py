@@ -21,5 +21,8 @@ class StatementProvider(Protocol):
 
     autopay_source: dict[str, str]  # currency_code → funding_account_path
 
-    def can_handle(self, filename: str) -> bool: ...
-    def parse(self, path: str) -> list[StandardTransaction]: ...
+    def can_handle(self, filename: str) -> bool:
+        """Whether this provider reads the statement in `filename`."""
+
+    def parse(self, path: str) -> list[StandardTransaction]:
+        """The statement at `path`, as the transactions it holds."""

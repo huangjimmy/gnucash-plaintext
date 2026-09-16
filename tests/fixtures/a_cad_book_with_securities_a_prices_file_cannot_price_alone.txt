@@ -1,0 +1,45 @@
+# A book kept in CAD holding securities a prices file cannot price on its own.
+#
+# What this fixture produces: Assets:Nasdaq AMZN holding NASDAQ:AMZN, Assets:Neo
+# AMZN holding NEO:AMZN, and Assets:SHOP holding TSX:SHOP, with no transactions
+# and no prices. A prices file giving `AMZN:` cannot say which of the two AMZN
+# it means, and one giving `SHOP:` cannot say which currency the price is in.
+#
+# Verified by tests/integration/test_a_rates_file_prices_gnucash_reports_for_the_run_only.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity AMZN
+	mnemonic: "AMZN"
+	fullname: "Amazon.com Inc"
+	namespace: "NASDAQ"
+	fraction: 10000
+2026-01-01 commodity AMZN
+	mnemonic: "AMZN"
+	fullname: "Amazon.com Inc CDR"
+	namespace: "NEO"
+	fraction: 10000
+2026-01-01 commodity SHOP
+	mnemonic: "SHOP"
+	fullname: "Shopify Inc"
+	namespace: "TSX"
+	fraction: 10000
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Nasdaq AMZN
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+2026-01-01 open Assets:Neo AMZN
+	type: "Stock"
+	commodity.namespace: "NEO"
+	commodity.mnemonic: "AMZN"
+2026-01-01 open Assets:SHOP
+	type: "Stock"
+	commodity.namespace: "TSX"
+	commodity.mnemonic: "SHOP"

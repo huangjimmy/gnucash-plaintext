@@ -1,0 +1,35 @@
+# INV-USD-001 of `fx_usd_invoice_cad_income.txt`, paid 100.00 USD from the CAD bank.
+#
+# The invoice is booked at 1.40 CAD/USD, and the bank gives 137.00 CAD for the
+# 100.00 USD, so the settlement converts the whole receivable and draws 100.00
+# USD out of the posting split's cost basis. The 3.00 CAD between the two is
+# the `$residual$` line.
+#
+# Verified by
+# tests/integration/test_a_converting_settlement_needs_the_cost_basis_it_draws_on.py.
+invoice "INV-USD-001"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-001"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 100
+		account: "Assets:Bank"
+		settled_amount: 137.00
+		memo: "Payment"
+		Income:FX Gain $residual$ CAD

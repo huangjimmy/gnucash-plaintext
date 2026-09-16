@@ -149,7 +149,6 @@ account('Bank USD', table.lookup('CURRENCY', 'USD'), ACCT_TYPE_BANK)
 sess.save()
 sess.end()
 sess.destroy()
-time.sleep(1)
 
 env = dict(os.environ, ALPHAVANTAGE_API_KEY='probe')
 if shutil.which('gnucash-cli'):
@@ -167,7 +166,6 @@ for line in run.stdout.splitlines():
     if line.strip() and 'dconf' not in line and 'D-Bus' not in line:
         print(f'  | {line}')
 
-time.sleep(1)
 reread = session('xml://' + path, 'SESSION_READ_ONLY')
 print('prices in the book after the quote run:')
 

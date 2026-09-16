@@ -1,0 +1,14 @@
+# A customer whose `guid:` is a number with a decimal point, unquoted.
+#
+# The format reads it as a number with a fractional part and keeps the
+# characters it was written with, so the guid check reads the text `1.5`,
+# which is no guid.
+#
+# What this fixture produces: nothing. The import refuses the block, quoting
+# `1.5`.
+#
+# Verified by tests/integration/test_a_guid_that_is_not_text_is_refused.py.
+customer "C-DECIMAL"
+	name: "Guid Written As A Decimal"
+	currency: CAD
+	guid: 1.5

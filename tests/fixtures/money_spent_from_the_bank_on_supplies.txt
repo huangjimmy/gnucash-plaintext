@@ -1,0 +1,13 @@
+# 10.00 CAD spent from the bank on supplies.
+#
+# `money_moved_into_an_account_with_no_commodity.txt` carries the same guid, so
+# read with `--strategy update` after this, it moves the second split onto
+# `Holding`.
+#
+# Verified by
+# tests/integration/test_a_split_on_an_account_with_no_commodity_is_refused_on_import.py.
+2026-01-10 * "Spent"
+	guid: "aa000000000000000000000000000001"
+	currency.mnemonic: "CAD"
+	Assets:Bank -10.00 CAD
+	Expenses:Supplies 10.00 CAD

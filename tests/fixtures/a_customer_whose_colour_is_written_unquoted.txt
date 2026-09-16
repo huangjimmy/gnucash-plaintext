@@ -1,0 +1,12 @@
+# A customer with a custom key whose value is written without quotes and starts with `#`.
+#
+# What this fixture produces: customer C-COLOUR, Acme, in CAD, with the custom
+# key `colour` holding the text `#ff0000`. A `#` starts a typed literal such as
+# `#True` or `#None`, and `#ff0000` is none of them, so it is read as the text
+# it is.
+#
+# Verified by tests/integration/test_an_unquoted_value_starting_with_a_hash_is_read_as_text.py.
+customer "C-COLOUR"
+	name: "Acme"
+	currency: CAD
+	colour: #ff0000

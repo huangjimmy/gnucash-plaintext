@@ -1,0 +1,12 @@
+# A new customer asking for the guid `{guid}`.
+#
+# The test fills in a guid the book already gives a vendor or a tax table.
+# GnuCash keeps one guid to one thing, so the customer cannot have it.
+#
+# What this fixture produces: nothing. The import refuses the customer.
+#
+# Verified by tests/integration/test_a_new_customer_is_refused_a_guid_another_object_has.py.
+customer "C-TAKEN"
+	name: "A Customer Asking For A Taken Guid"
+	currency: CAD
+	guid: "{guid}"

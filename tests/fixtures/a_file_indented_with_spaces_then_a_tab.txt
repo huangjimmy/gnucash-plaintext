@@ -1,0 +1,11 @@
+# Indented with spaces, then with a tab.
+#
+# What this fixture produces: nothing. Line 9 is indented with four spaces,
+# which sets how the file is indented, and line 10 with a tab, so the file is
+# refused at line 10.
+#
+# Verified by tests/integration/test_a_file_indented_two_ways_is_refused.py.
+2026-01-01 open Assets
+    type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"

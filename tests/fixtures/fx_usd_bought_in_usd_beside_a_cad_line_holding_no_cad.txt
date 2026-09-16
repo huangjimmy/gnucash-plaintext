@@ -1,0 +1,40 @@
+# 99.00 USD bought for 135.00 CAD, in a transaction stated in USD, beside a CAD
+# fee line whose value of 1.00 USD has no CAD amount behind it.
+#
+# In a transaction stated in a foreign currency the rate comes from the CAD
+# splits: their CAD amounts added up, over the USD values they are worth. The
+# bank's 135.00 CAD is worth 100.00 USD, which is 1.35. The fee line holds no
+# CAD, so it says nothing about the rate, and counted it would put 101.00 USD
+# under the same 135.00 CAD and price the purchase at 1.3366.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank Fees
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "Buy 99 USD for 135 CAD, stated in USD"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 99.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "99.00"
+	Assets:Bank -135.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "-100.00"
+	Expenses:Bank Fees 0.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "1.00"

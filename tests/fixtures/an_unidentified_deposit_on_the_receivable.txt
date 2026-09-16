@@ -1,0 +1,30 @@
+# 50.00 CAD deposited and put on the receivable, belonging to no customer.
+#
+# GnuCash's register takes this: money that arrived is entered against
+# Accounts Receivable before anyone knows whose it is. The receivable split is
+# in no lot and has no owner, so it is no customer's credit and pays no
+# invoice. It is still on the receivable, and something has to say so.
+#
+# What this fixture produces: one CAD transaction, Assets:Bank +50.00 against
+# Assets:Accounts Receivable -50.00, the receivable split in no lot.
+#
+# Verified by tests/integration/test_money_on_the_receivable_nobody_owns_is_listed.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-03-02 * "Deposit, sender unknown"
+	guid: "d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
+		guid: "e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0"

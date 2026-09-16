@@ -1,0 +1,84 @@
+# Two CAD invoices taxed at 9.975%, one posted and one not.
+#
+# What this fixture produces: INV-QST-POSTED, posted to the receivable, and
+# INV-QST-DRAFT, not posted. `print-invoice --format plaintext` states the tax
+# rate of each as 9.975, the figure the tax table stores, and the draft's page
+# says it has no payment.
+#
+# Verified by tests/integration/test_a_printed_invoice_states_its_rate_as_stored.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax:QST
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+taxtable "QST"
+	entry:
+		account: "Liabilities:Tax:QST"
+		rate: 9.975%
+		type: PERCENT
+
+customer "C-QC"
+	name: "Quebec Customer"
+	currency: CAD
+
+invoice "INV-QST-POSTED"
+	customer_id: "C-QC"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "QST"
+	posted:
+		date: 2026-02-01
+		due: 2026-03-01
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-QST-POSTED"
+		accumulate: true
+	payment: none
+
+invoice "INV-QST-DRAFT"
+	customer_id: "C-QC"
+	currency: CAD
+	date_opened: 2026-02-02
+	entry:
+		date: 2026-02-02
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: true
+		tax_included: false
+		tax_table: "QST"
+	posted: none

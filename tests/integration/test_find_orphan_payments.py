@@ -164,6 +164,43 @@ class TestFindOrphanPayments:
         assert 'AP-side split is on Liabilities:Accounts Payable' in r.output, r.output
         assert 'bill was unposted' in r.output, r.output
 
+    def test_vendor_filter_passes_over_a_customers_orphan(self, tmp_path):
+        """--vendor scopes to that vendor's orphans, and a customer's is none of them."""
+        runner = CliRunner()
+        gnc = _make_orphan_invoice(runner, tmp_path,
+                                   'q014_invoice_posted_paid', 'INV-001',
+                                   'unpost-invoices')
+
+        r = runner.invoke(cli, ["find-orphan-payments", str(gnc),
+                                "--vendor", "V001"])
+
+        assert r.exit_code == 0, r.output
+        assert 'No orphan bank-side payment transactions found' in r.output, r.output
+
+    def test_a_bills_orphan_survives_a_plaintext_roundtrip_under_its_vendor(self, tmp_path):
+        """The bill side of the round trip below: in the fresh book the vendor
+        is read from the `owner: vendor:V001` line the export wrote, since
+        nothing on the restored transaction records one."""
+        runner = CliRunner()
+        gnc = _make_orphan_invoice(runner, tmp_path,
+                                   'q014_bill_posted_paid', 'BILL-001',
+                                   'unpost-bills')
+        exported = tmp_path / "exported.txt"
+        r = runner.invoke(cli, ["export", str(gnc), str(exported),
+                                "--include-business-objects", "--all-accounts"])
+        assert r.exit_code == 0, r.output
+        assert 'owner: vendor:V001' in exported.read_text(), exported.read_text()
+        fresh = tmp_path / "fresh.gnucash"
+        r = runner.invoke(cli, ["import", "--new", str(fresh), str(exported),
+                                "--include-business-objects"])
+        assert r.exit_code == 0, r.output
+
+        r = runner.invoke(cli, ["find-orphan-payments", str(fresh), "--vendor", "V001"])
+
+        assert r.exit_code == 0, r.output
+        assert 'Found 1 orphan bank-side payment transaction' in r.output, r.output
+        assert 'vendor V001 (Supplier)' in r.output, r.output
+
     def test_customer_filter_narrows_results(self, tmp_path):
         """--customer scopes to that customer's orphans only."""
         runner = CliRunner()
@@ -350,3 +387,23 @@ class TestFindOrphanPayments:
         assert r.exit_code == 0, r.output
         assert 'Found 2 orphan bank-side payment transactions' in r.output, r.output
         assert 'Total: CAD 200.00 in Assets:Bank' in r.output, r.output
+
+    def test_orphans_in_two_accounts_get_a_total_each(self, tmp_path):
+        """INV-001 paid from Assets:Bank and INV-002 from Assets:Savings, both
+        unposted: the money is in two accounts, so there is a total for each."""
+        runner = CliRunner()
+        gnc = _setup_book(runner, tmp_path, _fixture('q014_invoice_posted_paid'))
+        r = _import(runner, gnc, _write(
+            tmp_path / "inv2.txt",
+            ACCOUNTS + "\n" + _fixture('an_invoice_paid_from_a_savings_account')))
+        assert r.exit_code == 0, r.output
+
+        for inv_id in ('INV-001', 'INV-002'):
+            r = runner.invoke(cli, ["unpost-invoices", str(gnc), inv_id])
+            assert r.exit_code == 0, r.output
+
+        r = runner.invoke(cli, ["find-orphan-payments", str(gnc)])
+        assert r.exit_code == 0, r.output
+        assert ('Totals per account:\n'
+                '  CAD 100.00 in Assets:Bank\n'
+                '  CAD 100.00 in Assets:Savings\n') in r.output, r.output

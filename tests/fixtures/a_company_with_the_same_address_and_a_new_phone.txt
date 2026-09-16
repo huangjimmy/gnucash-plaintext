@@ -1,0 +1,7 @@
+# `a_company_with_an_address_and_a_phone.txt` with a new phone number. The
+# address lines are restated exactly as the book holds them.
+company
+	name: "Acme Ltd"
+	addr[0]: "1 Main Street"
+	addr[1]: "Springfield ON"
+	phone: "555-0199"

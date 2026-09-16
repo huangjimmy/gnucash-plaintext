@@ -1,0 +1,28 @@
+customer "C-JOB"
+	name: "Customer With A Job"
+	currency: CAD
+
+invoice "INV-JOB"
+	customer_id: "C-JOB"
+	currency: CAD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Work"
+		account: "Income"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-01-05
+		ar_account: "Receivable"
+		memo: ""
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 100
+		bank_account: "Bank"
+		txn_guid: "TXN_GUID"
+		memo: "Paid"

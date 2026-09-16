@@ -1,0 +1,176 @@
+# A book kept in CAD that holds US dollars, Hong Kong dollars and shares, with
+# the prices GnuCash's own reports convert them by.
+#
+# Every top-level account is held in CAD, so the book is kept in CAD (Q-042).
+# Beneath them:
+#
+# - Assets:USD Bank: 3,000.00 USD opened on 01-03, less 2,000.00 USD paid for
+#   10 NASDAQ:AMZN on 01-04, plus 500.00 USD of consulting income on 01-20.
+# - Assets:HKD Bank: 5,500.00 HKD opened on 01-03.
+# - Assets:CAD Bank: 1,000.00 CAD opened on 01-03, less 100.00 CAD of fees on
+#   01-21.
+# - Assets:AMZN: the 10 shares, bought for 2,000.00 USD.
+#
+# Prices, all at 12:00 UTC: USD in CAD 1.30 on 01-02 and 1.40 on 02-02; HKD
+# only the other way round, CAD in HKD 5.5 on 01-10; NASDAQ:AMZN in USD 210 on
+# 01-15 and 220 on 02-15.
+#
+# What this fixture produces: the book above. GnuCash's Balance Sheet report as of
+# 2026-01-25 values the USD at the 02-02 rate, its default price being the one
+# nearest in time.
+#
+# Verified by tests/integration/test_the_statements_are_printed_by_customized_gnucash_reports.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity AMZN
+	mnemonic: "AMZN"
+	fullname: "Amazon.com Inc"
+	namespace: "NASDAQ"
+	fraction: 10000
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:HKD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:AMZN
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening USD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity:Opening HKD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Equity:Opening CAD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Fees
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-01-02 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-02-02 12:00:00 +0000"
+	value: "14/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	currency.mnemonic: "HKD"
+	time: "2026-01-10 12:00:00 +0000"
+	value: "55/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-01-15 12:00:00 +0000"
+	value: "210"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-02-15 12:00:00 +0000"
+	value: "220"
+	source: "user:price-editor"
+	type: "last"
+
+2026-01-03 * "Opening USD"
+	currency.mnemonic: "USD"
+	Assets:USD Bank 3000.00 USD
+	Equity:Opening USD -3000.00 USD
+
+2026-01-03 * "Opening HKD"
+	currency.mnemonic: "HKD"
+	Assets:HKD Bank 5500.00 HKD
+	Equity:Opening HKD -5500.00 HKD
+
+2026-01-03 * "Opening CAD"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1000.00 CAD
+	Equity:Opening CAD -1000.00 CAD
+
+2026-01-04 * "Buy 10 AMZN"
+	currency.mnemonic: "USD"
+	Assets:AMZN 10.0000 AMZN
+		account.commodity.mnemonic: "AMZN"
+		share_price: "200"
+		value: "2000.00"
+	Assets:USD Bank -2000.00 USD
+
+2026-01-20 * "Consulting"
+	currency.mnemonic: "USD"
+	Assets:USD Bank 500.00 USD
+	Income:Consulting -500.00 USD
+
+2026-01-21 * "Bank fee"
+	currency.mnemonic: "CAD"
+	Expenses:Fees 100.00 CAD
+	Assets:CAD Bank -100.00 CAD

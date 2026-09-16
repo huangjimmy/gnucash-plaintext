@@ -1,0 +1,72 @@
+# Acme's INV-A and Beta's INV-B, 100.00 CAD each, and one 100.00 deposit that
+# settles INV-B. The deposit's bank split carries the memo "Deposit", which is
+# what a payment block states to say which movement it is about.
+#
+# What this fixture produces: INV-A outstanding, INV-B settled by the deposit,
+# and the deposit's receivable split in INV-B's lot.
+#
+# Load after `payment_roundtrip_accounts.txt`.
+#
+# Verified by
+# tests/integration/test_a_payment_giving_a_guid_that_matches_nothing_is_refused_where_the_deposits_owner_cannot_be_read.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+customer "C002"
+	name: "Beta"
+	currency: CAD
+
+2026-01-15 * "Deposit"
+	guid: "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+	Assets:Bank 100.00 CAD
+		guid: "b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5"
+		memo: "Deposit"
+	Assets:Accounts Receivable -100.00 CAD
+		guid: "c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6"
+
+invoice "INV-A"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-A"
+		accumulate: true
+
+invoice "INV-B"
+	customer_id: "C002"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-B"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+		txn_split_guid: "c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6"

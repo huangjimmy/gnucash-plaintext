@@ -1,0 +1,17 @@
+# 10.00 CAD of supplies paid from the bank, with the transaction's own guid.
+#
+# The guid is what lets `--strategy update` find this transaction again, so
+# `the_same_bank_purchase_in_a_currency_gnucash_does_not_have.txt` can restate
+# it.
+#
+# What this fixture produces: one CAD transaction, Expenses:Supplies against
+# Assets:Bank.
+#
+# Verified by tests/integration/test_a_transaction_in_a_currency_gnucash_does_not_have_is_refused.py.
+2026-02-01 * "Paper"
+	guid: "7a6b5c4d3e2f10a9b8c7d6e5f4a3b2c1"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 10.00 CAD
+		account.commodity.mnemonic: "CAD"
+	Assets:Bank -10.00 CAD
+		account.commodity.mnemonic: "CAD"

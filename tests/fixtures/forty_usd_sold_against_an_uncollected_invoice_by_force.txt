@@ -1,0 +1,23 @@
+# 40.00 USD sold against INV-USD-001's cost basis before the invoice is collected.
+#
+# The cost basis is the invoice's posting split, which the test fills in for
+# BASIS. A receivable that has not been collected holds no currency to sell,
+# and `cost_basis_force: true` says the money is in hand anyway, so the sale
+# draws 40.00 USD out of the posting split's balance and leaves 60.00.
+#
+# Verified by
+# tests/integration/test_a_converting_settlement_needs_the_cost_basis_it_draws_on.py.
+2026-02-01 * "Sell 40 USD"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -40.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "-56.00"
+		cost_basis_split_guid: "BASIS"
+		cost_basis_force: true
+	Assets:Bank 54.80 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "54.80"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

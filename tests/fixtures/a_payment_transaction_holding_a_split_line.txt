@@ -1,0 +1,37 @@
+# An invoice whose grouped payment holds a split line under its `Transaction`.
+#
+# A `Transaction "..."` line under a payment gives the transaction, and the
+# `PaymentSplit` lines under it give the splits of that transaction the
+# payment applies. A split line written there, `Assets:Bank 100.00 CAD`, is
+# neither: nothing reads it.
+#
+# What this fixture produces: a refusal when the file is read, giving the line.
+#
+# Verified by tests/integration/test_a_line_under_a_payments_transaction_is_refused.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-G"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-G"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 100
+		bank_account: "Assets:Bank"
+		Transaction "4c5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b"
+			Assets:Bank 100.00 CAD
+			PaymentSplit "5d6e7f8a9b0c5f6a7b8c9d0e1f2a3b4c"

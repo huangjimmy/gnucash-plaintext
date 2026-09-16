@@ -129,11 +129,13 @@ def iterate_glist(lib, glist_ptr, process_func):
             logging.warning(f"Failed to read GList node at {glist_ptr:#x}: {e}")
             break  # Cannot know where the next node is; stop safely
         glist_ptr = glist.next  # Advance before processing so a bad element doesn't stall iteration
-        if glist.data:
-            try:
-                results.append(process_func(lib, glist.data))
-            except Exception as e:
-                logging.warning(f"Failed to process GList element at {glist.data:#x}: {e}")
+        # Every element holds data: each list read here is of GnuCash objects
+        # — tax tables, entries, lots, splits, account values — and none of the
+        # eleven builds hands back one with a NULL element.
+        try:
+            results.append(process_func(lib, glist.data))
+        except Exception as e:
+            logging.warning(f"Failed to process GList element at {glist.data:#x}: {e}")
     return results
 
 
@@ -212,6 +214,10 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncOwnerGetID',
             'gncOwnerGetType',
             'gncOwnerGetGUID',
+            'gncOwnerGetEndOwner',
+            # And whose a settlement is once it is in no lot: the unposted
+            # invoice or bill its `orphaned_by_unpost` KVP gives still has one.
+            'gncInvoiceGetOwner',
             'guid_to_string_buff',
             'qof_instance_get_guid',
             # Dividing a payment bigger than the invoice it settles. Absent,
@@ -247,6 +253,8 @@ def verify_ctypes_functions(lib, required_functions=None):
             'qof_instance_set_guid',
             'gnc_lot_begin_edit',
             'gnc_lot_commit_edit',
+            # And telling a lot an unpost left behind from a credit lot.
+            'qof_instance_has_slot',
             'qof_book_mark_session_dirty',
             'xaccAccountLookup',
             'gncEntryGetBill',
@@ -330,10 +338,9 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
             found.restype  = ctypes.c_void_p
             found.argtypes = [ctypes.c_void_p]
     # What frees it. GLib is loaded already — the engine is built on it — so
-    # this resolves wherever the accessor above does.
-    if getattr(lib, 'g_free', None) is not None:
-        lib.g_free.restype  = None
-        lib.g_free.argtypes = [ctypes.c_void_p]
+    # this resolves on every build, whether or not the accessor above does.
+    lib.g_free.restype  = None
+    lib.g_free.argtypes = [ctypes.c_void_p]
     # ── Owner ────────────────────────────────────────────────────────────────
     # Whose money a lot or a payment transaction holds. Set here with every
     # other signature rather than at each call: an argtypes line that lives
@@ -349,6 +356,11 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gncOwnerGetType.argtypes               = [ctypes.c_void_p]
     lib.gncOwnerGetGUID.restype                = ctypes.c_void_p
     lib.gncOwnerGetGUID.argtypes               = [ctypes.c_void_p]
+    # The customer or vendor behind an owner: for a job, the owner the job is
+    # for, and for anything else the owner itself. A lot or a payment of a
+    # job's invoice answers with the job, and the format has no job to write.
+    lib.gncOwnerGetEndOwner.restype            = ctypes.c_void_p
+    lib.gncOwnerGetEndOwner.argtypes           = [ctypes.c_void_p]
     lib.guid_to_string_buff.restype            = ctypes.c_char_p
     lib.guid_to_string_buff.argtypes           = [ctypes.c_void_p, ctypes.c_char_p]
     # And whose guid to write into that buffer. Read for a line, a lot and
@@ -533,6 +545,9 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.xaccAccountGetType.argtypes            = [ctypes.c_void_p]
     lib.gncInvoiceGetInvoiceFromLot.restype    = ctypes.c_void_p
     lib.gncInvoiceGetInvoiceFromLot.argtypes   = [ctypes.c_void_p]
+    # A `GncOwner *` into the record itself, never NULL for a record.
+    lib.gncInvoiceGetOwner.restype             = ctypes.c_void_p
+    lib.gncInvoiceGetOwner.argtypes            = [ctypes.c_void_p]
     # The date format every date on a printed page that is *not* the posted
     # or due date is written in. A process-wide setting: GnuCash's GUI
     # writes it at startup from its own preference, and nothing does in a
@@ -590,6 +605,13 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gnc_lot_begin_edit.argtypes            = [ctypes.c_void_p]
     lib.gnc_lot_commit_edit.restype            = None
     lib.gnc_lot_commit_edit.argtypes           = [ctypes.c_void_p]
+    # Whether a lot was an invoice's. Posting writes a `gncInvoice` slot on
+    # the invoice's lot and unposting empties it without removing it, while a
+    # lot GnuCash makes for a payment's credit never has one — measured on all
+    # eleven builds by
+    # tests/research/whether_a_lot_an_unpost_leaves_differs_from_a_credit_lot_probe.py.
+    lib.qof_instance_has_slot.restype          = ctypes.c_bool
+    lib.qof_instance_has_slot.argtypes         = [ctypes.c_void_p, ctypes.c_char_p]
     # A book option is written straight into the book's slots on GnuCash 3.4,
     # whose `qof_book_set_string_option` cannot reach a nested path. Marking
     # the instance dirty is not enough to get that to disk — the session has
@@ -691,16 +713,9 @@ def load_gnc_engine() -> ctypes.CDLL:
         except (OSError, AttributeError, RuntimeError):
             pass
 
-    # Final fallback: symbols already globally visible (e.g. RTLD_GLOBAL load
-    # by another part of the process, or LD_PRELOAD).
-    try:
-        lib = ctypes.CDLL(None)
-        _setup_lib_restypes(lib)
-        verify_ctypes_functions(lib)
-        return lib
-    except (OSError, AttributeError, RuntimeError):
-        pass
-
+    # No fallback to whatever symbols are already visible. Every supported
+    # build loads from a path above, and a handle taken without that promotion
+    # is the second library instance finding 2 in CLAUDE.md warns about.
     raise RuntimeError(
         "Could not load libgnc-engine.so — tried: " + str(ENGINE_LIB_PATHS)
     )

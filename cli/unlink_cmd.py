@@ -94,6 +94,10 @@ def unlink(gnucash_file, record_id, to_account_name, txn_guids, take_all,
     for tg, amount, currency in result.unapplied:
         click.echo(f'unlinked {amount} {currency} from {kind} '
                    f'{result.id} (tx {tg}) → {result.to_account}')
+    owner = 'vendor' if is_bill else 'customer'
+    for _tg, amount, currency in result.credited:
+        click.echo(f"  {amount} {currency} stays on {result.to_account} as the "
+                   f"{owner}'s credit")
     # A bill's lot balance is negative — what is owed is its size, as
     # `unapply-payment` reports it. In the record's own currency, which a USD
     # invoice in a CAD book does not share with the book.

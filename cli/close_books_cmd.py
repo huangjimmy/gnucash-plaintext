@@ -10,6 +10,7 @@ import click
 
 from cli._dates import parse_date
 from repositories.gnucash_repository import GnuCashRepository
+from services.book_closer import AccountWithoutCommodityError
 from use_cases.close_books import AlreadyClosedError, CloseBooksUseCase
 
 
@@ -96,7 +97,7 @@ def close_books(gnucash_file, closing_date, equity_account, force, dry_run, stat
                 force=force,
                 dry_run=dry_run,
             )
-        except AlreadyClosedError as e:
+        except (AlreadyClosedError, AccountWithoutCommodityError) as e:
             raise click.ClickException(str(e)) from e
 
         if not dry_run:

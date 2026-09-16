@@ -1,0 +1,40 @@
+# A vendor and a tax table, each with the guid GnuCash gives it.
+#
+# A guid is unique across everything a book holds, whatever kind of thing it
+# is. `a_customer_asking_for_a_guid.txt` then creates a customer with one of
+# these two guids.
+#
+# What this fixture produces: two tax accounts, the tax table `GST+PST`, and
+# the vendor V-TAKEN.
+#
+# Verified by tests/integration/test_a_new_customer_is_refused_a_guid_another_object_has.py.
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax:GST
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:Tax:PST
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+taxtable "GST+PST"
+	entry:
+		account: "Liabilities:Tax:GST"
+		rate: 5.0%
+		type: PERCENT
+	entry:
+		account: "Liabilities:Tax:PST"
+		rate: 7.0%
+		type: PERCENT
+
+vendor "V-TAKEN"
+	name: "A Vendor Already In The Book"
+	currency: CAD

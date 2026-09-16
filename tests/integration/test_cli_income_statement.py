@@ -2,16 +2,18 @@
 Integration tests for the income-statement CLI command.
 
 Uses temp_gnucash_for_close_books fixture (CAD + USD transactions across 2024).
-Tests the full CLI path: argument parsing → use case → text/HTML rendering.
+Tests the full CLI path: argument parsing → GnuCash's report → text/HTML output.
+The figures are GnuCash's, measured on GnuCash 5.10: 7,200.00 CAD of income and
+1,350.00 CAD of expenses, beside 500.00 USD of income and 100.00 USD of
+expenses that the book holds no USD price for.
 """
 
 import os
-import tempfile
 
-import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.integration.text_report_pages import figures
 
 FULL_YEAR_ARGS = ["--fiscal-year-end", "2024-12-31"]
 
@@ -85,37 +87,30 @@ class TestDateRangeValidation:
 
 class TestTextOutput:
 
-    def test_contains_income_section(self, temp_gnucash_for_close_books):
+    def test_contains_revenue_total(self, temp_gnucash_for_close_books):
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
-        assert result.exit_code == 0
-        assert "INCOME" in result.output
+        assert result.exit_code == 0, result.output
+        assert figures(result.output, "Total Revenue") == ["C$7,200.00"]
 
-    def test_contains_expenses_section(self, temp_gnucash_for_close_books):
+    def test_contains_expense_total(self, temp_gnucash_for_close_books):
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
-        assert result.exit_code == 0
-        assert "EXPENSES" in result.output
+        assert result.exit_code == 0, result.output
+        assert figures(result.output, "Total Expenses") == ["C$1,350.00"]
 
     def test_contains_net_income(self, temp_gnucash_for_close_books):
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
-        assert result.exit_code == 0
-        assert "NET INCOME" in result.output
+        assert result.exit_code == 0, result.output
+        assert figures(result.output, "Net income for Period") == ["C$5,850.00"]
 
-    def test_shows_cad_amounts(self, temp_gnucash_for_close_books):
+    def test_a_usd_account_shows_its_balance_beside_its_value(self, temp_gnucash_for_close_books):
+        """The book holds no USD price, so GnuCash's report values the USD at nothing."""
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
-        assert "CAD" in result.output
+        assert result.exit_code == 0, result.output
+        assert figures(result.output, "Freelance") == ["$500.00", "C$0.00"]
 
-    def test_shows_usd_amounts(self, temp_gnucash_for_close_books):
+    def test_shows_the_period_in_its_title(self, temp_gnucash_for_close_books):
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
-        assert "USD" in result.output
-
-    def test_shows_fiscal_period_in_output(self, temp_gnucash_for_close_books):
-        result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
-        assert "2024-01-01" in result.output
-        assert "2024-12-31" in result.output
-
-    def test_no_fx_warning_shown_without_fx_rates(self, temp_gnucash_for_close_books):
-        result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
-        assert "No FX rates" in result.output or "fx-rates" in result.output.lower()
+        assert result.output.splitlines()[0].startswith("Income Statement For Period Covering")
 
     def test_write_to_file(self, temp_gnucash_for_close_books, tmp_path):
         out_file = str(tmp_path / "report.txt")
@@ -126,9 +121,9 @@ class TestTextOutput:
         )
         assert result.exit_code == 0
         assert os.path.exists(out_file)
-        with open(out_file) as f:
+        with open(out_file, encoding="utf-8") as f:
             content = f.read()
-        assert "INCOME" in content
+        assert figures(content, "Net income for Period") == ["C$5,850.00"]
 
 
 # ---------------------------------------------------------------------------
@@ -137,38 +132,27 @@ class TestTextOutput:
 
 class TestFxRatesIntegration:
 
-    def test_with_fx_rates_no_warning(self, temp_gnucash_for_close_books, tmp_path):
+    def test_a_rates_file_prices_the_usd_accounts(self, temp_gnucash_for_close_books, tmp_path):
         fx_file = _fx_rates_file(tmp_path)
         result = run_cli(
             temp_gnucash_for_close_books,
             *FULL_YEAR_ARGS,
             "--fx-rates", fx_file,
         )
-        assert result.exit_code == 0
-        # Warning should NOT appear when FX rates are provided
-        assert "No FX rates" not in result.output
+        assert result.exit_code == 0, result.output
+        assert figures(result.output, "Freelance") == ["$500.00", "C$675.00"]
+        assert figures(result.output, "Net income for Period") == ["C$6,390.00"]
 
-    def test_with_fx_rates_shows_cad_total(self, temp_gnucash_for_close_books, tmp_path):
-        fx_file = _fx_rates_file(tmp_path)
-        result = run_cli(
-            temp_gnucash_for_close_books,
-            *FULL_YEAR_ARGS,
-            "--fx-rates", fx_file,
-        )
-        assert result.exit_code == 0
-        # With USD:1.35, net CAD = 5850 + 400*1.35 = 6390
-        assert "6,390" in result.output or "6390" in result.output
-
-    def test_missing_fx_rate_fails(self, temp_gnucash_for_close_books, tmp_path):
-        # Rates file missing USD — book has USD transactions
-        fx_file = _fx_rates_file(tmp_path, content="HKD: 0.172\n")
+    def test_a_rate_for_a_currency_gnucash_does_not_know_is_refused(
+            self, temp_gnucash_for_close_books, tmp_path):
+        fx_file = _fx_rates_file(tmp_path, content="XYZ: 0.172\n")
         result = run_cli(
             temp_gnucash_for_close_books,
             *FULL_YEAR_ARGS,
             "--fx-rates", fx_file,
         )
         assert result.exit_code != 0
-        assert "USD" in result.output
+        assert "XYZ" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -195,10 +179,10 @@ class TestHtmlOutput:
         )
         assert result.exit_code == 0, result.output
         assert os.path.exists(out_file)
-        with open(out_file) as f:
+        with open(out_file, encoding="utf-8") as f:
             content = f.read()
         assert "<html" in content.lower()
-        assert "INCOME" in content
+        assert "Income Statement" in content
 
     def test_html_contains_account_names(self, temp_gnucash_for_close_books, tmp_path):
         out_file = str(tmp_path / "report.html")
@@ -208,7 +192,7 @@ class TestHtmlOutput:
             "--output-format", "html",
             "--output", out_file,
         )
-        with open(out_file) as f:
+        with open(out_file, encoding="utf-8") as f:
             content = f.read()
         assert "Salary" in content
         assert "Groceries" in content
