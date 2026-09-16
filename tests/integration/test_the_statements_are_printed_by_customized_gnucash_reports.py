@@ -11,13 +11,16 @@ Every expected figure below is the one GnuCash's Balance Sheet and Income
 Statement reports give for the same book.
 """
 
-from pathlib import Path
-
 from click.testing import CliRunner
 
 from tests.conftest import _run
+from tests.integration.text_report_pages import a_book_using_trading_accounts
+from tests.integration.text_report_pages import amount_of as _amount
 from tests.integration.text_report_pages import book_from as _book
-from tests.integration.text_report_pages import figures as _figures
+from tests.integration.text_report_pages import directive_of as _directive
+from tests.integration.text_report_pages import directives_of as _directives
+from tests.integration.text_report_pages import key_of as _key
+from tests.integration.text_report_pages import under as _under
 
 
 class TestABookKeptInHkd:
@@ -36,12 +39,15 @@ class TestABookKeptInHkd:
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-03-31')
 
         assert result.exit_code == 0, result.output
-        assert _figures(result.output, 'HKD Bank') == ['HK$14,800.00']
-        assert _figures(result.output, 'USD Bank') == ['$1,500.00', 'HK$11,700.00']
-        assert _figures(result.output, 'CAD Bank') == ['C$1,900.00', 'HK$10,830.00']
-        assert _figures(result.output, 'Total Assets') == ['HK$37,330.00']
-        assert _figures(result.output, 'Retained Earnings') == ['HK$8,130.00']
-        assert _figures(result.output, 'Total Liabilities & Equity') == ['HK$37,330.00']
+        assert _key(result.output, 'currency.mnemonic') == 'HKD'
+        assert _amount(result.output, 'Assets:HKD Bank') == '14800.00 HKD'
+        assert _amount(result.output, 'Assets:USD Bank') == '1500.00 USD'
+        assert _under(result.output, 'Assets:USD Bank')['value'] == '11700.00'
+        assert _amount(result.output, 'Assets:CAD Bank') == '1900.00 CAD'
+        assert _under(result.output, 'Assets:CAD Bank')['value'] == '10830.00'
+        assert _key(result.output, 'total_assets') == '37330.00 HKD'
+        assert _key(result.output, 'retained_earnings') == '8130.00 HKD'
+        assert _key(result.output, 'total_liabilities_and_equity') == '37330.00 HKD'
 
     def test_the_income_statement_is_in_hkd(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
@@ -50,74 +56,195 @@ class TestABookKeptInHkd:
                       '--start', '2026-01-01', '--end', '2026-03-31')
 
         assert result.exit_code == 0, result.output
-        assert _figures(result.output, 'Consulting') == ['HK$5,000.00']
-        assert _figures(result.output, 'US Consulting') == ['$500.00', 'HK$3,900.00']
-        assert _figures(result.output, 'Canadian Fees') == ['C$100.00', 'HK$570.00']
-        assert _figures(result.output, 'Total Revenue') == ['HK$8,900.00']
-        assert _figures(result.output, 'Total Expenses') == ['HK$770.00']
-        assert _figures(result.output, 'Net income for Period') == ['HK$8,130.00']
+        assert _amount(result.output, 'Income:Consulting') == '5000.00 HKD'
+        assert _amount(result.output, 'Income:US Consulting') == '500.00 USD'
+        assert _under(result.output, 'Income:US Consulting')['value'] == '3900.00'
+        assert _amount(result.output, 'Expenses:Canadian Fees') == '100.00 CAD'
+        assert _under(result.output, 'Expenses:Canadian Fees')['value'] == '570.00'
+        assert _key(result.output, 'total_revenue') == '8900.00 HKD'
+        assert _key(result.output, 'total_expenses') == '770.00 HKD'
+        assert _key(result.output, 'net_income') == '8130.00 HKD'
 
-    def test_report_gives_both_in_hkd(self, tmp_path):
+    def test_report_writes_a_block_for_each_statement(self, tmp_path):
+        """Both statements on one page, each opened by its own directive."""
         book = _book(tmp_path, self.FIXTURE)
 
         result = _run(CliRunner(), 'report', str(book), 'income-statement', 'balance-sheet',
                       '--start', '2026-01-01', '--end', '2026-03-31')
 
         assert result.exit_code == 0, result.output
-        assert _figures(result.output, 'Net income for Period') == ['HK$8,130.00']
-        assert _figures(result.output, 'USD Bank') == ['$1,500.00', 'HK$11,700.00']
-        assert _figures(result.output, 'Total Assets') == ['HK$37,330.00']
+        assert _directives(result.output) == ['2026-01-01 income-statement',
+                                              '2026-03-31 balance-sheet']
+        assert '8130.00 HKD' in result.output, result.output
+        assert '37330.00 HKD' in result.output, result.output
 
 
-class TestACadBookHoldingOtherCurrenciesAndShares:
-    """USD, HKD and NASDAQ:AMZN in a CAD book, converted by GnuCash through the book's prices.
+class TestAFiscalYearThatIsNotTheCalendars:
+    """A fiscal year ending anywhere cuts the book's trading wherever it falls.
 
-    GnuCash's reports price at the price nearest in time by default, so as of
-    2026-01-25 the USD is at the 02-02 rate of 1.40, and the shares at 210 USD.
+    Consulting is billed every quarter across 2025 and 2026 and each quarter
+    differs, so a year ending 03-31, 04-25 or 06-30 picks up a different four —
+    and the 06-30 year catches the share sale on its last day, valued at the
+    price nearest that day rather than the year end's.
+
+    A Canadian filer's year rarely ends on 12-31, and a period that lines up
+    with the calendar hides every date arithmetic defect there is.
     """
 
     FIXTURE = 'a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt'
 
-    def test_the_balance_sheet_as_of_january_25(self, tmp_path):
+    def test_a_year_ending_march_31(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
 
-        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-25')
+        result = _run(CliRunner(), 'income-statement', str(book),
+                      '--fiscal-year-end', '2026-03-31')
 
         assert result.exit_code == 0, result.output
-        for figure in ('C$2,940.00',     # 10 AMZN at 210 USD, at 1.40
-                       'C$2,100.00',     # 1,500.00 USD at 1.40
-                       'C$1,000.00',     # 5,500.00 HKD at 5.5 HKD a CAD
-                       'C$900.00',
-                       'C$6,940.00',     # total assets
-                       'C$600.00',       # retained earnings
-                       'C$140.00'):      # unrealized gains on the shares
-            assert figure in result.output, result.output
+        assert _directive(result.output) == '2025-04-01 income-statement'
+        assert _key(result.output, 'end') == '2026-03-31'
+        # Q1 1,000 + Q2 1,200 + Q3 1,400 + Q4 1,600, and no gain taken yet.
+        assert _amount(result.output, 'Income:Consulting') == '5200.00 CAD'
+        assert 'Income:Realized Gains' not in result.output, result.output
+        assert _key(result.output, 'net_income') == '5150.00 CAD'
 
-    def test_the_balance_sheet_is_plain_text_with_each_figure_on_its_line(self, tmp_path):
-        """A foreign balance beside its value in CAD, and every total on its label's line."""
+    def test_a_year_ending_april_25(self, tmp_path):
+        """A year end on no quarter boundary, which the 04-10 bill falls inside."""
         book = _book(tmp_path, self.FIXTURE)
 
-        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-25')
+        result = _run(CliRunner(), 'income-statement', str(book),
+                      '--fiscal-year-end', '2026-04-25')
+
+        assert result.exit_code == 0, result.output
+        assert _directive(result.output) == '2025-04-26 income-statement'
+        assert _key(result.output, 'end') == '2026-04-25'
+        assert _amount(result.output, 'Income:Consulting') == '6100.00 CAD'
+        assert _key(result.output, 'net_income') == '6050.00 CAD'
+
+    def test_a_year_ending_june_30_catches_the_sale_on_its_last_day(self, tmp_path):
+        """The shares are sold on 06-30, and the gain is valued at the 1.38 nearest that day."""
+        book = _book(tmp_path, self.FIXTURE)
+
+        result = _run(CliRunner(), 'income-statement', str(book),
+                      '--fiscal-year-end', '2026-06-30')
+
+        assert result.exit_code == 0, result.output
+        assert _directive(result.output) == '2025-07-01 income-statement'
+        assert _amount(result.output, 'Income:Consulting') == '6900.00 CAD'
+        assert _amount(result.output, 'Income:Realized Gains') == '480.00 USD'
+        assert _under(result.output, 'Income:Realized Gains') == {
+            'account.commodity.mnemonic': 'USD',
+            'share_price': '1.38',
+            'value': '662.40'}
+        assert _key(result.output, 'net_income') == '7512.40 CAD'
+
+    def test_an_account_the_period_never_touched_is_left_off(self, tmp_path):
+        """The FX sale is in 2026-07 and the interest in 2026-09, so a year ending 03-31 has neither.
+
+        This page's choice, not GnuCash's: with its shipped defaults GnuCash
+        prints such an account with a zero figure, and its own page for this
+        year shows `Realized FX Gains`, `Realized Gains` and `Interest`
+        (measured on 5.10). A line for one states nothing twice — the figure is
+        zero, and an empty balance knows no commodity, so a US dollar account
+        would read `0.00 CAD`, which is false of the account.
+        """
+        book = _book(tmp_path, self.FIXTURE)
+
+        result = _run(CliRunner(), 'income-statement', str(book),
+                      '--fiscal-year-end', '2026-03-31')
+
+        assert result.exit_code == 0, result.output
+        assert 'Income:Realized FX Gains' not in result.output, result.output
+        assert 'Expenses:Interest' not in result.output, result.output
+        assert _amount(result.output, 'Expenses:Fees') == '50.00 CAD'
+
+
+class TestACadBookOverOneFiscalYear:
+    """One CAD book: currency and shares bought against a cost basis and partly sold, business income billed across two years, and a USD loan still owed at the year end.
+
+    GnuCash's reports price at the price nearest in time by default, so at the
+    2026 year end the US dollars are at 1.42, the shares at 280.00 USD and a
+    Hong Kong dollar at 0.2 CAD.
+    """
+
+    FIXTURE = 'a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt'
+
+    def test_the_balance_sheet_at_the_year_end(self, tmp_path):
+        book = _book(tmp_path, self.FIXTURE)
+
+        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
+
+        assert result.exit_code == 0, result.output
+        assert _under(result.output, 'Assets:AMZN')['value'] == '4771.20'
+        assert _under(result.output, 'Assets:USD Bank')['value'] == '10621.60'
+        assert _under(result.output, 'Assets:HKD Bank')['value'] == '1100.00'
+        assert _amount(result.output, 'Assets:CAD Bank') == '19840.00 CAD'
+        assert _amount(result.output, 'Assets:Receivable') == '2200.00 CAD'
+        assert _key(result.output, 'total_assets') == '38532.80 CAD'
+
+    def test_what_is_still_owed_on_the_loan_is_a_liability_line(self, tmp_path):
+        """1,500.00 USD of the 4,000.00 borrowed was repaid, and the rest is carried at the year-end rate."""
+        book = _book(tmp_path, self.FIXTURE)
+
+        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
+
+        assert result.exit_code == 0, result.output
+        assert _amount(result.output, 'Liabilities:USD Loan') == '2500.00 USD'
+        assert _under(result.output, 'Liabilities:USD Loan')['value'] == '3550.00'
+        assert _key(result.output, 'total_liabilities') == '3550.00 CAD'
+        assert _key(result.output, 'total_liabilities_and_equity') == '38532.80 CAD'
+
+    def test_a_gain_taken_is_income_and_a_gain_on_what_is_held_is_a_key(self, tmp_path):
+        """Both kinds of gain on one page, reached by different routes.
+
+        The 480.00 USD taken on the shares and the 240.00 CAD taken on the
+        currency are income, so on a balance sheet they are inside
+        `retained_earnings` along with the consulting and the fees. What the
+        holdings have made since they were bought is held by no account, so it
+        is a key of the block.
+        """
+        book = _book(tmp_path, self.FIXTURE)
+
+        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
+
+        assert result.exit_code == 0, result.output
+        assert _key(result.output, 'retained_earnings') == '12679.60 CAD'
+        assert _key(result.output, 'unrealized_gains') == '2303.20 CAD'
+
+    def test_each_account_states_what_it_holds_and_what_gnucash_made_of_it(self, tmp_path):
+        """The plaintext format's own shape: the account, then a split's keys."""
+        book = _book(tmp_path, self.FIXTURE)
+
+        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
 
         assert result.exit_code == 0, result.output
         assert '<' not in result.output, result.output
-        assert _figures(result.output, 'USD Bank') == ['$1,500.00', 'C$2,100.00']
-        assert _figures(result.output, 'HKD Bank') == ['HK$5,500.00', 'C$1,000.00']
-        assert _figures(result.output, 'CAD Bank') == ['C$900.00']
-        assert _figures(result.output, 'Total Assets') == ['C$6,940.00']
-        assert _figures(result.output, 'Retained Earnings') == ['C$600.00']
-        assert _figures(result.output, 'Unrealized Gains') == ['C$140.00']
+        assert _directive(result.output) == '2026-12-31 balance-sheet'
+        assert _key(result.output, 'currency.mnemonic') == 'CAD'
+        assert _amount(result.output, 'Assets:USD Bank') == '7480.00 USD'
+        assert _under(result.output, 'Assets:USD Bank') == {
+            'account.commodity.mnemonic': 'USD',
+            'share_price': '1.42',
+            'value': '10621.60'}
+        assert _amount(result.output, 'Assets:HKD Bank') == '5500.00 HKD'
+        assert _under(result.output, 'Assets:HKD Bank') == {
+            'account.commodity.mnemonic': 'HKD',
+            # The book prices CAD in HKD at 5.0 at the year end, so a Hong Kong
+            # dollar is exactly a fifth of a Canadian one.
+            'share_price': '0.2',
+            'value': '1100.00'}
+        # Held in the report's own currency: no price and no value to state.
+        assert _under(result.output, 'Assets:CAD Bank') == {}
 
     def test_the_balance_sheet_as_html_is_gnucash_own_page(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
         page = tmp_path / 'balance-sheet.html'
 
-        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-25',
+        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31',
                       '--output-format', 'html', '--output', str(page))
 
         assert result.exit_code == 0, result.output
         html = page.read_text(encoding='utf-8')
-        assert '<table' in html and 'C$6,940.00' in html, html
+        assert '<table' in html and 'C$38,532.80' in html, html
 
     def test_the_balance_sheet_as_pdf_carries_gnucash_figures_as_text(self, tmp_path):
         """The PDF is GnuCash's HTML page laid out by WebKit, and its figures can be selected."""
@@ -128,58 +255,72 @@ class TestACadBookHoldingOtherCurrenciesAndShares:
         book = _book(tmp_path, self.FIXTURE)
         page = tmp_path / 'balance-sheet.pdf'
 
-        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-25',
+        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31',
                       '--output-format', 'pdf', '--output', str(page))
 
         assert result.exit_code == 0, result.output
         text = ' '.join(readable('\n'.join(
             sheet.extract_text() for sheet in pypdf.PdfReader(str(page)).pages)).split())
-        for figure in ('C$6,940.00', 'C$2,100.00', 'C$140.00'):
+        for figure in ('C$38,532.80', 'C$10,621.60', 'C$2,303.20'):
             assert figure in text, text
 
-    def test_the_balance_sheet_as_of_march_1(self, tmp_path):
-        book = _book(tmp_path, self.FIXTURE)
-
-        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-03-01')
-
-        assert result.exit_code == 0, result.output
-        for figure in ('C$3,080.00', 'C$7,080.00', 'C$280.00'):
-            assert figure in result.output, result.output
-
-    def test_the_income_statement(self, tmp_path):
+    def test_the_income_statement_for_the_fiscal_year(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
 
         result = _run(CliRunner(), 'income-statement', str(book),
-                      '--start', '2026-01-01', '--end', '2026-01-25')
+                      '--fiscal-year-end', '2026-12-31')
 
         assert result.exit_code == 0, result.output
-        for figure in ('C$700.00', 'C$100.00', 'C$600.00'):
-            assert figure in result.output, result.output
+        assert _key(result.output, 'total_revenue') == '9421.60 CAD'
+        assert _key(result.output, 'total_expenses') == '292.00 CAD'
+        assert _key(result.output, 'net_income') == '9129.60 CAD'
 
-    def test_the_income_statement_is_plain_text_with_each_total_on_its_line(self, tmp_path):
+    def test_the_income_statement_states_its_period_and_its_accounts(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
 
         result = _run(CliRunner(), 'income-statement', str(book),
-                      '--start', '2026-01-01', '--end', '2026-01-25')
+                      '--fiscal-year-end', '2026-12-31')
 
         assert result.exit_code == 0, result.output
         assert '<' not in result.output, result.output
-        assert _figures(result.output, 'Total Revenue') == ['C$700.00']
-        assert _figures(result.output, 'Total Expenses') == ['C$100.00']
-        assert _figures(result.output, 'Net income for Period') == ['C$600.00']
+        assert _directive(result.output) == '2026-01-01 income-statement'
+        assert _key(result.output, 'end') == '2026-12-31'
+        assert _amount(result.output, 'Income:Consulting') == '8500.00 CAD'
+        assert _amount(result.output, 'Income:Realized FX Gains') == '240.00 CAD'
+        assert _amount(result.output, 'Income:Realized Gains') == '480.00 USD'
+        assert _under(result.output, 'Income:Realized Gains') == {
+            'account.commodity.mnemonic': 'USD',
+            'share_price': '1.42',
+            'value': '681.60'}
+        assert _amount(result.output, 'Expenses:Fees') == '150.00 CAD'
+        assert _amount(result.output, 'Expenses:Interest') == '100.00 USD'
+        assert _under(result.output, 'Expenses:Interest')['value'] == '142.00'
 
     def test_a_currency_given_on_the_command_is_the_report_currency(self, tmp_path):
-        """`--currency USD` on the CAD book: the statement is printed in USD."""
+        """`--currency USD` on the CAD book: the statement is printed in USD.
+
+        The prices are the book's own read the other way round: it holds USD in
+        CAD at 1.42, so a Canadian dollar is 50/71 of a US one, and a Hong Kong
+        dollar — a fifth of a Canadian — is 10/71.
+        """
         book = _book(tmp_path, self.FIXTURE)
 
-        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-25',
+        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31',
                       '--currency', 'USD')
 
         assert result.exit_code == 0, result.output
-        for figure in ('$642.86',        # 900.00 CAD at 1.40
-                       '$714.29',        # 5,500.00 HKD at 5.5 HKD a CAD, then 1.40
-                       '$4,957.15'):     # total assets
-            assert figure in result.output, result.output
+        assert _key(result.output, 'currency.mnemonic') == 'USD'
+        assert _under(result.output, 'Assets:CAD Bank') == {
+            'account.commodity.mnemonic': 'CAD',
+            'share_price': '50/71',
+            'value': '13971.83'}
+        assert _under(result.output, 'Assets:HKD Bank') == {
+            'account.commodity.mnemonic': 'HKD',
+            'share_price': '10/71',
+            'value': '774.65'}
+        # Held in the report's currency now, so it states neither.
+        assert _under(result.output, 'Assets:USD Bank') == {}
+        assert _key(result.output, 'total_assets') == '27135.78 USD'
 
 
 class TestABookOwingForeignCurrency:
@@ -204,10 +345,12 @@ class TestABookOwingForeignCurrency:
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-25')
 
         assert result.exit_code == 0, result.output
-        assert _figures(result.output, 'USD Loan') == ['$1,000.00', 'C$1,400.00']
-        assert _figures(result.output, 'Total Liabilities') == ['C$1,400.00']
-        assert _figures(result.output, 'Unrealized Losses') == ['C$100.00']
-        assert _figures(result.output, 'Total Equity') == ['-C$100.00']
+        assert _amount(result.output, 'Liabilities:USD Loan') == '1000.00 USD'
+        assert _under(result.output, 'Liabilities:USD Loan')['value'] == '1400.00'
+        assert _key(result.output, 'total_liabilities') == '1400.00 CAD'
+        # One key whatever the sign, where GnuCash's page switches between
+        # `Unrealized Gains` and `Unrealized Losses`.
+        assert _key(result.output, 'unrealized_gains') == '-100.00 CAD'
 
     def test_the_sheet_balances_against_what_the_loan_put_in_the_bank(self, tmp_path):
         """A sign error in the liability term would show here and nowhere else."""
@@ -216,19 +359,25 @@ class TestABookOwingForeignCurrency:
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-25')
 
         assert result.exit_code == 0, result.output
-        assert _figures(result.output, 'Total Assets') == ['C$1,300.00']
-        assert _figures(result.output, 'Total Liabilities & Equity') == ['C$1,300.00']
+        assert _key(result.output, 'total_assets') == '1300.00 CAD'
+        assert _key(result.output, 'total_liabilities_and_equity') == '1300.00 CAD'
 
     def test_on_the_day_it_was_drawn_nothing_is_unrealized(self, tmp_path):
-        """Cost and value are the same figure that day, so the term is zero."""
+        """Cost and value are the same figure that day, so the term is zero — and says so.
+
+        The key states `0.00` rather than dropping off. The book holds the
+        money either way; what a zero says is that none of it has moved yet,
+        which is a different thing from the book having no such money at all.
+        """
         book = _book(tmp_path, self.FIXTURE)
 
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-03')
 
         assert result.exit_code == 0, result.output
-        assert _figures(result.output, 'USD Loan') == ['$1,000.00', 'C$1,300.00']
-        assert _figures(result.output, 'Unrealized Gains') == ['C$0.00']
-        assert _figures(result.output, 'Total Liabilities & Equity') == ['C$1,300.00']
+        assert _amount(result.output, 'Liabilities:USD Loan') == '1000.00 USD'
+        assert _under(result.output, 'Liabilities:USD Loan')['value'] == '1300.00'
+        assert _key(result.output, 'unrealized_gains') == '0.00 CAD'
+        assert _key(result.output, 'total_liabilities_and_equity') == '1300.00 CAD'
 
 
 class TestABookWhoseCurrencyIsNotKnown:
@@ -260,59 +409,35 @@ class TestABookWhoseCurrencyIsNotKnown:
                       '--currency', 'CAD')
 
         assert result.exit_code == 0, result.output
-        assert 'C$0.00' in result.output, result.output
+        assert _key(result.output, 'total_liabilities_and_equity') == '0.00 CAD'
 
 
 class TestABookUsingTradingAccounts:
     """The CAD book of the tests above, in a book whose "Use Trading Accounts" option is on.
 
-    A GnuCash user turns it on in File → Properties → Accounts, and GnuCash then
-    records each multi-currency transaction with trading splits. Nothing in
-    gnucash-plaintext sets it, so the book is made the way GnuCash keeps it: the
-    option set on a new book, then the ledger imported. GnuCash's shipped Balance
-    Sheet then prints the shares' gain as Trading Gains rather than as Unrealized
-    Gains (`what_the_balance_sheet_prints_for_a_book_using_trading_accounts_probe.py`).
+    GnuCash's shipped Balance Sheet then prints the shares' gain as Trading
+    Gains rather than as Unrealized Gains
+    (`what_the_balance_sheet_prints_for_a_book_using_trading_accounts_probe.py`).
     """
 
-    def _book(self, tmp_path):
-        from gnucash import ACCT_TYPE_BANK, Account
-
-        from infrastructure.gnucash.kvp import write_book_string_option
-        from repositories.gnucash_repository import GnuCashRepository, SessionMode
-
-        book = tmp_path / 'trading.gnucash'
-        repo = GnuCashRepository(str(book))
-        repo.open(SessionMode.NEW)
-        try:
-            write_book_string_option(repo.book, 'Accounts', 'Use Trading Accounts', 't')
-            # A new book holding nothing but a book option writes no file when
-            # saved, so it is given a top-level CAD account, which keeps the
-            # book kept in CAD.
-            petty_cash = Account(repo.book)
-            petty_cash.BeginEdit()
-            petty_cash.SetName('Petty Cash')
-            petty_cash.SetType(ACCT_TYPE_BANK)
-            petty_cash.SetCommodity(repo.book.get_table().lookup('CURRENCY', 'CAD'))
-            repo.book.get_root_account().append_child(petty_cash)
-            petty_cash.CommitEdit()
-            repo.save()
-        finally:
-            repo.close()
-        imported = _run(CliRunner(), 'import', str(book), str(
-            Path('tests/fixtures/a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt')))
-        assert imported.exit_code == 0, imported.output
-        return book
+    LEDGER = 'a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt'
 
     def test_the_balance_sheet_prints_trading_gains(self, tmp_path):
-        book = self._book(tmp_path)
+        """The same money the other book states as `unrealized_gains`, and only one of the two keys.
 
-        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-25')
+        GnuCash books the revaluation into Trading accounts as each transaction
+        happens, so what the holdings have made is an account balance here
+        rather than a figure the report derives.
+        """
+        book = a_book_using_trading_accounts(tmp_path, self.LEDGER)
+
+        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
 
         assert result.exit_code == 0, result.output
-        assert _figures(result.output, 'Trading Gains') == ['C$140.00']
-        assert 'Unrealized Gains' not in result.output, result.output
-        assert _figures(result.output, 'Total Equity') == ['C$6,940.00']
-        assert _figures(result.output, 'Total Liabilities & Equity') == ['C$6,940.00']
+        assert _key(result.output, 'trading_gains') == '2303.20 CAD'
+        assert 'unrealized_gains' not in result.output, result.output
+        assert _key(result.output, 'retained_earnings') == '12679.60 CAD'
+        assert _key(result.output, 'total_liabilities_and_equity') == '38532.80 CAD'
 
 
 class TestAWarningWhileTheReportIsDrawn:
@@ -326,7 +451,7 @@ class TestAWarningWhileTheReportIsDrawn:
 
         assert result.exit_code == 0, result.output
         assert '⚠' in result.output and '%d %B %Y' in result.output, result.output
-        assert _figures(result.output, 'Total Assets') == ['C$500.00']
+        assert _key(result.output, 'total_assets') == '500.00 CAD'
 
     def test_it_is_given_once_however_many_statements_one_run_draws(self, tmp_path):
         """`report` renders each statement in the one process, and the book's
@@ -353,9 +478,11 @@ class TestABookRunningALoss:
                       '--start', '2026-01-01', '--end', '2026-12-31')
 
         assert result.exit_code == 0, result.output
-        assert _figures(result.output, 'Total Revenue') == ['C$100.00']
-        assert _figures(result.output, 'Total Expenses') == ['C$300.00']
-        assert _figures(result.output, 'Net loss for Period') == ['C$200.00']
+        assert _key(result.output, 'total_revenue') == '100.00 CAD'
+        assert _key(result.output, 'total_expenses') == '300.00 CAD'
+        # A loss is the same key with a negative figure, where GnuCash's page
+        # changes the label to `Net loss for Period`.
+        assert _key(result.output, 'net_income') == '-200.00 CAD'
 
     def test_the_balance_sheet_prints_retained_losses(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
@@ -363,9 +490,9 @@ class TestABookRunningALoss:
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
 
         assert result.exit_code == 0, result.output
-        assert _figures(result.output, 'Total Assets') == ['C$800.00']
-        assert _figures(result.output, 'Retained Losses') == ['C$200.00']
-        assert _figures(result.output, 'Total Equity') == ['C$800.00']
+        assert _key(result.output, 'total_assets') == '800.00 CAD'
+        assert _key(result.output, 'retained_earnings') == '-200.00 CAD'
+        assert _key(result.output, 'total_liabilities_and_equity') == '800.00 CAD'
 
 
 class TestABookWithNoAccounts:
@@ -380,7 +507,7 @@ class TestABookWithNoAccounts:
                       '--currency', 'CAD')
 
         assert result.exit_code == 0, result.output
-        assert 'No accounts selected' in result.output, result.output
+        assert _key(result.output, 'accounts') == 'none selected'
 
     def test_the_income_statement_says_no_accounts_are_selected(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE, '--include-business-objects')
@@ -389,4 +516,4 @@ class TestABookWithNoAccounts:
                       '--start', '2026-01-01', '--end', '2026-03-31', '--currency', 'CAD')
 
         assert result.exit_code == 0, result.output
-        assert 'No accounts selected' in result.output, result.output
+        assert _key(result.output, 'accounts') == 'none selected'

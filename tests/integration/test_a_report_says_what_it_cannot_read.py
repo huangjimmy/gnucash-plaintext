@@ -97,7 +97,12 @@ class TestWritingTheReportToAFile:
 
         assert result.exit_code == 0, result.output
         assert f'Written to {out}' in result.output, result.output
-        assert 'ASSETS' in out.read_text().upper(), out.read_text()
+        # The block's directive is what says which report this is and what it
+        # is as of. The book's own transactions are later than this date, so
+        # every account holds nothing and none is written — an account with no
+        # balance is left off, as it is on GnuCash's own page.
+        assert out.read_text().startswith('2024-12-31 balance-sheet'), out.read_text()
+        assert 'total_liabilities_and_equity: 0.00 CAD' in out.read_text(), out.read_text()
 
     def test_it_is_the_same_report_the_terminal_gets(self, book, tmp_path):
         out = tmp_path / 'sheet.txt'

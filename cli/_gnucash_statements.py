@@ -26,9 +26,10 @@ RATES_HELP = ("YAML prices of other currencies in the report's currency (e.g. US
 PRICES_HELP = ("YAML prices of securities (e.g. AMZN: 250, or AMZN/USD: 250), added to the "
                "book for this run and never saved.")
 
-PRICE_SOURCE_HELP = ("The report's Price Source, one of GnuCash's choices: pricedb-nearest "
-                     "(GnuCash's default), pricedb-latest, pricedb-before, average-cost "
-                     "or weighted-average.")
+PRICE_SOURCE_HELP = ("Which recorded price the statement is priced from: pricedb-nearest "
+                     "(GnuCash's default), pricedb-latest, or pricedb-before from GnuCash "
+                     "4.8. Each reads the book's price database, so the price on a line is "
+                     "one the book records.")
 
 
 def page_for(output_format: str) -> str:

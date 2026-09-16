@@ -10,8 +10,13 @@ so this makes such a book directly:
    imported into it.
 
 Then it prints whether the engine reads the option as on, which Trading
-accounts the book holds, the plaintext balance sheet as of 2026-01-25, and the
-lines of GnuCash's shipped Balance Sheet page that mention trading.
+accounts the book holds, the plaintext balance sheet at the fiscal year end,
+and the lines of GnuCash's shipped Balance Sheet page that mention trading.
+
+The year end is the date to ask at. The book buys its US dollars in May 2025,
+its Hong Kong dollars in June and its shares in August, each at the price it
+pays, so a page drawn before those holdings are repriced carries no gain of
+either kind. The prices that move them are dated 2026.
 
 Run: ./scripts/run.sh <tag> env PYTHONPATH=/workspace python3 tests/research/what_the_balance_sheet_prints_for_a_book_using_trading_accounts_probe.py
 """
@@ -67,12 +72,12 @@ def main():
     finally:
         repo.close()
 
-    text = CliRunner().invoke(cli, ['balance-sheet', str(book), '--as-of', '2026-01-25'])
+    text = CliRunner().invoke(cli, ['balance-sheet', str(book), '--as-of', '2026-12-31'])
     print('--- plaintext balance sheet, exit', text.exit_code)
     print(text.output)
 
     html = work / 'page.html'
-    shipped = CliRunner().invoke(cli, ['balance-sheet', str(book), '--as-of', '2026-01-25',
+    shipped = CliRunner().invoke(cli, ['balance-sheet', str(book), '--as-of', '2026-12-31',
                                        '--output-format', 'html', '--output', str(html)])
     print('--- GnuCash Balance Sheet page, exit', shipped.exit_code)
     if html.exists():

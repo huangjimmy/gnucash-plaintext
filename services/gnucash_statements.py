@@ -85,8 +85,15 @@ _PRICE_SOURCE_NAMES = (
 _text_reports_loaded = False
 
 
+# The price sources a statement is printed from. Each reads the book's price
+# database, so the `share_price:` on a line is a price the book records and a
+# reader can find in it. `pricedb-before` arrived in GnuCash 4.8, so a run's
+# choices are these narrowed to the ones the build has.
+PRICE_SOURCES = ('pricedb-nearest', 'pricedb-latest', 'pricedb-before')
+
+
 class PriceSourceNotOfferedError(PageNotRenderedError):
-    """A price source the report on this build does not offer."""
+    """A price source that is not one of the choices."""
 
 
 def render_balance_sheet(session, currency: str, as_of: date, page: str = 'text',
@@ -196,11 +203,12 @@ def _render(session, template: str, called: str, currency: str,
             # into the Scheme below only once it is known to be one.
             priced = ''
             if price_source is not None:
-                offered = _price_sources(run, work, template)
+                offered = [name for name in _price_sources(run, work, template)
+                           if name in PRICE_SOURCES]
                 if price_source not in offered:
                     raise PriceSourceNotOfferedError(
-                        f'GnuCash\'s {called} report offers no price source "{price_source}"; '
-                        f'on this GnuCash it offers {", ".join(offered)}')
+                        f'The {called} has no price source "{price_source}"; '
+                        f'the choices are {", ".join(offered)}')
                 priced = f"    (set-opt options \"Commodities\" \"Price Source\" '{price_source})"
             page = work / 'page'
             dated = '\n'.join(

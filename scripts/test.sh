@@ -35,11 +35,17 @@ if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
     "$SCRIPT_DIR/build.sh" "$TAG"
 fi
 
-# Shift to get remaining arguments (test paths)
+# Shift to get remaining arguments (test paths), keeping each one its own word.
+# An array rather than a string because a string is one argument to quote or
+# not, and neither answer is right: quoted, several paths reach pytest as a
+# single argument; unquoted, a path containing a space is split in two.
 shift || true
-TEST_PATH="${@:-tests/}"
+TEST_PATHS=("$@")
+if [ ${#TEST_PATHS[@]} -eq 0 ]; then
+    TEST_PATHS=(tests/)
+fi
 
-echo "Running tests in $IMAGE_NAME..."
+echo "Running tests in $IMAGE_NAME: ${TEST_PATHS[*]}"
 # Run as the invoking host user (not root) so the __pycache__, .pytest_cache,
 # *.egg-info and editable-install artifacts written into the mounted workspace
 # stay owned by you and are removable without a privileged container. The uid
@@ -98,7 +104,7 @@ docker run --rm \
     -e GNC_COVERAGE="${GNC_COVERAGE:-}" \
     "${COV_MOUNT[@]}" \
     -v "$PROJECT_PATH:/workspace" \
-    "$IMAGE_NAME" /workspace/scripts/test-in-docker.sh $TEST_PATH
+    "$IMAGE_NAME" /workspace/scripts/test-in-docker.sh "${TEST_PATHS[@]}"
 status=$?
 set -e
 

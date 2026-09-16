@@ -5,11 +5,12 @@ the run and never saved, and GnuCash's report prices from it. No figure is
 multiplied here. A rate is a price in the report's currency and may be written
 as a fraction. `--price-source` is the report's own `Price Source` option.
 
-Most tests use the CAD book of `test_the_statements_are_printed_by_customized_gnucash_reports.py`:
-- USD Bank holds 3,000.00 USD on 01-03 and 1,500.00 USD from 01-20;
+Most tests use the CAD book of `test_the_statements_are_printed_by_customized_gnucash_reports.py`,
+one fiscal year ending 2026-12-31, where at the year end:
+- USD Bank holds 7,480.00 USD and 2,500.00 USD is still owed on the loan;
 - HKD Bank holds 5,500.00 HKD;
-- the book holds 10 NASDAQ:AMZN;
-- its prices are USD in CAD at 1.30 on 01-02 and 1.40 on 02-02, and AMZN in USD at 210 on 01-15.
+- the book holds 12 NASDAQ:AMZN, bought at 200.00 USD;
+- its own prices are USD in CAD at 1.42, CAD in HKD at 5.0 and AMZN in USD at 280.
 """
 
 from click.testing import CliRunner
@@ -18,12 +19,17 @@ from tests.conftest import _run
 from tests.integration.prices_in_a_book import prices_in
 from tests.integration.text_report_pages import (
     FIXTURES,
+    amount_of,
     book_from,
-    figures,
-    shares_as_gnucash_writes,
+    key_of,
+    shares_as_a_block_writes,
+    under,
 )
 
 CAD_BOOK = 'a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt'
+
+
+YEAR_END = '2026-12-31'
 
 
 def _balance_sheet(book, as_of, *flags):
@@ -38,49 +44,59 @@ class TestARatesFile:
         book = book_from(tmp_path, CAD_BOOK)
         before = prices_in(book)
 
-        page = _balance_sheet(book, '2026-01-25', '--fx-rates', str(FIXTURES / 'usd_at_one_fifty.yaml'))
+        page = _balance_sheet(book, YEAR_END, '--fx-rates', str(FIXTURES / 'usd_at_one_fifty.yaml'))
 
-        assert figures(page, 'USD Bank') == ['$1,500.00', 'C$2,250.00']
+        assert under(page, 'Assets:USD Bank') == {
+            'account.commodity.mnemonic': 'USD',
+            'share_price': '1.5',
+            'value': '11220.00'}
         assert prices_in(book) == before
 
     def test_a_dated_rate_is_a_price_on_its_day(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
         before = prices_in(book)
 
-        page = _balance_sheet(book, '2026-01-25', '--fx-rates',
-                              str(FIXTURES / 'usd_at_one_fifty_in_cad_on_january_25.yaml'))
+        page = _balance_sheet(book, YEAR_END, '--fx-rates',
+                              str(FIXTURES / 'usd_at_one_fifty_in_cad_on_december_31.yaml'))
 
-        assert figures(page, 'USD Bank') == ['$1,500.00', 'C$2,250.00']
+        assert under(page, 'Assets:USD Bank')['share_price'] == '1.5'
         assert prices_in(book) == before
 
     def test_a_rate_may_be_a_fraction(self, tmp_path):
+        """`HKD: 1/5` is exactly a fifth, and the page states the price it priced by."""
         book = book_from(tmp_path, CAD_BOOK)
 
-        page = _balance_sheet(book, '2026-01-25', '--fx-rates',
+        page = _balance_sheet(book, YEAR_END, '--fx-rates',
                               str(FIXTURES / 'hkd_at_one_fifth_as_a_fraction.yaml'))
 
-        assert figures(page, 'HKD Bank') == ['HK$5,500.00', 'C$1,100.00']
+        assert under(page, 'Assets:HKD Bank') == {
+            'account.commodity.mnemonic': 'HKD',
+            'share_price': '0.2',
+            'value': '1100.00'}
 
     def test_the_income_statement_prices_from_it(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
-        result = _run(CliRunner(), 'income-statement', str(book), '--start', '2026-01-01',
-                      '--end', '2026-01-25', '--fx-rates', str(FIXTURES / 'usd_at_one_fifty.yaml'))
+        result = _run(CliRunner(), 'income-statement', str(book),
+                      '--fiscal-year-end', YEAR_END,
+                      '--fx-rates', str(FIXTURES / 'usd_at_one_fifty.yaml'))
 
         assert result.exit_code == 0, result.output
-        assert figures(result.output, 'Total Revenue') == ['C$750.00']
-        assert figures(result.output, 'Net income for Period') == ['C$650.00']
+        # The gain taken on the shares is 480.00 USD, valued at the file's 1.50.
+        assert under(result.output, 'Income:Realized Gains')['value'] == '720.00'
+        assert key_of(result.output, 'total_revenue') == '9460.00 CAD'
+        assert key_of(result.output, 'net_income') == '9160.00 CAD'
 
     def test_report_prices_both_statements_from_it(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
         result = _run(CliRunner(), 'report', str(book), 'income-statement', 'balance-sheet',
-                      '--start', '2026-01-01', '--end', '2026-01-25',
+                      '--fiscal-year-end', YEAR_END,
                       '--fx-rates', str(FIXTURES / 'usd_at_one_fifty.yaml'))
 
         assert result.exit_code == 0, result.output
-        assert figures(result.output, 'Total Revenue') == ['C$750.00']
-        assert figures(result.output, 'USD Bank') == ['$1,500.00', 'C$2,250.00']
+        assert 'net_income: 9160.00 CAD' in result.output, result.output
+        assert 'share_price: "1.5"' in result.output, result.output
 
     def test_a_rate_replaces_the_books_own_price_that_day_for_the_run(self, tmp_path):
         """The HKD book prices USD at 7.80 HKD on 03-31; the file gives 7.70."""
@@ -90,7 +106,11 @@ class TestARatesFile:
         page = _balance_sheet(book, '2026-03-31', '--fx-rates',
                               str(FIXTURES / 'usd_at_seven_seventy_in_hkd.yaml'))
 
-        assert figures(page, 'USD Bank') == ['$1,500.00', 'HK$11,550.00']
+        assert under(page, 'Assets:USD Bank') == {
+            'account.commodity.mnemonic': 'USD',
+            'share_price': '7.7',
+            'value': '11550.00'}
+        assert key_of(page, 'total_assets') == '37180.00 HKD'
         assert prices_in(book) == before
 
     def test_a_rate_into_a_currency_other_than_the_reports_is_refused(self, tmp_path):
@@ -131,7 +151,7 @@ def _refused(tmp_path, book, text, flag='--fx-rates'):
     """What `balance-sheet` says when given `text` as a rates or prices file it refuses."""
     written = tmp_path / 'file.yaml'
     written.write_text(text, encoding='utf-8')
-    result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-25',
+    result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', YEAR_END,
                   flag, str(written))
     assert result.exit_code != 0, result.output
     assert 'Traceback' not in result.output
@@ -139,10 +159,10 @@ def _refused(tmp_path, book, text, flag='--fx-rates'):
 
 
 def _priced(tmp_path, book, text, flag='--fx-rates'):
-    """The balance sheet as of 2026-01-25 with `text` as a rates or prices file."""
+    """The balance sheet at the year end with `text` as a rates or prices file."""
     written = tmp_path / 'file.yaml'
     written.write_text(text, encoding='utf-8')
-    return _balance_sheet(book, '2026-01-25', flag, str(written))
+    return _balance_sheet(book, YEAR_END, flag, str(written))
 
 
 class TestWhatARatesFileMayWrite:
@@ -150,23 +170,23 @@ class TestWhatARatesFileMayWrite:
     def test_a_date_may_be_quoted(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
-        page = _priced(tmp_path, book, 'USD/CAD:\n  "2026-01-25": 1.50\n')
+        page = _priced(tmp_path, book, 'USD/CAD:\n  "2026-12-31": 1.50\n')
 
-        assert figures(page, 'USD Bank') == ['$1,500.00', 'C$2,250.00']
+        assert under(page, 'Assets:USD Bank')['share_price'] == '1.5'
 
     def test_a_date_may_carry_a_time(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
-        page = _priced(tmp_path, book, 'USD/CAD:\n  2026-01-25 12:00:00: 1.50\n')
+        page = _priced(tmp_path, book, 'USD/CAD:\n  2026-12-31 12:00:00: 1.50\n')
 
-        assert figures(page, 'USD Bank') == ['$1,500.00', 'C$2,250.00']
+        assert under(page, 'Assets:USD Bank')['share_price'] == '1.5'
 
     def test_a_rate_of_1_for_the_reports_own_currency_is_accepted(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
         page = _priced(tmp_path, book, 'CAD: 1\nUSD: 1.50\n')
 
-        assert figures(page, 'USD Bank') == ['$1,500.00', 'C$2,250.00']
+        assert under(page, 'Assets:USD Bank')['share_price'] == '1.5'
 
 
 class TestWhatARatesFileIsRefusedFor:
@@ -231,7 +251,7 @@ class TestWhatARatesFileIsRefusedFor:
         """
         book = book_from(tmp_path, CAD_BOOK)
 
-        output = _refused(tmp_path, book, 'USD: 1.50\nUSD/CAD:\n  2026-01-25: 1.45\n')
+        output = _refused(tmp_path, book, 'USD: 1.50\nUSD/CAD:\n  2026-12-31: 1.45\n')
 
         assert 'one price a day' in output, output
         assert 'USD' in output and 'depend on' in output, output
@@ -243,21 +263,23 @@ class TestWhatARatesFileIsRefusedFor:
         page = _priced(tmp_path, book,
                        'USD: 1.50\nUSD/CAD:\n  2026-01-05: 1.45\n')
 
-        assert figures(page, 'USD Bank') == ['$1,500.00', 'C$2,250.00']
+        assert under(page, 'Assets:USD Bank')['share_price'] == '1.5'
 
 
 class TestAPricesFile:
 
     def test_a_security_is_priced_in_the_currency_the_book_prices_it_in(self, tmp_path):
-        """AMZN: 250 is 250 USD, the currency of the book's AMZN prices; GnuCash converts it at 1.40."""
+        """AMZN: 250 is 250 USD, the currency of the book's AMZN prices; GnuCash converts it at 1.42."""
         book = book_from(tmp_path, CAD_BOOK)
         before = prices_in(book)
 
-        page = _balance_sheet(book, '2026-01-25', '--prices', str(FIXTURES / 'amzn_at_250.yaml'))
+        page = _balance_sheet(book, YEAR_END, '--prices', str(FIXTURES / 'amzn_at_250.yaml'))
 
-        held, value = figures(page, 'AMZN')
-        assert held in shares_as_gnucash_writes('10', 'AMZN'), page
-        assert value == 'C$3,500.00'
+        assert amount_of(page, 'Assets:AMZN') == shares_as_a_block_writes('12', 'AMZN'), page
+        assert under(page, 'Assets:AMZN') == {
+            'account.commodity.mnemonic': 'AMZN',
+            'share_price': '355',
+            'value': '4260.00'}
         assert prices_in(book) == before
 
     def test_a_security_the_book_has_no_price_for_is_priced_in_the_currency_it_was_bought_in(
@@ -267,13 +289,11 @@ class TestAPricesFile:
 
         page = _balance_sheet(book, '2024-12-31', '--prices', str(FIXTURES / 'security_prices.yaml'))
 
-        held, value = figures(page, 'ACME')
-        assert held in shares_as_gnucash_writes('10', 'ACME'), page
-        assert value == 'C$600.00'
-        held, value = figures(page, 'VGRO')
-        assert held in shares_as_gnucash_writes('20', 'VGRO'), page
-        assert value == 'C$600.00'
-        assert figures(page, 'Unrealized Gains') == ['C$200.00']
+        assert amount_of(page, 'Assets:Brokerage:ACME') == shares_as_a_block_writes('10', 'ACME'), page
+        assert under(page, 'Assets:Brokerage:ACME')['value'] == '600.00'
+        assert amount_of(page, 'Assets:Brokerage:VGRO') == shares_as_a_block_writes('20', 'VGRO'), page
+        assert under(page, 'Assets:Brokerage:VGRO')['value'] == '600.00'
+        assert key_of(page, 'unrealized_gains') == '200.00 CAD'
 
     def test_a_security_the_book_does_not_hold_is_refused(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
@@ -292,10 +312,10 @@ class TestWhatAPricesFileMayWriteAndIsRefusedFor:
     def test_a_security_price_may_give_its_currency(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
-        held, value = figures(_priced(tmp_path, book, 'AMZN/USD: 250\n', '--prices'), 'AMZN')
+        page = _priced(tmp_path, book, 'AMZN/USD: 250\n', '--prices')
 
-        assert held in shares_as_gnucash_writes('10', 'AMZN')
-        assert value == 'C$3,500.00'
+        assert amount_of(page, 'Assets:AMZN') == shares_as_a_block_writes('12', 'AMZN')
+        assert under(page, 'Assets:AMZN')['value'] == '4260.00'
 
     def test_a_security_price_in_a_currency_gnucash_does_not_know(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
@@ -320,21 +340,65 @@ class TestWhatAPricesFileMayWriteAndIsRefusedFor:
 class TestThePriceSource:
 
     def test_gnucash_prices_at_the_price_nearest_in_time_by_default(self, tmp_path):
+        """Nearest in time, a later price included.
+
+        On 2026-01-12 the book's USD prices are 1.30 of 2025-05-05, some eight
+        months behind, and 1.35 of 2026-03-31, under three months ahead. The
+        later one is nearer, so it is the one the report prices by.
+        """
         book = book_from(tmp_path, CAD_BOOK)
 
-        page = _balance_sheet(book, '2026-01-03')
+        page = _balance_sheet(book, '2026-01-12')
 
-        assert figures(page, 'USD Bank') == ['$3,000.00', 'C$3,900.00']
+        assert amount_of(page, 'Assets:USD Bank') == '10000.00 USD'
+        assert under(page, 'Assets:USD Bank') == {
+            'account.commodity.mnemonic': 'USD',
+            'share_price': '1.35',
+            'value': '13500.00'}
 
     def test_a_price_source_given_on_the_command_is_the_reports(self, tmp_path):
-        """The most recent price is the 1.40 of 02-02, a month after the report date."""
+        """The most recent price is the 1.42 of 2026-12-31, a year after the report date."""
         book = book_from(tmp_path, CAD_BOOK)
 
-        page = _balance_sheet(book, '2026-01-03', '--price-source', 'pricedb-latest')
+        page = _balance_sheet(book, '2026-01-12', '--price-source', 'pricedb-latest')
 
-        assert figures(page, 'USD Bank') == ['$3,000.00', 'C$4,200.00']
+        assert under(page, 'Assets:USD Bank') == {
+            'account.commodity.mnemonic': 'USD',
+            'share_price': '1.42',
+            'value': '14200.00'}
 
-    def test_a_price_source_gnucash_does_not_offer_is_refused_with_the_ones_it_does(self, tmp_path):
+    def test_a_source_that_prices_by_averaging_is_not_a_choice(self, tmp_path):
+        """GnuCash's report offers `average-cost` and `weighted-average`; these statements do not.
+
+        Neither reads a price: each divides the total value that moved a
+        commodity by the total amount, so the figure it would put on a line is
+        a ratio no transaction was entered at. They are not choices here, and
+        get the same answer as any other value that is not one.
+        """
+        book = book_from(tmp_path, CAD_BOOK)
+
+        for source in ('average-cost', 'weighted-average'):
+            result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', YEAR_END,
+                          '--price-source', source)
+
+            assert result.exit_code != 0, result.output
+            assert 'Traceback' not in result.output, result.output
+            assert source in result.output and 'pricedb-nearest' in result.output, result.output
+
+    def test_it_is_not_a_choice_for_gnucash_own_page_either(self, tmp_path):
+        """The same answer whichever page is asked for, so one rule holds for the command."""
+        book = book_from(tmp_path, CAD_BOOK)
+        page = tmp_path / 'sheet.html'
+
+        result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', YEAR_END,
+                      '--price-source', 'average-cost',
+                      '--output-format', 'html', '--output', str(page))
+
+        assert result.exit_code != 0, result.output
+        assert 'average-cost' in result.output, result.output
+        assert not page.exists(), 'no page is written for a source that is not a choice'
+
+    def test_a_price_source_that_is_not_a_choice_is_refused_with_the_choices(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-03',
@@ -343,7 +407,7 @@ class TestThePriceSource:
         assert result.exit_code != 0, result.output
         assert 'cheapest' in result.output and 'pricedb-nearest' in result.output, result.output
 
-    def test_the_income_statement_refuses_a_price_source_gnucash_does_not_offer(self, tmp_path):
+    def test_the_income_statement_refuses_a_price_source_that_is_not_a_choice(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
         result = _run(CliRunner(), 'income-statement', str(book), '--start', '2026-01-01',
@@ -352,7 +416,7 @@ class TestThePriceSource:
         assert result.exit_code != 0, result.output
         assert 'cheapest' in result.output and 'pricedb-nearest' in result.output, result.output
 
-    def test_report_refuses_a_price_source_gnucash_does_not_offer(self, tmp_path):
+    def test_report_refuses_a_price_source_that_is_not_a_choice(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
         result = _run(CliRunner(), 'report', str(book), 'income-statement', 'balance-sheet',

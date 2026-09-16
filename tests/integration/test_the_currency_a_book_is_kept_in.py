@@ -65,7 +65,8 @@ class TestTheAccountsGnuCashMakesForItself:
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-01-31')
 
         assert result.exit_code == 0, result.output
-        assert 'C$1,000.00' in result.output, result.output
+        assert 'currency.mnemonic: "CAD"' in result.output, result.output
+        assert '1000.00 CAD' in result.output, result.output
 
 
 class TestWhereTheCurrencyComesFrom:

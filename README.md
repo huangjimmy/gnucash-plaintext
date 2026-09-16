@@ -443,7 +443,9 @@ Then the bill's own block attaches that transaction — `txn_guid:` is the trans
 
 Three different guids: the cost basis the cash comes out of, the transaction that spends it, and that transaction's payable split. `find-transactions` prints the first two and the export prints all three.
 
-(Both blocks are written without trailing `#` comments because the plaintext format has none: a `#` starts a comment only at the beginning of a line, so anything after a value is read as part of it.)
+(Both blocks are written without trailing comments because the plaintext format has none: a comment opens a line and never follows a value, so anything after a value is read as part of it.)
+
+**A comment line opens with `#`, `;` or `;;`**, and is passed over wherever it appears — between blocks, or indented among a transaction's splits. Three openings because this tool writes all three: `print-invoice --format plaintext` prepends its caveats with `#`, a beancount file keeps its notes with `;`, and the reconcile preview opens its sections with `;;`. A `;` after a value is part of that value, so a description reading `"paid; see note"` means what it says.
 
 **`$residual$`** is available on any transaction, not only a currency sale: one split may write it in place of an amount and take what the others leave over, the way GnuCash's editor fills an Imbalance line once an account is chosen. It is a token rather than an omitted amount, so a truncated line cannot silently become a residual split. At most one per transaction; asking for one where the splits already balance is an error, and so is asking for one on an account whose commodity differs from the transaction currency — the residual is a transaction-currency figure, and writing it as an amount in another currency would invent a 1:1 rate.
 
@@ -2835,27 +2837,49 @@ gnucash-plaintext income-statement mybook.gnucash \
     --output-format pdf --output report.pdf
 ```
 
-HTML is the page of GnuCash's Income Statement report as GnuCash ships it. A PDF is that page, laid out by WebKit as `print-invoice` lays out an invoice, and it needs what `print-invoice` needs for a PDF. On a book kept in CAD that holds US dollars, the plaintext page reads:
+HTML is the page of GnuCash's Income Statement report as GnuCash ships it. A PDF is that page, laid out by WebKit as `print-invoice` lays out an invoice, and it needs what `print-invoice` needs for a PDF. The plaintext page is a block in this project's own format — a dated directive, then keys and account lines indented under it with tabs. On a book kept in CAD that holds US dollars, for the fiscal year 2026:
 
 ```
-Income Statement For Period Covering 01/01/26 to 01/25/26
-
-Revenues
-Income                            C$0.00
-  Consulting           $500.00  C$700.00
-Total Revenue                   C$700.00
-
-Expenses
-Expenses                          C$0.00
-  Fees                          C$100.00
-Total Expenses                  C$100.00
-
-Net income for Period           C$600.00
+2026-01-01 income-statement
+	# Every figure is GnuCash's own, from its Balance Sheet or Income
+	# Statement report. An account line states what that account itself
+	# holds — a parent's line is its own balance, not its children's.
+	# A section's total, and any figure no account holds, is a key.
+	#
+	# share_price: and value: under an account line are what the report
+	# valued that holding at on this date: the price read from the book's
+	# price database, and what GnuCash converted the holding to. They are
+	# not the keys of the same name on a transaction split, which record
+	# the rate a transaction actually happened at and multiply out exactly.
+	# A price here changes with the date and with the book's prices; a
+	# split's does not change at all.
+	end: "2026-12-31"
+	currency.mnemonic: "CAD"
+	Income:Consulting 8500.00 CAD
+	Income:Realized FX Gains 240.00 CAD
+	Income:Realized Gains 480.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.42"
+		value: "681.60"
+	total_revenue: 9421.60 CAD
+	Expenses:Fees 150.00 CAD
+	Expenses:Interest 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.42"
+		value: "142.00"
+	total_expenses: 292.00 CAD
+	net_income: 9129.60 CAD
 ```
 
-An account held in another currency shows its own balance beside its value in the report's currency. The value is GnuCash's, at the price its report chooses: by default the price nearest in time to the end of the period, which here is the USD price of 1.40 recorded on 02-02.
+A fiscal year need not be the calendar's: `--fiscal-year-end 2026-03-31` opens the block at `2025-04-01` and reports that year's trading, and an account left holding nothing is left off the page entirely — one the period never touched, and one whose entries cancel each other out exactly — because a line for it would state a figure of zero in the block's currency rather than its own, which says nothing twice over.
 
-**A currency the price database cannot price is valued at nothing, and the totals are short by it.** GnuCash's report prints the account's own balance beside `C$0.00`, and that zero is what `Total Revenue`, `Total Expenses` and `Net income for Period` add up — so a period holding 500.00 USD of income the book has no USD price for reports a net income short by 500.00 USD, with nothing on the page marking the gap. Every figure here is GnuCash's own and this is what GnuCash's own report does, which is the point of printing it this way; it is also why the price matters before the statement does. Record it in the book with a `price` block (see [Prices](#prices)), or give it for the one run with `--fx-rates` (see [Rates and prices for one run](#rates-and-prices-for-one-run---fx-rates---prices-and---price-source)), and the same command reports the whole figure.
+The directive gives the day the period starts and `end:` the day it ends, because a period needs both. Every account is a line carrying its whole path, and that line is what the account itself took or paid — so `Income` appears only where something was booked to it directly, and money booked to `Income:Consulting` is on that line alone. The section's own figure is the `total_revenue:` key, as `total_expenses:` is for the expenses and `net_income:` for what the period made: each is a figure no account holds.
+
+An account held in another currency states three keys under it: what it holds, the price GnuCash priced it at, and the value GnuCash made of it. Those are read against `currency.mnemonic:` at the top of the block, so `share_price: "1.42"` on a USD account in a CAD block is 1.42 CAD per US dollar and `value: "681.60"` is in CAD. The price is GnuCash's own, at the price its report chooses: by default the one nearest in time to the end of the period.
+
+**A statement's `share_price:` and `value:` are not a split's, though they share the names.** On a split the two are recorded together by whoever entered the transaction, and `value` is `share_price × amount` exactly. On a statement line `share_price:` is the price the report read from the price database — written exactly, so a rate no decimal states comes out as `2/11` or `50/71` — and `value:` is what GnuCash converted the holding to at the currency's smallest unit, so the product need not close: 19,840.00 CAD at `50/71` is 992000/71, and the page states `13971.83`. A split records what happened and does not change; a statement line reports what the holding was worth on a date, and states a different price as the date or the book's prices move.
+
+**A currency the price database cannot price is valued at nothing, and the totals are short by it.** The line states what the account holds and a `value:` of `0.00`, with no `share_price:` at all — a price of zero would read as "a US dollar is worth nothing", which is a claim the book does not make — and that zero is what the `Income`, `Expenses` and `net_income:` figures add up. So a period holding 500.00 USD of income the book has no USD price for reports a net income short by 500.00 USD, with nothing on the page marking the gap. Every figure here is GnuCash's own and this is what GnuCash's own report does, which is the point of printing it this way; it is also why the price matters before the statement does. Record it in the book with a `price` block (see [Prices](#prices)), or give it for the one run with `--fx-rates` (see [Rates and prices for one run](#rates-and-prices-for-one-run---fx-rates---prices-and---price-source)), and the same command reports the whole figure.
 
 The income statement **leaves out closing entries**, as GnuCash's Income Statement report does, so it reports the period's result whether or not the books have been closed for the year (see "Closing the books" below). Close the books and run it again — the statement is unchanged.
 
@@ -2864,44 +2888,67 @@ The income statement **leaves out closing entries**, as GnuCash's Income Stateme
 `balance-sheet` prints the balance sheet as of a date as plaintext, through a customized GnuCash report, in the currency the book is kept in. As with `income-statement`, GnuCash adds up and converts every figure, and gnucash-plaintext calculates none of them:
 
 ```bash
-gnucash-plaintext balance-sheet mybook.gnucash --as-of 2026-01-25
+gnucash-plaintext balance-sheet mybook.gnucash --as-of 2026-12-31
 ```
 
-On a book kept in CAD that holds US and Hong Kong dollars and 10 shares of NASDAQ:AMZN:
+On a book kept in CAD that holds US and Hong Kong dollars and 12 shares of NASDAQ:AMZN, and owes US dollars:
 
 ```
-Balance Sheet 01/25/26
-
-Assets
-Assets                                       C$0.00
-  AMZN                          10 AMZN  C$2,940.00
-  CAD Bank                                 C$900.00
-  HKD Bank                  HK$5,500.00  C$1,000.00
-  USD Bank                    $1,500.00  C$2,100.00
-Total Assets                             C$6,940.00
-
-Liabilities
-Total Liabilities                            C$0.00
-
-Equity
-Equity                                       C$0.00
-  Opening CAD                            C$1,000.00
-  Opening HKD               HK$5,500.00  C$1,000.00
-  Opening USD                 $3,000.00  C$4,200.00
-Retained Earnings                          C$600.00
-Unrealized Gains                           C$140.00
-Total Equity                             C$6,940.00
-
-Total Liabilities & Equity               C$6,940.00
+2026-12-31 balance-sheet
+	# Every figure is GnuCash's own, from its Balance Sheet or Income
+	# Statement report. An account line states what that account itself
+	# holds — a parent's line is its own balance, not its children's.
+	# A section's total, and any figure no account holds, is a key.
+	#
+	# share_price: and value: under an account line are what the report
+	# valued that holding at on this date: the price read from the book's
+	# price database, and what GnuCash converted the holding to. They are
+	# not the keys of the same name on a transaction split, which record
+	# the rate a transaction actually happened at and multiply out exactly.
+	# A price here changes with the date and with the book's prices; a
+	# split's does not change at all.
+	currency.mnemonic: "CAD"
+	Assets:AMZN 12.0000 AMZN
+		account.commodity.mnemonic: "AMZN"
+		share_price: "397.6"
+		value: "4771.20"
+	Assets:Receivable 2200.00 CAD
+	Assets:CAD Bank 19840.00 CAD
+	Assets:HKD Bank 5500.00 HKD
+		account.commodity.mnemonic: "HKD"
+		share_price: "0.2"
+		value: "1100.00"
+	Assets:USD Bank 7480.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.42"
+		value: "10621.60"
+	total_assets: 38532.80 CAD
+	Liabilities:USD Loan 2500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.42"
+		value: "3550.00"
+	total_liabilities: 3550.00 CAD
+	Equity:Opening CAD 20000.00 CAD
+	retained_earnings: 12679.60 CAD
+	unrealized_gains: 2303.20 CAD
+	total_equity: 34982.80 CAD
+	total_liabilities_and_equity: 38532.80 CAD
 ```
+
+The page explains itself: the comment lines are written by the report, and `#`, `;` and `;;` all open a comment, so anything reading the block passes over them.
 
 Every figure is the one GnuCash's Balance Sheet report gives:
 
+- **An account is a line: its path, its amount, its commodity** — and the line is what that account **itself** holds, as GnuCash's own page reports it. A brokerage holding 3,000.00 USD with a share account under it prints `Assets:Brokerage 3000.00 USD` with its price and value, beside `Assets:Brokerage:AMZN 10.0000 AMZN` — not one line rolling the two together. There are no section headings, because the path on each line already says which section it is in.
+- **A section's total is a key**, since no account holds it: `total_assets`, `total_liabilities` and `total_equity` on the balance sheet, `total_revenue` and `total_expenses` on the income statement. `total_equity` includes the retained earnings, trading gains and unrealized gains under it, as GnuCash's `Total Equity` row does.
+- **Every account in the book is listed**, however deep. GnuCash's statements show three levels by default and fold anything deeper into its parent — its page prints one `Chequing C$1,000.00` row for an account holding 300.00 with 700.00 in a `Payroll` account under it, and no `Payroll` row at all. A block lists both, because an account missing from a page a program reads is money that has gone somewhere unstated.
+- **A figure GnuCash computes that no account holds is a key**, and states its currency: `retained_earnings`, `unrealized_gains`, `trading_gains`, `total_liabilities_and_equity`, `net_income`. These carry no quotes — quotes are for text, and a money figure in them reads as a string that happens to look like money — while `value:` and `share_price:` are quoted, as this format writes a key's value. `retained_earnings`, `unrealized_gains` and `trading_gains` are written whenever the book holds the money behind them, and left off when it holds none of it at all, each being a thing the book either has or has not. Holding the money and valuing it are separate questions: a book earning only in a currency it holds no price for states `retained_earnings: 0.00 CAD`, because the earnings are there and GnuCash values what it cannot price at nothing. `net_income` and `total_liabilities_and_equity` are always written, a statement having a bottom line whatever it comes to.
 - **Every asset and liability account type is in its section** — Bank, Cash, Stock, Mutual Fund and Accounts Receivable among the assets; Credit Card, Accounts Payable and the rest among the liabilities.
-- **Retained Earnings** is the income and expenses not yet closed into an equity account. After `close-books` the profit sits in `Equity:Retained Earnings:<currency>` and the line is gone, so the sheet balances either way.
-- **A security is at its market value**, from the book's price database: AMZN is 10 shares at 210 USD, at 1.40 CAD. **Unrealized Gains** is the difference between what the assets are worth and what they cost, both converted at the same prices.
-- **A book that uses trading accounts** (File → Properties → Accounts → "Use Trading Accounts" in GnuCash) keeps those gains in its Trading accounts, and GnuCash's report prints them as **Trading Gains** or Trading Losses, with no Unrealized Gains line.
-- **A currency or a security the price database has no price for is valued at nothing** — GnuCash's report shows `$400.00` beside `C$0.00`. Record the price in the book with a `price` block (see [Prices](#prices)), or give it for one run with `--fx-rates` or `--prices`.
+- **`retained_earnings`** is the income and expenses not yet closed into an equity account. After `close-books` the profit sits in `Equity:Retained Earnings:<currency>` as an account line and the key is gone, so the sheet balances either way.
+- **A security is at its market value**, from the book's price database: AMZN is 12 shares at 280 USD, at 1.42 CAD, so 397.6 CAD a share. **`unrealized_gains`** is the difference between what the assets are worth and what they cost, both converted at the same prices. A gain already taken is income and sits in `retained_earnings` instead, so a book that has sold part of a holding shows both.
+- **A figure is written exactly, never rounded** — padded to the commodity's own decimal places, and written as a fraction where no decimal states it exactly, as `share_price: "2/11"` for a Hong Kong dollar in a book that prices CAD in HKD at 5.5.
+- **A book that uses trading accounts** (File → Properties → Accounts → "Use Trading Accounts" in GnuCash) keeps those gains in its Trading accounts, and the page states them as `trading_gains:` with no `unrealized_gains:` beside it. The two are the same money by different bookkeeping, and a book has one or the other.
+- **A currency or a security the price database has no price for is valued at nothing** — the line states what the account holds and a `value:` of `0.00`, and no `share_price:`. Record the price in the book with a `price` block (see [Prices](#prices)), or give it for one run with `--fx-rates` or `--prices`.
 
 `--output-format html` and `pdf` work as they do for `income-statement`.
 
@@ -2947,11 +2994,15 @@ gnucash-plaintext balance-sheet mybook.gnucash --as-of 2026-01-25 \
 - A security's price with no currency is in the currency of the book's own prices of that security, or, where the book has none, the currency of the transactions that hold it. Where that is more than one currency, the file has to give it.
 - `income-statement` takes `--fx-rates` and not `--prices`.
 
-`--price-source` sets the report's `Price Source` option to one of GnuCash's choices. `pricedb-nearest` is GnuCash's default: the price nearest in time to the report date, a later one included. `pricedb-latest`, `average-cost` and `weighted-average` are offered on every supported GnuCash, and `pricedb-before`, the last price up to the report date, from GnuCash 4.8. A choice the GnuCash in use does not offer is refused, and the refusal lists the ones it does.
+`--price-source` sets the report's `Price Source` option. `pricedb-nearest` is GnuCash's default: the price nearest in time to the report date, a later one included. `pricedb-latest` is offered on every supported GnuCash, and `pricedb-before`, the last price up to the report date, from GnuCash 4.8. A choice the GnuCash in use does not offer is refused, and the refusal lists the ones it does.
+
+**A statement is priced from the book's price database, and states the price it read.** Every choice reads a recorded price, so a `share_price:` on a page is a price somebody entered and a reader can find in the book. What each purchase cost is on its own split, as `share_price:` and `value:`, and what the book still holds at cost is what `fx-balances` reports.
 
 ### The plaintext page is a customized GnuCash report
 
-The plaintext page is printed by two customized GnuCash reports in `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm`, which the package ships, "Balance Sheet (plain text)" and "Income Statement (plain text)". Each is written from GnuCash's `balance-sheet.scm` or `income-statement.scm` and changed to output plain text instead of HTML. It is registered with `gnc:define-report` as GnuCash's reports are, takes the same options, makes the same GnuCash calls for every figure, and GnuCash runs it. That file decides how the page is laid out; what the figures are is decided by GnuCash.
+The plaintext page is printed by two customized GnuCash reports in `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm`, which the package ships, "Balance Sheet (plain text)" and "Income Statement (plain text)". Each is written from GnuCash's `balance-sheet.scm` or `income-statement.scm` and changed to output plain text instead of HTML. It is registered with `gnc:define-report` as GnuCash's reports are, is given GnuCash's own report options, makes the same GnuCash calls for every figure, and GnuCash runs it. That file decides how the page is laid out; what the figures are is decided by GnuCash.
+
+The options that decide *figures* are honoured — the report's currency, its dates, its price source. The ones that decide how a column page **looks** are not, a block having no columns to arrange: it lists every account whatever `Levels of Subaccounts` says, writes each account's own balance whatever `Parent account balances` says, and has no section headings or subtotal rows for `Use standard US layout` and the label and total switches to move.
 
 ### Both statements at once: `report`
 

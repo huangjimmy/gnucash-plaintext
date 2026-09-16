@@ -16,7 +16,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from cli.main import cli
-from tests.integration.text_report_pages import figures
+from tests.integration.text_report_pages import key_of as _key
 
 BOOK = str(Path('tests/fixtures/closing_book.txt'))
 
@@ -36,7 +36,7 @@ class TestChoosingThePeriod:
             '--start', '2026-01-01', '--end', '2026-12-31'])
 
         assert result.exit_code == 0, result.output
-        assert figures(result.output, 'Net income for Period') == ['C$700.00']
+        assert _key(result.output, 'net_income') == '700.00 CAD'
 
     def test_a_fiscal_year_end_cannot_be_combined_with_a_range(self, tmp_path):
         """Two answers to one question, and the command says so."""
@@ -101,7 +101,7 @@ class TestTheBalanceSheetDate:
             '--fiscal-year-end', '2026-12-31', '--as-of', '2026-06-30'])
 
         assert result.exit_code == 0, result.output
-        assert figures(result.output, 'Total Assets') == ['C$1,000.00']
+        assert _key(result.output, 'total_assets') == '1000.00 CAD'
 
 
 class TestWritingToAFile:
@@ -115,10 +115,10 @@ class TestWritingToAFile:
         assert result.exit_code == 0, result.output
         assert f'Written to {out}' in result.output
         text = out.read_text(encoding='utf-8')
-        assert figures(text, 'Net income for Period') == ['C$700.00']
-        assert figures(text, 'Total Assets') == ['C$700.00']
+        assert _key(text, 'net_income') == '700.00 CAD'
+        assert _key(text, 'total_assets') == '700.00 CAD'
         # Written, not echoed as well.
-        assert 'Net income for Period' not in result.output
+        assert 'net_income' not in result.output
 
 
 class TestWhenARatesFileCannotPriceTheReport:
