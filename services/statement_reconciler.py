@@ -18,10 +18,8 @@ def _autopay_amount(tx: StandardTransaction) -> Decimal | None:
 
 def _other_account(tx: StandardTransaction) -> str:
     """Return the non-autopay account from a 2-split autopay transaction."""
-    for split in tx.splits:
-        if split.account != AUTOPAY_ACCOUNT:
-            return split.account
-    return ""
+    return next((split.account for split in tx.splits
+                 if split.account != AUTOPAY_ACCOUNT), "")
 
 
 class StatementReconciler:

@@ -1,0 +1,18 @@
+# Customers C001 and C002, each with the guid it states.
+#
+# The guids are given so a `lot_owner:` in another fixture can give one
+# customer's ID beside the other's guid.
+#
+# What this fixture produces: customer C001, guid c1c1…, and customer C002,
+# guid c2c2….
+#
+# Verified by tests/integration/test_a_lot_owner_giving_two_customers_is_refused.py.
+customer "C001"
+	guid: "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+	name: "Acme"
+	currency: CAD
+
+customer "C002"
+	guid: "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2"
+	name: "Beta"
+	currency: CAD

@@ -4,8 +4,9 @@
 #
 # Usage:
 #   ./scripts/coverage.sh                  # sweep every version, combine, gate
-#   ./scripts/coverage.sh --threshold 100  # gate at the destination figure
 #   ./scripts/coverage.sh --report-only    # combine and report what is on disk
+#   ./scripts/coverage.sh --threshold 99   # report a tree mid-change against a
+#                                          # lower bar, without moving the gate
 #
 # One distribution's number is not this project's number. The tree carries
 # paths that only a particular GnuCash runs — a slot read on 3.8 and 4.4 and
@@ -14,12 +15,12 @@
 # ordinary on the next. What is gated is the union: every supported version
 # runs the suite, and a line no version reached is a line nothing tests.
 #
-# The destination is 100%: every line and branch reached by some supported
-# version, with anything unreachable deleted rather than excused. The default
-# below is the floor instead — what the union measures today — so the bare
-# command is one that passes and refuses to let the figure slip. Raise it as
-# the work in docs/issues/T-009 lands. A default of 100 today would fail on
-# every run, and a gate that always fails is a gate somebody turns off.
+# The gate is 100%: every line and branch reached by some supported version,
+# with anything unreachable deleted rather than excused. That is what the union
+# measures, so the bare command passes on the tree as it stands and fails on the
+# first line a change adds that no supported version runs. There is no floor to
+# raise any more — a figure below 100 is a line nothing tests, and `--threshold`
+# is for reading a tree mid-change, not for lowering the bar.
 #
 # The data lands in .coverage-data/ (git-ignored) so a failing run can be read
 # afterwards; `--report-only` re-reads it without running anything.
@@ -30,10 +31,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# The union as measured on 2026-08-09, across every supported build. The tag
-# names and the versions are not interchangeable: `debian11` is 4.4, not 4.13,
-# and `ubuntu24` is 5.5 — CLAUDE.md lists what each one carries.
-THRESHOLD=94
+# The union as measured on 2026-09-16, across every supported build: 14,603
+# statements and 5,294 branches, none of them missed.
+#
+# Only the union reaches it. One build on its own measures 99.04% (arch,
+# ubuntu26) to 99.44% (latest, ubuntu24, fedora41, opensuse) of the same tree,
+# because the paths a particular GnuCash takes run on the builds carrying that
+# version and nowhere else. The tag names and the versions are not
+# interchangeable either: `debian11` is 4.4, not 4.13, and `ubuntu24` is 5.5 —
+# CLAUDE.md lists what each one carries.
+THRESHOLD=100
 REPORT_ONLY=""
 HTML=""
 while [ $# -gt 0 ]; do
@@ -199,8 +206,8 @@ else
     echo "supported version. Cover it with a test, or delete it if it cannot be"
     echo "reached — unreachable code is the defect, not the missing test."
     echo ""
-    echo "$THRESHOLD% is the floor, not the goal: the goal is 100%, and the"
-    echo "remaining work is listed in docs/issues/T-009."
+    echo "The union has been whole since 2026-09-16, so a line missing here"
+    echo "arrived with a change rather than being left over from before."
     echo ""
     echo "Data kept in $GNC_COVERAGE_DIR — re-read it with:"
     echo "  ./scripts/coverage.sh --report-only"

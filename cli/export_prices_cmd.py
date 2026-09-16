@@ -70,7 +70,5 @@ def export_prices(gnucash_file, output_file, start_date, end_date, latest):
             click.echo(f"Exported {len(prices)} price(s) to {output_file}")
         finally:
             repo.close()
-    except click.ClickException:
-        raise
     except Exception as e:
         raise click.ClickException(str(e)) from e

@@ -1,0 +1,37 @@
+# An invoice with two `posted:` blocks, on two different dates.
+#
+# An invoice is posted once, to one account on one day. Two blocks leave both
+# unsaid, so the import refuses the invoice rather than choose one.
+#
+# What this fixture produces: nothing. The import refuses the invoice.
+#
+# Verified by tests/integration/test_a_record_with_two_posted_blocks_is_refused.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-POSTED-TWICE"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-POSTED-TWICE"
+		accumulate: true
+	posted:
+		date: 2026-01-05
+		due: 2026-02-04
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-POSTED-TWICE, again"
+		accumulate: true

@@ -61,10 +61,7 @@ def _word_for(table: dict, value: int, absent: str) -> str:
     inventing something. A value from an enum some later GnuCash grows would
     read as the default too, and would want this table extended.
     """
-    for word, known in table.items():
-        if known == value:
-            return word
-    return absent
+    return {known: word for word, known in table.items()}.get(value, absent)
 
 
 def discount_type_word(value: int) -> str:
@@ -118,9 +115,9 @@ def billable_to(lib, entry_ptr):
 
     from infrastructure.gnucash.engine import safe_ctypes_string
 
+    # The entry's own owner field, so never NULL for a line: no line read on
+    # any of the eleven builds has come back without one.
     owner = lib.gncEntryGetBillTo(entry_ptr)
-    if not owner:
-        return ('', '')
     named = safe_ctypes_string(lib.gncOwnerGetID, owner) or ''
     if not named:
         return ('', '')

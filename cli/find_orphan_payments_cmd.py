@@ -110,15 +110,20 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
     click.echo('')
     for o in orphans:
         # Owner-type drives wording — 2=Customer, 4=Vendor.
+        # An employee's expense voucher is the other owner GnuCash posts to a
+        # payable, and this listing has no word for either.
         if o.owner_type == 2:
             owner_kind = 'customer'
             side = 'AR-side'
+            _record_kind = 'invoice'
         elif o.owner_type == 4:
             owner_kind = 'vendor'
             side = 'AP-side'
+            _record_kind = 'bill'
         else:
             owner_kind = 'owner'
             side = 'AR/AP-side'
+            _record_kind = 'invoice/bill'
 
         # Named against the account the figure is *of*. For an orphaned
         # settlement that is the receivable, not the bank: on a USD invoice
@@ -176,12 +181,12 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
             'txn': 'gncOwnerGetOwnerFromTxn(tx) returned',
             'kvp': 'the transaction carries `owner:` naming',
             'another_lot': 'a sibling orphan\'s lot on this transaction names',
+            'unposted_record': f'the {_record_kind} its unpost marked it with is for',
         }.get(o.owner_source)
-        if _owner_said_by and o.owner_id:
-            click.echo(
-                f'      - {_owner_said_by} {owner_kind} '
-                f'{o.owner_id} ({o.owner_name})'
-            )
+        click.echo(
+            f'      - {_owner_said_by} {owner_kind} '
+            f'{o.owner_id} ({o.owner_name})'
+        )
         click.echo(
             f'      - {side} split is on {o.ar_ap_account}, but the split\'s lot'
         )
@@ -192,7 +197,7 @@ def find_orphan_payments(gnucash_file, customer_id, vendor_id):
             '        returned NULL, i.e. the lot was detached when its'
         )
         click.echo(
-            f'        {"invoice" if o.owner_type == 2 else "bill"} was unposted'
+            f'        {_record_kind} was unposted'
         )
 
     # Per-bank-account totals. Exact: the amounts are added as the figures they

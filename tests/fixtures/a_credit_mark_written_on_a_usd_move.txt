@@ -1,0 +1,20 @@
+# 10.00 USD moved from the cash box back to the bank. The file writes a cost on
+# the outgoing split, and `applied_from_credit: "true"` beside it, which says
+# the split was an owner's credit spent on a record.
+#
+# No record's lot holds the split, so the book does not bear the mark out. The
+# split spends currency, and a cost on a split that spends currency is a figure
+# nothing reads.
+#
+# Imported into `usd_moved_between_two_usd_accounts.txt`, which opens both
+# accounts.
+2026-02-02 * "Move 10 USD from the cash box back to the bank"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 10.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "10.00"
+	Assets:Cash:USD -10.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "-10.00"
+		cost_basis_cost: "1.35 CAD/USD"
+		applied_from_credit: "true"

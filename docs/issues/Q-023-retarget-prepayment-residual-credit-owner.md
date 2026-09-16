@@ -23,20 +23,20 @@ Enforce owner-attachment on **every** path that creates a residual credit lot, v
 
 Because an export of an owner-attached residual now carries `lot_owner:` on that split, a fresh re-import attaches it during the standalone-tx pass; the `prepayment:` validation therefore counts residual siblings that are **already parked** (in their owner lot), not only loose ones, so the round-trip neither errors nor double-creates.
 
-**Guard so it can't silently regress:** `find-prepayments` now reports any open non-invoice AR/AP credit lot whose lot has no owner as a loud warning (account + amount), via `find_ownerless_credit_lots`. The healthy invariant is that no such lot exists.
+**Guard so it can't silently regress:** `find-prepayments` warns about any open non-invoice AR/AP credit lot no owner can be read for (account + amount), from the `unowned` list `find_prepayments_in_book` fills. No import path leaves such a lot. GnuCash's View → Lots can make one ("New Lot" attaches no owner), so the warning says how to give it an owner: `lot_owner:` on its split and `import --strategy update`.
 
 ## Files touched
 
 | File | Change |
 |---|---|
 | `services/gnucash_importer.py` | `_attach_record_owner_to_lot` helper; called from `_retarget_with_prepayment_split` (now takes `record`) and from the `prepayment:` loose-sibling parking loop; the prepayment validation counts already-parked residual siblings, not only loose ones. |
-| `use_cases/export_transactions.py` | `find_ownerless_credit_lots(book)` / `_ownerless_open_credit_lots(account)` — the inverse of `open_prepayments_for_account`: open non-invoice AR/AP credit lots with no lot owner. |
+| `use_cases/unpost_business_objects.py` | `find_prepayments_in_book(book, unowned=[])` fills `unowned` with the open non-invoice AR/AP credit lots it passes over because no owner can be read for them. |
 | `cli/find_prepayments_cmd.py` | Emits a warning listing any ownerless credit lot found in the book. |
 | `tests/integration/test_retarget_prepayment_credit_visible.py` | export-accounts visibility (invoice + bill); the no-ownerless-lot invariant after a retarget overpayment; and the CLI guard firing on a crafted ownerless lot. |
 
 ## Tests
 
-The visibility and invariant tests fail on the pre-fix code (no `open_prepayment:` block; an ownerless lot present) and pass after. The guard test crafts an ownerless lot directly and asserts both `find_ownerless_credit_lots` and the `find-prepayments` warning surface it. Verified on GnuCash 3.8 and 5.10; the overpayment-handling, fresh-roundtrip, find-prepayments, and prepayment-settlement suites still pass.
+The visibility and invariant tests fail on the pre-fix code (no `open_prepayment:` block; an ownerless lot present) and pass after. The guard test crafts an ownerless lot directly and asserts both the `unowned` list and the `find-prepayments` warning surface it. Verified on GnuCash 3.8 and 5.10; the overpayment-handling, fresh-roundtrip, find-prepayments, and prepayment-settlement suites still pass.
 
 ## Related issues
 

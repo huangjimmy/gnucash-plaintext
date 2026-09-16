@@ -1,0 +1,72 @@
+# A 150.00 CAD deposit into `Assets:Bank` against two other splits: 100.00 on
+# `Assets:Suspense` and 50.00 on `Assets:Clearing`. INV-150 for 150.00 has two
+# payment blocks. The first gives the suspense split with `txn_split_guid:` and
+# `account: "Assets:Bank"`, so that split becomes the receivable's. The second
+# gives the clearing split, and says the money is in `Assets:Suspense`.
+#
+# When the file is read the deposit still has its suspense split, so the second
+# block's account is one the transaction used. When the second block is applied
+# the first has moved that split onto the receivable, and nothing is left on
+# `Assets:Suspense` to read the clearing split's worth from.
+#
+# What this fixture produces: a refusal, and nothing imported.
+#
+# Load after `payment_roundtrip_accounts.txt`.
+#
+# Verified by
+# tests/integration/test_a_payment_block_giving_an_account_an_earlier_block_emptied_is_refused.py.
+2026-01-01 open Assets:Suspense
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Clearing
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+2026-01-15 * "Deposit"
+	guid: "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+	Assets:Bank 150.00 CAD
+		guid: "b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8"
+	Assets:Suspense -100.00 CAD
+		guid: "c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7"
+	Assets:Clearing -50.00 CAD
+		guid: "d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6"
+
+invoice "INV-150"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 150
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-150"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		account: "Assets:Bank"
+		txn_guid: "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+		txn_split_guid: "c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7"
+		memo: "Deposit"
+	payment:
+		date: 2026-01-15
+		amount: 50
+		account: "Assets:Suspense"
+		txn_guid: "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+		txn_split_guid: "d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6"
+		memo: "The rest"

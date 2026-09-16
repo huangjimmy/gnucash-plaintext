@@ -246,6 +246,31 @@ class TestImportBeancountCommand:
         assert 'gnucash-' in result.output
         assert 'Traceback' not in result.output
 
+    def test_a_comment_between_postings_and_no_newline_at_the_end_import_whole(
+            self, tmp_path):
+        """The comment is skipped, and the metadata running to the end of the file ends there."""
+        rebuilt = tmp_path / 'rebuilt.gnucash'
+        result = CliRunner().invoke(import_beancount, [
+            str(rebuilt),
+            'tests/fixtures/beancount_a_comment_between_postings_and_no_newline_at_the_end.beancount'])
+
+        assert result.exit_code == 0, result.output
+        assert 'Transactions: 1' in result.output, result.output
+        text = _exported(tmp_path, str(rebuilt)).read_text()
+        assert 'Assets:Bank:USD 100.00 USD @@ 135.00 CAD' in text, text
+        assert 'Assets:Bank -135.00 CAD' in text, text
+        assert 'receipt' not in text, text
+
+    def test_a_fraction_that_is_not_a_whole_number_is_refused(self, tmp_path):
+        rebuilt = tmp_path / 'rebuilt.gnucash'
+        result = CliRunner().invoke(import_beancount, [
+            str(rebuilt), 'tests/fixtures/beancount_a_fraction_that_is_not_a_whole_number.beancount'])
+
+        assert result.exit_code != 0, result.output
+        assert "Commodity USD: gnucash-fraction is not a whole number: '1.5'" in result.output, (
+            result.output)
+        assert not rebuilt.exists()
+
     def test_a_refused_dry_run_leaves_an_existing_book_alone(
             self, temp_gnucash_with_transactions):
         """A dry run makes no book, so it must take none away either.

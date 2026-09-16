@@ -1,0 +1,22 @@
+# 100.00 USD borrowed from the director into the USD bank, in a transaction
+# stated in USD throughout. Nothing in it is CAD, so nothing derives what the
+# USD cost, and the file states it: 1.35 CAD/USD on the bank split, which makes
+# that split a cost basis with a balance of its own.
+#
+# Uses the accounts from fx_usd_bill_cad_expense.txt, and opens the loan.
+#
+# Verified by tests/integration/test_spending_what_a_settlement_brought_in.py.
+2026-01-01 open Liabilities:Director Loan USD
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-02-01 * "Borrow 100 USD from the director"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "100.00"
+		cost_basis_cost: "1.35 CAD/USD"
+	Liabilities:Director Loan USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "-100.00"

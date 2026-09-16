@@ -1,0 +1,35 @@
+# A 100.00 CAD deposit whose bank split carries an action and a memo.
+#
+# The transaction and both splits give their guids, so a second file can edit
+# them with `--strategy update`.
+#
+# What this fixture produces: one CAD transaction, "Consulting paid", its bank
+# split with action "Deposit" and memo "first".
+#
+# Verified by tests/integration/test_a_value_of_none_on_a_split_field_says_nothing.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "Consulting paid"
+	guid: "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+	currency.mnemonic: "CAD"
+	Assets:Bank 100.00 CAD
+		guid: "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+		action: "Deposit"
+		memo: "first"
+	Income:Sales -100.00 CAD
+		guid: "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1"

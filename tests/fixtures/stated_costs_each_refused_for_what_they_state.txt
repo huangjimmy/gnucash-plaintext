@@ -1,0 +1,36 @@
+# Costs stated on USD splits, in transactions stated in USD throughout, where a
+# stated cost is the only cost a split can have. Each block but the last states
+# one no reader can use: the wrong way round, not a number, dividing by zero,
+# nothing, and less than nothing. Each is refused for what it states, and the
+# last block, which states no cost, is still read.
+#
+# Imported into `foreign_security_book.txt`, which opens both accounts.
+2024-04-01 * "A cost stated the wrong way round"
+	currency.mnemonic: "USD"
+	Assets:USD Cash 10.00 USD
+		cost_basis_cost: "0.74 USD/CAD"
+	Equity:Opening -10.00 USD
+2024-04-02 * "A cost that is not a number"
+	currency.mnemonic: "USD"
+	Assets:USD Cash 11.00 USD
+		cost_basis_cost: "abc CAD/USD"
+	Equity:Opening -11.00 USD
+2024-04-03 * "A cost that divides by zero"
+	currency.mnemonic: "USD"
+	Assets:USD Cash 12.00 USD
+		cost_basis_cost: "1/0 CAD/USD"
+	Equity:Opening -12.00 USD
+2024-04-04 * "A cost of nothing"
+	currency.mnemonic: "USD"
+	Assets:USD Cash 13.00 USD
+		cost_basis_cost: "0 CAD/USD"
+	Equity:Opening -13.00 USD
+2024-04-05 * "A cost below nothing"
+	currency.mnemonic: "USD"
+	Assets:USD Cash 14.00 USD
+		cost_basis_cost: "-1.35 CAD/USD"
+	Equity:Opening -14.00 USD
+2024-04-06 * "No cost stated"
+	currency.mnemonic: "USD"
+	Assets:USD Cash 15.00 USD
+	Equity:Opening -15.00 USD

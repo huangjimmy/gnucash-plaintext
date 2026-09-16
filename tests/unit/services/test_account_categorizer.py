@@ -401,3 +401,74 @@ class TestPlaceholderAccounts:
 
         finally:
             repo.close()
+
+    def test_get_placeholder_accounts_lists_the_books_placeholders(self, tmp_path):
+        """The HKD book's four top-level accounts are placeholders, and nothing else is."""
+        from services.account_categorizer import AccountCategorizer
+        from tests.integration.text_report_pages import book_from
+
+        book = book_from(tmp_path, 'a_book_kept_in_hkd.txt')
+        repo = GnuCashRepository(str(book))
+        repo.open(SessionMode.READ_ONLY)
+
+        try:
+            placeholders = AccountCategorizer().get_placeholder_accounts(
+                repo.book.get_root_account())
+
+            assert sorted(account.GetName() for account in placeholders) == [
+                'Assets', 'Equity', 'Expenses', 'Income']
+
+        finally:
+            repo.close()
+
+
+class TestTheOtherCategories:
+    """Liability, income and equity accounts, and an account under a parent of another category."""
+
+    def test_is_liability_income_and_equity_account(self, tmp_path):
+        from services.account_categorizer import AccountCategorizer
+        from tests.conftest import find_account
+        from tests.integration.text_report_pages import book_from
+
+        book = book_from(tmp_path, 'balance_sheet_book.txt')
+        repo = GnuCashRepository(str(book))
+        repo.open(SessionMode.READ_ONLY)
+
+        try:
+            root = repo.book.get_root_account()
+            card = find_account(root, 'Liabilities:CreditCard')
+            sales = find_account(root, 'Income:Sales')
+            equity = find_account(root, 'Equity')
+            categorizer = AccountCategorizer()
+
+            assert categorizer.is_liability_account(card) is True
+            assert categorizer.is_liability_account(sales) is False
+            assert categorizer.is_income_account(sales) is True
+            assert categorizer.is_income_account(card) is False
+            assert categorizer.is_equity_account(equity) is True
+            assert categorizer.is_equity_account(card) is False
+
+        finally:
+            repo.close()
+
+    def test_a_top_level_account_is_valid_and_a_child_of_another_category_is_not(self, tmp_path):
+        from services.account_categorizer import AccountCategorizer
+        from tests.conftest import find_account
+        from tests.integration.text_report_pages import book_from
+
+        book = book_from(tmp_path, 'an_expense_account_filed_under_assets.txt')
+        repo = GnuCashRepository(str(book))
+        repo.open(SessionMode.READ_ONLY)
+
+        try:
+            root = repo.book.get_root_account()
+            categorizer = AccountCategorizer()
+
+            assert categorizer.validate_account_hierarchy(find_account(root, 'Assets')) == (True, None)
+            valid, error = categorizer.validate_account_hierarchy(
+                find_account(root, 'Assets:Parking'))
+            assert valid is False
+            assert 'Parking' in error and 'Assets' in error, error
+
+        finally:
+            repo.close()

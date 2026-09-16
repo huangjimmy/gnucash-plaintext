@@ -79,6 +79,18 @@ def test_residual_on_an_already_balanced_transaction_is_refused(tmp_path):
     assert 'nothing to take' in message, message
 
 
+def test_residual_on_an_account_the_book_lacks_is_refused(tmp_path):
+    runner = CliRunner()
+    book = _book_with_usd(runner, tmp_path)
+    result = _import(runner, book,
+                     'tests/fixtures/fx_residual_on_an_account_the_book_lacks.txt')
+
+    assert result.exit_code != 0, result.output
+    message = result.output + str(result.exception)
+    assert 'Income:No Such Gain' in message, message
+    assert 'Imbalance' not in _export_text(runner, book, tmp_path / 'out.txt')
+
+
 def test_residual_on_an_account_in_another_currency_is_refused(tmp_path):
     runner = CliRunner()
     book = _book_with_usd(runner, tmp_path)

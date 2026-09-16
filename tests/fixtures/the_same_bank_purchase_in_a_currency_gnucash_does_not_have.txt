@@ -1,0 +1,16 @@
+# The purchase from a_bank_purchase_with_its_guid.txt, quoted in XYZ.
+#
+# GnuCash has no currency XYZ. Created this way, the transaction is refused;
+# restated this way over the one the book holds, it has to be refused the same
+# way rather than keep its CAD quote and say nothing about the line.
+#
+# What this fixture produces: nothing. The import refuses the transaction.
+#
+# Verified by tests/integration/test_a_transaction_in_a_currency_gnucash_does_not_have_is_refused.py.
+2026-02-01 * "Paper"
+	guid: "7a6b5c4d3e2f10a9b8c7d6e5f4a3b2c1"
+	currency.mnemonic: "XYZ"
+	Expenses:Supplies 10.00 CAD
+		account.commodity.mnemonic: "CAD"
+	Assets:Bank -10.00 CAD
+		account.commodity.mnemonic: "CAD"

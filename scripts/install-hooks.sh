@@ -9,14 +9,25 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-HOOKS_DIR="$PROJECT_ROOT/.git/hooks"
 SOURCE_HOOKS_DIR="$SCRIPT_DIR/hooks"
 
-# Check if we're in a git repository
-if [ ! -d "$PROJECT_ROOT/.git" ]; then
+# Where the hooks go, asked of git rather than assumed to be `.git/hooks`.
+# Every feature branch here is a worktree (CLAUDE.md), and a worktree's `.git`
+# is a *file* holding the path of the real directory — so `[ -d .git ]`
+# answered "Not in a git repository" in the one place the work is done, and
+# the path beside it would have been wrong as well. Hooks live in the common
+# directory, shared by the main checkout and every worktree of it, so one
+# install serves them all.
+if ! COMMON=$(cd "$PROJECT_ROOT" && git rev-parse --git-common-dir 2>/dev/null); then
     echo "Error: Not in a git repository"
     exit 1
 fi
+case "$COMMON" in
+    /*) ;;
+    *) COMMON="$PROJECT_ROOT/$COMMON" ;;
+esac
+HOOKS_DIR="$COMMON/hooks"
+mkdir -p "$HOOKS_DIR"
 
 # Each hook is installed on its own, and one already there is left alone.
 # Two reasons, and both have happened: `commit-msg` arrived after `pre-commit`,

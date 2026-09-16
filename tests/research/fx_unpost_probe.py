@@ -33,10 +33,9 @@ runner = CliRunner()
 # `tests.conftest` is what deletes the backup and log files a second save
 # inside one second would collide on. This probe is run as a script —
 # `python3 tests/research/fx_unpost_probe.py` — so pytest loads no conftest
-# for it, and GnuCash's ERR_FILEIO_BACKUP_ERROR is swallowed by the CLI's
-# save handler: the command exits 0 and the book on disk is the one before
-# the write. A probe that reports what was never saved is worse than one
-# that fails.
+# for it, and GnuCash's ERR_FILEIO_BACKUP_ERROR stops a second save inside
+# one second: the command fails with "Failed to save" and the book on disk is
+# the one before the write.
 
 
 def hr(title):

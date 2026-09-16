@@ -1,0 +1,27 @@
+# An invoice with `auto_apply_credit: true` and no `posted:` block.
+#
+# The owner's credit settles what a posted invoice put on the receivable. This
+# invoice is not posted, so there is nothing on the receivable for a credit to
+# settle.
+#
+# What this fixture produces: nothing. The import refuses the invoice.
+#
+# Verified by tests/integration/test_the_owners_credit_is_refused_for_an_unposted_record.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-UNPOSTED-CREDIT"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	auto_apply_credit: true
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false

@@ -1,0 +1,56 @@
+# BILL-OTHER for 100.00 USD, posted to `Liabilities:Other Payables`, a plain
+# `type: Liability` account rather than a payable, and a wire that already
+# took 100.00 USD out of `Assets:Bank:USD` against that liability. Both of the
+# wire's splits read "Wire out", and the bill's payment block gives the wire
+# and its liability split with the same memo.
+#
+# What this fixture produces: BILL-OTHER settled by the liability split, both
+# splits still reading "Wire out". Read again with the block's memo corrected,
+# both splits take the correction, as they do on a bill posted to a payable.
+#
+# Load after `fx_usd_bill_cad_expense.txt`, with
+# `--fx-rates tests/fixtures/fx_rates_usd_dated.yaml`.
+#
+# Verified by
+# tests/integration/test_a_corrected_payment_memo_reaches_the_bank_split_on_a_bill_posted_to_a_plain_liability.py.
+2026-01-01 open Liabilities:Other Payables
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-03-30 * "Wire to US Vendor"
+	guid: "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+	currency.mnemonic: "USD"
+	Assets:Bank:USD -100.00 USD
+		guid: "1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b"
+		account.commodity.mnemonic: "USD"
+		memo: "Wire out"
+	Liabilities:Other Payables 100.00 USD
+		guid: "2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c"
+		account.commodity.mnemonic: "USD"
+		memo: "Wire out"
+
+bill "BILL-OTHER"
+	vendor_id: "V-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Parts"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 100
+		taxable: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ap_account: "Liabilities:Other Payables"
+		memo: "Bill BILL-OTHER"
+		accumulate: true
+	payment:
+		date: 2026-03-30
+		amount: 100
+		account: "Assets:Bank:USD"
+		txn_guid: "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+		txn_split_guid: "2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c"
+		memo: "Wire out"

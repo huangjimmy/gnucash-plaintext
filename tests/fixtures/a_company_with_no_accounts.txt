@@ -1,0 +1,11 @@
+# A book with a `company` block and no accounts at all.
+#
+# No `base_currency:` is given and there is no top-level account to share a
+# currency, so the book's currency is refused (Q-042).
+#
+# What this fixture produces: the company's name, and nothing else.
+# Imported with --include-business-objects.
+#
+# Verified by tests/integration/test_the_currency_a_book_is_kept_in.py.
+company
+  name: "A Company With No Accounts"

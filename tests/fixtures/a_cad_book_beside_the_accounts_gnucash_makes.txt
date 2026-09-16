@@ -1,0 +1,67 @@
+# A book kept in CAD that also holds the top-level accounts GnuCash makes for
+# itself.
+#
+# GnuCash's scrub completes a transaction whose splits do not add up by parking
+# the difference in `Imbalance-<CUR>`, and puts a split whose account has gone
+# in `Orphan-<CUR>` — one of each per currency it met, as children of the root.
+# A book kept in CAD that once met a USD transaction GnuCash had to complete
+# therefore holds a top-level account in USD that no ledger opened.
+#
+# What this fixture produces: five top-level accounts a ledger opened, all in
+# CAD, and three GnuCash's own — one of them in US dollars. The book is kept in
+# CAD, and the accounts GnuCash made say nothing about that.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Imbalance-CAD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Imbalance-USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Orphan-USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-05 * "Opening the bank"
+	currency.mnemonic: "CAD"
+	Assets:Bank 1000.00 CAD
+	Equity:Opening -1000.00 CAD

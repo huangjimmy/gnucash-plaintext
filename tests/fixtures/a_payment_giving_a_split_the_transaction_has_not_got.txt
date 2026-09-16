@@ -1,0 +1,36 @@
+# A payment of INV-USD-001 giving the "Money in" transaction, and a split guid
+# no split of that transaction has.
+#
+# `txn_guid:` gives the transaction from money_booked_to_a_cad_account.txt.
+# `txn_split_guid:` gives 0123456789abcdef0123456789abcdef, which is neither of
+# its two splits, so nothing says which split settles the invoice.
+#
+# What this fixture produces: nothing. The import refuses the invoice.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+invoice "INV-USD-001"
+  customer_id: "C-US"
+  currency: USD
+  date_opened: 2026-01-05
+  entry:
+    date: 2026-01-05
+    description: "Consulting"
+    action: "Hours"
+    account: "Income:Sales"
+    quantity: 1
+    price: 100
+    taxable: false
+    tax_included: false
+  posted:
+    date: 2026-01-05
+    due: 2026-02-05
+    ar_account: "Assets:Accounts Receivable USD"
+    memo: "Invoice INV-USD-001"
+    accumulate: true
+  payment:
+    date: 2026-02-25
+    amount: 100
+    account: "Assets:Bank:USD"
+    txn_guid: "c9f27c2b2f324117aa17c7c1f48fbafd"
+    txn_split_guid: "0123456789abcdef0123456789abcdef"

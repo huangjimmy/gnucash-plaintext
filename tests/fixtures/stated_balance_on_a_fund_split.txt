@@ -1,0 +1,41 @@
+# A basis balance stated on the fund units a purchase brought in.
+#
+# 1.000 FUNDX is bought for 100.00 CAD, and `cost_basis_balance:` is written on
+# the FUNDX split. A fund is a security, not a currency: its units are counted
+# and priced, never converted, so no cost basis lives on the split and nothing
+# would read the balance.
+#
+# What this fixture produces: a refusal saying FUNDX is a security, and no
+# transaction.
+#
+# Verified by tests/integration/test_stated_balance_is_checked.py.
+2026-01-01 commodity FUNDX
+	mnemonic: "FUNDX"
+	fullname: "Example Balanced Fund"
+	namespace: "FUND"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Fund
+	type: Mutual Fund
+	commodity.namespace: "FUND"
+	commodity.mnemonic: "FUNDX"
+	commodity_scu: 1000
+
+2026-01-10 * "Buy fund units"
+	currency.mnemonic: "CAD"
+	Assets:Fund 1.000 FUNDX
+		account.commodity.mnemonic: "FUNDX"
+		share_price: "100"
+		value: "100.00"
+		cost_basis_balance: "1.000"
+	Assets:Bank -100.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-100.00"

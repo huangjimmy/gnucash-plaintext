@@ -79,7 +79,12 @@ def _run_unpost(gnucash_file, ids, use_case_cls, by_guid=False):
     repo.open(mode=SessionMode.NORMAL)
     try:
         use_case = use_case_cls(repo.book)
-        results = use_case.execute(ids, by_guid=by_guid)
+        # A record the use case refuses to unpost stops the command before
+        # anything is saved. Said as the reason, not as a traceback.
+        try:
+            results = use_case.execute(ids, by_guid=by_guid)
+        except Exception as refused:
+            raise click.ClickException(str(refused)) from refused
 
         all_ok = True
         for r in results:

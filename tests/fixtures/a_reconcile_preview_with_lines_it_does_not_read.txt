@@ -1,0 +1,17 @@
+;; A reconcile preview a person has edited before it is read back.
+;;
+;; It holds a note written between blocks, a block left with one split, a key
+;; the reader has no use for, and a line inside a block that is neither a key
+;; nor a split, and it ends without a blank line after its last split. What
+;; the reader gives back: the one whole block, `Salary`, with its two splits.
+;;
+;; Verified by tests/unit/services/test_reconcile_preview_reader.py.
+a note written between blocks
+2026-04-01 * "A block left with one split"
+	Assets:BOC HKD Saving -10.00 HKD
+
+2026-04-02 * "Salary"
+	notes: "April"
+	a line the reader does not read
+	Assets:BOC HKD Saving 18110.00 HKD
+	Income:Salary:HKD -18110.00 HKD

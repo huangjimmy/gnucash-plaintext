@@ -648,54 +648,25 @@ def _write_book_option_slot_directly(book, obj_ptr: int, section: str,
 
     segments = _option_path_segments(section, name)
 
-    if value == '':
-        # No value at all, which is how the slot is removed rather than set to
-        # "". Writing an option empty is how the engine deletes it everywhere
-        # else, and the difference is one this format keeps:
-        # `services/invoice_style.py` stores behind a prefix precisely so "set
-        # to nothing" and "never set" stay distinguishable. A book written on
-        # Debian 10 should not be the one carrying empty slots.
-        #
-        # NULL and not a `GValue` emptied with `g_value_unset`. Both delete
-        # the slot, and only one of them is unambiguously quiet about it:
-        # `kvp_value_from_gvalue` returns early on NULL, where a zeroed value
-        # reaches `g_return_val_if_fail (G_VALUE_TYPE (gval))` — which logs at
-        # CRITICAL before returning the same NULL.
-        #
-        # Measured on 3.4, the only build that reaches this: the emptied value
-        # printed nothing, on either stream, so the message GnuCash's source
-        # says is there does not arrive where a caller would see it. NULL is
-        # chosen for taking the early return rather than to silence something
-        # observed — and it drops the asymmetry of a `finally` that had to
-        # know which branch had built a value.
+    # Always a value. A clear never comes here: given "", the engine call
+    # removes the option, a slashed name included, on 3.4 as on 5.10
+    # (`tests/research/whether_clearing_a_book_option_with_a_slash_in_its_name_lands_on_3_4_probe.py`),
+    # so the read-back guard in `write_book_string_option` returns first.
+    gval = _GValue()
+    gobj.g_value_init(ctypes.byref(gval), _G_TYPE_STRING)
+    gobj.g_value_set_string(ctypes.byref(gval), value.encode('utf-8'))
+    try:
         lib.qof_instance_set_kvp(
             ctypes.c_void_p(obj_ptr),
-            None,
+            ctypes.byref(gval),
             ctypes.c_uint(len(segments)),
             *segments,
         )
-    else:
-        gval = _GValue()
-        gobj.g_value_init(ctypes.byref(gval), _G_TYPE_STRING)
-        gobj.g_value_set_string(ctypes.byref(gval), value.encode('utf-8'))
-        try:
-            lib.qof_instance_set_kvp(
-                ctypes.c_void_p(obj_ptr),
-                ctypes.byref(gval),
-                ctypes.c_uint(len(segments)),
-                *segments,
-            )
-        finally:
-            gobj.g_value_unset(ctypes.byref(gval))
+    finally:
+        gobj.g_value_unset(ctypes.byref(gval))
 
     _mark_instance_dirty(obj_ptr)
     _mark_session_dirty(obj_ptr)
-
-    # Absent counts as empty here too, for the same reason the caller's guard
-    # says so: a cleared option is one with no slot.
-    if (get_book_string_option(book, section, name) or '') != value:
-        raise RuntimeError(
-            f'options/{section}/{name} did not take the value written to it')
 
 
 def get_book_string_option(book, section: str, name: str) -> Optional[str]:

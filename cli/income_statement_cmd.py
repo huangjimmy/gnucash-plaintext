@@ -1,20 +1,30 @@
-"""
-CLI command for generating an income statement.
+"""CLI command: the income statement of a book for a period, printed by a customized GnuCash report (Q-042).
 
-Supports CRA T2 fiscal year periods with optional FX conversion to CAD.
-Output formats: text (stdout), HTML, PDF.
+The figures are GnuCash's, in the currency the book is kept in: converted by
+GnuCash through the book's price database and the prices any `--fx-rates` file
+adds to it for this run. Output formats: text (stdout or a file), HTML, PDF.
 """
-
-from typing import Optional
 
 import click
 
 from cli._dates import parse_date
-from infrastructure.gnucash.utils import exact_text
-from repositories.gnucash_repository import GnuCashRepository
-from services.foreign_currency import BASE_CURRENCY
-from services.fx_rates import FxRates, MissingFxRateError
-from use_cases.generate_income_statement import GenerateIncomeStatementUseCase, fiscal_year_start
+from cli._gnucash_statements import (
+    CURRENCY_HELP,
+    OUTPUT_FORMATS,
+    PRICE_SOURCE_HELP,
+    RATES_HELP,
+    add_the_files_prices,
+    check_output,
+    page_for,
+    read_price_files,
+    the_currency,
+    write_out,
+)
+from cli._warnings import said_once
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from services.fiscal_year import fiscal_year_start
+from services.gnucash_report import PageNotRenderedError
+from services.gnucash_statements import render_income_statement
 
 
 @click.command("income-statement")
@@ -43,16 +53,18 @@ from use_cases.generate_income_statement import GenerateIncomeStatementUseCase, 
     expose_value=True,
     help="Period end date (YYYY-MM-DD). Use with --start for explicit range.",
 )
+@click.option("--currency", default=None, help=CURRENCY_HELP)
 @click.option(
     "--fx-rates",
     "fx_rates_file",
     default=None,
     type=click.Path(exists=True),
-    help="YAML file with FX rates → CAD (required for CRA T2 multi-currency totals).",
+    help=RATES_HELP,
 )
+@click.option("--price-source", default=None, help=PRICE_SOURCE_HELP)
 @click.option(
     "--output-format",
-    type=click.Choice(["text", "html", "pdf"], case_sensitive=False),
+    type=click.Choice(OUTPUT_FORMATS, case_sensitive=False),
     default="text",
     show_default=True,
     help="Output format.",
@@ -69,14 +81,14 @@ def income_statement(
     fiscal_year_end,
     start,
     end,
+    currency,
     fx_rates_file,
+    price_source,
     output_format,
     output_file,
 ):
     """
-    Generate an income statement for a fiscal period.
-
-    Supports CRA T2 filing with optional FX conversion of all currencies to CAD.
+    The income statement for a period, printed by a customized GnuCash report, in the book's currency.
 
     \b
     Date range — use ONE of:
@@ -88,19 +100,11 @@ def income_statement(
       Text output (calendar year 2024):
         gnucash-plaintext income-statement ledger.gnucash --fiscal-year-end 2024-12-31
 
-      HTML with FX conversion to CAD:
+      PDF, in Hong Kong dollars:
         gnucash-plaintext income-statement ledger.gnucash \\
-            --fiscal-year-end 2024-03-31 \\
-            --fx-rates rates.yaml \\
-            --output-format html --output report.html
-
-      PDF for CRA T2:
-        gnucash-plaintext income-statement ledger.gnucash \\
-            --start 2023-04-01 --end 2024-03-31 \\
-            --fx-rates rates.yaml \\
+            --start 2023-04-01 --end 2024-03-31 --currency HKD \\
             --output-format pdf --output report.pdf
     """
-    # --- Resolve date range ---
     if fiscal_year_end is not None and (start is not None or end is not None):
         raise click.UsageError(
             "--fiscal-year-end cannot be combined with --start/--end. Use one or the other."
@@ -119,78 +123,26 @@ def income_statement(
             "Provide a date range: --fiscal-year-end YYYY-MM-DD  "
             "or --start YYYY-MM-DD --end YYYY-MM-DD"
         )
+    if period_start > period_end:
+        raise click.UsageError("--start must be on or before --end.")
 
-    # --- Output file validation ---
-    if output_format in ("html", "pdf") and not output_file:
-        raise click.UsageError(f"--output <file> is required for --output-format {output_format}")
+    check_output(output_format, output_file)
+    quotes = read_price_files(fx_rates_file, None)
+    # A sink of this run's own, as `balance-sheet` and `report` make one — see
+    # there for why it is not shared at module level.
+    warn = said_once()
 
-    # --- Load FX rates ---
-    fx_rates: Optional[FxRates] = None
-    fx_rate_labels: list = []
-    if fx_rates_file:
-        try:
-            fx_rates = FxRates.load(fx_rates_file)
-            fx_rate_labels = [
-                f"{c}: {exact_text(fx_rates.rate_fraction(c))}"
-                for c in sorted(fx_rates.available_currencies)
-                if c != BASE_CURRENCY
-            ]
-        except (FileNotFoundError, ValueError) as e:
-            raise click.ClickException(str(e)) from e
-
-    # --- Run ---
     repo = GnuCashRepository(gnucash_file)
-    repo.open()
-
+    repo.open(SessionMode.READ_ONLY)
     try:
-        use_case = GenerateIncomeStatementUseCase(repo)
-        try:
-            result = use_case.execute(
-                start_date=period_start,
-                end_date=period_end,
-                fx_rates=fx_rates,
-            )
-        except MissingFxRateError as e:
-            raise click.ClickException(str(e)) from e
-        except ValueError as e:
-            raise click.ClickException(str(e)) from e
+        report_currency = the_currency(repo.book, currency)
+        add_the_files_prices(repo.book, quotes, report_currency, [period_end])
+        page = render_income_statement(repo.session, report_currency, period_start, period_end,
+                                       page_for(output_format), price_source=price_source,
+                                       warn=warn)
+    except PageNotRenderedError as refusal:
+        raise click.ClickException(str(refusal)) from refusal
     finally:
         repo.close()
 
-    # --- Render ---
-    from services.income_statement_renderer import render_html, render_pdf, render_text
-
-    if output_format == "text":
-        text = render_text(result)
-        if output_file:
-            _write_file(output_file, text)
-            click.echo(f"Written to {output_file}")
-        else:
-            click.echo(text)
-
-    elif output_format == "html":
-        html = render_html(result, fx_rate_labels=fx_rate_labels)
-        _write_file(output_file, html)
-        click.echo(f"HTML report written to {output_file}")
-
-    elif output_format == "pdf":
-        try:
-            render_pdf(result, output_file, fx_rate_labels=fx_rate_labels)
-        except ImportError as e:
-            # Named as its own extra, `[invoice]` having stopped carrying it:
-            # a printed invoice is laid out by WebKit now, and this page —
-            # written here rather than by a GnuCash report — is the only
-            # thing left that WeasyPrint lays out.
-            raise click.ClickException(
-                "WeasyPrint is not installed, and this report is laid out "
-                "with it. Install it with:\n"
-                "  pip install 'gnucash-plaintext[statement]'\n"
-                "or on its own: pip install weasyprint / apt install "
-                "python3-weasyprint"
-            ) from e
-        click.echo(f"PDF report written to {output_file}")
-
-
-def _write_file(path: str, content: str) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
+    write_out(page, output_format, output_file)

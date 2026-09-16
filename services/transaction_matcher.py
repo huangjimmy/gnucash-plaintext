@@ -80,27 +80,26 @@ def _read_owner_from_transaction(transaction) -> Optional[str]:
     which is where plaintext-roundtripped transactions store the value (the C
     setter is a no-op from Python on GnuCash 5.x).
     """
-    try:
-        lib = load_gnc_engine()
-        lib.gncOwnerGetOwnerFromTxn.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-        lib.gncOwnerGetOwnerFromTxn.restype = ctypes.c_int
-        lib.gncOwnerGetID.argtypes = [ctypes.c_void_p]
-        lib.gncOwnerGetID.restype = ctypes.c_char_p
-        lib.gncOwnerGetType.argtypes = [ctypes.c_void_p]
-        lib.gncOwnerGetType.restype = ctypes.c_int
+    # Not guarded: the engine library loads, and has these functions, on every
+    # supported build.
+    lib = load_gnc_engine()
+    lib.gncOwnerGetOwnerFromTxn.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.gncOwnerGetOwnerFromTxn.restype = ctypes.c_int
+    lib.gncOwnerGetID.argtypes = [ctypes.c_void_p]
+    lib.gncOwnerGetID.restype = ctypes.c_char_p
+    lib.gncOwnerGetType.argtypes = [ctypes.c_void_p]
+    lib.gncOwnerGetType.restype = ctypes.c_int
 
-        tx_ptr = int(transaction.instance)
-        owner_buf = ctypes.create_string_buffer(256)
-        owner_p = ctypes.cast(owner_buf, ctypes.c_void_p).value
-        if lib.gncOwnerGetOwnerFromTxn(tx_ptr, owner_p) == 1:
-            otype = lib.gncOwnerGetType(owner_p)
-            oid_raw = lib.gncOwnerGetID(owner_p)
-            oid = oid_raw.decode('utf-8', errors='replace') if oid_raw else ''
-            kind = {2: 'customer', 4: 'vendor'}.get(otype)
-            if kind and oid:
-                return f'{kind}:{oid}'
-    except (AttributeError, OSError):
-        pass
+    tx_ptr = int(transaction.instance)
+    owner_buf = ctypes.create_string_buffer(256)
+    owner_p = ctypes.cast(owner_buf, ctypes.c_void_p).value
+    if lib.gncOwnerGetOwnerFromTxn(tx_ptr, owner_p) == 1:
+        otype = lib.gncOwnerGetType(owner_p)
+        oid_raw = lib.gncOwnerGetID(owner_p)
+        oid = oid_raw.decode('utf-8', errors='replace') if oid_raw else ''
+        kind = {2: 'customer', 4: 'vendor'}.get(otype)
+        if kind and oid:
+            return f'{kind}:{oid}'
 
     custom = get_custom_metadata(transaction) or {}
     return _normalise(custom.get('owner'))
@@ -118,8 +117,6 @@ class TransactionMatcher:
 
     def __init__(self):
         """Initialize transaction matcher."""
-        self._account_name_cache = {}
-        pass
 
     def find_duplicates(
         self,
@@ -261,10 +258,12 @@ class TransactionMatcher:
         return None
 
     def _get_account_full_name(self, account) -> str:
-        """Get full hierarchical name of account (e.g. `"Assets:Bank:Checking"`)."""
-        if account in self._account_name_cache:
-            return self._account_name_cache[account]
+        """Get full hierarchical name of account (e.g. `"Assets:Bank:Checking"`).
 
+        Not cached: an `Account` wrapper has no equality of its own, so a
+        cache keyed on one is keyed on a wrapper nothing asks about twice —
+        every caller hands in a fresh one from `split.GetAccount()`.
+        """
         names = []
         current = account
         while current is not None:
@@ -272,10 +271,7 @@ class TransactionMatcher:
             if account_name and account_name != "Root Account":
                 names.insert(0, account_name)
             current = current.get_parent()
-        full_name = ":".join(names)
-
-        self._account_name_cache[account] = full_name
-        return full_name
+        return ":".join(names)
 
     def _amounts_match(self, tx1, tx2) -> bool:
         """
@@ -287,9 +283,9 @@ class TransactionMatcher:
         splits1 = tx1.GetSplitList()
         splits2 = tx2.GetSplitList()
 
-        if len(splits1) != len(splits2):
-            return False
-
+        # Asked only of two transactions whose signatures match, and a
+        # signature holds every split's account name, sorted, repeats
+        # included. So both have as many splits, on the same accounts.
         amounts1 = {}
         for split in splits1:
             account_name = self._get_account_full_name(split.GetAccount())
@@ -298,8 +294,6 @@ class TransactionMatcher:
         for split in splits2:
             account_name = self._get_account_full_name(split.GetAccount())
             amount = split.GetValue()
-            if account_name not in amounts1:
-                return False
             # GncNumeric.equal — `!=` is broken on GnuCash 3.8/4.4.
             if not amounts1[account_name].equal(amount):
                 return False

@@ -787,3 +787,73 @@ def test_a_balance_that_will_not_parse_is_reported_not_read_as_absent(tmp_path):
     assert 'cost_basis_balance' in checked.output, checked.output
     assert "'60.00.00'" in checked.output, checked.output
     assert 'not a number' in checked.output, checked.output
+
+
+def test_a_cad_line_holding_no_cad_says_nothing_about_the_rate(tmp_path):
+    """A CAD line with a value and no CAD amount is left out of the rate.
+
+    In a transaction stated in USD the rate is the CAD splits' amounts over the
+    USD values they are worth. A line holding no CAD adds a value with nothing
+    behind it: counted, it would put 101.00 USD of value under the bank's
+    135.00 CAD, and price 99.00 USD bought at 1.35 at 135/101 instead.
+    """
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    result = runner.invoke(cli, [
+        'import', '--new', str(book),
+        'tests/fixtures/fx_usd_bought_in_usd_beside_a_cad_line_holding_no_cad.txt'])
+    assert result.exit_code == 0, result.output
+    assert 'Errors:       0' in result.output, result.output
+
+    listing = runner.invoke(cli, ['fx-balances', str(book)]).output
+    assert '1.35 CAD/USD' in listing, listing
+    assert '99.00 USD' in listing, listing
+
+    checked = _verify(runner, book)
+    assert checked.exit_code == 0, checked.output
+
+
+def test_a_sale_whose_force_flag_cannot_be_read_is_reported_in_that_flags_words(tmp_path):
+    """What failed while a sale was measured is what the report gives.
+
+    `cost_basis_force:` on a sale is read as a yes or a no, and a book can hold
+    one that is neither, from a hand edit or an older tool. The disposal check
+    reads it while asking whether the cost basis the sale draws on was
+    collected. Reported as a cost basis that could not be read, it would send
+    the reader to the purchase, which is sound; the words are about the flag.
+    """
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    assert runner.invoke(cli, ['import', '--new', str(book),
+                               'tests/fixtures/fx_buy_and_borrow_usd.txt']).exit_code == 0
+    exported = tmp_path / 'out.txt'
+    assert runner.invoke(cli, ['export', str(book), str(exported)]).exit_code == 0
+    bought = re.findall(r'Assets:Bank:USD 100\.00 USD\n\t+guid: "([0-9a-f]{32})"',
+                        exported.read_text())[0]
+    sale = tmp_path / 'sale.txt'
+    sale.write_text(Path('tests/fixtures/fx_sell_usd_partial.txt').read_text()
+                    .replace('{basis_a}', bought))
+    result = runner.invoke(cli, ['import', str(book), str(sale)])
+    assert 'Errors:       0' in result.output, result.output
+
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.NORMAL)
+    try:
+        account = find_account(repo.book.get_root_account(), 'Assets:Bank:USD')
+        split = next(s for s in account.GetSplitList()
+                     if get_custom_metadata(s).get('cost_basis_split_guid'))
+        transaction = split.GetParent()
+        transaction.BeginEdit()
+        metadata = dict(get_custom_metadata(split))
+        metadata['cost_basis_force'] = 'treu'
+        set_custom_metadata(split, metadata)
+        transaction.CommitEdit()
+        repo.save()
+    finally:
+        repo.close()
+
+    checked = _verify(runner, book)
+    assert checked.exit_code == 1, checked.output
+    assert 'what is measured against it could not be read' in checked.output, checked.output
+    assert bought in checked.output, checked.output
+    assert 'treu' in checked.output, checked.output

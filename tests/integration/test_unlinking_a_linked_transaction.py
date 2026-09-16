@@ -296,6 +296,27 @@ class TestChoosingAmongSeveralPayments:
         assert len(on_owed) == 1, rows
         assert on_owed[0]['amount'] == -100, on_owed
 
+    def test_a_cad_split_is_refused_an_account_kept_in_the_entrys_currency(self, book):
+        """USD would come into the book with no cost basis behind it.
+
+        The split holds CAD, which is also the book's own currency, so the
+        refusal offers one account currency and says it once.
+        """
+        assert CliRunner().invoke(cli, [
+            'import', str(book), CAD_IN_A_USD_ENTRY]).exit_code == 0
+        linked = CliRunner().invoke(cli, [
+            'import', str(book), CAD_SPLIT_LINK, '--include-business-objects'])
+        assert linked.exit_code == 0, linked.output
+
+        result = CliRunner().invoke(cli, [
+            'unlink', str(book), 'INV-UNPAID', '--to', 'Assets:Bank:USD'])
+
+        assert result.exit_code != 0, result.output
+        assert 'Use an account kept in CAD.' in result.output, result.output
+        rows = _splits_of(book, 'Money in, CAD parked, USD bank')
+        assert [row['account'] for row in rows] == [
+            'Assets:Accounts Receivable', 'Assets:Bank:USD'], rows
+
     def test_a_refusal_on_one_of_them_takes_neither_off(self, book):
         """What the two loops in `unapply_payments` are for.
 

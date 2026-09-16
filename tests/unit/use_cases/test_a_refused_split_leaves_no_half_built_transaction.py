@@ -86,7 +86,7 @@ class TestAFigureTheCurrencyCannotHold:
     def test_it_is_reported_as_an_error(self, book_path):
         with GnuCashRepository(book_path) as repo:
             result = ImportTransactionsUseCase(repo).execute(
-                [_entry('A tenth of a cent', '18.191')], validate=False)
+                [_entry('A tenth of a cent', '18.191')])
 
         assert result.error_count == 1, result.errors
         assert '18.191' in result.errors[0]['error'], result.errors
@@ -95,7 +95,7 @@ class TestAFigureTheCurrencyCannotHold:
         """The splits already attached before the refusal, and the open edit."""
         with GnuCashRepository(book_path) as repo:
             ImportTransactionsUseCase(repo).execute(
-                [_entry('A tenth of a cent', '18.191')], validate=False)
+                [_entry('A tenth of a cent', '18.191')])
 
             assert _descriptions(repo.book) == []
 
@@ -104,7 +104,7 @@ class TestAFigureTheCurrencyCannotHold:
         with GnuCashRepository(book_path) as repo:
             result = ImportTransactionsUseCase(repo).execute(
                 [_entry('A tenth of a cent', '18.191'),
-                 _entry('An ordinary lunch', '18.19')], validate=False)
+                 _entry('An ordinary lunch', '18.19')])
 
             assert result.error_count == 1, result.errors
             assert _descriptions(repo.book) == ['An ordinary lunch']
@@ -119,7 +119,7 @@ class TestAnAccountThatIsNotThere:
 
         with GnuCashRepository(book_path) as repo:
             result = ImportTransactionsUseCase(repo).execute(
-                [entry], validate=False)
+                [entry])
 
             assert result.error_count == 1, result.errors
             assert 'Expenses:Nowhere' in result.errors[0]['error']

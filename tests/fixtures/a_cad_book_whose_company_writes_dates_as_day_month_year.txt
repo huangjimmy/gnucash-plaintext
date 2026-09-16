@@ -1,0 +1,42 @@
+# A book kept in CAD whose `company` block writes dates as `%d %B %Y`, which
+# GnuCash has no date style for.
+#
+# What this fixture produces: Assets:Bank 500.00 CAD opened against
+# Equity:Opening Balances on 2026-01-02, and the book option Fancy Date Format
+# set to `%d %B %Y`. Imported with --include-business-objects, which is what
+# imports a `company` block. A report drawn for it warns that GnuCash has no
+# date style for that format.
+#
+# Verified by tests/integration/test_the_statements_are_printed_by_customized_gnucash_reports.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening Balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+company
+	name: "A Company Writing Its Own Dates"
+	date_format: "%d %B %Y"
+
+2026-01-02 * "Opening balance"
+	currency.mnemonic: "CAD"
+	Assets:Bank 500.00 CAD
+	Equity:Opening Balances -500.00 CAD

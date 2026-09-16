@@ -13,14 +13,6 @@ from datetime import date, timedelta
 
 import pytest
 
-from infrastructure.pdf.cairo_before_gnucash import load_the_page_engine_first
-
-# Before the first test imports GnuCash. `cli/__init__.py` does this for every
-# command, but a test may reach `import gnucash` without going through the CLI
-# at all, and on Debian 10 that order segfaults — which under pytest is not a
-# failing test but the end of the run.
-load_the_page_engine_first()
-
 
 def swallow_oserror(func, fallback=None):
     """`func` with an OSError treated as "the fd is already gone".

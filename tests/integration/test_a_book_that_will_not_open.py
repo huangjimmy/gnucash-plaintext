@@ -13,6 +13,7 @@ is the sentence that says which state.
 """
 
 import os
+import tempfile
 
 import pytest
 from click.testing import CliRunner
@@ -159,3 +160,120 @@ class TestABookItCannotWrite:
         assert result.exception is None or isinstance(
             result.exception, SystemExit), repr(result.exception)
         assert 'write' in result.output.lower(), result.output
+
+
+class TestABookThatCannotBeCopiedToBeRead:
+    """Below GnuCash 4.8, reading a book copies it first (CLAUDE.md finding 27).
+
+    A session that takes no lock closes a file of the process's when it ends
+    there, so a book to read is opened as a private copy whose backend takes a
+    lock of its own. That copy needs somewhere to go: a temporary directory
+    that cannot be written stops an ordinary `export` on those builds, while
+    on 4.8 and later nothing is copied and the same run works.
+
+    Both are answers a reader can act on. A traceback is not, and that is what
+    this holds on every build — the sentence on the three that copy, the page
+    on the eight that do not.
+    """
+
+    def test_it_is_reported_rather_than_raised(self, book, tmp_path, monkeypatch):
+        nowhere = tmp_path / 'no-room'
+        nowhere.mkdir()
+        os.chmod(nowhere, 0o555)
+        # `tempfile.tempdir` rather than the environment: `gettempdir` caches
+        # its answer the first time anything in the process asks, and by now
+        # something has.
+        monkeypatch.setattr(tempfile, 'tempdir', str(nowhere))
+        try:
+            if os.access(nowhere, os.W_OK):
+                if os.environ.get('GNC_UNPRIVILEGED_RUN'):
+                    pytest.fail(
+                        'the runner says this container was given --user, and '
+                        'the process writes whatever the mode says anyway — so '
+                        'it is root, and every test needing a directory it '
+                        'cannot write to is silently skipping')
+                pytest.skip('this process writes whatever the mode says, so '
+                            'the directory is not unwritable and there is '
+                            'nothing here to report')
+            result = CliRunner().invoke(
+                cli, ['export', str(book), str(tmp_path / 'out.txt')])
+        finally:
+            os.chmod(nowhere, 0o755)
+
+        assert result.exception is None or isinstance(
+            result.exception, SystemExit), repr(result.exception)
+        assert 'Traceback' not in result.output, result.output
+        if result.exit_code != 0:
+            assert 'copied' in result.output, result.output
+
+
+class TestABookItCannotRead:
+    """A book whose own file the process may not read: click refuses it first.
+
+    A copy owned by somebody else, or a file whose mode was tightened. Every
+    command takes its book as `click.Path(exists=True)`, and click checks
+    readability while it converts the argument — before any command body runs,
+    so before `GnuCashRepository.open` reads the file to tell a whole book from
+    one that stops partway through (`_why_the_file_is_not_a_whole_book`, which
+    opens it with no guard of its own).
+
+    Measured on 5.10 with the book at mode 000
+    (`what_an_unreadable_book_gives_each_command_probe.py`): `export`,
+    `balance-sheet`, `income-statement`, `report` and `validate` each exit 2
+    with `Error: Invalid value for 'GNUCASH_FILE': Path '…' is not readable.`
+    and no traceback. That is worth holding: a command that took its path some
+    other way would reach the unguarded read instead, and a `PermissionError`
+    is not one of the four refusals `cli.main._Cli.invoke` turns into a
+    sentence, so it would surface as a traceback.
+
+    The same root caveat as the class above applies, for the same reason, and
+    is checked the same way: root reads whatever the mode says.
+    """
+
+    def _unreadable(self, book):
+        os.chmod(book, 0o000)
+        if os.access(book, os.R_OK):
+            if os.environ.get('GNC_UNPRIVILEGED_RUN'):
+                pytest.fail(
+                    'the runner says this container was given --user, and the '
+                    'process reads whatever the mode says anyway — so it is '
+                    'root, and every test needing a file it cannot read is '
+                    'silently skipping')
+            pytest.skip('this process reads whatever the mode says, so the '
+                        'book is not unreadable and there is nothing here to '
+                        'report')
+
+    def test_a_command_that_reads_says_so_rather_than_raising(self, book):
+        self._unreadable(book)
+        try:
+            result = CliRunner().invoke(
+                cli, ['export', str(book), str(book.parent / 'out.txt')])
+        finally:
+            os.chmod(book, 0o644)
+
+        assert result.exit_code != 0, result.output
+        assert result.exception is None or isinstance(
+            result.exception, SystemExit), repr(result.exception)
+        assert 'is not readable' in result.output, result.output
+
+    def test_the_statement_commands_say_so_too(self, book):
+        """These open the book outside their own `try`, so only the argument
+        check stands between an unreadable file and a traceback."""
+        self._unreadable(book)
+        try:
+            results = {
+                command[0]: CliRunner().invoke(cli, command)
+                for command in (
+                    ['balance-sheet', str(book), '--as-of', '2026-01-25'],
+                    ['income-statement', str(book), '--start', '2026-01-01',
+                     '--end', '2026-01-25'],
+                    ['report', str(book), 'balance-sheet'],
+                )}
+        finally:
+            os.chmod(book, 0o644)
+
+        for command, result in results.items():
+            assert result.exit_code != 0, (command, result.output)
+            assert result.exception is None or isinstance(
+                result.exception, SystemExit), (command, repr(result.exception))
+            assert 'is not readable' in result.output, (command, result.output)

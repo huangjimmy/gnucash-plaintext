@@ -1,0 +1,4 @@
+# A book's company with a phone number and no name. What this fixture
+# produces: the Company Phone Number Business option, and no Company Name.
+company
+	phone: "555-0100"

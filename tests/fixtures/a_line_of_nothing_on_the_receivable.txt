@@ -1,0 +1,15 @@
+# A transaction of nothing: 0.00 CAD on the receivable against 0.00 CAD in the
+# bank. GnuCash's register saves one, and View → Lots offers its receivable
+# split to any lot on that account, since the split is in none.
+#
+# What this fixture produces: one transaction, neither split in a lot.
+2026-01-20 * "A line of nothing"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable 0.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "0.00"
+	Assets:Bank 0.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "0.00"

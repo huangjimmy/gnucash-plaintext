@@ -141,6 +141,8 @@ Supported `type` values are the GnuCash account types (case-sensitive):
 
 `Accounts Receivable` and `Accounts Payable` also accept the GnuCash short forms `A/Receivable` / `A/Payable` and the bare `Receivable` / `Payable`. An unrecognised `type` is reported in the import summary (and the account is skipped), so a typo never silently lands an account with no type.
 
+Every part of the name is an account, and each needs a name. `open ""` and `open Assets::Savings` are reported in the import summary the same way, and neither account is created.
+
 Also, you cannot declare top level accounts such as `Expenses` in beancount, but you
 need to `open` `Expenses` account first before you can open `Expenses:Groceries & Household` in GnuCash plaintext.
 
@@ -1154,7 +1156,7 @@ gnucash-plaintext import mybook.gnucash ledger.txt --include-business-objects --
 
 An export carrying business objects emits the book's whole chart of accounts, so it is always re-importable: an invoice reaches accounts no transaction split touches — its entries' income accounts, its `posted:` block's A/R account, a tax table's tax account — and an unposted one has no posting transaction to drag them in.
 
-`--fx-rates` takes the same file every reporting command takes, in either form — flat, or a rate per day:
+`--fx-rates` on `import` takes a rates file in either form — flat, or a rate per day. `balance-sheet`, `income-statement` and `report` take a file of the same shape and add its rates to the book's price database for the run instead (see [Rates and prices for one run](#rates-and-prices-for-one-run---fx-rates---prices-and---price-source)):
 
 ```yaml
 HKD: 0.172                  # 1 HKD = 0.172 CAD, undated
@@ -1305,6 +1307,10 @@ bill "BILL-2026-001"
     memo: "Payment for BILL-2026-001"
 ```
 
+Inside an `invoice` or a `bill` the blocks come in one order: its `entry:` blocks, then `posted:`, then its `payment:` blocks. That is the order of the examples above and of every file `export` and `print-invoice` write. An invoice or bill whose blocks are written in any other order is refused, with the order they must take. The order carries meaning: the import posts the record at `posted:` and pays it at each `payment:`, so a `posted:` written before an `entry:` would post the invoice before that line existed. Measured on GnuCash 5.10, a 100.00 invoice written that way put 0.00 on the receivable and reported no error. The `entry:` blocks among themselves are the record's lines, in the order written; how a re-import pairs them with the lines a book already holds is described under [A line's own `guid:`](#a-lines-own-guid).
+
+A line's `quantity:` and `price:` are ratios, not money, and are held exactly as written: `price: 33.3333333` stays that figure, and a price no decimal states is written as the fraction it is, such as `price: 100/3`, which is also what `export` writes back for it. Three of that line total 100.00; written as `33.33` they would total 99.99. A figure GnuCash cannot hold exactly is refused rather than rounded to one it can: GnuCash keeps each as a whole number over a whole number, each at most 9223372036854775807, so `price: 0.1234567890123456789` is refused. An amount is another thing. A payment's `amount:` and a split's `amount:` and `value:` are money, held at the smallest unit of their currency, and a stated amount finer than that unit is refused. A split that states both its `amount:` and its `value:` has the price those two give: the export writes `share_price:` beside them as that price, and a file whose `share_price:` differs is imported with the two amounts deciding and a warning saying so (see [Money, to the smallest unit its currency has](docs/multi-currency.md#money-to-the-smallest-unit-its-currency-has)).
+
 A bill entry's `taxable:` round-trips as written, `false` included. It once
 did not, and the cause was this project's: a vendor bill was handled with the
 customer-invoice class, so the entry carried an invoice pointer and GnuCash
@@ -1341,10 +1347,13 @@ company
   email: "billing@example.com"
   url: "https://example.com"
   date_format: "%d %B %Y"
+  base_currency: "CAD"
 ```
 
 `name`, `contact`, `id`, `phone`, `fax`, `email`, `url`, and the address lines
 map directly to GnuCash's native Business fields.
+
+`base_currency` is the currency the book is kept in, which `balance-sheet`, `income-statement` and `report` put their reports in. GnuCash keeps no currency for a book, so the block keeps this one in the book as a custom key. A book without it is kept in the currency its top-level accounts hold (see [The currency a report is in](#the-currency-a-report-is-in)).
 
 The address is stored in GnuCash's single multi-line `Company Address` slot, so
 unlike a customer's it has **no limit of four**: File → Properties → Business is
@@ -1465,7 +1474,7 @@ The memo is the **settling split's** — the receivable or payable split in this
 
 **A payment is written out twice** — as its invoice's `payment:` block and as the transaction that block names — and where the two disagree about a split's memo, **the block wins**. It is the invoice's own statement about its own settlement, and it is the line a reader corrects. Two of them cannot state one split's memo between them: each names its own settlement with `txn_split_guid:`, and a block naming only the transaction on a payment that settles several is refused for that reason before any memo is read.
 
-A ledger written by an earlier release is the one file whose halves disagree by construction — its block carries the bank split's wording while naming the receivable one, which is what that release exported. Such a block is recognised by its memo being the one the file gives the bank split, and it changes nothing. The same recognition makes one deliberate edit a no-op: setting a settling split's memo to the words the bank split already carries is read as a block of that older shape, so say it on the transaction's own split instead. Written there, the first block would put its wording on it and the last would put its own over the top, and which survived would be decided by the order the invoices and bills appear in. Two blocks naming the **same** split with different memos are still refused, naming both: that is one split and one memo, whatever else the file says.
+A ledger written by an earlier release is the one file whose halves disagree by construction — its block carries the bank split's wording while giving the receivable split's guid, which is what that release exported. Such a block is recognised by its memo being the one the file gives the bank split, and it changes nothing. The same recognition makes one deliberate edit a no-op: setting a settling split's memo to the words the bank split already carries is read as a block of that older shape, so say it on the transaction's own split instead. Written there, the first block would put its wording on it and the last would put its own over the top, and which survived would be decided by the order the invoices and bills appear in. Two `payment:` blocks giving the **same** split are refused before anything is compared, whatever their memos say: one split is one settlement, stated once.
 
 Nothing wrote it before. A block naming `txn_guid:` matches its payment on that guid alone, so a corrected memo left the invoice matching, the run said `unchanged` and `Updated: 0`, and the correction was dropped without a word.
 
@@ -1524,7 +1533,7 @@ To find which bills are still outstanding, render a whole vendor at once with `p
 * The new payment block has no `txn_guid:` — the importer calls `ApplyPayment` to create a fresh bank-side transaction.
 * The new payment block has `txn_guid: "..."` pointing at a pre-existing bank transaction (e.g. one already loaded from a QFX import) — the importer links that transaction's counter-split into the invoice's posted lot (the Q-004 mechanism), no new bank transaction created. Original tx GUID, notes, and KVP preserved. An exported payment block always names the money it refers to, so the same link is reproducible on a fresh re-import — with `txn_guid:` and `txn_split_guid:` for a payment of one settling split, and with `Transaction` / `PaymentSplit` for one made of several (see [One payment made of several splits](#one-payment-made-of-several-splits)); see [Reconciling invoice and bill payments with a bank feed](#reconciling-invoice-and-bill-payments-with-a-bank-feed) below for the multi-invoice variant.
 
-Either way the posting transaction, every entry, and the original bank-side payment transactions already on the invoice's lot are left untouched (same GUIDs throughout) — no orphan is created and the bank balance reflects exactly the payments the user recorded. A payment field edited or removed takes the GnuCash-UI-equivalent unpost-rebuild-repost path, and any payment-side bank transactions about to be orphaned by that rebuild are listed in the import output with the same warning block `unpost-invoices` / `unpost-bills` emit (see the unpost section below). A **changed line, or a changed `posted:` block, on a posted invoice or bill** is refused outright — see below.
+Either way the posting transaction, every entry, and the original bank-side payment transactions already on the invoice's lot are left untouched (same GUIDs throughout) — no orphan is created and the bank balance reflects exactly the payments the user recorded. A payment field edited or removed takes the GnuCash-UI-equivalent unpost-rebuild-repost path, and any payment-side bank transactions that rebuild leaves orphaned are listed with the same warning block `unpost-invoices` / `unpost-bills` emit (see the unpost section below). The list is given once the import is saved, for what the saved book still holds: a run that is refused, rolled back or dry saves nothing and lists nothing. A block whose date and amount still match its payment is that payment: the rebuild puts it back in the lot with the block's `memo:` and `num:`, and prints a note that it did. A block with a changed date or amount describes another movement, and the payment it had stays behind as the orphan the warning listed. A **changed line, or a changed `posted:` block, on a posted invoice or bill** is refused outright — see below.
 
 #### Changing a posted invoice or bill is refused; recording a payment against it is not
 
@@ -1682,6 +1691,8 @@ invoice "INV-2026-006"
 ```
 
 On import the invoice is posted normally, then `gncInvoiceAutoApplyPayments` runs and takes from the open prepay lot(s) toward the invoice's outstanding balance. If credit ≥ invoice the lot closes via consumption; the residual stays open as a smaller credit (split in-place by GnuCash). If credit < invoice the full credit consumes; the invoice stays partially open. The flag composes with cash `payment:` blocks — cash goes first, credit auto-applies for any remainder.
+
+A credit received in another currency is spent before GnuCash is asked, oldest first, the way a `from_credit:` block spends one. Its split carries an amount and a value that differ: 100.00 USD received from a CAD bank at 1.37 is valued at 137.00 CAD. GnuCash 3.8, 4.4 and 4.13 value such a credit at par when they apply it, so 40.00 USD taken from it left 97.00 USD of credit valued at 97.00 CAD, with no cost basis balance (measured on 4.13). Divided here instead, the value is divided with the amount, and the 60.00 USD left keeps its cost basis balance in a lot of its own. Every other credit is applied by GnuCash as above.
 
 ##### What the export says a credit settled: `from_credit:`
 
@@ -1868,6 +1879,8 @@ Exported AR and AP accounts carry an `open_prepayment:` block per open credit �
 
 It is informational and derived: the importer rebuilds the credits from the per-split `lot_owner:` KVPs, not from this summary, so the block is parsed and otherwise ignored. If a hand-edited summary disagrees with the book's actual lots, import prints a warning to stderr and still succeeds — the next export rewrites the correct figure.
 
+Under an `open` line, its keys and its `open_prepayment:` blocks are all that is read. Anything else written there, such as a `payment:` block, is refused with its line number, and nothing in the file is imported.
+
 ### Identity and round-trip: `guid:`, `customer_guid:`, `vendor_guid:`
 
 Every business-object block (`customer`, `vendor`, `taxtable`, `invoice`,
@@ -2007,7 +2020,7 @@ Behaviour:
 - Calls GnuCash's `Unpost(False)` directly. The posting transaction is destroyed; payment transactions in the bank account remain but are no longer linked to a lot. (Same end state as the GnuCash UI's Unpost menu item.)
 - **Entry GUIDs are preserved** — entries are not destroyed and recreated. External references to entries by GUID still resolve.
 - Per-record line: `<id> (<guid>): unposted` (or `not posted`, `not found`, or `failed — multiple records share this id`).
-- **Orphan-payment warning**: when the record being unposted was paid, the CLI lists each bank-side payment transaction that is about to be orphaned — with the orphan's GUID, date, bank account, amount, currency, customer/vendor name, and memo. The warning steers the user toward the two safe cleanup paths: `delete-transactions --by-guid <orphan-guid>` (drop the orphan, then re-import with a fresh `payment:` block), or a `payment:` block carrying `txn_guid: "<orphan-guid>"` on re-import (links the existing bank tx into the new posted lot — see [Q-004](docs/issues/Q-004-payment-transaction-duplicates.md)). Doing neither, then re-paying via a fresh `payment:` block, leaves the orphan in place alongside the new payment and silently doubles the recorded bank balance.
+- **Orphan-payment warning**: when the record being unposted was paid, the CLI lists each bank-side payment transaction that is about to be orphaned — with the orphan's GUID, date, bank account, amount, currency, customer/vendor name, and memo. The warning steers the user toward the two safe cleanup paths: `delete-transactions --by-guid <orphan-guid>` (drop the orphan, then re-import with a fresh `payment:` block), or a `payment:` block carrying `txn_guid: "<orphan-guid>"` on re-import (links the existing bank tx into the new posted lot — see [Q-004](docs/issues/Q-004-payment-transaction-duplicates.md)). Importing the file the invoice or bill was read from also puts the payment back, though its `payment:` block gives no `txn_guid:`: a block stating the orphan's date and amount on its account is that payment, because the unpost wrote the invoice's or bill's guid on the orphan, and the import prints a note that it was put back. A `payment:` block describing any other movement is a new payment, and recording it beside the orphan counts the money twice.
 - Exit code 1 if any record was not found, not posted, or ambiguous; successful unposts are still saved.
 
 For after-the-fact recovery — auditing a book that's already accumulated orphans from prior unpost runs — use `find-orphan-payments` (next section).
@@ -2132,6 +2145,8 @@ After a series of unposts, the book may have payment-class bank transactions who
 
 Each row also prints the evidence it was classified on, and prints only what actually held: the engine's `xaccTransGetTxnType(tx) == 'P'`, the `txn_type: P` a previous export wrote, the `orphaned_by_unpost` note this tool writes on the split, and where the owner came from — the split's own lot, `gncOwnerGetOwnerFromTxn`, the exported `owner:` line, or a sibling orphan's lot on the same transaction.
 
+An overpayment is not an orphan. A payment larger than its invoice leaves the invoice settled and the rest in a credit lot, which `find-prepayments` lists. On a book that `unpost-invoices` or `unpost-bills` did not unpost — one GnuCash unposted itself — a payment is listed when its lot was an invoice's. Unposting empties the lot's `gncInvoice` slot and leaves it there, and a credit lot never has one (CLAUDE.md finding 10). An employee's expense voucher is listed like a bill, under its owner.
+
 ```bash
 # Whole-book sweep:
 gnucash-plaintext find-orphan-payments ledger.gnucash
@@ -2228,7 +2243,7 @@ gnucash-plaintext find-transactions ledger.gnucash \
     --account "Assets:Bank" --date 2026-01-15 --amount 500
 ```
 
-The importer looks up the existing bank transaction by `txn_guid:`, finds the specific AR-side split named by `txn_split_guid:`, and attaches it to the invoice's posted lot in-place — no new transaction is created and all original bank metadata is preserved.
+The importer looks up the existing bank transaction by `txn_guid:`, finds the AR-side split whose guid `txn_split_guid:` gives, and attaches it to the invoice's posted lot in-place — no new transaction is created and all original bank metadata is preserved. The block's `account:` (or `bank_account:`) has to be an account that transaction has a split on. Where the book holds the transaction and it has no split there, the import is refused before anything changes, giving the account and the transaction: the file and the book disagree about where the money went, and nothing an import does makes them agree.
 
 `txn_split_guid:` is optional in hand-written plaintext (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order). It is emitted on export for every payment of one settling split, so those round-trips are order-independent and unambiguous. A payment made of several settling splits is written as a `Transaction` block instead and carries neither key — see [One payment made of several splits](#one-payment-made-of-several-splits).
 
@@ -2791,7 +2806,7 @@ When a candidate transaction is skipped as a duplicate, `gnucash-plaintext impor
 
 ### Generate an income statement
 
-Generate an income statement for a fiscal period, with optional multi-currency FX conversion to CAD (for CRA T2 filing).
+`income-statement` prints the income statement for a period as plaintext, through a customized GnuCash report, in the currency the book is kept in (see [The currency a report is in](#the-currency-a-report-is-in)). The report is GnuCash's Income Statement report written to output plain text (see [The plaintext page is a customized GnuCash report](#the-plaintext-page-is-a-customized-gnucash-report)). GnuCash runs it, adds up every figure and converts it through the book's price database, so no figure on the page is calculated by gnucash-plaintext.
 
 A date range is required — use one of:
 
@@ -2803,106 +2818,151 @@ gnucash-plaintext income-statement mybook.gnucash --fiscal-year-end 2024-12-31
 gnucash-plaintext income-statement mybook.gnucash --start 2023-04-01 --end 2024-03-31
 ```
 
-Output formats — text (default), HTML, or PDF. The PDF here is laid out by WeasyPrint, this page being the project's own rather than one of GnuCash's reports — `pip install 'gnucash-plaintext[statement]'`, or the distribution's `weasyprint` package:
+Output formats — text (default), HTML, or PDF:
 
 ```bash
 # Text to stdout (default)
 gnucash-plaintext income-statement mybook.gnucash --fiscal-year-end 2024-12-31
 
-# HTML report
+# GnuCash's own HTML page
 gnucash-plaintext income-statement mybook.gnucash \
     --fiscal-year-end 2024-03-31 \
     --output-format html --output report.html
 
-# PDF report (requires WeasyPrint)
+# That page as a PDF
 gnucash-plaintext income-statement mybook.gnucash \
     --fiscal-year-end 2024-03-31 \
     --output-format pdf --output report.pdf
 ```
 
-Multi-currency FX conversion to CAD (required for CRA T2 totals):
+HTML is the page of GnuCash's Income Statement report as GnuCash ships it. A PDF is that page, laid out by WebKit as `print-invoice` lays out an invoice, and it needs what `print-invoice` needs for a PDF. On a book kept in CAD that holds US dollars, the plaintext page reads:
 
-```bash
-gnucash-plaintext income-statement mybook.gnucash \
-    --fiscal-year-end 2024-03-31 \
-    --fx-rates rates.yaml \
-    --output-format pdf --output report.pdf
+```
+Income Statement For Period Covering 01/01/26 to 01/25/26
+
+Revenues
+Income                            C$0.00
+  Consulting           $500.00  C$700.00
+Total Revenue                   C$700.00
+
+Expenses
+Expenses                          C$0.00
+  Fees                          C$100.00
+Total Expenses                  C$100.00
+
+Net income for Period           C$600.00
 ```
 
-The `rates.yaml` file maps currency codes to their CAD rates:
+An account held in another currency shows its own balance beside its value in the report's currency. The value is GnuCash's, at the price its report chooses: by default the price nearest in time to the end of the period, which here is the USD price of 1.40 recorded on 02-02.
 
-```yaml
-USD: 1.36
-HKD: 0.17
-CNY: 0.19
-```
+**A currency the price database cannot price is valued at nothing, and the totals are short by it.** GnuCash's report prints the account's own balance beside `C$0.00`, and that zero is what `Total Revenue`, `Total Expenses` and `Net income for Period` add up — so a period holding 500.00 USD of income the book has no USD price for reports a net income short by 500.00 USD, with nothing on the page marking the gap. Every figure here is GnuCash's own and this is what GnuCash's own report does, which is the point of printing it this way; it is also why the price matters before the statement does. Record it in the book with a `price` block (see [Prices](#prices)), or give it for the one run with `--fx-rates` (see [Rates and prices for one run](#rates-and-prices-for-one-run---fx-rates---prices-and---price-source)), and the same command reports the whole figure.
 
-The income statement **excludes closing entries**, so it reports the true period
-result whether or not the books have been closed for the year (see "Closing the
-books" below). Close the books and re-run it — the statement is unchanged.
+The income statement **leaves out closing entries**, as GnuCash's Income Statement report does, so it reports the period's result whether or not the books have been closed for the year (see "Closing the books" below). Close the books and run it again — the statement is unchanged.
 
 ### Generate a balance sheet
 
-Assets / Liabilities / Equity as of a date, with a **Current Year Earnings** line
-so it balances whether or not the books are closed (before closing, net income
-shows as Current Year Earnings; after closing, it sits in Equity: Retained
-Earnings):
+`balance-sheet` prints the balance sheet as of a date as plaintext, through a customized GnuCash report, in the currency the book is kept in. As with `income-statement`, GnuCash adds up and converts every figure, and gnucash-plaintext calculates none of them:
 
 ```bash
-gnucash-plaintext balance-sheet mybook.gnucash --as-of 2024-12-31
-gnucash-plaintext balance-sheet mybook.gnucash --as-of 2024-03-31 --fx-rates rates.yaml
+gnucash-plaintext balance-sheet mybook.gnucash --as-of 2026-01-25
 ```
 
-Every asset and liability account type is reported — Bank, Cash, Stock, Mutual
-Fund, Accounts Receivable on the asset side; Credit Card, Accounts Payable and
-the rest on the liability side. Foreign-currency accounts stay in their own
-currency unless you pass `--fx-rates` to consolidate to CAD.
+On a book kept in CAD that holds US and Hong Kong dollars and 10 shares of NASDAQ:AMZN:
 
-**Securities: cost by default, market with `--prices`.** A Stock or Mutual Fund
-holding is shown at its **cost basis** (what you paid, in the transaction
-currency) unless you supply current prices. Only you know the price that's
-current, so pass a `--prices` file — same shape as `--fx-rates`, one
-`MNEMONIC: price` line per security — and each holding is valued at
-**shares × price**:
+```
+Balance Sheet 01/25/26
+
+Assets
+Assets                                       C$0.00
+  AMZN                          10 AMZN  C$2,940.00
+  CAD Bank                                 C$900.00
+  HKD Bank                  HK$5,500.00  C$1,000.00
+  USD Bank                    $1,500.00  C$2,100.00
+Total Assets                             C$6,940.00
+
+Liabilities
+Total Liabilities                            C$0.00
+
+Equity
+Equity                                       C$0.00
+  Opening CAD                            C$1,000.00
+  Opening HKD               HK$5,500.00  C$1,000.00
+  Opening USD                 $3,000.00  C$4,200.00
+Retained Earnings                          C$600.00
+Unrealized Gains                           C$140.00
+Total Equity                             C$6,940.00
+
+Total Liabilities & Equity               C$6,940.00
+```
+
+Every figure is the one GnuCash's Balance Sheet report gives:
+
+- **Every asset and liability account type is in its section** — Bank, Cash, Stock, Mutual Fund and Accounts Receivable among the assets; Credit Card, Accounts Payable and the rest among the liabilities.
+- **Retained Earnings** is the income and expenses not yet closed into an equity account. After `close-books` the profit sits in `Equity:Retained Earnings:<currency>` and the line is gone, so the sheet balances either way.
+- **A security is at its market value**, from the book's price database: AMZN is 10 shares at 210 USD, at 1.40 CAD. **Unrealized Gains** is the difference between what the assets are worth and what they cost, both converted at the same prices.
+- **A book that uses trading accounts** (File → Properties → Accounts → "Use Trading Accounts" in GnuCash) keeps those gains in its Trading accounts, and GnuCash's report prints them as **Trading Gains** or Trading Losses, with no Unrealized Gains line.
+- **A currency or a security the price database has no price for is valued at nothing** — GnuCash's report shows `$400.00` beside `C$0.00`. Record the price in the book with a `price` block (see [Prices](#prices)), or give it for one run with `--fx-rates` or `--prices`.
+
+`--output-format html` and `pdf` work as they do for `income-statement`.
+
+### The currency a report is in
+
+GnuCash keeps no currency for a book, and its reports come out in US dollars unless they are told otherwise. `balance-sheet`, `income-statement` and `report` put their reports in the first of these that gives a currency:
+
+1. `--currency HKD` on the command;
+2. `base_currency: "HKD"` in the book's `company` block (see [Your own company info](#your-own-company-info-the-company-directive));
+3. the currency of the book's top-level accounts, when every top-level account held in a currency holds the same one.
+
+Accounts beneath the top level may hold any currency. A book whose `Assets`, `Liabilities`, `Equity`, `Income` and `Expenses` are held in HKD is kept in HKD, whatever USD and CAD accounts sit beneath them, and its reports convert the USD and the CAD into HK$.
+
+When none of them gives a currency — top-level accounts in two currencies, or no accounts at all — the report is refused, and the refusal says how to give it. A currency GnuCash does not know is refused too.
+
+### Rates and prices for one run: `--fx-rates`, `--prices` and `--price-source`
+
+A rates file or a prices file adds its prices to the book's price database for one run of `balance-sheet`, `income-statement` or `report`, and GnuCash's report prices from them as it prices from the book's own. The book is opened read-only and never saved, so none of them is kept. To keep a price, record it with a `price` block.
 
 ```yaml
-# prices.yaml — price per unit in the security's own trading currency,
-# as of the balance-sheet date
-ACME: 60     # a CAD-bought holding → priced in CAD
-USTECH: 95   # a USD-bought holding → priced in USD (needs --fx-rates, below)
+# rates.yaml — each currency's price in the report's currency
+USD: 1.40            # at the moment the report is for
+HKD: 2/11            # a fraction is exact
+JPY/CAD:             # the currency may be given, and must be the report's
+  2026-01-05: 0.0091 # a price on that day
+```
+
+One price a day, per pair: GnuCash keeps a single price for a commodity and a currency on a day, whichever way round it is written (Q-041). So a file giving one currency both an undated rate and a dated one that lands on a day the run reports for is refused, rather than one of them being kept and the other dropped on the order they were written in.
+
+```yaml
+# prices.yaml — each security's price
+AMZN: 250            # in the currency the book prices AMZN in
+ACME/CAD: 60         # in the currency given
 ```
 
 ```bash
-gnucash-plaintext balance-sheet mybook.gnucash --as-of 2024-12-31 --prices prices.yaml
+gnucash-plaintext balance-sheet mybook.gnucash --as-of 2026-01-25 \
+    --fx-rates rates.yaml --prices prices.yaml
 ```
 
-The price is read in the **same currency the holding was bought in**: a
-CAD-purchased stock is priced in CAD, a USD-purchased one in USD. For a
-foreign-currency holding, also pass `--fx-rates` so its market value can be
-converted to CAD — otherwise the command stops and tells you exactly which rate
-to add, rather than mis-valuing the holding.
+- A price with no date is added at the end of the day the report is for, so at GnuCash's default price source it is the price the report uses. A dated price is added on its day, as a `price` block with a date is.
+- On a day the book already has a price for the same two currencies, the file's price is the one the report uses.
+- A security's price with no currency is in the currency of the book's own prices of that security, or, where the book has none, the currency of the transactions that hold it. Where that is more than one currency, the file has to give it.
+- `income-statement` takes `--fx-rates` and not `--prices`.
 
-The gain or loss versus cost isn't booked on any account, so the balance sheet
-adds a single **Unrealized Gains** line to Equity to absorb it — exactly as
-GnuCash's own market-value balance sheet does — and the statement still balances.
-A security with no entry in the prices file stays at cost. `--prices` works on
-`report` too.
+`--price-source` sets the report's `Price Source` option to one of GnuCash's choices. `pricedb-nearest` is GnuCash's default: the price nearest in time to the report date, a later one included. `pricedb-latest`, `average-cost` and `weighted-average` are offered on every supported GnuCash, and `pricedb-before`, the last price up to the report date, from GnuCash 4.8. A choice the GnuCash in use does not offer is refused, and the refusal lists the ones it does.
+
+### The plaintext page is a customized GnuCash report
+
+The plaintext page is printed by two customized GnuCash reports in `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm`, which the package ships, "Balance Sheet (plain text)" and "Income Statement (plain text)". Each is written from GnuCash's `balance-sheet.scm` or `income-statement.scm` and changed to output plain text instead of HTML. It is registered with `gnc:define-report` as GnuCash's reports are, takes the same options, makes the same GnuCash calls for every figure, and GnuCash runs it. That file decides how the page is laid out; what the figures are is decided by GnuCash.
 
 ### Both statements at once: `report`
 
-T2/GIFI prep needs the income statement and the balance sheet for the same
-period. `report` runs the statements you **name** against a single (expensive)
-book open, output combined — `report` being GnuCash's own term for these:
+T2/GIFI prep needs the income statement and the balance sheet for the same period. `report` runs the statements you list against a single (expensive) book open, output combined — `report` being GnuCash's own term for these:
 
 ```bash
 gnucash-plaintext report mybook.gnucash income-statement balance-sheet \
     --fiscal-year-end 2024-12-31
 ```
 
-You list the statements explicitly (`income-statement`, `balance-sheet`) — no
-hidden bundle. The income statement covers the fiscal period; the balance sheet
-is as of the period end (override with `--as-of`). `--fx-rates` and `--output`
-apply across both. It is read-only.
+You list the statements explicitly (`income-statement`, `balance-sheet`) — no hidden bundle. The income statement covers the fiscal period; the balance sheet is as of the period end (override with `--as-of`). `--currency`, `--fx-rates`, `--prices`, `--price-source` and `--output` apply to both. It is read-only.
 
 ### Closing the books
 
@@ -3045,10 +3105,12 @@ To stop the environment:
 Git hooks are installed automatically when you run `./scripts/dev-start.sh`.
 
 The pre-commit hook runs before every commit and checks:
-- Code linting with `ruff check .`
-- All tests with `./scripts/test.sh`
+- `ruff check` on the staged Python files
+- The whole suite on all eleven supported GnuCash builds, through `./scripts/test-all-versions-parallel.sh`, with coverage recorded as it goes
+- Those eleven runs added together, against 100% line and branch coverage, through `./scripts/coverage.sh --report-only`
+- An independent AI review of the staged diff
 
-Commits are blocked if checks fail. To manually install hooks (if needed):
+A documentation-only commit skips the suite and the coverage gate; the AI review still runs. Commits are blocked if checks fail. To manually install hooks (if needed):
 
 ```bash
 ./scripts/install-hooks.sh
@@ -3113,7 +3175,9 @@ The project is tested against multiple GnuCash versions using different Docker b
 | Arch Linux | 5.15 | `arch` |
 | openSUSE Tumbleweed | 5.16 | `opensuse` |
 
-Ten builds, and the version is what each image's own package database reports rather than what the base distribution is expected to ship — `ubuntu24` carries 5.5, not the 4.9 it was listed as for a long time. The last three build from their own Dockerfiles (`Dockerfile.fedora`, `Dockerfile.arch`, `Dockerfile.opensuse`) rather than from a `BASE_IMAGE` build argument.
+Eleven builds, and the version is what each image's own package database reports rather than what the base distribution is expected to ship — `ubuntu24` carries 5.5, not the 4.9 it was listed as for a long time. The last three build from their own Dockerfiles (`Dockerfile.fedora`, `Dockerfile.arch`, `Dockerfile.opensuse`) rather than from a `BASE_IMAGE` build argument.
+
+The version changes what the commands cost, in both directions: newer GnuCash reads faster and writes slower, so the same 2,000-transaction `import --new` takes 2.8 s on 3.4 and 5.2 s on 5.16, while an export, a re-import that changes nothing, `fx-balances` and `find-transactions` are two to three times faster on 5.16. **[docs/performance.md](docs/performance.md)** has the figures for each command and each build, how they were measured, and the suite times for contributors picking a build to run.
 
 ### Interactive Development Shell
 

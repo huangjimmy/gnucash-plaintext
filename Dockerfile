@@ -70,22 +70,25 @@ RUN . /etc/os-release; \
 # a machine printing from a script has none, and `xauth` so that display takes
 # a cookie rather than any local connection.
 #
-# Two package names differ on Debian 10 and nowhere else. `libxslt-dev` is
-# `libxslt1-dev` there, and there is no `weasyprint` package at all — nothing
-# matching "weasy" is in buster's index — so the pip install further down is
-# its only source and the libraries it links are installed explicitly instead.
+# One package name differs on Debian 10 and nowhere else: `libxslt-dev` is
+# `libxslt1-dev` there.
+#
+# `tzdata` is named because the suite runs under zones by name (Toronto,
+# Kiritimati, Pago Pago), and without the zone database a `TZ` it cannot find
+# falls back to UTC without a word. Ubuntu 22.04's base image does not carry
+# it, and it had arrived there only as a dependency of the `weasyprint`
+# package, so when that went, three price tests read two Toronto days as one
+# UTC day.
 RUN . /etc/os-release; \
     XSLT_DEV=libxslt-dev; \
-    PAGE_ENGINE=weasyprint; \
     case "${VERSION_CODENAME:-}" in \
       buster) \
-        XSLT_DEV=libxslt1-dev; \
-        PAGE_ENGINE="libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info" \
+        XSLT_DEV=libxslt1-dev \
         ;; \
     esac; \
     apt-get update && \
     apt-get -y install gnucash python3-gnucash git python3-pip python3-venv \
-        libxml2-dev python3-lxml $XSLT_DEV $PAGE_ENGINE \
+        libxml2-dev python3-lxml $XSLT_DEV tzdata \
         python3-gi gir1.2-gtk-3.0 xvfb xauth && \
     # A printed page is laid out by WebKit, the engine GnuCash's own
     # Print Invoice button uses. Its library is here already — GnuCash
@@ -104,17 +107,12 @@ WORKDIR /workspace
 # Install dev dependencies at build time
 # The package itself will be installed at runtime when workspace is mounted
 # Try with --break-system-packages first (Debian 12+, Ubuntu 22+), fall back to upgrade pip (Ubuntu 20)
-# The markers are the same ones `pyproject.toml` carries, and they matter on
-# Debian 10: unpinned, pip picks a WeasyPrint that segfaults on import against
-# that release's Pango, and a pytest and pip that need Python 3.8.
+# The markers matter on Debian 10: unpinned, pip picks a pytest and a pip that
+# need Python 3.8.
 RUN python3 -m pip install pytest pytest-cov \
-        "weasyprint; python_version>='3.8'" \
-        "weasyprint<53; python_version<'3.8'" \
         --break-system-packages 2>/dev/null || \
     (python3 -m pip install --upgrade "pip; python_version>='3.8'" "pip<24; python_version<'3.8'" && \
      python3 -m pip install "pytest; python_version>='3.8'" "pytest<7.5; python_version<'3.8'" \
-        "pytest-cov; python_version>='3.8'" "pytest-cov<5; python_version<'3.8'" \
-        "weasyprint; python_version>='3.8'" \
-        "weasyprint<53; python_version<'3.8'")
+        "pytest-cov; python_version>='3.8'" "pytest-cov<5; python_version<'3.8'")
 
 CMD ["bash"]

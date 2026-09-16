@@ -1,0 +1,27 @@
+# A draft invoice for customer C001, with one line.
+#
+# Read into a book once, and then again with its line giving a guid that is
+# no guid, which the test writes in: the second read compares the invoice the
+# book holds against the file before it pairs any line.
+#
+# What this fixture produces: customer C001, and INV-LINE, 100.00 CAD, not
+# posted.
+#
+# Verified by tests/integration/test_a_line_guid_nothing_can_parse_is_refused_on_a_second_read.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-LINE"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false

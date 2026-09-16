@@ -1,0 +1,30 @@
+# `inv_001_posted_and_unpaid.txt` with a payment whose account is `Holding`,
+# an asset account the test gives the book with no commodity.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-001"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		bank_account: "Holding"
+		memo: "Paid into holding"

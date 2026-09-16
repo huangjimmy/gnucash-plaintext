@@ -84,9 +84,11 @@ def refuse_a_figure_the_currency_cannot_hold(amount, account, what,
     the one that lacked the rule wrote payment and prepayment lines the other
     two would have refused.
     """
-    commodity = account.GetCommodity() if account is not None else None
-    if commodity is None:
-        return
+    # Never handed an account with no commodity, though a book can hold one.
+    # Four callers pass a record's receivable or payable, which posting gives
+    # the record's currency, and the two exports ask
+    # `the_commodity_a_split_is_written_in` of a split before its figures.
+    commodity = account.GetCommodity()
     if (commodity.get_namespace() or '').upper() != 'CURRENCY':
         return
     fraction = commodity.get_fraction()
@@ -102,6 +104,28 @@ def refuse_a_figure_the_currency_cannot_hold(amount, account, what,
         f'whole number of those, so this cannot be written — the file would '
         f'not import. Correct the amount in GnuCash (a unit price may carry '
         f'more decimals; the amount booked to the account may not).')
+
+
+def the_commodity_a_split_is_written_in(split, transaction):
+    """The commodity of the account a split is on, or a refusal saying which account.
+
+    A split is written as an amount of its account's commodity, so a split on
+    an account with no commodity has nothing to be written in. Nothing this
+    tool writes makes such an account, but GnuCash loads and keeps one, split
+    and all
+    (tests/research/whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py).
+    """
+    account = split.GetAccount()
+    commodity = account.GetCommodity()
+    if commodity is None:
+        raise UnwritableFigureError(
+            f'{get_account_full_name(account)!r} has no commodity, and the '
+            f'transaction {transaction.GetDescription()!r} on '
+            f'{transaction.GetDate().strftime("%Y-%m-%d")} has a split on it. '
+            f'A split is written as an amount of its account\'s commodity, so '
+            f'this one cannot be written. Give the account a commodity, and '
+            f'export again.')
+    return commodity
 
 
 def _owner_of_a_bank_paid_orphan(splits, lib):
@@ -153,11 +177,15 @@ def _owner_of_a_bank_paid_orphan(splits, lib):
                 ctypes.c_void_p(qof_pointer(lot)),
                 owner_ptr) != 1:
             continue
-        kind = {2: 'customer', 4: 'vendor'}.get(lib.gncOwnerGetType(owner_ptr))
-        raw_id = lib.gncOwnerGetID(owner_ptr)
-        owner_id = raw_id.decode('utf-8', errors='replace') if raw_id else ''
-        if kind and owner_id:
-            return kind, owner_id
+        # The customer or vendor behind the lot's owner: the lot of a job's
+        # invoice answers with the job, which the format has no word for.
+        end = lib.gncOwnerGetEndOwner(owner_ptr)
+        # An unpost marks only the settlements of a customer's invoice, a job's
+        # invoice or a vendor's bill: `unpost-invoices` and `unpost-bills` find
+        # records by those owner types, and so does the import. So the owner
+        # behind the lot is a customer or a vendor, and one with an ID.
+        return ({2: 'customer', 4: 'vendor'}[lib.gncOwnerGetType(end)],
+                lib.gncOwnerGetID(end).decode('utf-8', errors='replace'))
     return '', ''
 
 
@@ -379,10 +407,7 @@ def _the_basis_it_gives_was_spent(split, basis_guid) -> bool:
 
     A guid that gives no split at all is left alone for the same reason.
     """
-    account = split.GetAccount()
-    book = account.get_book() if account is not None else None
-    if book is None:
-        return False
+    book = split.GetAccount().get_book()
     # Looked up rather than searched for: this is asked once per sale that
     # gives a guid, and a walk of the book would make an export cost the sales
     # times the splits.
@@ -510,111 +535,40 @@ def open_prepayments_for_account(account):
     g = _lib.xaccAccountGetLotList(int(account.instance))
     while g:
         node = _ctypes.cast(g, _ctypes.POINTER(_ctypes.c_void_p * 3)).contents
+        # Never NULL: every element of an account's lot list is a lot.
         lot = node[0]
-        if lot:
-            # Exact: a lot's balance is a rational, so "still has a balance" is
-            # `!= 0`, not a comparison against an epsilon chosen to cover what a
-            # float could not represent. A lot holding nothing is a closed one,
-            # which is the same question `gnc_lot_is_closed` answers off the
-            # same stale list.
-            bal, when = held.get(int(lot), (Fraction(0), None))
-            # What an unpost loosened and a bank had paid is not credit,
-            # however much it looks like it — taken off rather than the whole
-            # lot disqualified, since one lot can hold both kinds. See
-            # `bank_paid_orphan_share_of`.
-            bal -= orphan_share.get(int(lot), Fraction(0))
-            if bal != 0 and not _lib.gncInvoiceGetInvoiceFromLot(lot):
-                obuf = _ctypes.create_string_buffer(256)
-                op = _ctypes.cast(obuf, _ctypes.c_void_p).value
-                if _lib.gncOwnerGetOwnerFromLot(lot, op) == 1:
-                    kind = {2: 'customer', 4: 'vendor'}.get(_lib.gncOwnerGetType(op))
-                    oid_raw = _lib.gncOwnerGetID(op)
-                    oid = oid_raw.decode('utf-8', errors='replace') if oid_raw else ''
-                    guid = ''
-                    gp = _lib.gncOwnerGetGUID(op)
-                    if gp:
-                        gbuf = _ctypes.create_string_buffer(40)
-                        _lib.guid_to_string_buff(gp, gbuf)
-                        guid = gbuf.value.decode('ascii').replace('-', '')
-                    if kind and oid:
-                        # Oldest first, from the same splits the balance came
-                        # from — `gnc_lot_get_earliest_split` reads the lot's
-                        # own list, which is what is stale here.
-                        creds.append((when, kind, oid, guid, abs(bal)))
+        # Exact: a lot's balance is a rational, so "still has a balance" is
+        # `!= 0`, not a comparison against an epsilon chosen to cover what a
+        # float could not represent. A lot holding nothing is a closed one,
+        # which is the same question `gnc_lot_is_closed` answers off the same
+        # stale list.
+        bal, when = held.get(int(lot), (Fraction(0), None))
+        # What an unpost loosened and a bank had paid is not credit, however
+        # much it looks like it — taken off rather than the whole lot
+        # disqualified, since one lot can hold both kinds. See
+        # `bank_paid_orphan_share_of`.
+        bal -= orphan_share.get(int(lot), Fraction(0))
+        if bal != 0 and not _lib.gncInvoiceGetInvoiceFromLot(lot):
+            obuf = _ctypes.create_string_buffer(256)
+            op = _ctypes.cast(obuf, _ctypes.c_void_p).value
+            if _lib.gncOwnerGetOwnerFromLot(lot, op) == 1:
+                kind = {2: 'customer', 4: 'vendor'}.get(_lib.gncOwnerGetType(op))
+                oid_raw = _lib.gncOwnerGetID(op)
+                oid = oid_raw.decode('utf-8', errors='replace') if oid_raw else ''
+                # An owner the lot answers with is an entity, so its guid is
+                # always there to read.
+                gbuf = _ctypes.create_string_buffer(40)
+                _lib.guid_to_string_buff(_lib.gncOwnerGetGUID(op), gbuf)
+                guid = gbuf.value.decode('ascii').replace('-', '')
+                if kind and oid:
+                    # Oldest first, from the same splits the balance came
+                    # from — `gnc_lot_get_earliest_split` reads the lot's own
+                    # list, which is what is stale here.
+                    creds.append((when, kind, oid, guid, abs(bal)))
         g = node[1]
     return [(kind, oid, guid, amount)
             for _when, kind, oid, guid, amount
             in sorted(creds, key=lambda c: (c[0] is None, c[0]))]
-
-
-def _ownerless_open_credit_lots(account):
-    """Open, non-invoice credit lots on an AR/AP account whose LOT carries no
-    owner (gncOwnerGetOwnerFromLot fails) — the inverse of
-    open_prepayments_for_account. Such a lot holds a real credit balance but is
-    invisible to the `open_prepayment:` summary and unattributable to any
-    customer/vendor, so it always signals a bug in whatever created the lot
-    (every legitimate path attaches the owner). Returns absolute balances."""
-    import ctypes as _ctypes
-
-    from infrastructure.gnucash.engine import load_gnc_engine as _load
-
-    # Nothing to declare: `xaccAccountGetLotList`, `gncInvoiceGetInvoiceFromLot`
-    # and `gncOwnerGetOwnerFromLot` are all set once in `_setup_lib_restypes`,
-    # and declaring them again here would rewrite the process-wide handle every
-    # other caller is holding.
-    _lib = _load()
-
-    # Through `lot_holdings_of`, like the summary above it. Both answer "what
-    # does this lot hold", and a file that answers that two ways will drift.
-    held = lot_holdings_of(account)
-
-    bad = []
-    g = _lib.xaccAccountGetLotList(int(account.instance))
-    while g:
-        node = _ctypes.cast(g, _ctypes.POINTER(_ctypes.c_void_p * 3)).contents
-        lot = node[0]
-        if lot:
-            # Exact: a lot's balance is a rational, so "still has a balance" is
-            # `!= 0`, not a comparison against an epsilon chosen to cover what a
-            # float could not represent — and a lot holding nothing is a closed
-            # one, which is what `gnc_lot_is_closed` reads off the same list.
-            bal = held.get(int(lot), (Fraction(0), None))[0]
-            if bal != 0 and not _lib.gncInvoiceGetInvoiceFromLot(lot):
-                obuf = _ctypes.create_string_buffer(256)
-                op = _ctypes.cast(obuf, _ctypes.c_void_p).value
-                if _lib.gncOwnerGetOwnerFromLot(lot, op) != 1:
-                    bad.append(abs(bal))
-        g = node[1]
-    return bad
-
-
-def find_ownerless_credit_lots(book):
-    """Every open non-invoice AR/AP credit lot in the book whose lot has no
-    owner — a data defect (a credit that belongs to no customer/vendor, hidden
-    from the open_prepayment summary). Returns (account_full_name, amount,
-    mnemonic, unit) tuples: the amount exact, and the unit its account is kept
-    to so a caller can write it at that account's own decimals. An empty list
-    is the healthy invariant."""
-    out = []
-
-    def walk(acct):
-        if acct.GetType() in (11, 12):  # ACCT_TYPE_RECEIVABLE / PAYABLE
-            commodity = acct.GetCommodity()
-            mnem = commodity.get_mnemonic() if commodity else ''
-            # The account's own unit, not the commodity's — an account may be
-            # kept finer than its currency, and this warning is about money
-            # nobody has. Stated at the cent, a 20.005 credit on an account
-            # kept to the tenth of one reads as 20.01: a figure the book does
-            # not hold, in the line whose whole job is to be believed.
-            unit = (acct.GetCommoditySCU()
-                    or (commodity.get_fraction() if commodity else 100))
-            for amount in _ownerless_open_credit_lots(acct):
-                out.append((acct.get_full_name(), amount, mnem, unit))
-        for child in acct.get_children():
-            walk(child)
-
-    walk(book.get_root_account())
-    return out
 
 
 class ExportTransactionsUseCase:
@@ -699,7 +653,13 @@ class ExportTransactionsUseCase:
         result = ExportResult()
 
         if all_accounts:
-            # Collect ALL accounts and their commodities directly from repository
+            # Collect ALL accounts and their commodities directly from
+            # repository, each account once, as `get_all_accounts` lists it
+            # once. An account with no commodity is left out: nothing here
+            # makes one, but a book from elsewhere can hold one and GnuCash
+            # keeps it through a save and a reload
+            # (tests/research/whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py),
+            # and its `open` line would have no commodity to state.
             for account in self.repository.get_all_accounts():
                 commodity = account.GetCommodity()
                 if commodity is None:
@@ -708,10 +668,8 @@ class ExportTransactionsUseCase:
                 if ticker not in result.commodity_seen:
                     result.commodity_seen.add(ticker)
                     result.commodities.append((commodity, None))
-                account_guid = account.GetGUID().to_string()
-                if account_guid not in result.account_seen:
-                    result.account_seen.add(account_guid)
-                    result.accounts.append((account, None))
+                result.account_seen.add(account.GetGUID().to_string())
+                result.accounts.append((account, None))
         else:
             # Collect ALL commodities and ALL accounts (not just from filtered transactions)
             # This is critical - without all declarations, import will fail
@@ -782,7 +740,7 @@ class ExportTransactionsUseCase:
         # Collect commodities and accounts from splits
         for split in splits:
             split_account = split.GetAccount()
-            commodity = split_account.GetCommodity()
+            commodity = the_commodity_a_split_is_written_in(split, transaction)
             ticker = get_commodity_ticker(commodity)
 
             # Collect commodity if not seen
@@ -862,6 +820,8 @@ class ExportTransactionsUseCase:
             ExportResult with all accounts and commodities; no transactions.
         """
         result = ExportResult()
+        # Each account once, as `get_all_accounts` lists it once, and one with
+        # no commodity left out, as `execute` leaves it out.
         for account in self.repository.get_all_accounts():
             commodity = account.GetCommodity()
             if commodity is None:
@@ -870,10 +830,8 @@ class ExportTransactionsUseCase:
             if ticker not in result.commodity_seen:
                 result.commodity_seen.add(ticker)
                 result.commodities.append((commodity, None))
-            account_guid = account.GetGUID().to_string()
-            if account_guid not in result.account_seen:
-                result.account_seen.add(account_guid)
-                result.accounts.append((account, None))
+            result.account_seen.add(account.GetGUID().to_string())
+            result.accounts.append((account, None))
         return result
 
     def format_accounts_only(self, result: ExportResult, as_of_date: Optional[str] = None) -> str:
@@ -1037,8 +995,7 @@ class ExportTransactionsUseCase:
         for kind, oid, guid, amount in open_prepayments_for_account(account):
             lines.append('\topen_prepayment:')
             lines.append(f'\t\t{kind}: {encode_value_as_string(oid)}')
-            if guid and guid != '0' * 32:
-                lines.append(f'\t\t{kind}_guid: "{guid}"')
+            lines.append(f'\t\t{kind}_guid: "{guid}"')
             lines.append(f'\t\tamount: {money_text(amount, unit)} {mnemonic}')
 
     def _format_transaction(
@@ -1088,16 +1045,17 @@ class ExportTransactionsUseCase:
 
         # Transaction metadata
         lines.append(f'\tguid: {encode_value_as_string(tx_guid.to_string())}')
-        if tx_currency_namespace != 'CURRENCY':
-            lines.append(f'\tcurrency.namespace: {encode_value_as_string(tx_currency_namespace)}')
+        # No `currency.namespace:` line: in a book read from disk a
+        # transaction's currency is always a currency. GnuCash keeps a
+        # security there only until the book is saved, and a reload hands back
+        # a currency in its place
+        # (tests/research/whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py).
 
         # Check if multi-currency transaction
-        split_currencies = [
-            (split.GetAccount().GetCommodity().get_namespace(),
-             split.GetAccount().GetCommodity().get_mnemonic())
-            for split in tx_splits
-        ]
-        split_currencies = list(set(split_currencies))
+        split_currencies = list({
+            (commodity.get_namespace(), commodity.get_mnemonic())
+            for commodity in (the_commodity_a_split_is_written_in(split, transaction)
+                              for split in tx_splits)})
         if len(split_currencies) > 1:
             lines.append(f'\tcurrency.mnemonic: {encode_value_as_string(tx_currency_symbol)}')
 
@@ -1130,41 +1088,41 @@ class ExportTransactionsUseCase:
         _tx_ptr = int(transaction.instance)
         _emitted_txn_type = False
         _emitted_owner = False
-        try:
-            _lib.xaccTransGetTxnType.restype = _ctypes.c_char
-            _lib.xaccTransGetTxnType.argtypes = [_ctypes.c_void_p]
-            _t = _lib.xaccTransGetTxnType(_tx_ptr)
-            if isinstance(_t, bytes):
-                _t = _t.decode('ascii', errors='replace')
-            # 'N' is normal and so is an unset field, which older GnuCash
-            # hands back as NUL rather than 'N'. Emitting that wrote a literal
-            # NUL byte into the file as `txn_type: \x00`.
-            if _t and _t not in ('N', '\x00'):
-                lines.append(f'\ttxn_type: {_t}')
-                _emitted_txn_type = True
-        except AttributeError:
-            pass
+        # Every supported build carries these symbols, so declaring them
+        # cannot fail.
+        _lib.xaccTransGetTxnType.restype = _ctypes.c_char
+        _lib.xaccTransGetTxnType.argtypes = [_ctypes.c_void_p]
+        # A `c_char` return comes back as one byte, on every build.
+        _t = _lib.xaccTransGetTxnType(_tx_ptr).decode('ascii', errors='replace')
+        # 'N' is normal and so is an unset field, which older GnuCash
+        # hands back as NUL rather than 'N'. Emitting that wrote a literal
+        # NUL byte into the file as `txn_type: \x00`.
+        if _t and _t not in ('N', '\x00'):
+            lines.append(f'\ttxn_type: {_t}')
+            _emitted_txn_type = True
 
-        try:
-            _lib.gncOwnerGetOwnerFromTxn.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
-            _lib.gncOwnerGetOwnerFromTxn.restype = _ctypes.c_int
-            _lib.gncOwnerGetID.argtypes = [_ctypes.c_void_p]
-            _lib.gncOwnerGetID.restype = _ctypes.c_char_p
-            _lib.gncOwnerGetType.argtypes = [_ctypes.c_void_p]
-            _lib.gncOwnerGetType.restype = _ctypes.c_int
-            _owner_buf = _ctypes.create_string_buffer(256)
-            _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
-            if _lib.gncOwnerGetOwnerFromTxn(_tx_ptr, _owner_p) == 1:
-                _otype = _lib.gncOwnerGetType(_owner_p)
-                _oid_raw = _lib.gncOwnerGetID(_owner_p)
-                _oid = (_oid_raw.decode('utf-8', errors='replace')
-                        if _oid_raw else '')
-                _kind = {2: 'customer', 4: 'vendor'}.get(_otype)
-                if _kind and _oid:
-                    lines.append(f'\towner: {_kind}:{_oid}')
-                    _emitted_owner = True
-        except AttributeError:
-            pass
+        _lib.gncOwnerGetOwnerFromTxn.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
+        _lib.gncOwnerGetOwnerFromTxn.restype = _ctypes.c_int
+        _lib.gncOwnerGetID.argtypes = [_ctypes.c_void_p]
+        _lib.gncOwnerGetID.restype = _ctypes.c_char_p
+        _lib.gncOwnerGetType.argtypes = [_ctypes.c_void_p]
+        _lib.gncOwnerGetType.restype = _ctypes.c_int
+        _owner_buf = _ctypes.create_string_buffer(256)
+        _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
+        if _lib.gncOwnerGetOwnerFromTxn(_tx_ptr, _owner_p) == 1:
+            # The customer or vendor behind the owner. A payment of a job's
+            # invoice answers with the job, which the format cannot write, and
+            # written from the job the line was left out: a book rebuilt from
+            # the export held a payment nothing said was anybody's.
+            _end = _lib.gncOwnerGetEndOwner(_owner_p)
+            _otype = _lib.gncOwnerGetType(_end)
+            _oid_raw = _lib.gncOwnerGetID(_end)
+            _oid = (_oid_raw.decode('utf-8', errors='replace')
+                    if _oid_raw else '')
+            _kind = {2: 'customer', 4: 'vendor'}.get(_otype)
+            if _kind and _oid:
+                lines.append(f'\towner: {_kind}:{_oid}')
+                _emitted_owner = True
 
         # Q-035: where the engine answered neither, a split the unpost marked
         # can. Both lines exist so an orphaned payment survives a round-trip,
@@ -1180,9 +1138,11 @@ class ExportTransactionsUseCase:
                 if not _emitted_txn_type:
                     lines.append('\ttxn_type: P')
                     _emitted_txn_type = True
-                if not _emitted_owner:
-                    lines.append(f'\towner: {_orphan_kind}:{_orphan_id}')
-                    _emitted_owner = True
+                # No owner line was written, or this block would not run: an
+                # owner reading needs a payment, invoice or link type, and each
+                # of those writes `txn_type:` above.
+                lines.append(f'\towner: {_orphan_kind}:{_orphan_id}')
+                _emitted_owner = True
 
         # Emit custom KVP metadata. Skip Q-014's `txn_type` and `owner`
         # slots — they're already emitted above as dedicated lines based
@@ -1387,74 +1347,69 @@ class ExportTransactionsUseCase:
 
         from infrastructure.gnucash.engine import load_gnc_engine as _load
         _lib = _load()
-        try:
-            _lib.xaccSplitGetLot.argtypes = [_ctypes.c_void_p]
-            _lib.xaccSplitGetLot.restype = _ctypes.c_void_p
-            _lib.gncInvoiceGetInvoiceFromLot.argtypes = [_ctypes.c_void_p]
-            _lib.gncInvoiceGetInvoiceFromLot.restype = _ctypes.c_void_p
-            _lib.gncOwnerGetOwnerFromLot.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
-            _lib.gncOwnerGetOwnerFromLot.restype = _ctypes.c_int
-            _lib.gncOwnerGetID.argtypes = [_ctypes.c_void_p]
-            _lib.gncOwnerGetID.restype = _ctypes.c_char_p
-            _lib.gncOwnerGetType.argtypes = [_ctypes.c_void_p]
-            _lib.gncOwnerGetType.restype = _ctypes.c_int
-            _lot_ptr = _lib.xaccSplitGetLot(int(split.instance))
-            # Q-035: not for a settlement an unpost loosened. `lot_owner:` is
-            # how a file says "this split is an owner's credit, put it in a lot
-            # of theirs", and restoring one into a fresh book does exactly
-            # that. A bank paid this money, so writing the line would rebuild
-            # it as a credit somewhere else — listed as spendable, acceptable
-            # to a `from_credit:` block, and stripped of its cost basis by a bare
-            # `txn_guid:` retarget. The mark itself cannot travel in a file
-            # (a file may not assert it), so the fix is to stop the file
-            # asserting the thing the mark contradicts.
-            #
-            # What the split becomes on the way back is loose: in no lot, whose
-            # money nothing claims to know. That is what it is — what
-            # it settled is unposted, and nobody's credit has been invented.
-            if _lot_ptr and not is_a_bank_paid_orphan(split):
-                _inv = _lib.gncInvoiceGetInvoiceFromLot(_lot_ptr)
-                if not _inv:                       # owner lot, no invoice
-                    _owner_buf = _ctypes.create_string_buffer(256)
-                    _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
-                    if _lib.gncOwnerGetOwnerFromLot(_lot_ptr, _owner_p) == 1:
-                        _otype = _lib.gncOwnerGetType(_owner_p)
-                        _oid_raw = _lib.gncOwnerGetID(_owner_p)
-                        _oid = (_oid_raw.decode('utf-8', errors='replace')
-                                if _oid_raw else '')
-                        _kind = {2: 'customer', 4: 'vendor'}.get(_otype)
-                        if _kind and _oid:
-                            # Append the owner's guid (authoritative) as a third
-                            # segment: `kind:id:guid`. Guarded so a build without
-                            # the guid accessors still emits `kind:id`.
-                            _lo = f'{_kind}:{_oid}'
-                            try:
-                                _lib.gncOwnerGetGUID.argtypes = [_ctypes.c_void_p]
-                                _lib.gncOwnerGetGUID.restype = _ctypes.c_void_p
-                                _lib.guid_to_string_buff.argtypes = [
-                                    _ctypes.c_void_p, _ctypes.c_char_p]
-                                _lib.guid_to_string_buff.restype = _ctypes.c_char_p
-                                _gp = _lib.gncOwnerGetGUID(_owner_p)
-                                if _gp:
-                                    _gb = _ctypes.create_string_buffer(40)
-                                    _lib.guid_to_string_buff(_gp, _gb)
-                                    _g = _gb.value.decode('ascii').replace('-', '')
-                                    if _g and _g != '0' * 32:
-                                        _lo = f'{_kind}:{_oid}:{_g}'
-                            except AttributeError:
-                                pass
-                            lines.append(f'\t\tlot_owner: {_lo}')
-                            # And which of the owner's credits it is. An
-                            # owner may hold several, so `lot_owner:` alone
-                            # left the import to choose — the oldest open lot
-                            # the split would reduce — and a book rebuilt
-                            # from this file put a settlement on a different
-                            # credit from the one it came off.
-                            _lg = _lot_guid_str(_lot_ptr)
-                            if _lg and _lg != '0' * 32:
-                                lines.append(f'\t\tlot_guid: "{_lg}"')
-        except AttributeError:
-            pass
+        # Every supported build carries these symbols, so declaring them
+        # cannot fail.
+        _lib.xaccSplitGetLot.argtypes = [_ctypes.c_void_p]
+        _lib.xaccSplitGetLot.restype = _ctypes.c_void_p
+        _lib.gncInvoiceGetInvoiceFromLot.argtypes = [_ctypes.c_void_p]
+        _lib.gncInvoiceGetInvoiceFromLot.restype = _ctypes.c_void_p
+        _lib.gncOwnerGetOwnerFromLot.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
+        _lib.gncOwnerGetOwnerFromLot.restype = _ctypes.c_int
+        _lib.gncOwnerGetID.argtypes = [_ctypes.c_void_p]
+        _lib.gncOwnerGetID.restype = _ctypes.c_char_p
+        _lib.gncOwnerGetType.argtypes = [_ctypes.c_void_p]
+        _lib.gncOwnerGetType.restype = _ctypes.c_int
+        _lot_ptr = _lib.xaccSplitGetLot(int(split.instance))
+        # Q-035: not for a settlement an unpost loosened. `lot_owner:` is
+        # how a file says "this split is an owner's credit, put it in a lot
+        # of theirs", and restoring one into a fresh book does exactly
+        # that. A bank paid this money, so writing the line would rebuild
+        # it as a credit somewhere else — listed as spendable, acceptable
+        # to a `from_credit:` block, and stripped of its cost basis by a bare
+        # `txn_guid:` retarget. The mark itself cannot travel in a file
+        # (a file may not assert it), so the fix is to stop the file
+        # asserting the thing the mark contradicts.
+        #
+        # What the split becomes on the way back is loose: in no lot, whose
+        # money nothing claims to know. That is what it is — what
+        # it settled is unposted, and nobody's credit has been invented.
+        if _lot_ptr and not is_a_bank_paid_orphan(split):
+            _inv = _lib.gncInvoiceGetInvoiceFromLot(_lot_ptr)
+            if not _inv:                       # owner lot, no invoice
+                _owner_buf = _ctypes.create_string_buffer(256)
+                _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
+                if _lib.gncOwnerGetOwnerFromLot(_lot_ptr, _owner_p) == 1:
+                    _otype = _lib.gncOwnerGetType(_owner_p)
+                    _oid_raw = _lib.gncOwnerGetID(_owner_p)
+                    _oid = (_oid_raw.decode('utf-8', errors='replace')
+                            if _oid_raw else '')
+                    _kind = {2: 'customer', 4: 'vendor'}.get(_otype)
+                    if _kind and _oid:
+                        # Append the owner's guid (authoritative) as a third
+                        # segment: `kind:id:guid`. Every supported build
+                        # carries the guid accessors, and an owner the lot
+                        # answers with is an entity, so it always has a guid
+                        # to read.
+                        _lib.gncOwnerGetGUID.argtypes = [_ctypes.c_void_p]
+                        _lib.gncOwnerGetGUID.restype = _ctypes.c_void_p
+                        _lib.guid_to_string_buff.argtypes = [
+                            _ctypes.c_void_p, _ctypes.c_char_p]
+                        _lib.guid_to_string_buff.restype = _ctypes.c_char_p
+                        _gb = _ctypes.create_string_buffer(40)
+                        _lib.guid_to_string_buff(
+                            _lib.gncOwnerGetGUID(_owner_p), _gb)
+                        _g = _gb.value.decode('ascii').replace('-', '')
+                        _lo = f'{_kind}:{_oid}:{_g}'
+                        lines.append(f'\t\tlot_owner: {_lo}')
+                        # And which of the owner's credits it is. An
+                        # owner may hold several, so `lot_owner:` alone
+                        # left the import to choose — the oldest open lot
+                        # the split would reduce — and a book rebuilt
+                        # from this file put a settlement on a different
+                        # credit from the one it came off. A lot always
+                        # has a guid of its own.
+                        lines.append(
+                            f'\t\tlot_guid: "{_lot_guid_str(_lot_ptr)}"')
 
         # Emit custom split KVP metadata. Skip Q-014's `lot_owner` slot
         # for the same reason as the tx-level reserved keys above:

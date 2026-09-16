@@ -10,6 +10,7 @@ way.
 import re
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
@@ -77,6 +78,60 @@ def test_a_settled_amount_and_a_rate_that_disagree_are_refused(tmp_path):
     assert result.exit_code != 0, result.output
     message = result.output + str(result.exception)
     assert 'must agree' in message, message
+
+
+@pytest.mark.parametrize('fixture', [
+    'tests/fixtures/fx_invoice_usd_paid_from_cad_bank.txt',
+    'tests/fixtures/fx_bill_usd_paid_from_cad_bank.txt',
+], ids=['invoice', 'bill'])
+def test_an_empty_amount_on_a_converting_payment_is_refused(tmp_path, fixture):
+    """`amount: ""` states no amount, and a payment it records needs one."""
+    runner = CliRunner()
+    variant = _variant(tmp_path, fixture, '\t\tamount: 100\n', '\t\tamount: ""\n')
+    result = _import(runner, tmp_path / 'book.gnucash', variant)
+    assert result.exit_code != 0, result.output
+    message = result.output + str(result.exception)
+    assert 'amount' in message, message
+    assert 'Invalid literal' not in message, message
+
+
+def test_a_settled_amount_for_a_payment_of_nothing_is_refused(tmp_path):
+    """137.00 CAD for 0 USD is no rate at all."""
+    runner = CliRunner()
+    variant = _variant(tmp_path, 'tests/fixtures/fx_invoice_usd_paid_from_cad_bank.txt',
+                       '\t\tamount: 100\n', '\t\tamount: 0\n')
+    result = _import(runner, tmp_path / 'book.gnucash', variant)
+    assert result.exit_code != 0, result.output
+    message = result.output + str(result.exception)
+    assert 'payment amount must not be zero' in message, message
+
+
+def test_a_payment_into_a_third_currency_without_rates_says_which_rate_it_needs(tmp_path):
+    """A USD invoice settled into an HKD bank values the cash in CAD, and only a rates file has HKD in CAD.
+
+    The invoice is posted in one run, with its rates, and paid in a later one
+    given none: posting it already needed the USD rate, so this is the run
+    that reaches the payment.
+    """
+    setup = Path('tests/fixtures/fx_hkd_spent_by_retarget_setup.txt').read_text()
+    start = setup.index('\tpayment:\n')
+    end = setup.index('\n\nbill "BILL-HKD-OUT"')
+    unpaid = tmp_path / 'unpaid.txt'
+    unpaid.write_text(setup[:start] + setup[end + 1:])
+    book = tmp_path / 'book.gnucash'
+    posted = CliRunner().invoke(cli, ['import', '--new', str(book), str(unpaid),
+                                      '--include-business-objects', '--fx-rates',
+                                      'tests/fixtures/fx_rates_usd_and_hkd.yaml'])
+    assert posted.exit_code == 0, posted.output
+
+    result = CliRunner().invoke(cli, ['import', str(book),
+                                      'tests/fixtures/fx_hkd_spent_by_retarget_setup.txt',
+                                      '--include-business-objects'])
+
+    assert result.exit_code != 0, result.output
+    message = result.output + str(result.exception)
+    assert 'HKD/CAD rate on' in message, message
+    assert 'pass --fx-rates' in message, message
 
 
 def test_a_settled_amount_on_a_same_currency_payment_is_refused(tmp_path):

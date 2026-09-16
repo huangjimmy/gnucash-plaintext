@@ -1,0 +1,102 @@
+# One 300.00 deposit from Acme settling three invoices of 100.00, a receivable
+# split for each. Each invoice's payment block gives its own split by
+# `txn_split_guid:`, and carries that split's memo.
+# Load after the accounts of `tests/integration/test_find_orphan_payments.py`.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+2026-01-15 * "Acme pays three invoices"
+	guid: "5e6f708192a3b4c5d6e7f80912233445"
+	Assets:Bank 300.00 CAD
+		memo: "Deposit"
+	Assets:Accounts Receivable -100.00 CAD
+		guid: "708192a3b4c5d6e7f809122334455667"
+		memo: "For A"
+	Assets:Accounts Receivable -100.00 CAD
+		guid: "8192a3b4c5d6e7f80912233445566778"
+		memo: "For B"
+	Assets:Accounts Receivable -100.00 CAD
+		guid: "92a3b4c5d6e7f8091223344556677889"
+		memo: "For C"
+
+invoice "INV-A"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-A"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "5e6f708192a3b4c5d6e7f80912233445"
+		txn_split_guid: "708192a3b4c5d6e7f809122334455667"
+		memo: "For A"
+
+invoice "INV-B"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-B"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "5e6f708192a3b4c5d6e7f80912233445"
+		txn_split_guid: "8192a3b4c5d6e7f80912233445566778"
+		memo: "For B"
+
+invoice "INV-C"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-C"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		bank_account: "Assets:Bank"
+		txn_guid: "5e6f708192a3b4c5d6e7f80912233445"
+		txn_split_guid: "92a3b4c5d6e7f8091223344556677889"
+		memo: "For C"

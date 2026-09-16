@@ -20,7 +20,6 @@ docs/issues/Q-041-a-price-cannot-be-recorded-for-a-past-date-or-kept-through-exp
 import gc
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -129,12 +128,15 @@ class TestABookAPaymentWasLinkedInto:
         ledger.write_text((FIXTURES / 'an_invoice_with_a_bare_retarget_and_a_payment.txt')
                           .read_text().replace('TXN_GUID', _the_deposit_guid(book)))
 
-        # GnuCash's backup file for a book carries the save time to the second,
-        # so a second save within that second fails with ERR_FILEIO_BACKUP_ERROR.
-        time.sleep(1)
         # In a child process: a segfault ends that process, and this one reports it.
+        # The child is not run by pytest, so it imports the suite's conftest,
+        # whose `_patch_session_save` deletes GnuCash's backup before each save.
+        # After the command line, which loads the page engine before GnuCash
+        # (CLAUDE.md finding 23).
         run = subprocess.run(
-            [sys.executable, '-m', 'cli.main', 'import', str(book), str(ledger),
+            [sys.executable, '-c',
+             'from cli.main import cli; import tests.conftest; cli()',
+             'import', str(book), str(ledger),
              '--include-business-objects'],
             capture_output=True, text=True)
 

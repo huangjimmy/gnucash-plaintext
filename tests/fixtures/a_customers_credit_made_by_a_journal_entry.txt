@@ -1,0 +1,24 @@
+# Customer C001's 50.00 CAD credit, made by a journal entry with no bank split.
+#
+# A bookkeeper who learns whose money a receipt was moves it onto that
+# customer: the receivable against itself, one split standing as C001's credit
+# and the other taking the amount off the receivable nobody's name was on.
+# Every split is on a receivable, and the transaction and both splits give
+# their guids so an invoice can spend the credit by them.
+#
+# What this fixture produces: customer C001, and one CAD transaction whose
+# credit split is in a lot of C001's.
+#
+# Verified by tests/integration/test_an_unpost_leaves_a_journal_entry_whole.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+2026-01-06 * "Attributed to Acme"
+	guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable -50.00 CAD
+		guid: "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1"
+		lot_owner: customer:C001
+	Assets:Accounts Receivable 50.00 CAD
+		guid: "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"

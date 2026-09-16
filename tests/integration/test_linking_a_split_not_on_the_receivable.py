@@ -220,6 +220,8 @@ LINKED_FELL_SHORT_BY_SPLIT = str(
 CAD_BANK = str(FIXTURES / 'money_parked_with_a_cad_bank.txt')
 LINKED_FROM_A_CAD_BANK = str(
     FIXTURES / 'a_payment_linking_a_cad_bank_to_a_usd_invoice.txt')
+LINKED_FROM_A_CAD_BANK_BY_ITS_TRANSACTION = str(
+    FIXTURES / 'a_payment_linking_a_cad_bank_to_a_usd_invoice_by_its_transaction.txt')
 USD_FEE = str(FIXTURES / 'money_parked_beside_a_usd_fee.txt')
 LINKED_WITH_A_USD_FEE = str(
     FIXTURES / 'a_payment_giving_the_split_parked_beside_a_usd_fee.txt')
@@ -639,6 +641,47 @@ class TestOnePaymentMadeOfSeveralSplits:
         assert sorted(row['amount'] for row in receivables) == [-60, -40]
         assert all(row['in_a_lot'] for row in receivables), receivables
 
+    def test_unposting_the_invoice_counts_that_payment_once(self, paid_in_two):
+        """Both splits sit in the invoice's lot and are one payment, so what an
+        unpost says about the money it leaves behind counts the transaction
+        once, however many of its splits the lot holds."""
+        linked = CliRunner().invoke(cli, ['import', str(paid_in_two), NAMES_TWO_SPLITS,
+                                          '--include-business-objects'])
+        assert linked.exit_code == 0, linked.output
+
+        result = CliRunner().invoke(cli, ['unpost-invoices', str(paid_in_two),
+                                          'INV-USD-001'])
+
+        assert result.exit_code == 0, result.output
+        assert '2 bank-side payment transactions' not in result.output, result.output
+
+    def test_posting_it_again_takes_back_both_splits_the_unpost_left(self, paid_in_two):
+        """The unpost leaves both splits in the lot it abandoned, each marked as
+        orphaned. The same file posts the invoice again, and its `PaymentSplit`
+        lines give those two splits, so they are the invoice's to take back,
+        not somebody else's settlement."""
+        linked = CliRunner().invoke(cli, ['import', str(paid_in_two), NAMES_TWO_SPLITS,
+                                          '--include-business-objects'])
+        assert linked.exit_code == 0, linked.output
+        unposted = CliRunner().invoke(cli, ['unpost-invoices', str(paid_in_two),
+                                            'INV-USD-001'])
+        assert unposted.exit_code == 0, unposted.output
+
+        # Posting a USD invoice to a CAD income account converts, so posting
+        # it again needs the rate the first posting had.
+        again = CliRunner().invoke(cli, ['import', str(paid_in_two), NAMES_TWO_SPLITS,
+                                         '--include-business-objects',
+                                         '--fx-rates', RATES])
+
+        assert again.exit_code == 0, again.output
+        rows = _each_split_of(paid_in_two, 'Money in, two lines')
+        receivables = [row for row in rows if row['account'] == AR]
+        assert sorted(row['amount'] for row in receivables) == [-60, -40], rows
+        assert all(row['in_a_lot'] for row in receivables), receivables
+        orphans = CliRunner().invoke(cli, ['find-orphan-payments', str(paid_in_two)])
+        assert 'No orphan bank-side payment transactions found' in orphans.output, \
+            orphans.output
+
     def test_it_reads_as_one_payment_not_two(self, paid_in_two):
         """The count is the point. Two blocks would say paid twice."""
         CliRunner().invoke(cli, ['import', str(paid_in_two), NAMES_TWO_SPLITS,
@@ -653,6 +696,61 @@ class TestOnePaymentMadeOfSeveralSplits:
         block = block[:block.find('\ninvoice ') if '\ninvoice ' in block[1:]
                       else len(block)]
         assert block.count('payment:') == 1, block
+
+    def test_taking_it_off_restates_both_splits_and_says_the_rates_day_once(
+            self, paid_in_two):
+        """Both splits come off as the one payment they are, into a CAD account.
+
+        Each is restated at the USD rate for 2026-02-27, which the rates file
+        answers with the rate it quotes for 2026-02-20. The run says so once:
+        it is one rate for one day, however many splits were restated at it.
+        """
+        linked = CliRunner().invoke(cli, ['import', str(paid_in_two), NAMES_TWO_SPLITS,
+                                          '--include-business-objects'])
+        assert linked.exit_code == 0, linked.output
+
+        result = CliRunner().invoke(cli, [
+            'unapply-payment', str(paid_in_two), 'INV-USD-001',
+            '--to', 'Assets:Bank', '--fx-rates', RATES])
+
+        assert result.exit_code == 0, result.output
+        assert result.output.count('quoted for 2026-02-20') == 1, result.output
+        rows = _each_split_of(paid_in_two, 'Money in, two lines')
+        on_bank = sorted(row['amount'] for row in rows if row['account'] == 'Assets:Bank')
+        # 60.00 and 40.00 USD at 1.37.
+        assert on_bank == [Fraction('-82.20'), Fraction('-54.80')], rows
+
+
+def test_a_split_guid_the_transaction_has_not_got_is_refused(book):
+    """`txn_split_guid:` has to be one of the splits of the `txn_guid:`
+    transaction, or nothing says which split settles the invoice."""
+    result = CliRunner().invoke(cli, [
+        'import', str(book),
+        str(FIXTURES / 'a_payment_giving_a_split_the_transaction_has_not_got.txt'),
+        '--include-business-objects'])
+
+    assert result.exit_code != 0, result.output
+    assert ("'0123456789abcdef0123456789abcdef' not found on tx "
+            "'c9f27c2b2f324117aa17c7c1f48fbafd'") in result.output, result.output
+
+
+def test_a_split_on_a_receivable_the_invoice_does_not_post_to_is_refused(book):
+    """A split already on a receivable is a settlement as it stands, so it is
+    not given another account. On the wrong receivable it cannot settle this
+    invoice at all."""
+    booked = CliRunner().invoke(cli, [
+        'import', str(book), str(FIXTURES / 'money_booked_to_another_receivable.txt')])
+    assert booked.exit_code == 0, booked.output
+
+    result = CliRunner().invoke(cli, [
+        'import', str(book),
+        str(FIXTURES / 'a_payment_giving_a_split_on_another_receivable.txt'),
+        '--include-business-objects'])
+
+    assert result.exit_code != 0, result.output
+    assert 'Assets:Accounts Receivable CAD' in result.output, result.output
+    rows = _each_split_of(book, 'Money in against another receivable')
+    assert not any(row['in_a_lot'] for row in rows), rows
 
 
 class TestAFeeBesideTheSettlement:
@@ -838,6 +936,21 @@ class TestWhatItWillNotDo:
 
         assert result.exit_code != 0, result.output
         assert 'USD' in result.output and 'CAD' in result.output, result.output
+        assert 'only the payer knows' in result.output, result.output
+
+    def test_giving_the_transaction_alone_is_refused_the_same_way(self, book):
+        """Left to find the settling split itself, the run works out what the
+        settlement is worth before it asks whether it can be read. Nothing in
+        the entry is USD, so there is no figure, and the refusal is the one
+        giving the split earns."""
+        assert CliRunner().invoke(
+            cli, ['import', str(book), CAD_BANK]).exit_code == 0
+
+        result = CliRunner().invoke(cli, [
+            'import', str(book), LINKED_FROM_A_CAD_BANK_BY_ITS_TRANSACTION,
+            '--include-business-objects'])
+
+        assert result.exit_code != 0, result.output
         assert 'only the payer knows' in result.output, result.output
 
     def test_that_entry_is_left_alone(self, book):

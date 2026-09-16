@@ -187,3 +187,17 @@ class TestASplitSlotThatIsNotJson:
         text = out.read_text()
         assert 'keeper: "y"' in text
         assert 'tax:category' not in text
+
+    def test_a_null_and_a_list_are_written_as_what_they_are(self, tmp_path):
+        """JSON can hold a null and a list, and this format has a literal for
+        the first and none for the second, so the list is written as its text."""
+        gnc = self._book_with_a_transaction(tmp_path)
+        _put_in_a_transaction_slot(gnc, '{"reviewed": null, "tags": ["a", "b"]}')
+
+        out = tmp_path / 'out.txt'
+        result = CliRunner().invoke(cli, ['export', str(gnc), str(out)])
+
+        assert result.exit_code == 0, result.output
+        text = out.read_text()
+        assert 'reviewed: #None' in text, text
+        assert 'tags: "[\'a\', \'b\']"' in text, text

@@ -333,7 +333,6 @@ show_prices('prices after Apply', book_ptr)
 
 sess.save()
 sess.end()
-time.sleep(1)
 reread = session('xml://' + path, 'SESSION_READ_ONLY')
 show_prices('prices in the reloaded book', ptr(reread.book))
 try:

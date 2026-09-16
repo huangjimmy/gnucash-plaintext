@@ -51,6 +51,14 @@ class TestWithoutLibgobject:
 
         assert kvp._get_via_qof_instance(1, 'slot') is None
 
+    def test_writing_a_book_option_directly_says_what_is_missing(self, monkeypatch):
+        """The 3.4 route for a book option, which `write_book_string_option`
+        lets out as the reason a command gives."""
+        monkeypatch.setattr(kvp, '_load_gobject', lambda: None)
+
+        with pytest.raises(RuntimeError, match='libgobject-2.0 is not loadable'):
+            kvp._write_book_option_slot_directly(None, 1, 'Business', 'name', 'v')
+
 
 class TestWhenTheEngineCallFails:
     """Anything the C side raises is a slot that was not written, not a crash."""

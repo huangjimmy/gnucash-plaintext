@@ -1,0 +1,32 @@
+# 1000.00 USD bought for 1350.00 CAD, the USD split's figures written with a point.
+#
+# The regression test writes `value: "1350.00"` as `"1,350"` and
+# `share_price: "1.35"` as `"1,35"`.
+#
+# What this fixture produces: one CAD transaction, Assets:Bank:USD +1000.00 USD
+# valued 1350.00 CAD at 1.35, against Assets:Bank -1350.00 CAD.
+#
+# Verified by tests/integration/test_a_split_figure_written_with_a_comma_is_refused.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-01-10 * "Buy 1000 USD"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "1350.00"
+	Assets:Bank -1350.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-1350.00"

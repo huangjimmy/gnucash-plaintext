@@ -174,3 +174,29 @@ class TestRoundTrip:
         importable, _ = self._rw(tmp_path, [tx], [], [])
         assert importable[0].source_pdfs[0] == "boci.pdf"
         assert len(importable[0].source_pdfs) == 1  # only card PDF survives round-trip
+
+    def test_a_transaction_from_no_statement_comes_back_with_none(self, tmp_path):
+        tx = _normal_tx()
+        tx.source_pdfs = []
+        importable, _ = self._rw(tmp_path, [], [], [tx])
+        assert importable[0].source_pdfs == []
+
+
+class TestAPreviewEditedByHand:
+    """A preview is a file a person reviews, and may edit before it is read back.
+
+    A note between blocks, a key the reader has no use for, a line it does not
+    read and a block left with one split are passed over, and the blocks that
+    are whole are still read, down to the last one with no blank line after it.
+    """
+
+    def test_only_the_whole_block_is_read(self):
+        importable, unresolved = ReconcilePreviewReader().read(
+            "tests/fixtures/a_reconcile_preview_with_lines_it_does_not_read.txt")
+
+        assert unresolved == []
+        assert [tx.description for tx in importable] == ["Salary"]
+        assert [(s.account, s.amount) for s in importable[0].splits] == [
+            ("Assets:BOC HKD Saving", Decimal("18110.00")),
+            ("Income:Salary:HKD", Decimal("-18110.00")),
+        ]

@@ -24,13 +24,36 @@ import click
 
 from infrastructure.gnucash.utils import money_text
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
-from use_cases.export_transactions import find_ownerless_credit_lots
-from use_cases.unpost_business_objects import find_prepayments_in_book
+from use_cases.unpost_business_objects import (
+    find_loose_money_in_book,
+    find_prepayments_in_book,
+)
 
 
 def _hyphenate(guid32: str) -> str:
     g = guid32
     return f'{g[0:8]}-{g[8:12]}-{g[12:16]}-{g[16:20]}-{g[20:32]}'
+
+
+def _list_money_nobody_owns(loose) -> None:
+    """The amounts on a receivable or payable in no lot, and how to give each an owner."""
+    if not loose:
+        return
+    n = len(loose)
+    noun, verb = ('amount', 'belongs') if n == 1 else ('amounts', 'belong')
+    click.echo('')
+    click.echo(f'Found {n} {noun} on a receivable or payable that {verb} to no '
+               f'customer or vendor.')
+    click.echo('')
+    for each in loose:
+        click.echo(f'  • {each.currency} {each.amount}  on {each.account}')
+        click.echo(f'    transaction: {each.date}  "{each.description}"')
+        click.echo(f'      guid: {_hyphenate(each.tx_guid)}')
+    click.echo('')
+    click.echo('None of it is a credit: it is in no lot and has no owner, so no')
+    click.echo('invoice or bill can use it. Give it its owner with')
+    click.echo('`lot_owner: customer:<id>` (or `vendor:<id>`) on its split and')
+    click.echo('`import --strategy update`, or move it to the account it belongs on.')
 
 
 @click.command('find-prepayments')
@@ -67,27 +90,38 @@ def find_prepayments(gnucash_file, customer_id, vendor_id):
     repo = GnuCashRepository(gnucash_file)
     repo.open(mode=SessionMode.READ_ONLY)
     try:
+        ownerless = []
         credits_ = find_prepayments_in_book(
-            repo.book, customer_id=customer_id, vendor_id=vendor_id)
-        ownerless = find_ownerless_credit_lots(repo.book)
+            repo.book, customer_id=customer_id, vendor_id=vendor_id,
+            unowned=ownerless)
+        # For the whole book only: this money belongs to nobody, so no
+        # `--customer` or `--vendor` selects it.
+        loose = ([] if customer_id or vendor_id
+                 else find_loose_money_in_book(repo.book))
     finally:
         repo.close()
 
-    # Guard: an open AR/AP credit lot with no LOT owner is a data defect — the
-    # credit belongs to no customer/vendor, so the `open_prepayment:` summary
-    # (and export-accounts) silently omit it. Every legitimate path attaches the
-    # owner, so this should never appear; surface it loudly if it ever does.
+    # A credit lot no owner can be read for — not from the lot, not through
+    # GnuCash, not from the transaction's `owner:` line. GnuCash's View → Lots
+    # makes one ("New Lot" attaches no owner), so it is a state of the book to
+    # say, with how to give it an owner. It is exactly what the listing passes
+    # over, so the warning and the listing cannot disagree about a credit.
     if ownerless:
+        n = len(ownerless)
+        heading = ('1 credit on a receivable or payable is in a lot with no owner.'
+                   if n == 1 else
+                   f'{n} credits on a receivable or payable are in lots with no owner.')
         click.echo('', err=True)
-        click.echo(
-            f'⚠  {len(ownerless)} open credit lot(s) have NO owner attached — '
-            f'a bug: such a credit is unattributable and is hidden from the '
-            f'open_prepayment summary / export-accounts. Please report it.',
-            err=True)
+        click.echo(f'⚠  {heading}', err=True)
         for acct, amount, mnem, unit in ownerless:
-            click.echo(f'   • {acct}  {mnem} {money_text(amount, unit)}  '
-                       f'(ownerless credit lot)',
-                       err=True)
+            click.echo(f'   • {acct}  {mnem} {money_text(amount, unit)}', err=True)
+        click.echo('   No invoice or bill can spend a credit nobody owns, and an export',
+                   err=True)
+        click.echo('   writes no `open_prepayment:` for it. Give it its owner with',
+                   err=True)
+        click.echo('   `lot_owner: customer:<id>` (or `vendor:<id>`) on its split and',
+                   err=True)
+        click.echo('   `import --strategy update`.', err=True)
 
     if not credits_:
         scope = ''
@@ -96,6 +130,7 @@ def find_prepayments(gnucash_file, customer_id, vendor_id):
         elif vendor_id:
             scope = f' for vendor {vendor_id}'
         click.echo(f'No pre-payment credits found{scope}.')
+        _list_money_nobody_owns(loose)
         return
 
     n = len(credits_)
@@ -183,3 +218,4 @@ def find_prepayments(gnucash_file, customer_id, vendor_id):
     click.echo('GnuCash will then close the invoice/bill from the existing credit')
     click.echo('via gncInvoiceAutoApplyPayments. Residual credit (if any) stays')
     click.echo('open for the next invoice/bill.')
+    _list_money_nobody_owns(loose)

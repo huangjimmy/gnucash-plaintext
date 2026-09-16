@@ -1,7 +1,7 @@
 # The optional fields a business object may carry and usually does not: a
-# customer's full address and email, an invoice's billing id and notes, and a
-# payment's cheque number. Each is written only when it is there, so a book
-# without them never exercises the line that writes them.
+# customer's full address and email, an invoice's and a bill's billing id and
+# notes, and a payment's cheque number. Each is written only when it is there,
+# so a book without them never exercises the line that writes them.
 customer "C-FULL"
 	name: "Full Details Co"
 	currency: CAD
@@ -49,3 +49,25 @@ invoice "INV-FULL-001"
 		bank_account: "Assets:Bank"
 		memo: "Cheque"
 		num: "1042"
+
+bill "BILL-FULL-001"
+	vendor_id: "V-FULL"
+	currency: CAD
+	date_opened: 2026-03-03
+	billing_id: "SUP-5531"
+	notes: "Delivered 2026-03-02"
+	entry:
+		date: 2026-03-03
+		description: "Paper"
+		action: "Materials"
+		account: "Expenses:Office Supplies"
+		quantity: 4
+		price: 25
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-04
+		due: 2026-04-03
+		ap_account: "Liabilities:Accounts Payable"
+		memo: "BILL-FULL-001"
+		accumulate: true

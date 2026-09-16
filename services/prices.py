@@ -212,9 +212,8 @@ def commodities_of(prices: Sequence[BookPrice], book) -> list:
             if (namespace, mnemonic) in seen:
                 continue
             seen.add((namespace, mnemonic))
-            commodity = table.lookup(namespace, mnemonic)
-            if commodity is not None:
-                commodities.append(commodity)
+            # Always found: a price's commodity and currency are the table's own.
+            commodities.append(table.lookup(namespace, mnemonic))
     return commodities
 
 
@@ -449,7 +448,7 @@ def _another_on_that_day(lib, index, plan: _Plan) -> Optional[BookPrice]:
     return None
 
 
-def _create(lib, book_ptr, db, plan: _Plan) -> Optional[int]:
+def _create(lib, book_ptr, db, plan: _Plan) -> int:
     price = lib.gnc_price_create(book_ptr)
     if plan.guid is not None:
         lib.qof_instance_set_guid(price, ctypes.byref(guid_from_hex(plan.guid)))
@@ -463,9 +462,12 @@ def _create(lib, book_ptr, db, plan: _Plan) -> Optional[int]:
     if plan.type is not None:
         lib.gnc_price_set_typestr(price, plan.type.encode('utf-8'))
     lib.gnc_price_commit_edit(price)
-    added = lib.gnc_pricedb_add_price(db, price)
+    # Always added. GnuCash turns a price away only where the day already
+    # holds a price of the pair (CLAUDE.md finding 25), and a block that puts
+    # a new price on such a day is refused before it gets here.
+    lib.gnc_pricedb_add_price(db, price)
     lib.gnc_price_unref(price)
-    return price if added else None
+    return price
 
 
 def _update(lib, plan: _Plan) -> None:
@@ -606,10 +608,6 @@ def apply_price_blocks(directives, book) -> PriceImportResult:
                 f'price, give its guid')
             continue
         price = _create(lib, book_ptr, db, plan)
-        if price is None:
-            result.refusals.append(
-                f'{plan.label}: refused — GnuCash did not add it to the price database')
-            continue
         index[_either_way(plan.commodity, plan.currency)].append(_read(lib, price))
         result.created += 1
     return result

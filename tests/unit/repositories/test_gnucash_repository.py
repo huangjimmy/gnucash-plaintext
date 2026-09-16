@@ -63,6 +63,53 @@ class TestSessionManagement:
 
         repo.close()
 
+    def test_closing_a_repository_never_opened_does_nothing(self, temp_gnucash_file):
+        from repositories.gnucash_repository import GnuCashRepository
+
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.close()
+
+        assert repo.session is None
+
+    def test_saving_or_reading_the_book_without_a_session_is_refused(self, temp_gnucash_file):
+        from repositories.gnucash_repository import GnuCashRepository
+
+        repo = GnuCashRepository(temp_gnucash_file)
+
+        with pytest.raises(RuntimeError, match="No session open"):
+            repo.save()
+        with pytest.raises(RuntimeError, match="No session open"):
+            _ = repo.book
+
+    def test_a_book_opened_read_only_is_not_saved_to(self, temp_gnucash_file):
+        """Refused on every build, and the file is left as it was."""
+        from pathlib import Path
+
+        from repositories.gnucash_repository import GnuCashRepository, SessionMode
+
+        before = Path(temp_gnucash_file).read_bytes()
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open(SessionMode.READ_ONLY)
+        try:
+            with pytest.raises(RuntimeError, match="opened read-only"):
+                repo.save()
+        finally:
+            repo.close()
+
+        assert Path(temp_gnucash_file).read_bytes() == before
+
+    def test_a_repository_already_open_is_not_opened_again_by_with(self, temp_gnucash_file):
+        from repositories.gnucash_repository import GnuCashRepository
+
+        repo = GnuCashRepository(temp_gnucash_file)
+        repo.open()
+        session = repo.session
+
+        with repo as entered:
+            assert entered.session is session
+
+        assert repo.session is None
+
 
 class TestAccountOperations:
     """Test account-related operations"""
@@ -149,6 +196,31 @@ class TestAccountOperations:
             found = repo.get_account("Expenses:Entertainment")
             assert found is not None
 
+    def test_create_account_with_no_parent_is_at_the_top(self, temp_gnucash_file):
+        import gnucash
+
+        from repositories.gnucash_repository import GnuCashRepository
+
+        with GnuCashRepository(temp_gnucash_file) as repo:
+            account = repo.create_account(
+                name="Suspense", account_type=gnucash.ACCT_TYPE_ASSET, currency_code="CAD")
+
+            assert account.get_parent().is_root()
+            assert repo.get_account("Suspense") is not None
+
+    def test_create_account_under_a_parent_the_book_has_not_got(self, temp_gnucash_file):
+        import gnucash
+
+        from repositories.gnucash_repository import GnuCashRepository
+
+        with GnuCashRepository(temp_gnucash_file) as repo, \
+                pytest.raises(ValueError, match="Parent account not found: Expenses:Nowhere"):
+            repo.create_account(
+                name="Entertainment",
+                account_type=gnucash.ACCT_TYPE_EXPENSE,
+                parent_path="Expenses:Nowhere",
+                currency_code="CAD")
+
 
 class TestTransactionOperations:
     """Test transaction-related operations"""
@@ -173,6 +245,27 @@ class TestTransactionOperations:
 
             # All 3 transactions involve checking account
             assert len(transactions) == 3
+
+    def test_a_transaction_with_two_splits_on_the_account_is_listed_once(self, temp_gnucash_file):
+        from gnucash import GncNumeric
+
+        from repositories.gnucash_repository import GnuCashRepository
+
+        with GnuCashRepository(temp_gnucash_file) as repo:
+            repo.create_transaction(
+                description="Two withdrawals, one receipt",
+                date_tuple=(20, 2, 2024),
+                splits_data=[
+                    {'account_path': 'Assets:Bank:Checking', 'value': GncNumeric(-3000, 100)},
+                    {'account_path': 'Assets:Bank:Checking', 'value': GncNumeric(-2000, 100)},
+                    {'account_path': 'Expenses:Groceries', 'value': GncNumeric(5000, 100)},
+                ],
+                currency_code="CAD")
+            checking = repo.get_account("Assets:Bank:Checking")
+
+            transactions = repo.get_transactions_by_account(checking)
+
+            assert [tx.GetDescription() for tx in transactions] == ["Two withdrawals, one receipt"]
 
     def test_get_transactions_by_date_range(self, temp_gnucash_with_transactions):
         """Test getting transactions by date range"""

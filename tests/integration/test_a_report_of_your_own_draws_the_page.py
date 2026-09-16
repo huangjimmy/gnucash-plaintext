@@ -363,9 +363,52 @@ class TestABookWithRegistrationNumbersAndFreeText:
         # with no such block is laid out some other way and says nothing; a
         # page that has one and cannot hold the row would otherwise drop a
         # GST number from someone with every reason to think it is printed.
-        assert 'with no table in it' in result.output, result.output
+        assert 'with no table in a closed <div> to put this on' in result.output, \
+            result.output
         assert 'no page printed in this run states it' in result.output, \
             result.output
+
+    @pytest.mark.parametrize('fixture, name, drawn', [
+        ('a_report_whose_company_class_is_on_a_paragraph.scm',
+         'A Report Whose Company Class Is On A Paragraph',
+         'MY COMPANY, IN A PARAGRAPH'),
+        ('a_report_whose_company_block_never_closes.scm',
+         'A Report Whose Company Block Never Closes',
+         'MY COMPANY, IN A BLOCK THAT NEVER CLOSES'),
+    ], ids=['on-a-paragraph', 'never-closes'])
+    def test_a_company_class_with_no_block_to_hold_a_row_is_said_out_loud(
+            self, book_with_extras, tmp_path, fixture, name, drawn):
+        """The class is on the page, and no `<div>` of it closes around a table.
+
+        Nothing can be put in such a block, so the GST number is not printed.
+        The reader kept `class="company-table"`, so the run says so, as it does
+        for a block with no table in it.
+        """
+        out = tmp_path / 'inv.html'
+        result = CliRunner().invoke(cli, [
+            'print-invoice', str(book_with_extras), 'INV-EXTRA-001',
+            '--format', 'html', '--output', str(out),
+            '--report-file', str(FIXTURES / fixture), '--report', name])
+
+        assert result.exit_code == 0, result.output
+        page = out.read_text(encoding='utf-8')
+        assert drawn in page, page
+        assert 'GST: 111222333RT0001' not in page, page
+        assert 'no page printed in this run states it' in result.output, \
+            result.output
+
+    def test_a_report_that_draws_nothing_is_refused(self, book_with_extras, tmp_path):
+        """An empty page is not printed as though it were the invoice."""
+        out = tmp_path / 'inv.html'
+        result = CliRunner().invoke(cli, [
+            'print-invoice', str(book_with_extras), 'INV-EXTRA-001',
+            '--format', 'html', '--output', str(out),
+            '--report-file', str(FIXTURES / 'a_report_that_draws_nothing.scm'),
+            '--report', 'A Report That Draws Nothing'])
+
+        assert result.exit_code != 0, result.output
+        assert 'drew nothing at all' in result.output, result.output
+        assert not out.exists()
 
     def test_a_report_with_no_such_blocks_is_left_alone(self, book_with_extras,
                                                         tmp_path):

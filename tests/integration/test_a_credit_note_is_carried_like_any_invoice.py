@@ -201,6 +201,23 @@ class TestEditingTheFlagInTheLedger:
         assert 'unpost-invoices' in result.output, result.output
         assert _invoices(book)['CN-001']['credit_note'] is True
 
+    def test_it_is_refused_while_the_bill_is_posted(self, tmp_path):
+        """As for an invoice: a bill's flag decides which way it posts."""
+        book = _book(tmp_path)
+        text = Path(LEDGER).read_text(encoding='utf-8')
+        start = text.index('bill "VCN-001"')
+        edited = tmp_path / 'edited.txt'
+        edited.write_text(
+            text[:start] + text[start:].replace('\tcredit_note: true\n', '', 1),
+            encoding='utf-8')
+
+        result = CliRunner().invoke(cli, [
+            'import', str(book), str(edited), '--include-business-objects'])
+
+        assert result.exit_code != 0, result.output
+        assert 'unpost-bills' in result.output, result.output
+        assert _invoices(book)['VCN-001']['credit_note'] is True
+
     def test_and_turning_it_off_reports_it_once_unposted(self, tmp_path):
         book = _book(tmp_path)
         edited = self._with_the_flag_off(tmp_path)

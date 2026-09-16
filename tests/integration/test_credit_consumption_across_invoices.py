@@ -113,3 +113,28 @@ def test_credit_full_first_invoice_credit_plus_cash_settle_second(tmp_path):
     assert _lot(gf, 'INV-MBC-1') == 0.00, 'first invoice fully paid from credit'
     assert _lot(gf, 'INV-MBC-2') == 0.00, 'second invoice: 50 credit + 50 cash'
     assert _credit(gf, 'C-MB') == 0.00, 'credit fully consumed'
+
+
+def test_credit_plus_cash_read_again_is_unchanged(tmp_path):
+    """The same file read a second time changes nothing.
+
+    INV-MBC-2 asks for credit and holds a cash settlement beside the credit it
+    spent. Read again, its lot is weighed for what came from credit: the cash
+    split carries no mark of credit and, paying only this invoice, does not look
+    like credit consumed either, so it is the cash payment the file states and
+    both invoices match their blocks.
+    """
+    runner = CliRunner()
+    gf = _book_with_credit(runner, tmp_path)
+    r = _import(runner, gf, _fx('credit_two_invoices_second_has_cash.txt'),
+                'two.txt', tmp_path)
+    assert r.exit_code == 0, r.output
+
+    again = _import(runner, gf, _fx('credit_two_invoices_second_has_cash.txt'),
+                    'again.txt', tmp_path)
+
+    assert again.exit_code == 0, again.output
+    assert 'invoice "INV-MBC-1": unchanged' in again.output, again.output
+    assert 'invoice "INV-MBC-2": unchanged' in again.output, again.output
+    assert _lot(gf, 'INV-MBC-2') == 0.00
+    assert _credit(gf, 'C-MB') == 0.00

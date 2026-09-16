@@ -1,0 +1,12 @@
+; A commodity whose gnucash-fraction is not a whole number.
+;
+; What this fixture produces: nothing. A fraction counts the commodity's
+; smallest units, so `1.5` is refused with the commodity it is on, and no book
+; is written.
+;
+; Verified by tests/integration/test_cli_beancount.py.
+2026-01-10 commodity USD
+    gnucash-mnemonic: "USD"
+    gnucash-namespace: "CURRENCY"
+    gnucash-fullname: "US Dollar"
+    gnucash-fraction: "1.5"

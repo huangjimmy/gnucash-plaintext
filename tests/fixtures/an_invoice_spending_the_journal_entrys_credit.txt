@@ -1,0 +1,34 @@
+# INV-001 for 50.00 CAD, paid in full from C001's credit.
+#
+# The credit is the one `a_customers_credit_made_by_a_journal_entry.txt` makes,
+# given by its transaction's guid and its credit split's guid.
+#
+# What this fixture produces: INV-001 posted, its lot holding the credit split,
+# and the journal entry's other split in no lot.
+#
+# Verified by tests/integration/test_an_unpost_leaves_a_journal_entry_whole.py.
+invoice "INV-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	entry:
+		date: 2026-02-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 50
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-001"
+		accumulate: true
+	payment:
+		amount: 50.00
+		from_credit: true
+		credit_dated: 2026-01-06
+		txn_guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+		txn_split_guid: "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1"

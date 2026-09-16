@@ -1,0 +1,55 @@
+# 200.00 USD from C-US, arriving in the CAD bank as 274.00 CAD, a rate of
+# 1.37, against INV-USD-WIRE for 100.00 USD. The entry already divides the
+# receivable side: 100.00 settling the invoice and 100.00 left over. The
+# invoice's payment block gives the settling split with `txn_split_guid:` and
+# declares the rest with `prepayment: 100`.
+#
+# What this fixture produces: the 100.00 USD left over is the customer's
+# credit, and a cost basis at 1.37 with a cost basis balance of 100.00, beside
+# the invoice's own 100.00 USD at 1.40.
+#
+# Load after `usd_invoicing_accounts_with_a_cad_bank_and_a_usd_bank.txt`.
+#
+# Verified by tests/integration/test_the_credit_an_overpaying_wire_leaves_is_counted_once_however_it_is_divided.py.
+2026-02-25 * "US Customer - wire for INV-USD-WIRE"
+	guid: "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+	currency.mnemonic: "CAD"
+	Assets:Bank 274.00 CAD
+		account.commodity.mnemonic: "CAD"
+	Assets:Accounts Receivable USD -100.00 USD
+		guid: "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2"
+		account.commodity.mnemonic: "USD"
+		share_price: "137/100"
+		value: "-137.00"
+	Assets:Accounts Receivable USD -100.00 USD
+		guid: "f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3"
+		account.commodity.mnemonic: "USD"
+		share_price: "137/100"
+		value: "-137.00"
+
+invoice "INV-USD-WIRE"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-WIRE"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		bank_account: "Assets:Bank"
+		txn_guid: "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+		txn_split_guid: "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2"
+		prepayment: 100
+		memo: "Wire for INV-USD-WIRE"

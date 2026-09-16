@@ -1,0 +1,32 @@
+# INV-001, with a `breakdown:` block written under the invoice instead of under its line.
+#
+# `breakdown:` is a block of a line: it states how that line's tax divides
+# between tax accounts. Under the invoice itself nothing reads it. The import
+# answered `created`, and the block went missing with nothing said.
+#
+# What this fixture produces: nothing. The invoice is refused.
+#
+# Verified by tests/integration/test_a_record_block_is_read_whole.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	breakdown:
+		account: "Liabilities:Accounts Payable"
+		rate: 5
+		amount: 5.00
+	posted: none
+	payment: none

@@ -1,0 +1,16 @@
+# 50.00 CAD moved from the plain receivable onto customer C001's credit.
+#
+# A journal entry a bookkeeper makes once they know whose money a receipt was:
+# the receivable against itself, one split standing as C001's credit and the
+# other taking the amount off the receivable nobody's name was on. No bank
+# account is in it, so the credit has no bank side to report.
+#
+# What this fixture produces: one CAD transaction, two splits on
+# Assets:Accounts Receivable, the credit split in a lot of C001's.
+#
+# Verified by tests/integration/test_a_credit_with_no_bank_side_is_listed.py.
+2026-01-06 * "Attributed to Acme"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable -50.00 CAD
+		lot_owner: customer:C001
+	Assets:Accounts Receivable 50.00 CAD

@@ -1,0 +1,42 @@
+# `a_second_usd_payment_on_the_settled_overcad_invoice.txt`, with a
+# `$residual$` split line on the second payment. That payment joins no lot, so
+# there is no settlement entry to put the split on, and the import is refused.
+customer "C-US"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-OVERCAD"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-01-05
+	entry:
+		date: 2026-01-05
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-05
+		due: 2026-02-05
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-OVERCAD"
+		accumulate: true
+	payment:
+		date: 2026-02-25
+		amount: 200
+		account: "Assets:Bank"
+		settled_amount: 274.00
+		prepayment: 100
+		memo: "Payment for INV-USD-OVERCAD"
+		Income:FX Gain $residual$ CAD
+	payment:
+		date: 2026-02-26
+		amount: 50
+		account: "Assets:Bank"
+		settled_amount: 68.50
+		prepayment: 50
+		memo: "Second payment for INV-USD-OVERCAD"
+		Income:FX Gain $residual$ CAD

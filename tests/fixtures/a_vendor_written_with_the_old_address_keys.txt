@@ -1,0 +1,14 @@
+# Vendor V-OLD, its address written with the old keys `addr1` and `addr2`.
+#
+# Ledgers holding those keys exist, and they are still read as the first and
+# second address lines. Books written by the release that wrote them also hold
+# the lines in the vendor's slot, because vendors had no address setters then.
+#
+# What this fixture produces: vendor V-OLD with a two-line address.
+#
+# Verified by tests/integration/test_a_vendor_slot_holding_its_address_is_brought_up_to_date.py.
+vendor "V-OLD"
+	name: "Beta Printing"
+	currency: CAD
+	addr1: "Beta Printing Inc"
+	addr2: "2 Rear Lane"

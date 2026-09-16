@@ -26,6 +26,7 @@ Symmetric bill (AP) tests included.
 """
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
@@ -251,6 +252,27 @@ def test_retarget_overpayment_with_explicit_prepayment_succeeds(tmp_path):
     assert any(not lot['is_closed'] and lot['balance'] == -50.0 for lot in lots), (
         f'prepayment lot must be open with balance -50: {lots}'
     )
+
+
+@pytest.mark.parametrize('stated, refusal', [
+    ('"fifty"', "prepayment field must be a number, got 'fifty'"),
+    ('40', 'declared `prepayment: 40` does not match the computed residual 50.00'),
+], ids=['not-a-number', 'not-the-residual'])
+def test_retarget_overpayment_with_a_wrong_prepayment_is_refused(tmp_path, stated, refusal):
+    """$150 retargeted to a $100 invoice leaves $50, and `prepayment:` must say that."""
+    runner = CliRunner()
+    gf = _setup_book(runner, tmp_path)
+    r = _import_fixture(runner, gf, 'q015_oh_retarget_over_pre_bank.txt',
+                        tmp_path, biz=False, alias='pre_bank.txt')
+    assert r.exit_code == 0, r.output
+    bank_guid = _bank_tx_guid(gf, amount=150.0)
+
+    biz = (_fixture('q015_oh_retarget_over_biz.txt').replace('{txn_guid}', bank_guid)
+           .replace('\tprepayment: 50\n', f'\tprepayment: {stated}\n'))
+    r = _import_text(runner, gf, biz, 'inv.txt', tmp_path)
+
+    assert r.exit_code != 0, r.output
+    assert refusal in r.output, r.output
 
 
 def test_retarget_overpayment_without_prepayment_fails_with_clear_error(tmp_path):

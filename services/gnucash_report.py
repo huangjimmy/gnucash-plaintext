@@ -443,9 +443,9 @@ def carry_slot_values_onto_the_fields(doc) -> None:
             setter(value)
             doc.CommitEdit()
 
+    # Never None: both print commands hand over only a customer's invoice or a
+    # vendor's bill.
     party = _party(doc)
-    if party is None:
-        return
     address = party.GetAddr()
     held = get_custom_metadata(party) or {}
     # Keyed `addr1`..`addr4` because that is what is *in* such a slot: this
@@ -619,7 +619,8 @@ def render_page_html(session, guid: str, company_extra='',
                                               warn or _say_nothing)
         with tempfile.TemporaryDirectory(prefix='gnucash-render-') as work:
             return _render(lib, Path(work), guid, company_extra, owner_extra,
-                           report=report, report_file=report_file, warn=warn,
+                           report=report, report_file=report_file,
+                           warn=warn or _say_nothing,
                            css=css, note=note, from_the_book=from_the_book,
                            book_calls_it=book_calls_it)
     finally:
@@ -1280,7 +1281,7 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     # are said once per run — this is the answer to "why does this book print
     # a different page here than it does on my laptop", which is otherwise
     # visible only by comparing two pages side by side.
-    if from_the_book and warn is not None:
+    if from_the_book:
         asked_for = from_the_book.replace('-', '').lower()
         if swapped.exists():
             # Registered, present, and unable to say what to draw.
@@ -1372,8 +1373,6 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
         # to say the registration numbers come with you, and then restructured
         # what is inside it. Silence there drops a GST number from a reader
         # who has every reason to believe it is on the page.
-        if warn is None:
-            return
         if not ours and not block_was_there:
             return
         lines = missing.splitlines()
@@ -1394,8 +1393,8 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
         # of File → Properties, naming the page in the one spelling the reader
         # has never seen.
         warn(f'{called} has '
-             + (f'a {block.split("-")[0]} block with no table in it to put '
-                f'this on' if block_was_there
+             + (f'a {block.split("-")[0]} block with no table in a closed '
+                f'<div> to put this on' if block_was_there
                 else f'no {block.split("-")[0]} block to put this on')
              + f', so no page printed in this run states it. '
              f'First dropped: {lines[0][:80]}'
@@ -1731,7 +1730,9 @@ def _block_span(page: str, block: str):
 
     depth = 0
     where = start
-    while where < len(page):
+    # Every pass moves `where` past a tag, and past the last `</div>` the next
+    # search finds none, so the loop always ends in one of the two returns.
+    while True:
         opening = page.find('<div', where)
         closing = page.find('</div>', where)
         if closing < 0:
@@ -1744,7 +1745,6 @@ def _block_span(page: str, block: str):
             if depth == 0:
                 return (start, closing)
             where = closing + len('</div>')
-    return None
 
 
 def _with_extra_row(page: str, block: str, text: str,
@@ -1814,14 +1814,13 @@ def _with_extra_row(page: str, block: str, text: str,
             # Not an error, and not silent either — see `_render`, which
             # decides what to say from whether the block was there at all.
             #
-            # `span is None` is also what an unbalanced `<div>` nesting gives,
-            # which would read here as "no such block" and stay quiet for a
-            # report of the reader's own. Every page goes through GnuCash's
-            # own `html-document.scm`, which closes what it opens, so a report
-            # cannot be in that state — and a page that was would have worse
-            # troubles than a missing row.
-            if on_drop is not None:
-                on_drop(block, text, span is not None)
+            # Whether the class is on the page, not whether a `<div>` of it was
+            # read. A report of the reader's own may hand GnuCash its page as a
+            # string, and GnuCash prints that as it is: the class can sit on a
+            # `<p>`, or on a `<div>` nothing closes. Asked of the span, both
+            # read as "no such block" and the GST number was dropped in
+            # silence from a reader who kept the class.
+            on_drop(block, text, f'class="{block}"' in page)
             return page
         raise PageNotRenderedError(
             f'GnuCash drew the page with no `{block}` block able to hold '
@@ -1840,16 +1839,15 @@ def _with_extra_row(page: str, block: str, text: str,
 
 
 def _defined(run, work: Path, symbol: str) -> bool:
-    """Whether this build has `symbol`, asked of it rather than assumed."""
+    """Whether this build has `symbol`, asked of it rather than assumed.
+
+    `defined?` answers for any symbol without raising, so the probe file is
+    always written.
+    """
     probe = work / f'{symbol}.flag'
-    try:
-        run(f"(call-with-output-file {_scheme_string(probe)} (lambda (port) "
-            f"(display (if (defined? '{symbol}) \"y\" \"n\") port)))")
-    except PageNotRenderedError:
-        return False
-    finally:
-        answer = probe.read_text().strip() if probe.exists() else 'n'
-    return answer == 'y'
+    run(f"(call-with-output-file {_scheme_string(probe)} (lambda (port) "
+        f"(display (if (defined? '{symbol}) \"y\" \"n\") port)))")
+    return probe.read_text().strip() == 'y'
 
 
 def _registered_ids(run, work: Path) -> set:
@@ -1874,8 +1872,8 @@ def _registered_ids(run, work: Path) -> set:
         f'    (gnc:report-templates-for-each'
         f'      (lambda (id template)'
         f'        (if (string? id) (begin (display id port) (newline port)))))))')
-    if not probe.exists():
-        return set()
+    # Written whenever `run` returns: the port is opened before anything in it
+    # can fail, and a failure raises.
     return {line.strip()
             for line in probe.read_text(encoding='utf-8').splitlines()
             if line.strip()}

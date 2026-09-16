@@ -22,6 +22,7 @@ from services.beancount_converter import BeancountConverter
 from use_cases.export_transactions import (
     UnwritableFigureError,
     refuse_a_figure_the_currency_cannot_hold,
+    the_commodity_a_split_is_written_in,
     the_order_the_book_keeps_them_in,
 )
 
@@ -125,7 +126,7 @@ class ExportBeancountUseCase:
             splits = transaction.GetSplitList()
             for split in splits:
                 split_account = split.GetAccount()
-                commodity = split_account.GetCommodity()
+                commodity = the_commodity_a_split_is_written_in(split, transaction)
                 ticker = get_commodity_ticker(commodity)
 
                 # Collect commodity if not seen
@@ -200,6 +201,11 @@ class ExportBeancountUseCase:
 
     def _format_account(self, account, transaction, lines: list):
         """Format account declaration in beancount format with GnuCash metadata"""
+        # An account with no commodity is left out, as the plaintext export
+        # leaves it out: its `open` line would have no commodity to state. Only
+        # a parent reaches here without one, since a split on such an account
+        # is refused before anything is written, and beancount opens an
+        # account without its parent.
         commodity = account.GetCommodity()
         if commodity is None:
             return
@@ -288,12 +294,9 @@ class ExportBeancountUseCase:
             if doclink:
                 lines.append(f'    gnucash-doclink: "{_string(doclink)}"')
         except AttributeError:
-            try:
-                doclink = transaction.GetAssociation()
-                if doclink:
-                    lines.append(f'    gnucash-doclink: "{_string(doclink)}"')
-            except AttributeError:
-                pass
+            doclink = transaction.GetAssociation()
+            if doclink:
+                lines.append(f'    gnucash-doclink: "{_string(doclink)}"')
 
         # Splits (postings in beancount)
         for split in tx_splits:

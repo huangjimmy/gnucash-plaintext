@@ -83,10 +83,6 @@ class ValidationResult:
         """Check if validation passed (no errors)"""
         return not self.has_errors()
 
-    def get_all_issues(self) -> List[ValidationError]:
-        """Get all issues (errors, warnings, info)"""
-        return self.errors + self.warnings + self.info
-
     def get_summary(self) -> str:
         """Get summary string"""
         if self.is_valid() and not self.has_warnings():
@@ -131,14 +127,8 @@ class LedgerValidator:
                 {'guid': transaction.GetGUID().to_string()}
             )
 
-        # Check date
-        date = transaction.GetDate()
-        if date is None:
-            result.add_error(
-                "MISSING_DATE",
-                "Transaction has no date",
-                {'guid': transaction.GetGUID().to_string()}
-            )
+        # No check for a missing date: `GetDate()` answers a date for every
+        # transaction a book holds, on all eleven builds.
 
         # Check splits
         splits = transaction.GetSplitList()
@@ -255,17 +245,10 @@ class LedgerValidator:
         # through `IMBALANCE_SPLIT` above, because GnuCash's own scrub has by
         # then given the split an `Orphan-` account to sit in.
         #
-        # Check currency
-        currency = transaction.GetCurrency()
-        if currency is None:
-            result.add_error(
-                "NO_CURRENCY",
-                "Transaction has no currency",
-                {
-                    'guid': transaction.GetGUID().to_string(),
-                    'description': desc
-                }
-            )
+        # No currency check either: a transaction read from a book always has
+        # one. Even a security set as a transaction's currency comes back from
+        # a save and a reload as a currency
+        # (tests/research/whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py).
 
         return result
 
@@ -279,9 +262,6 @@ class LedgerValidator:
         Returns:
             True if balanced
         """
-        if not splits:
-            return True
-
         # Summed as fractions, not as bare numerators. Adding `value.num()`
         # is right only while every split's value shares a denominator, which
         # GnuCash guarantees for a book it wrote — it normalises value to the
@@ -326,12 +306,21 @@ class LedgerValidator:
                 {'name': name}
             )
 
-        # Check commodity
-        commodity = account.GetCommodity()
-        if commodity is None:
+        # An account with no commodity at all. Nothing this tool writes makes
+        # one and GnuCash's own dialog will not either, but a book from
+        # another tool can hold one and GnuCash keeps it, split and all,
+        # through a save and a reload
+        # (`whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py`).
+        # A warning rather than an error: the book opens and every other
+        # command still reads it, while `export`, `export-beancount`,
+        # `fx-balances --verify-costs` and `close-books` each refuse it by
+        # name. This is the command a reader runs *on* such a book, so it is
+        # where they should first hear of it.
+        if account.GetCommodity() is None:
             result.add_warning(
                 "NO_COMMODITY",
-                f"Account '{name}' has no commodity",
+                f"Account '{name}' has no commodity, so an amount on it is of "
+                f"nothing in particular",
                 {'name': name}
             )
 
@@ -386,15 +375,13 @@ class LedgerValidator:
 
     def validate_transactions(
         self,
-        transactions: List[Transaction],
-        check_duplicates: bool = True
+        transactions: List[Transaction]
     ) -> ValidationResult:
         """
-        Validate a list of transactions.
+        Validate a list of transactions, and count the duplicates among them.
 
         Args:
             transactions: List of transactions to validate
-            check_duplicates: Whether to check for duplicates
 
         Returns:
             ValidationResult with any issues found
@@ -409,18 +396,16 @@ class LedgerValidator:
             result.warnings.extend(tx_result.warnings)
             result.info.extend(tx_result.info)
 
-        if check_duplicates:
-            # Check for duplicate transactions
-            from services.transaction_matcher import TransactionMatcher
-            matcher = TransactionMatcher()
-            dup_count = matcher.get_duplicate_count(transactions)
+        from services.transaction_matcher import TransactionMatcher
+        matcher = TransactionMatcher()
+        dup_count = matcher.get_duplicate_count(transactions)
 
-            if dup_count > 0:
-                result.add_warning(
-                    "DUPLICATES_FOUND",
-                    f"Found {dup_count} duplicate transaction(s)",
-                    {'count': dup_count}
-                )
+        if dup_count > 0:
+            result.add_warning(
+                "DUPLICATES_FOUND",
+                f"Found {dup_count} duplicate transaction(s)",
+                {'count': dup_count}
+            )
 
         return result
 
@@ -465,42 +450,6 @@ class LedgerValidator:
         result.errors.extend(tx_result.errors)
         result.warnings.extend(tx_result.warnings)
         result.info.extend(tx_result.info)
-
-        return result
-
-    def check_transaction_date_order(
-        self,
-        transactions: List[Transaction]
-    ) -> ValidationResult:
-        """
-        Check if transactions are in date order.
-
-        Args:
-            transactions: List of transactions to check
-
-        Returns:
-            ValidationResult with any issues
-        """
-        result = ValidationResult()
-
-        if len(transactions) <= 1:
-            return result
-
-        prev_date = None
-        for tx in transactions:
-            current_date = tx.GetDate()
-
-            if prev_date and current_date < prev_date:
-                result.add_info(
-                    "OUT_OF_ORDER",
-                    "Transactions are not in chronological order",
-                    {
-                        'description': tx.GetDescription(),
-                        'date': current_date.strftime("%Y-%m-%d")
-                    }
-                )
-
-            prev_date = current_date
 
         return result
 
@@ -563,9 +512,8 @@ class LedgerValidator:
             lines.append("-" * 60)
             for error in result.errors:
                 lines.append(f"  [{error.code}] {error.message}")
-                if error.context:
-                    for key, value in error.context.items():
-                        lines.append(f"    {key}: {value}")
+                for key, value in (error.context or {}).items():
+                    lines.append(f"    {key}: {value}")
             lines.append("")
 
         if result.warnings:
@@ -573,9 +521,8 @@ class LedgerValidator:
             lines.append("-" * 60)
             for warning in result.warnings:
                 lines.append(f"  [{warning.code}] {warning.message}")
-                if warning.context:
-                    for key, value in warning.context.items():
-                        lines.append(f"    {key}: {value}")
+                for key, value in (warning.context or {}).items():
+                    lines.append(f"    {key}: {value}")
             lines.append("")
 
         if result.info:

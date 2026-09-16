@@ -267,6 +267,19 @@ class TestDeleteUnpostedInvoice:
         assert _invoice_ids(gnc) == ['INV-001'], (
             "Malformed guid must not touch the book")
 
+    def test_by_guid_that_matches_no_invoice(self, tmp_path):
+        """A well-formed guid the book holds no invoice for is not found, and
+        nothing is deleted."""
+        runner = CliRunner()
+        gnc = _setup_book_with(runner, tmp_path, _fixture('q010_invoice_unposted'))
+
+        r = runner.invoke(cli, ["delete-invoices", str(gnc),
+                                "--by-guid", "0123456789abcdef0123456789abcdef"])
+
+        assert r.exit_code != 0, r.output
+        assert 'not found' in r.output, r.output
+        assert _invoice_ids(gnc) == ['INV-001']
+
     def test_deletion_does_not_destroy_referenced_tax_table(self, tmp_path):
         """Correctness guard: tax tables are book-level shared objects
         that may be referenced by many invoices. Destroying an invoice

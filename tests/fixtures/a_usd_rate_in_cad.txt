@@ -1,0 +1,13 @@
+# One rate: 1.35 CAD for a US dollar, on 2024-02-01.
+#
+# What this fixture produces: one price in the book's price database, so that
+# the US dollars in a book have a rate and what is left without one is the
+# book's shares.
+#
+# Verified by tests/integration/test_account_balance_reads_the_rates_the_book_holds.py.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2024-02-01"
+	value: "1.35"

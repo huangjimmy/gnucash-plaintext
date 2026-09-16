@@ -152,11 +152,9 @@ class ExportBusinessObjectsUseCase:
         lib.guid_to_string_buff.restype = ctypes.c_char_p
 
         def guid_for_ptr(qof_ptr):
+            # Every instance has a guid, so there is always one to read.
             buf = ctypes.create_string_buffer(40)
-            guid_ptr = lib.qof_instance_get_guid(qof_ptr)
-            if not guid_ptr:
-                return ''
-            lib.guid_to_string_buff(guid_ptr, buf)
+            lib.guid_to_string_buff(lib.qof_instance_get_guid(qof_ptr), buf)
             return buf.value.decode('ascii')
 
         return guid_for_ptr
@@ -174,18 +172,11 @@ class ExportBusinessObjectsUseCase:
         lib = self._lib
         parts = []
         ptr = acct_ptr
-        while ptr:
-            name = safe_ctypes_string(lib.xaccAccountGetName, ptr)
-            if name:
-                parts.append(name)
-            parent = lib.gnc_account_get_parent(ptr)
-            if not parent:
-                break
-            # Stop before root account (root's parent is None)
-            grandparent = lib.gnc_account_get_parent(parent)
-            if not grandparent:
-                break
-            ptr = parent
+        # Up to the root, which is the one account with no parent and whose
+        # name is no part of any account's full name.
+        while lib.gnc_account_get_parent(ptr):
+            parts.append(safe_ctypes_string(lib.xaccAccountGetName, ptr))
+            ptr = lib.gnc_account_get_parent(ptr)
         parts.reverse()
         return ':'.join(parts)
 
@@ -545,7 +536,7 @@ class ExportBusinessObjectsUseCase:
             for txn, sharing in settlements_by_transaction(lot):
                 s = sharing[0]
                 if _split_was_applied_from_credit(s):
-                    lines += self._format_credit_payment(txn, s, sharing[1:])
+                    lines += self._format_credit_payment(txn, s)
                 else:
                     lines += self._format_payment(
                         txn, s, kind_of(inv), sharing[1:])
@@ -593,9 +584,8 @@ class ExportBusinessObjectsUseCase:
         tt_ptr = lib.gncEntryGetInvTaxTable(ptr)
         if tt_ptr:
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
-            if tt_name:
-                lines.append(
-                    f'		tax_table: {encode_value_as_string(tt_name)}')
+            lines.append(
+                f'		tax_table: {encode_value_as_string(tt_name)}')
 
         lines.extend(entry_notes(lib, ptr))
         lines.extend(entry_discount(lib, raw_entry, ptr))
@@ -651,17 +641,15 @@ class ExportBusinessObjectsUseCase:
         tt_ptr = lib.gncEntryGetBillTaxTable(ptr)
         if tt_ptr:
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
-            if tt_name:
-                lines.append(
-                    f'		tax_table: {encode_value_as_string(tt_name)}')
+            lines.append(
+                f'		tax_table: {encode_value_as_string(tt_name)}')
 
         lines.extend(entry_notes(lib, ptr))
         lines.extend(bill_entry_flags(lib, ptr))
 
         return lines
 
-    def _format_credit_payment(self, txn, in_lot_ar_ap_split,
-                               also_settling=()) -> list:
+    def _format_credit_payment(self, txn, in_lot_ar_ap_split) -> list:
         """Format the slice of an owner's credit that settled this invoice or bill.
 
         A credit is applied by moving currency the book already has: GnuCash
@@ -677,22 +665,12 @@ class ExportBusinessObjectsUseCase:
         `auto_apply_credit:` that produced it would apply whatever credit the
         book has at the time, which is not necessarily this one.
 
-        **One split to a block**, so companions are refused rather than
-        dropped. There is no grouped spelling of a credit block —
-        `Transaction` / `PaymentSplit` is read by `_apply_payment_directive`
-        and a `from_credit:` block goes elsewhere — and
-        `settlements_by_transaction` keys each credit settlement by its own
-        split so this cannot arise. Dropped in silence, as taking no such
-        parameter amounted to, a second credit settlement on one transaction
-        went missing from the ledger and the record read as changed by its own
-        export.
+        **One split to a block.** There is no grouped spelling of a credit
+        block — `Transaction` / `PaymentSplit` is read by
+        `_apply_payment_directive` and a `from_credit:` block goes elsewhere —
+        and `settlements_by_transaction` keys each credit settlement by its own
+        split, so a caller only ever has the one.
         """
-        if also_settling:
-            raise ValueError(
-                'a credit settlement is written one split to a block, so it '
-                f'takes no companions; {len(also_settling)} were passed. '
-                'Group credit splits by their own guid — see '
-                'settlements_by_transaction.')
         amount = _payment_amount_text(in_lot_ar_ap_split,
                                       self._being_written)
         return [
@@ -896,7 +874,7 @@ class ExportBusinessObjectsUseCase:
             for txn, sharing in settlements_by_transaction(lot):
                 s = sharing[0]
                 if _split_was_applied_from_credit(s):
-                    lines += self._format_credit_payment(txn, s, sharing[1:])
+                    lines += self._format_credit_payment(txn, s)
                 else:
                     lines += self._format_payment(
                         txn, s, kind_of(inv), sharing[1:])

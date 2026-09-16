@@ -1,0 +1,11 @@
+# An existing price, given by its guid, with another source and another type.
+#
+# What this fixture produces: the price keeps its commodity, currency, time and
+# value, and holds `user:price-editor` and `bid` in place of what it had. The
+# test fills in the guid of the price it exported.
+#
+# Verified by tests/integration/test_a_prices_source_and_type_are_kept_as_gnucash_wrote_them.py.
+price
+	guid: "{guid}"
+	source: "user:price-editor"
+	type: "bid"

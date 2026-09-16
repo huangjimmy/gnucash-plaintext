@@ -574,6 +574,85 @@ def test_unapplying_the_bills_link_leaves_no_cost_the_ledger_contradicts(tmp_pat
     assert '1.2 CAD/USD' in row, row
 
 
+def test_unapplying_the_bills_link_into_a_usd_account_keeps_the_stored_cost(tmp_path):
+    """Taken off into a USD account, nothing in the transaction prices the USD.
+
+    Every split of it is then in USD, so the stored `cost_basis_cost` is the
+    only figure saying what the credit line's USD cost. It stays, and the
+    credit line is listed at that cost.
+    """
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    _a_bill_linked_to_the_credit_line_payment(runner, book, tmp_path)
+
+    undone = _run(runner, 'unapply-payment', str(book), 'BILL-USD-001',
+                  '--bill', '--to', 'Assets:Bank:USD')
+    assert undone.exit_code == 0, undone.output
+
+    listing = _balances(runner, book)
+    row = next((line for line in listing.splitlines()
+                if CREDIT_LINE_SPLIT in line), None)
+    assert row is not None, listing
+    assert '381589/272000 CAD/USD' in row, row
+    exported = _exported(runner, book, tmp_path / 'after.txt')
+    block = re.search(r'2026-08-13 \* "Director paid[^\n]*\n(?:\t[^\n]*\n)*',
+                      exported).group(0)
+    assert 'cost_basis_cost:' in block, block
+    verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
+    assert verified.exit_code == 0, verified.output
+
+
+def test_a_link_over_a_cost_nothing_reads_leaves_it_for_verify_costs(tmp_path):
+    """A cost basis whose stored cost will not read cannot be weighed, and is not touched.
+
+    The bill is linked to the credit-line payment, taken off into a USD
+    account, which leaves the credit line's USD priced only by its stored
+    `cost_basis_cost`, and that figure is then made unreadable. Linked again,
+    nothing can tell whether the link changes what that cost basis is worth, so
+    the text is left for `--verify-costs` to report.
+
+    The file is the bill block alone. Read with its transactions under
+    `--strategy update`, the credit-line transaction's own check meets the
+    figure first and refuses that transaction, which is a different question.
+    """
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    _a_bill_linked_to_the_credit_line_payment(runner, book, tmp_path)
+    undone = _run(runner, 'unapply-payment', str(book), 'BILL-USD-001',
+                  '--bill', '--to', 'Assets:Bank:USD')
+    assert undone.exit_code == 0, undone.output
+    text = _exported(runner, book, tmp_path / 'undone.txt', '--include-business-objects')
+    record = text[text.index('bill "BILL-USD-001"'):]
+    record = record[:record.index('\n\n')] if '\n\n' in record else record
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.NORMAL)
+    try:
+        split = next(s for s in iter_splits(repo.book) if split_guid(s) == CREDIT_LINE_SPLIT)
+        transaction = split.GetParent()
+        transaction.BeginEdit()
+        set_custom_metadata(split, {**get_custom_metadata(split), 'cost_basis_cost': 'oops'})
+        transaction.CommitEdit()
+        repo.save()
+    finally:
+        repo.close()
+
+    linked = tmp_path / 'relinked.txt'
+    linked.write_text(_with_payment(record + '\n', 'bill "BILL-USD-001"', [
+        '\tpayment:',
+        '\t\tdate: 2026-08-13',
+        '\t\tamount: 2720',
+        '\t\taccount: "Liabilities:USD Credit Line"',
+        f'\t\ttxn_guid: "{PARKED_TX}"',
+        f'\t\ttxn_split_guid: "{EXPENSE_SPLIT}"',
+    ]))
+    result = _run(runner, 'import', str(book), str(linked),
+                  '--include-business-objects', '--fx-rates', RATES)
+
+    assert result.exit_code == 0, result.output
+    verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
+    assert 'oops' in verified.output, verified.output
+
+
 def test_no_split_keeps_a_balance_it_cannot_account_for(tmp_path):
     """Whatever the link decides, it may not leave a figure nothing reads.
 

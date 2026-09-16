@@ -39,6 +39,38 @@ def test_a_balance_the_split_cannot_have_is_refused(tmp_path, stated, expected):
     assert 'Errors:       1' in result.output, result.output
 
 
+def test_a_balance_on_a_split_whose_amount_is_the_residual_is_checked_too(tmp_path):
+    """`$residual$` states no figure, and the split still brings in one.
+
+    The split takes 1000.00 USD from the CAD split's value, and states 1500.00
+    available. Read off the line's text alone, `$residual$` is not a number and
+    the check had nothing to compare. Measured on 5.10 before: `Errors: 0`, and
+    `fx-balances` listed 1,500.00 USD available on a split that brought in
+    1,000.00 USD.
+    """
+    result = _import(CliRunner(), tmp_path / 'book.gnucash',
+                     'tests/fixtures/usd_bought_with_its_amount_left_to_the_residual.txt')
+
+    assert 'cost_basis_balance' in result.output, result.output
+    assert 'brings in' in result.output, result.output
+    assert 'Errors:       1' in result.output, result.output
+
+
+def test_a_balance_on_a_split_whose_amount_is_mistyped_is_refused_for_the_amount(tmp_path):
+    """`--100.00` matches the split line and is no number: the amount's own check refuses it."""
+    source = Path('tests/fixtures/stated_balance_beyond_what_arrived.txt').read_text()
+    split = '\tAssets:Bank:USD 100.00 USD\n'
+    assert split in source, source
+    edited = tmp_path / 'two_minus_signs.txt'
+    edited.write_text(source.replace(split, '\tAssets:Bank:USD --100.00 USD\n')
+                      .replace('"150.00"', '"60.00"'))
+
+    result = _import(CliRunner(), tmp_path / 'book.gnucash', edited)
+
+    assert 'Errors:       1' in result.output, result.output
+    assert '--100.00' in result.output, result.output
+
+
 def test_a_mistyped_balance_does_not_open_the_basis_in_full(tmp_path):
     """The quiet one: a comma for a point, and 40 sold USD comes back.
 
@@ -81,4 +113,23 @@ def test_a_balance_on_a_split_that_holds_no_foreign_currency_is_refused(tmp_path
 
     assert 'cost_basis_balance' in result.output, result.output
     assert 'CAD split' in result.output, result.output
+    assert 'Errors:       1' in result.output, result.output
+
+
+def test_a_balance_on_a_split_holding_fund_units_is_refused(tmp_path):
+    """Fund units are counted and priced, never converted, so they carry no cost basis."""
+    result = _import(CliRunner(), tmp_path / 'book.gnucash',
+                     'tests/fixtures/stated_balance_on_a_fund_split.txt')
+
+    assert ("cost_basis_balance on split 'Assets:Fund' is on a FUNDX split, and "
+            "FUNDX is a security rather than a currency") in result.output, result.output
+    assert 'Errors:       1' in result.output, result.output
+
+
+def test_a_balance_on_an_account_never_opened_is_refused_for_the_account(tmp_path):
+    """No account to judge the balance against, so the account is what the run reports."""
+    result = _import(CliRunner(), tmp_path / 'book.gnucash',
+                     'tests/fixtures/stated_balance_on_an_account_never_opened.txt')
+
+    assert "'Assets:Bank:USD' not found" in result.output, result.output
     assert 'Errors:       1' in result.output, result.output

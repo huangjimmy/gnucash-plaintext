@@ -1,0 +1,24 @@
+# A `price` block written inside a transaction.
+#
+# What this fixture produces: nothing. A price stands on its own, so the file is
+# refused at line 19, where the block starts, before anything is carried out.
+#
+# Verified by tests/integration/test_a_price_block_inside_another_block_is_refused.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-02-01 * "Office chair"
+	currency.mnemonic: "CAD"
+	Expenses 50.00 CAD
+	Assets -50.00 CAD
+	price
+		commodity.namespace: "CURRENCY"
+		commodity.mnemonic: "USD"
+		currency.mnemonic: "CAD"
+		time: "2026-02-01"
+		value: "1.36"

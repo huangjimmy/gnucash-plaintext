@@ -101,8 +101,7 @@ measured on the wrong side of two builds.
 **Two of these are past their end of life and are served from elsewhere.** The
 Dockerfile points bullseye at `snapshot.debian.org` and buster at
 `archive.debian.org`, both with `Acquire::Check-Valid-Until "false"`, and
-buster needs `libxslt1-dev` where every other base wants `libxslt-dev` and has
-no `weasyprint` package at all.
+buster needs `libxslt1-dev` where every other base wants `libxslt-dev`.
 
 bullseye is the sharp one, because the mirror lies: `deb.debian.org` still
 publishes a *valid* security index — measured 2026-09-05, `Valid-Until: Mon,
@@ -133,11 +132,10 @@ then went in over the following three months with no build left to catch them.
 - `cli/` - Click-based CLI commands; `cli/main.py` is the entry point
 - `services/` - business logic (importer, exporter, matcher, validator, renderer, statement-reconciler, ...)
 - `use_cases/` - orchestration that composes services for a single CLI command
-- `infrastructure/` - I/O adapters: `gnucash/` (engine bindings + ctypes wrappers), `plaintext/`, `pdf/`, `qfx/`
+- `infrastructure/` - I/O adapters: `gnucash/` (engine bindings + ctypes wrappers), `plaintext/`, `pdf/`, `qfx/`. `gnucash/reports/` holds the customized GnuCash reports (`.scm`) the balance sheet and income statement are printed with, shipped as package data; an invoice or bill is drawn by GnuCash's own Printable Invoice and has none
 - `repositories/` - thin GnuCash session and query layer
 - `tests/` - `unit/` (services / use cases / infrastructure / repositories) and `integration/` (CLI end-to-end); `research/` holds long-running scenario probes
 - `docs/` - design notes, issue tracker (`docs/issues/`), research probes, post-mortems
-- `templates/` - report templates; an invoice or bill is drawn by GnuCash's own Printable Invoice and has none
 
 ## Testing Philosophy
 
@@ -249,6 +247,8 @@ lib = ctypes.CDLL(None)   # now guaranteed to use the same instance
 Do **not** try to replace this with `Query` — a previous session confirmed it returns zero results.
 
 ### 4. `weasyprint` apt package on Ubuntu does not expose `import weasyprint`
+
+Nothing installs or imports WeasyPrint any more (Q-042): every printed page is laid out by WebKit. The finding stands for anyone who adds it back.
 
 On Debian, `apt install weasyprint` installs `python3-weasyprint` and `import weasyprint` works. On Ubuntu 22/24, the same apt package only installs the CLI wrapper — `import weasyprint` raises `ModuleNotFoundError`.
 
@@ -463,7 +463,7 @@ unavoidable, walk the *account's* splits and filter by `split.GetLot()`.
 
 **And a book holding such a split cannot be freed** (measured 2026-09-14, finding 26). Destroying its session segfaults inside `qof_book_destroy`, in `gnc_lot_remove_split`, and a save beforehand does not help. So nothing calls `xaccSplitSetLot`: `_attach_split_to_lot` uses `gnc_lot_add_split`, and `test_c_bindings_are_declared_once.py` refuses the call anywhere. `gnc_lot_add_split` has its own trap. Handed a split from another account, it attaches nothing and says nothing, so the split must be on the lot's account first; every caller puts it there or refuses.
 
-### 10. Unposting leaves the lot behind, indistinguishable from a credit lot
+### 10. Unposting leaves the lot behind, and only an emptied slot tells it from a credit lot
 
 Discovered 2026-08-06 while working out which splits a `txn_guid:` retarget may
 move.
@@ -480,10 +480,28 @@ still in the account's lot list, `gncInvoiceGetInvoiceFromLot` returns NULL, and
 the owner reads back as the invoice's customer.
 
 **Consequence**: a lot abandoned by an unpost and an owner's parked prepayment
-lot are the same thing as far as the book is concerned — live, naming nothing,
-owner-attached. No property of either tells them apart, so code that must
-distinguish them has to *record* the unpost rather than interrogate the lot
-afterwards.
+lot agree on those three facts — live, linked to no invoice, owner-attached.
+
+**One fact differs, and it says only that a lot was an invoice's.** Posting
+writes a `gncInvoice` slot on the invoice's lot. Unposting empties that slot
+and leaves it there, and the lot keeps the title posting gave it (`Invoice
+INV-001`). A lot GnuCash makes for a payment's credit has neither. Measured on
+all eleven builds, after a save and a reload, by
+`tests/research/whether_a_lot_an_unpost_leaves_differs_from_a_credit_lot_probe.py`:
+
+| lot | linked to an invoice | `qof_instance_has_slot(lot, "gncInvoice")` | title |
+|---|---|---|---|
+| a posted invoice's | yes | yes | `Invoice INV-OVER` |
+| an overpayment's credit | no | **no** | none |
+| left by `Unpost(False)` | no | **yes** | `Invoice INV-GUI` |
+
+`find-orphan-payments` reads the slot, on a transaction nothing marked, because
+without it an overpaid invoice nobody unposted was listed as an orphan whose
+invoice "was unposted", with advice to delete its payment. The slot does not
+replace a record of the unpost: it does not say which invoice the lot was, and a
+rebuild needs that to find its own settlement. So code that must tell one
+settlement from another has to *record* the unpost rather than interrogate the
+lot afterwards.
 
 The record has to be **durable**, not in-process. The book is saved with the
 orphan still in the abandoned lot, so the import that meets it may be days
@@ -575,8 +593,8 @@ the split comes back loose: in no lot, nobody's credit invented. That is what
 it is, the invoice it settled being unposted.
 
 **Books unposted by an earlier version carry no mark**, and there is no way to
-add one after the fact: an abandoned lot and a parked credit are the same three
-facts, which is the whole finding. Such an orphan therefore reads as a credit.
+add one after the fact: the lot says it was an invoice's, and not which one.
+The import therefore reads such an orphan as a credit.
 Measured what that costs: the settlement split carries no cost basis of its own
 — the cost basis sits on the invoice's posting split — so nothing is stripped and
 `fx-balances` still matches the bank. What changes is the label: the export
@@ -775,7 +793,9 @@ That is a 4.x/5.x boundary, the second this suite has measured, and it falls bet
 
 **Why it is not caught by a figure.** `cost_of` then reads that credit at 1 CAD/USD, honestly — value over amount is what a cost is. A cost of 1 is a legitimate figure, at parity or from an amount small enough to round there, so no check can refuse a 1 without refusing real books. Nothing distinguishes this from a correct par-valued credit.
 
-**What follows for the suite**: a test that needs a foreign credit spent in full gives it by guid, with `txn_guid:` and `txn_split_guid:` on a `from_credit:` payment block, so this tool carves it. `tests/fixtures/fx_invoice_spending_a_cad_paid_credit_whole.txt` says so where it is written. `auto_apply_credit: true` reaches the same state on every build from 4.4 up, and a different book on 3.8.
+**What follows for the suite**: a test that needs a foreign credit spent in full gives it by guid, with `txn_guid:` and `txn_split_guid:` on a `from_credit:` payment block, so this tool carves it. `tests/fixtures/fx_invoice_spending_a_cad_paid_credit_whole.txt` says so where it is written.
+
+**And `auto_apply_credit: true` no longer hands such a credit to the engine** (2026-09-15). Part of a credit was measured the same way on 4.13: 40.00 USD taken from a 100.00 USD credit received from a CAD bank at 1.37 left 97.00 USD of credit valued at 97.00 CAD, with no cost basis balance, and `find-prepayments` listed all 97.00, at exit 0. So a credit whose value is not its amount is spent by `_spend_the_owners_credit_valued_in_another_currency` before `AutoApplyPayments` runs, oldest first, through the division a `from_credit:` block uses: the value is divided with the amount, and what is left keeps its cost basis balance in a lot of its own. Every other credit, and a credit note, is still the engine's. `tests/integration/test_part_of_a_cad_paid_credit_applied_leaves_the_rest_at_its_cost.py` holds the 60.00 USD at its cost, and passes on all eleven builds.
 
 ### 20. A date given as epoch seconds lands in the wrong millennium on 3.4
 
@@ -853,13 +873,14 @@ must get right, both learned the hard way:
   back for the rest of the session and is gone after a reload. That is finding
   18 one object along.
 
-**And clearing goes through it too.** Writing an option empty is how the
+**Clearing does not go through it.** Writing an option empty is how the
 engine removes it, and `services/invoice_style.py` keeps a prefix on its text
-precisely so "set to nothing" stays distinguishable from "never set". On 3.4
-the engine call does nothing for a slashed name, so a clear reaches the
-fallback — which unsets its `GValue` rather than setting it to `""`, so the
-slot is removed. Otherwise a book written on Debian 10 would be the only one
-carrying empty slots.
+precisely so "set to nothing" stays distinguishable from "never set". Given
+`""`, the engine call removes the option even when its name holds a slash, on
+3.4 as on 5.10, and it stays removed after a save and a reload
+(`whether_clearing_a_book_option_with_a_slash_in_its_name_lands_on_3_4_probe.py`).
+So the read-back finds nothing, which is what was asked for, and the fallback
+is only ever handed a value.
 
 **Whatever fetches a `GValue` must `g_value_init(…, G_TYPE_STRING)` first.**
 An absent slot otherwise leaves the value holding nothing, and
@@ -910,20 +931,19 @@ Not an exception — SIGSEGV, which no Python frame can catch, and which under
 pytest ends the run rather than failing a test (finding 12's hazard, from a
 library rather than a book).
 
-`infrastructure/pdf/cairo_before_gnucash.py` loads it first, called from
-`cli/__init__.py` — which runs before any `cli.*` module — and from
-`tests/conftest.py`, since a test can reach `import gnucash` without the CLI.
-It is a no-op above Python 3.7. It lives in `cli/__init__.py` rather than
-`main.py` because as an import there, isort sorts `infrastructure` after `cli`
-and puts it back too late.
+Nothing imports WeasyPrint any more. Its one user was the income statement's
+own PDF, and `income-statement` prints GnuCash's report through WebKit now
+(Q-042), so the import-order guard that was here went with it. The finding
+stands for anything that brings a second libcairo into a process GnuCash is
+already in: load it first, from `cli/__init__.py`, which runs before any
+`cli.*` module, and from `tests/conftest.py`, since a test can reach
+`import gnucash` without the CLI.
 
-**Two pins go with it**, both in `pyproject.toml` and the Dockerfile, both
-because pip picks a version that cannot work: `weasyprint<53` below Python 3.8
-(53.0 wants a Pango symbol buster has not, and what pip picks unpinned
-segfaults on import), and `pypdf>=3.0,<4.4` below 3.8 (pypdf 5.0.0's wheel
-claims 3.7 and its `_protocols.py` imports `typing.Protocol`). Naming either
-package bare — which `scripts/test-in-docker.sh` did — bypasses the markers
-entirely; it installs `.[dev,statement]` now.
+**A pin that goes with Debian 10**, in `pyproject.toml`, because pip picks a
+version that cannot work: `pypdf>=3.0,<4.4` below Python 3.8 (pypdf 5.0.0's
+wheel claims 3.7 and its `_protocols.py` imports `typing.Protocol`). Naming
+the package bare — which `scripts/test-in-docker.sh` did — bypasses the marker
+entirely; it installs `.[dev]` now.
 
 ### 24. GnuCash 3.4 ships "Display → Payments" off, and mangles a book option under a non-UTF-8 locale
 
@@ -1046,6 +1066,39 @@ The read-only case was measured on all eleven builds, and on 4.8 and every later
 
 Regression test: `tests/integration/test_closing_a_book_closes_no_file_but_its_own.py`, twelve tests through `GnuCashRepository`.
 
+### 28. A report may return its page as a string, and a price added to a read-only book is used and never saved
+
+Discovered 2026-09-14, printing the balance sheet and income statement as plaintext through a customized GnuCash report (Q-042).
+
+**A renderer's string is the page.** `gnc:report-render-html` applies a style sheet only to a document object. `((string? doc) doc)` hands back a string a renderer returns, unchanged, with no `<html>` round it. Read in `report.scm` on 3.4 and 3.8 and in `report-core.scm` on 4.4 and 5.10. So a report can write plain text and still be registered, given options and run as GnuCash's own reports are.
+
+`infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm` holds two such reports. They take GnuCash's own Balance Sheet and Income Statement options through `gnc:report-template-options-generator`. They read an option with `gnc-optiondb-lookup-value` where the build has it (5.x) and `gnc:lookup-option` where it does not. They add collectors with `'merge` and `'minusmerge`, because `gnc:collector+` is absent from 3.4's `report-utilities.scm` and present on 3.8, 4.4 and 5.10. The option names they read are the same on 3.4 and 5.10.
+
+The file is package data of `infrastructure.gnucash`, declared in `pyproject.toml`. The suite installs the project editable, and `tests/` is a package, so pytest imports the source folder: a file the wheel leaves out passes every test that runs the command. A wheel built before the file was declared held `services/gnucash_statements.py` and not the report it loads. `tests/unit/test_every_file_in_a_shipped_package_is_shipped.py` fails on any file inside a shipped package that no `package-data` pattern matches.
+
+**A price added for the run is the report's price, and is never saved.** Take a book opened read-only. Create a price with `gnc_price_create`, and add it with `gnc_pricedb_add_price` at `gnc_dmy2time64_end` of the report date. GnuCash's Balance Sheet then uses that price at `pricedb-nearest`. It does so when the book has no price that day, when the book has a price that day from the same source, and when the book's nearest price is twelve hours after the end of the day. The book's prices read back unchanged after it is closed. Measured on 5.10 and 3.8 (`tests/research/a_rates_file_as_prices_probe.py`). `--fx-rates` and `--prices` are built on it, in `services/report_prices.py`.
+
+### 29. From GnuCash 4.13, unposting an invoice deletes a journal entry whose splits are all on receivables
+
+Discovered 2026-09-15, covering the orphan listing's walk of a transaction with no bank split.
+
+`gncInvoiceUnpost` deletes every transaction in the invoice's lot that `xaccTransGetTxnType` reads as `TXN_TYPE_LINK`. A link is what GnuCash makes to offset one record against another: one split in each record's lot, and no split off the receivables and payables (`gncOwnerCreateLotLink`). The question is what else it reads as one.
+
+Measured with a customer's credit made by a journal entry: 50.00 moved from the plain receivable onto C001, one split standing as C001's credit and the other in no lot. INV-001 spends the credit with `from_credit:`, and the invoice is unposted with `Unpost(False)` (`tests/research/what_an_unpost_does_to_a_journal_entry_an_invoice_settles_from_probe.py`):
+
+| GnuCash | the entry's type | after the unpost |
+|---|---|---|
+| 3.4, 3.8, 4.4, 4.8 | `\x00` | kept, and the credit is C001's again |
+| 4.13, 5.5, 5.10, 5.13, 5.14, 5.15, 5.16 | `L` | deleted, and C001's credit with it |
+
+From 4.13 the type is not stored but worked out from the splits: a split on a receivable or payable, in a lot with an invoice or an owner, makes the transaction a payment, and a payment with no split off the receivables and payables is a link. So any journal entry of that shape is one. `unpost-invoices` said only `unposted`. Had the two splits been on two receivables, both balances would have changed.
+
+**What follows:**
+
+- **The unpost is refused on every build**, not only where GnuCash would delete: `refuse_an_unpost_that_would_delete_a_transaction` in `use_cases/unpost_business_objects.py`, asked by `unpost-invoices`, `unpost-bills` and every import that unposts. The rule is the transaction's shape: every split on a receivable or payable, and one of them in no posted record's lot. A link GnuCash made has every split in a record's lot and is left to GnuCash. Regression test: `tests/integration/test_an_unpost_leaves_a_journal_entry_whole.py`.
+- **Stating `txn_type: P` does not help.** From 4.13 the stored type does not survive a save, and on 3.4 it does, and the entry is then listed as an orphaned bank payment of 0.00 with no account.
+- **`unlink` or `unapply-payment` first keeps the entry**, because the settling split leaves the lot. It does not give the credit back: measured on 5.10, the split is then in no lot and `find-prepayments` lists no credit for C001.
+
 ---
 
-**Last Updated**: 2026-09-14
+**Last Updated**: 2026-09-15

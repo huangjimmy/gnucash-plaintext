@@ -1,0 +1,20 @@
+# A line under a transaction that is not a block, not a split, and not a
+# `key: value`.
+#
+# What this fixture produces: nothing. No part of the format reads the line, so
+# the file is refused at line 19 before anything in it is carried out.
+#
+# Verified by tests/integration/test_a_line_nothing_reads_is_refused.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-02-01 * "Office chair"
+	currency.mnemonic: "CAD"
+	Expenses 50.00 CAD
+	paid in cash at the counter
+	Assets -50.00 CAD

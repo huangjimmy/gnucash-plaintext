@@ -1,30 +1,35 @@
-"""CLI command: run one or more named statements against a single open book.
+"""CLI command: several statements at once, printed by customized GnuCash reports against a single open book.
 
-`report <book> <statement>... [--fiscal-year-end | --start --end] [--as-of] [--fx-rates] [--output]`
+`report <book> <statement>... [--fiscal-year-end | --start --end] [--as-of] [--currency]
+[--fx-rates] [--prices] [--price-source] [--output]`
 
-You name the statements explicitly — `income-statement`, `balance-sheet` — so a
-T2 package is one invocation and one (expensive) book open, instead of N command
-runs. `report` is GnuCash's own term for these. Read-only; emits the statements
-concatenated.
+You list the statements explicitly — `income-statement`, `balance-sheet` — so a
+T2 package is one invocation and one book open, instead of one command run per
+statement. Each is printed by a customized GnuCash report, in the currency the book is kept in
+(Q-042). Read-only; writes the statements' text one after another.
 
   gnucash-plaintext report book.gnucash income-statement balance-sheet \
       --fiscal-year-end 2026-12-31
 """
 import sys
-from typing import Optional
 
 import click
 
 from cli._dates import parse_date
-from repositories.gnucash_repository import GnuCashRepository, SessionMode
-from services.balance_sheet import BalanceSheet
-from services.balance_sheet_renderer import render_text as bs_render_text
-from services.fx_rates import FxRates, MissingFxRateError
-from services.income_statement_renderer import render_text as is_render_text
-from use_cases.generate_income_statement import (
-    GenerateIncomeStatementUseCase,
-    fiscal_year_start,
+from cli._gnucash_statements import (
+    CURRENCY_HELP,
+    PRICE_SOURCE_HELP,
+    PRICES_HELP,
+    RATES_HELP,
+    add_the_files_prices,
+    read_price_files,
+    the_currency,
 )
+from cli._warnings import said_once
+from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from services.fiscal_year import fiscal_year_start
+from services.gnucash_report import PageNotRenderedError
+from services.gnucash_statements import render_balance_sheet, render_income_statement
 
 _STATEMENTS = ("income-statement", "balance-sheet")
 
@@ -38,17 +43,16 @@ _STATEMENTS = ("income-statement", "balance-sheet")
 @click.option("--end", callback=parse_date, help="Explicit period end (with --start).")
 @click.option("--as-of", "as_of", callback=parse_date,
               help="Balance-sheet date. Defaults to the period end.")
+@click.option("--currency", default=None, help=CURRENCY_HELP)
 @click.option("--fx-rates", "fx_rates_file", default=None, type=click.Path(exists=True),
-              help="YAML FX rates → CAD (for multi-currency T2 consolidation).")
+              help=RATES_HELP)
 @click.option("--prices", "prices_file", default=None, type=click.Path(exists=True),
-              help="YAML security prices, per unit in each security's own trading "
-                   "currency (same shape as --fx-rates). Marks Stock/Mutual Fund "
-                   "holdings to market on the balance sheet, with an Unrealized "
-                   "Gains line; a foreign-currency holding also needs --fx-rates.")
+              help=PRICES_HELP)
+@click.option("--price-source", default=None, help=PRICE_SOURCE_HELP)
 @click.option("--output", "output_file", default=None, type=click.Path(),
               help="Output file. Defaults to stdout.")
-def report(gnucash_file, statements, fiscal_year_end, start, end, as_of,
-           fx_rates_file, prices_file, output_file):
+def report(gnucash_file, statements, fiscal_year_end, start, end, as_of, currency,
+           fx_rates_file, prices_file, price_source, output_file):
     """Run the named statements against one open book, output combined."""
     unknown = [s for s in statements if s not in _STATEMENTS]
     if unknown:
@@ -56,7 +60,6 @@ def report(gnucash_file, statements, fiscal_year_end, start, end, as_of,
             f"unknown statement(s): {', '.join(unknown)}. "
             f"Choose from: {', '.join(_STATEMENTS)}.")
 
-    # Resolve the period (income statement) and the as-of date (balance sheet).
     if fiscal_year_end is not None and (start is not None or end is not None):
         raise click.UsageError("--fiscal-year-end cannot be combined with --start/--end.")
     if fiscal_year_end is not None:
@@ -66,49 +69,52 @@ def report(gnucash_file, statements, fiscal_year_end, start, end, as_of,
     else:
         raise click.UsageError(
             "Provide a period: --fiscal-year-end YYYY-MM-DD or --start … --end …")
+    # As `income-statement` refuses it, and for the same reason: GnuCash draws
+    # a statement over an inverted period without complaint, every figure
+    # coming out zero, so nothing after this says what is wrong with the page.
+    if period_start > period_end:
+        raise click.UsageError("--start must be on or before --end.")
     as_of_date = as_of or period_end
+    quotes = read_price_files(fx_rates_file, prices_file)
+    # The day each statement asked for is for: a price given with no date is
+    # added at the end of each.
+    report_days = [period_end if stmt == "income-statement" else as_of_date for stmt in statements]
 
-    fx: Optional[FxRates] = None
-    if fx_rates_file:
-        try:
-            fx = FxRates.load(fx_rates_file)
-        except (FileNotFoundError, ValueError) as e:
-            raise click.ClickException(str(e)) from e
-
-    prices: Optional[FxRates] = None
-    if prices_file:
-        try:
-            prices = FxRates.load(prices_file)
-        except (FileNotFoundError, ValueError) as e:
-            raise click.ClickException(str(e)) from e
+    # One sink for the run rather than one per statement. What the drawing
+    # warns about is a property of the book — a date format GnuCash has no
+    # style for, a configuration file that will not read — so the same
+    # sentence would otherwise arrive once for each statement asked for.
+    warn = said_once()
 
     repo = GnuCashRepository(gnucash_file)
     repo.open(mode=SessionMode.READ_ONLY)
     parts = []
     try:
-        root = repo.book.get_root_account()
+        report_currency = the_currency(repo.book, currency)
+        add_the_files_prices(repo.book, quotes, report_currency, report_days)
         for stmt in statements:
             if stmt == "income-statement":
-                result = GenerateIncomeStatementUseCase(repo).execute(
-                    start_date=period_start, end_date=period_end, fx_rates=fx)
-                parts.append(is_render_text(result))
+                parts.append(render_income_statement(repo.session, report_currency,
+                                                     period_start, period_end,
+                                                     price_source=price_source, warn=warn))
             # balance-sheet. The names are checked against `_STATEMENTS`
             # above, so there is no third case to fall through to.
             else:
-                parts.append(bs_render_text(
-                    BalanceSheet().compute(root, as_of_date, fx, prices)))
-    except (ValueError, MissingFxRateError) as e:
-        raise click.ClickException(str(e)) from e
+                parts.append(render_balance_sheet(repo.session, report_currency, as_of_date,
+                                                  price_source=price_source, warn=warn))
+    except PageNotRenderedError as refusal:
+        raise click.ClickException(str(refusal)) from refusal
     finally:
         repo.close()
 
-    combined = "\n\n".join(parts)
+    # Each page ends with a newline, so one more puts a blank line between them.
+    combined = "\n".join(parts)
     if output_file:
         with open(output_file, "w", encoding="utf-8") as f:   # not the locale's
             f.write(combined)
         click.echo(f"Written to {output_file}")
     else:
-        click.echo(combined)
+        click.echo(combined, nl=False)
 
 
 if __name__ == "__main__":

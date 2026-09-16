@@ -615,12 +615,12 @@ class BeancountParser:
             # number grammar — `1,234.50` is what its documentation and every
             # hand-kept ledger use — and go only between digits, so the same
             # lot label keeps its comma.
+            # Never empty here: a line that is only a comment is taken by the
+            # metadata block read after the header and after each posting,
+            # which takes comments in its stride.
             posting_line = _without_trailing_comment(posting_line)
             posting_line = re.sub(r'(?<=\d),(?=\d\d\d(?:\D|$))', '',
                                   posting_line)
-            if not posting_line:
-                i += 1
-                continue
 
             # A line at column zero is the next top-level directive, and
             # beancount does not require a blank line before one. That is a

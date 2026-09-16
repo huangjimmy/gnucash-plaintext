@@ -172,11 +172,10 @@ class ConflictResolver:
             elif strategy == ResolutionStrategy.KEEP_INCOMING:
                 # Import the incoming, will need to delete existing first
                 to_import.append(incoming)
-            elif strategy == ResolutionStrategy.SKIP:
-                # Skip both, add to unresolved
-                unresolved.append(conflict_info)
-            elif strategy == ResolutionStrategy.MANUAL:
-                # Requires manual intervention
+            else:
+                # Skip both, or leave it for a person: unresolved either way,
+                # and so is a strategy with no rule of its own here, rather
+                # than dropped from both lists.
                 unresolved.append(conflict_info)
 
         return to_import, unresolved
@@ -198,14 +197,7 @@ class ConflictResolver:
         Returns:
             Transaction to import, or None if conflict unresolved
         """
-        if strategy == ResolutionStrategy.KEEP_EXISTING:
-            return None
-        elif strategy == ResolutionStrategy.KEEP_INCOMING:
-            return incoming
-        elif strategy in (ResolutionStrategy.SKIP, ResolutionStrategy.MANUAL):
-            return None
-
-        return None
+        return incoming if strategy == ResolutionStrategy.KEEP_INCOMING else None
 
     def get_resolution_choices(self, conflict_info: ConflictInfo) -> List[Dict[str, Any]]:
         """

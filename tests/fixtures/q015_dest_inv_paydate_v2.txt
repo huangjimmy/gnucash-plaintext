@@ -1,0 +1,31 @@
+# `q015_dest_inv_paymemo_v1.txt` with its payment's date changed from
+# 2026-01-10 to 2026-01-12. A different date describes a different movement,
+# so the payment the invoice had is left orphaned and a new one is recorded.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-DEST-PMOD-125"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 125
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-DEST-PMOD-125"
+		accumulate: true
+	payment:
+		date: 2026-01-12
+		amount: 72
+		bank_account: "Assets:Bank"
+		memo: "Partial paymod-original"

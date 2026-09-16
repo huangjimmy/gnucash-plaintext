@@ -1,0 +1,57 @@
+# INV-TWO for 100.00 CAD, paid by one 100.00 deposit from Acme whose receivable
+# side is two splits, 60.00 and 40.00. The first payment block gives the 60.00
+# with `txn_split_guid:`. The second gives only the deposit's `txn_guid:`, and
+# the import takes the 40.00 as the split still in no lot.
+#
+# What this fixture produces: both splits in INV-TWO's lot. Unposted and
+# imported again with the line's description changed, the invoice is posted
+# again and both splits settle it again: the 60.00 by its guid, and the 40.00
+# as the split the unpost left marked as INV-TWO's, beside the 60.00 already
+# back in the invoice's lot.
+#
+# Load after `payment_roundtrip_accounts.txt`.
+#
+# Verified by
+# tests/integration/test_an_invoice_paid_by_two_splits_of_one_deposit_is_posted_again_whole.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+2026-01-15 * "Acme pays INV-TWO in two"
+	guid: "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+	Assets:Bank 100.00 CAD
+	Assets:Accounts Receivable -60.00 CAD
+		guid: "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"
+	Assets:Accounts Receivable -40.00 CAD
+		guid: "e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3"
+
+invoice "INV-TWO"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-TWO"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 60
+		bank_account: "Assets:Bank"
+		txn_guid: "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+		txn_split_guid: "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"
+	payment:
+		date: 2026-01-15
+		amount: 40
+		bank_account: "Assets:Bank"
+		txn_guid: "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"

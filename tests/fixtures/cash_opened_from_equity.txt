@@ -1,0 +1,22 @@
+# 10.00 CAD of cash opened from equity.
+#
+# What this fixture produces: three accounts and one transaction. The test that
+# uses it adds an account with no commodity, as a book from another tool can
+# hold one, and moves the cash account under it.
+#
+# Verified by tests/integration/test_an_account_with_no_commodity_is_left_out_of_the_export.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Cash
+	type: Cash
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity
+	type: Equity
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-02 * "Opening cash"
+	Assets:Cash 10.00 CAD
+	Equity -10.00 CAD

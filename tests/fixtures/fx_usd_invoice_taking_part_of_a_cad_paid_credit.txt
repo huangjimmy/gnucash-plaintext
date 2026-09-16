@@ -1,0 +1,29 @@
+# A 40.00 USD invoice for C-US, asking for whatever credit the customer has.
+#
+# Imported after `fx_invoice_usd_overpaid_into_cad_bank.txt`, the credit it
+# finds is the 100.00 USD INV-USD-OVERCAD's overpayment left, received from a
+# CAD bank at 1.37, so its split is valued at 137.00 CAD. The invoice takes
+# 40.00 of it, and 60.00 USD stays the customer's, still valued at 1.37.
+#
+# Verified by
+# tests/integration/test_part_of_a_cad_paid_credit_applied_leaves_the_rest_at_its_cost.py.
+invoice "INV-USD-SMALL"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	auto_apply_credit: true
+	entry:
+		date: 2026-03-01
+		description: "Small job"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 40
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-SMALL"
+		accumulate: true

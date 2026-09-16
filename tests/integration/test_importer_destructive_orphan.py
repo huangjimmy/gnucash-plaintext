@@ -236,9 +236,10 @@ def test_reimport_posted_none_on_paid_invoice_warns(tmp_path):
     _assert_orphan_warning(r.output, original_payment_guid)
 
 
-def test_reimport_payment_field_modified_on_paid_invoice_warns(tmp_path):
-    """INV-DEST-PMOD-125: changing a payment memo triggers destructive
-    rebuild and an orphan warning."""
+def test_reimport_payment_date_modified_on_paid_invoice_warns(tmp_path):
+    """INV-DEST-PMOD-125: a payment block with its date changed describes
+    another movement. The rebuild records that one, and the payment the
+    invoice had is left orphaned, which the import warns about."""
     runner = CliRunner()
     gf = _setup_book(runner, tmp_path)
 
@@ -246,9 +247,28 @@ def test_reimport_payment_field_modified_on_paid_invoice_warns(tmp_path):
     assert r.exit_code == 0
     original_payment_guid = next(iter(_bank_tx_guids(gf)))
 
-    r = _import(runner, gf, 'q015_dest_inv_paymemo_v2.txt', tmp_path, alias='v2.txt')
-    assert r.exit_code == 0
+    r = _import(runner, gf, 'q015_dest_inv_paydate_v2.txt', tmp_path, alias='v2.txt')
+    assert r.exit_code == 0, r.output
     _assert_orphan_warning(r.output, original_payment_guid)
+
+
+def test_reimport_payment_memo_modified_on_paid_invoice_does_not_warn(tmp_path):
+    """INV-DEST-PMOD-125: a payment block with only its memo changed is the
+    payment the invoice had. The rebuild puts that payment back with the new
+    memo, so nothing is orphaned, and the import warns of nothing. It used to
+    warn at the unpost, before the payment was put back."""
+    runner = CliRunner()
+    gf = _setup_book(runner, tmp_path)
+
+    r = _import(runner, gf, 'q015_dest_inv_paymemo_v1.txt', tmp_path, alias='v1.txt')
+    assert r.exit_code == 0
+    original_payment_guids = _bank_tx_guids(gf)
+
+    r = _import(runner, gf, 'q015_dest_inv_paymemo_v2.txt', tmp_path, alias='v2.txt')
+    assert r.exit_code == 0, r.output
+    assert 'orphan' not in r.output.lower(), r.output
+    assert _bank_tx_guids(gf) == original_payment_guids
+    assert _orphan_count(runner, gf) == 0
 
 
 def test_reimport_payment_removed_on_paid_invoice_warns(tmp_path):

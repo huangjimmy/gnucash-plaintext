@@ -5,10 +5,12 @@ Provides high-level interface for working with GnuCash files.
 Manages sessions, transactions, accounts, and file operations.
 """
 
+import gzip
 import os
 import re
 import shutil
 import tempfile
+import zlib
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
@@ -51,6 +53,18 @@ _NO_DIRECTORY_FOR_THE_BOOK = (
     'The directory the new book would go in does not exist. Create it first, '
     'or give a path in a directory that does.')
 
+_NOT_A_BOOK = (
+    'That is not a GnuCash book this tool can read. It reads the XML '
+    'file GnuCash writes by default; a directory, a plaintext ledger '
+    'or a book kept in a database is not one.')
+
+_CUT_SHORT = (
+    'The book ends partway through: the file stops before the end GnuCash '
+    'writes, which is what a copy or a save that did not finish leaves. It is '
+    'not read, because what is there is not the whole book. GnuCash keeps a '
+    'copy from before each save beside the book, named like '
+    '`book.gnucash.20260914120000.gnucash`.')
+
 
 def _what_gnucash_meant(error: Exception, creating: bool = False) -> str:
     """A backend refusal, as the sentence that says which state the book is in."""
@@ -69,11 +83,55 @@ def _what_gnucash_meant(error: Exception, creating: bool = False) -> str:
             'writable, or give yourself write access to the directory it is '
             'in.')
     if 'ERR_BACKEND_NO_HANDLER' in text:
-        return (
-            'That is not a GnuCash book this tool can read. It reads the XML '
-            'file GnuCash writes by default; a directory, a plaintext ledger '
-            'or a book kept in a database is not one.')
+        return _NOT_A_BOOK
     return f'GnuCash could not open the book: {text}'
+
+
+def _why_the_file_is_not_a_whole_book(path: str) -> Optional[str]:
+    """The sentence refusing a file GnuCash would read as a book holding nothing, or None.
+
+    From GnuCash 4.4 on, a file of no bytes, an XML file in GnuCash's old `<gnc>`
+    format and a book cut short all open with no error, as a book with no
+    accounts, and the session records nothing: `get_error()` answers 0. GnuCash
+    3.4 and 3.8 refuse all three
+    (`tests/research/what_gnucash_says_to_an_empty_file_or_a_book_cut_short_probe.py`,
+    `whether_a_session_records_a_book_it_could_not_parse_probe.py`). Read as
+    empty, `export` wrote a ledger holding nothing and said it had exported it.
+
+    A book GnuCash writes is XML whose root is `gnc-v2`, and it ends with
+    `</gnc-v2>` — followed by blank lines on 5.10 and by three comment lines on
+    3.4 — compressed or not. Anything that is not XML at all, a plaintext
+    ledger or a directory, is left to GnuCash, whose refusal is translated
+    above.
+    """
+    if not os.path.isfile(path):
+        return None
+    size = os.path.getsize(path)
+    if size == 0:
+        return _NOT_A_BOOK
+    with open(path, 'rb') as raw:
+        head = raw.read(1024)
+        raw.seek(max(0, size - 1024))
+        tail = raw.read()
+    compressed = head[:2] == b'\x1f\x8b'
+    if compressed:
+        head = b''
+        try:
+            with gzip.open(path, 'rb') as stream:
+                for chunk in iter(lambda: stream.read(1 << 20), b''):
+                    head = head if len(head) >= 1024 else (head + chunk)[:1024]
+                    tail = (tail + chunk)[-1024:]
+        except EOFError:
+            return _CUT_SHORT
+        except (OSError, zlib.error):
+            return _NOT_A_BOOK
+    if not head.lstrip().startswith(b'<?xml'):
+        return None
+    if b'<gnc-v2' not in head:
+        return _NOT_A_BOOK
+    if b'</gnc-v2>' not in tail:
+        return _CUT_SHORT
+    return None
 
 
 @lru_cache(maxsize=1)
@@ -115,6 +173,10 @@ class GnuCashRepository:
         # The directory holding the copy a book to read was opened from, on a
         # GnuCash where `_a_session_without_its_lock_closes_another_file`.
         self._private_copy = None
+        # Whether the book was opened to read. Asked by `save`, which a
+        # read-only session on GnuCash 4.8 and later carries out without
+        # complaint where the private copy on 3.4 refused it.
+        self._read_only = False
 
     def open(self, mode: str = SessionMode.NORMAL):
         """
@@ -125,6 +187,7 @@ class GnuCashRepository:
         """
         if self.session is not None:
             raise RuntimeError("Session already open")
+        self._read_only = mode == SessionMode.READ_ONLY
 
         uri = f"xml://{self.file_path}"
 
@@ -137,6 +200,10 @@ class GnuCashRepository:
         # the book itself gets no lock, as a read-only open gives it none, and
         # nothing is saved from the copy.
         creating = mode == SessionMode.NEW
+        if not creating:
+            refusal = _why_the_file_is_not_a_whole_book(self.file_path)
+            if refusal is not None:
+                raise BookUnavailableError(refusal)
         if _a_session_without_its_lock_closes_another_file():
             if creating:
                 if os.path.lexists(self.file_path):
@@ -156,6 +223,10 @@ class GnuCashRepository:
         # wrap this call and print `str(e)`, some do not wrap it at all, and
         # the reader met either the backend's own `ERR_BACKEND_LOCKED` or a
         # traceback, depending on which command they had run.
+        #
+        # Whatever stops the open, the copy goes with it: a caller whose
+        # `open()` raised has no session to close.
+        opened = False
         try:
             try:
                 from gnucash import SessionOpenMode
@@ -176,26 +247,49 @@ class GnuCashRepository:
                     self.session = Session(uri, is_new=True)
                 else:
                     self.session = Session(uri)
+            opened = True
         except GnuCashBackendException as e:
-            self._discard_the_private_copy()
             raise BookUnavailableError(_what_gnucash_meant(e, creating)) from e
-        except BaseException:
-            # Whatever else stops the open, the copy goes with it: a caller
-            # whose `open()` raised has no session to close.
-            self._discard_the_private_copy()
-            raise
+        finally:
+            if not opened:
+                self._discard_the_private_copy()
 
         self._book = self.session.book
 
     def _a_private_copy(self) -> str:
-        """The book copied into a directory of its own, as the URI to open it by."""
-        directory = tempfile.mkdtemp(prefix='gnucash-read-only-')
+        """The book copied into a directory of its own, as the URI to open it by.
+
+        The directory is recorded as this repository's only once the copy is
+        in it. `open` discards the copy in a `finally` that begins *after*
+        this call, so a copy that fails partway — a full filesystem is the
+        way — would otherwise leave a `gnucash-read-only-` directory behind
+        with nothing left holding a reference to it.
+        """
+        try:
+            directory = tempfile.mkdtemp(prefix='gnucash-read-only-')
+        except OSError as trouble:
+            # Below GnuCash 4.8 every book read goes through a copy, so a
+            # temporary directory that cannot be written stops an ordinary
+            # `export`. Said as a sentence, like every other reason a book
+            # will not open; raw it was an `OSError` traceback, since
+            # `cli.main._Cli.invoke` translates four exception types and this
+            # is none of them.
+            raise BookUnavailableError(
+                f'The book has to be copied to be read on this GnuCash, and the '
+                f'copy could not be made: {trouble}. Set TMPDIR to a directory '
+                f'with room in it, or read the book with a newer GnuCash.'
+            ) from trouble
+        # The book was read whole a moment ago, by the check `open` makes
+        # before anything else, so copying it meets nothing that read did not.
         copy = os.path.join(directory, os.path.basename(self.file_path))
         try:
             shutil.copyfile(self.file_path, copy)
-        except OSError as error:
+        except BaseException:  # pragma: no cover - a disk that fills between two calls
+            # The directory is this repository's only once the copy is in it,
+            # so `open`'s own `finally` cannot discard one left by a copy that
+            # failed — nothing would be holding it.
             shutil.rmtree(directory, ignore_errors=True)
-            raise BookUnavailableError(f'GnuCash could not open the book: {error}') from error
+            raise
         self._private_copy = directory
         return f'xml://{copy}'
 
@@ -232,7 +326,7 @@ class GnuCashRepository:
         """Save changes to GnuCash file."""
         if self.session is None:
             raise RuntimeError("No session open")
-        if self._private_copy is not None:
+        if self._read_only:
             raise RuntimeError("The book was opened read-only, so nothing is saved to it")
         self.session.save()
 
@@ -379,10 +473,16 @@ class GnuCashRepository:
         Returns:
             List of Transaction objects
         """
+        # By guid, not by `in`: two wrappers of one transaction compare unequal
+        # on GnuCash 3.4, so a transaction with two splits on the account was
+        # listed twice there and once on 5.10.
         transactions = []
+        listed = set()
         for split in account.GetSplitList():
             tx = split.GetParent()
-            if tx not in transactions:
+            guid = tx.GetGUID().to_string()
+            if guid not in listed:
+                listed.add(guid)
                 transactions.append(tx)
 
         return transactions

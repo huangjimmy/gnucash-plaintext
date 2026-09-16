@@ -1,0 +1,12 @@
+# Vendor V001, Supplier, active.
+#
+# Read into a book, and then again with `active: false`, which the test writes
+# in: the vendor the book holds is active, and the file now says it is not.
+#
+# What this fixture produces: vendor V001, active.
+#
+# Verified by tests/integration/test_a_record_read_again_with_a_field_changed_is_updated.py.
+vendor "V001"
+	name: "Supplier"
+	currency: CAD
+	active: true

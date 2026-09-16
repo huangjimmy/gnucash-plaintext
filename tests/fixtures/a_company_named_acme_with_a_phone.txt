@@ -1,0 +1,5 @@
+# A book's company, with a name and a phone number. What this fixture
+# produces: the Company Name and Company Phone Number Business options.
+company
+	name: "Acme Ltd"
+	phone: "555-0100"

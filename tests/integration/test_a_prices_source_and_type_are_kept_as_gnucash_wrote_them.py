@@ -9,6 +9,7 @@ none leaves GnuCash's default, `invalid`. A source GnuCash does not define is
 refused, because GnuCash would silently store it as `invalid` (Q-041, table 5).
 """
 
+import re
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -76,6 +77,27 @@ class TestTheLedgerImportedIntoAFreshBook:
 
         assert result.exit_code == 0, result.output
         assert prices_in(fresh) == prices_in(book)
+
+
+class TestAPriceGivenAnotherSourceAndType:
+    FIXTURE = 'a_price_given_another_source_and_type.txt'
+
+    def test_both_are_updated_and_nothing_else_moves(self, tmp_path):
+        book, ledger = _exported(tmp_path)
+        before = next(p for p in prices_in(book) if p.commodity == 'CURRENCY:USD')
+        edit = tmp_path / 'edit.txt'
+        edit.write_text((FIXTURES / self.FIXTURE).read_text()
+                        .replace('{guid}', _block(ledger, 'USD')['guid']))
+
+        result = _run(CliRunner(), 'import', str(book), str(edit))
+
+        assert result.exit_code == 0, result.output
+        assert re.search(r'Prices:\s+0 created, 1 updated, 0 unchanged, 0 refused',
+                         result.output), result.output
+        after = next(p for p in prices_in(book) if p.commodity == 'CURRENCY:USD')
+        assert (after.source, after.type) == ('user:price-editor', 'bid')
+        assert (after.currency, after.time, after.value) == (
+            before.currency, before.time, before.value)
 
 
 class TestAPriceWithNoSourceAndNoType:

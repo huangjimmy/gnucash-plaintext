@@ -1,0 +1,21 @@
+# A residual asked for on an account the book does not hold.
+#
+# 100 USD that cost 135.00 CAD, sold for 139.00 CAD, with the 4.00 CAD
+# between them written to `Income:No Such Gain`. No account by that name was
+# opened, so there is nowhere to book the residual.
+#
+# What this fixture produces: nothing. The import refuses the transaction.
+#
+# Verified by tests/integration/test_residual_split.py.
+2026-03-01 * "Sell 100 USD to an account nobody opened"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.35"
+		value: "-135.00"
+	Assets:Bank 139.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "139.00"
+	Income:No Such Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

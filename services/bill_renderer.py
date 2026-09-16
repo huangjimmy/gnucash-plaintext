@@ -125,9 +125,8 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
     is_credit_note = 1 if bill.GetIsCreditNote() else 0
 
     bill_id = bill.GetID()
+    # A vendor always: `print-bill` hands over only the book's vendor bills.
     vendor = bill.GetOwner().GetVendor()
-    if vendor is None:
-        raise ValueError(f'bill {bill_id!r} has no vendor owner')
 
     posting_txn = bill.GetPostedTxn()
     is_draft = posting_txn is None
@@ -148,8 +147,7 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
             seen_tt[int(tt_ptr)] = tt_ptr
 
     subtotal, tax_total, total = record_totals(lib, bill)
-    entries_data = entries_fitted_to_the_page(entries_data, tax_total,
-                                              unit, subtotal)
+    entries_data = entries_fitted_to_the_page(entries_data, unit)
 
     blocks = []
     for tt_ptr in seen_tt.values():
@@ -201,9 +199,8 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         tt_ptr = lib.gncEntryGetBillTaxTable(ent_ptr)
         if tt_ptr:
             tt_name = safe_ctypes_string(lib.gncTaxTableGetName, tt_ptr)
-            if tt_name:
-                bill_lines.append(
-                    f'\t\ttax_table: {encode_value_as_string(tt_name)}')
+            bill_lines.append(
+                f'\t\ttax_table: {encode_value_as_string(tt_name)}')
 
         # Written from the same place `export` writes them, this page
         # being re-importable: a field dropped here is a field the re-import
@@ -227,34 +224,34 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         ap_name = get_account_full_name(bill.GetPostedAcc())
         bill_lines += posted_block_lines(bill, 'ap_account', ap_name)
 
+        # A posted bill always has its lot: posting makes the two together.
         lot = bill.GetPostedLot()
         had_payment = False
-        if lot is not None:
-            # One block per payment, the same answer the export and
-            # `print-invoice` read. Left looping the lot's splits, a bill
-            # settled by one two-split transaction printed two `payment:`
-            # blocks — the bill having been paid twice, which is a different
-            # fact about the vendor — while the same book's `export` wrote one.
-            for txn, sharing in settlements_by_transaction(lot):
-                s = sharing[0]
-                # Where the money came from. `the_payment_account_on` holds
-                # the rule, and the export and the printed invoice ask it too:
-                # taking the first split that is not on the payable was the
-                # money only while the transaction carried nothing else, and a
-                # bill part paid keeps another supplier's cost.
-                bank_name = the_payment_account_on(txn, kind_of(bill), s)
-                # As the invoice renderer reads it: off the split the import
-                # writes it to.
-                pay_memo = payment_memo_of(txn, s)
-                # As the invoice renderer does: the amount is the block
-                # writer's to work out, from `s` — this bill's own allocation,
-                # not the bank-side total.
-                bill_lines += payment_block_lines(
-                    txn, s, bank_name, pay_memo,
-                    f'bill "{bill.GetID()}"', txn.GetNum() or '',
-                    also_settling=sharing[1:])
+        # One block per payment, the same answer the export and
+        # `print-invoice` read. Left looping the lot's splits, a bill
+        # settled by one two-split transaction printed two `payment:`
+        # blocks — the bill having been paid twice, which is a different
+        # fact about the vendor — while the same book's `export` wrote one.
+        for txn, sharing in settlements_by_transaction(lot):
+            s = sharing[0]
+            # Where the money came from. `the_payment_account_on` holds
+            # the rule, and the export and the printed invoice ask it too:
+            # taking the first split that is not on the payable was the
+            # money only while the transaction carried nothing else, and a
+            # bill part paid keeps another supplier's cost.
+            bank_name = the_payment_account_on(txn, kind_of(bill), s)
+            # As the invoice renderer reads it: off the split the import
+            # writes it to.
+            pay_memo = payment_memo_of(txn, s)
+            # As the invoice renderer does: the amount is the block
+            # writer's to work out, from `s` — this bill's own allocation,
+            # not the bank-side total.
+            bill_lines += payment_block_lines(
+                txn, s, bank_name, pay_memo,
+                f'bill "{bill.GetID()}"', txn.GetNum() or '',
+                also_settling=sharing[1:])
 
-                had_payment = True
+            had_payment = True
         if not had_payment:
             bill_lines.append('\tpayment: none')
 

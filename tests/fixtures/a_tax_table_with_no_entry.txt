@@ -1,0 +1,17 @@
+# A tax table declared with a name and no `entry:` block.
+#
+# What this fixture produces: nothing. A tax table is its entries, the rate and
+# the account each line's tax goes to, so one with none has nothing to charge.
+# GnuCash's own tax table dialog will not save one without a first entry.
+#
+# Verified by tests/integration/test_a_tax_table_block_is_read_whole.py.
+2026-01-01 open Liabilities
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:GST
+	type: Liability
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+taxtable "GST"

@@ -4,9 +4,12 @@
 #
 # Flow:
 #   1. Run lint on staged Python files (skipped when none are staged)
-#   2. Run tests via test-all-versions-parallel.sh — skipped for documentation-only
-#      commits (only *.md / docs/ staged), since docs cannot affect the test suite
-#   3. If lint OR tests failed → block immediately (no AI review = no wasted tokens)
+#   2. Run tests via test-all-versions-parallel.sh with coverage on — skipped for
+#      documentation-only commits (only *.md / docs/ staged), since docs cannot
+#      affect the test suite
+#   2b. Gate the eleven runs added together at 100% line and branch coverage
+#   3. If lint, tests OR coverage failed → block immediately (no AI review = no
+#      wasted tokens)
 #   4. AI review runs always (including docs-only commits) → block on concerns
 #
 
@@ -15,8 +18,10 @@ echo ""
 
 LINT_FAILED=0
 TEST_FAILED=0
+COVERAGE_FAILED=0
 LINT_OUTPUT=""
 TEST_OUTPUT=""
+COVERAGE_OUTPUT=""
 
 # Check if Docker is available
 if ! command -v docker > /dev/null 2>&1; then
@@ -54,19 +59,45 @@ else
         echo "⚠️  Documentation-only change - skipping tests (AI review still runs)"
         echo ""
     else
-        echo "2. Running tests (all versions)..."
-        if ! TEST_OUTPUT=$(./scripts/test-all-versions-parallel.sh 2>&1); then
+        echo "2. Running tests (all versions, with coverage)..."
+        # With coverage on, so the same eleven runs answer the second question
+        # below without being run twice. Each container writes
+        # `.coverage-data/.coverage.<tag>` under a name of its own.
+        #
+        # The directory is emptied first because what is in it outlives a run:
+        # data from a tree that has since changed reports a figure for code that
+        # no longer exists, and a `.partial-sweep` file left by a failed
+        # ./scripts/coverage.sh would make the gate below refuse to give a
+        # verdict at all.
+        rm -rf .coverage-data
+        if ! TEST_OUTPUT=$(GNC_COVERAGE=1 GNC_COVERAGE_DIR="$(pwd)/.coverage-data" \
+                           ./scripts/test-all-versions-parallel.sh 2>&1); then
             TEST_FAILED=1
             echo "❌ Tests failed"
             echo ""
         else
             echo "✓ Tests passed"
             echo ""
+
+            # Every line and branch the eleven runs reached, added up. A commit
+            # that adds a line no supported version executes is blocked here,
+            # the way a lint failure is: either a test reaches it, or it cannot
+            # be reached and the line is the defect.
+            echo "2b. Combining coverage (all versions)..."
+            if ! COVERAGE_OUTPUT=$(./scripts/coverage.sh --report-only --threshold 100 2>&1); then
+                COVERAGE_FAILED=1
+                echo "❌ Coverage is short of 100% on the union"
+                echo ""
+            else
+                echo "✓ Coverage is at 100% on the union"
+                echo ""
+            fi
         fi
     fi
 
-    # 3. Block immediately if lint or tests failed — skip AI review to save tokens
-    if [ $LINT_FAILED -eq 1 ] || [ $TEST_FAILED -eq 1 ]; then
+    # 3. Block immediately if lint, tests or coverage failed — skip AI review to
+    #    save tokens
+    if [ $LINT_FAILED -eq 1 ] || [ $TEST_FAILED -eq 1 ] || [ $COVERAGE_FAILED -eq 1 ]; then
         if [ $LINT_FAILED -eq 1 ]; then
             echo "Linting errors:"
             echo "$LINT_OUTPUT"
@@ -79,7 +110,13 @@ else
             echo "$TEST_OUTPUT" | tail -50
             echo ""
         fi
-        echo "❌ Commit blocked: fix lint/test failures before committing."
+        if [ $COVERAGE_FAILED -eq 1 ]; then
+            # Whole, not tailed: what this prints is the list of missed lines
+            # and branches, file by file, and the verdict is the last of it.
+            echo "$COVERAGE_OUTPUT"
+            echo ""
+        fi
+        echo "❌ Commit blocked: fix lint/test/coverage failures before committing."
         exit 1
     fi
 fi

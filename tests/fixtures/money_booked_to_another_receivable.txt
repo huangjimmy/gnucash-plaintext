@@ -1,0 +1,30 @@
+# 100.00 USD arrives in the USD bank, booked against a CAD receivable.
+#
+# On the book fx_usd_invoice_cad_income.txt builds, INV-USD-001 posts to
+# `Assets:Accounts Receivable USD`. This money was booked to a second
+# receivable, kept in CAD, which that invoice does not post to. The split
+# there is in no lot.
+#
+# What this fixture produces: the CAD receivable, and one CAD-quoted
+# transaction whose other side is on it.
+#
+# Verified by
+# tests/integration/test_linking_a_split_not_on_the_receivable.py.
+2026-01-01 open Assets:Accounts Receivable CAD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-25 * "Money in against another receivable"
+	guid: "d0a1b2c3d4e5f60718293a4b5c6d7e8f"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		guid: "e1b2c3d4e5f60718293a4b5c6d7e8f90"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.39"
+		value: "139.00"
+	Assets:Accounts Receivable CAD -139.00 CAD
+		guid: "f2c3d4e5f60718293a4b5c6d7e8f90a1"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-139.00"

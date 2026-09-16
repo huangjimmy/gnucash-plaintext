@@ -11,7 +11,6 @@ dependencies = [
     "beautifulsoup4>=4.9",  # Future QFX parsing alternative
     "lxml>=4.6",            # XML parsing
     "pyyaml>=5.4",          # Configuration file support
-    "jinja2>=3.0",          # HTML template rendering for income statement
     "typing_extensions>=4.0; python_version<'3.11'",  # NotRequired, TypedDict backport
 ]
 
@@ -24,22 +23,6 @@ invoice = [
     # there is no display. `pip` can install none of that.
     "lxml>=4.6",
 ]
-statement = [
-    # `income-statement` lays its own page out, that page being this
-    # project's rather than GnuCash's, and WeasyPrint is what lays it out.
-    # Named apart from `invoice` because installing it does nothing for a
-    # printed invoice or bill, which was misleading while the two shared an
-    # extra.
-    #
-    # Capped below Python 3.8, which is Debian 10's, because WeasyPrint needs
-    # a Pango newer than that release carries. 53.0 raises on a missing
-    # `pango_context_set_round_glyph_positions`, and what pip picks unpinned
-    # is worse: it **segfaults** inside `_check_font_configuration` while
-    # being imported, which takes the whole test run with it rather than
-    # failing anything. 52.5 renders there — measured on Debian 10.
-    "weasyprint; python_version>='3.8'",
-    "weasyprint<53; python_version<'3.8'",
-]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=3.0",
@@ -51,6 +34,13 @@ dev = [
     # actually loads there — measured on Debian 10.
     "pypdf>=3.0; python_version>='3.8'",
     "pypdf>=3.0,<4.4; python_version<'3.8'",
+    # Reads this file back, in the test that every file inside a shipped
+    # package is matched by `package-data` — which is what keeps the report
+    # `.scm` in the wheel. `tomllib` is the standard library from 3.11; below
+    # that the test reads `tomli`, which was present on eight of the eleven
+    # builds only because pytest depends on it there. Declared here so the
+    # guard stands on its own rather than on another package's requirements.
+    "tomli; python_version<'3.11'",
 ]
 
 [project.scripts]
@@ -71,6 +61,10 @@ packages = [
 
 [tool.setuptools.package-data]
 "*" = ["*.yaml", "*.yml", "*.html"]
+# The customized GnuCash reports the balance sheet and income statement are
+# printed with. `tests/unit/test_every_file_in_a_shipped_package_is_shipped.py`
+# fails on a file inside a shipped package that no pattern here matches.
+"infrastructure.gnucash" = ["reports/*.scm"]
 
 [build-system]
 requires = ["setuptools>=45", "wheel"]
@@ -148,9 +142,9 @@ line-length = 100
 # Debian 10 build is what catches that.
 #
 # It also stops ruff *making* the tree 3.8-only. At `py38` its unsafe fixes
-# read `if sys.version_info >= (3, 8)` as always true and rewrote the guard in
-# `infrastructure/pdf/cairo_before_gnucash.py` into an unconditional `return
-# False`, which quietly undid the fix for the WeasyPrint segfault.
+# read `if sys.version_info >= (3, 8)` as always true and rewrite the guard
+# into an unconditional branch, which once quietly undid a fix that only
+# Debian 10 needed.
 target-version = "py37"  # Minimum supported version (Debian 10)
 
 # Exclude files/directories

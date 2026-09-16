@@ -29,15 +29,18 @@ class ValidateLedgerUseCase:
     def execute(
         self,
         check_duplicates: bool = True,
-        check_date_order: bool = True,
         check_future_dates: bool = True
     ) -> ValidationResult:
         """
         Validate entire ledger.
 
+        No date-order check: the book lists its transactions in date order
+        however they were entered
+        (tests/research/whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py),
+        so there is no order for one to find wrong.
+
         Args:
             check_duplicates: Whether to check for duplicate transactions
-            check_date_order: Whether to check transaction date order
             check_future_dates: Whether to check for future dates
 
         Returns:
@@ -58,12 +61,6 @@ class ValidateLedgerUseCase:
                     f"Found {dup_count} duplicate transaction(s)",
                     {'count': dup_count}
                 )
-
-        if check_date_order:
-            order_result = self.validator.check_transaction_date_order(transactions)
-            result.errors.extend(order_result.errors)
-            result.warnings.extend(order_result.warnings)
-            result.info.extend(order_result.info)
 
         if check_future_dates:
             future_result = self.validator.check_future_transactions(transactions)
@@ -119,7 +116,6 @@ class ValidateLedgerUseCase:
         """
         result = self.execute(
             check_duplicates=True,
-            check_date_order=False,
             check_future_dates=False
         )
         return result.is_valid()

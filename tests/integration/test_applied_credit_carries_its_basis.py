@@ -424,6 +424,39 @@ def test_a_balance_that_will_not_parse_survives_a_division_as_it_reads(tmp_path)
     assert "reads '20,00', which is not a number" in checked.output, checked.output
 
 
+def test_a_balance_that_will_not_parse_survives_the_engines_division_as_it_reads(tmp_path):
+    """The same, where GnuCash divides the credit rather than this tool.
+
+    `auto_apply_credit: true` hands the credit to GnuCash, which reduces it to
+    the 40.00 applied and carves the 60.00 left into a new split. The remainder
+    takes the credit's cost basis keys, and a balance that will not parse is
+    one of them: it goes across as it reads, as it does when this tool divides
+    the credit, so `--verify-costs` still reports the text.
+    """
+    runner = CliRunner()
+    book = _overpaid_book(runner, tmp_path)
+    _edit_the_credits_basis(
+        book, lambda md: {**md, 'cost_basis_balance': '20,00'})
+
+    second = tmp_path / 'second.txt'
+    second.write_text(SECOND_INVOICE)
+    result = runner.invoke(cli, ['import', str(book), str(second),
+                                 '--include-business-objects', '--fx-rates', RATES])
+    assert result.exit_code == 0, result.output
+
+    exported = tmp_path / 'out.txt'
+    assert runner.invoke(cli, ['export', str(book), str(exported),
+                               '--include-business-objects']).exit_code == 0
+    text = exported.read_text()
+    remainder = text.split('Assets:Accounts Receivable USD -60.00 USD')[1]
+    remainder = remainder.split('\n\tAssets')[0].split('\n\tIncome')[0]
+    assert 'cost_basis_balance: "20,00"' in remainder, remainder
+
+    checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
+    assert checked.exit_code == 1, checked.output
+    assert "'20,00'   (does not parse)" in checked.output, checked.output
+
+
 def test_dividing_a_credit_with_no_recorded_balance_records_none(tmp_path):
     """No balance was ever written for it, so a division writes none either.
 
