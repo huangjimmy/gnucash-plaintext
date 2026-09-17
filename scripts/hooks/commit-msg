@@ -1,6 +1,12 @@
 #!/bin/bash
 #
-# commit-msg hook: refuse a hard-wrapped commit message.
+# commit-msg hook: refuse an attribution line, and a hard-wrapped message.
+#
+# CLAUDE.md says no attribution lines, and an agent working here is told otherwise by the tool running it, which appends a `Co-Authored-By:` trailer and a session URL to commits. That instruction arrives with each run and is written nowhere a reader of this repo can see, so the rule is enforced here rather than trusted. The switch on the tool's side is the `attribution` object in Claude Code settings, which stops the line being offered at all; this is the floor under it.
+#
+# What it refuses is Claude's own marks and nothing else: a `Co-Authored-By:` line giving an anthropic.com address, a `Claude-Session:` trailer, either Claude URL, and the "Generated with Claude Code" footer. A person's trailer carries none of these and passes, which matters because three commits on `main` already have one, written by GitHub's squash-merge dialog. The trailer rules are anchored at the start of a line, so prose that mentions one passes; the URLs and the footer are matched anywhere.
+#
+# A diff is skipped from its own `diff --git` header down, because `git commit -v` puts one below the message and this repo's diff carries the lines this check refuses.
 #
 # A paragraph in this project's commit messages is one line, and this file is written the way it asks messages to be written.
 #
@@ -11,10 +17,44 @@
 # "Long" is the one number here, and it is a floor rather than a width: a line under it is short enough to be a deliberate line of its own — a label, a short sentence — and is never reported, whatever follows it.
 #
 # The subject is exempt: it is one line by definition and is meant to be short.
+#
+# A carriage return is taken off every line first. An editor set to save CRLF leaves them in the file the hook is handed, and a blank line arriving as "\r" would read as text rather than as the end of a paragraph.
 
 MESSAGE_FILE="$1"
 
+ATTRIBUTION=$(awk '
+  { sub(/\r$/, "") }
+  /^diff --git / { exit }
+  {
+    text = $0
+    # Plain classes rather than [[:space:]], which mawk 1.3.3 on Debian 10 reads as the literal characters.
+    sub(/^[ \t]+/, "", text)
+    sub(/^#+[ \t]*/, "", text)
+    sub(/^[ \t]+/, "", text)
+    folded = tolower(text)
+
+    if (folded ~ /^co-authored-by:/ && index(folded, "anthropic.com") > 0) { printf "  line %d: %s\n", NR, $0; next }
+    if (folded ~ /^claude-session:/)                                      { printf "  line %d: %s\n", NR, $0; next }
+    if (index(folded, "claude.ai/code") > 0)                              { printf "  line %d: %s\n", NR, $0; next }
+    if (index(folded, "claude.com/claude-code") > 0)                      { printf "  line %d: %s\n", NR, $0; next }
+    if (index(folded, "generated with [claude code]") > 0)                { printf "  line %d: %s\n", NR, $0; next }
+    if (index(folded, "generated with claude code") > 0)                  { printf "  line %d: %s\n", NR, $0; next }
+  }
+' "$MESSAGE_FILE")
+
+if [ -n "$ATTRIBUTION" ]; then
+    echo "❌ Commit blocked: the message carries an attribution line."
+    echo ""
+    echo "This history records the people who did the work, and nothing else:"
+    echo ""
+    echo "$ATTRIBUTION"
+    echo ""
+    echo "Remove the line. If a tool put it there, the switch is the \`attribution\` object in Claude Code settings — \`{\"commit\": \"\", \"pr\": \"\", \"sessionUrl\": false}\` — which stops it being offered at all, on a pull request body as well as here."
+    exit 1
+fi
+
 WRAPPED=$(awk '
+  { sub(/\r$/, "") }
   # Everything from the scissors line down is git`s own, not the message.
   /^# ------------------------ >8 ------------------------$/ { exit }
   /^#/ { next }
@@ -35,9 +75,10 @@ WRAPPED=$(awk '
       if (length(current) < 64) continue
 
       # The next line starts something of its own rather than continuing this paragraph: a bullet, a numbered item, a table row, a quote, a heading, an indented or fenced block.
-      if (following ~ /^[[:space:]]/)        continue
-      if (following ~ /^[-*+][[:space:]]/)   continue
-      if (following ~ /^[0-9]+[.)][[:space:]]/) continue
+      # Plain classes rather than [[:space:]], which mawk 1.3.3 on Debian 10 reads as the literal characters: these three exemptions did nothing there, so an indented continuation, a bullet and a numbered item were each reported as a wrap on that build alone.
+      if (following ~ /^[ \t]/)              continue
+      if (following ~ /^[-*+][ \t]/)         continue
+      if (following ~ /^[0-9]+[.)][ \t]/)    continue
       if (following ~ /^[|>#]/)              continue
       if (following ~ /^```/)                continue
 
