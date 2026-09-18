@@ -1,0 +1,95 @@
+# A Canadian company that buys US dollars, and later sells them and buys more.
+#
+# The first half of a book for asking what a balance sheet drawn at an earlier
+# date states. Import this, then
+# `the_usd_sold_and_rebought_at_a_higher_rate.txt` on top of it.
+#
+# - 2026-01-02  10,000.00 CAD of opening capital.
+# - 2026-01-10  1,000.00 USD bought at 1.30, so 1,300.00 CAD leaves the bank
+#               and a cost basis of 1,000.00 USD opens at that cost.
+#
+# Prices, all at 12:00 UTC: USD in CAD 1.30 on 01-10, 1.35 on 06-30 and 1.50
+# on 08-01. The 06-30 price is what a sheet drawn at the half year prices the
+# holding by, and the whole point of the pair: on that date the book holds the
+# January dollars and nothing else, so its gain is 1,350.00 against 1,300.00
+# of cost — 50.00 CAD.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-01-10 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-06-30 12:00:00 +0000"
+	value: "27/20"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-08-01 12:00:00 +0000"
+	value: "3/2"
+	source: "user:price-editor"
+	type: "last"
+
+2026-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 10000.00 CAD
+	Equity:Opening balances -10000.00 CAD
+
+2026-01-10 * "Buy 1,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		share_price: "1.30"
+		value: "1300.00"
+	Assets:CAD Bank -1300.00 CAD

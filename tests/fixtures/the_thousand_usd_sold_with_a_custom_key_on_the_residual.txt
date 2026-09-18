@@ -1,0 +1,25 @@
+# The same sale as `the_thousand_usd_sold_at_a_higher_rate.txt`, with an
+# ordinary custom key on the residual line.
+#
+# `department:` is not a key this format reserves, so the import stores it in
+# the split's `plaintext_metadata` slot — the same slot the `took_the_residual`
+# mark lives in, and the write replaces that slot whole. Marked before the
+# custom keys were stored, the mark was overwritten by them: the 100.00 this
+# sale made left `realized_gains_fx` with nothing said, and no way back, since
+# the export writes the key rather than the token and the book no longer had
+# the key to write.
+#
+# So the two must agree, and this is the book that shows whether they do.
+#
+# `{usd_basis}` is the guid of the purchase's cost basis, read from
+# `fx-balances` after the first import.
+2026-06-01 * "Sell every dollar at 1.40"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Assets:CAD Bank 1400.00 CAD
+	Income:FX Gain $residual$ CAD
+		department: "ops"

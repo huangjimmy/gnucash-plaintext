@@ -1,0 +1,36 @@
+# One split writes `$residual$` and another states `took_the_residual`.
+#
+# The two ways of declaring the difference are equivalent, so writing one of
+# each in the same transaction claims it twice. The token resolves on the gain
+# line, and the bank charge beside it states the key, and both would count.
+#
+# Both are expenses or income, so neither the account nor the arithmetic tells
+# them apart: that is exactly the case the token and the key exist to settle,
+# and a file cannot settle it two ways at once.
+#
+# Refused for the reason two `$residual$` splits are refused: a transaction has
+# one exchange difference, and nothing decides which of two claims is it.
+#
+# `{usd_basis}` is the guid of the purchase's cost basis, read from
+# `fx-balances` after the first import.
+2026-06-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-06-01 open Expenses:Bank Charges
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-06-01 * "Sell every dollar at 1.40, less a bank charge"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Assets:CAD Bank 1395.00 CAD
+	Expenses:Bank Charges 5.00 CAD
+		took_the_residual: "true"
+	Income:FX Gain $residual$ CAD

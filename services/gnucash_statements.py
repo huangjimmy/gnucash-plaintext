@@ -31,6 +31,7 @@ build, whatever currency the book is kept in.
 import contextlib
 import tempfile
 from datetime import date
+from fractions import Fraction
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
@@ -97,17 +98,23 @@ class PriceSourceNotOfferedError(PageNotRenderedError):
 
 
 def render_balance_sheet(session, currency: str, as_of: date, page: str = 'text',
-                         price_source: Optional[str] = None, warn=None) -> str:
+                         price_source: Optional[str] = None, warn=None,
+                         itemize: bool = True) -> str:
     """The Balance Sheet of the open book at the end of `as_of`, in `currency`.
 
     `page` is `text` for the plain text report, `html` for GnuCash's own.
     `price_source` is one of the report's `Price Source` choices, or None for
     GnuCash's default.
+
+    `itemize` shows how each gain figure was worked out, as comment lines. On
+    by default: a gain is measured against costs that appear on no line of the
+    page, so without its working it is a figure a reader cannot check.
     """
     end = load_gnc_engine().gnc_dmy2time64_end(as_of.day, as_of.month, as_of.year)
     return _render(session, _template(page, BALANCE_SHEET, BALANCE_SHEET_AS_TEXT),
                    'Balance Sheet', currency,
-                   [('General', 'Balance Sheet Date', end)], price_source, warn)
+                   [('General', 'Balance Sheet Date', end)], price_source, warn,
+                   realized_as_of=as_of, itemize=itemize)
 
 
 def render_income_statement(session, currency: str, start: date, end: date,
@@ -182,10 +189,53 @@ def _price_sources(run, work: Path, template: str) -> List[str]:
 
 
 def _render(session, template: str, called: str, currency: str,
-            dates: List[Tuple[str, str, int]], price_source: Optional[str], warn) -> str:
+            dates: List[Tuple[str, str, int]], price_source: Optional[str], warn,
+            realized_as_of=None, itemize: bool = True) -> str:
+    from services.foreign_currency import (
+        BASE_CURRENCY,
+        cost_basis_totals_by_currency_and_side,
+        realized_fx_items_up_to,
+    )
+
     warn = warn or _say_nothing
     lib = load_guile()
     _make_current(session)
+    # What the book has already taken on foreign currency by the report's date.
+    # The balance sheet states it and adds it into nothing — it is inside
+    # `retained_earnings` already, having gone through the income statement —
+    # so a reader can tell it from the gain the book has yet to take.
+    takes_the_cost_bases = realized_as_of is not None and currency == BASE_CURRENCY
+    # The differences one by one, for the page to show its working, and the key
+    # totalled from those same items. One walk of the book: asking a second
+    # time cost twice and let the key and the working it is said to add up to
+    # come to differ.
+    realized_items = (realized_fx_items_up_to(session.book, realized_as_of)
+                      if takes_the_cost_bases else [])
+    realized = sum((figure for _when, _account, figure in realized_items),
+                   Fraction(0))
+    # What the foreign money the book still holds cost, in the book's own
+    # currency, for the report to measure its value against. GnuCash works cost
+    # out from the sum of an account's split values, which is not what the
+    # money cost wherever a foreign inflow was recorded in its own currency —
+    # an invoice collected into a foreign bank carries no figure in the book's
+    # currency at all. The cost bases are what this tool keeps for that
+    # question, and `fx-balances` reports the same numbers.
+    # Read as they stood at the end of the report's date, not as they stand now:
+    # the same date the sheet is drawn at, which `render_balance_sheet` passes
+    # as `realized_as_of`. A page drawn at an earlier date otherwise measures
+    # the currency the book held then against costs it had not yet paid.
+    #
+    # Asked only where the page will use it. Reading the cost bases walks every
+    # split in the book, and again to see what each has since been drawn down
+    # by, while `costed` hands over an empty list wherever
+    # `takes_the_cost_bases` is false — so those two walks were work whose
+    # answer was thrown away. That is every income statement, which passes no
+    # date and whose renderer reads none of these bindings, and every page
+    # asked for in a currency other than the one costs are recorded in. An HTML
+    # or PDF balance sheet is not spared: it passes the same date as the text
+    # one, so it still reads them, even though GnuCash's own renderer draws it.
+    foreign_cost = (cost_basis_totals_by_currency_and_side(
+        session.book, realized_as_of) if takes_the_cost_bases else {})
     was = None
     try:
         was = _write_every_date_the_books_way(session.book, warn)
@@ -210,12 +260,53 @@ def _render(session, template: str, called: str, currency: str,
                         f'The {called} has no price source "{price_source}"; '
                         f'the choices are {", ".join(offered)}')
                 priced = f"    (set-opt options \"Commodities\" \"Price Source\" '{price_source})"
+            # Only the text reports carry the setter, so only they are told —
+            # and only when the page is drawn in the currency the cost bases
+            # are kept in. `cost_of` measures every basis against
+            # `BASE_CURRENCY`, so on a book kept in anything else the totals
+            # would be figures in the wrong currency; that book keeps GnuCash's
+            # own reconstruction until the cost bases learn the book's currency.
+            #
+            # Set on every render, because the variable lives as long as the
+            # Guile process: a page that left it alone inherited the cost of
+            # whichever book was drawn before it, and `report` draws two
+            # statements in one process.
+            costed = ''
+            if template in (BALANCE_SHEET_AS_TEXT, INCOME_STATEMENT_AS_TEXT):
+                bases = '(list)'
+                if currency == BASE_CURRENCY:
+                    bases = '(list ' + ' '.join(
+                        f'(list "{held}" {quantity.numerator}/{quantity.denominator}'
+                        f' {cost.numerator}/{cost.denominator} "{side}")'
+                        for held, sides in sorted(foreign_cost.items())
+                        for side, (quantity, cost) in sorted(sides.items())) + ')'
+                items = '(list ' + ' '.join(
+                    f'(list {_scheme_string(when)} {_scheme_string(account)}'
+                    f' {figure.numerator}/{figure.denominator})'
+                    for when, account, figure in realized_items) + ')'
+                costed = (f'(plaintext:set-cost-bases! {bases})'
+                          f'(plaintext:set-realized-fx! '
+                          f'{realized.numerator}/{realized.denominator})'
+                          f'(plaintext:set-realized-items! {items})'
+                          # Whether that figure was worked out at all. Where it
+                          # was not, the zero above means "not measured", and
+                          # the page leaves the two realized keys off rather
+                          # than stating a zero as a fact — a book that realized
+                          # 100.00 CAD said `realized_gains_fx: 0.00 USD` when
+                          # its page was asked for in US dollars. Written on
+                          # every render for the same reason as the rest: the
+                          # variable outlives the page, and `report` draws two.
+                          f'(plaintext:set-realized-known! '
+                          f'{"#t" if takes_the_cost_bases else "#f"})'
+                          f'(plaintext:set-itemize! '
+                          f'{"#t" if itemize else "#f"})')
             page = work / 'page'
             dated = '\n'.join(
                 f'    (set-opt options {_scheme_string(section)} {_scheme_string(name)}'
                 f" (cons 'absolute {moment}))"
                 for section, name, moment in dates)
             run(_under_a_utf8_ctype(f'''
+{costed}
 (let* ((set-opt {setter})
        (template {_scheme_string(template)})
        (book (gnc-get-current-book))

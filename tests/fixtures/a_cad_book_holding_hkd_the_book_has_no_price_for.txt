@@ -1,0 +1,59 @@
+# A CAD book holding Hong Kong dollars its price database says nothing about.
+#
+# 1,000.00 HKD bought for 180.00 CAD, and no HKD price anywhere in the book.
+# The cost bases know what those dollars cost — 0.18 CAD each, from the
+# transaction itself — but nothing says what they are worth now.
+#
+# What this fixture is for: a balance sheet has to balance whatever it can and
+# cannot price. GnuCash values an account it has no price for at zero, so the
+# assets fall by 180.00; if the gain keys do not fall with them, equity stands
+# 180.00 above assets and the sheet is wrong on its face.
+#
+# - 2026-01-02  1,000.00 CAD of opening capital.
+# - 2026-01-10  1,000.00 HKD bought for 180.00 CAD — 0.18 CAD a dollar.
+#
+# No `price` block: that absence is the whole point, so do not add one.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:HKD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1000.00 CAD
+	Equity:Opening balances -1000.00 CAD
+
+2026-01-10 * "Buy 1,000.00 HKD for 180.00 CAD"
+	currency.mnemonic: "CAD"
+	Assets:HKD Bank 1000.00 HKD
+		share_price: "0.18"
+		value: "180.00"
+	Assets:CAD Bank -180.00 CAD

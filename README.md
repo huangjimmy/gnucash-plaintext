@@ -410,7 +410,7 @@ A sale measured against two cost bases carries two foreign-currency splits, one 
 
 **Paying out of a foreign account whose cost bases still have a balance.** Cash leaving a foreign account is a disposal like any other, so it has to say which cost basis it comes out of — and a `payment:` block has nowhere to say it, because GnuCash's own `ApplyPayment` writes the bank split and `cost_basis_split_guid:` cannot be put on it. Such a payment is therefore **refused**, and the message gives the account's name, what the payment spends, and what balance its cost bases still have between them.
 
-This is asked of every foreign bank, not only one in a third currency. Paying a USD bill out of a USD bank whose cost bases still have a balance is the commoner shape and drifts the same way — the cost basis goes on offering currency the account no longer holds, and the cash leaves valued at the payment day's rate instead of at what it cost — so the question is asked before the cross-currency arithmetic, which that case never reaches.
+This is asked of every foreign bank, not only one in a third currency. Paying a USD bill out of a USD bank whose cost bases still have a balance is the commoner shape and goes wrong the same way — the cost basis goes on offering currency the account no longer holds, and the cash leaves valued at the payment day's rate instead of at what it cost — so the question is asked before the cross-currency arithmetic, which that case never reaches.
 
 A foreign account has no cost basis on it until something opens one: currency bought or borrowed into it, or a settlement landing in it. Until then there is nothing to measure against and a payment out of it is ordinary. **A ledger that imported cleanly before may now be refused**, because settling into a foreign account is itself what opens the cost basis.
 
@@ -2930,27 +2930,59 @@ On a book kept in CAD that holds US and Hong Kong dollars and 12 shares of NASDA
 	total_liabilities: 3550.00 CAD
 	Equity:Opening CAD 20000.00 CAD
 	retained_earnings: 12679.60 CAD
-	unrealized_gains: 2303.20 CAD
+	realized_gains_fx: 0.00 CAD
+	total_realized_gains: 0.00 CAD
+	unrealized_gains_assets_fx: 940.00 CAD
+	unrealized_gains_liabilities_fx: 0.00 CAD
+	unrealized_gains_fx: 940.00 CAD
+	unrealized_gains_other: 1363.20 CAD
+	total_unrealized_gains: 2303.20 CAD
+	gnucash_balancing_amount: 2303.20 CAD
 	total_equity: 34982.80 CAD
 	total_liabilities_and_equity: 38532.80 CAD
 ```
 
-The page explains itself: the comment lines are written by the report, and `#`, `;` and `;;` all open a comment, so anything reading the block passes over them.
+The page explains itself: the comment lines are written by the report, and `#`, `;` and `;;` all open a comment, so anything reading the block passes over them. The block above is abridged. `balance-sheet` also prints, beneath the gain keys, the working that shows how each was reached — set out further down — and `--no-itemize` leaves it off.
 
-Every figure is the one GnuCash's Balance Sheet report gives:
+Every account line is the balance GnuCash's Balance Sheet report gives it, and every section total is the total that report gives, but two: `total_equity` and `total_liabilities_and_equity` carry the unrealized gain measured from the book's own cost bases, where GnuCash's own page carries the amount it calculates to balance itself. The gain keys described below are this tool's own amounts rather than GnuCash's, measured from the cost bases the book records, and GnuCash's amount is stated beside them as `gnucash_balancing_amount` so the two can be read against each other:
 
 - **An account is a line: its path, its amount, its commodity** — and the line is what that account **itself** holds, as GnuCash's own page reports it. A brokerage holding 3,000.00 USD with a share account under it prints `Assets:Brokerage 3000.00 USD` with its price and value, beside `Assets:Brokerage:AMZN 10.0000 AMZN` — not one line rolling the two together. There are no section headings, because the path on each line already says which section it is in.
-- **A section's total is a key**, since no account holds it: `total_assets`, `total_liabilities` and `total_equity` on the balance sheet, `total_revenue` and `total_expenses` on the income statement. `total_equity` includes the retained earnings, trading gains and unrealized gains under it, as GnuCash's `Total Equity` row does.
+- **A section's total is a key**, since no account holds it: `total_assets`, `total_liabilities` and `total_equity` on the balance sheet, `total_revenue` and `total_expenses` on the income statement. `total_equity` includes the retained earnings, the trading gains and the unrealized total under it, where GnuCash's `Total Equity` row includes the amount GnuCash calculates to balance itself instead — so the two differ by whatever those two amounts differ by, and `gnucash_balancing_amount` states GnuCash's beside it. The realized gains are stated beside them and added into nothing: a gain already taken left with the currency that earned it and is inside `retained_earnings` already, having gone through the income statement.
 - **Every account in the book is listed**, however deep. GnuCash's statements show three levels by default and fold anything deeper into its parent — its page prints one `Chequing C$1,000.00` row for an account holding 300.00 with 700.00 in a `Payroll` account under it, and no `Payroll` row at all. A block lists both, because an account missing from a page a program reads is money that has gone somewhere unstated.
-- **A figure GnuCash computes that no account holds is a key**, and states its currency: `retained_earnings`, `unrealized_gains`, `trading_gains`, `total_liabilities_and_equity`, `net_income`. These carry no quotes — quotes are for text, and a money figure in them reads as a string that happens to look like money — while `value:` and `share_price:` are quoted, as this format writes a key's value. `retained_earnings`, `unrealized_gains` and `trading_gains` are written whenever the book holds the money behind them, and left off when it holds none of it at all, each being a thing the book either has or has not. Holding the money and valuing it are separate questions: a book earning only in a currency it holds no price for states `retained_earnings: 0.00 CAD`, because the earnings are there and GnuCash values what it cannot price at nothing. `net_income` and `total_liabilities_and_equity` are always written, a statement having a bottom line whatever it comes to.
+- **A figure no account holds is a key**, and states its currency: `retained_earnings`, `trading_gains`, the gain keys below, `total_liabilities_and_equity`, `net_income`. These carry no quotes — quotes are for text, and a money figure in them reads as a string that happens to look like money — while `value:` and `share_price:` are quoted, as this format writes a key's value. `retained_earnings` and `trading_gains` are written whenever the book holds the money behind them, and left off when it holds none of it at all, each being a thing the book either has or has not. Holding the money and valuing it are separate questions: a book earning only in a currency it holds no price for states `retained_earnings: 0.00 CAD`, because the earnings are there and GnuCash values what it cannot price at nothing. `net_income` and `total_liabilities_and_equity` are always written, a statement having a bottom line whatever it comes to.
 - **Every asset and liability account type is in its section** — Bank, Cash, Stock, Mutual Fund and Accounts Receivable among the assets; Credit Card, Accounts Payable and the rest among the liabilities.
 - **`retained_earnings`** is the income and expenses not yet closed into an equity account. After `close-books` the profit sits in `Equity:Retained Earnings:<currency>` as an account line and the key is gone, so the sheet balances either way.
-- **A security is at its market value**, from the book's price database: AMZN is 12 shares at 280 USD, at 1.42 CAD, so 397.6 CAD a share. **`unrealized_gains`** is the difference between what the assets are worth and what they cost, both converted at the same prices. A gain already taken is income and sits in `retained_earnings` instead, so a book that has sold part of a holding shows both.
+- **A security is at its market value**, from the book's price database: AMZN is 12 shares at 280 USD, at 1.42 CAD, so 397.6 CAD a share.
+- **A gain already taken is stated apart from one the book has yet to take**, and foreign currency apart from everything else. `realized_gains_fx` is what the book took when foreign currency left it — a disposal values what it sells at what that currency cost, so the splits facing it state what it fetched and the difference is what was made or lost. `unrealized_gains_assets_fx` is what the foreign currency the book holds is worth at the price nearest the date, less what its own cost bases say it cost, and `unrealized_gains_liabilities_fx` is the same question asked of the currency it owes — a loan drawn at 1.30 and worth 1.40 at the year end has cost the book the difference. `unrealized_gains_fx` is the two added together. A currency the cost bases cannot speak for keeps GnuCash's own revaluation and is still stated on its own side, because it is currency however it was measured. `unrealized_gains_other` is everything that is not a currency — a stock, a mutual fund — at GnuCash's own revaluation. `total_realized_gains` and `total_unrealized_gains` are their totals, and only the unrealized total reaches `total_equity`.
+- **`gnucash_balancing_amount` is not a gain.** It is the amount GnuCash calculates just to balance the book, carried across as GnuCash gives it, sign included, so a reader with GnuCash's own page beside them can find the same number. Nothing adds it in. It measures what the disposals were recorded at against those same units revalued at the nearest price, which is neither of the two gains except when the nearest price happens to be the rate the currency left at.
 - **A figure is written exactly, never rounded** — padded to the commodity's own decimal places, and written as a fraction where no decimal states it exactly, as `share_price: "2/11"` for a Hong Kong dollar in a book that prices CAD in HKD at 5.5.
-- **A book that uses trading accounts** (File → Properties → Accounts → "Use Trading Accounts" in GnuCash) keeps those gains in its Trading accounts, and the page states them as `trading_gains:` with no `unrealized_gains:` beside it. The two are the same money by different bookkeeping, and a book has one or the other.
+- **A book that uses trading accounts** (File → Properties → Accounts → "Use Trading Accounts" in GnuCash) keeps those gains in its Trading accounts, and the page states them as `trading_gains:` with none of the gain keys beside it. The two are the same money by different bookkeeping, and a book has one or the other.
 - **A currency or a security the price database has no price for is valued at nothing** — the line states what the account holds and a `value:` of `0.00`, and no `share_price:`. Record the price in the book with a `price` block (see [Prices](#prices)), or give it for one run with `--fx-rates` or `--prices`.
+- **Each gain figure shows its working**, as comment lines under the keys, because it is the one amount on the page a reader cannot check: an account line can be checked against the book and a section total by adding the lines above it, but a gain is measured against costs that appear on no line at all. Every gain list adds up to the key it is under — `gnucash_balancing_amount` is the exception, being GnuCash's own amount carried across rather than a total of the lines beneath it — and both computations are shown — what the book's own cost bases give, and what GnuCash's own revaluation gives commodity by commodity, so the two can be read against each other:
 
-`--output-format html` and `pdf` work as they do for `income-statement`.
+```
+	realized_gains_fx: 250.00 CAD
+	...
+	# realized_gains_fx:
+	#   2026-07-01 Income:FX Gain 90.00 CAD
+	#   2026-08-01 Income:FX Gain 80.00 CAD
+	#   2026-09-01 Income:FX Gain 60.00 CAD
+	#   2026-10-01 Income:FX Gain 20.00 CAD
+```
+
+  That is a book that earned US dollars three times and spent every one of them out in four payments. A different book, holding Hong Kong dollars, US dollars and shares, shows the other kind of line — the two are not one page, because no single book prints both:
+
+```
+	unrealized_gains_assets_fx: 940.00 CAD
+	...
+	# unrealized_gains_assets_fx:
+	#   asset 5500.00 HKD cost 1000.00 CAD, at 0.2 worth 1100.00 CAD = 100.00 CAD
+	#   USD 840.00 CAD
+```
+
+  A line reading `cost … at … worth …` is measured from the book's own cost bases; a line of a commodity and an amount is GnuCash's own revaluation of everything the book holds of it. By commodity rather than by account, because that is how GnuCash values a holding — the whole quantity through the price, once — so an account's share of it is a figure nobody computed. A key with nothing behind it says `nothing`, which is an answer you can check where silence is not. **`--no-itemize` turns it off**, leaving the keys as they were. It is written as comments, so nothing that reads the block picks any of it up.
+
+`--output-format html` and `pdf` work as they do for `income-statement`, with one difference worth knowing: **those two formats are GnuCash's own Balance Sheet, not this one.** The gain keys above belong to the plaintext page, and GnuCash's page states its single `Unrealized Gains` figure instead — the figure this section exists to replace. On a book whose foreign currency arrived in its own currency, that figure is the one that comes to nothing where the gain is real, so an HTML or PDF sheet of such a book can state a gain on money the book no longer holds, and need not balance. Draw the plaintext page for the figures described here.
 
 ### The currency a report is in
 
@@ -3013,7 +3045,7 @@ gnucash-plaintext report mybook.gnucash income-statement balance-sheet \
     --fiscal-year-end 2024-12-31
 ```
 
-You list the statements explicitly (`income-statement`, `balance-sheet`) — no hidden bundle. The income statement covers the fiscal period; the balance sheet is as of the period end (override with `--as-of`). `--currency`, `--fx-rates`, `--prices`, `--price-source` and `--output` apply to both. It is read-only.
+You list the statements explicitly (`income-statement`, `balance-sheet`) — no hidden bundle. The income statement covers the fiscal period; the balance sheet is as of the period end (override with `--as-of`). `--currency`, `--fx-rates`, `--prices`, `--price-source` and `--output` apply to both, and `--no-itemize` to the balance sheet, which is the only one of the two with gain figures to show the working of. It is read-only.
 
 ### Closing the books
 

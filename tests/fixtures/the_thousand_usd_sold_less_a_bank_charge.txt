@@ -1,0 +1,31 @@
+# Every one of those 1,000.00 US dollars sold at 1.40, less a 5.00 bank
+# charge, against the cost basis the purchase opened.
+#
+# One split claims the difference — the `$residual$` on the gain line — so the
+# file imports. The charge beside it is an expense too, which is the point:
+# a difference could have landed there, and nothing but the token says it did
+# not. That makes this the book to export and come back to when a second claim
+# is added to it.
+#
+# `{usd_basis}` is the guid of the purchase's cost basis, read from
+# `fx-balances` after the first import.
+2026-06-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-06-01 open Expenses:Bank Charges
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-06-01 * "Sell every dollar at 1.40, less a bank charge"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Assets:CAD Bank 1395.00 CAD
+	Expenses:Bank Charges 5.00 CAD
+	Income:FX Gain $residual$ CAD

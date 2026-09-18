@@ -1,0 +1,36 @@
+# Step 2, the variant that keeps part of the balance: 1,720.00 USD leave the
+# bank and 1,000.00 USD stay in it, so the book ends the year holding a
+# realized loss on the dollars that went and an unrealized loss on the dollars
+# it still has. The reported example spends every dollar, which is why it
+# cannot tell the two apart; this one can.
+#
+# `{usd_basis}` is the basis split `fx-balances` reports after
+# `tests/fixtures/a_usd_invoice_collected_into_a_usd_bank.txt`. A guid is made
+# fresh on every import, so it cannot be written into a fixture: the test reads
+# it from that listing and substitutes it before importing this ledger onto
+# that book.
+#
+# The dollars leave valued at what they cost — 189557/136000 CAD/USD, so
+# 2,397.34 CAD for the 1,720.00 — while the CAD bank receives the 2,384.78 they
+# fetched at 1.3865. The 12.56 between them is the realized loss, and it stands
+# apart in the residual rather than being folded into either side.
+#
+# What stays: 1,000.00 USD, costing 1,393.80 CAD and worth 1,386.50 at the year
+# end, an unrealized loss of 7.30. The two come to the 19.86 the whole balance
+# loses when every dollar is spent.
+#
+# Measured on GnuCash 5.10, GnuCash's own Balance Sheet states 12.56 as its
+# Unrealized Gains for this book — the realized loss with its sign reversed,
+# already inside the 3,778.58 of retained earnings — states the 7.30 nowhere,
+# and prints 3,771.28 of assets against 3,791.14 of liabilities and equity.
+
+2026-08-17 * "Sent part of the balance out"
+	currency.mnemonic: "CAD"
+	Assets:Bank 2384.78 CAD
+	Assets:Bank:USD -1720.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "189557/136000"
+		value: "-2397.34"
+		cost_basis_split_guid: "{usd_basis}"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

@@ -164,6 +164,51 @@ It prints the pytest result, the process's memory at the start, at the end and a
 
 One pytest process runs the whole suite, so memory any test keeps is kept for the rest of the run. That is how a session ended without being destroyed, which keeps its whole book in memory, grew the suite to 1.7 GB (docs/issues/Q-041).
 
+### `generate-multi-currency-examples` - Write the Example Ledgers
+
+Write one example ledger per scenario in [docs/multi-currency.md](../docs/multi-currency.md), into `examples/multi-currency/`.
+
+```bash
+./scripts/generate-multi-currency-examples.sh
+```
+
+Each file is a book exported whole — accounts, transactions, prices, and the customers and invoices where the book has them — with the statement it produces commented at the end. It re-imports into an empty book and draws that same statement with no rates file, so a reader can check the doc rather than believe it:
+
+```bash
+gnucash-plaintext import --new /tmp/check.gnucash \
+    examples/multi-currency/every_dollar_bought_and_sold_again.txt
+gnucash-plaintext balance-sheet /tmp/check.gnucash --as-of 2026-12-31
+```
+
+These are **not** test fixtures and nothing asserts against them. They are checked in to be read: someone opens one, runs it, and sees for themselves the page the doc describes. They are built from `tests/fixtures/` and from what the tool prints, so this script is run when a scenario changes or when the page one of them prints changes — not as a routine step, and not to tidy the files. The statement is commented because a line at column 0 reads as a dated directive, and a file carrying a live one would not import — the script imports every file it writes and stops if one does not.
+
+**Running it again on the same day changes nothing.** Where an example already exists, its own ledger is what the book is rebuilt from, so the guids stay as they were and only a figure that has genuinely moved shows in the diff. Rebuilding from the fixtures every time rewrote every file on every run — an export carries a guid for every account, transaction, split and price, and a fresh import mints new ones — which left no way to tell a real change from the noise.
+
+**A run on a later day re-dates the `commodity` and `open` lines.** Those carry no date of their own, so `format_accounts_only` dates them from the book file's modification time, and the generator builds its books fresh each run. Every example therefore opens its accounts on the day it was generated, whatever year its transactions are in — so a rebuild tomorrow shows one changed date per account and commodity, and nothing else. That is the noise to expect and to ignore; a changed figure is not.
+
+When a fixture or a figure really has changed, rebuild from `tests/fixtures/` instead:
+
+```bash
+REGENERATE=fixtures ./scripts/generate-multi-currency-examples.sh
+```
+
+That rewrites the guids, so expect every file to change. The `guid:` lines are load-bearing either way: a disposal refers to the purchase it draws on by guid in `cost_basis_split_guid:`, and a copy with the guids stripped imports at exit 0 while drawing a page that says 0.00 realized where the book says 100.00.
+
+### `test-deployment` - Run the Built Wheel
+
+Build the wheel, install it, and drive the installed `gnucash-plaintext` from a directory outside the source tree.
+
+```bash
+./scripts/test-deployment.sh            # latest
+./scripts/test-deployment.sh debian10   # or any supported tag
+```
+
+The suite runs from an editable install, and `tests/` is a package, so pytest imports the source folder: a runtime data file the wheel leaves out passes all 4,200 tests and fails on the first machine that installs the tool. This script is the only place that fails on one, which is why it imports a book, exports it, prints an invoice as a PDF, **and** draws a balance sheet. The statements are drawn by a customized GnuCash report carried as package data, and drawing a page is what shows an installed wheel can find the report and load it — a file present in the wheel but unreachable from it passes every other check.
+
+The page is drawn from `examples/multi-currency/some_of_the_dollars_kept_back.txt`, which states a realized gain and an unrealized one, both non-zero, and carries its own prices — so the page needs no rates file, and the figures it should print are commented at that file's own foot. Each gain is compared against them, and the page must also carry the working that shows how each was arrived at. `gnucash_balancing_amount` is left out of the comparison: it is what GnuCash needs to balance the sheet, not a gain.
+
+CI runs this for each of the eleven builds, after that build's suite.
+
 ### `run` - Run Arbitrary Command
 
 Run any command in the Docker container.

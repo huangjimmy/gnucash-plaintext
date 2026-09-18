@@ -178,7 +178,15 @@ def test_a_foreign_security_is_valued_from_a_prices_file_and_a_rates_file(tmp_pa
 
     assert _amount(page, 'Assets:Brokerage:USTECH') == shares_as_a_block_writes('10', 'USTECH'), page
     assert under(page, 'Assets:Brokerage:USTECH')['value'] == '810.00'
-    assert _key(page, 'unrealized_gains') == '135.00 CAD'
+    # USTECH is priced in US dollars, but a security opens no cost basis, so
+    # its whole gain — the share price and the US dollar moving together —
+    # keeps GnuCash's own revaluation, and none of it is stated as an
+    # exchange movement.
+    assert _key(page, 'unrealized_gains_assets_fx') == '0.00 CAD'
+    assert _key(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+    assert _key(page, 'unrealized_gains_fx') == '0.00 CAD'
+    assert _key(page, 'unrealized_gains_other') == '135.00 CAD'
+    assert _key(page, 'total_unrealized_gains') == '135.00 CAD'
 
 
 def test_natural_form_receivable_payable_land_on_balance_sheet(tmp_path):

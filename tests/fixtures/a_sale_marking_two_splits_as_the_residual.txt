@@ -1,0 +1,39 @@
+# Two splits of one transaction both stating `took_the_residual`.
+#
+# The sale pays a 5.00 bank charge out of what it fetched, so the transaction
+# carries two expense-or-income lines: the charge and the exchange difference.
+# Neither the arithmetic nor the account can tell them apart — both are in the
+# profit and loss, and a residual would resolve to either — so the key is the
+# only thing that says which is the difference, and the file states it twice.
+#
+# Counted, both would go into `realized_gains_fx`: the 100.00 the sale made and
+# the 5.00 the bank took, as though the book had realized 105.00 on selling a
+# thousand dollars that cost 1,300.00.
+#
+# It is the same rule `$residual$` already follows, since two residuals cannot
+# be resolved, and it holds however the residual is claimed.
+#
+# `{usd_basis}` is the guid of the purchase's cost basis, read from
+# `fx-balances` after the first import.
+2026-06-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-06-01 open Expenses:Bank Charges
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-06-01 * "Sell every dollar at 1.40, less a bank charge"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Assets:CAD Bank 1395.00 CAD
+	Expenses:Bank Charges 5.00 CAD
+		took_the_residual: "true"
+	Income:FX Gain -100.00 CAD
+		took_the_residual: "true"

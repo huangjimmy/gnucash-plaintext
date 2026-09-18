@@ -1,0 +1,58 @@
+# A Canadian book that writes `$residual$` on a transaction with no foreign
+# currency in it at all.
+#
+# `$residual$` is available on any transaction, not only a currency disposal:
+# one split writes it in place of an amount and takes what the others leave
+# over, the way GnuCash's editor fills an Imbalance line once an account is
+# chosen. Paying the rent that way is ordinary bookkeeping.
+#
+# What this fixture is for: nothing here is an exchange difference, so every
+# gain key on the sheet must read 0.00 and the working must list nothing. A
+# report that marks every residual split states this rent as a realized
+# exchange loss of 900.00 CAD and itemises it as one — a figure invented out of
+# a domestic expense, on a book holding no foreign currency whatever.
+#
+# - 2026-01-02  10,000.00 CAD of opening capital.
+# - 2026-03-01  900.00 CAD of rent, the expense side written as `$residual$`.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Rent
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 10000.00 CAD
+	Equity:Opening balances -10000.00 CAD
+
+2026-03-01 * "Rent for March"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank -900.00 CAD
+	Expenses:Rent $residual$ CAD

@@ -1,0 +1,192 @@
+# A CAD book that earns Canadian, US and Hong Kong dollars, and holds all three.
+#
+# The Hong Kong dollar is pegged to the US dollar between 7.75 and 7.85, and
+# this book is priced through the peg rather than by a Canadian figure picked
+# out of the air. With the US dollar at 1.30 throughout:
+#
+#     peg 7.80   a Hong Kong dollar is 1.30/7.80 = 1/6    of a Canadian dollar
+#     peg 7.75                         1.30/7.75 = 26/155
+#     peg 7.85                         1.30/7.85 = 26/157
+#
+# All three are exact, and the format writes them as the fractions they are.
+#
+#     2026-02-01    1,000.00 USD at 1.30           1,300.00 CAD
+#     2026-03-01  146,010.00 HKD at 1/6, peg 7.80 24,335.00 CAD
+#     2026-04-01    5,000.00 CAD of consulting, in Canadian dollars
+#
+# The book is drawn at three dates, and they ask three different questions:
+#
+#     2026-09-30   US dollar 1.40, peg 7.75 — a Hong Kong dollar at 28/155.
+#                  **Both currencies have moved**, and by different amounts in
+#                  different directions from what each cost. This is the
+#                  ordinary case, and the one where a figure that mixed the two
+#                  up could still come out plausible.
+#     2026-11-30   US dollar 1.30, peg 7.85 — a Hong Kong dollar at 26/157.
+#     2026-12-31   US dollar 1.30, peg 7.75 — a Hong Kong dollar at 26/155.
+#
+# **At the last two the US dollar is a control.** It is priced at what it was
+# earned at, so its gain is 0.00 while the peg moves either side of 7.80 and
+# the Hong Kong figure changes sign. A currency measured against another's cost
+# basis could not leave that zero standing.
+#
+# The 1.40 price sits at 2026-09-30 so that a sheet drawn at 2026-11-30 still
+# finds the year end's 1.30 nearer — 31 days against 61 — and the two control
+# dates are undisturbed by it.
+#
+# `some_of_the_cad_usd_and_hkd_spent.txt` spends part of each.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:HKD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening CAD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Subcontractors
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Rent
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-02-01 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2026-03-01 12:00:00 +0000"
+	value: "1/6"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-09-30 12:00:00 +0000"
+	value: "7/5"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2026-09-30 12:00:00 +0000"
+	value: "28/155"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2026-11-30 12:00:00 +0000"
+	value: "26/157"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "26/155"
+	source: "user:price-editor"
+	type: "last"
+
+2026-01-15 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1000.00 CAD
+	Equity:Opening CAD -1000.00 CAD
+
+2026-02-01 * "Consulting collected in US dollars, at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+	Income:Consulting -1300.00 CAD
+
+2026-03-01 * "Consulting collected in Hong Kong dollars, the peg at 7.80"
+	currency.mnemonic: "CAD"
+	Assets:HKD Bank 146010.00 HKD
+		account.commodity.mnemonic: "HKD"
+		share_price: "1/6"
+		value: "24335.00"
+	Income:Consulting -24335.00 CAD
+
+2026-04-01 * "Consulting collected in Canadian dollars"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 5000.00 CAD
+	Income:Consulting -5000.00 CAD

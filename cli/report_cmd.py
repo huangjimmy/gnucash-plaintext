@@ -51,8 +51,11 @@ _STATEMENTS = ("income-statement", "balance-sheet")
 @click.option("--price-source", default=None, help=PRICE_SOURCE_HELP)
 @click.option("--output", "output_file", default=None, type=click.Path(),
               help="Output file. Defaults to stdout.")
+@click.option("--itemize/--no-itemize", "itemize", default=True, show_default=True,
+              help="Show how the balance sheet's gain figures were worked out, "
+                   "as comment lines.")
 def report(gnucash_file, statements, fiscal_year_end, start, end, as_of, currency,
-           fx_rates_file, prices_file, price_source, output_file):
+           fx_rates_file, prices_file, price_source, output_file, itemize):
     """Run the named statements against one open book, output combined."""
     unknown = [s for s in statements if s not in _STATEMENTS]
     if unknown:
@@ -101,7 +104,8 @@ def report(gnucash_file, statements, fiscal_year_end, start, end, as_of, currenc
             # above, so there is no third case to fall through to.
             else:
                 parts.append(render_balance_sheet(repo.session, report_currency, as_of_date,
-                                                  price_source=price_source, warn=warn))
+                                                  price_source=price_source, warn=warn,
+                                                  itemize=itemize))
     except PageNotRenderedError as refusal:
         raise click.ClickException(str(refusal)) from refusal
     finally:

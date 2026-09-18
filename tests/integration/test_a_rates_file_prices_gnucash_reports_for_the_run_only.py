@@ -293,7 +293,13 @@ class TestAPricesFile:
         assert under(page, 'Assets:Brokerage:ACME')['value'] == '600.00'
         assert amount_of(page, 'Assets:Brokerage:VGRO') == shares_as_a_block_writes('20', 'VGRO'), page
         assert under(page, 'Assets:Brokerage:VGRO')['value'] == '600.00'
-        assert key_of(page, 'unrealized_gains') == '200.00 CAD'
+        # Both securities are held in CAD, so none of the 200.00 is an
+        # exchange movement: all of it is the two share prices moving.
+        assert key_of(page, 'unrealized_gains_assets_fx') == '0.00 CAD'
+        assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert key_of(page, 'unrealized_gains_fx') == '0.00 CAD'
+        assert key_of(page, 'unrealized_gains_other') == '200.00 CAD'
+        assert key_of(page, 'total_unrealized_gains') == '200.00 CAD'
 
     def test_a_security_the_book_does_not_hold_is_refused(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)

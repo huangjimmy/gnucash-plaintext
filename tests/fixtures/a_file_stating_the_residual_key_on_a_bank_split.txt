@@ -1,0 +1,29 @@
+# A file stating `took_the_residual` on the bank split of a disposal.
+#
+# The sale is written out by hand — the gain stated rather than declared with
+# `$residual$` — and the key is put on the wrong line: the 1,400.00 the bank
+# received, rather than the 100.00 the sale made.
+#
+# Only one split claims it, so the one-claim rule has nothing to refuse, and
+# the transaction is an ordinary disposal in the book's own currency giving the
+# guid of the cost basis it draws on. What turns it away is the account. A
+# realized difference is a gain or a loss and belongs in the profit and loss; a
+# split on a bank moved money rather than measuring anything. Counted, the page
+# would state `realized_gains_fx: -1400.00 CAD` on a sale that made 100.00.
+#
+# The import writes no mark here of its own — it puts one on income and expense
+# alone — so this shape can only arrive from a file, which is why the reader
+# asks the same question again.
+#
+# `{usd_basis}` is the guid of the purchase's cost basis, read from
+# `fx-balances` after the first import.
+2026-06-01 * "Sell every dollar at 1.40"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Assets:CAD Bank 1400.00 CAD
+		took_the_residual: "true"
+	Income:FX Gain -100.00 CAD

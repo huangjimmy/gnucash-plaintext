@@ -1,0 +1,114 @@
+# A CAD book that earns US dollars five times, at five awkward rates.
+#
+# Each earning is collected in one transaction stated in Canadian dollars: the
+# US dollar bank takes the money and the revenue line states what it was worth
+# that day, so each opens a cost basis on the bank at its own rate.
+#
+# The rates are the ones a bank publishes, at four decimal places, so what the
+# dollars were worth lands on a Canadian cent only by chance. That is what makes
+# each cost an awkward fraction rather than a round rate:
+#
+#     2,720.00 USD worth 3,771.28 CAD   ->  2773/2000
+#     1,845.50 USD worth 2,530.55 CAD   ->  50611/36910
+#     3,310.75 USD worth 4,642.66 CAD   ->  464266/331075
+#       987.25 USD worth 1,341.77 CAD   ->  134177/98725
+#     4,562.80 USD worth 6,473.70 CAD   ->  64737/45628
+#
+# Those denominators are in the tens of thousands and are not multiples of one
+# another. While every basis is untouched they cost nothing to add up: a basis
+# whose balance is still its own amount cancels the division and contributes
+# exactly the money it came in for. Once part of a basis is spent the balance is
+# no longer the amount, nothing cancels, and adding the terms takes the lowest
+# common multiple of those denominators.
+#
+# `tests/research/how_big_a_summed_cost_basis_cost_gets_probe.py` measures both
+# states and reports how many bits the total needs.
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening CAD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "1.3740"
+	source: "user:price-editor"
+	type: "last"
+
+2026-01-15 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 5000.00 CAD
+	Equity:Opening CAD -5000.00 CAD
+
+2026-02-10 * "Consulting collected in US dollars, at 1.3865"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 2720.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "2773/2000"
+		value: "3771.28"
+	Income:Consulting -3771.28 CAD
+
+2026-04-14 * "Consulting collected in US dollars, at 1.3712"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1845.50 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "50611/36910"
+		value: "2530.55"
+	Income:Consulting -2530.55 CAD
+
+2026-06-09 * "Consulting collected in US dollars, at 1.4023"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 3310.75 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "464266/331075"
+		value: "4642.66"
+	Income:Consulting -4642.66 CAD
+
+2026-08-18 * "Consulting collected in US dollars, at 1.3591"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 987.25 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "134177/98725"
+		value: "1341.77"
+	Income:Consulting -1341.77 CAD
+
+2026-10-06 * "Consulting collected in US dollars, at 1.4188"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 4562.80 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "64737/45628"
+		value: "6473.70"
+	Income:Consulting -6473.70 CAD

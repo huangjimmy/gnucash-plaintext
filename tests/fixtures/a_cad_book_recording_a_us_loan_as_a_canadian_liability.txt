@@ -1,0 +1,122 @@
+# A Canadian company that borrows 100.00 USD, records it as 130.00 CAD owed,
+# and later earns the US dollars it will repay with.
+#
+# Nothing stops a book being kept this way, and it is a reasonable thing for a
+# Canadian company to do: the loan is written in the book's own currency at
+# what it was worth the day it was drawn, and the liability account holds no
+# US dollars at all.
+#
+# What that costs is the point of this fixture. A liability denominated in CAD
+# holds no foreign currency, so it opens no cost basis and the balance sheet
+# states no unrealized figure for it — while the loan is outstanding the
+# exposure is invisible to the sheet. It does not go away. It arrives when the
+# debt is settled, against what the US dollars used to settle it cost.
+#
+# The dollars do not have to be bought. A company that invoices US customers
+# earns them, and what it earns carries a cost basis like anything else.
+#
+# - 2026-01-02  1,000.00 CAD of opening capital.
+# - 2026-01-03  100.00 USD borrowed, recorded as 130.00 CAD owed. No account
+#               in this book holds a US dollar yet, so nothing opens a cost
+#               basis and nothing on the sheet says the debt is foreign.
+# - 2026-09-01  100.00 USD of consulting collected into a US dollar account
+#               with the dollar at 1.40, so 140.00 CAD of revenue is
+#               recognised and that split opens a cost basis of 100.00 USD.
+#
+# Drawn here, the sheet states 100.00 USD held at what it cost and a 130.00
+# CAD liability that never moves. The repayment is in
+# `the_us_loan_repaid_with_earned_us_dollars.txt`.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:US Loan
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Foreign exchange loss
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-01-03 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-09-01 12:00:00 +0000"
+	value: "14/10"
+	source: "user:price-editor"
+	type: "last"
+
+2026-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1000.00 CAD
+	Equity:Opening balances -1000.00 CAD
+
+2026-01-03 * "Borrow 100.00 USD, recorded as 130.00 CAD owed"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 130.00 CAD
+	Liabilities:US Loan -130.00 CAD
+
+2026-09-01 * "Consulting collected, 100.00 USD at 1.40"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 100.00 USD
+		share_price: "1.40"
+		value: "140.00"
+	Income:Consulting -140.00 CAD

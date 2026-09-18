@@ -1,0 +1,29 @@
+# Step 2: the whole 2,720.00 USD spent out of the bank at a later rate, drawn
+# against the cost basis the invoice opened.
+#
+# `{usd_basis}` is the basis split `fx-balances` reports after step 1
+# (`tests/fixtures/a_usd_invoice_collected_into_a_usd_bank.txt`). A guid is
+# made fresh on every import, so it cannot be written into a fixture: the test
+# reads it from that listing and substitutes it before importing this ledger
+# onto that book.
+#
+# What it leaves: a bank holding nothing, a consumed basis, and the difference
+# between what the US dollars cost and what they fetched booked as realized FX
+# — which is the state a real book was in when its balance sheet still claimed
+# an unrealized gain of 19.86 CAD on an account holding zero.
+
+# The dollars leave valued at what they cost — 189557/136000 CAD per USD, so
+# 3,791.14 CAD for the 2,720.00 — while the bank receives the 3,771.28 the sale
+# actually fetched. The 19.86 between them is the realized loss, and it stands
+# apart in the residual rather than being folded into either side; the importer
+# refuses a disposal valued at the sale rate for exactly that reason.
+2026-08-17 * "Sent the whole balance out"
+	currency.mnemonic: "CAD"
+	Assets:Bank 3771.28 CAD
+	Assets:Bank:USD -2720.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "189557/136000"
+		value: "-3791.14"
+		cost_basis_split_guid: "{usd_basis}"
+	Income:FX Gain $residual$ CAD
+		account.commodity.mnemonic: "CAD"

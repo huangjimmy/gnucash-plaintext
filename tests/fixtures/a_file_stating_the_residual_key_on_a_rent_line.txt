@@ -1,0 +1,11 @@
+# A file stating `took_the_residual` on an ordinary Canadian rent line.
+#
+# The transaction is in the book's own currency, and it disposes of nothing:
+# no split on it gives the guid of a cost basis. Believed on its own word the
+# key booked an 800.00 CAD exchange loss on a book that has never held foreign
+# currency, and itemised it under `realized_gains_fx` as one.
+2026-04-01 * "Rent for April"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank -800.00 CAD
+	Expenses:Rent 800.00 CAD
+		took_the_residual: "true"

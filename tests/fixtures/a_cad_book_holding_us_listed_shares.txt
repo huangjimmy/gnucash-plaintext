@@ -1,0 +1,105 @@
+# A Canadian company that buys US-listed shares and still holds them.
+#
+# The book holds no foreign currency at all, which is the point: shares are
+# counted in units and priced, not converted, so they open no cost basis and
+# keep GnuCash's own revaluation. The page states them under
+# `unrealized_gains_other` with `unrealized_gains_fx` at 0.00, which a book
+# holding both currency and shares cannot show apart.
+#
+# - 2025-08-01  10,000.00 CAD of opening capital.
+# - 2025-08-15  12 NASDAQ:AMZN bought at 200.00 USD, the US dollar at 1.30,
+#               so 3,120.00 CAD left the bank — 260.00 CAD a share.
+#
+# Prices, all at 12:00 UTC: NASDAQ:AMZN in USD 200 on 2025-08-15 and 280 on
+# 2026-12-31; USD in CAD 1.30 on 2025-08-15 and 1.42 on 2026-12-31. The share
+# is priced in US dollars and the book is kept in Canadian ones, so the report
+# reaches its Canadian figure through both: 280.00 USD at 1.42 is 397.60 CAD.
+#
+# What this fixture produces as of 2026-12-31: 6,880.00 CAD in the bank and
+# 12 AMZN worth 4,771.20 CAD, against 3,120.00 CAD of cost — so 1,651.20 CAD
+# of unrealized gain, none of it foreign exchange.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity AMZN
+	mnemonic: "AMZN"
+	fullname: "Amazon.com Inc"
+	namespace: "NASDAQ"
+	fraction: 10000
+2025-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Assets:Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Assets:AMZN
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+2025-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2025-01-01 open Equity:Opening balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2025-08-15 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "71/50"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2025-08-15 12:00:00 +0000"
+	value: "200/1"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "280/1"
+	source: "user:price-editor"
+	type: "last"
+
+2025-08-01 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:Bank 10000.00 CAD
+	Equity:Opening balances -10000.00 CAD
+
+2025-08-15 * "Buy 12 AMZN at 200.00 USD"
+	currency.mnemonic: "CAD"
+	Assets:AMZN 12 AMZN
+		share_price: "260"
+		value: "3120.00"
+	Assets:Bank -3120.00 CAD

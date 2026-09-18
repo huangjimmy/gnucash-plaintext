@@ -1,0 +1,22 @@
+# Every one of those 1,000.00 US dollars sold at 1.40, against the cost basis
+# the purchase opened.
+#
+# The sale values the dollars at what they cost — 1,300.00 CAD — and the CAD
+# bank takes the 1,400.00 they fetched, so `$residual$` takes the 100.00
+# between them. That is the convention every disposal in this format follows,
+# and it is what makes the residual split the realized gain.
+#
+# At the year end the book holds no US dollars, so nothing is unrealized and
+# the whole 100.00 is realized.
+#
+# `{usd_basis}` is the guid of the purchase's cost basis, read from
+# `fx-balances` after the first import.
+2026-06-01 * "Sell every dollar at 1.40"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Assets:CAD Bank 1400.00 CAD
+	Income:FX Gain $residual$ CAD

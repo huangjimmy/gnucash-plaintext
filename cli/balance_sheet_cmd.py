@@ -45,8 +45,10 @@ from services.gnucash_statements import render_balance_sheet
               default="text", show_default=True, help="Output format.")
 @click.option("--output", "output_file", default=None, type=click.Path(),
               help="Output file. Required for html and pdf; defaults to stdout for text.")
+@click.option("--itemize/--no-itemize", "itemize", default=True, show_default=True,
+              help="Show how each gain figure was worked out, as comment lines.")
 def balance_sheet(gnucash_file, as_of, currency, fx_rates_file, prices_file, price_source,
-                  output_format, output_file):
+                  output_format, output_file, itemize):
     """The balance sheet as of a date, printed by a customized GnuCash report, in the book's currency."""
     check_output(output_format, output_file)
     quotes = read_price_files(fx_rates_file, prices_file)
@@ -62,7 +64,7 @@ def balance_sheet(gnucash_file, as_of, currency, fx_rates_file, prices_file, pri
         report_currency = the_currency(repo.book, currency)
         add_the_files_prices(repo.book, quotes, report_currency, [as_of])
         page = render_balance_sheet(repo.session, report_currency, as_of, page_for(output_format),
-                                    price_source=price_source, warn=warn)
+                                    price_source=price_source, warn=warn, itemize=itemize)
     except PageNotRenderedError as refusal:
         raise click.ClickException(str(refusal)) from refusal
     finally:

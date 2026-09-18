@@ -1,0 +1,46 @@
+# Part of each of the three currencies spent.
+#
+#     400.00 USD from the 1.30 basis, spent at 1.45
+#                                     520.00 cost      580.00 fetched     60.00 realized
+#  46,500.00 HKD from the 1/6 basis, spent with the peg at 7.75, so at 26/155
+#                                   7,750.00 cost    7,800.00 fetched     50.00 realized
+#     900.00 CAD of rent, which realizes nothing: Canadian dollars are what
+#                                   this book is kept in
+#
+# 46,500 divides by both 6 and 155, so the cost and what it fetched are each
+# exact to the cent rather than rounded — the gain is 50.00 and not 50.00-ish.
+#
+# What is left is 600.00 USD costing 780.00, and 99,510.00 HKD costing
+# 16,585.00. The US dollar is priced at 1.30 on both dates the sheet is drawn
+# at, so its unrealized figure is 0.00 at each — the control. Only the Hong
+# Kong dollar moves, and it moves both ways:
+#
+#     as of 2026-11-30, peg 7.85, at 26/157 — worth less than it cost
+#     as of 2026-12-31, peg 7.75, at 26/155 — worth more
+#
+# `{usd_basis}` and `{hkd_basis}` are the guids of the two foreign earnings'
+# cost bases, read from `fx-balances` after the first import.
+2026-07-01 * "Subcontractor paid in US dollars, at 1.45"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -400.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-520.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Expenses:Subcontractors 580.00 CAD
+	Income:FX Gain $residual$ CAD
+
+2026-08-01 * "Subcontractor paid in Hong Kong dollars, the peg at 7.75"
+	currency.mnemonic: "CAD"
+	Assets:HKD Bank -46500.00 HKD
+		account.commodity.mnemonic: "HKD"
+		share_price: "1/6"
+		value: "-7750.00"
+		cost_basis_split_guid: "{hkd_basis}"
+	Expenses:Subcontractors 7800.00 CAD
+	Income:FX Gain $residual$ CAD
+
+2026-09-01 * "Rent, in Canadian dollars"
+	currency.mnemonic: "CAD"
+	Expenses:Rent 900.00 CAD
+	Assets:CAD Bank -900.00 CAD
