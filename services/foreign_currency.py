@@ -68,6 +68,8 @@ from gnucash.gnucash_core_c import (
     ACCT_TYPE_BANK,
     ACCT_TYPE_CASH,
     ACCT_TYPE_CREDIT,
+    ACCT_TYPE_EXPENSE,
+    ACCT_TYPE_INCOME,
     ACCT_TYPE_LIABILITY,
     ACCT_TYPE_MUTUAL,
     ACCT_TYPE_PAYABLE,
@@ -121,6 +123,19 @@ COST_BASIS_COST_KEY = 'cost_basis_cost'
 # guid it gives is a cost basis that was consumed rather than one that never was.
 APPLIED_FROM_CREDIT_KEY = 'applied_from_credit'
 
+# KVP on the split a transaction's `$residual$` line resolved to: the exchange
+# difference a disposal realized, which the file declared and a saved book
+# would otherwise have no record of.
+#
+# It cannot be worked out again afterwards. A disposal balances — what it
+# fetched plus the difference it realized is what those units cost — so the
+# arithmetic alone cannot say which of its splits is which, and neither can the
+# account: 8.60 USD disposed of at 11.99 paid an 11.92 bank charge beside 0.07
+# of exchange difference, both on expense accounts, and an account is not one
+# or the other because of its name (docs/multi-currency.md). The file said
+# which, and this is the book's record of it.
+TOOK_THE_RESIDUAL_KEY = 'took_the_residual'
+
 # Account types whose balance a positive amount increases (assets, receivables)
 # and those a negative amount increases (liabilities, payables). Used to tell a
 # split that establishes a cost basis from one that spends the currency.
@@ -142,6 +157,11 @@ _DEBIT_TYPES = frozenset({
 _CREDIT_TYPES = frozenset({
     ACCT_TYPE_LIABILITY, ACCT_TYPE_PAYABLE, ACCT_TYPE_CREDIT,
 })
+
+# Where a realized exchange difference can land. It is income when the book
+# gained and an expense when it lost, and it is in the profit and loss either
+# way.
+_GAIN_TYPES = frozenset({ACCT_TYPE_INCOME, ACCT_TYPE_EXPENSE})
 
 
 def _fraction(num) -> Fraction:
@@ -317,6 +337,127 @@ def cost_basis_guid_of(split) -> str:
     """The guid of the split whose cost basis this split picks, or ''."""
     value = get_custom_metadata(split).get(COST_BASIS_SPLIT_KEY, '')
     return str(value).replace('-', '').lower() if value else ''
+
+
+def takes_an_exchange_difference(account) -> bool:
+    """True when a split on this account could be a realized exchange difference.
+
+    `$residual$` is a balancing feature rather than a currency one: any
+    transaction may write it, on any account whose commodity is the
+    transaction's. But a residual that balances onto a bank or a receivable
+    moved money, it did not measure a difference — counted as one, a disposal
+    writing `Assets:CAD Bank $residual$ CAD` beside a stated gain put the
+    1,400.00 the bank received into `realized_gains_fx` and stated it as the
+    gain. So the mark goes on income and expense alone, which is the rule the
+    payment path has required all along.
+
+    It cannot tell an exchange difference from any other income or expense in
+    the same disposal — a bank charge is an expense too, and 8.60 USD disposed
+    of paid an 11.92 charge beside 0.07 of exchange difference. That is what
+    the `$residual$` token and a stated `took_the_residual` are for; this only
+    keeps the balance sheet out of it.
+    """
+    return account.GetType() in _GAIN_TYPES
+
+
+def states_the_residual_mark(value) -> bool:
+    """True when a `took_the_residual:` value states yes.
+
+    One definition, because two places ask it. This module reads the key off a
+    saved split, and the import counts the splits of one transaction that claim
+    the residual, so that two cannot both claim it. Were the two to disagree, a
+    file could state a key the import counted and the page did not, or the
+    reverse. A value of `"false"`, `"no"`, `"0"` or nothing at all is a file
+    saying no.
+    """
+    return str(value).strip().lower() not in ('', 'false', '0', 'no')
+
+
+def took_the_residual(split) -> bool:
+    """True when a transaction's `$residual$` line resolved to this split.
+
+    The key alone does not decide it. It is an ordinary custom KVP, so a file
+    can state `took_the_residual: "true"` on any split it likes, and the export
+    writes it back out — measured, so it cannot simply be refused without
+    breaking the round trip of every book that has a real one. Believed on its
+    own word it let a file put any split into `realized_gains_fx`: stated on a
+    Canadian rent line it booked an 800.00 CAD exchange loss on a book holding
+    no foreign currency, and stated in a US dollar transaction that gives a
+    real cost basis guid it added 20.00 US dollars into a Canadian total,
+    itemised on the page as `2026-03-01 Assets:USD Savings -20.00 CAD`.
+
+    So the ledger is asked as well, exactly as the importer asks it before
+    writing the key: the transaction must be stated in the book's own currency,
+    and must hold a disposal that gives the guid of the cost basis it draws on.
+    That is the same rule a stored cost follows — the transaction outranks the
+    copy — and it answers for books already written as well as for new files.
+    """
+    if not states_the_residual_mark(
+            get_custom_metadata(split).get(TOOK_THE_RESIDUAL_KEY, '')):
+        return False
+    if not takes_an_exchange_difference(split.GetAccount()):
+        return False
+    # Every split a saved book yields has a parent: one with no account cannot
+    # be loaded from a file on any supported version (CLAUDE.md §12), so there
+    # is nothing here to guard against.
+    transaction = split.GetParent()
+    if transaction_currency(transaction) != BASE_CURRENCY:
+        return False
+    return any(cost_basis_guid_of(other)
+               for other in transaction.GetSplitList())
+
+
+def mark_as_having_taken_the_residual(split) -> None:
+    """Record that a transaction's `$residual$` line resolved to this split.
+
+    Its other keys are kept. **Call this while the transaction is open.** Both
+    callers mark a split of a transaction they are still building, so the write
+    lands inside that edit, which is what carries a KVP to disk (CLAUDE.md §11);
+    marking a split of a committed transaction would leave the key in memory
+    and lose it on save, so open the edit rather than relying on this to.
+    """
+    metadata = dict(get_custom_metadata(split))
+    metadata[TOOK_THE_RESIDUAL_KEY] = 'true'
+    set_custom_metadata(split, metadata)
+
+
+def realized_fx_items_up_to(book, as_of) -> list:
+    """Each exchange difference the book realized by the end of `as_of`.
+
+    `[(date, account full name, figure)]`, oldest first. The balance sheet
+    states them one by one and totals `realized_gains_fx` from these same
+    items, so the key and the working it is said to add up to are one walk of
+    the book rather than two — a gain is measured against costs that appear on
+    no line of the page, so without its working it is the one figure there that
+    has to be taken on trust, and two passes could come to differ.
+
+    A figure is the negative of the value on the marked split, because an
+    income split carries a credit: a sale of 3,000.00 USD that gained 240.00
+    CAD posts −240.00 to its income account, and a book that lost 19.86 posts
+    +19.86.
+
+    Cumulative to the date rather than for a period, because a balance sheet
+    states what a book has taken by the day it is drawn. Read from the splits
+    rather than from an income account's balance, which closing the books
+    resets while leaving the splits where they are.
+    """
+    from infrastructure.gnucash.utils import get_account_full_name
+
+    items = []
+    for split in iter_splits(book):
+        if not took_the_residual(split):
+            continue
+        # Every split a saved book yields has a parent and an account. A split
+        # with no account cannot be loaded from a file on any supported version
+        # — 5.x drops the whole transaction and 4.x and below segfault in the
+        # loader (CLAUDE.md §12) — so there is nothing here to guard against.
+        when = split.GetParent().GetDate().date()
+        if when > as_of:
+            continue
+        items.append((when.isoformat(),
+                      get_account_full_name(split.GetAccount()),
+                      -_fraction(split.GetValue())))
+    return sorted(items)
 
 
 def establishes_cost_basis(split) -> bool:
@@ -745,6 +886,147 @@ def total_cost_basis_balance_in(account) -> Fraction:
         if balance is not None:
             total += balance
     return total
+
+
+def _drawn_down_after(book, as_of) -> dict:
+    """Per cost basis guid, how much every disposal after `as_of` took from it.
+
+    A `cost_basis_balance` says what a cost basis has left **now**, not what it
+    had left on some earlier date, and a balance sheet drawn at an earlier date
+    needs the second. What a disposal took is its own amount, and when it took
+    it is its transaction's date, so the balance as of a date is what the KVP
+    says plus everything drawn from it since.
+
+    Gathered in one pass and keyed by guid. Asked per cost basis it would walk
+    every split in the book once per basis, which is the same answer at the cost
+    of squaring the work.
+    """
+    drawn: dict = {}
+    for split in iter_splits(book):
+        guid = cost_basis_guid_of(split)
+        if not guid:
+            continue
+        when = split.GetParent().GetDate().date()
+        if when <= as_of:
+            continue
+        drawn[guid] = drawn.get(guid, Fraction(0)) + abs(_fraction(split.GetAmount()))
+    return drawn
+
+
+def cost_basis_totals_by_currency_and_side(book, as_of) -> dict:
+    """Per currency and side, what the book holds against its cost bases and what it cost.
+
+    `as_of` reads the cost bases as they stood at the end of that date rather
+    than as they stand now: a basis opened later is not counted at all, and one
+    drawn down later gets that back. Without it a sheet drawn at an earlier date
+    measures the currency it held then against costs it did not yet have.
+    Measured on a book that bought 1,000.00 USD at 1.30 in January, sold it all
+    on 1 August and bought 1,000.00 more at 1.50: a 30 June sheet priced at 1.35
+    stated a loss of 150.00, against the 50.00 gain those January dollars
+    actually stood at, because the quantities matched while the costs did not —
+    so nothing refused it and the page showed its working for a cost basis the
+    book had not yet opened.
+
+    A date is required. Every page that reads the cost bases is drawn at one,
+    so reading them as they stand now is an answer nothing asks for.
+
+    `{'USD': {'asset': (quantity, cost), 'liability': (quantity, cost)}}`, the
+    quantity in that currency and the cost in the book's own. A currency absent
+    from this is one the cost bases say nothing about, and a balance sheet must
+    leave it to GnuCash — an empty answer is not a cost of zero, which is the
+    distinction that reported a bank's whole balance as a gain when the book
+    happened to keep no basis for it.
+
+    The sum over every cost basis of what it has left times what that currency
+    cost when it arrived. A basis spent to nothing contributes nothing: once the
+    money is gone its gain or loss is realized and sits in an income account,
+    and counting it here as well would state the same money twice.
+
+    **Adding those figures up merges no cost bases.** Two incomes of 1,000.00
+    USD at 1.30 are two cost bases, with two balances and two guids, and they
+    stay two however alike their costs: `fx-balances` lists each of them, and a
+    disposal draws on the one whose guid it gives. What is totalled here is the single
+    figure the balance sheet prints for that currency and side. Nothing here
+    averages a cost or pools one basis into another — a disposal is measured
+    against the basis it picks, which is what decides the gain it realizes.
+
+    This is what a balance sheet needs and what GnuCash cannot work out. GnuCash
+    reconstructs cost from the sum of an account's split *values*, which is the
+    cost only where every split was valued in the book's own currency — and a
+    foreign inflow recorded in its own currency, as an invoice collected into a
+    foreign bank is, carries no such value. Its reconstruction then misses by
+    whatever the report-date price differs from the real one, in either
+    direction: on a book still holding the money it omits the gain and leaves
+    the sheet unbalanced, and on a book that has spent it, it states the
+    realized gain over again as an unrealized one.
+
+    The two sides are kept apart because a balance sheet states a gain for each,
+    so they cannot be handed over already added together. And a book that holds
+    a currency and owes it at once would otherwise match neither: a cost basis
+    balance is checked against what the book holds, and checking a loan's
+    balance against a bank's as well answers for a figure neither of them has.
+
+    The side is which way the split moves, as the sign is: currency arriving on
+    a debit — a bank, a receivable's posting — is held, and currency on a
+    credit — a loan drawn, a payable's posting — is owed. The owed side keeps
+    its negative sign, so the two sides added together are what the book is left
+    carrying in that currency.
+
+    A basis whose balance or cost cannot be read counts for nothing, as it does
+    in `total_cost_basis_balance_in` and in what `fx-balances` totals.
+    """
+    totals: dict = {}
+    drawn_since = _drawn_down_after(book, as_of)
+    for split in iter_splits(book):
+        try:
+            if not establishes_cost_basis(split):
+                continue
+            # A cost basis the book had not opened yet says nothing about what
+            # it held then. Counted anyway, an August purchase priced the
+            # dollars a June sheet was holding.
+            if split.GetParent().GetDate().date() > as_of:
+                continue
+            balance = cost_basis_balance_of(split)
+            if balance is None:
+                continue
+            # What it had left then: what it has left now, plus whatever was
+            # taken from it since.
+            balance += drawn_since.get(split_guid(split), Fraction(0))
+            cost = cost_of(split)
+            amount = _fraction(split.GetAmount())
+            currency = split_commodity(split)
+        except Exception:
+            # A cost that will not parse raises rather than reading as nothing,
+            # and `establishes_cost_basis` is where it is read — so a book
+            # carrying `cost_basis_cost: "oops"`, as one edited elsewhere can,
+            # arrives here. That basis counts for nothing, as it does in what
+            # `fx-balances` totals, rather than taking the whole page down.
+            continue
+        # Neither `cost` nor `currency` is asked about again: a split gets past
+        # `establishes_cost_basis` only when it has a commodity and a cost that
+        # reads, since that function ends by returning `cost_of(split) is not
+        # None`. Asking twice reads as though one of them could still be
+        # missing here, and nothing could reach it.
+        sides = totals.setdefault(currency, {})
+        # Which side a cost basis sits on is the sign of what it brought in, not
+        # the type of the account holding it — and that is measured rather than
+        # assumed. Classifying by account type instead, so that a receivable
+        # goes with the assets the way `gnc:decompose-accountlist` groups it,
+        # puts an overpaid invoice's two bases on one side: the posting's
+        # +100.00 USD and the overpayment's −100.00 net to nothing, that nothing
+        # matches no holding, so both sides fall back to GnuCash's revaluation
+        # and the gain vanishes. On `fx_invoice_usd_overpaid_into_usd_bank.txt`
+        # it turned `unrealized_gains_assets_fx: -3.00` and a page that balanced
+        # into 0.00, with 137.00 of assets against 140.00 of liabilities and
+        # equity. The sign keeps the two bases apart, which is what lets each be
+        # checked against the holdings it can actually account for.
+        side = 'asset' if amount > 0 else 'liability'
+        held, spent = sides.get(side, (Fraction(0), Fraction(0)))
+        if amount > 0:
+            sides[side] = (held + balance, spent + balance * cost)
+        else:
+            sides[side] = (held - balance, spent - balance * cost)
+    return totals
 
 
 def lower_cost_basis_balance(split, amount: Fraction) -> Fraction:

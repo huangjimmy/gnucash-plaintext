@@ -1,0 +1,39 @@
+# Every US dollar sold in August, and the same number bought straight back.
+#
+# Imported onto `a_cad_book_that_bought_usd_before_selling_and_rebuying_it.txt`
+# with `{usd_basis}` replaced by the guid of the cost basis its 2026-01-10
+# purchase opened. A guid is minted fresh on each import, so it is read from
+# `fx-balances` and substituted before this file is imported.
+#
+# - 2026-08-01  1,000.00 USD sold at 1.50. Valued at what those dollars cost
+#               — 1,300.00 CAD — against the 1,500.00 the sale fetched, so
+#               `$residual$` books a 200.00 CAD gain and the January cost
+#               basis falls to nothing.
+# - 2026-08-01  1,000.00 USD bought again at 1.50, opening a second cost basis
+#               of 1,000.00 USD at 1,500.00 CAD.
+#
+# What the pair is for: the book holds 1,000.00 USD both before and after, and
+# a cost basis balance of 1,000.00 USD both before and after — but the cost
+# behind it changes from 1,300.00 to 1,500.00 on 2026-08-01.
+#
+# A sheet drawn as of 2026-06-30 therefore has a correct answer of 50.00 CAD:
+# on that date the book held the January dollars, worth 1,350.00 at the 06-30
+# price of 1.35 against 1,300.00 of cost. Reading the cost bases as they stand
+# at the end of the book instead gives 1,350.00 against 1,500.00 — a loss of
+# 150.00 — because the quantities match while the costs do not, so nothing
+# refuses it and the sheet balances on a figure that is wrong by 200.00.
+2026-08-01 * "Sell 1,000.00 USD at 1.50"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		share_price: "1.30"
+		value: "-1300.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Assets:CAD Bank 1500.00 CAD
+	Income:FX Gain $residual$ CAD
+
+2026-08-01 * "Buy 1,000.00 USD at 1.50"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		share_price: "1.50"
+		value: "1500.00"
+	Assets:CAD Bank -1500.00 CAD

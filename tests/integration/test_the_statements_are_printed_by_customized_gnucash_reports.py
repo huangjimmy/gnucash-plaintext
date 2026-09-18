@@ -48,6 +48,15 @@ class TestABookKeptInHkd:
         assert _key(result.output, 'total_assets') == '37330.00 HKD'
         assert _key(result.output, 'retained_earnings') == '8130.00 HKD'
         assert _key(result.output, 'total_liabilities_and_equity') == '37330.00 HKD'
+        # The scope limit, pinned rather than assumed: a cost is recorded
+        # against one currency, so a book kept in another measures no gain
+        # from its cost bases. The realized keys are left off altogether —
+        # anchored on the colon, since `realized_gains_fx` is a substring of
+        # `unrealized_gains_fx` and an unanchored check could never fail.
+        assert '\trealized_gains_fx:' not in result.output, result.output
+        assert '\ttotal_realized_gains:' not in result.output, result.output
+        assert _key(result.output, 'unrealized_gains_fx') == '0.00 HKD'
+        assert _key(result.output, 'unrealized_gains_other') == '0.00 HKD'
 
     def test_the_income_statement_is_in_hkd(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
@@ -208,7 +217,22 @@ class TestACadBookOverOneFiscalYear:
 
         assert result.exit_code == 0, result.output
         assert _key(result.output, 'retained_earnings') == '12679.60 CAD'
-        assert _key(result.output, 'unrealized_gains') == '2303.20 CAD'
+        # The two parts, never one line: 940.00 on the foreign currency and
+        # 1,363.20 on the shares. The book's HKD cost basis accounts for
+        # 100.00 of the currency figure. Its USD cost basis balance says
+        # 10,000.00 where the book owns 4,980.00, so those dollars keep
+        # GnuCash's own revaluation instead — they are currency either way,
+        # which is why they are here and not in `_other`.
+        # All 940.00 of the currency figure is on the asset side. The USD loan
+        # was borrowed in a transaction stated wholly in US dollars, so it has
+        # no cost basis and its split values convert at the same price as its
+        # balance — neither the book nor GnuCash can see what it has cost, and
+        # the key says 0.00 rather than leaving the reader to wonder.
+        assert _key(result.output, 'unrealized_gains_assets_fx') == '940.00 CAD'
+        assert _key(result.output, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert _key(result.output, 'unrealized_gains_fx') == '940.00 CAD'
+        assert _key(result.output, 'unrealized_gains_other') == '1363.20 CAD'
+        assert _key(result.output, 'total_unrealized_gains') == '2303.20 CAD'
 
     def test_each_account_states_what_it_holds_and_what_gnucash_made_of_it(self, tmp_path):
         """The plaintext format's own shape: the account, then a split's keys."""
@@ -337,7 +361,7 @@ class TestABookOwingForeignCurrency:
     owes 100.00 CAD more than it borrowed.
     """
 
-    FIXTURE = 'a_cad_book_owing_usd_it_borrowed_with_cad.txt'
+    FIXTURE = 'a_cad_book_that_borrowed_usd_into_its_cad_bank.txt'
 
     def test_what_the_loan_has_cost_so_far_is_an_unrealized_loss(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
@@ -350,7 +374,18 @@ class TestABookOwingForeignCurrency:
         assert _key(result.output, 'total_liabilities') == '1400.00 CAD'
         # One key whatever the sign, where GnuCash's page switches between
         # `Unrealized Gains` and `Unrealized Losses`.
-        assert _key(result.output, 'unrealized_gains') == '-100.00 CAD'
+        # The whole of it is on the liability: the book's only foreign thing is
+        # the loan, and its cost basis — 1,000.00 USD at 1.3 CAD/USD, opened
+        # because it was borrowed with Canadian dollars — is what the 1,400.00
+        # it is now worth is measured against. The two sides come to the third.
+        assert _key(result.output, 'unrealized_gains_assets_fx') == '0.00 CAD'
+        assert _key(result.output, 'unrealized_gains_liabilities_fx') == '-100.00 CAD'
+        assert _key(result.output, 'unrealized_gains_fx') == '-100.00 CAD'
+        # A loan is currency, so what it has cost belongs on the `_fx` keys.
+        # `_other` is for a holding that is not a currency at all, and this
+        # book has none.
+        assert _key(result.output, 'unrealized_gains_other') == '0.00 CAD'
+        assert _key(result.output, 'total_unrealized_gains') == '-100.00 CAD'
 
     def test_the_sheet_balances_against_what_the_loan_put_in_the_bank(self, tmp_path):
         """A sign error in the liability term would show here and nowhere else."""
@@ -376,7 +411,11 @@ class TestABookOwingForeignCurrency:
         assert result.exit_code == 0, result.output
         assert _amount(result.output, 'Liabilities:USD Loan') == '1000.00 USD'
         assert _under(result.output, 'Liabilities:USD Loan')['value'] == '1300.00'
-        assert _key(result.output, 'unrealized_gains') == '0.00 CAD'
+        assert _key(result.output, 'unrealized_gains_assets_fx') == '0.00 CAD'
+        assert _key(result.output, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert _key(result.output, 'unrealized_gains_fx') == '0.00 CAD'
+        assert _key(result.output, 'unrealized_gains_other') == '0.00 CAD'
+        assert _key(result.output, 'total_unrealized_gains') == '0.00 CAD'
         assert _key(result.output, 'total_liabilities_and_equity') == '1300.00 CAD'
 
 
@@ -435,7 +474,11 @@ class TestABookUsingTradingAccounts:
 
         assert result.exit_code == 0, result.output
         assert _key(result.output, 'trading_gains') == '2303.20 CAD'
-        assert 'unrealized_gains' not in result.output, result.output
+        assert 'unrealized_gains_assets_fx' not in result.output, result.output
+        assert 'unrealized_gains_liabilities_fx' not in result.output, result.output
+        assert 'unrealized_gains_fx' not in result.output, result.output
+        assert 'unrealized_gains_other' not in result.output, result.output
+        assert 'total_unrealized_gains' not in result.output, result.output
         assert _key(result.output, 'retained_earnings') == '12679.60 CAD'
         assert _key(result.output, 'total_liabilities_and_equity') == '38532.80 CAD'
 

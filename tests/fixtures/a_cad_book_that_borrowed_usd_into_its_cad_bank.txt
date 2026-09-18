@@ -1,4 +1,4 @@
-# A book kept in CAD that owes US dollars it borrowed with Canadian ones.
+# A book kept in CAD that borrowed US dollars into its Canadian bank.
 #
 # Every top-level account is held in CAD, so the book is kept in CAD (Q-042).
 # The loan is the one foreign thing in it:

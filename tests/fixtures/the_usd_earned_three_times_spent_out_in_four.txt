@@ -1,0 +1,60 @@
+# Every one of those 4,000.00 US dollars spent, in four disposals.
+#
+# Each states the cost basis it draws on, and is valued at what that basis cost
+# — so the Canadian dollar line states what the dollars actually fetched and
+# `$residual$` takes the difference, which is the gain realized that day.
+#
+#     600.00 from the 1.30 basis, spent at 1.45    780.00 cost    870.00 fetched     90.00
+#     400.00 from the 1.30 basis, spent at 1.50    520.00 cost    600.00 fetched     80.00
+#   2,000.00 from the 1.35 basis, spent at 1.38  2,700.00 cost  2,760.00 fetched     60.00
+#   1,000.00 from the 1.40 basis, spent at 1.42  1,400.00 cost  1,420.00 fetched     20.00
+#                                                5,400.00       5,650.00          250.00
+#
+# The first basis is drawn on twice and emptied by the second of them, so the
+# realized figure has to sum across disposals as well as across cost bases.
+#
+# At the year end the book holds no US dollars, so nothing is unrealized
+# whatever the price — the book prices US dollars at 1.50 that day, which would
+# be a large gain on anything still held.
+#
+# `{basis_at_130}`, `{basis_at_135}` and `{basis_at_140}` are the guids of the
+# three earnings' cost bases, read from `fx-balances` after the first import.
+2026-07-01 * "Subcontractor paid, dollars from the 1.30 basis at 1.45"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -600.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-780.00"
+		cost_basis_split_guid: "{basis_at_130}"
+	Expenses:Subcontractors 870.00 CAD
+	Income:FX Gain $residual$ CAD
+
+2026-08-01 * "Subcontractor paid, the rest of the 1.30 basis at 1.50"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -400.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-520.00"
+		cost_basis_split_guid: "{basis_at_130}"
+	Expenses:Subcontractors 600.00 CAD
+	Income:FX Gain $residual$ CAD
+
+2026-09-01 * "Subcontractor paid, the 1.35 basis at 1.38"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -2000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-2700.00"
+		cost_basis_split_guid: "{basis_at_135}"
+	Expenses:Subcontractors 2760.00 CAD
+	Income:FX Gain $residual$ CAD
+
+2026-10-01 * "Subcontractor paid, the 1.40 basis at 1.42"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "-1400.00"
+		cost_basis_split_guid: "{basis_at_140}"
+	Expenses:Subcontractors 1420.00 CAD
+	Income:FX Gain $residual$ CAD

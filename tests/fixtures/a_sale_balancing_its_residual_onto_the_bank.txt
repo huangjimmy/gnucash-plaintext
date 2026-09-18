@@ -1,0 +1,27 @@
+# A disposal that balances its residual onto the bank and states the gain.
+#
+# `$residual$` is a balancing feature, not a currency one: it writes on any
+# account whose commodity is the transaction's. So a file may let the bank take
+# what is left over — 1,400.00, what the dollars fetched — and say on the income
+# line which split is the exchange difference.
+#
+# One split claims the difference, not two. A residual balancing onto a bank
+# moved money rather than measuring anything, and neither the import's mark nor
+# the page's reading counts it, so counting it as a *claim* refused this file
+# as claiming twice what it claims once — and left no way to have the gain
+# counted at all short of working the bank figure out by hand.
+#
+# So it imports, and the page states the 100.00 the sale made.
+#
+# `{usd_basis}` is the guid of the purchase's cost basis, read from
+# `fx-balances` after the first import.
+2026-06-01 * "Sell every dollar at 1.40"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Assets:CAD Bank $residual$ CAD
+	Income:FX Gain -100.00 CAD
+		took_the_residual: "true"

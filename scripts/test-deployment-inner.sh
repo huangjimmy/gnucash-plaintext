@@ -36,3 +36,56 @@ else
     echo "Error: test.pdf was not created!"
     exit 1
 fi
+
+# The balance sheet and the income statement are drawn by a customized GnuCash
+# report carried as package data, and an installed wheel is the only place that
+# shows the file is both in the package and loadable from it. The suite runs
+# from the source folder, where a report the wheel leaves out still passes every
+# test — which is how a wheel once shipped the module without the report it
+# loads. Drawing a page here runs the Scheme itself.
+echo "Running balance sheet on a book holding foreign currency..."
+cp /workspace/examples/multi-currency/some_of_the_dollars_kept_back.txt ./fx.txt
+FX_FILE="$(pwd)/fx.gnucash"
+AS_OF=$(grep -oE -- '--as-of [0-9-]+' fx.txt | head -1 | awk '{print $2}')
+
+gnucash-plaintext import --new "$FX_FILE" fx.txt --include-business-objects
+gnucash-plaintext balance-sheet "$FX_FILE" --as-of "$AS_OF" > fx_page.txt
+
+# Every gain the page states is worked out on the page beneath it, as comments
+# nested inside the block. Their absence means the report drew a page without
+# running its own working.
+echo "Checking the page shows how each gain was worked out..."
+if ! grep -qE '^[[:blank:]]*# realized_gains_fx:' fx_page.txt; then
+    echo "Error: the page states no working for realized_gains_fx!"
+    cat fx_page.txt
+    exit 1
+fi
+
+# The example carries its own prices, so the page needs no rates file, and the
+# page it should draw is commented at its own foot. `gnucash_balancing_amount`
+# is left out of the comparison: it is GnuCash's own figure for what the sheet
+# needs to balance, not a gain, and the two are equal only by coincidence.
+echo "Checking each gain against the figure the example publishes..."
+KEYS='(realized_gains_fx|total_realized_gains|unrealized_gains_assets_fx|unrealized_gains_liabilities_fx|unrealized_gains_fx|unrealized_gains_other|total_unrealized_gains)'
+grep -E "^# [[:blank:]]*$KEYS:" fx.txt | sed 's/^# //' > fx_published.txt
+grep -E "^[[:blank:]]*$KEYS:" fx_page.txt > fx_drawn.txt
+
+if [ ! -s fx_drawn.txt ]; then
+    echo "Error: the page states no gains at all!"
+    cat fx_page.txt
+    exit 1
+fi
+
+# The two are compared as strings rather than with `diff`, which the Arch and
+# openSUSE images do not carry: there the comparison itself failed, and the
+# message said the page differed when nothing had compared it.
+if [ "$(cat fx_published.txt)" = "$(cat fx_drawn.txt)" ]; then
+    echo "Success! The installed package draws the page the example publishes."
+else
+    echo "Error: the installed package draws a different page from the one the example publishes!"
+    echo "--- what the example publishes ---"
+    cat fx_published.txt
+    echo "--- what the installed package draws ---"
+    cat fx_drawn.txt
+    exit 1
+fi

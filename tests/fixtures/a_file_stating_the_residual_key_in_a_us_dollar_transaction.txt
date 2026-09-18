@@ -1,0 +1,29 @@
+# A file stating `took_the_residual` on a split of a transaction that is not
+# stated in the book's own currency.
+#
+# Both accounts are in US dollars, so the transaction is stated in US dollars,
+# and the marked split is an expense — a realized difference is a gain or a
+# loss, so putting it anywhere else would be turned away by the account before
+# the currency was ever asked about. This is the currency rule on its own.
+#
+# The 20.00 below is US dollars. Counted, it would be added into a Canadian
+# total with no price applied to it and nothing on the page saying the units
+# differ — the sum states one currency, and a figure in another cannot join it.
+#
+# Nothing here gives a cost basis guid, and nothing needs to: the currency is
+# asked about before the disposal is.
+2026-03-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-03-01 open Expenses:USD Bank Fees
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-03-01 * "Bank fee charged in US dollars"
+	currency.mnemonic: "USD"
+	Assets:USD Bank -20.00 USD
+	Expenses:USD Bank Fees 20.00 USD
+		took_the_residual: "true"

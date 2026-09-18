@@ -1,0 +1,16 @@
+# The rate the invoice is posted and collected at, and a year-end price far
+# below it, so the dollars still held are worth less than they cost.
+#
+# The third of three prices the same two books are drawn at. Its siblings put
+# the year end at 1.3865, the rate the dollars leave at, and at 1.45, above
+# what they cost. Here the unrealized figure is a loss of 193.80 where 1.45
+# makes it a gain of 56.20, and GnuCash's residual swings the other way too —
+# +333.34 here against −96.66 there — while the realized loss stays 12.56 at
+# every price, being a matter of what the dollars cost and what they fetched.
+#
+# One direction proves nothing about the other: a figure that is always
+# negative passes a test that only ever prices upwards.
+USD/CAD:
+  2026-08-13: 1.393801
+  2026-08-17: 1.393792
+  2026-12-31: 1.2

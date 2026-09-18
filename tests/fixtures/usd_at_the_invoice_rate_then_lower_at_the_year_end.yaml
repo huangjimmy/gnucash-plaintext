@@ -1,0 +1,11 @@
+# The rate the invoice is posted and collected at, and a different one on the
+# date the balance sheet is drawn. 1.393801 is 3791.14 / 2720 — the rate a real
+# book's invoice was booked at; 1.3865 is what its year-end page valued USD at.
+#
+# The gap between them is what GnuCash prints as Unrealized Gains for an
+# account that holds nothing, because it re-values the money that arrived
+# rather than reading what the money cost.
+USD/CAD:
+  2026-08-13: 1.393801
+  2026-08-17: 1.393792
+  2026-12-31: 1.3865

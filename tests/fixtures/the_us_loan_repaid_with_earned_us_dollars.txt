@@ -1,0 +1,24 @@
+# The 100.00 USD loan settled with the US dollars the company earned.
+#
+# Imported onto `a_cad_book_recording_a_us_loan_as_a_canadian_liability.txt`,
+# with `{usd_basis}` replaced by the guid of the cost basis the 2026-09-01
+# consulting collection opened. A guid is minted fresh on each import, so it
+# is read from `fx-balances` and substituted before this file is imported.
+#
+# The dollars are disposed of at what they cost — 100.00 USD at 1.40, so
+# 140.00 CAD — and they extinguish a liability the book carries at 130.00 CAD.
+# The 10.00 CAD between the two is the exchange loss, and `$residual$` takes
+# it: the company needed 140.00 CAD of US dollars to clear a debt it had
+# written down as 130.00.
+#
+# That is the whole cost of recording a US dollar loan in Canadian dollars.
+# Nothing was wrong while the loan stood — the sheet simply said nothing about
+# it — and the entire exposure lands in one entry on the day it is settled.
+2026-12-01 * "Repay the loan with the US dollars earned"
+	currency.mnemonic: "CAD"
+	Liabilities:US Loan 130.00 CAD
+	Assets:USD Bank -100.00 USD
+		share_price: "1.40"
+		value: "-140.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Expenses:Foreign exchange loss $residual$ CAD

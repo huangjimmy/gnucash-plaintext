@@ -1,0 +1,105 @@
+# A CAD book that earns US dollars three times, at three different rates.
+#
+# Each earning is billed and collected in one transaction stated in Canadian
+# dollars: the bank takes the US dollars and the revenue line states what they
+# were worth that day, so each opens a cost basis at its own rate.
+#
+#     2026-02-01   1,000.00 USD at 1.30   1,300.00 CAD
+#     2026-04-01   2,000.00 USD at 1.35   2,700.00 CAD
+#     2026-06-01   1,000.00 USD at 1.40   1,400.00 CAD
+#                  4,000.00 USD           5,400.00 CAD of cost
+#
+# `the_usd_earned_three_times_spent_out_in_four.txt` spends every dollar of it
+# across four disposals, drawing each on the cost basis it came from.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening CAD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Subcontractors
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "3/2"
+	source: "user:price-editor"
+	type: "last"
+
+2026-01-15 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 5000.00 CAD
+	Equity:Opening CAD -5000.00 CAD
+
+2026-02-01 * "Consulting collected in US dollars, at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+	Income:Consulting -1300.00 CAD
+
+2026-04-01 * "Consulting collected in US dollars, at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 2000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "2700.00"
+	Income:Consulting -2700.00 CAD
+
+2026-06-01 * "Consulting collected in US dollars, at 1.40"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "1400.00"
+	Income:Consulting -1400.00 CAD

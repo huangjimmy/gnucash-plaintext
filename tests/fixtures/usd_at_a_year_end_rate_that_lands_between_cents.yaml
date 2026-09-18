@@ -1,0 +1,27 @@
+# A year-end rate chosen so that a cost basis's worth and its cost both land
+# between cents, and round in opposite directions.
+#
+# The book this prices holds 1,000.00 USD against a cost basis of
+# 189557/136000 CAD/USD, so that balance cost 189557/136 = 1393.8014705…,
+# which rounds to 1393.80 — a remainder of only +0.0015. Every other fixture
+# divides exactly or leaves a remainder that small, which is why a working line
+# and the key above it could disagree without a single test noticing.
+#
+# At 1.386466 the balance is worth 1386.466, which rounds to 1386.47 — a
+# remainder of −0.004. The two remainders now differ by more than half a cent,
+# which is exactly when rounding the difference and rounding the terms stop
+# agreeing:
+#
+#   the line:  1386.47 − 1393.80            = −7.33
+#   the key:   round(1386.466 − 1393.80147) = −7.34
+#
+# So the page would state a key its own working does not add up to. Both are
+# −7.33 now, because `plaintext:basis-gain` is the one computation behind them.
+#
+# The August rates are the ones the disposals happen at, unchanged from
+# `usd_at_the_invoice_rate_then_lower_at_the_year_end.yaml`, so only the year
+# end moves.
+USD/CAD:
+  2026-08-13: 1.393801
+  2026-08-17: 1.393792
+  2026-12-31: 1.386466

@@ -1,0 +1,15 @@
+# The rate the invoice is posted and collected at, and a higher one at the year
+# end, so the price the sheet is drawn at is NOT the rate the dollars left at.
+#
+# Its sibling `usd_at_the_invoice_rate_then_lower_at_the_year_end.yaml` prices
+# the year end at 1.3865, which is the rate the dollars leave at in both spend
+# fixtures. That is the case where GnuCash's residual, C − D × p, happens to
+# come to the realized figure, and a book drawn only at that price cannot tell
+# a computed realized gain from a copy of GnuCash's number.
+#
+# At 1.45 the three figures separate: the realized gain does not move with the
+# report price, the unrealized gain does, and the residual is neither of them.
+USD/CAD:
+  2026-08-13: 1.393801
+  2026-08-17: 1.393792
+  2026-12-31: 1.45

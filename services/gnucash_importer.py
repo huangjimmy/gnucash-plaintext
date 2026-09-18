@@ -86,6 +86,7 @@ from services.foreign_currency import (
     COST_BASIS_BALANCE_KEY,
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
+    TOOK_THE_RESIDUAL_KEY,
     a_disposal_the_finished_book_cannot_value,
     apply_cost_basis_picks,
     cost_basis_balance_of,
@@ -98,6 +99,7 @@ from services.foreign_currency import (
     is_a_spent_credit,
     lower_cost_basis_balance,
     malformed_cost_basis_balance_of,
+    mark_as_having_taken_the_residual,
     move_disposals_to_the_new_basis,
     note_stated_balance,
     open_what_an_edit_made_a_basis,
@@ -109,6 +111,8 @@ from services.foreign_currency import (
     smallest_unit,
     split_commodity,
     split_guid,
+    states_the_residual_mark,
+    takes_an_exchange_difference,
     the_bases_a_transaction_has,
     total_cost_basis_balance_in,
     transaction_currency,
@@ -255,6 +259,118 @@ def _account_money_str(value: Fraction, account) -> str:
     if not unit:
         unit = commodity.get_fraction() if commodity is not None else 100
     return money_text(value, unit)
+
+
+def refuse_an_update_leaving_two_splits_taking_the_residual(
+        desired_by_account, pairings, root_account) -> None:
+    """Refuse an update that would leave a transaction claiming the residual twice.
+
+    The create path's rule, asked of the transaction as this edit will leave
+    it rather than of the file alone. A block that states `took_the_residual`
+    decides its own split; a block silent about the key leaves whatever that
+    split already carries, which is how a second claim arrives with no file
+    ever stating two: export a disposal, whose gain split carries the key, add
+    `took_the_residual: "true"` to the bank charge beside it, and re-import. No
+    figure moves, so the cost-basis refusal has nothing to catch, and the slot
+    merge writes the second key beside the first.
+
+    Counted, a sale of 1,000.00 USD costing 1,300.00 that fetched 1,400.00 and
+    paid a 5.00 bank charge out of it states `realized_gains_fx` as 105.00
+    where the sale made 100.00.
+
+    **The same claims the create path counts, and no others.** A split a
+    difference could not land on claims nothing, so a key on a bank or a
+    receivable is passed over here as it is there and as the page passes over
+    it. Counting every account instead meant a file the create path accepted
+    was refused when it came back from its own export — the one journey a
+    format like this has to survive.
+
+    Asked before `BeginEdit`, with every other refusal this path raises: a file
+    that refuses has changed nothing only if every refusal comes first. An
+    account the book has not got was refused before that, at the top of the
+    update, so every name here resolves.
+    """
+    claimed = []
+    for acct_name, blocks in desired_by_account.items():
+        chosen, _ = pairings[acct_name]
+        for block, split in zip(blocks, chosen):
+            if TOOK_THE_RESIDUAL_KEY in block.metadata:
+                stated = block.metadata[TOOK_THE_RESIDUAL_KEY]
+            elif split is not None:
+                stated = get_custom_metadata(split).get(TOOK_THE_RESIDUAL_KEY, '')
+            else:
+                stated = ''
+            if not states_the_residual_mark(stated):
+                continue
+            if not takes_an_exchange_difference(
+                    find_account(root_account, str(acct_name))):
+                continue
+            claimed.append(acct_name)
+    if len(claimed) > 1:
+        accounts = ', '.join(repr(str(name)) for name in claimed)
+        raise Exception(
+            f'{len(claimed)} splits would take the residual — {accounts} — but '
+            f'only one split per transaction can, because a transaction has one '
+            f'exchange difference. A split already carrying took_the_residual '
+            f'keeps it unless its block states took_the_residual: "" to take it '
+            f'off.')
+
+
+def refuse_two_splits_taking_the_residual(
+        directive: PlaintextDirective, root_account) -> None:
+    """Refuse a transaction whose file claims the exchange difference twice.
+
+    A transaction has one, and there are two ways to say which split it is:
+    write `$residual$` in place of the amount and let the import work the
+    figure out, or work it out yourself, write it, and state
+    `took_the_residual: "true"` on that split. They produce the same book, so
+    one of each — or two of either — claims the difference twice.
+
+    Counted twice it is not a near miss. On a sale of 1,000.00 USD that cost
+    1,300.00 and fetched 1,400.00, marking the bank line beside the gain puts
+    1,400.00 into `realized_gains_fx` alongside the 100.00, stating the money
+    the bank received as a gain.
+
+    Two `$residual$` splits are refused in `_resolve_residual`, which cannot
+    resolve them at all. This is the same rule asked of the other spellings,
+    which resolve perfectly well and are simply not both true.
+
+    **Only a split a difference could land on claims anything.** `$residual$`
+    is a balancing feature and writes on any account whose commodity is the
+    transaction's, so a disposal may balance onto its bank with the token and
+    state the gain on an income line beside it. Counting the bank as a claim
+    refused that file as two, while the mark and the reader both say a residual
+    on a bank is no exchange difference — so the count has to ask the same
+    question they ask, or a legitimate file is turned away for claiming twice
+    what it only claims once, and the only way through is to write the bank
+    figure out by hand.
+    """
+    claimed = []
+    for child in directive.children:
+        # Every child of a transaction block is a split — measured, on all
+        # eleven builds: a filter for anything else was never once taken. And
+        # nothing else could claim the residual anyway, carrying neither
+        # `$residual$` for its amount nor the key.
+        if not (str(child.props.get('amount', '')) == RESIDUAL_AMOUNT
+                or states_the_residual_mark(
+                    child.metadata.get(TOOK_THE_RESIDUAL_KEY, ''))):
+            continue
+        # An account the book has not got is refused as the splits are built,
+        # with the message that says which one. Nothing is claimed by a split
+        # that cannot be placed at all.
+        account = find_account(root_account, str(child.props.get('account', '')))
+        if account is None or not takes_an_exchange_difference(account):
+            continue
+        claimed.append(child)
+    if len(claimed) > 1:
+        accounts = ', '.join(repr(str(child.props.get('account', '')))
+                             for child in claimed)
+        raise Exception(
+            f'{len(claimed)} splits take the residual — {accounts} — but only '
+            f'one split per transaction can, because a transaction has one '
+            f'exchange difference. A split takes it by writing '
+            f'{RESIDUAL_AMOUNT} in place of its amount, or by stating '
+            f'took_the_residual: "true" beside a figure worked out by hand.')
 
 
 def _resolve_residual(directive: PlaintextDirective, tx_currency, root_account) -> str:
@@ -9770,7 +9886,7 @@ def _check_payment_split_lines(book, pay_dir, kind: str, bank_currency: str):
                 f'belongs in income or expense. Anywhere else absorbs it into '
                 f'the balance sheet, where the year\'s exchange result never '
                 f'sees it')
-        prepared.append((account, None))
+        prepared.append(account)
     return prepared
 
 
@@ -10078,7 +10194,7 @@ def _refuse_a_payment_block_spending_a_cost_basis_balance(record, bank_account, 
     `cost_basis_split_guid:` cannot go on it the way an ordinary
     transaction's selling split carries it.
 
-    Left alone it drifts twice over. The cost basis keeps offering currency the
+    Left alone it goes wrong twice over. The cost basis keeps offering currency the
     account no longer holds — settle a USD invoice into an HKD bank and pay a
     USD bill back out of it, and the account is empty while `fx-balances`
     still reports 1,560.00 HKD available (measured). And the cash goes out
@@ -10087,8 +10203,8 @@ def _refuse_a_payment_block_spending_a_cost_basis_balance(record, bank_account, 
     rates differ.
 
     Asked of every foreign bank, not only one in a third currency: paying a
-    USD bill from a USD bank whose cost bases still have a balance drifts the same
-    way, and that shape is the commoner one. It reaches none of the
+    USD bill from a USD bank whose cost bases still have a balance goes wrong the
+    same way, and that shape is the commoner one. It reaches none of the
     cross-currency arithmetic — `_book_payment_fx_difference` returns early
     when the record and the bank share a currency — so the question has to be
     asked before that.
@@ -10462,15 +10578,23 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
         # split itself — the credit was acquired at the payment's rate, not at
         # the one the record was carried at.
         split.SetValue(to_money(value, scu))
-    for account, amount in prepared:
-        figure = leftover if amount is None else amount
-        numeric = to_money(figure, scu)
+    for account in prepared:
+        # Every one of these is a `$residual$` line, so each takes what the
+        # entry has left over. A payment block may carry no other split — a
+        # figure that moved money is a bank debit and is imported as its own
+        # transaction, so that it cannot quietly change the rate the settlement
+        # converted at — and `_check_payment_split_lines` returns the accounts
+        # to write after refusing everything else.
+        numeric = to_money(leftover, scu)
         extra_split = Split(book)
         extra_split.SetParent(payment_txn)
         extra_split.SetAccount(account)
         extra_split.SetAmount(numeric)
         extra_split.SetValue(numeric)
         extra_split.SetMemo(pay_dir.metadata.get('memo', ''))
+        # Q-043's `realized_gains_fx` is the sum of the splits that took a
+        # residual, and nothing in the saved entry would tell them apart.
+        mark_as_having_taken_the_residual(extra_split)
     payment_txn.CommitEdit()
 
     # Currency this settlement brought in gets a cost basis, exactly as it would
@@ -11336,6 +11460,30 @@ class GnuCashImporter:
             residual_amount_str = _resolve_residual(
                 directive, commodity, root_account)
 
+            # One exchange difference per transaction, however the file claims
+            # it. Asked after `_resolve_residual` so that two `$residual$`
+            # splits keep the refusal that says they cannot be resolved; what
+            # is left for this are the spellings that resolve and are not both
+            # true — two stated keys, or a key stated beside a token.
+            refuse_two_splits_taking_the_residual(directive, root_account)
+
+            # `$residual$` is available on any transaction, not only a currency
+            # disposal: one split may write it in place of an amount and take
+            # what the others leave over, wherever it is written. Only the ones
+            # standing for an exchange difference belong in `realized_gains_fx`,
+            # so the mark below goes on a residual split only where this
+            # transaction disposes of foreign currency against a cost basis and
+            # is stated in the book's own currency. Marking every residual put a
+            # Canadian rent line on the sheet as an exchange loss, and in a
+            # transaction stated in US dollars it added a US dollar figure in and
+            # labelled it Canadian.
+            residual_states_an_fx_difference = (
+                commodity is not None
+                and commodity.get_mnemonic() == BASE_CURRENCY
+                and any(child.metadata.get(COST_BASIS_SPLIT_KEY)
+                        for child in directive.children
+                        if child.type == DirectiveType.SPLIT))
+
             # Create splits
             for child in directive.children:
                 split_directive: PlaintextDirective = child
@@ -11367,7 +11515,6 @@ class GnuCashImporter:
                 split.SetParent(transaction)
                 split.SetAccount(split_account)
                 split.SetAmount(amount)
-
                 if 'share_price' in split_directive.metadata:
                     share_price = _stated_rate(
                         split_directive.metadata['share_price'],
@@ -11460,6 +11607,31 @@ class GnuCashImporter:
                     split_directive.metadata, KNOWN_SPLIT_METADATA_KEYS)
                 if custom_split_meta:
                     set_custom_metadata(split, custom_split_meta)
+
+                # Which split took the residual is the one thing a saved
+                # transaction cannot be asked again, and Q-043's
+                # `realized_gains_fx` is the sum of these. Income and expense
+                # only: a residual balancing onto a bank moved money rather
+                # than measuring a difference.
+                #
+                # **Marked after the slot write above, never before it.**
+                # `set_custom_metadata` replaces the whole `plaintext_metadata`
+                # slot, and the mark lives in that slot, so a residual line
+                # carrying a custom key of its own — `department: "ops"` under
+                # `Income:FX Gain $residual$ CAD` — had its mark written and
+                # then overwritten by the very next statement. Measured: that
+                # sale stated `realized_gains_fx: 0.00 CAD` with a working of
+                # `nothing`, where the same sale without the key states 100.00
+                # and lists it. Nothing reported it, and the export writes the
+                # figure the residual resolved to rather than the token, so the
+                # ledger that book writes could not put the mark back either.
+                # Marking here merges into what was just stored,
+                # `mark_as_having_taken_the_residual` reading the slot before
+                # it writes.
+                if (str(split_amount_str) == RESIDUAL_AMOUNT
+                        and residual_states_an_fx_difference
+                        and takes_an_exchange_difference(split_account)):
+                    mark_as_having_taken_the_residual(split)
 
                 # Q-035: a file that states a cost basis's balance is
                 # stating it net of every sale in that file, so those sales must
@@ -11717,6 +11889,13 @@ class GnuCashImporter:
                     continue
                 _refuse_to_move_a_split_between_lots(split, block.metadata)
                 _refuse_to_give_a_split_another_owner(book, split, block.metadata)
+
+        # One exchange difference per transaction, asked of the transaction as
+        # this edit will leave it: a block stating the key decides its own
+        # split, and a block silent about it leaves the mark already there. The
+        # create path asks the same of a file's own blocks.
+        refuse_an_update_leaving_two_splits_taking_the_residual(
+            desired_by_account, pairings, root_account)
 
         # The currency the block quotes it in, looked up here for the same
         # reason: before anything is edited. A currency GnuCash does not have

@@ -1,0 +1,87 @@
+# A Canadian company holding one security in two brokerage accounts.
+#
+# The book holds no foreign currency and opens no cost basis: a share is
+# counted in units and priced, so it keeps GnuCash's own revaluation. Nothing
+# here touches the cost-basis machinery at all.
+#
+# What it does reach is how that revaluation is added up. One unit is held in
+# each of two accounts, and the price puts each account's worth exactly on a
+# half cent — 1 XYZ at 10.005 CAD. Converted account by account the two come to
+# 10.01 apiece, or 20.02; converted once, as a commodity's whole holding, they
+# come to 20.01. `total_assets` does the second and the gain key does the
+# first, and a sheet whose two sides are added up differently need not balance.
+#
+# - 2026-01-01  1,000.00 CAD of opening capital.
+# - 2026-02-01  1 XYZ bought for 10.00 CAD into each broker.
+#
+# Priced at 10.005 CAD on the sheet's date, so each holding is worth 10.005 and
+# the pair 20.01.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity XYZ
+	mnemonic: "XYZ"
+	fullname: "Example Holdings Inc"
+	namespace: "NASDAQ"
+	fraction: 10000
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Broker A
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "XYZ"
+2026-01-01 open Assets:Broker B
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "XYZ"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "XYZ"
+	currency.mnemonic: "CAD"
+	time: "2026-02-01 12:00:00 +0000"
+	value: "10/1"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "XYZ"
+	currency.mnemonic: "CAD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "2001/200"
+	source: "user:price-editor"
+	type: "last"
+
+2026-01-01 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:Bank 1000.00 CAD
+	Equity:Opening balances -1000.00 CAD
+
+2026-02-01 * "Buy 1 XYZ into each broker"
+	currency.mnemonic: "CAD"
+	Assets:Broker A 1 XYZ
+		share_price: "10"
+		value: "10.00"
+	Assets:Broker B 1 XYZ
+		share_price: "10"
+		value: "10.00"
+	Assets:Bank -20.00 CAD
