@@ -24,13 +24,27 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of, block_total_of
 
 BOUGHT = 'tests/fixtures/a_cad_book_that_bought_a_thousand_usd.txt'
 DECLARED = 'tests/fixtures/the_thousand_usd_sold_at_a_higher_rate.txt'
 AS_OF = '2026-12-31'
 MARK = re.compile(r'took_the_residual: "[^"]*"')
 GAIN_SPLIT = 'Income:FX Gain '
+
+# The two shapes `realized_gains_fx` takes on this book: the sale's 100.00 with
+# the split it was booked to, and — once the mark is cleared — a zero that says
+# it found no split rather than measuring nothing.
+THE_GAIN = '\n'.join((
+    '\t\trealized_gains_fx: 100.00',
+    '\t\tsplits:',
+    '\t\t\tsplit:',
+    '\t\t\t\tdate: 2026-06-01',
+    '\t\t\t\taccount: "Income:FX Gain"',
+    '\t\t\t\tamount: 100.00'))
+NO_GAIN = '\n'.join((
+    '\t\trealized_gains_fx: 0.00',
+    '\t\tsplits: # there is no split'))
 
 
 def _sold(runner, tmp_path):
@@ -102,8 +116,8 @@ def test_a_book_that_carries_the_mark_states_its_gain(tmp_path):
     """The starting point: this sale made 100.00 and the page says so."""
     runner = CliRunner()
 
-    assert key_of(_page(runner, _sold(runner, tmp_path)),
-                  'realized_gains_fx') == '100.00 CAD'
+    assert block_total_of(_page(runner, _sold(runner, tmp_path)),
+                     'realized_gains_fx') == 100
 
 
 def test_without_the_mark_it_states_nothing(tmp_path):
@@ -111,18 +125,21 @@ def test_without_the_mark_it_states_nothing(tmp_path):
     runner = CliRunner()
     book = _with_the_mark_cleared(runner, _sold(runner, tmp_path), tmp_path)
 
-    assert key_of(_page(runner, book), 'realized_gains_fx') == '0.00 CAD'
+    assert block_of(_page(runner, book), 'realized_gains_fx') == NO_GAIN
 
 
 def test_and_says_nothing_rather_than_listing_a_gain(tmp_path):
-    """The working is what shows that zero is not a measurement."""
+    """The working is what shows that zero is not a measurement.
+
+    The key states `there is no split` beside its zero, so a reader can see the
+    figure was reached by finding nothing rather than by measuring nothing.
+    """
     runner = CliRunner()
     book = _with_the_mark_cleared(runner, _sold(runner, tmp_path), tmp_path)
 
-    page = _page(runner, book)
-    listed = [line for line in page.splitlines()
-              if line.lstrip().startswith('#   ') and GAIN_SPLIT in line]
-    assert listed == [], page
+    block = block_of(_page(runner, book), 'realized_gains_fx')
+    assert '\t\tsplits: # there is no split' in block.splitlines(), block
+    assert GAIN_SPLIT not in block, block
 
 
 def test_the_export_of_such_a_book_carries_no_mark_to_restore(tmp_path):
@@ -138,8 +155,8 @@ def test_stating_the_key_by_hand_gives_the_gain_back(tmp_path):
     """The remedy the format documents, on the book it is written for."""
     runner = CliRunner()
     book = _with_the_mark_cleared(runner, _sold(runner, tmp_path), tmp_path)
-    assert key_of(_page(runner, book), 'realized_gains_fx') == '0.00 CAD'
+    assert block_of(_page(runner, book), 'realized_gains_fx') == NO_GAIN
 
     book = _with_the_mark_stated(runner, book, tmp_path)
 
-    assert key_of(_page(runner, book), 'realized_gains_fx') == '100.00 CAD'
+    assert block_of(_page(runner, book), 'realized_gains_fx') == THE_GAIN

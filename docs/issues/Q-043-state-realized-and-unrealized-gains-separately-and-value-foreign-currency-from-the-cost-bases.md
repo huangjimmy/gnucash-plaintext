@@ -40,46 +40,28 @@ For step 7 of the example, where the book holds nothing and has lost 19.86 CAD o
 
 Every other figure on the page can be checked by a reader. An account line is what that account holds, and they have the book. A section total is the lines above it added up. A gain can be checked against neither: it is measured against costs that appear on no line of the page at all. A total nobody can reproduce is a total nobody should trust, so the page states its working, and does so by default.
 
-Under the keys, as comment lines, grouped by the key each list belongs to and **adding up to it**. From the book that earns US dollars three times and spends every one of them out in four payments, whose realized figure is 250.00:
+Under each key, as **keys nested beneath it**, grouped by the key each list belongs to and **adding up to it**. Q-044 settled the shape; what this issue delivered was comment lines of the same figures, and the two paragraphs describing that are kept below so the change from one to the other can be read. From the book that earns US dollars three times and spends every one of them out in four payments, whose realized figure is 250.00:
 
 ```
-	# realized_gains_fx:
-	#   2026-07-01 Income:FX Gain 90.00 CAD
-	#   2026-08-01 Income:FX Gain 80.00 CAD
-	#   2026-09-01 Income:FX Gain 60.00 CAD
-	#   2026-10-01 Income:FX Gain 20.00 CAD
+	realized_gains_fx:
+		realized_gains_fx: 250.00
+		splits:
+			split:
+				date: 2026-07-01
+				account: "Income:FX Gain"
+				amount: 90.00
+			...
 ```
 
-and from the book holding Hong Kong dollars, US dollars and shares, which has realized nothing and says so:
-
-```
-	# realized_gains_fx:
-	#   nothing
-	#
-	# unrealized_gains_assets_fx:
-	#   asset 5500.00 HKD cost 1000.00 CAD, at 0.2 worth 1100.00 CAD = 100.00 CAD
-	#   USD 840.00 CAD
-	#
-	# unrealized_gains_other:
-	#   AMZN 1363.20 CAD
-	#
-	# gnucash_balancing_amount:
-	#   AMZN 1363.20 CAD
-	#   HKD 100.00 CAD
-	#   USD 840.00 CAD
-```
-
-They are two books because no one book prints both: a page showing four disposals and those holdings together would be a page no reader could reproduce.
-
-- **Both computations are shown.** A line reading `cost … at … worth …` is measured from the book's own cost bases and states its arithmetic; a line of a commodity and an amount is GnuCash's own revaluation of everything the book holds of it — what that is worth at the price nearest this date, less the sum of its splits' values. By commodity rather than by account, because GnuCash values a holding whole: it takes the quantity through the price once, so an account's share of that is a figure nobody computed, and rounding each share on its own put a sheet a cent out of balance on a book holding one security at two brokers. A reader can hold the two computations against each other, which is the whole reason for stating GnuCash's beside ours.
+- **Both computations are shown.** A commodity measured from the book's own cost bases lists each of them and states its arithmetic; one the cost bases cannot speak for says `measured_from: gnucash_revaluation` and gives the cost and the worth GnuCash's own subtraction used. By commodity rather than by account, because GnuCash values a holding whole: it takes the quantity through the price once, so an account's share of that is a figure nobody computed, and rounding each share on its own left a sheet stating 100.17 of assets against 100.16 of equity on a book holding one security at two brokers. A reader can hold the two computations against each other, which is the whole reason for stating GnuCash's beside ours.
 - **Grouped by key, never by source.** `unrealized_gains_assets_fx` above is 940.00, and it is HKD's 100.00 from a cost basis *plus* US dollars' 840.00 from GnuCash's revaluation, because that currency's cost basis balance is not what the book holds. Listing the two sources separately would leave no list adding up to the key, which is what the working exists to give.
-- **A key with nothing behind it says `nothing`.** An answer a reader can check; silence is not.
-- **Every gain list adds up to its key, and `gnucash_balancing_amount`'s does not.** Each gain figure is rounded term by term before the terms are added, so the lines beneath it come to it exactly — a working that does not add up to its own key is worse than no working, because the page says it does. GnuCash's own amount is the deliberate exception: GnuCash converts a whole holding at once, so two accounts in one foreign currency have their split values added before that conversion rounds them, and the same figures listed per account can come to a cent less. Rounding the key to match its lines would make it agree with the page and stop agreeing with GnuCash, which is the only reason the key is carried at all. The lines stay as GnuCash computes them and the page says they are not a total.
-- **Comments, so the format is unchanged.** `#` opens a line every reader of this format skips, which is what lets the working be added without changing what a page means to a program. The page already explains its keys the same way.
-- **`--no-itemize` turns it off**, on `balance-sheet` and on `report`. The keys are untouched either way.
+- **A key with nothing behind it says so in place of the list** — `commodities: # there is no cost basis on the asset side`, `splits: # there is no split`. An answer a reader can check; silence is not.
+- **Every gain list adds up to its key, `gnucash_balancing_amount`'s included.** Each gain figure is rounded term by term before the terms are added, so the lines beneath it come to it exactly — a working that does not add up to its own key is worse than no working, because the page says it does. GnuCash's amount was the exception while the block re-derived it: the same figures listed per account came to a cent less than GnuCash's own conversion of the whole holding. Q-044 reads the commodities and their amounts out of the collector GnuCash sums, so the groups are its figures rather than a second computation of them, and they come to the key. `tests/integration/test_an_itemized_total_is_the_figure_the_key_states.py` holds that on seven books.
+- **Keys, not comments.** This issue wrote the working as `#` lines, on the reasoning that a line every reader of the format skips could be added without changing what a page means to a program. Q-044 replaced them with real keys — `cost_basis:`, `split:`, `account:`, `value:` — because a working a parser cannot read is a working only a human can check, and the figures behind a gain are exactly what a program reading the sheet needs. The page's own explanation of its keys is still comment lines.
+- **`--no-itemize` turns it off**, on `balance-sheet` and on `report`, and `--max-items` caps how many entries each list shows. The keys are untouched either way.
 - **The working is itself checked.** `tests/integration/test_the_sheet_shows_how_each_gain_was_worked_out.py` reads the page's working back, sums each group and compares it with the key above it, on a book of cost bases and a fallback and a security, a book of four disposals against three cost bases, and a book of four cost bases at four rates. An itemization nobody verifies is only more text.
 
-**Where each half is computed, and why it is not arbitrary.** Facts held in KVP slots come from Python — a cost basis balance, what it cost, and the mark saying which split took a `$residual$` are all custom KVP this tool's own code owns, and `plaintext:set-cost-bases!` and `plaintext:set-realized-items!` carry them across. Facts held by GnuCash's engine — balances, prices, split values — are computed in the report, in Scheme. The unrealized working and GnuCash's per-account revaluation are engine facts; the realized items and the cost bases are KVP. One rule, both halves.
+**Where each half is computed, and why it is not arbitrary.** Facts held in KVP slots come from Python — a cost basis balance, what it cost, and the mark saying which split took a `$residual$` are all custom KVP this tool's own code owns, and `plaintext:set-cost-basis-items!` and `plaintext:set-realized-items!` carry them across. Facts held by GnuCash's engine — balances, prices, split values — are computed in the report, in Scheme. The unrealized working and GnuCash's per-account revaluation are engine facts; the realized items and the cost bases are KVP. One rule, both halves.
 
 ### The page says what the keys are
 
@@ -341,7 +323,7 @@ Recording that needs a cost basis on **both** sides, the deposit and the debt, a
 
 What stands in the way here is what the transaction is written in. Both of this borrowing's splits are in US dollars, so nothing in it says what those dollars cost, and a cost basis opens on neither side without one. The deposit and the debt each carry a balance the sheet cannot measure against, and the borrowed dollars have no cost basis for a disposal to draw on.
 
-That is one of the two reasons this fixture's cost bases and its accounts disagree about how many US dollars it has. It is a gap in the cost basis machinery rather than in this report, and it is not closed here. What this report does about it is leave such a currency to GnuCash's own revaluation rather than measure it against cost bases the book itself contradicts. Measured on this fixture, the page comes out at 38,532.80 CAD on both sides with the fallback in play, and the disagreement stays visible in the working, which states GnuCash's revaluation of that account instead of a cost and a worth. **That is not a promise that every such book balances.** The fallback states what GnuCash states, and GnuCash reconstructs cost from the sum of an account's split values — so a book whose foreign splits carry no figure in the book's own currency gives that revaluation nothing to read, and its page can come out short by whatever the cost bases would have supplied. What the fallback guarantees is that the currency is stated rather than silently dropped, and that the working says which of the two measured it.
+That is one of the two reasons this fixture's cost bases and its accounts disagree about how many US dollars it has. It is a gap in the cost basis machinery rather than in this report, and it is not closed here. What this report does about it is leave such a currency to GnuCash's own revaluation rather than measure it against cost bases the book itself contradicts. Measured on this fixture, the page comes out at 38,532.80 CAD on both sides with the fallback in play, and the disagreement stays visible in the working, which states GnuCash's revaluation of that account instead of a cost and a worth. **That is not a promise that every such book balances.** The fallback states what GnuCash states, and GnuCash reconstructs cost from the sum of an account's split values — so a book whose foreign splits carry no figure in the book's own currency gives that revaluation nothing to read, and its page can then come to less than it should, by whatever the cost bases would have supplied. What the fallback guarantees is that the currency is stated rather than silently dropped, and that the working says which of the two measured it.
 
 ### What that disagreement costs
 

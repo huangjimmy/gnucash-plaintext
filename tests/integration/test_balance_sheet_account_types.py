@@ -25,6 +25,8 @@ from click.testing import CliRunner
 from cli.main import cli
 from repositories.gnucash_repository import GnuCashRepository
 from tests.integration.text_report_pages import amount_of as _amount
+from tests.integration.text_report_pages import block_of as _block_of
+from tests.integration.text_report_pages import block_total_of as _block_total_of
 from tests.integration.text_report_pages import key_of as _key
 from tests.integration.text_report_pages import shares_as_a_block_writes, under
 from use_cases.account_balance import AccountBalanceUseCase
@@ -182,10 +184,36 @@ def test_a_foreign_security_is_valued_from_a_prices_file_and_a_rates_file(tmp_pa
     # its whole gain — the share price and the US dollar moving together —
     # keeps GnuCash's own revaluation, and none of it is stated as an
     # exchange movement.
-    assert _key(page, 'unrealized_gains_assets_fx') == '0.00 CAD'
+    assert _block_total_of(page, 'unrealized_gains_assets_fx') == 0
+    # Nothing owed in a foreign currency, so the owed side comes to nothing —
+    # and says so as a figure, because the book holds no such liability rather
+    # than the side going unmeasured.
     assert _key(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
     assert _key(page, 'unrealized_gains_fx') == '0.00 CAD'
-    assert _key(page, 'unrealized_gains_other') == '135.00 CAD'
+    # Stated in full: the shares, what the book paid for them converted, what
+    # they are worth at the file's prices, and the difference. 10 USTECH bought
+    # for 500.00 USD cost 675.00 CAD at 1.35 and are worth 810.00 at 81.00 CAD
+    # each — so every figure a reader would check is on the page.
+    assert _block_of(page, 'unrealized_gains_other') == '\n'.join((
+        '\t\tsecurities: # security, fund, etc',
+        '\t\t\tsecurity:',
+        '\t\t\t\tcommodity.namespace: "NASDAQ"',
+        '\t\t\t\tcommodity.mnemonic: "USTECH"',
+        '\t\t\t\tquantity: 10.0000',
+        '\t\t\t\tshare_price: 81 # what price-fn gives for this commodity',
+        '\t\t\t\taccounts:',
+        '\t\t\t\t\taccount:',
+        '\t\t\t\t\t\tguid: <guid>',
+        '\t\t\t\t\t\tname: "Assets:Brokerage:USTECH"',
+        '\t\t\t\t\t\tbalance: 10.0000',
+        '\t\t\t\t\t\tsplits:',
+        '\t\t\t\t\t\t\tsplit_amount 10.0000 | value 500.00 USD',
+        "\t\t\t\tvalue: 810.00 # the holding converted at the sheet's price",
+        "\t\t\t\tcost_value: 675.00 # its splits' values, converted",
+        '\t\t\t\tunrealized_gains_other: 135.00 # value - cost_value',
+        "\t\tvalue: 810.00 # sum of each security's value",
+        "\t\tcost_value: 675.00 # sum of each security's cost_value",
+        '\t\tunrealized_gains_other: 135.00 # value - cost_value')), page
     assert _key(page, 'total_unrealized_gains') == '135.00 CAD'
 
 

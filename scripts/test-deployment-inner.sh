@@ -51,12 +51,27 @@ AS_OF=$(grep -oE -- '--as-of [0-9-]+' fx.txt | head -1 | awk '{print $2}')
 gnucash-plaintext import --new "$FX_FILE" fx.txt --include-business-objects
 gnucash-plaintext balance-sheet "$FX_FILE" --as-of "$AS_OF" > fx_page.txt
 
-# Every gain the page states is worked out on the page beneath it, as comments
-# nested inside the block. Their absence means the report drew a page without
-# running its own working.
+# Every gain the page states is worked out on the page beneath it, as keys
+# nested inside the block: the key opens a block, states its own figure inside
+# it, and lists the entries it was measured from. Their absence means the
+# report drew a page without running its own working.
+#
+# Keys, not comments. Q-043 wrote this working as `# realized_gains_fx:`
+# comment lines and this check looked for one; Q-044 made them real keys, so
+# the comment stopped being written and the check failed on a page that states
+# its working perfectly well. Anchoring on the nested figure is what makes the
+# check follow the thing it is about — a `#` line proves only that a comment
+# was printed.
 echo "Checking the page shows how each gain was worked out..."
-if ! grep -qE '^[[:blank:]]*# realized_gains_fx:' fx_page.txt; then
+if ! grep -qE '^[[:blank:]]+realized_gains_fx:[[:blank:]]+-?[0-9]' fx_page.txt; then
     echo "Error: the page states no working for realized_gains_fx!"
+    cat fx_page.txt
+    exit 1
+fi
+
+# And the entries beneath that figure, which are the working itself.
+if ! grep -qE '^[[:blank:]]+split:$' fx_page.txt; then
+    echo "Error: the page lists no split behind realized_gains_fx!"
     cat fx_page.txt
     exit 1
 fi

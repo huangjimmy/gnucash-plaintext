@@ -20,6 +20,8 @@ from tests.integration.prices_in_a_book import prices_in
 from tests.integration.text_report_pages import (
     FIXTURES,
     amount_of,
+    block_of,
+    block_total_of,
     book_from,
     key_of,
     shares_as_a_block_writes,
@@ -295,10 +297,46 @@ class TestAPricesFile:
         assert under(page, 'Assets:Brokerage:VGRO')['value'] == '600.00'
         # Both securities are held in CAD, so none of the 200.00 is an
         # exchange movement: all of it is the two share prices moving.
-        assert key_of(page, 'unrealized_gains_assets_fx') == '0.00 CAD'
+        assert block_total_of(page, 'unrealized_gains_assets_fx') == 0
         assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
         assert key_of(page, 'unrealized_gains_fx') == '0.00 CAD'
-        assert key_of(page, 'unrealized_gains_other') == '200.00 CAD'
+        # Both securities in full, a stock and a fund, each bought for 500.00
+        # CAD and each worth 600.00 at the file's prices.
+        assert block_of(page, 'unrealized_gains_other') == '\n'.join((
+            '\t\tsecurities: # security, fund, etc',
+            '\t\t\tsecurity:',
+            '\t\t\t\tcommodity.namespace: "NASDAQ"',
+            '\t\t\t\tcommodity.mnemonic: "ACME"',
+            '\t\t\t\tquantity: 10.0000',
+            '\t\t\t\tshare_price: 60 # what price-fn gives for this commodity',
+            '\t\t\t\taccounts:',
+            '\t\t\t\t\taccount:',
+            '\t\t\t\t\t\tguid: <guid>',
+            '\t\t\t\t\t\tname: "Assets:Brokerage:ACME"',
+            '\t\t\t\t\t\tbalance: 10.0000',
+            '\t\t\t\t\t\tsplits:',
+            '\t\t\t\t\t\t\tsplit_amount 10.0000 | value 500.00 CAD',
+            "\t\t\t\tvalue: 600.00 # the holding converted at the sheet's price",
+            "\t\t\t\tcost_value: 500.00 # its splits' values, converted",
+            '\t\t\t\tunrealized_gains_other: 100.00 # value - cost_value',
+            '\t\t\tsecurity:',
+            '\t\t\t\tcommodity.namespace: "FUND"',
+            '\t\t\t\tcommodity.mnemonic: "VGRO"',
+            '\t\t\t\tquantity: 20.0000',
+            '\t\t\t\tshare_price: 30 # what price-fn gives for this commodity',
+            '\t\t\t\taccounts:',
+            '\t\t\t\t\taccount:',
+            '\t\t\t\t\t\tguid: <guid>',
+            '\t\t\t\t\t\tname: "Assets:Brokerage:VGRO"',
+            '\t\t\t\t\t\tbalance: 20.0000',
+            '\t\t\t\t\t\tsplits:',
+            '\t\t\t\t\t\t\tsplit_amount 20.0000 | value 500.00 CAD',
+            "\t\t\t\tvalue: 600.00 # the holding converted at the sheet's price",
+            "\t\t\t\tcost_value: 500.00 # its splits' values, converted",
+            '\t\t\t\tunrealized_gains_other: 100.00 # value - cost_value',
+            "\t\tvalue: 1200.00 # sum of each security's value",
+            "\t\tcost_value: 1000.00 # sum of each security's cost_value",
+            '\t\tunrealized_gains_other: 200.00 # value - cost_value')), page
         assert key_of(page, 'total_unrealized_gains') == '200.00 CAD'
 
     def test_a_security_the_book_does_not_hold_is_refused(self, tmp_path):

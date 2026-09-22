@@ -1,26 +1,46 @@
 #!/bin/bash
 #
-# A `PreToolUse` hook on Write and Edit: refuse text that uses "name" as a verb for something that has no name. Wired in `.claude/settings.json`, which is committed for exactly this reason.
+# A `PreToolUse` hook on Write and Edit: refuse text that uses "name" as a verb
+# for something that has no name. Wired in `.claude/settings.json`, which is
+# committed for exactly this reason.
 #
-# The rule is in CLAUDE.md and it is about being understood. A guid is not a name. A split is not a name. "the message names the split" tells a reader that a split has a name and that the message prints it, and neither is true — what the message prints is a guid, and the reader who goes looking for a name finds nothing. Write what is actually there: a refusal **lists** the disposals, a report **prints** the split's guid, a block **gives** a guid, a payment **applies** a split, a guid **matches**.
+# The rule is in CLAUDE.md and it is about being understood. A guid is not a
+# name. A split is not a name. "the message names the split" tells a reader
+# that a split has a name and that the message prints it, and neither is true —
+# what the message prints is a guid, and the reader who goes looking for a name
+# finds nothing. Write what is actually there: a refusal **lists** the
+# disposals, a report **prints** the split's guid, a block **gives** a guid, a
+# payment **applies** a split, a guid **matches**.
 #
-# "name" as a noun is untouched — an account name, a file name, a customer's name, `get_account_full_name`, `--by-name`. Those are names. So is naming a thing that has one: "the error gives the account's name" is fine, and so is `name: "US Customer"`.
+# "name" as a noun is untouched — an account name, a file name, a customer's
+# name, `get_account_full_name`, `--by-name`. Those are names. So is naming a
+# thing that has one: "the error gives the account's name" is fine, and so is
+# `name: "US Customer"`.
 #
-# Asking for this in CLAUDE.md was not enough. It was written down, agreed to, and broken again in the same session — in prose that had just been corrected for it — which is why it is a hook.
+# Asking for this in CLAUDE.md was not enough. It was written down, agreed to,
+# and broken again in the same session — in prose that had just been corrected
+# for it — which is why it is a hook.
 #
-# Exit 2 blocks the call and returns stderr to the agent, so the sentence is rewritten before it is written to the file rather than found later in review.
+# Exit 2 blocks the call and returns stderr to the agent, so the sentence is
+# rewritten before it is written to the file rather than found later in review.
 #
-# **It is a seatbelt, not a sandbox.** It matches the shapes that get typed — "names the", "naming a", "names it" — and a determined author can slip past it with a spelling nobody uses. That is fine: the point is to catch the habit, not to win an argument with someone who has decided. A shape it wrongly refuses is a defect; a shape nobody would type getting past it is not.
+# **It is a seatbelt, not a sandbox.** It matches the shapes that get typed —
+# "names the", "naming a", "names it" — and a determined author can slip past
+# it with a spelling nobody uses. That is fine: the point is to catch the
+# habit, not to win an argument with someone who has decided. A shape it
+# wrongly refuses is a defect; a shape nobody would type getting past it is not.
 
 RAW=$(cat)
 
-# Only the fields that write text into a file. `file_path` is not one of them: a path may legitimately hold the word, and refusing on it would block editing this very script.
+# Only the fields that write text into a file. `file_path` is not one of them:
+# a path may legitimately hold the word, and refusing on it would block editing
+# this very script.
 #
 # Two files are exempt, because they quote the shape they refuse and would
-# otherwise be unable to say what they are about: this script and its test.
-# Without that, correcting a word in either one is blocked by the rule the
-# file exists to state — which is a shape wrongly refused, and those are
-# defects.
+# otherwise be unable to say what they are about: this script and CLAUDE.md,
+# which is where the rule is written down. Without that, correcting a word in
+# either one is blocked by the rule the file exists to state — which is a shape
+# wrongly refused, and those are defects.
 TEXT=$(printf '%s' "$RAW" | python3 -c '
 import json, sys
 try:
@@ -29,8 +49,7 @@ except Exception:
     sys.exit(0)
 tool = payload.get("tool_input") or {}
 path = str(tool.get("file_path") or "")
-exempt = ("refuse-name-as-a-verb.sh",
-          "test_the_name_guard_leaves_real_names_alone.py")
+exempt = ("refuse-name-as-a-verb.sh", "CLAUDE.md")
 if any(path.endswith(name) for name in exempt):
     sys.exit(0)
 parts = [tool.get(key) or "" for key in ("content", "new_string")]

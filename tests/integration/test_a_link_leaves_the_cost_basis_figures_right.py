@@ -342,8 +342,8 @@ def test_a_bill_link_keeps_the_live_credit_line_basis(tmp_path):
     The paid payable keeps its own balance, as a paid invoice's receivable
     does. Consuming it was tried and is wrong: what a cost basis brought in and what
     it still holds are the two sides `currency_totals_that_disagree` compares,
-    so lowering a balance with no disposal to account for it puts the book's
-    own currency totals out by that amount.
+    so lowering a balance with no disposal to account for it leaves the book's
+    own currency totals disagreeing by that amount.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'

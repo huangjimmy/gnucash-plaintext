@@ -26,6 +26,7 @@ from click.testing import CliRunner
 
 from cli.main import cli
 from tests.conftest import _run
+from tests.integration.cost_basis_listings import cost_basis_rows
 
 RATES = 'tests/fixtures/fx_rates_usd_two_invoice_dates.yaml'
 QUOTED_ON_THE_DAY = 'tests/fixtures/fx_rates_usd_quoted_on_the_deposit_date.yaml'
@@ -331,7 +332,7 @@ def test_a_deposit_shared_with_another_invoice_is_not_opened_whole(tmp_path):
     assert unapplied.exit_code == 0, unapplied.output
 
     listing = _run(runner, 'fx-balances', str(book)).output
-    bank = [line for line in listing.splitlines()
+    bank = [line for line in cost_basis_rows(listing).splitlines()
             if 'Foreign Payments Provider Chequing' in line]
     assert bank, listing
     assert all('none recorded' in line for line in bank), listing

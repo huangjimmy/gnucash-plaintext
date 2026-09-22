@@ -1,7 +1,7 @@
 """CLI command: several statements at once, printed by customized GnuCash reports against a single open book.
 
 `report <book> <statement>... [--fiscal-year-end | --start --end] [--as-of] [--currency]
-[--fx-rates] [--prices] [--price-source] [--output]`
+[--fx-rates] [--prices] [--price-source] [--fx-gain-account] [--output]`
 
 You list the statements explicitly — `income-statement`, `balance-sheet` — so a
 T2 package is one invocation and one book open, instead of one command run per
@@ -18,6 +18,8 @@ import click
 from cli._dates import parse_date
 from cli._gnucash_statements import (
     CURRENCY_HELP,
+    FX_GAIN_ACCOUNT_HELP,
+    MAX_ITEMS_HELP,
     PRICE_SOURCE_HELP,
     PRICES_HELP,
     RATES_HELP,
@@ -53,9 +55,17 @@ _STATEMENTS = ("income-statement", "balance-sheet")
               help="Output file. Defaults to stdout.")
 @click.option("--itemize/--no-itemize", "itemize", default=True, show_default=True,
               help="Show how the balance sheet's gain figures were worked out, "
-                   "as comment lines.")
+                   "as keys nested under each — the cost bases, splits, "
+                   "securities and accounts it was measured from. Keys a "
+                   "parser sees, not comment lines. Applies to the balance "
+                   "sheet; an income statement states no gain figure.")
+@click.option("--max-items", "max_items", type=click.IntRange(min=-1), default=-1,
+              show_default=True, help=MAX_ITEMS_HELP)
+@click.option("--fx-gain-account", "gain_accounts", multiple=True,
+              help=FX_GAIN_ACCOUNT_HELP)
 def report(gnucash_file, statements, fiscal_year_end, start, end, as_of, currency,
-           fx_rates_file, prices_file, price_source, output_file, itemize):
+           fx_rates_file, prices_file, price_source, output_file, itemize, max_items,
+           gain_accounts):
     """Run the named statements against one open book, output combined."""
     unknown = [s for s in statements if s not in _STATEMENTS]
     if unknown:
@@ -105,7 +115,9 @@ def report(gnucash_file, statements, fiscal_year_end, start, end, as_of, currenc
             else:
                 parts.append(render_balance_sheet(repo.session, report_currency, as_of_date,
                                                   price_source=price_source, warn=warn,
-                                                  itemize=itemize))
+                                                  itemize=itemize,
+                                                  gain_accounts=gain_accounts,
+                                                  max_items=max_items))
     except PageNotRenderedError as refusal:
         raise click.ClickException(str(refusal)) from refusal
     finally:

@@ -16,6 +16,8 @@ from click.testing import CliRunner
 from tests.conftest import _run
 from tests.integration.text_report_pages import a_book_using_trading_accounts
 from tests.integration.text_report_pages import amount_of as _amount
+from tests.integration.text_report_pages import block_of as _block_of
+from tests.integration.text_report_pages import block_total_of as _block_total_of
 from tests.integration.text_report_pages import book_from as _book
 from tests.integration.text_report_pages import directive_of as _directive
 from tests.integration.text_report_pages import directives_of as _directives
@@ -56,7 +58,7 @@ class TestABookKeptInHkd:
         assert '\trealized_gains_fx:' not in result.output, result.output
         assert '\ttotal_realized_gains:' not in result.output, result.output
         assert _key(result.output, 'unrealized_gains_fx') == '0.00 HKD'
-        assert _key(result.output, 'unrealized_gains_other') == '0.00 HKD'
+        assert _block_total_of(result.output, 'unrealized_gains_other') == 0
 
     def test_the_income_statement_is_in_hkd(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
@@ -210,6 +212,32 @@ class TestACadBookOverOneFiscalYear:
         `retained_earnings` along with the consulting and the fees. What the
         holdings have made since they were bought is held by no account, so it
         is a key of the block.
+
+        **Why this passes, and why 940.00 is not the figure this book ought to
+        have.** The assertions state what `balance-sheet` prints today, which
+        is what every test here does. The page is right about the book it is
+        given: the book's US dollar cost basis says 10,000.00 where the bank
+        holds 7,480.00, so those dollars cannot be measured from their own
+        cost and keep GnuCash's revaluation instead, which comes to 840.00.
+        Add the 100.00 the Hong Kong dollars are measured for and the key is
+        940.00.
+
+        The book is what is wrong. The AMZN purchase spent US dollars and
+        should have drawn that basis down; it did not, because a stock bought
+        with a foreign currency is not yet recognised as consuming that
+        currency's cost basis — `docs/issues/Q-045-draw-a-stock-bought-with-
+        foreign-currency-from-that-currencys-cost-basis-and-open-one-for-what-
+        a-sale-brings-in.md`. With the basis drawn down to what the bank
+        holds, these dollars would be measured from their own cost and this
+        key would not be 940.00.
+
+        **So this figure is expected to change, and the test is how anyone
+        finds out.** The day Q-045 lands, this assertion turns red, whoever
+        did it reads the diff and writes the new number. That is the test
+        working. It is deliberately not an `xfail`: a mark asserts only that
+        the test does not pass, so it cannot check a figure, and it swallows
+        every other assertion in the body — see "No `xfail`, no `skip`" in
+        CLAUDE.md.
         """
         book = _book(tmp_path, self.FIXTURE)
 
@@ -228,10 +256,37 @@ class TestACadBookOverOneFiscalYear:
         # no cost basis and its split values convert at the same price as its
         # balance — neither the book nor GnuCash can see what it has cost, and
         # the key says 0.00 rather than leaving the reader to wonder.
-        assert _key(result.output, 'unrealized_gains_assets_fx') == '940.00 CAD'
         assert _key(result.output, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
         assert _key(result.output, 'unrealized_gains_fx') == '940.00 CAD'
-        assert _key(result.output, 'unrealized_gains_other') == '1363.20 CAD'
+        # And the items add to the key they sit under: the HKD group measured
+        # from its own cost bases at 100.00, the USD group under
+        # `measured_from: gnucash_revaluation` at 840.00.
+        assert _block_total_of(result.output, 'unrealized_gains_assets_fx') == 940
+        # In full, because the shares are the one holding here whose gain the
+        # cost bases say nothing about: 20 bought and 8 sold leave 12 AMZN,
+        # whose splits were valued at 3,408.00 CAD and which are worth 4,771.20
+        # at the year-end price.
+        assert _block_of(result.output, 'unrealized_gains_other') == '\n'.join((
+            '\t\tsecurities: # security, fund, etc',
+            '\t\t\tsecurity:',
+            '\t\t\t\tcommodity.namespace: "NASDAQ"',
+            '\t\t\t\tcommodity.mnemonic: "AMZN"',
+            '\t\t\t\tquantity: 12.0000',
+            '\t\t\t\tshare_price: 397.6 # what price-fn gives for this commodity',
+            '\t\t\t\taccounts:',
+            '\t\t\t\t\taccount:',
+            '\t\t\t\t\t\tguid: <guid>',
+            '\t\t\t\t\t\tname: "Assets:AMZN"',
+            '\t\t\t\t\t\tbalance: 12.0000',
+            '\t\t\t\t\t\tsplits:',
+            '\t\t\t\t\t\t\tsplit_amount 20.0000 | value 4000.00 USD',
+            '\t\t\t\t\t\t\tsplit_amount -8.0000 | value -1600.00 USD',
+            "\t\t\t\tvalue: 4771.20 # the holding converted at the sheet's price",
+            "\t\t\t\tcost_value: 3408.00 # its splits' values, converted",
+            '\t\t\t\tunrealized_gains_other: 1363.20 # value - cost_value',
+            "\t\tvalue: 4771.20 # sum of each security's value",
+            "\t\tcost_value: 3408.00 # sum of each security's cost_value",
+            '\t\tunrealized_gains_other: 1363.20 # value - cost_value')), result.output
         assert _key(result.output, 'total_unrealized_gains') == '2303.20 CAD'
 
     def test_each_account_states_what_it_holds_and_what_gnucash_made_of_it(self, tmp_path):
@@ -378,13 +433,16 @@ class TestABookOwingForeignCurrency:
         # the loan, and its cost basis — 1,000.00 USD at 1.3 CAD/USD, opened
         # because it was borrowed with Canadian dollars — is what the 1,400.00
         # it is now worth is measured against. The two sides come to the third.
-        assert _key(result.output, 'unrealized_gains_assets_fx') == '0.00 CAD'
+        # The asset side carries none of it and the owed side carries all of
+        # it, which is what `unrealized_gains_fx` adds up to and what the
+        # equity total is built on.
+        assert _block_total_of(result.output, 'unrealized_gains_assets_fx') == 0
         assert _key(result.output, 'unrealized_gains_liabilities_fx') == '-100.00 CAD'
         assert _key(result.output, 'unrealized_gains_fx') == '-100.00 CAD'
         # A loan is currency, so what it has cost belongs on the `_fx` keys.
         # `_other` is for a holding that is not a currency at all, and this
         # book has none.
-        assert _key(result.output, 'unrealized_gains_other') == '0.00 CAD'
+        assert _block_total_of(result.output, 'unrealized_gains_other') == 0
         assert _key(result.output, 'total_unrealized_gains') == '-100.00 CAD'
 
     def test_the_sheet_balances_against_what_the_loan_put_in_the_bank(self, tmp_path):
@@ -411,10 +469,10 @@ class TestABookOwingForeignCurrency:
         assert result.exit_code == 0, result.output
         assert _amount(result.output, 'Liabilities:USD Loan') == '1000.00 USD'
         assert _under(result.output, 'Liabilities:USD Loan')['value'] == '1300.00'
-        assert _key(result.output, 'unrealized_gains_assets_fx') == '0.00 CAD'
+        assert _block_total_of(result.output, 'unrealized_gains_assets_fx') == 0
         assert _key(result.output, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
         assert _key(result.output, 'unrealized_gains_fx') == '0.00 CAD'
-        assert _key(result.output, 'unrealized_gains_other') == '0.00 CAD'
+        assert _block_total_of(result.output, 'unrealized_gains_other') == 0
         assert _key(result.output, 'total_unrealized_gains') == '0.00 CAD'
         assert _key(result.output, 'total_liabilities_and_equity') == '1300.00 CAD'
 

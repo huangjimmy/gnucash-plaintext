@@ -157,8 +157,8 @@ class TestTheBlockSaysWhatItsKeysMean:
 
         assert result.exit_code == 0, result.output
         said = ' '.join(line.lstrip('\t# ') for line in self._comments(result.output))
-        assert 'not the keys of the same name on a transaction split' in said, said
-        assert 'price database' in said, said
+        assert 'share_price: and value: under an account line' in said, said
+        assert 'not the rate a split happened at' in said, said
         # An em dash, written as one character rather than mangled.
         assert '—' in said, said
 

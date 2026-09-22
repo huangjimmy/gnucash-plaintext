@@ -22,12 +22,13 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of, block_total_of, key_of
 
 BOUGHT = 'tests/fixtures/a_cad_book_that_bought_a_thousand_usd.txt'
 DECLARED = 'tests/fixtures/the_thousand_usd_sold_at_a_higher_rate.txt'
 WRITTEN_OUT = 'tests/fixtures/the_thousand_usd_sold_with_the_gain_written_out.txt'
 AS_OF = '2026-12-31'
+GUID = re.compile(r'\b[0-9a-f]{32}\b')
 
 
 def _sold(runner, tmp_path, sale, name):
@@ -66,8 +67,8 @@ def test_the_gain_is_the_hundred_the_sale_made(tmp_path):
     """1,000.00 USD costing 1,300.00 CAD fetched 1,400.00."""
     declared, written_out = _both(tmp_path)
 
-    assert key_of(declared, 'realized_gains_fx') == '100.00 CAD'
-    assert key_of(written_out, 'realized_gains_fx') == '100.00 CAD'
+    assert block_total_of(declared, 'realized_gains_fx') == 100
+    assert block_total_of(written_out, 'realized_gains_fx') == 100
 
 
 def test_a_gain_written_out_is_counted(tmp_path):
@@ -78,18 +79,25 @@ def test_a_gain_written_out_is_counted(tmp_path):
 
 
 def test_both_ways_draw_the_same_page(tmp_path):
-    """Same accounts, same amounts, same values — so the same statement."""
+    """Same accounts, same amounts, same values — so the same statement.
+
+    The guids are masked: each book is imported on its own, so its cost basis
+    and its splits are minted fresh, and the page gives those guids. Everything
+    a reader would call the statement has to match exactly.
+    """
     declared, written_out = _both(tmp_path)
 
-    assert declared == written_out
+    assert GUID.sub('<guid>', declared) == GUID.sub('<guid>', written_out)
 
 
 def test_the_working_states_the_gain_either_way(tmp_path):
     """A figure counted without its working would be a figure taken on trust."""
     declared, written_out = _both(tmp_path)
 
-    listed = [line.strip() for line in written_out.splitlines()
-              if line.lstrip().startswith('#   ') and 'Income:FX Gain' in line]
-    assert listed == ['#   2026-06-01 Income:FX Gain 100.00 CAD'], written_out
-    assert listed == [line.strip() for line in declared.splitlines()
-                      if line.lstrip().startswith('#   ') and 'Income:FX Gain' in line]
+    listed = [line.strip() for line in block_of(written_out, 'realized_gains_fx').splitlines()
+              if line.strip().startswith(('date: ', 'account: ', 'amount: '))]
+    assert listed == ['date: 2026-06-01', 'account: "Income:FX Gain"',
+                      'amount: 100.00'], written_out
+    assert listed == [line.strip()
+                      for line in block_of(declared, 'realized_gains_fx').splitlines()
+                      if line.strip().startswith(('date: ', 'account: ', 'amount: '))]

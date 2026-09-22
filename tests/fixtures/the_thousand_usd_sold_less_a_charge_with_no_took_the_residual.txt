@@ -1,0 +1,39 @@
+# A disposal that pays a bank charge and leaves an exchange difference, with
+# nothing saying which split is which.
+#
+# The shape a real book arrives in, and the reason an account has to be named
+# rather than guessed at. 1,000.00 USD costing 1,300.00 CAD are sold: 1,390.00
+# reaches the Canadian bank, 10.00 goes to the bank's charge, and the 100.00
+# between what the dollars cost and the 1,400.00 they fetched is the difference.
+#
+#     cost          1,300.00
+#     fetched       1,400.00   =  1,390.00 banked + 10.00 charged
+#     difference      100.00
+#
+# Both the charge and the difference sit on accounts a difference can land on —
+# one an expense, one an income — so neither the amounts nor the account types
+# tell them apart. `--fx-gain-account "Income:FX Gain"` states which one is the
+# difference, and the 10.00 charge must stay out of the figure.
+#
+# `{usd_basis}` is the guid of the purchase's cost basis, read from
+# `fx-balances` after the first import.
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank charges
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-06-01 * "Sell every dollar at 1.40, less the bank's charge"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+		cost_basis_split_guid: "{usd_basis}"
+	Assets:CAD Bank 1390.00 CAD
+	Expenses:Bank charges 10.00 CAD
+	Income:FX Gain -100.00 CAD

@@ -1,12 +1,12 @@
 """The gain notes are the balance sheet's, and the income statement states none.
 
 Both statements are drawn by the same report and share the prose that says what
-their keys mean. The gain keys belong to the balance sheet alone, so the
+their keys mean. The gain figures belong to the balance sheet alone, so the
 paragraphs explaining them do too — Q-043 says these lines are "added only
 where they mean something".
 
 Added to the shared list they appeared on every income statement, which then
-told a reader that "the gain keys are the exception" on a page carrying no gain
+told a reader which keys were "the exception" on a page carrying no gain
 key, and described "the last key" as GnuCash's own balancing amount, added into
 nothing — when the last key on an income statement is `net_income`, which is
 the figure the whole page is for.
@@ -27,9 +27,9 @@ THE_CAD_BOOK = 'a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.
 # Sentences the balance sheet uses to explain figures the income statement has
 # no equivalent of.
 GAIN_PROSE = (
-    'The gain keys are the exception',
     'A gain already taken is stated apart',
-    'Nothing adds it in',
+    'only the unrealized total reaches total_equity',
+    'added into nothing',
     # These two were added to the shared list rather than this one, so every
     # income statement told a reader that two of its section totals were not
     # GnuCash's and that `gnucash_balancing_amount` stated GnuCash's beside
@@ -43,7 +43,6 @@ GAIN_PROSE = (
     # GnuCash's own figure but two" are one claim and share no phrase worth
     # matching. A key is what does not move. An income statement has neither
     # of these, so neither can honestly appear on one.
-    'total_equity and total_liabilities_and_equity',
     'gnucash_balancing_amount',
 )
 
@@ -96,18 +95,18 @@ def test_the_balance_sheet_still_explains_its_gain_keys(tmp_path):
 
 
 def test_a_trading_accounts_sheet_explains_no_gain_keys(tmp_path):
-    """A balance sheet that prints no gain key explains none either.
+    """A balance sheet that states no gain explains none either.
 
     A book using trading accounts keeps its gains in its Trading accounts as
-    account balances, states them as `trading_gains`, and prints no gain key
-    and no `gnucash_balancing_amount` at all. The paragraphs would describe
-    figures that are not on the page — and would tell a reader that two of its
-    totals differ from GnuCash's when neither does, `total_equity` carrying an
-    unrealized total of zero.
+    account balances and states them as `trading_gains`. It prints no realized
+    or unrealized gain of its own, and no `gnucash_balancing_amount`. The two
+    lines would describe figures that are not on the page — and would tell a
+    reader that two of its totals differ from GnuCash's when neither does,
+    `total_equity` carrying an unrealized total of zero.
 
     The same fault as putting them on an income statement, one page along, and
-    the test beside this one checks the keys are absent without checking that
-    the prose about them is.
+    the test beside this one checks the figures are absent without checking
+    that the prose about them is.
     """
     book = a_book_using_trading_accounts(tmp_path, THE_CAD_BOOK)
 
@@ -117,13 +116,13 @@ def test_a_trading_accounts_sheet_explains_no_gain_keys(tmp_path):
     assert key_of(drawn.output, 'trading_gains') == '2303.20 CAD'
     for sentence in GAIN_PROSE:
         assert sentence not in drawn.output, sentence
-    assert 'An account line states' in drawn.output, drawn.output
+    assert "An account line is that account's own balance" in drawn.output, drawn.output
 
 
 def test_both_statements_keep_the_prose_they_share(tmp_path):
     """Only the gain paragraphs moved; what explains an account line did not."""
     book = _book(tmp_path)
-    shared = 'An account line states'
+    shared = "An account line is that account's own balance"
 
     sheet = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
     statement = _run(CliRunner(), 'income-statement', str(book),

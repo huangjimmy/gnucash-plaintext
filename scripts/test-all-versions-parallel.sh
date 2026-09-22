@@ -58,15 +58,12 @@ for version in "${VERSIONS[@]}"; do
 
     # Copy entire workspace, excluding large/unnecessary files.
     #
-    # `.claude/settings.json` comes along, and nothing else under `.claude`
-    # does: the file is tracked, and it is what wires the `PreToolUse`
-    # guards that refuse a shell file-edit and an unscoped kill — so a test
-    # that the wiring still names them has nothing to read here without it,
-    # while the rest of that directory is an agent's own state and has no
-    # business in a test container.
-    rsync -a --include='.claude/' \
-             --include='.claude/settings.json' \
-             --exclude='.claude/**' \
+    # Nothing under `.claude` comes along: it is an agent's own state and has
+    # no business in a test container. `.claude/settings.json` is tracked, and
+    # is what wires the `PreToolUse` guards, but those run on the machine an
+    # agent is working on rather than inside a container, and nothing in the
+    # suite reads them.
+    rsync -a --exclude='.claude' \
              --exclude='.git' \
              --exclude='__pycache__' \
              --exclude='*.pyc' \

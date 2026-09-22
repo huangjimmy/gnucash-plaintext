@@ -17,7 +17,7 @@ adding it in would state it as Canadian.
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of, block_total_of, key_of
 
 LEDGER = 'tests/fixtures/a_cad_book_using_residual_on_an_ordinary_expense.txt'
 AS_OF = '2026-12-31'
@@ -37,17 +37,22 @@ def _page(tmp_path):
 def test_the_rent_is_not_a_realized_exchange_loss(tmp_path):
     page = _page(tmp_path)
 
-    assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+    assert block_total_of(page, 'realized_gains_fx') == 0
     assert key_of(page, 'total_realized_gains') == '0.00 CAD'
 
 
 def test_the_working_states_no_exchange_difference(tmp_path):
-    """The key and its working have to agree, and both are nothing here."""
+    """The key and its working have to agree, and both are nothing here.
+
+    The key says so rather than carrying an empty list: `there is no split` is
+    an answer a reader can check, where a bare heading leaves them wondering
+    whether the page simply stopped.
+    """
     page = _page(tmp_path)
 
-    listed = [line for line in page.splitlines()
-              if line.lstrip().startswith('#   ') and 'Rent' in line]
-    assert listed == [], page
+    block = block_of(page, 'realized_gains_fx')
+    assert '\t\tsplits: # there is no split' in block.splitlines(), block
+    assert 'Rent' not in block, block
 
 
 def test_the_sheet_balances(tmp_path):

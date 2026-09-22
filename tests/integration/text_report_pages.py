@@ -23,6 +23,8 @@ price GnuCash used where the book holds one in the report's currency, and the
 value GnuCash made of it.
 """
 
+import re
+from fractions import Fraction
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -152,7 +154,81 @@ def key_of(output, name):
              if line.strip().startswith(wanted)]
     assert len(found) == 1, (name, output)
     value = found[0]
-    return value[1:-1] if value.startswith('"') and value.endswith('"') else value
+    if value.startswith('"') and value.endswith('"'):
+        return value[1:-1]
+    # A figure may state how it was reached — `600.00 CAD # unrealized_gains_fx
+    # + unrealized_gains_liabilities_fx` — and the value is the figure. Only an
+    # unquoted one is trimmed: a quoted string may hold a `#` of its own.
+    return value.split(' #')[0].strip()
+
+
+def block_of(output, name):
+    """The nested lines a gain figure carries, as one string with guids masked.
+
+    Four keys state their items rather than a figure — `realized_gains_fx`,
+    `unrealized_gains_assets_fx`, `unrealized_gains_other` and
+    `gnucash_balancing_amount` (Q-044). The key's own line is one tab in and
+    bare; everything under it is deeper, and the block ends at the next line one
+    tab in. A split's guid is made fresh on every import, so it is replaced by
+    `<guid>` and the rest compared as written.
+    """
+    lines = output.splitlines()
+    opening = f'\t{name}:'
+    start = [index for index, line in enumerate(lines)
+             if line == opening or line.startswith(opening + ' #')]
+    assert len(start) == 1, (name, output)
+    body = []
+    for line in lines[start[0] + 1:]:
+        if line.startswith('\t\t'):
+            body.append(re.sub(r'\b[0-9a-f]{32}\b', '<guid>', line))
+            continue
+        break
+    assert body, (name, output)
+    return '\n'.join(body)
+
+
+def totals_of(output, name):
+    """A block's own totals, as `{field: Fraction}`.
+
+    The four itemized keys end in their own summary lines — the key's figure and
+    the columns it was reached from — written one tab inside the block, with the
+    items themselves deeper than that. So this takes the lines at that one depth
+    and leaves the items alone.
+
+    A figure, never a string: a block line writes `250.00` where a key line
+    writes `250.00 CAD`, so the same number is spelt two ways on one page. A
+    test comparing text would be asserting which of the two it happened to
+    read; read as a Fraction, it asks what the number is.
+    """
+    totals = {}
+    for line in block_of(output, name).splitlines():
+        if line.startswith('\t\t\t'):
+            continue
+        field, _, rest = line.strip().partition(': ')
+        try:
+            totals[field] = Fraction(rest.split(' #')[0].strip())
+        except (ValueError, ZeroDivisionError):
+            continue
+    return totals
+
+
+def block_total_of(output, name):
+    """The figure an itemized key states for itself, from inside its own block.
+
+    An itemized key opens with a bare line and ends with a line of its own name
+    carrying the total its items come to:
+
+        realized_gains_fx:
+            realized_gains_fx: 250.00     <- this
+            splits:
+                ...
+
+    So `key_of` cannot read it — the key line has no figure on it — and this
+    answers what the key says it is, as a Fraction.
+    """
+    totals = totals_of(output, name)
+    assert name in totals, (name, output)
+    return totals[name]
 
 
 def under(output, path):

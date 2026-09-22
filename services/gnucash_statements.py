@@ -99,22 +99,30 @@ class PriceSourceNotOfferedError(PageNotRenderedError):
 
 def render_balance_sheet(session, currency: str, as_of: date, page: str = 'text',
                          price_source: Optional[str] = None, warn=None,
-                         itemize: bool = True) -> str:
+                         itemize: bool = True, gain_accounts=(),
+                         max_items: int = -1) -> str:
     """The Balance Sheet of the open book at the end of `as_of`, in `currency`.
 
     `page` is `text` for the plain text report, `html` for GnuCash's own.
     `price_source` is one of the report's `Price Source` choices, or None for
     GnuCash's default.
 
-    `itemize` shows how each gain figure was worked out, as comment lines. On
-    by default: a gain is measured against costs that appear on no line of the
-    page, so without its working it is a figure a reader cannot check.
+    `itemize` shows how each gain figure was worked out, as the items each one
+    is made of. On by default: a gain is measured against costs that appear on
+    no line of the page, so without them it is a figure a reader cannot check.
+
+    `max_items` is how many entries each of those lists may show: -1, the
+    default, is no cap, and 0 lists none of them. A list it shortens says on
+    its own line how many entries there are, and ends with a `not_listed:`
+    entry carrying what the rest come to, so the entries still add up to the
+    total printed beneath them.
     """
     end = load_gnc_engine().gnc_dmy2time64_end(as_of.day, as_of.month, as_of.year)
     return _render(session, _template(page, BALANCE_SHEET, BALANCE_SHEET_AS_TEXT),
                    'Balance Sheet', currency,
                    [('General', 'Balance Sheet Date', end)], price_source, warn,
-                   realized_as_of=as_of, itemize=itemize)
+                   realized_as_of=as_of, itemize=itemize,
+                   gain_accounts=gain_accounts, max_items=max_items)
 
 
 def render_income_statement(session, currency: str, start: date, end: date,
@@ -190,10 +198,11 @@ def _price_sources(run, work: Path, template: str) -> List[str]:
 
 def _render(session, template: str, called: str, currency: str,
             dates: List[Tuple[str, str, int]], price_source: Optional[str], warn,
-            realized_as_of=None, itemize: bool = True) -> str:
+            realized_as_of=None, itemize: bool = True, gain_accounts=(),
+            max_items: int = -1) -> str:
     from services.foreign_currency import (
         BASE_CURRENCY,
-        cost_basis_totals_by_currency_and_side,
+        cost_basis_items_by_currency_and_side,
         realized_fx_items_up_to,
     )
 
@@ -209,7 +218,64 @@ def _render(session, template: str, called: str, currency: str,
     # totalled from those same items. One walk of the book: asking a second
     # time cost twice and let the key and the working it is said to add up to
     # come to differ.
-    realized_items = (realized_fx_items_up_to(session.book, realized_as_of)
+    # An account name the book has no account for counts nothing, and silence
+    # there turns a correct figure into 0.00: `--fx-gain-account` replaces
+    # `took_the_residual` rather than adding to it, so one misspelt name states
+    # `realized_gains_fx: 0.00` on a book that carries the key and realized
+    # 100.00, at exit 0. Warned about rather than refused, and only where the
+    # book has no such account at all — an account that exists but holds no
+    # qualifying split yet is the ordinary case of a sheet dated before it was
+    # opened, and refusing that would refuse a correct page.
+    # Not on an HTML or PDF page: those are GnuCash's own Balance Sheet, which
+    # states no realized gain, so the option changes nothing there and a warning
+    # about the account it specifies would be advice about a figure that page
+    # does not carry.
+    # And a page drawn in another currency says so rather than dropping the
+    # option in silence. The cost bases are recorded in the book's own currency,
+    # so a page asked for in a second one measures no realized gain at all and
+    # the account specified has nothing to apply to.
+    if (gain_accounts and not takes_the_cost_bases and realized_as_of is not None
+            and template in (BALANCE_SHEET_AS_TEXT, INCOME_STATEMENT_AS_TEXT)):
+        warn(f'--fx-gain-account is not applied to a page in {currency}: the '
+             f'cost bases a realized gain is measured from are recorded in '
+             f'{BASE_CURRENCY}, so this page states no realized gain',
+             key=('fx-gain-account-other-currency', currency))
+    if (takes_the_cost_bases and gain_accounts
+            and template in (BALANCE_SHEET_AS_TEXT, INCOME_STATEMENT_AS_TEXT)):
+        from infrastructure.gnucash.utils import find_account
+        from services.foreign_currency import takes_an_exchange_difference
+        root = session.book.get_root_account()
+        for name in gain_accounts:
+            # An empty name is warned about like any other the book cannot
+            # match, and it has to be tested for separately: `find_account`
+            # walks down from the root a path of no segments, which is the root
+            # itself, so `--fx-gain-account ""` found an account, warned about
+            # nothing, and then counted nothing — `realized_gains_fx: 0.00` on
+            # a book carrying `took_the_residual`, at exit 0.
+            account = None if not name.strip() else find_account(root, name)
+            if account is None:
+                warn(f'--fx-gain-account "{name}" matches no account in this '
+                     f'book, so no split counts against it and it adds nothing '
+                     f'to realized_gains_fx',
+                     key=('fx-gain-account-unknown', name))
+            # An account of the wrong type is the same silent wrong answer by
+            # another route, and worth its own sentence because the reader's
+            # mistake is a different one. A difference is booked to income or
+            # expense — a split on a bank or a receivable moved money rather
+            # than measuring anything — so a bank account here counts nothing,
+            # and since the option replaces `took_the_residual` rather than
+            # adding to it, a book that states 100.00 on its own states 0.00
+            # once such an account is given, at exit 0. Unlike an account that
+            # exists and holds no qualifying split yet, which is the ordinary
+            # case of a sheet dated before it was used, this one can never
+            # count and saying so costs a reader nothing.
+            elif not takes_an_exchange_difference(account):
+                warn(f'--fx-gain-account "{name}" is not an income or expense '
+                     f'account, so no split on it counts as an exchange '
+                     f'difference and it adds nothing to realized_gains_fx',
+                     key=('fx-gain-account-wrong-type', name))
+    realized_items = (realized_fx_items_up_to(session.book, realized_as_of,
+                                              gain_accounts)
                       if takes_the_cost_bases else [])
     realized = sum((figure for _when, _account, figure in realized_items),
                    Fraction(0))
@@ -227,15 +293,18 @@ def _render(session, template: str, called: str, currency: str,
     #
     # Asked only where the page will use it. Reading the cost bases walks every
     # split in the book, and again to see what each has since been drawn down
-    # by, while `costed` hands over an empty list wherever
-    # `takes_the_cost_bases` is false — so those two walks were work whose
-    # answer was thrown away. That is every income statement, which passes no
-    # date and whose renderer reads none of these bindings, and every page
-    # asked for in a currency other than the one costs are recorded in. An HTML
-    # or PDF balance sheet is not spared: it passes the same date as the text
-    # one, so it still reads them, even though GnuCash's own renderer draws it.
-    foreign_cost = (cost_basis_totals_by_currency_and_side(
-        session.book, realized_as_of) if takes_the_cost_bases else {})
+    # by, so a page that reads none of them must not pay for two walks. Three
+    # things keep it from doing so, and they are not the same test:
+    # `takes_the_cost_bases` is false for every income statement, which passes
+    # no date, and for every page asked for in a currency other than the one
+    # costs are recorded in; and the read itself sits inside the branch that
+    # builds the text template's bindings, so an HTML or PDF balance sheet does
+    # not reach it at all — GnuCash's own renderer draws that page and none of
+    # these bindings appear in it.
+    # The cost bases themselves are read where they are serialised, one record
+    # per basis. Nothing here adds a currency's bases together: what a currency
+    # and side come to is worked out on the page, from the bases it lists, so
+    # the figure and the listing cannot come apart.
     was = None
     try:
         was = _write_every_date_the_books_way(session.book, warn)
@@ -273,18 +342,41 @@ def _render(session, template: str, called: str, currency: str,
             # statements in one process.
             costed = ''
             if template in (BALANCE_SHEET_AS_TEXT, INCOME_STATEMENT_AS_TEXT):
-                bases = '(list)'
-                if currency == BASE_CURRENCY:
-                    bases = '(list ' + ' '.join(
-                        f'(list "{held}" {quantity.numerator}/{quantity.denominator}'
-                        f' {cost.numerator}/{cost.denominator} "{side}")'
-                        for held, sides in sorted(foreign_cost.items())
-                        for side, (quantity, cost) in sorted(sides.items())) + ')'
+                # One record per cost basis, never a currency's bases added
+                # together. Three arrivals at 1.30, 1.35 and 1.40 reach the page
+                # as three, each with the balance and cost it actually has, and
+                # what a currency and side come to is worked out from them, by
+                # the page, where a reader can see it done.
+                #
+                # This is the only cost basis list sent. The page also reads
+                # them as `(currency quantity spent side)` with the owed side
+                # negative, and derives that shape from these rows itself
+                # (`plaintext:cost-bases`) rather than being handed it: the same
+                # data serialised twice can come from two reads of the book and
+                # disagree, which is the fault the itemized page was printing —
+                # a key and the items under it stating different figures.
+                basis_rows = (list(cost_basis_items_by_currency_and_side(
+                    session.book, realized_as_of))
+                    if takes_the_cost_bases else [])
                 items = '(list ' + ' '.join(
                     f'(list {_scheme_string(when)} {_scheme_string(account)}'
                     f' {figure.numerator}/{figure.denominator})'
                     for when, account, figure in realized_items) + ')'
-                costed = (f'(plaintext:set-cost-bases! {bases})'
+                # Each row carries the guid and the account as well, so a
+                # listing on the page can be checked against `fx-balances`, and
+                # the grouping by currency and side is done from these rather
+                # than before them.
+                basis_items = '(list)'
+                if takes_the_cost_bases:
+                    basis_items = '(list ' + ' '.join(
+                        f'(list {_scheme_string(row["guid"])}'
+                        f' {_scheme_string(row["account"])}'
+                        f' {_scheme_string(row["currency"])}'
+                        f' {_scheme_string(row["side"])}'
+                        f' {row["balance"].numerator}/{row["balance"].denominator}'
+                        f' {row["cost"].numerator}/{row["cost"].denominator})'
+                        for row in basis_rows) + ')'
+                costed = (f'(plaintext:set-cost-basis-items! {basis_items})'
                           f'(plaintext:set-realized-fx! '
                           f'{realized.numerator}/{realized.denominator})'
                           f'(plaintext:set-realized-items! {items})'
@@ -299,7 +391,12 @@ def _render(session, template: str, called: str, currency: str,
                           f'(plaintext:set-realized-known! '
                           f'{"#t" if takes_the_cost_bases else "#f"})'
                           f'(plaintext:set-itemize! '
-                          f'{"#t" if itemize else "#f"})')
+                          f'{"#t" if itemize else "#f"})'
+                          # How many entries each itemized list may show, -1
+                          # being no cap. Written on every render for the same
+                          # reason as the rest: the variable outlives the page,
+                          # and `report` draws two.
+                          f'(plaintext:set-max-items! {int(max_items)})')
             page = work / 'page'
             dated = '\n'.join(
                 f'    (set-opt options {_scheme_string(section)} {_scheme_string(name)}'

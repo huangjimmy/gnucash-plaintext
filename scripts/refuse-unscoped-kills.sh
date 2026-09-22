@@ -1,32 +1,97 @@
 #!/bin/bash
 #
-# A `PreToolUse` hook on Bash, beside `refuse-bash-file-edits.sh`: nothing may be killed except one id, named, one per command. Containers and processes alike. Wired in `.claude/settings.json`.
+# A `PreToolUse` hook on Bash, beside `refuse-bash-file-edits.sh`: nothing may
+# be killed except one id, named, one per command. Containers and processes
+# alike. Wired in `.claude/settings.json`.
 #
-# The machine that runs this suite runs other things. On 2026-08-21 an agent stopped a commit hook mid-sweep and then ran `docker ps -q | xargs docker kill` to clean up after it — `docker ps -q` is every container on the machine, so the kill took down the author's web server, up since May, along with the ten test containers it meant. It had looked at the first ten names through `head` and never seen the server in the list.
+# The machine that runs this suite runs other things. On 2026-08-21 an agent
+# stopped a commit hook mid-sweep and then ran `docker ps -q | xargs docker
+# kill` to clean up after it — `docker ps -q` is every container on the
+# machine, so the kill took down the author's web server, up since May, along
+# with the ten test containers it meant. It had looked at the first ten names
+# through `head` and never seen the server in the list.
 #
-# The rule that would have prevented it is not "no kills" but "one id, one time". `docker kill gnucash-dev-debian13` and `kill 1757608` are decisions about one thing, made by someone who knows which one. `docker ps -q | xargs docker kill`, `kill $(pgrep -f pytest)`, `pkill -f docker`, `kill -- -1757608`, two kills in one command and `docker container prune` all hand the choice of victims to the shell, and the author's server is in the list every time nobody looked.
+# The rule that would have prevented it is not "no kills" but "one id, one
+# time". `docker kill gnucash-dev-debian13` and `kill 1757608` are decisions
+# about one thing, made by someone who knows which one. `docker ps -q | xargs
+# docker kill`, `kill $(pgrep -f pytest)`, `pkill -f docker`, `kill --
+# -1757608`, two kills in one command and `docker container prune` all hand the
+# choice of victims to the shell, and the author's server is in the list every
+# time nobody looked.
 #
-# So: one literal id, once. Refused otherwise — no command substitution, no pipe into `xargs`, no `pkill`/`killall` (they select by pattern, never by id), no negative pid (that is a process *group*, however few ids are written down), no second id, no second kill in the same command, no `prune`, no `compose down`.
+# So: one literal id, once. Refused otherwise — no command substitution, no
+# pipe into `xargs`, no `pkill`/`killall` (they select by pattern, never by
+# id), no negative pid (that is a process *group*, however few ids are written
+# down), no second id, no second kill in the same command, no `prune`, no
+# `compose down`.
 #
-# A signal may be given: `kill -9 1757608`, `kill -TERM 1757608`, `kill -s TERM 1757608`. `kill -0 1757608` sends nothing and is how a script asks whether a pid is still alive, which the same shape allows.
+# A signal may be given: `kill -9 1757608`, `kill -TERM 1757608`, `kill -s TERM
+# 1757608`. `kill -0 1757608` sends nothing and is how a script asks whether a
+# pid is still alive, which the same shape allows.
 #
-# **This is a seatbelt, not a sandbox, and the goal is not to close every loophole.** A guard that reads text cannot: a quoted command word (`'pkill' -f x`) loses its verb to the same stripping that lets `grep -rn "docker kill"` be read, and no amount of alternation fixes that. What it is for is the command a careless hand actually types — the one above was typed by an agent tidying up after itself, not by anyone getting past anything.
+# **This is a seatbelt, not a sandbox, and the goal is not to close every
+# loophole.** A guard that reads text cannot: a quoted command word (`'pkill'
+# -f x`) loses its verb to the same stripping that lets `grep -rn "docker
+# kill"` be read, and no amount of alternation fixes that. What it is for is
+# the command a careless hand actually types — the one above was typed by an
+# agent tidying up after itself, not by anyone getting past anything.
 #
-# What *would* settle it is not a better regex: run the command in a throwaway container holding the same folder tree and look at what died. That is the only way to know what a command does rather than what it looks like, and it is worth building the day this guards something that matters more than one developer's afternoon. It is not worth it for this, which is why the answer here is text and the limits of text are written down instead of papered over.
+# What *would* settle it is not a better regex: run the command in a throwaway
+# container holding the same folder tree and look at what died. That is the
+# only way to know what a command does rather than what it looks like, and it
+# is worth building the day this guards something that matters more than one
+# developer's afternoon. It is not worth it for this, which is why the answer
+# here is text and the limits of text are written down instead of papered over.
 #
-# One consequence worth knowing rather than discovering: the shell-string check is two scans of the whole command joined by "and", so a *compound* command that both hands a shell a program and names a docker verb is refused even when neither half is a kill — `docker stop web && docker run … img bash -c "pytest"` is. Splitting it in two runs it. That is bluntness rather than a mistake, and it is the same bluntness as "one kill per command": a command doing several things at once is one this cannot read carefully.
+# One consequence worth knowing rather than discovering: the shell-string check
+# is two scans of the whole command joined by "and", so a *compound* command
+# that both hands a shell a program and gives a docker verb is refused even
+# when neither half is a kill — `docker stop web && docker run … img bash -c
+# "pytest"` is. Splitting it in two runs it. That is bluntness rather than a
+# mistake, and it is the same bluntness as "one kill per command": a command
+# doing several things at once is one this cannot read carefully.
 #
-# So the two kinds of gap are not worth the same. **A shape it refuses that someone legitimately needs is a defect**: widening this file has twice done that — `docker image rm gnucash-dev:debian13`, which is the only way to delete an image this repo builds, and `docker rm -f a b`, which is how a person removes two named containers — and each cost more than the hole it was closing. **A shape that gets past it and that nobody would type is not**: `su root -c`, `busybox ash -c` and their like are answered by saying so rather than by another alternation, because every alternation is a chance to refuse something real. Fix what is typed here; leave the rest written down.
+# So the two kinds of gap are not worth the same. **A shape it refuses that
+# someone legitimately needs is a defect**: widening this file has twice done
+# that — `docker image rm gnucash-dev:debian13`, which is the only way to
+# delete an image this repo builds, and `docker rm -f a b`, which is how a
+# person removes two named containers — and each cost more than the hole it was
+# closing. **A shape that gets past it and that nobody would type is not**: `su
+# root -c`, `busybox ash -c` and their like are answered by saying so rather
+# than by another alternation, because every alternation is a chance to refuse
+# something real. Fix what is typed here; leave the rest written down.
 #
-# What this costs, and why it is worth it: a detached commit hook can no longer be stopped by killing its process group, so its children — the ten `docker run` clients of a sweep — outlive the parent by up to a few minutes. That is the whole cost, because `scripts/test.sh` runs every container with `--rm`, so they remove themselves as they exit. Killing the parent by id and waiting is the supported way to stop a sweep.
+# What this costs, and why it is worth it: a detached commit hook can no longer
+# be stopped by killing its process group, so its children — the ten `docker
+# run` clients of a sweep — outlive the parent by up to a few minutes. That is
+# the whole cost, because `scripts/test.sh` runs every container with `--rm`,
+# so they remove themselves as they exit. Killing the parent by id and waiting
+# is the supported way to stop a sweep.
 #
 # Exit 2 blocks the call and returns stderr to the agent.
 #
-# The container side is matched anywhere in the command, because the form that did the damage puts its verb in an argument: `docker ps -q | xargs docker kill`. The process side needs a command position — with a path, a `sudo`, an `env`, a `time` or an `xargs` in front of it — because a bare word boundary refused `cat /tmp/kill`, a file that happens to be named that, while anchoring it without a path let `/bin/kill -- -1757608` through: the same process-group kill by its full path.
+# The container side is matched anywhere in the command, because the form that
+# did the damage puts its verb in an argument: `docker ps -q | xargs docker
+# kill`. The process side needs a command position — with a path, a `sudo`, an
+# `env`, a `time` or an `xargs` in front of it — because a bare word boundary
+# refused `cat /tmp/kill`, a file that happens to be named that, while
+# anchoring it without a path let `/bin/kill -- -1757608` through: the same
+# process-group kill by its full path.
 #
-# Quoted runs are removed first, so a command that merely *names* one of these — `grep -rn "docker kill" scripts/` — is not refused. That is also the one way past this guard, since `bash -c "docker ps -q | xargs docker kill"` is entirely quoted, so a shell handed a program as a string is refused outright when the string holds a kill.
+# Quoted runs are removed first, so a command that merely *names* one of these
+# — `grep -rn "docker kill" scripts/` — is not refused. That is also the one
+# way past this guard, since `bash -c "docker ps -q | xargs docker kill"` is
+# entirely quoted, so a shell handed a program as a string is refused outright
+# when the string holds a kill.
 #
-# **Every `"command"` field in the payload is judged, not one.** Picking a single field means picking which — first or last — and either can be the wrong one when a second `"command":"…"` appears inside another string, so a decoy would decide what the guard reads. Measured on this build, the extraction returned the real command in every decoy shape tried, including a decoy longer than it; that is `sed`'s tie-break rather than a guarantee, and a guard should not rest on one. Judging all of them, a decoy can only add a refusal, never hide one.
+# **Every `"command"` field in the payload is judged, not one.** Picking a
+# single field means picking which — first or last — and either can be the
+# wrong one when a second `"command":"…"` appears inside another string, so a
+# decoy would decide what the guard reads. Measured on this build, the
+# extraction returned the real command in every decoy shape tried, including a
+# decoy longer than it; that is `sed`'s tie-break rather than a guarantee, and
+# a guard should not rest on one. Judging all of them, a decoy can only add a
+# refusal, never hide one.
 
 RAW=$(cat)
 
@@ -43,8 +108,13 @@ reject() {
     exit 2
 }
 
-# Everything that stops or destroys a container, through to the end of its own command in the sequence. `[^;&|]*` stops at a separator, so `… | xargs docker kill` yields an occurrence with no id after it, which is refused below for having none.
-# `docker-compose` as well as `docker compose`: the v1 binary is hyphenated and is still installed on plenty of machines, and `docker-compose down` stops every container the file describes.
+# Everything that stops or destroys a container, through to the end of its own
+# command in the sequence. `[^;&|]*` stops at a separator, so `… | xargs docker
+# kill` yields an occurrence with no id after it, which is refused below for
+# having none.
+# `docker-compose` as well as `docker compose`: the v1 binary is hyphenated and
+# is still installed on plenty of machines, and `docker-compose down` stops
+# every container the file describes.
 # Every object group with a destructive verb, not only `container` and
 # `system`: the header says "no `prune`", and `docker image prune -a`,
 # `docker volume prune`, `docker network prune` and `docker builder prune`
@@ -63,7 +133,9 @@ reject() {
 DOCKER_FLAGS='(-[^[:space:];&|]+[[:space:]]+([^-][^[:space:];&|]*[[:space:]]+)?)*'
 DOCKER_VERBS='docker(-compose)?[[:space:]]+'"$DOCKER_FLAGS"'((container|compose|system|image|volume|network|builder|buildx)[[:space:]]+'"$DOCKER_FLAGS"')?(kill|stop|rmi|rm|restart|prune|down)'
 
-# A redirection after the id, which says nothing about what is killed: `kill -0 1757608 2>/dev/null` is how a loop asks whether a pid is alive, and reading the `2>/dev/null` as a second target refused it.
+# A redirection after the id, which says nothing about what is killed: `kill -0
+# 1757608 2>/dev/null` is how a loop asks whether a pid is alive, and reading
+# the `2>/dev/null` as a second target refused it.
 REDIRECTS='([[:space:]]*[0-9]*>&?[[:space:]]*[^[:space:]>]*)*[[:space:]]*$'
 
 # One literal id, and only one: a token of the characters a container or
@@ -117,15 +189,24 @@ TRAILING_FLAGS='([[:space:]]*((-s|--signal|-t|--time(out)?)[[:space:]]+[^[:space
 # for the same reason the flags before the verb are.
 DOCKER_ONE_ID="^$DOCKER_VERBS"'[[:space:]]+'"$PRE_ID_FLAGS"'[A-Za-z0-9][A-Za-z0-9_.:@/-]*'"$TRAILING_FLAGS$REDIRECTS"
 
-# A signal, optionally, then exactly one positive pid. `-- -123` and `-123` are process groups and fail it; so does `$(…)`, a second pid, and a `%1` job spec.
+# A signal, optionally, then exactly one positive pid. `-- -123` and `-123` are
+# process groups and fail it; so does `$(…)`, a second pid, and a `%1` job
+# spec.
 #
 # `[1-9][0-9]*` rather than `[0-9]+`, because `kill 0` signals every
 # process in the caller's own group — the thing the negative-pid family is
 # refused for, spelled without the minus.
 PROC_ONE_ID='^(kill)([[:space:]]+-(s[[:space:]]+)?[A-Za-z0-9]+)?[[:space:]]+[1-9][0-9]*'"$REDIRECTS"
 
-# A command position for the process side: the start, after a separator, or after one of the words that run another command. A path in front is part of the name, so `/bin/kill` is the same kill; a path in an *argument* is not, which is what `cat /tmp/kill` is.
-# The words that run another command. `timeout` is the one people actually write in front of a kill, and `time` does not cover it — `time` matches only up to the space after it, so `timeout 60 kill -- -1757608` sat at no command position at all and went through. `nice`, `ionice`, `stdbuf` and `doas` are the same shape.
+# A command position for the process side: the start, after a separator, or
+# after one of the words that run another command. A path in front is part of
+# the name, so `/bin/kill` is the same kill; a path in an *argument* is not,
+# which is what `cat /tmp/kill` is.
+# The words that run another command. `timeout` is the one people actually
+# write in front of a kill, and `time` does not cover it — `time` matches only
+# up to the space after it, so `timeout 60 kill -- -1757608` sat at no command
+# position at all and went through. `nice`, `ionice`, `stdbuf` and `doas` are
+# the same shape.
 # A word that runs another command, and whatever it is given before the
 # command it runs: `sudo -u jimmy kill …` and `env VAR=v pkill …` put a
 # word between the two that is neither a flag nor a digit, and skipping
@@ -174,7 +255,8 @@ judge() {
     # `\"` back to `"`, so the quoted runs below can be found at all.
     COMMAND=${COMMAND//\\\"/\"}
 
-    # Quoted runs removed while the command is still one line, then the escapes decoded.
+    # Quoted runs removed while the command is still one line, then the
+    # escapes decoded.
     local UNQUOTED
     UNQUOTED=$(printf '%s' "$COMMAND" | sed "s/'[^']*'//g; s/\"[^\"]*\"//g")
     UNQUOTED=$(printf '%b' "$UNQUOTED")

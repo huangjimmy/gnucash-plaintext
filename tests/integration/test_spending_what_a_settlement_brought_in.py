@@ -31,6 +31,7 @@ from cli.main import cli
 from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 from infrastructure.gnucash.utils import find_account
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from tests.integration.cost_basis_listings import cost_basis_rows
 
 BOTH = 'tests/fixtures/fx_hkd_settled_in_then_spent_out.txt'
 SETUP = 'tests/fixtures/fx_hkd_spent_by_retarget_setup.txt'
@@ -48,8 +49,13 @@ def _import(runner, book, ledger, new=False):
 
 
 def _basis_on(listing, account_fragment):
-    """The split GUID of the one cost basis sitting on a named account."""
-    found = [line.split()[1] for line in listing.splitlines()
+    """The split GUID of the one cost basis sitting on a named account.
+
+    The cost-basis rows only: the listing also states what the accounts hold,
+    and that block lists the same accounts without any of them being a cost
+    basis.
+    """
+    found = [line.split()[1] for line in cost_basis_rows(listing).splitlines()
              if account_fragment in line]
     assert len(found) == 1, f'{account_fragment}: {found}\n{listing}'
     return found[0]
@@ -146,7 +152,7 @@ class TestTheSameCurrencyCaseIsAskedToo:
     def _bank_row(runner, book):
         listing = runner.invoke(cli, ['fx-balances', str(book)])
         assert listing.exit_code == 0, listing.output
-        rows = [line for line in listing.output.splitlines()
+        rows = [line for line in cost_basis_rows(listing.output).splitlines()
                 if 'Assets:Bank:USD' in line]
         assert len(rows) == 1, listing.output
         return rows[0].rstrip()

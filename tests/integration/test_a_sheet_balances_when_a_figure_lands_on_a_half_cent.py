@@ -16,10 +16,12 @@ divide exactly or round the same way under both rules, so the assertion that
 the page balances has never been able to fail on this account.
 """
 
+from fractions import Fraction
+
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import key_of, totals_of, under
 
 BOUGHT = 'tests/fixtures/a_cad_book_that_bought_a_thousand_usd.txt'
 HALF_CENT = 'tests/fixtures/usd_at_a_rate_that_lands_on_a_half_cent.yaml'
@@ -55,10 +57,8 @@ def test_the_working_agrees_with_the_account_line(tmp_path):
     """
     page = _page(tmp_path)
 
-    valued = [line.strip() for line in page.splitlines()
-              if line.strip().startswith('value: ')]
-    worth = [line.strip() for line in page.splitlines()
-             if line.lstrip().startswith('#   ') and ' worth ' in line]
-    assert valued, page
-    assert worth, page
-    assert valued[0].split('"')[1] in worth[0], (valued, worth)
+    # What GnuCash converted the holding to, on the account's own line.
+    valued = Fraction(under(page, 'Assets:USD Bank')['value'])
+    # What the gain was measured against: the cost bases' balance at the
+    # sheet's price, which is the same holding at the same price.
+    assert totals_of(page, 'unrealized_gains_assets_fx')['value'] == valued, page

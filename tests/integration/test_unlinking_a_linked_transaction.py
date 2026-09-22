@@ -31,6 +31,7 @@ from gnucash import Query, Transaction
 from cli.main import cli
 from infrastructure.gnucash.utils import get_account_full_name
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from tests.integration.cost_basis_listings import cost_basis_rows
 
 FIXTURES = Path('tests/fixtures')
 BOOK = str(FIXTURES / 'fx_usd_invoice_cad_income.txt')
@@ -651,7 +652,7 @@ class TestUnlinkingALinkedTransaction:
         assert 'CAD' in result.output, result.output
 
         listed = CliRunner().invoke(cli, ['fx-balances', str(path)])
-        assert 'JPY' not in listed.output, listed.output
+        assert 'JPY' not in cost_basis_rows(listed.output), listed.output
         rows = _splits_of(path, DESCRIPTION)
         on_ar = [row for row in rows if row['account'] == AR_USD]
         assert on_ar and on_ar[0]['in_a_lot'], 'the link is left alone'

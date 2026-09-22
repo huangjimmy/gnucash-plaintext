@@ -2248,7 +2248,7 @@ def _attach_split_to_lot(split, lot) -> None:
     The one way this module attaches a split to an existing lot, and it uses
     `gnc_lot_add_split`, never `xaccSplitSetLot`. `xaccSplitSetLot` sets the
     split's lot without adding the split to the lot's list (CLAUDE.md finding
-    9), so every reader of "what does this lot hold" is short by that split,
+    9), so every reader of "what does this lot hold" misses that split,
     and a book holding one segfaults when it is destroyed, which kept
     `GnuCashRepository.close` from freeing any book.
     `test_c_bindings_are_declared_once.py` refuses a call to it anywhere.
@@ -8652,8 +8652,9 @@ def _apply_the_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
     # So rebuilding a block of the first kind, where the guid named nothing,
     # means making the whole movement: the slice plus the residue. Read as the
     # payment itself, a printed 250.00 deposit against a 100.00 invoice entered
-    # 100.00 — the bank short by 150.00, the owner's credit never created —
-    # and once the printed block stated its residue, the same file was refused
+    # 100.00 — the bank 150.00 below the deposit, the owner's credit never
+    # created — and once the printed block stated its residue, the same file
+    # was refused
     # outright for declaring a residue its own payment could not leave.
     if _named_a_transaction and str(
             pay_dir.metadata.get('prepayment', '')).strip():
@@ -9437,8 +9438,9 @@ def _say_the_balances_are_the_files_to_state(booked, incoming, guid: str) -> Non
     it cannot do is recompute either balance: a cost basis balance is lowered in
     `apply_cost_basis_picks`, where a disposal is created, and raised in
     `give_back_to_cost_bases`, where one is deleted, and an edit runs neither.
-    So the cost basis the disposal leaves stays short by the units it took,
-    and the cost basis it joins is not drawn down for them.
+    So the cost basis the disposal leaves keeps a balance lower than it should
+    be by the units it took, and the cost basis it joins is not drawn down for
+    them.
 
     Both figures are the file's to state — which is what README says of any
     stated balance, net of the file's own disposals — and the finished book
@@ -9458,8 +9460,9 @@ def _say_the_balances_are_the_files_to_state(booked, incoming, guid: str) -> Non
         f'note: transaction {guid} points a disposal at another cost basis. '
         f'A cost basis balance is lowered where a disposal is created and raised '
         f'where one is deleted, and an edit does neither — so the cost basis this '
-        f'disposal leaves stays short by what it took, and the cost basis it joins '
-        f'is not drawn down for it. State `{COST_BASIS_BALANCE_KEY}:` on both '
+        f'disposal leaves keeps a balance lower by what it took, and the cost '
+        f'basis it joins is not drawn down for it. '
+        f'State `{COST_BASIS_BALANCE_KEY}:` on both '
         f'in this file if either should read differently.')
 
 
@@ -10439,7 +10442,8 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
 
     # Everything the block says about its own split lines is judged first,
     # because the next thing this does is lower a cost basis. A refusal after
-    # that point would leave the cost basis short by what the settlement drew, and
+    # that point would leave the cost basis lower than it should be by what the
+    # settlement drew, and
     # nothing on this path gives it back — the transaction path pairs its
     # drawdown with `give_back_to_cost_bases`, and here the answer is to have
     # nothing to give back. The checks need only the block and the account
@@ -10494,7 +10498,7 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     # lot; both return two guards above — loudly when the block carries split
     # lines nothing would then place, silently when it carries none and there
     # is nothing to place. Skipping the arithmetic when the sum came out zero
-    # would instead leave `overpaid_values` empty and the entry short by the
+    # would instead leave `overpaid_values` empty and the entry missing the
     # credit, which is the one outcome worth avoiding here.
     overpaid_values = []
     if overpaid_splits:

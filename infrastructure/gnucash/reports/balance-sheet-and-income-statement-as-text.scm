@@ -11,11 +11,31 @@
 ;;
 ;; The figures come from the calls GnuCash's own balance-sheet.scm and
 ;; income-statement.scm make, in the same order: each account's balance from
-;; the engine, added up in GnuCash's commodity collectors, converted by
-;; `gnc:case-exchange-fn` at the report's price source, and written by
-;; `gnc:monetary->string`. Only the page is different. A renderer may return a
-;; string, and `gnc:report-render-html` then returns that string unchanged,
-;; with no style sheet and no HTML. Read on GnuCash 3.4, 3.8, 4.4 and 5.10.
+;; the engine, added up in GnuCash's commodity collectors, and converted by
+;; `gnc:case-exchange-fn` at the report's price source. Only the page is
+;; different. A renderer may return a string, and `gnc:report-render-html`
+;; then returns that string unchanged, with no style sheet and no HTML. Read
+;; on GnuCash 3.4, 3.8, 4.4 and 5.10.
+;;
+;; **Writing the figure is the one step that is not GnuCash's own call, and
+;; the reason is the format.** GnuCash writes one with `gnc:monetary->string`,
+;; which is `xaccPrintAmount` under `gnc-commodity-print-info`: that puts the
+;; currency's symbol in front and thousands separators inside, so its own page
+;; reads `C$99,996,200.00` and `JP¥250,000`. A figure on this page is read
+;; back by `import`, and neither a symbol nor a separator survives that. So
+;; `plaintext:figure` writes it instead — exactly, never rounded, and as a
+;; fraction where no decimal states it, which is how `share_price:` carries
+;; `316211/229006`.
+;;
+;; What that leaves GnuCash's is the decision, and this file asks for it
+;; rather than choosing: how many places a figure is padded to comes from
+;; `gnc-commodity-get-fraction`, through `plaintext:places-of`. Measured
+;; against GnuCash's own page on the same book, by
+;; `tests/research/what_gnucashs_own_report_renders_a_figure_as_probe.py`: the
+;; yen is written `250000` beside its Canadian cost `2500.00`, because a yen
+;; divides into 1 and a Canadian dollar into 100. Two decimal places assumed
+;; anywhere here would be wrong about the yen, and a Korean won divided into
+;; 100 until GnuCash 5.15.
 ;;
 ;; One file for every supported GnuCash. Options are read with
 ;; `gnc-optiondb-lookup-value` where the build has it (5.x) and with
@@ -134,6 +154,12 @@
   (let ((fraction (gnc-commodity-get-fraction commodity)))
     (or (plaintext:decimals (if (and fraction (> fraction 0)) fraction 1)) 0)))
 
+;; The same, where the book's commodity table gave nothing back for a currency
+;; the cost bases name. The report's own commodity answers instead, which is
+;; the fallback those figures already take.
+(define (plaintext:places-or report commodity)
+  (plaintext:places-of (or commodity report)))
+
 (define (plaintext:amount monetary)
   (let ((commodity (gnc:gnc-monetary-commodity monetary)))
     (string-append (plaintext:figure (gnc:gnc-monetary-amount monetary)
@@ -200,18 +226,27 @@
     (/ (round (* (inexact->exact figure) unit)) unit)))
 
 ;; What the foreign money the book still holds cost, in the report's currency,
-;; totalled from the book's own cost bases. The empty list until somebody sets
-;; it, and the balance sheet then falls back to GnuCash's own reconstruction.
+;; one row per cost basis as `(currency quantity spent side)` with the owed
+;; side's figures negative. Empty until somebody sets the cost basis items it is
+;; derived from, and the balance sheet then falls back to GnuCash's own
+;; reconstruction.
 ;;
-;; Set through a procedure rather than written into the variable from outside:
-;; a `define` evaluated by gnucash-plaintext lands in whichever module it
-;; evaluates in, which is not the one this file is loaded into, so the report
-;; never saw it. A call resolves to the procedure here and its `set!` moves
-;; this binding, whichever module the caller is in.
-(define plaintext:cost-bases '())
-
-(define (plaintext:set-cost-bases! bases)
-  (set! plaintext:cost-bases bases))
+;; Derived rather than sent, because it is the same data as
+;; `plaintext:cost-basis-items` in another shape, and this page exists to show
+;; that a key and the items under it agree. Serialised twice, the two could come
+;; from different reads of the book and disagree — which is the very fault the
+;; itemized page was printing before, a key and its items stating different
+;; figures. One list, read once, and every figure on the page traceable to it.
+(define (plaintext:cost-bases)
+  (map (lambda (item)
+         (let* ((side (plaintext:basis-item-side item))
+                (sign (if (string=? side "asset") 1 -1))
+                (balance (plaintext:basis-item-balance item)))
+           (list (plaintext:basis-item-currency item)
+                 (* sign balance)
+                 (* sign balance (plaintext:basis-item-cost item))
+                 side)))
+       plaintext:cost-basis-items))
 
 ;; What the book has already taken on foreign currency by the report's date, in
 ;; the book's own currency. A disposal values what it sells at what that
@@ -242,13 +277,112 @@
 ;; is worth at the price nearest this date, and the difference — and GnuCash's
 ;; own arithmetic beside it, commodity by commodity.
 ;;
-;; Written as comments, so nothing that reads the block picks any of it up:
-;; `#` opens a line the format skips, which is what lets the workings be added
-;; without changing what a page means to a program.
+;; Written as keys indented under the one they explain, the way `share_price:`
+;; and `value:` are indented under an account line, each line stating its own
+;; arithmetic in a trailing `#` comment.
 (define plaintext:itemize? #t)
 
 (define (plaintext:set-itemize! shown)
   (set! plaintext:itemize? shown))
+
+;; How many entries a list under a gain figure may show. **-1 is no cap, and is
+;; the default**; 0 lists none of them; every other number means itself.
+;;
+;; Zero was the sentinel for "all" first, and it read backwards — a page said
+;; `--max-items 0 for all`, asking a reader to learn that nought meant
+;; everything. Each value now says what it does, and 0 is the useful thing it
+;; looks like: a key's totals with none of its entries under them.
+;;
+;; **A shortened list still carries what it left out, as one more entry.** The
+;; items are there so that a reader can add a total up for themselves, and each
+;; of those totals states in its own comment that it is their sum — so a list
+;; that simply stopped after five made its own comment untrue, and left a
+;; reader adding five figures that come to less than the total printed beneath
+;; them. `not_listed:` holds the count and what the rest come to, and the
+;; arithmetic closes again.
+;;
+;; Measured before any of this existed, by
+;; `tests/research/how_a_page_grows_with_the_splits_behind_it_probe.py`: a book
+;; of 2,500 purchases draws 40,154 lines and 1.4 MB, of which 40,069 lines are
+;; the four itemized keys. That is about sixteen lines a transaction, and
+;; nothing capped any of it.
+;;
+;; Grouping the entries was tried first and does not work. On a book whose
+;; purchases differ from one another — its own amount, rate and date each time,
+;; which is what a real book is — 2,500 cost bases fall into 2,500 distinct
+;; account-and-price groups, so rolling them up shortens nothing at all. The
+;; earlier measurement that said otherwise had bought the same 1.00 USD at 1.30
+;; two and a half thousand times: its entries were identical for want of
+;; variety in the fixture, not for anything about the format.
+;;
+;; So the only thing that shortens such a page is leaving entries out, which is
+;; asked for rather than applied — and where it bites, the list's own line says
+;; how many there are and the entry beneath them carries the rest.
+(define plaintext:max-items -1)
+
+(define (plaintext:set-max-items! count)
+  (set! plaintext:max-items count))
+
+;; Whether one more entry is listed, given how many have been listed already.
+(define (plaintext:room-for? shown)
+  (or (negative? plaintext:max-items) (< shown plaintext:max-items)))
+
+;; The first `plaintext:max-items` of a list, or all of it where no cap is set.
+(define (plaintext:first-of items)
+  (if (negative? plaintext:max-items)
+      items
+      (let take ((rest items) (room plaintext:max-items) (out '()))
+        (if (or (null? rest) (= room 0))
+            (reverse out)
+            (take (cdr rest) (- room 1) (cons (car rest) out))))))
+
+;; The rest of the same list: what the cap left out, in order.
+(define (plaintext:after-first items)
+  (if (negative? plaintext:max-items)
+      '()
+      (let drop ((rest items) (room plaintext:max-items))
+        (cond ((null? rest) '())
+              ((= room 0) rest)
+              (else (drop (cdr rest) (- room 1)))))))
+
+;; How many of `total` entries the cap left out, and zero where it left none.
+(define (plaintext:left-out total)
+  (if (or (negative? plaintext:max-items) (<= total plaintext:max-items))
+      0
+      (- total plaintext:max-items)))
+
+;; What a list's own line says about what is under it: the empty note where
+;; there is nothing, nothing at all where the list is whole, and where the cap
+;; bit, how many entries there are and where the rest of them went.
+;; `noun` is the plural and `one` the singular, because a cap of 0 on a list of
+;; one writes this note and "1 commodities" is not a sentence.
+(define (plaintext:listing-note total noun one empty-note)
+  (cond ((= total 0) empty-note)
+        ((= (plaintext:left-out total) 0) "")
+        (else (string-append " # " (number->string total) " "
+                             (if (= total 1) one noun) ", "
+                             (number->string plaintext:max-items)
+                             " listed and the rest under not_listed;"
+                             " --max-items -1 for all"))))
+
+;; The entry a shortened list ends with: how many entries it left out, and what
+;; those come to, one figure per additive field of the entries above it. What
+;; it is for is the arithmetic — with it, the listed entries and this one add
+;; up to the total printed beneath them, which is what that total's own comment
+;; says of it.
+;;
+;; The fields it carries are the ones that add. A guid, an account and a price
+;; differ from one entry to the next and have no sum, so they are not here: a
+;; reader wanting those asks for the entries themselves.
+(define (plaintext:not-listed depth count figures)
+  (append
+   (list (string-append (plaintext:indent depth) "not_listed:")
+         (string-append (plaintext:indent (+ depth 1)) "count: "
+                        (number->string count)))
+   (map (lambda (figure)
+          (string-append (plaintext:indent (+ depth 1))
+                         (car figure) ": " (cdr figure)))
+        figures)))
 
 ;; Whether the realized figure was computed at all. It is summed from what each
 ;; disposal's `$residual$` split came to in the book's own currency, and every
@@ -274,15 +408,96 @@
 (define (plaintext:set-realized-items! items)
   (set! plaintext:realized-items items))
 
-;; One line per difference: when it was realized, where it was booked, and what
-;; it came to. They add up to `realized_gains_fx`.
-(define (plaintext:realized-workings report-commodity)
-  (map (lambda (item)
-         (string-append
-          (plaintext:indent 1) "#   "
-          (car item) " " (car (cdr item)) " "
-          (plaintext:amount-of (car (cdr (cdr item))) report-commodity)))
-       plaintext:realized-items))
+;; Every cost basis as its own row, `(guid account currency side balance cost)`.
+;; This is the one list the page is given, and `plaintext:cost-bases` is derived
+;; from it below: whatever reads either groups by currency and side rather than
+;; receiving them grouped.
+(define plaintext:cost-basis-items '())
+
+(define (plaintext:set-cost-basis-items! items)
+  (set! plaintext:cost-basis-items items))
+
+(define (plaintext:basis-item-guid item) (car item))
+(define (plaintext:basis-item-account item) (car (cdr item)))
+(define (plaintext:basis-item-currency item) (car (cdr (cdr item))))
+(define (plaintext:basis-item-side item) (car (cdr (cdr (cdr item)))))
+(define (plaintext:basis-item-balance item) (car (cdr (cdr (cdr (cdr item))))))
+(define (plaintext:basis-item-cost item) (car (cdr (cdr (cdr (cdr (cdr item)))))))
+
+;; The distinct currency and side pairs those rows cover, in the order they
+;; first appear. US dollars never meet Hong Kong dollars, and a currency held
+;; and owed at once keeps its two sides apart.
+(define (plaintext:cost-basis-pairs)
+  (let loop ((rest plaintext:cost-basis-items) (found '()))
+    (if (null? rest)
+        (reverse found)
+        (let ((cur (plaintext:basis-item-currency (car rest)))
+              (sde (plaintext:basis-item-side (car rest))))
+          (loop (cdr rest)
+                (if (let seen ((xs found))
+                      (cond ((null? xs) #f)
+                            ((and (string=? (car (car xs)) cur)
+                                  (string=? (cdr (car xs)) sde)) #t)
+                            (else (seen (cdr xs)))))
+                    found
+                    (cons (cons cur sde) found)))))))
+
+;; `realized_gains_fx` with the differences it is made of under it: whether the
+;; figure was worked out at all, the figure, then one `split:` per difference
+;; giving the day it was taken, the account it was booked to and what it came
+;; to. Q-044 fixes the shape.
+;;
+;; No `realized-available:` key. It could only ever say `yes`: the one caller
+;; is inside `(if plaintext:realized-known? … '())`, so where the figure was not
+;; worked out this block is not written at all and the whole
+;; `realized_gains_fx` / `realized_gains_other` / `total_realized_gains` group
+;; is absent. A key whose only value is the one a reader can read off the key's
+;; own presence tells them nothing, and its `no` was a branch nothing could
+;; reach. It was also the page's only hyphenated key, beside
+;; `cost_basis_balance`, `sum_value` and the rest.
+(define (plaintext:realized-block report-commodity)
+  (append
+   (list (string-append (plaintext:indent 1) "realized_gains_fx:")
+         (string-append (plaintext:indent 2) "realized_gains_fx: "
+                        (plaintext:figure plaintext:realized-fx
+                                          (plaintext:places-of report-commodity)))
+         (string-append (plaintext:indent 2) "splits:"
+                        (plaintext:listing-note
+                         (length plaintext:realized-items) "splits" "split"
+                         " # there is no split")))
+   (let loop ((items (plaintext:first-of plaintext:realized-items)) (lines '()))
+     (if (null? items)
+         lines
+         (let ((item (car items)))
+           (loop (cdr items)
+                 (append
+                  lines
+                  (list (string-append (plaintext:indent 3) "split:")
+                        (string-append (plaintext:indent 4) "date: " (car item))
+                        ;; Quoted, as `account:` is in a cost basis entry and in
+                        ;; a balancing group. One key, one shape, wherever it
+                        ;; appears: an account path may hold a space, and a
+                        ;; reader parsing one form of this key should not meet
+                        ;; two.
+                        (string-append (plaintext:indent 4) "account: \""
+                                       (car (cdr item)) "\"")
+                        (string-append
+                         (plaintext:indent 4) "amount: "
+                         (plaintext:figure (car (cdr (cdr item)))
+                                           (plaintext:places-of report-commodity)))))))))
+   (let ((left-out (plaintext:after-first plaintext:realized-items)))
+     (if (null? left-out)
+         '()
+         (plaintext:not-listed
+          3 (length left-out)
+          (list (cons "amount"
+                      (plaintext:figure
+                       (let sum ((items left-out) (total 0))
+                         (if (null? items)
+                             total
+                             (sum (cdr items)
+                                  (+ total (car (cdr (cdr (car items))))))))
+                       (plaintext:places-of report-commodity)))))))))
 
 ;; How much of `commodity` the accounts given hold at `moment`.
 ;;
@@ -327,12 +542,28 @@
 ;;
 ;; Measured on the book of Q-042's tests: a USD cost basis balance of 10,000.00
 ;; against 7,480.00 in the bank, and an HKD one of 5,500.00 against 5,500.00.
+;; Asked of one basis, answered for its whole currency and side. Each basis is
+;; its own record now, so its balance is a share of what that side holds and
+;; never equals it: three arrivals of 1,000.00, 2,000.00 and 1,000.00 USD are
+;; each checked against the 4,000.00 in the bank, all three miss, and the
+;; currency falls back to GnuCash's revaluation with the cost bases silently
+;; dropped. What the check is for is whether a side's bases account for what it
+;; holds, which is a question about the group, so the group is what is summed.
 (define (plaintext:basis-matches-holdings? basis accounts moment table)
   (let ((commodity (gnc-commodity-table-lookup
                     table "CURRENCY" (plaintext:basis-mnemonic basis))))
     (and commodity
          (= (plaintext:held-in accounts commodity moment)
-            (plaintext:basis-balance basis)))))
+            (let loop ((rest (plaintext:cost-bases)) (total 0))
+              (if (null? rest)
+                  total
+                  (loop (cdr rest)
+                        (if (and (string=? (plaintext:basis-mnemonic (car rest))
+                                           (plaintext:basis-mnemonic basis))
+                                 (string=? (plaintext:basis-side (car rest))
+                                           (plaintext:basis-side basis)))
+                            (+ total (plaintext:basis-balance (car rest)))
+                            total))))))))
 
 ;; True when this commodity's gain on this side is the book's own to measure: a
 ;; currency its cost bases speak for, whose balance matches what that side
@@ -361,88 +592,30 @@
        ;; balanced.
        ;;
        ;; So a missing price is read as a price of nothing — here, in
-       ;; `plaintext:revaluation` and in `plaintext:cost-basis-workings` — and
+       ;; `plaintext:revaluation` and in `plaintext:cost-basis-block` — and
        ;; every build draws the page 4.4 and later already drew.
+       ;;
+       ;; The first row of this currency and side answers for the whole group,
+       ;; and the loop stops there whichever way it answers.
+       ;; `plaintext:basis-matches-holdings?` sums every row of the group before
+       ;; comparing, so it gives the same answer for each of them; carrying on
+       ;; to the next row after a #f asked the identical question again, and
+       ;; each asking walks every account on the side with
+       ;; `xaccAccountGetBalanceAsOfDate` and rebuilds the whole
+       ;; `(plaintext:cost-bases)` list. On a group that does not match — which
+       ;; is a currency spent without giving its basis's guid, the ordinary case
+       ;; this fallback exists for — that was the work repeated once per basis,
+       ;; with this procedure itself called once per foreign account and once
+       ;; per currency and side above.
        (let ((table (gnc-commodity-table-get-table (gnc-get-current-book)))
              (mnemonic (gnc-commodity-get-mnemonic commodity)))
-         (let loop ((bases plaintext:cost-bases))
+         (let loop ((bases (plaintext:cost-bases)))
            (cond ((null? bases) #f)
                  ((and (string=? (plaintext:basis-mnemonic (car bases)) mnemonic)
-                       (string=? (plaintext:basis-side (car bases)) side)
-                       (plaintext:basis-matches-holdings?
-                        (car bases) accounts moment table)) #t)
+                       (string=? (plaintext:basis-side (car bases)) side))
+                  (plaintext:basis-matches-holdings?
+                   (car bases) accounts moment table))
                  (else (loop (cdr bases))))))))
-
-;; One cost basis's own gain, at the report currency's smallest unit: what its
-;; remaining balance is worth at the report's price, less what that balance
-;; cost, each term rounded to money before the subtraction.
-;;
-;; Both the key and the working line take the figure from here. Computed twice
-;; they came to differ: rounding the difference for the key while the line
-;; rounded its two terms put them a cent apart whenever worth and cost both
-;; landed between cents — 333.33 USD at a cost of 189557/136000, priced at
-;; 1.3865, is worth 462.162045 and cost 464.595844, which the line printed as
-;; 462.16 less 464.60 = -2.44 while the key added -2.43. The page tells a
-;; reader the lines add up to the key above them, so the two cannot be two
-;; computations.
-(define (plaintext:basis-gain basis exact-price report-commodity)
-  (- (plaintext:as-money (* (plaintext:basis-balance basis) exact-price)
-                         report-commodity)
-     (plaintext:as-money (plaintext:basis-cost basis) report-commodity)))
-
-;; One line showing how a currency's share of the figure was worked out: what
-;; the book holds against its cost bases on this side, what that cost, the
-;; price nearest the report's date, what it is worth at that price, and the
-;; difference — which is what the key states.
-;;
-;; The balance is in its own currency and is written at that currency's places;
-;; the cost, the worth and the difference are money in the report's. The price
-;; is written exactly and never rounded to money: it is a rate, and 189557/136000
-;; is a rate a book really holds.
-;;
-;; The cost is rounded before the difference is taken, so the line subtracts as
-;; it is printed: `worth - cost = gain` holds between the three figures a reader
-;; sees, rather than between two of them and an unrounded cost behind the third.
-;; Left exact it printed `cost 189557/136 CAD` — a fraction no account can hold,
-;; beside a difference nobody could check by eye.
-(define (plaintext:basis-working basis commodity price report-commodity)
-  (let* ((balance (plaintext:basis-balance basis))
-         (cost (plaintext:as-money (plaintext:basis-cost basis) report-commodity))
-         (exact-price (plaintext:exact price))
-         (worth (plaintext:as-money (* balance exact-price) report-commodity))
-         (gain (plaintext:basis-gain basis exact-price report-commodity)))
-    (string-append
-     (plaintext:indent 1) "#   "
-     (plaintext:basis-side basis) " "
-     (plaintext:figure balance (plaintext:places-of commodity)) " "
-     (gnc-commodity-get-mnemonic commodity)
-     " cost " (plaintext:amount-of cost report-commodity)
-     ", at " (plaintext:figure exact-price 0)
-     " worth " (plaintext:amount-of worth report-commodity)
-     " = " (plaintext:amount-of gain report-commodity))))
-
-;; Those lines for one side of the sheet, in the order the cost bases arrived.
-(define (plaintext:cost-basis-workings side accounts moment price-fn report-commodity)
-  (let ((table (gnc-commodity-table-get-table (gnc-get-current-book))))
-    (let loop ((bases plaintext:cost-bases) (lines '()))
-      (if (null? bases)
-          (reverse lines)
-          (let* ((basis (car bases))
-                 (commodity (gnc-commodity-table-lookup
-                             table "CURRENCY" (plaintext:basis-mnemonic basis)))
-                 ;; A price of nothing where the book holds none: #f on 3.4 and
-                 ;; 3.8, 0 from 4.4 on, and the line has to read the same on
-                 ;; both. See `plaintext:measured-from-cost-bases?`.
-                 (price (and commodity (or (price-fn commodity) 0))))
-            (loop (cdr bases)
-                  (if (and price
-                           (string=? (plaintext:basis-side basis) side)
-                           (plaintext:basis-matches-holdings?
-                            basis accounts moment table))
-                      (cons (plaintext:basis-working
-                             basis commodity price report-commodity)
-                            lines)
-                      lines)))))))
 
 ;; The foreign-currency accounts of one side whose commodity the cost bases
 ;; cannot speak for, and which therefore keep GnuCash's own revaluation.
@@ -469,15 +642,863 @@
                                   "CURRENCY")))))
           accounts))
 
-;; One key's working: which key it is, then the items behind it. A key with
-;; nothing behind it says so — "nothing" is an answer a reader can check, and
-;; silence is not.
-(define (plaintext:key-workings name items)
-  (cons (string-append (plaintext:indent 1) "#")
-        (cons (string-append (plaintext:indent 1) "# " name ":")
-              (if (null? items)
-                  (list (string-append (plaintext:indent 1) "#   nothing"))
-                  items))))
+;; `unrealized_gains_assets_fx` with its cost bases under it, grouped by
+;; commodity and type and never added before the page is written: each basis
+;; states the balance it holds, what that cost, what it is worth at the sheet's
+;; price and the difference; the commodity adds its bases up; the key adds the
+;; commodities. Q-044 fixes the shape.
+;; The accounts of one side holding this commodity, each with what it holds.
+;;
+;; Printed beside the cost bases because those are the two figures the report
+;; chooses between: what the bases say is still against this currency, and what
+;; the book's own accounts hold of it. They are one figure where every disposal
+;; gave the cost basis it drew on. Where they differ, currency left without
+;; saying which basis it came out of, and a reader could previously only find
+;; that out by adding up another key's split list.
+;; The accounts of `accounts` that are held in `commodity`, in order. Separate
+;; from the rendering because the `accounts:` line above states how many there
+;; are before any of them is drawn, and counting the unfiltered list would
+;; announce a number that includes every account in another commodity.
+(define (plaintext:accounts-in accounts commodity)
+  (let keep ((rest accounts) (found '()))
+    (cond ((null? rest) (reverse found))
+          ((and commodity
+                (gnc-commodity-equiv (xaccAccountGetCommodity (car rest))
+                                     commodity))
+           (keep (cdr rest) (cons (car rest) found)))
+          (else (keep (cdr rest) found)))))
+
+(define (plaintext:commodity-accounts accounts commodity moment)
+  (let* ((mine (plaintext:accounts-in accounts commodity))
+         (missing (plaintext:left-out (length mine))))
+   (let loop ((rest (plaintext:first-of mine)) (lines '()))
+    (if (null? rest)
+        ;; With the balance the accounts left out hold between them, because
+        ;; `balance_value` on the line beneath says it is the sum of these and
+        ;; a reader adding them up has to reach it. These are all one
+        ;; commodity, so unlike a security's split lines they do add: a cap of
+        ;; one on a currency spread over a receivable and a bank listed the
+        ;; receivable's 0.00, said one was left out, and then stated a
+        ;; `balance_value` of 1,000.00 that nothing on the page accounted for.
+        (append lines
+                (if (> missing 0)
+                    (plaintext:not-listed
+                     5 missing
+                     (list (cons "balance"
+                                 (plaintext:figure
+                                  (let sum ((xs (plaintext:after-first mine)) (n 0))
+                                    (if (null? xs)
+                                        n
+                                        (sum (cdr xs)
+                                             (+ n (plaintext:exact
+                                                   (xaccAccountGetBalanceAsOfDate
+                                                    (car xs) moment))))))
+                                  (plaintext:places-of commodity)))))
+                    '()))
+        (loop (cdr rest)
+                  (append
+                   lines
+                   ;; `account:` carries the path, because that is what an
+                   ;; account is called in this format — the same key the cost
+                   ;; basis rows above use, and the same colon-joined path
+                   ;; every account line on the page writes.
+                   ;; `plaintext:full-name` rather than
+                   ;; `gnc-account-get-full-name`: the latter joins with the
+                   ;; book's own separator, a dot in these images, which would
+                   ;; print one account two ways inside a single commodity.
+                   ;; `account:` opens an entry and its three facts sit under
+                   ;; it, the shape `cost_basis:` uses above. Flat keys could
+                   ;; not say which balance belonged to which account —
+                   ;; `account:`, `balance:`, `account:`, `balance:` is four
+                   ;; keys and no pairing — and a currency spread across
+                   ;; several accounts is what this block is for.
+                   ;;
+                   ;; The guid is guarded the way the balancing block guards
+                   ;; `gncSplitGetGUID`: read where the build binds it, and an
+                   ;; empty string where it does not, rather than taking the
+                   ;; page down over an identifier.
+                   (list (string-append (plaintext:indent 5) "account:")
+                         (string-append
+                          (plaintext:indent 6) "guid: "
+                          (let ((found (false-if-exception
+                                        (gncAccountGetGUID (car rest)))))
+                            (if (string? found) found "")))
+                         (string-append
+                          (plaintext:indent 6) "name: \""
+                          (plaintext:full-name (car rest)) "\"")
+                         (string-append
+                          (plaintext:indent 6) "balance: "
+                          (plaintext:figure
+                           (xaccAccountGetBalanceAsOfDate (car rest) moment)
+                           (plaintext:places-of commodity))))))))))
+
+;; What the commodities left to GnuCash's revaluation are worth between them,
+;; and what they cost, each asked of `revalue` one commodity at a time so that
+;; the figures added here are the ones printed above.
+(define (plaintext:fallen-back-worth revalue accounts commodities)
+  (let sum ((rest commodities) (total 0))
+    (if (null? rest)
+        total
+        (sum (cdr rest)
+             (+ total (car (revalue (plaintext:holding accounts (car rest)))))))))
+
+(define (plaintext:fallen-back-cost revalue accounts commodities)
+  (let sum ((rest commodities) (total 0))
+    (if (null? rest)
+        total
+        (sum (cdr rest)
+             (+ total (cdr (revalue (plaintext:holding accounts (car rest)))))))))
+
+(define (plaintext:cost-basis-block price-fn report-commodity moment accounts
+                                    revalue)
+  (let* ((table (gnc-commodity-table-get-table (gnc-get-current-book)))
+         ;; The asset side alone. This block is what
+         ;; `unrealized_gains_assets_fx` is made of, and what the book owes is
+         ;; the separate `unrealized_gains_liabilities_fx` key. Listed here as
+         ;; well, a borrowing's cost basis was added into the assets key:
+         ;; measured on a CAD book whose only foreign thing is a 1,000.00 USD
+         ;; loan drawn at 1.30 and worth 1,400.00 by the report's date, the
+         ;; block stated 100.00 of gain under the assets key on a page whose
+         ;; `unrealized_gains_fx` says the book has lost 100.00.
+         ;; And only the commodities the key is measured from. A currency whose
+         ;; cost bases do not account for what the accounts hold keeps
+         ;; GnuCash's own revaluation, and `plaintext:revaluation` passes its
+         ;; bases over for that reason — so pricing them here at the sheet's
+         ;; rate made the block come to something the key never states: 1300.00
+         ;; under a key reading 940.00, above a line calling itself the sum of
+         ;; that block and the owed side.
+         (pairs-of-assets
+          (let keep ((rest (plaintext:cost-basis-pairs)) (found '()))
+            (cond ((null? rest) (reverse found))
+                  ((and (string=? (cdr (car rest)) "asset")
+                        (plaintext:measured-from-cost-bases?
+                         (gnc-commodity-table-lookup
+                          table "CURRENCY" (car (car rest)))
+                         "asset" accounts moment))
+                   (keep (cdr rest) (cons (car rest) found)))
+                  (else (keep (cdr rest) found)))))
+         ;; The accounts the key falls back to GnuCash's revaluation for. They
+         ;; belong in this block because the key includes them: left out, the
+         ;; items came to less than the figure above them.
+         (fallback (plaintext:fallback-accounts "asset" accounts moment
+                                                report-commodity))
+         (fallen-back (plaintext:commodities-of fallback))
+         ;; Both kinds of group are entries of the one `commodities:` list, so
+         ;; the cap counts them together and the note says how many there are
+         ;; altogether. Counting only the cost basis pairs would announce a
+         ;; number smaller than the list a reader can see.
+         (groups (+ (length pairs-of-assets) (length fallen-back))))
+    (let outer ((pairs pairs-of-assets)
+                (lines (list (string-append
+                              (plaintext:indent 1) "unrealized_gains_assets_fx:")
+                             ;; The note stands in place of the list, so it is
+                             ;; written only where the list is empty of both
+                             ;; kinds of group. A book whose only foreign
+                             ;; currency arrived in a transaction stated wholly
+                             ;; in that currency has no cost basis for it and
+                             ;; still gets a `commodity:` group, measured
+                             ;; GnuCash's way — checking the cost basis pairs
+                             ;; alone announced "there is no cost basis" and
+                             ;; then listed one.
+                             (string-append
+                              (plaintext:indent 2) "commodities:"
+                              (plaintext:listing-note
+                               ;; "on the asset side", because the owed side is
+                               ;; measured from cost bases of its own and has
+                               ;; its own key. The USD-loan book has a cost
+                               ;; basis — `unrealized_gains_liabilities_fx`
+                               ;; states -100.00 from it — and this block was
+                               ;; telling a reader the book had none.
+                               groups "commodities" "commodity"
+                               " # there is no cost basis on the asset side"))))
+                (all-held 0) (all-spent 0) (all-worth 0)
+                (drawn 0) (rest-cost 0) (rest-worth 0))
+      (if (null? pairs)
+          (append
+           lines
+           ;; Every commodity left to GnuCash's revaluation, one group each,
+           ;; stating what GnuCash makes of it. It carries no cost basis lines
+           ;; because it has no cost basis the book can stand behind — that is
+           ;; the whole reason it is here — so it gives the figure and says
+           ;; where the figure came from.
+           (let each ((rest fallen-back) (out '()) (n drawn)
+                      (rc rest-cost) (rw rest-worth))
+             (if (null? rest)
+                 ;; The entry the `commodities:` note promises, over both kinds
+                 ;; of group: the cost and the worth of everything the cap left
+                 ;; out, so the groups drawn plus this one still come to the
+                 ;; two totals below.
+                 (append out
+                         (if (> (plaintext:left-out groups) 0)
+                             (plaintext:not-listed
+                              3 (plaintext:left-out groups)
+                              (list (cons "cost_value"
+                                          (plaintext:figure
+                                           rc (plaintext:places-of report-commodity)))
+                                    (cons "value"
+                                          (plaintext:figure
+                                           rw (plaintext:places-of report-commodity)))
+                                    (cons "unrealized_gains_assets_fx"
+                                          (plaintext:figure
+                                           (- rw rc)
+                                           (plaintext:places-of report-commodity)))))
+                             '()))
+                 (let ((parts (revalue (plaintext:holding fallback (car rest)))))
+                   (each
+                    (cdr rest)
+                    (if (not (plaintext:room-for? n))
+                        out
+                    (append
+                     out
+                     (list (string-append (plaintext:indent 3) "commodity:")
+                           (string-append
+                            (plaintext:indent 4) "commodity.mnemonic: \""
+                            (gnc-commodity-get-mnemonic (car rest)) "\"")
+                           (string-append (plaintext:indent 4) "type: asset")
+                           (string-append
+                            (plaintext:indent 4) "measured_from: gnucash_revaluation"
+                            " # its cost bases do not account for what the"
+                            " accounts hold")
+                           (string-append
+                            (plaintext:indent 4) "cost_value: "
+                            (plaintext:figure (cdr parts)
+                                              (plaintext:places-of report-commodity))
+                            " # what its splits were recorded at, converted")
+                           (string-append
+                            (plaintext:indent 4) "value: "
+                            (plaintext:figure (car parts)
+                                              (plaintext:places-of report-commodity))
+                            " # what the accounts hold, at the sheet's price")
+                           (string-append
+                            (plaintext:indent 4) "unrealized_gains_assets_fx: "
+                            (plaintext:figure (- (car parts) (cdr parts))
+                                              (plaintext:places-of report-commodity))
+                            " # value - cost_value"))))
+                    (+ n 1)
+                    (if (plaintext:room-for? n) rc (+ rc (cdr parts)))
+                    (if (plaintext:room-for? n) rw (+ rw (car parts)))))))
+           ;; No `cost_basis_balance` at this depth. Per commodity it is that
+           ;; commodity's own units and means something; added across them it
+           ;; is US dollars and Hong Kong dollars in one number — 100110.00 on
+           ;; the book that showed it — which is a quantity of nothing.
+           ;; Every commodity's figures, however it was measured: the ones from
+           ;; cost bases and the ones from GnuCash's revaluation are both a
+           ;; value and a cost, so both belong in these sums and the equation
+           ;; on the last line is the equation it says it is.
+           (let ((spent (+ all-spent (plaintext:fallen-back-cost revalue
+                                                                 fallback fallen-back)))
+                 (worth (+ all-worth (plaintext:fallen-back-worth revalue
+                                                                  fallback fallen-back))))
+             (list (string-append
+                    (plaintext:indent 2) "cost_value: "
+                    (plaintext:figure spent (plaintext:places-of report-commodity))
+                    " # sum of each commodity's cost_value")
+                   (string-append
+                    (plaintext:indent 2) "value: "
+                    (plaintext:figure worth (plaintext:places-of report-commodity))
+                    " # sum of each commodity's value")
+                   (string-append
+                    (plaintext:indent 2) "unrealized_gains_assets_fx: "
+                    (plaintext:figure (- worth spent)
+                                      (plaintext:places-of report-commodity))
+                    " # value - cost_value"))))
+          (let* ((pair (car pairs))
+                 (commodity (gnc-commodity-table-lookup
+                             table "CURRENCY" (car pair)))
+                 (price (plaintext:exact
+                         (or (and commodity (price-fn commodity)) 0))))
+            (let inner ((rest plaintext:cost-basis-items)
+                        (rows '()) (held 0) (spent 0) (seen 0)
+                        (rest-bal 0) (rest-cv 0) (rest-vl 0))
+              (if (null? rest)
+                  (let* ((worth (plaintext:as-money (* held price) report-commodity))
+                         (rise (- worth spent)))
+                    (outer
+                     (cdr pairs)
+                     (if (not (plaintext:room-for? drawn))
+                         lines
+                     (append
+                      lines
+                      (list (string-append (plaintext:indent 3) "commodity:")
+                            (string-append
+                             (plaintext:indent 4) "commodity.mnemonic: \""
+                             (car pair) "\"")
+                            (string-append
+                             (plaintext:indent 4) "type: " (cdr pair))
+                            (string-append
+                             (plaintext:indent 4) "share_price: "
+                             (plaintext:figure price 0)
+                             " # current price of commodity in balance sheet currency")
+                            (string-append
+                             (plaintext:indent 4) "cost_bases:"
+                             (plaintext:listing-note seen "cost bases"
+                                                     "cost basis" "")))
+                      rows
+                      (if (> (plaintext:left-out seen) 0)
+                          (plaintext:not-listed
+                           5 (plaintext:left-out seen)
+                           (list (cons "cost_basis_balance"
+                                       (plaintext:figure
+                                        rest-bal
+                                        (plaintext:places-or report-commodity
+                                                             commodity)))
+                                 (cons "cost_value"
+                                       (plaintext:figure
+                                        rest-cv
+                                        (plaintext:places-of report-commodity)))
+                                 (cons "value"
+                                       (plaintext:figure
+                                        rest-vl
+                                        (plaintext:places-of report-commodity)))
+                                 (cons "unrealized_gains_assets_fx"
+                                       (plaintext:figure
+                                        (- rest-vl rest-cv)
+                                        (plaintext:places-of report-commodity)))))
+                          '())
+                      (list (string-append
+                             (plaintext:indent 4) "cost_basis_balance: "
+                             (plaintext:figure
+                              held (plaintext:places-or report-commodity commodity))
+                             " # sum of each cost_basis's cost_basis_balance")
+                            (string-append
+                             (plaintext:indent 4) "cost_value: "
+                             (plaintext:figure
+                              spent (plaintext:places-of report-commodity))
+                             " # sum of each cost_basis's cost_value")
+                            (string-append
+                             (plaintext:indent 4) "accounts:"
+                             (plaintext:listing-note
+                              (length (plaintext:accounts-in accounts commodity))
+                              "accounts" "account" "")))
+                      (plaintext:commodity-accounts accounts commodity moment)
+                      (list (string-append
+                             (plaintext:indent 4) "balance_value: "
+                             (plaintext:figure
+                              (if commodity
+                                  (plaintext:held-in accounts commodity moment)
+                                  0)
+                              (plaintext:places-or report-commodity commodity))
+                             " # sum of account's balance for all accounts")
+                            (string-append
+                             (plaintext:indent 4) "value: "
+                             (plaintext:figure
+                              worth (plaintext:places-of report-commodity))
+                             " # cost_basis_balance * share_price")
+                            (string-append
+                             (plaintext:indent 4) "unrealized_gains_assets_fx: "
+                             (plaintext:figure
+                              rise (plaintext:places-of report-commodity))
+                             " # value - cost_value"))))
+                     (+ all-held held) (+ all-spent spent) (+ all-worth worth)
+                     (+ drawn 1)
+                     (if (plaintext:room-for? drawn) rest-cost (+ rest-cost spent))
+                     (if (plaintext:room-for? drawn) rest-worth (+ rest-worth worth))))
+                  (let ((item (car rest)))
+                    (if (and (string=? (plaintext:basis-item-currency item)
+                                       (car pair))
+                             (string=? (plaintext:basis-item-side item)
+                                       (cdr pair)))
+                        (let* ((bal (plaintext:basis-item-balance item))
+                               (cst (plaintext:basis-item-cost item))
+                               (cv (plaintext:as-money (* bal cst) report-commodity))
+                               (vl (plaintext:as-money (* bal price) report-commodity)))
+                          (inner
+                           (cdr rest)
+                           (if (plaintext:room-for? seen)
+                               (append
+                                rows
+                                (list
+                                 (string-append (plaintext:indent 5) "cost_basis:")
+                                 (string-append
+                                  (plaintext:indent 6) "split_guid: "
+                                  (plaintext:basis-item-guid item))
+                                 (string-append
+                                  (plaintext:indent 6) "account: \""
+                                  (plaintext:basis-item-account item) "\"")
+                                 (string-append
+                                  (plaintext:indent 6) "cost_basis_balance: "
+                                  (plaintext:figure
+                                   bal (plaintext:places-or report-commodity
+                                                            commodity)))
+                                 (string-append
+                                  (plaintext:indent 6) "cost_share_price: "
+                                  (plaintext:figure cst 0))
+                                 (string-append
+                                  (plaintext:indent 6) "cost_value: "
+                                  (plaintext:figure
+                                   cv (plaintext:places-of report-commodity))
+                                  " # cost_basis_balance * cost_share_price")
+                                 (string-append
+                                  (plaintext:indent 6) "value: "
+                                  (plaintext:figure
+                                   vl (plaintext:places-of report-commodity))
+                                  " # cost_basis_balance * share_price")
+                                 (string-append
+                                  (plaintext:indent 6) "unrealized_gains_assets_fx: "
+                                  (plaintext:figure
+                                   (- vl cv) (plaintext:places-of report-commodity))
+                                  " # value - cost_value")))
+                               rows)
+                           (+ held bal) (+ spent cv) (+ seen 1)
+                           (if (plaintext:room-for? seen) rest-bal (+ rest-bal bal))
+                           (if (plaintext:room-for? seen) rest-cv (+ rest-cv cv))
+                           (if (plaintext:room-for? seen) rest-vl (+ rest-vl vl))))
+                        (inner (cdr rest) rows held spent seen
+                               rest-bal rest-cv rest-vl))))))))))
+
+;; The accounts holding one security, each with its balance and the splits that
+;; brought it there.
+;;
+;; A split is written as one reading — `split_amount 20.0000 | value 4000.00
+;; USD` — and not as two `key: value` lines. The two figures are checked
+;; against each other, never separately: what the account gained in units
+;; beside what that cost in the transaction's currency is how a reader tells a
+;; purchase from a revaluation. Splitting them across two lines, or nesting
+;; them under a `split:` of their own, puts the pair a reader is comparing
+;; further apart for the sake of a shape. That is the author's decision about
+;; this line and it is deliberate.
+(define (plaintext:security-accounts held moment)
+  (let loop ((rest (plaintext:first-of held)) (lines '()))
+    (if (null? rest)
+        ;; With the balance the accounts left out hold between them. `value:`
+        ;; and `cost_value:` beneath are converted rather than summed from
+        ;; these, but `quantity:` four lines above is exactly their sum, so a
+        ;; count alone left a reader unable to reach it: two accounts holding
+        ;; 1.0000 each, capped at one, stated `quantity: 2.0000` over a single
+        ;; 1.0000 and a count of one. This is the same figure
+        ;; `plaintext:commodity-accounts` carries for a currency, and for the
+        ;; same reason.
+        (append lines
+                (if (> (plaintext:left-out (length held)) 0)
+                    (plaintext:not-listed
+                     5 (plaintext:left-out (length held))
+                     (list (cons "balance"
+                                 (plaintext:figure
+                                  (let sum ((xs (plaintext:after-first held)) (n 0))
+                                    (if (null? xs)
+                                        n
+                                        (sum (cdr xs)
+                                             (+ n (plaintext:exact
+                                                   (xaccAccountGetBalanceAsOfDate
+                                                    (car xs) moment))))))
+                                  (plaintext:places-of
+                                   (xaccAccountGetCommodity (car held)))))))
+                    '()))
+        (let* ((account (car rest))
+               ;; The splits of this account on or before the sheet's date, as
+               ;; one list, so the cap and the note it writes are counting the
+               ;; same thing. Counting `xaccAccountGetSplitList` instead would
+               ;; announce a number that includes splits dated after the sheet,
+               ;; which the listing does not show and a reader cannot find.
+               (dated (let keep ((all (xaccAccountGetSplitList account))
+                                 (found '()))
+                        (cond ((null? all) (reverse found))
+                              ((<= (xaccTransGetDate
+                                    (xaccSplitGetParent (car all))) moment)
+                               (keep (cdr all) (cons (car all) found)))
+                              (else (keep (cdr all) found))))))
+          (loop
+           (cdr rest)
+           (append
+            lines
+            (list (string-append (plaintext:indent 5) "account:")
+                  (string-append
+                   (plaintext:indent 6) "guid: "
+                   (let ((found (false-if-exception
+                                 (gncAccountGetGUID account))))
+                     (if (string? found) found "")))
+                  (string-append (plaintext:indent 6) "name: \""
+                                 (plaintext:full-name account) "\"")
+                  (string-append
+                   (plaintext:indent 6) "balance: "
+                   (plaintext:figure
+                    (xaccAccountGetBalanceAsOfDate account moment)
+                    (plaintext:places-of (xaccAccountGetCommodity account))))
+                  ;; A count and no `not_listed:` entry, unlike the lists that
+                  ;; end in a total. These lines are a reading of one split
+                  ;; each — units in the security beside what they cost in
+                  ;; whatever currency that transaction was stated in — and
+                  ;; several transactions' currencies do not add to anything.
+                  ;; The figure they stand behind is `cost_value` above, which
+                  ;; is converted rather than summed from these.
+                  (string-append
+                   (plaintext:indent 6) "splits:"
+                   (plaintext:listing-note (length dated) "splits" "split"
+                                           " # there is no split")))
+            (let splits ((rest (plaintext:first-of dated)) (out '()))
+              (if (null? rest)
+                  out
+                  (let ((txn (xaccSplitGetParent (car rest))))
+                    (splits
+                     (cdr rest)
+                     (append
+                      out
+                      (list (string-append
+                             (plaintext:indent 7) "split_amount "
+                             (plaintext:figure
+                              (xaccSplitGetAmount (car rest))
+                              (plaintext:places-of
+                               (xaccAccountGetCommodity account)))
+                             " | value "
+                             (plaintext:figure
+                              (xaccSplitGetValue (car rest))
+                              (plaintext:places-of
+                               (xaccTransGetCurrency txn)))
+                             " "
+                             (gnc-commodity-get-mnemonic
+                              (xaccTransGetCurrency txn)))))))))
+            ;; The entry the note above promises, carrying a count and no
+            ;; figures. The lines it stands for do not add to anything — see
+            ;; the note on `splits:` — so there is no total to complete here,
+            ;; and a count is the whole of what a reader can be told. Saying
+            ;; "the rest under not_listed" and then writing nothing was the
+            ;; fault this closes.
+            (if (> (plaintext:left-out (length dated)) 0)
+                (plaintext:not-listed 7 (plaintext:left-out (length dated)) '())
+                '())))))))
+
+;; `unrealized_gains_other` with every security and fund under it. A fund is a
+;; security here: `plaintext:securities` takes every account whose commodity is
+;; not a currency, so the two arrive in one list and are told apart only by
+;; their namespace.
+(define (plaintext:securities-block accounts price-fn report-commodity moment
+                                    exchange-fn)
+  (let* ((securities (plaintext:commodities-of accounts))
+         (count (length securities))
+         (places (plaintext:places-of report-commodity)))
+   (let every ((rest securities)
+              (lines (list (string-append
+                            (plaintext:indent 1)
+                            "unrealized_gains_other: # sum of"
+                            " unrealized_gains_other of all securities and funds")
+                           (string-append
+                            (plaintext:indent 2) "securities:"
+                            (if (= count 0)
+                                " # there is no security or fund"
+                                (let ((note (plaintext:listing-note
+                                             count "securities" "security" "")))
+                                  (if (string=? note "")
+                                      " # security, fund, etc"
+                                      note))))))
+              (all-worth 0) (all-recorded 0) (seen 0)
+              (rest-worth 0) (rest-recorded 0))
+    (if (null? rest)
+        (append
+         lines
+         ;; What the cap left out, so the three totals below still have the
+         ;; entries above them adding up to what they say they are.
+         (if (> (plaintext:left-out count) 0)
+             (plaintext:not-listed
+              3 (plaintext:left-out count)
+              (list (cons "value" (plaintext:figure rest-worth places))
+                    (cons "cost_value" (plaintext:figure rest-recorded places))
+                    (cons "unrealized_gains_other"
+                          (plaintext:figure (- rest-worth rest-recorded) places))))
+             '())
+         (list (string-append
+                (plaintext:indent 2) "value: "
+                (plaintext:figure all-worth (plaintext:places-of report-commodity))
+                " # sum of each security's value")
+               (string-append
+                (plaintext:indent 2) "cost_value: "
+                (plaintext:figure all-recorded (plaintext:places-of report-commodity))
+                " # sum of each security's cost_value")
+               (string-append
+                (plaintext:indent 2) "unrealized_gains_other: "
+                (plaintext:figure (- all-worth all-recorded)
+                                  (plaintext:places-of report-commodity))
+                " # value - cost_value")))
+        (let* ((commodity (car rest))
+               (held (plaintext:holding accounts commodity))
+               (price (price-fn commodity))
+               (worth (plaintext:converted
+                       (plaintext:balance-as-of held moment)
+                       report-commodity exchange-fn))
+               (recorded (plaintext:converted
+                          (gnc:accounts-get-comm-total-assets
+                           held
+                           (lambda (a)
+                             (gnc:account-get-comm-value-at-date a moment #f)))
+                          report-commodity exchange-fn)))
+          (every
+           (cdr rest)
+           (if (plaintext:room-for? seen)
+               (append
+                lines
+                (list (string-append (plaintext:indent 3) "security:")
+                      (string-append
+                       (plaintext:indent 4) "commodity.namespace: \""
+                       (gnc-commodity-get-namespace commodity) "\"")
+                      (string-append
+                       (plaintext:indent 4) "commodity.mnemonic: \""
+                       (gnc-commodity-get-mnemonic commodity) "\"")
+                      (string-append
+                       (plaintext:indent 4) "quantity: "
+                       (plaintext:figure (plaintext:quantity-of held moment)
+                                         (plaintext:places-of commodity)))
+                      (string-append
+                       (plaintext:indent 4) "share_price: "
+                       (if price (plaintext:figure (plaintext:exact price) 0) "0")
+                       " # what price-fn gives for this commodity")
+                      (string-append
+                       (plaintext:indent 4) "accounts:"
+                       (plaintext:listing-note (length held) "accounts"
+                                               "account" "")))
+                (plaintext:security-accounts held moment)
+                (list (string-append
+                       (plaintext:indent 4) "value: "
+                       (plaintext:figure worth (plaintext:places-of report-commodity))
+                       " # the holding converted at the sheet's price")
+                      (string-append
+                       (plaintext:indent 4) "cost_value: "
+                       (plaintext:figure recorded (plaintext:places-of report-commodity))
+                       " # its splits' values, converted")
+                      (string-append
+                       (plaintext:indent 4) "unrealized_gains_other: "
+                       (plaintext:figure (- worth recorded)
+                                         (plaintext:places-of report-commodity))
+                       " # value - cost_value")))
+               lines)
+           (+ all-worth worth) (+ all-recorded recorded) (+ seen 1)
+           (if (plaintext:room-for? seen) rest-worth (+ rest-worth worth))
+           (if (plaintext:room-for? seen)
+               rest-recorded
+               (+ rest-recorded recorded))))))))
+
+;; How many splits of `accounts` are valued in `currency` at `moment` — what
+;; the list under `splits:` would hold, counted before the list is built so
+;; that line can say how many there are when the cap shortens it.
+(define (plaintext:splits-valued-in accounts currency moment)
+  (let loop ((xs accounts) (n 0))
+    (if (null? xs)
+        n
+        (loop (cdr xs)
+              (let each ((sp (xaccAccountGetSplitList (car xs))) (m n))
+                (if (null? sp)
+                    m
+                    (let ((txn (xaccSplitGetParent (car sp))))
+                      (each (cdr sp)
+                            (if (and (<= (xaccTransGetDate txn) moment)
+                                     (gnc-commodity-equiv
+                                      (xaccTransGetCurrency txn) currency))
+                                (+ m 1)
+                                m)))))))))
+
+;; What the splits the cap left out come to, walked in the order they are
+;; listed in so that the same ones are skipped here as there.
+(define (plaintext:splits-left-out accounts currency moment)
+  (let loop ((xs accounts) (n 0) (total 0))
+    (if (null? xs)
+        total
+        (let each ((sp (xaccAccountGetSplitList (car xs))) (m n) (acc total))
+          (if (null? sp)
+              (loop (cdr xs) m acc)
+              (let ((txn (xaccSplitGetParent (car sp))))
+                (if (and (<= (xaccTransGetDate txn) moment)
+                         (gnc-commodity-equiv
+                          (xaccTransGetCurrency txn) currency))
+                    (each (cdr sp) (+ m 1)
+                          (if (plaintext:room-for? m)
+                              acc
+                              (+ acc (plaintext:exact
+                                      (xaccSplitGetValue (car sp))))))
+                    (each (cdr sp) m acc))))))))
+
+;; `gnucash_balancing_amount` with what GnuCash subtracted under it, grouped by
+;; the currency each split's value is in. Per currency: the splits valued in it,
+;; their sum, the accounts holding it and what they hold, the difference between
+;; the two, and that difference converted. The key adds the conversions up.
+;; The commodities GnuCash's balancing amount is made of, in the order its own
+;; collector holds them. Read from the collector rather than worked out from
+;; the accounts, so that the items under the key are the terms of GnuCash's own
+;; sum and come to it.
+(define (plaintext:balancing-commodities gains)
+  (map car (gains 'format cons #f)))
+
+(define (plaintext:balancing-block accounts moment report-commodity exchange-fn
+                                   price-fn gains)
+  (let* ((every-commodity (plaintext:balancing-commodities gains))
+         (missing (plaintext:left-out (length every-commodity))))
+   ;; The loop runs over every commodity whatever the cap, and the cap decides
+   ;; only which of them draw lines. The key beneath is the sum over all of
+   ;; them — GnuCash's own figure does not shrink because a reader asked for a
+   ;; shorter page — so what the cap leaves out is accumulated into
+   ;; `rest-value` and carried in `not_listed:`, and the groups above it plus
+   ;; that entry still come to the key.
+   ;;
+   ;; This list grows with the book like the others: GnuCash's collector holds
+   ;; one entry per account commodity, so every stock and fund a brokerage
+   ;; holds is a group here, about eleven lines even with its own split and
+   ;; account lists capped.
+   (let outer ((rest every-commodity)
+              (lines (list (string-append
+                            (plaintext:indent 1)
+                            "gnucash_balancing_amount: # the commodities"
+                            " GnuCash's own figure is summed from")
+                           (string-append
+                            (plaintext:indent 2) "commodities:"
+                            (plaintext:listing-note (length every-commodity)
+                                                    "commodities" "commodity"
+                                                    " # there is no commodity"))))
+              (total 0) (seen 0) (rest-value 0))
+    (if (null? rest)
+        (append lines
+                (if (> missing 0)
+                    (plaintext:not-listed
+                     3 missing
+                     (list (cons "balance_sheet_value"
+                                 (plaintext:figure
+                                  rest-value
+                                  (plaintext:places-of report-commodity)))))
+                    '())
+                (list (string-append
+                       (plaintext:indent 2) "gnucash_balancing_amount: "
+                       (plaintext:figure total (plaintext:places-of report-commodity))
+                       " # sum of balance_sheet_value of all commodities")))
+        (let* ((currency (car rest))
+               (price (price-fn currency))
+               (sum (let s ((xs accounts) (n 0))
+                      (if (null? xs)
+                          n
+                          (s (cdr xs)
+                             (let t ((sp (xaccAccountGetSplitList (car xs))) (m n))
+                               (if (null? sp)
+                                   m
+                                   (let ((txn (xaccSplitGetParent (car sp))))
+                                     (t (cdr sp)
+                                        (if (and (<= (xaccTransGetDate txn) moment)
+                                                 (gnc-commodity-equiv
+                                                  (xaccTransGetCurrency txn) currency))
+                                            (+ m (plaintext:exact
+                                                  (xaccSplitGetValue (car sp))))
+                                            m)))))))))
+               (worth (let w ((xs accounts) (n 0))
+                        (if (null? xs)
+                            n
+                            (w (cdr xs)
+                               (if (gnc-commodity-equiv
+                                    (xaccAccountGetCommodity (car xs)) currency)
+                                   (+ n (plaintext:exact
+                                         (xaccAccountGetBalanceAsOfDate
+                                          (car xs) moment)))
+                                   n)))))
+               ;; GnuCash's own amount for this commodity, out of the collector
+               ;; it sums, never `worth - sum` worked out here. The two lines
+               ;; above are what went into it — the balances it merged and the
+               ;; split values it subtracted — and are printed so a reader can
+               ;; see where it came from; this is the figure itself.
+               (gain (plaintext:exact
+                      (gnc:gnc-monetary-amount (gains 'getmonetary currency #f))))
+               (converted (plaintext:exact
+                           (gnc:gnc-monetary-amount
+                            (exchange-fn (gnc:make-gnc-monetary
+                                          currency
+                                          (gnc-numeric-create (numerator gain)
+                                                              (denominator gain)))
+                                         report-commodity)))))
+          (outer
+           (cdr rest)
+           (if (not (plaintext:room-for? seen))
+               lines
+           (append
+            lines
+            (list (string-append (plaintext:indent 3) "commodity:")
+                  (string-append (plaintext:indent 4) "commodity.mnemonic: \""
+                                 (gnc-commodity-get-mnemonic currency) "\"")
+                  (string-append
+                   (plaintext:indent 4) "splits:"
+                   (plaintext:listing-note
+                    (plaintext:splits-valued-in accounts currency moment)
+                    "splits" "split" " # there is no split")))
+            (let rows ((xs accounts) (out '()) (shown 0))
+              (if (null? xs)
+                  out
+                  (let each ((sp (xaccAccountGetSplitList (car xs)))
+                             (o out) (n shown))
+                    (if (null? sp)
+                        (rows (cdr xs) o n)
+                        (let ((txn (xaccSplitGetParent (car sp))))
+                          (if (and (<= (xaccTransGetDate txn) moment)
+                                   (gnc-commodity-equiv
+                                    (xaccTransGetCurrency txn) currency))
+                              (each
+                               (cdr sp)
+                               (if (plaintext:room-for? n)
+                                   (append
+                                    o
+                                    (list
+                                     (string-append (plaintext:indent 5) "split:")
+                                     (string-append
+                                      (plaintext:indent 6) "split_guid: "
+                                      (let ((g (false-if-exception
+                                                (gncSplitGetGUID (car sp)))))
+                                        (if (string? g) g "")))
+                                     (string-append
+                                      (plaintext:indent 6) "account: \""
+                                      (plaintext:full-name (car xs)) "\"")
+                                     (string-append
+                                      (plaintext:indent 6) "value: "
+                                      (plaintext:figure
+                                       (xaccSplitGetValue (car sp))
+                                       (plaintext:places-of currency)))))
+                                   o)
+                               (+ n 1))
+                              (each (cdr sp) o n)))))))
+            (let ((left-out (plaintext:left-out
+                             (plaintext:splits-valued-in accounts currency moment))))
+              (if (> left-out 0)
+                  (plaintext:not-listed
+                   5 left-out
+                   (list (cons "value"
+                               (plaintext:figure
+                                (plaintext:splits-left-out accounts currency moment)
+                                (plaintext:places-of currency)))))
+                  '()))
+            (list (string-append
+                   (plaintext:indent 4) "sum_value: "
+                   (plaintext:figure sum (plaintext:places-of currency))
+                   " # sum of split's value of all splits")
+                  ;; The same listing the cost basis block writes, from the same
+                  ;; procedure: an account held in this commodity, its guid, its
+                  ;; path and its balance, capped the same way and saying so on
+                  ;; this line. Written out a second time here, the two drifted
+                  ;; — this one was never capped at all — and there is one
+                  ;; question being answered, which accounts hold this
+                  ;; commodity.
+                  (string-append
+                   (plaintext:indent 4) "accounts:"
+                   (plaintext:listing-note
+                    (length (plaintext:accounts-in accounts currency))
+                    "accounts" "account" "")))
+            (plaintext:commodity-accounts accounts currency moment)
+            (list (string-append
+                   (plaintext:indent 4) "balance_value: "
+                   (plaintext:figure worth (plaintext:places-of currency))
+                   " # sum of account's balance for all accounts")
+                  (string-append
+                   (plaintext:indent 4) "gains_before_conversion: "
+                   (plaintext:figure gain (plaintext:places-of currency))
+                   " # what GnuCash's own figure holds for this commodity")
+                  (string-append
+                   (plaintext:indent 4) "balance_sheet_value: "
+                   (plaintext:figure converted (plaintext:places-of report-commodity))
+                   " # " (plaintext:figure gain (plaintext:places-of currency))
+                   " " (gnc-commodity-get-mnemonic currency)
+                   " at "
+                   ;; No price is a rate of nothing, not a rate of one, and the
+                   ;; converted figure beside this comment is already 0 — a
+                   ;; missing price is read as a price of nothing everywhere on
+                   ;; this page. Stating 1 made the comment contradict the
+                   ;; figure it explains: `0.00 # 5.00 USD at 1 CAD per USD`.
+                   ;; It showed only on 3.4 and 3.8, where `price-fn` answers #f
+                   ;; for a commodity the book prices nowhere, while 4.4 and
+                   ;; later answer a price of 0 and printed "at 0" all along.
+                   ;; `plaintext:securities-block` says 0 in the same case.
+                   (if price (plaintext:figure (plaintext:exact price) 0) "0")
+                   " " (gnc-commodity-get-mnemonic report-commodity)
+                   " per " (gnc-commodity-get-mnemonic currency)))))
+           (+ total converted) (+ seen 1)
+           (if (plaintext:room-for? seen) rest-value (+ rest-value converted))))))))
 
 ;; The distinct commodities a list of accounts holds, in the order they first
 ;; appear. Hand-rolled for the reason `plaintext:held-in` is: `delete-duplicates`
@@ -507,35 +1528,17 @@
                   (cons (car rest) held)
                   held)))))
 
-;; GnuCash's own revaluation, commodity by commodity: what the book's whole
-;; holding of each is worth at the nearest price, less the sum of its splits'
-;; values. A commodity that comes to nothing is left out — every commodity of
-;; the book would otherwise be listed, and a line of zero says only that it is
-;; not part of this figure.
-;;
-;; By commodity and not by account, because that is how GnuCash converts: it
-;; takes a holding's whole quantity through the price once, and `total_assets`
-;; is that figure. Rounded account by account instead, the remainders are
-;; rounded away separately and the key stops agreeing with the page it is on —
-;; one share worth 10.005 in each of two brokerages came to 0.00 twice where
-;; GnuCash converted the pair to 20.01, so a sheet stated 1000.01 of assets
-;; against 1000.00 of liabilities and equity, with `nothing` printed under
-;; every gain key because each zero line had been left out.
-(define (plaintext:gnucash-workings accounts report-commodity revaluation)
-  (let loop ((rest (plaintext:commodities-of accounts)) (lines '()))
+;; How much of a commodity a list of accounts holds, in that commodity's own
+;; units. `plaintext:balance-as-of` answers the same question as a collector,
+;; for converting; this answers it as a number, for printing beside the
+;; conversion.
+(define (plaintext:quantity-of accounts moment)
+  (let loop ((rest accounts) (total 0))
     (if (null? rest)
-        (reverse lines)
-        (let ((figure (plaintext:as-money
-                       (revaluation (plaintext:holding accounts (car rest)))
-                       report-commodity)))
-          (loop (cdr rest)
-                (if (zero? figure)
-                    lines
-                    (cons (string-append
-                           (plaintext:indent 1) "#   "
-                           (gnc-commodity-get-mnemonic (car rest)) " "
-                           (plaintext:amount-of figure report-commodity))
-                          lines)))))))
+        total
+        (loop (cdr rest)
+              (+ total (plaintext:exact
+                        (xaccAccountGetBalanceAsOfDate (car rest) moment)))))))
 
 ;; What the book's foreign currency has gained or lost against what it cost,
 ;; read from the cost bases alone: each one's remaining balance valued at the
@@ -544,31 +1547,52 @@
 ;; knows what it was bought for.
 (define (plaintext:revaluation price-fn side accounts moment report-commodity)
   (let ((table (gnc-commodity-table-get-table (gnc-get-current-book))))
-    (let loop ((bases plaintext:cost-bases) (total 0))
-      (if (null? bases)
+    ;; **A commodity at a time, its whole holding through the price once.**
+    ;;
+    ;; That is how GnuCash converts, and `total_assets` is that conversion, so
+    ;; a gain reached any other way leaves the sheet out of balance. Measured
+    ;; on `tests/fixtures/a_cad_book_with_two_cost_bases_that_round_apart.txt`,
+    ;; which holds 1.00 USD bought twice and prices the dollar at 1.3833: each
+    ;; basis on its own is 1.3833, which is 1.38 at the cent, so two came to
+    ;; 2.76 — where the 2.00 USD converts once to 2.7666, which is 2.77 and is
+    ;; what the account line and `total_assets` carry. The page stated 100.17
+    ;; of assets against 100.16 of liabilities and equity.
+    ;;
+    ;; The cost is still summed one basis at a time, because that is what each
+    ;; basis cost and no conversion is involved: the figures come from the book
+    ;; already in this currency.
+    (let per ((pairs (plaintext:cost-basis-pairs)) (total 0))
+      (if (null? pairs)
           total
-          (let* ((basis (car bases))
-                 (commodity (gnc-commodity-table-lookup
-                             table "CURRENCY" (plaintext:basis-mnemonic basis)))
+          (let* ((pair (car pairs))
+                 (commodity (gnc-commodity-table-lookup table "CURRENCY" (car pair)))
                  ;; A price of nothing where the book holds none, as in the
                  ;; working that explains this key — the two must agree, and
                  ;; both must agree across the builds.
                  (price (and commodity (or (price-fn commodity) 0))))
-            (loop (cdr bases)
-                  (if (and price
-                           (string=? (plaintext:basis-side basis) side)
-                           (plaintext:basis-matches-holdings?
-                            basis accounts moment table))
-                      ;; Each basis's own gain, at the report currency's
-                      ;; smallest unit, before it is added to the others — the
-                      ;; same rule the three `_fx` keys follow, one level down.
-                      ;; Taken from `plaintext:basis-gain`, which is what
-                      ;; `plaintext:basis-working` prints as well, so the key
-                      ;; and the line it is said to add up to are one
-                      ;; computation rather than two that agree by luck.
-                      (+ total (plaintext:basis-gain
-                                basis (plaintext:exact price) report-commodity))
-                      total)))))))
+            (per (cdr pairs)
+                 (if (and price
+                          (string=? (cdr pair) side)
+                          (plaintext:measured-from-cost-bases?
+                           commodity side accounts moment))
+                     (+ total
+                        (let sum ((rest (plaintext:cost-bases)) (held 0) (spent 0))
+                          (if (null? rest)
+                              (- (plaintext:as-money (* held (plaintext:exact price))
+                                                     report-commodity)
+                                 spent)
+                              (let ((basis (car rest)))
+                                (if (and (string=? (plaintext:basis-mnemonic basis)
+                                                   (car pair))
+                                         (string=? (plaintext:basis-side basis)
+                                                   (cdr pair)))
+                                    (sum (cdr rest)
+                                         (+ held (plaintext:basis-balance basis))
+                                         (+ spent (plaintext:as-money
+                                                   (plaintext:basis-cost basis)
+                                                   report-commodity)))
+                                    (sum (cdr rest) held spent))))))
+                     total)))))))
 
 ;; What a collector comes to in the report's currency, as an exact rational.
 ;; Converted by the report's own exchange function, so every price is GnuCash's
@@ -892,74 +1916,49 @@
                          (append (gnc:html-acct-table-get-row-env table row) params))
                         lines))))))
 
-;; What the block's own keys mean, written into the page as comments.
+;; What a reader needs in order to read the block, and no more.
 ;;
-;; `share_price:` and `value:` are the names a split carries, and under an
-;; account line they mean something else — a valuation the report made on its
-;; own date, rather than the rate a transaction happened at. A reader meeting
-;; the same two keys in both places would have no way to tell, so the page
-;; says which it is.
+;; Four lines, because these are printed on every page this tool draws. The
+;; format is README's to explain and `docs/multi-currency.md`'s to work
+;; through; a page that explains itself at length buries the figures a reader
+;; opened it for. It ran to thirteen lines here and another thirty under the
+;; the gain figures, which is longer than the statement on a small book.
+;;
+;; `share_price:` and `value:` earn their two lines: a split carries the same
+;; two keys meaning something else — the rate a transaction happened at rather
+;; than a valuation this report made on its own date — and nothing else on the
+;; page tells the two apart.
 ;;
 ;; Indented inside the block rather than written above it, because a line at
 ;; column 0 is where a block's dated directive lives and anything looking for
-;; one would find these instead.
-;;
-;; `#` because that is what this tool already prepends to a printed invoice's
-;; caveats (Q-019), so every line it writes for a reader rather than for a book
-;; looks the same.
+;; one would find these instead. `#` because that is what this tool already
+;; prepends to a printed invoice's caveats (Q-019), so every line it writes for
+;; a reader rather than for a book looks the same.
 (define plaintext:notes
-  (list "# Every account line is the balance GnuCash's own Balance Sheet or"
-        "# Income Statement report gives it. An account line states what that"
-        "# account itself holds — a parent's line is its own balance, not its"
-        "# children's. A section's total, and any amount no account holds, is"
-        "# a key."
-        "#"
-        "# share_price: and value: under an account line are what the report"
-        "# valued that holding at on this date: the price read from the book's"
-        "# price database, and what GnuCash converted the holding to. They are"
-        "# not the keys of the same name on a transaction split, which record"
-        "# the rate a transaction actually happened at and multiply out exactly."
-        "# A price here changes with the date and with the book's prices; a"
-        "# split's does not change at all."))
+  (list "# An account line is that account's own balance — never its children's."
+        "# A section total, and any figure no account holds, is a key."
+        "# share_price: and value: under an account line are what this report"
+        "# valued the holding at on this date, not the rate a split happened at."))
 
-;; What the gain keys mean. The balance sheet's alone: the income statement
-;; states none of them, and a page that explained keys it does not carry sent a
-;; reader looking for figures that are not there — worse, it called
-;; `gnucash_balancing_amount` "the last key" on a page whose last key is
-;; `net_income`, and said of it "Nothing adds it in", which is untrue of that
-;; one. Q-043 says these lines are added only where they mean something.
+;; What a reader cannot work out from the gain figures themselves: which of them
+;; reaches the equity total, and which figure is GnuCash's rather than this
+;; tool's. Everything else about them — how each is measured, what a currency
+;; whose cost bases disagree with its accounts falls back to — is
+;; `docs/multi-currency.md`'s to say, and saying it here again cost thirty
+;; lines on every balance sheet drawn.
+;;
+;; The balance sheet's alone: the income statement states none of these keys,
+;; and a page that explained keys it does not carry sent a reader looking for
+;; figures that are not there — worse, it called `gnucash_balancing_amount`
+;; "the last key" on a page whose last key is `net_income`, and said of it
+;; "Nothing adds it in", which is untrue of that one. Q-043 says these lines
+;; are added only where they mean something.
 (define plaintext:gain-notes
   (list "#"
-        "# Every section total on this page is the total GnuCash's own report"
-        "# gives, but two. total_equity and total_liabilities_and_equity carry"
-        "# the unrealized gain measured from the book's own cost bases, where"
-        "# GnuCash's own page carries the amount it calculates to balance"
-        "# itself, so the two totals differ by whatever those two amounts"
-        "# differ by. gnucash_balancing_amount states GnuCash's beside them."
-        "#"
-        "# The gain keys are the exception. A gain on what the book still"
-        "# holds is what it is worth at the price nearest this date, less what"
-        "# it cost, and the two are added into the total."
-        "#"
-        "# For foreign currency that cost comes from the book's own cost"
-        "# bases, the ones fx-balances reports. Everything else keeps"
-        "# GnuCash's own revaluation: a security, and any currency whose cost"
-        "# basis balance is not what the book owns — currency was spent there"
-        "# without saying which cost basis it came out of, so what is left of"
-        "# that balance stands for money the book no longer has, and is not"
-        "# priced here."
-        "#"
         "# A gain already taken is stated apart from one the book has yet to"
-        "# take. What was taken left with the currency that earned it, and is"
-        "# in the income and expense accounts already, so it is stated here"
-        "# and added into nothing — counting it again would leave equity"
-        "# standing against money that is gone. Only a gain on what the book"
-        "# still holds reaches the equity total."
-        "#"
-        "# The gain keys end with GnuCash's own amount, printed as GnuCash"
-        "# gives it. It is not a gain: it is an amount GnuCash calculates just"
-        "# to balance the book, stated only so that a reader with GnuCash's own"
-        "# page beside them can find the same number. Nothing adds it in."))
+        "# take, and only the unrealized total reaches total_equity."
+        "# gnucash_balancing_amount is GnuCash's own figure, carried across so"
+        "# the two can be read against each other, and added into nothing."))
 
 ;; The block: its dated directive, what its keys mean, then its lines. `notes`
 ;; is what this statement has to explain — every page shares `plaintext:notes`,
@@ -1086,7 +2085,8 @@
                ;; So the cost comes from the book's own cost bases, which is
                ;; what `fx-balances` reports and what every disposal is
                ;; measured against. gnucash-plaintext calls
-               ;; `plaintext:set-cost-bases!` before the report runs.
+               ;; `plaintext:set-cost-basis-items!` before the report runs,
+               ;; one row per cost basis.
                ;;
                ;; The two keys divide by what the money is, never by who
                ;; measured it: a currency that is not the book's own is `_fx`,
@@ -1111,21 +2111,42 @@
                ;; GnuCash's own revaluation of these accounts: what they are
                ;; worth at the price nearest this date, less the sum of their
                ;; split values.
-               (gnucash-revaluation
+               ;; GnuCash's revaluation of a set of accounts, as the two terms
+               ;; it subtracts rather than as their difference: what the
+               ;; accounts hold, and what their splits were recorded at, each
+               ;; converted and each at the report currency's smallest unit.
+               ;;
+               ;; Two terms because a commodity measured this way states them
+               ;; on the page as `value` and `cost_value`, exactly as one
+               ;; measured from its cost bases does. The block's totals then
+               ;; stay `value - cost_value` however each commodity was
+               ;; measured, and none of them arrives as an addend of its own —
+               ;; the comment on that line states the equation the block is,
+               ;; and it has to hold.
+               ;;
+               ;; Each term rounded before they are subtracted, which is the
+               ;; rule every gain on this page follows: rounding the difference
+               ;; instead, while the lines beneath round their own two terms,
+               ;; put the key and its items a cent apart whenever worth and
+               ;; cost both landed between cents.
+               (gnucash-worth-and-cost
                 (lambda (accounts)
-                  (- (plaintext:converted
-                      (plaintext:balance-as-of accounts moment)
-                      report-commodity exchange-fn)
-                     (plaintext:converted
-                      (gnc:accounts-get-comm-total-assets
-                       accounts
-                       (lambda (account)
-                         (gnc:account-get-comm-value-at-date account moment #f)))
-                      report-commodity exchange-fn))))
+                  (cons (plaintext:as-money
+                         (plaintext:converted
+                          (plaintext:balance-as-of accounts moment)
+                          report-commodity exchange-fn)
+                         report-commodity)
+                        (plaintext:as-money
+                         (plaintext:converted
+                          (gnc:accounts-get-comm-total-assets
+                           accounts
+                           (lambda (account)
+                             (gnc:account-get-comm-value-at-date account moment #f)))
+                          report-commodity exchange-fn)
+                         report-commodity))))
                ;; The same figure commodity by commodity, each at the report
-               ;; currency's smallest unit, which is how
-               ;; `plaintext:gnucash-workings` prints them — so the lines under
-               ;; a key add up to the key exactly.
+               ;; currency's smallest unit, so a key is the sum of figures a
+               ;; reader can check one commodity at a time.
                ;;
                ;; A commodity at a time is also how GnuCash converts, which is
                ;; what keeps the key agreeing with `total_assets`: it takes the
@@ -1142,10 +2163,11 @@
                     (if (null? rest)
                         total
                         (loop (cdr rest)
-                              (+ total (plaintext:as-money
-                                        (gnucash-revaluation
-                                         (plaintext:holding accounts (car rest)))
-                                        report-commodity)))))))
+                              (+ total
+                                 (let ((parts (gnucash-worth-and-cost
+                                               (plaintext:holding accounts
+                                                                  (car rest)))))
+                                   (- (car parts) (cdr parts)))))))))
                ;; One side of the sheet's foreign currency, measured from that
                ;; side's own cost bases where their balance matches what it
                ;; holds, and from GnuCash's own revaluation for the rest.
@@ -1181,7 +2203,7 @@
                ;; its splits sat in US dollar transactions, so their values
                ;; summed to nothing and the whole balance read as a movement.
                ;;
-               ;; Commodity by commodity, as `plaintext:gnucash-workings`
+               ;; Commodity by commodity, as `plaintext:securities-block`
                ;; prints them beneath it and as GnuCash itself converts: a
                ;; holding's whole quantity goes through the price once, which
                ;; is the figure `total_assets` carries. Account by account the
@@ -1198,32 +2220,56 @@
                ;; The amount GnuCash calculates just to balance the book,
                ;; carried across as GnuCash gives it so a reader can find the
                ;; same number on GnuCash's own page. Never added into anything.
+               ;; The collector GnuCash's balancing amount is summed from, kept
+               ;; rather than thrown away once summed, because the items
+               ;; printed under that key are read out of it.
+               ;;
+               ;; **Itemizing shows how GnuCash reached its figure.** A
+               ;; computation of this report's own, set beside it under the
+               ;; same name, could agree with it only by luck — and did not:
+               ;; grouping by the currency each split's value is stated in left
+               ;; out every commodity no split is valued in, so a book that
+               ;; borrowed 1,000.00 USD stated 1300.00 under a key whose own
+               ;; figure is -100.00.
+               (gnucash-balancing-gains
+                (let ((gains (plaintext:collector)))
+                  (if (not use-trading-accounts?)
+                      (begin
+                        (gains 'merge asset-balance #f)
+                        (gains 'minusmerge liability-balance #f)
+                        (gains 'minusmerge
+                               (gnc:accounts-get-comm-total-assets
+                                (append asset-accounts liability-accounts)
+                                (lambda (account)
+                                  (gnc:account-get-comm-value-at-date account moment #f)))
+                               #f)))
+                  gains))
                (gnucash-balancing-amount
                 (if use-trading-accounts?
                     0
-                    (let ((gains (plaintext:collector)))
-                      (gains 'merge asset-balance #f)
-                      (gains 'minusmerge liability-balance #f)
-                      (gains 'minusmerge
-                             (gnc:accounts-get-comm-total-assets
-                              (append asset-accounts liability-accounts)
-                              (lambda (account)
-                                (gnc:account-get-comm-value-at-date account moment #f)))
-                             #f)
-                      (plaintext:as-money
-                       (plaintext:exact
-                        (gnc:gnc-monetary-amount
-                         (gnc:sum-collector-commodity gains report-commodity
-                                                      exchange-fn)))
-                       report-commodity))))
+                    (plaintext:as-money
+                     (plaintext:exact
+                      (gnc:gnc-monetary-amount
+                       (gnc:sum-collector-commodity gnucash-balancing-gains
+                                                    report-commodity exchange-fn)))
+                     report-commodity)))
                ;; The equity total carries the gains the book measures for
                ;; itself, never GnuCash's balancing amount.
                ;;
-               ;; GnuCash's amount is what is left when the summed split
-               ;; values are taken from the converted balances, so putting it
-               ;; here would make the sheet balance on every book by
-               ;; construction — and balance on a figure this report exists to
-               ;; correct. A split's value is stated in its transaction's
+               ;; GnuCash's amount is what is left when the summed split values
+               ;; are taken from the converted balances. Where every split of a
+               ;; holding carries a figure in the book's own currency that is
+               ;; the revaluation gap, and putting it here would balance the
+               ;; sheet. Where they do not it is something else, and putting it
+               ;; here would unbalance the page — where a book's foreign
+               ;; currency arrived carrying no figure in the book's own currency
+               ;; and was later spent, GnuCash's amount comes out as the
+               ;; negative of the gain or loss already taken, which is in the
+               ;; income accounts and in `retained_earnings` already, so adding
+               ;; it cancels that gain or loss rather than doubling it. Q-044
+               ;; has the figures.
+               ;; A split's value is stated in its
+               ;; transaction's
                ;; currency, so for a book whose foreign transactions are
                ;; valued in the foreign currency that subtraction measures
                ;; nothing, and it restated a realized loss as an unrealized
@@ -1279,112 +2325,7 @@
                (unless-zero (lambda (collector line)
                               (if (gnc-commodity-collector-allzero? collector)
                                   '()
-                                  (list line))))
-               ;; How the gain figures were worked out, as comment lines.
-               ;;
-               ;; A reader can check an account line against their own book and
-               ;; a section total by adding the lines above it. A gain is
-               ;; measured against costs that are on no line of the page, so
-               ;; without its working it is the one figure here that has to be
-               ;; taken on trust. Both computations are shown: what the book's
-               ;; own cost bases give, and what GnuCash's own revaluation gives
-               ;; commodity by commodity, so the two can be read against each
-               ;; other.
-               ;;
-               ;; Bound this late because it reads `price-fn` and
-               ;; `gnucash-revaluation`, which are bound above it.
-               (gain-workings
-                (lambda ()
-                  (if (or use-trading-accounts? (not plaintext:itemize?))
-                      '()
-                      (append
-                       (list (string-append (plaintext:indent 1) "#")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# How each gain above was worked out. Every")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# gain list below adds up to the key it is under")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# — GnuCash's own amount is the exception, listed")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# commodity by commodity as GnuCash computes them")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# and not rounded to make the lines total it. A line")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# reading `cost ... at ... worth ...` is measured")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# from the book's own cost bases; a line of a")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# commodity and an amount is GnuCash's own")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# revaluation of everything the book holds of it —")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# what that is worth at the price nearest this date,")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# less the sum of its splits' values. By commodity")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# and not by account, because that is how GnuCash")
-                             (string-append
-                              (plaintext:indent 1)
-                              "# converts a holding: once, whole."))
-                       ;; Left off with the key itself: a page that itemised a
-                       ;; key it does not state would leave a reader looking
-                       ;; for a figure that is not there.
-                       (if plaintext:realized-known?
-                           (plaintext:key-workings
-                            "realized_gains_fx"
-                            (plaintext:realized-workings report-commodity))
-                           '())
-                       (plaintext:key-workings
-                        "unrealized_gains_assets_fx"
-                        (append (plaintext:cost-basis-workings
-                                 "asset" asset-accounts moment price-fn report-commodity)
-                                (plaintext:gnucash-workings
-                                 (plaintext:fallback-accounts
-                                  "asset" asset-accounts moment report-commodity)
-                                 report-commodity gnucash-revaluation)))
-                       (plaintext:key-workings
-                        "unrealized_gains_liabilities_fx"
-                        (append (plaintext:cost-basis-workings
-                                 "liability" liability-accounts moment price-fn
-                                 report-commodity)
-                                (plaintext:gnucash-workings
-                                 (plaintext:fallback-accounts
-                                  "liability" liability-accounts moment report-commodity)
-                                 report-commodity gnucash-revaluation)))
-                       (plaintext:key-workings
-                        "unrealized_gains_other"
-                        (plaintext:gnucash-workings
-                         (plaintext:securities holdings) report-commodity
-                         gnucash-revaluation))
-                       ;; The one working that is not a decomposition of its
-                       ;; key. Every other figure here is rounded per term and
-                       ;; then added, so the lines come to the key exactly. This
-                       ;; key is GnuCash's own amount, carried across so a
-                       ;; reader can find the same number on GnuCash's page —
-                       ;; and GnuCash converts the whole holding at once, so two
-                       ;; accounts in one foreign currency have their split
-                       ;; values added before the conversion rounds them. Listed
-                       ;; per account the lines can come to a cent less. Rounding
-                       ;; the key to match them would make it agree with the
-                       ;; lines and stop agreeing with GnuCash, which is the only
-                       ;; reason the key exists, so the lines stay as they are
-                       ;; and the page above says they are not a total.
-                       (plaintext:key-workings
-                        "gnucash_balancing_amount"
-                        (plaintext:gnucash-workings
-                         holdings report-commodity gnucash-revaluation)))))))
+                                  (list line)))))
           ;; Each section's accounts, then its total, in the order GnuCash's own
           ;; page puts them: every account line is what that account itself
           ;; holds, so a section's total is a figure no account holds and is
@@ -1396,10 +2337,10 @@
           ;; and unrealized gains, and includes them, because GnuCash's Total
           ;; Equity row does: they are equity the book has earned or has yet to
           ;; realize, held in no equity account.
-          ;; The gain paragraphs go on a page that has gain keys. A book using
-          ;; trading accounts keeps those gains in its Trading accounts and
-          ;; states `trading_gains` instead, printing none of the gain keys and
-          ;; no `gnucash_balancing_amount` — so the paragraphs would explain
+          ;; Those two lines go on a page that states a gain. A book using
+          ;; trading accounts keeps its gains in its Trading accounts and
+          ;; states `trading_gains` instead, printing neither `realized_gains_fx`
+          ;; nor `gnucash_balancing_amount` — so the lines would explain
           ;; figures that are not there, and would tell a reader that two of
           ;; its totals differ from GnuCash's when neither does: measured on
           ;; such a book, 3,550.00 of liabilities and 34,982.80 of equity come
@@ -1446,33 +2387,64 @@
             (if use-trading-accounts?
                 '()
                 (append
-                 (if plaintext:realized-known?
+                 (if plaintext:itemize?
+                     (plaintext:cost-basis-block price-fn report-commodity moment
+                                                 asset-accounts
+                                                 gnucash-worth-and-cost)
                      (list (string-append
-                            (plaintext:indent 1) "realized_gains_fx: "
-                            (plaintext:amount-of realized-fx report-commodity))
-                           (string-append
-                            (plaintext:indent 1) "total_realized_gains: "
-                            (plaintext:amount-of realized-fx report-commodity)))
-                     '())
+                            (plaintext:indent 1) "unrealized_gains_assets_fx: "
+                            (plaintext:amount-of unrealized-assets-fx
+                                                 report-commodity))))
                  (list (string-append
-                        (plaintext:indent 1) "unrealized_gains_assets_fx: "
-                        (plaintext:amount-of unrealized-assets-fx report-commodity))
-                       (string-append
                         (plaintext:indent 1) "unrealized_gains_liabilities_fx: "
-                        (plaintext:amount-of unrealized-liabilities-fx report-commodity))
+                        (plaintext:amount-of unrealized-liabilities-fx
+                                             report-commodity))
                        (string-append
                         (plaintext:indent 1) "unrealized_gains_fx: "
-                        (plaintext:amount-of unrealized-fx report-commodity))
-                       (string-append
-                        (plaintext:indent 1) "unrealized_gains_other: "
-                        (plaintext:amount-of unrealized-other report-commodity))
-                       (string-append
+                        (plaintext:amount-of unrealized-fx report-commodity)
+                        " # unrealized_gains_assets_fx +"
+                        " unrealized_gains_liabilities_fx"))
+                 (if plaintext:realized-known?
+                     (append
+                      (if plaintext:itemize?
+                          (plaintext:realized-block report-commodity)
+                          (list (string-append
+                                 (plaintext:indent 1) "realized_gains_fx: "
+                                 (plaintext:amount-of realized-fx report-commodity))))
+                      ;; Stated at the report's own commodity and places, as
+                      ;; every other key no account holds is, rather than as a
+                      ;; bare `0`: `total_realized_gains` below adds it in, so
+                      ;; it is a figure of zero in that currency and not the
+                      ;; absence of one. What is not supported yet is measuring
+                      ;; a realized gain on a security, which the comment says.
+                      (list (string-append
+                             (plaintext:indent 1) "realized_gains_other: "
+                             (plaintext:amount-of 0 report-commodity)
+                             " # not yet supported")
+                            (string-append
+                             (plaintext:indent 1) "total_realized_gains: "
+                             (plaintext:amount-of realized-fx report-commodity)
+                             " # realized_gains_fx + realized_gains_other")))
+                     '())
+                 (if plaintext:itemize?
+                     (plaintext:securities-block (plaintext:securities holdings)
+                                                 price-fn report-commodity moment
+                                                 exchange-fn)
+                     (list (string-append
+                            (plaintext:indent 1) "unrealized_gains_other: "
+                            (plaintext:amount-of unrealized-other report-commodity))))
+                 (list (string-append
                         (plaintext:indent 1) "total_unrealized_gains: "
-                        (plaintext:amount-of total-unrealized report-commodity))
-                       (string-append
-                        (plaintext:indent 1) "gnucash_balancing_amount: "
-                        (plaintext:amount-of gnucash-balancing-amount report-commodity)))))
-            (gain-workings)
+                        (plaintext:amount-of total-unrealized report-commodity)
+                        " # unrealized_gains_fx + unrealized_gains_other"))
+                 (if plaintext:itemize?
+                     (plaintext:balancing-block holdings moment report-commodity
+                                                exchange-fn price-fn
+                                                gnucash-balancing-gains)
+                     (list (string-append
+                            (plaintext:indent 1) "gnucash_balancing_amount: "
+                            (plaintext:amount-of gnucash-balancing-amount
+                                                 report-commodity))))))
             (list (string-append
                    (plaintext:indent 1) "total_equity: "
                    (plaintext:amount-of total-equity report-commodity)))
