@@ -583,7 +583,7 @@ warning: the USD cost bases hold 120.00 USD between them, and the ledger says
 
 **What is not compared is the cost bases against the account balances.** It is the obvious next check and it does not work: an account may hold less than its cost bases offer and be perfectly correct, because a cost basis is lowered only by a disposal that gives its guid. An account that received 60.00 USD and paid an 8.00 USD fee out of the same transaction holds 52.00 and offers 60.00. A check on that reports ordinary books, so there is none.
 
-A cost basis with **no balance recorded** is left out of both sides. How much of it is unsold is not known — that is what `none recorded` means — so counting what it brought in would report every such book as short by exactly that; nothing can be sold against one either, so no sale goes missing with it.
+A cost basis with **no balance recorded** is left out of both sides. How much of it is unsold is not known — that is what `none recorded` means — so counting what it brought in would report every such book as holding exactly that much less than arrived; nothing can be sold against one either, so no sale goes missing with it.
 
 Both per-basis checks are exact questions about figures the ledger states. Two inexact ones are deliberately **not** asked:
 
@@ -834,11 +834,24 @@ The key is honoured where the ledger bears it out, exactly as the import require
 
 **The export carries the key**, because it cannot carry the token. An exported split states the figure the residual resolved to, not `$residual$`, so a book rebuilt from its own ledger would otherwise have no record of which split was the difference. It is the same key a file may state, so an exported disposal re-imports as the disposal it was.
 
-**A book imported before this key existed carries none**, and nothing adds one after the fact: the import writes it, and only where the file wrote the token. So a disposal already in such a book states no realized difference at all — `realized_gains_fx` reads `0.00` and its working says `nothing` — however plainly the ledger that made it declared one. Re-exporting does not mend it either, for the same reason the export carries the key rather than the token: what comes out is the figure, and a figure says nothing about which split it is.
+**A book imported before this key existed carries none**, and nothing adds one after the fact: the import writes it, and only where the file wrote the token. So a disposal already in such a book states no realized difference at all — `realized_gains_fx` reads `0.00` and its items say `splits: # there is no split` — however plainly the plaintext file that made it stated one with `$residual$`. Re-exporting does not mend it either, for the same reason the export carries the key rather than the token: what comes out is the figure, and a figure says nothing about which split it is.
 
-What does mend it is the second way of writing a disposal, above. Export the book, add `took_the_residual: "true"` to the gain split of each disposal, and import that back with `--strategy update`. The key is honoured on the same terms as any other — the transaction in the book's own currency, a split giving the guid of the cost basis it draws on, and the marked split on an income or expense account — so what you are doing is stating by hand what a `$residual$` would have recorded at the time.
+**`--fx-gain-account` reads such a book without changing it.** State the account the book's exchange differences are booked to, and the sheet takes them from there:
 
-**The balance sheet reads it.** `realized_gains_fx` is the total of the marked splits up to the sheet's date, at the book's own sign — a gain is a credit on an income account, so the figure is the negative of the value on them. See [Q-043](issues/Q-043-state-realized-and-unrealized-gains-separately-and-value-foreign-currency-from-the-cost-bases.md).
+```
+gnucash-plaintext balance-sheet book.gnucash --as-of 2026-12-31 \
+    --fx-gain-account "Income:Non-farming revenue:Foreign exchange gains/losses"
+```
+
+It is repeatable, for a book that keeps its gains and its losses in two accounts, and `report` takes it too. On `tests/fixtures/the_thousand_usd_sold_less_a_charge_with_no_took_the_residual.txt` it turns `realized_gains_fx: 0.00` into `100.00` — the exchange difference alone — while the 10.00 bank charge on that same disposal stays out.
+
+**Given any account, the key is not consulted at all.** The two are not added together. A reader who states where their differences are booked has answered the question for the whole book, and a page that also counted whatever keys happened to be in it would give an answer depending on which release imported which transaction — a difference the reader cannot see and did not ask about. So a marked split on an account you did not state is passed over, and a book that wants both counts states both accounts.
+
+What the option cannot do is widen where a difference may sit. The three conditions the book answers for itself hold either way — the transaction stated in the book's own currency, a split giving the guid of the cost basis it draws on, and the split itself on an income or expense account — so an account specified by mistake counts nothing on a transaction that disposed of no currency.
+
+What mends the book itself is the second way of writing a disposal, above. Export the book, add `took_the_residual: "true"` to the gain split of each disposal, and import that back with `--strategy update`. The key is honoured on the same terms as any other, so what you are doing is stating by hand what a `$residual$` would have recorded at the time.
+
+**The balance sheet reads it.** `realized_gains_fx` is the total, up to the sheet's date, of the splits the book marks — or of the splits on the accounts `--fx-gain-account` specifies, where it is used — at the book's own sign — a gain is a credit on an income account, so the figure is the negative of the value on them. See [Q-043](issues/Q-043-state-realized-and-unrealized-gains-separately-and-value-foreign-currency-from-the-cost-bases.md).
 
 ---
 
@@ -968,18 +981,50 @@ A book owing 1,000.00 USD borrowed at 1.30, drawn when the nearest price is 1.40
 
 ```
 	total_assets: 1300.00 CAD
+	Liabilities:USD Loan 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.4"
+		value: "1400.00"
 	total_liabilities: 1400.00 CAD
-	realized_gains_fx: 0.00 CAD
-	total_realized_gains: 0.00 CAD
-	unrealized_gains_assets_fx: 0.00 CAD
+	unrealized_gains_assets_fx:
+		commodities: # there is no cost basis on the asset side
+		cost_value: 0.00 # sum of each commodity's cost_value
+		value: 0.00 # sum of each commodity's value
+		unrealized_gains_assets_fx: 0.00 # value - cost_value
 	unrealized_gains_liabilities_fx: -100.00 CAD
-	unrealized_gains_fx: -100.00 CAD
-	unrealized_gains_other: 0.00 CAD
-	total_unrealized_gains: -100.00 CAD
-	gnucash_balancing_amount: -100.00 CAD
-	#
-	# unrealized_gains_liabilities_fx:
-	#   liability -1000.00 USD cost -1300.00 CAD, at 1.4 worth -1400.00 CAD = -100.00 CAD
+	unrealized_gains_fx: -100.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
+	realized_gains_fx:
+		realized_gains_fx: 0.00
+		splits: # there is no split
+	realized_gains_other: 0.00 CAD # not yet supported
+	total_realized_gains: 0.00 CAD # realized_gains_fx + realized_gains_other
+	unrealized_gains_other: # sum of unrealized_gains_other of all securities and funds
+		securities: # there is no security or fund
+		value: 0.00 # sum of each security's value
+		cost_value: 0.00 # sum of each security's cost_value
+		unrealized_gains_other: 0.00 # value - cost_value
+	total_unrealized_gains: -100.00 CAD # unrealized_gains_fx + unrealized_gains_other
+	gnucash_balancing_amount: # the commodities GnuCash's own figure is summed from
+		commodities:
+			commodity:
+				commodity.mnemonic: "USD"
+				splits:
+				sum_value: 0.00 # sum of split's value of all splits
+				accounts:
+					account:
+						guid: 82736d199a34454a93997ec9ae29169c
+						name: "Liabilities:USD Loan"
+						balance: -1000.00
+				balance_value: -1000.00 # sum of account's balance for all accounts
+				gains_before_conversion: -1000.00 # what GnuCash's own figure holds for this commodity
+				balance_sheet_value: -1400.00 # -1000.00 USD at 1.4 CAD per USD
+			commodity:
+				commodity.mnemonic: "CAD"
+				...
+				balance_sheet_value: 1300.00 # 1300.00 CAD at 1 CAD per CAD
+		gnucash_balancing_amount: -100.00 # sum of balance_sheet_value of all commodities
+	total_equity: -100.00 CAD
+	total_liabilities_and_equity: 1300.00 CAD
 ```
 
 The debt was drawn at 1.30 and is worth 1.40 a dollar now, so it has cost the book 100.00 CAD that it has not paid yet. The figures on the owed side are negative — a cost basis there is currency the book owes rather than holds — and the two sides add to `unrealized_gains_fx` as they stand, without either being re-signed.
@@ -987,23 +1032,64 @@ The debt was drawn at 1.30 and is worth 1.40 a dollar now, so it has cost the bo
 - **`realized_gains_fx`** is what the book took when currency left it. A disposal is valued at what those units cost, so the splits facing it state what they fetched and the difference is the gain — the split the file marked `$residual$`. These are in the income and expense accounts already, so the sheet states them and adds them into nothing; adding them to equity a second time leaves equity standing against money that is gone.
 - **`unrealized_gains_assets_fx`** and **`unrealized_gains_liabilities_fx`** are what the currency still held, and still owed, are worth at the price nearest the sheet's date, less what the cost bases say they cost. They add to `unrealized_gains_fx`, and only that total reaches `total_equity`.
 - **`unrealized_gains_other`** is everything that is not a currency — a stock, a mutual fund — at GnuCash's own revaluation, since a security opens no cost basis.
-- **`gnucash_balancing_amount` is not a gain.** It is the amount GnuCash calculates to balance its own sheet, carried across so a reader can find the same number on GnuCash's page. Nothing adds it in, and it is never compared with either gain: it restates a disposal's recorded cost at the nearest price, which is neither what was taken nor what is still held.
+- **`gnucash_balancing_amount` is an amount GnuCash adds to equity as the unrealized gain, and it is not always the unrealized gain** — which is why it is stated here under a name saying whose figure it is rather than under a name of its own. GnuCash reaches it by taking the summed values of the splits in a holding's own accounts from what that holding is worth at the sheet's date. That is the unrealized gain only where every one of those splits carries a figure in the book's own currency. Where foreign currency arrived carrying no figure in the book's own currency and was later spent, GnuCash's amount comes out as the negative of the gain or loss already taken: that money is in the income and expense accounts, so `retained_earnings` carries it already, and adding an amount of the opposite sign cancels it rather than leaving it, so GnuCash's own page then states more liabilities and equity than it has assets. Currency bought with the book's own money and sold again does not do this — both splits carry the book's own figures, so GnuCash's subtraction cancels exactly and states `0.00`. This page adds the gain measured from the cost bases instead, and balances. The amount is carried across so a reader with GnuCash's page beside them can find the same number, and nothing adds it in. Beneath it the page states the subtraction GnuCash made rather than a verdict on it, commodity by commodity — the commodities its own figure is summed from, read out of the collector GnuCash sums rather than grouped by anything this page decided. Each group gives that commodity's amount and the amount converted, with the splits valued in it and the accounts holding it beside them, so a reader can see what went into the figure. Which of the cases above a book is in is worked out from those figures, and every example under `examples/multi-currency/` carries the block for its own book, so the arithmetic can be followed rather than taken on trust. [Q-044](issues/Q-044-state-a-realized-gain-with-no-took-the-residual-key-and-say-what-the-balancing-amount-is.md) has the measurements.
 
 **A currency the cost bases cannot speak for keeps GnuCash's own revaluation**, and is still stated under `_fx`, because it is currency however it was measured.
 
-**Every one of those figures shows its working**, by default, as comment lines grouped under the key each list adds up to. A gain is the one figure on the page a reader cannot check by inspection — an account line can be checked against the book, a section total by adding the lines above it, but a gain is measured against costs on no line at all:
+**Every one of those figures shows its working**, by default, as the items the key is made of, indented beneath it the way `share_price:` and `value:` are indented beneath an account line, with the arithmetic in a trailing `#` comment. A gain is the one figure on the page a reader cannot check by inspection — an account line can be checked against the book, a section total by adding the lines above it, but a gain is measured against costs on no line at all:
+
+From [`billed_in_us_and_hong_kong_dollars.txt`](../examples/multi-currency/billed_in_us_and_hong_kong_dollars.txt), whose US dollar group is left out here and is in the file. The guids are that generated book's own; a reader running the ledger into a book of their own gets different ones:
 
 ```
-	# realized_gains_fx:
-	#   2026-07-01 Income:FX Gain 90.00 CAD
-	#   2026-08-01 Income:FX Gain 80.00 CAD
-	#
-	# unrealized_gains_assets_fx:
-	#   asset 5500.00 HKD cost 1000.00 CAD, at 0.2 worth 1100.00 CAD = 100.00 CAD
-	#   USD 840.00 CAD
+	unrealized_gains_assets_fx:
+		commodities:
+			commodity:
+				commodity.mnemonic: "HKD"
+				type: asset
+				share_price: 26/155 # current price of commodity in balance sheet currency
+				cost_bases:
+					cost_basis:
+						split_guid: 06f38d6ed30745c8be16b4481d6902da
+						account: "Assets:HKD Bank"
+						cost_basis_balance: 99510.00
+						cost_share_price: 1/6
+						cost_value: 16585.00 # cost_basis_balance * cost_share_price
+						value: 16692.00 # cost_basis_balance * share_price
+						unrealized_gains_assets_fx: 107.00 # value - cost_value
+				cost_basis_balance: 99510.00 # sum of each cost_basis's cost_basis_balance
+				cost_value: 16585.00 # sum of each cost_basis's cost_value
+				accounts:
+					account:
+						guid: d6e2b43bba8a4659832a6d5843d8fefa
+						name: "Assets:HKD Bank"
+						balance: 99510.00
+				balance_value: 99510.00 # sum of account's balance for all accounts
+				value: 16692.00 # cost_basis_balance * share_price
+				unrealized_gains_assets_fx: 107.00 # value - cost_value
+			...
+		cost_value: 17365.00 # sum of each commodity's cost_value
+		value: 17472.00 # sum of each commodity's value
+		unrealized_gains_assets_fx: 107.00 # value - cost_value
+	realized_gains_fx:
+		realized_gains_fx: 110.00
+		splits:
+			split:
+				date: 2026-07-01
+				account: "Income:FX Gain"
+				amount: 60.00
+			split:
+				date: 2026-08-01
+				account: "Income:FX Gain"
+				amount: 50.00
 ```
 
-A line reading `cost … at … worth …` is measured from the book's own cost bases; a line of a commodity and an amount is GnuCash's own revaluation of everything the book holds of it. Both are shown so the two can be read against each other. `--no-itemize` turns it off, on `balance-sheet` and on `report`, leaving the keys as they were. It is written as comments, so nothing that reads the block picks any of it up.
+Each currency lists every cost basis it is measured against and the accounts holding it, so the two can be read side by side: `cost_basis_balance` is how much of that currency its cost bases still account for, and `balance_value` is what the accounts actually hold. Where those two disagree the currency keeps GnuCash's own revaluation, is listed under `measured_from: gnucash_revaluation` instead of under its cost bases, and states the cost and the worth GnuCash's own subtraction used — [Q-044](issues/Q-044-state-a-realized-gain-with-no-took-the-residual-key-and-say-what-the-balancing-amount-is.md) covers that case.
+
+A price is stated exactly, as `26/155` above, because a rate rounded to the currency's places would not multiply out to the value beside it; a figure in money is stated at the places its own commodity is kept to, which is what GnuCash's page states it at.
+
+**`cost_basis_balance` and `cost_value` add up down the listing; `value` and the gain do not.** A holding is converted once, at the commodity's price, and that is the commodity's own `value:` and what the key is built from. Each cost basis line converts that basis by itself and rounds to the commodity's places, so several of them need not come to one conversion of the whole holding — two 1.00 USD bases priced at 1.3833 print `value: 1.38` apiece against the commodity's `2.77`. Converting basis by basis and adding is what left a sheet stating 100.17 of assets against 100.16 of equity, so the page converts once and lists the per-basis figure for reference.
+
+`--no-itemize` turns the items off, on `balance-sheet` and on `report`, leaving each key as the single figure it was. `--max-items N` keeps them and shortens each list to `N` entries, and a shortened list ends with `not_listed:`, carrying how many were left out and what they come to, so the entries still add up to the total beneath them. `-1` is the default and caps nothing; `0` lists none.
 
 ---
 
@@ -1085,12 +1171,28 @@ It is also the case that shows what GnuCash's own Advanced Portfolio report make
 Consulting collected three times — 1,000.00 USD at 1.30, 2,000.00 at 1.35, 1,000.00 at 1.40 — and four subcontractors paid out of it at 1.45, 1.50, 1.38 and 1.42. Three cost bases, four disposals, and the first basis is emptied by the second payment made against it, so the figure has to add up across both:
 
 ```
-	realized_gains_fx: 250.00 CAD
-	unrealized_gains_fx: 0.00 CAD
-	#   2026-07-01 Income:FX Gain 90.00 CAD
-	#   2026-08-01 Income:FX Gain 80.00 CAD
-	#   2026-09-01 Income:FX Gain 60.00 CAD
-	#   2026-10-01 Income:FX Gain 20.00 CAD
+	unrealized_gains_fx: 0.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
+	realized_gains_fx:
+		realized_gains_fx: 250.00
+		splits:
+			split:
+				date: 2026-07-01
+				account: "Income:FX Gain"
+				amount: 90.00
+			split:
+				date: 2026-08-01
+				account: "Income:FX Gain"
+				amount: 80.00
+			split:
+				date: 2026-09-01
+				account: "Income:FX Gain"
+				amount: 60.00
+			split:
+				date: 2026-10-01
+				account: "Income:FX Gain"
+				amount: 20.00
+	realized_gains_other: 0.00 CAD # not yet supported
+	total_realized_gains: 250.00 CAD # realized_gains_fx + realized_gains_other
 ```
 
 #### A company holding US dollars while paying its own bills at home
@@ -1134,10 +1236,60 @@ price
 1/6 is the peg at 7.80, 26/155 at 7.75, 26/157 at 7.85. Holding 600.00 USD and 99,510.00 HKD at the year end, the page states each currency on its own line and adds them:
 
 ```
-	realized_gains_fx: 110.00 CAD
-	unrealized_gains_assets_fx: 107.00 CAD
-	#   asset 99510.00 HKD cost 16585.00 CAD, at 26/155 worth 16692.00 CAD = 107.00 CAD
-	#   asset 600.00 USD cost 780.00 CAD, at 1.3 worth 780.00 CAD = 0.00 CAD
+	unrealized_gains_assets_fx:
+		commodities:
+			commodity:
+				commodity.mnemonic: "HKD"
+				type: asset
+				share_price: 26/155 # current price of commodity in balance sheet currency
+				cost_bases:
+					cost_basis:
+						split_guid: 06f38d6ed30745c8be16b4481d6902da
+						account: "Assets:HKD Bank"
+						cost_basis_balance: 99510.00
+						cost_share_price: 1/6
+						cost_value: 16585.00 # cost_basis_balance * cost_share_price
+						value: 16692.00 # cost_basis_balance * share_price
+						unrealized_gains_assets_fx: 107.00 # value - cost_value
+				cost_basis_balance: 99510.00 # sum of each cost_basis's cost_basis_balance
+				cost_value: 16585.00 # sum of each cost_basis's cost_value
+				...
+				value: 16692.00 # cost_basis_balance * share_price
+				unrealized_gains_assets_fx: 107.00 # value - cost_value
+			commodity:
+				commodity.mnemonic: "USD"
+				type: asset
+				share_price: 1.3 # current price of commodity in balance sheet currency
+				cost_bases:
+					cost_basis:
+						split_guid: 905f723f4b024759bbb624d9e3d877ea
+						account: "Assets:USD Bank"
+						cost_basis_balance: 600.00
+						cost_share_price: 1.3
+						cost_value: 780.00 # cost_basis_balance * cost_share_price
+						value: 780.00 # cost_basis_balance * share_price
+						unrealized_gains_assets_fx: 0.00 # value - cost_value
+				cost_basis_balance: 600.00 # sum of each cost_basis's cost_basis_balance
+				cost_value: 780.00 # sum of each cost_basis's cost_value
+				...
+				value: 780.00 # cost_basis_balance * share_price
+				unrealized_gains_assets_fx: 0.00 # value - cost_value
+		cost_value: 17365.00 # sum of each commodity's cost_value
+		value: 17472.00 # sum of each commodity's value
+		unrealized_gains_assets_fx: 107.00 # value - cost_value
+	unrealized_gains_liabilities_fx: 0.00 CAD
+	unrealized_gains_fx: 107.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
+	realized_gains_fx:
+		realized_gains_fx: 110.00
+		splits:
+			split:
+				date: 2026-07-01
+				account: "Income:FX Gain"
+				amount: 60.00
+			split:
+				date: 2026-08-01
+				account: "Income:FX Gain"
+				amount: 50.00
 ```
 
 The US dollar is priced at what it was earned at, so it has gained nothing while the Hong Kong dollar has gained 107.00 — and the same book drawn a month earlier, with the peg at 7.85, shows the Hong Kong figure at −105.64 and the US dollar still at 0.00. Drawn at a date where the US dollar is 1.40 as well, the two come to 60.00 and 1,391.00. Each currency is measured against its own cost basis and no other, which a book of one currency cannot demonstrate.
@@ -1151,9 +1303,13 @@ It borrows 1,000.00 USD and the money lands in its Canadian bank as 1,300.00 CAD
 The transaction states a Canadian figure for the debt — `value: "-1300.00"` on the loan split — and that is what lets a cost basis open on it, so what the debt has cost is measured like anything else. The figures are negative, because there a cost basis is currency owed rather than held:
 
 ```
-	unrealized_gains_assets_fx: 0.00 CAD
+	unrealized_gains_assets_fx:
+		commodities: # there is no cost basis on the asset side
+		cost_value: 0.00 # sum of each commodity's cost_value
+		value: 0.00 # sum of each commodity's value
+		unrealized_gains_assets_fx: 0.00 # value - cost_value
 	unrealized_gains_liabilities_fx: -100.00 CAD
-	#   liability -1000.00 USD cost -1300.00 CAD, at 1.4 worth -1400.00 CAD = -100.00 CAD
+	unrealized_gains_fx: -100.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
 ```
 
 The debt was drawn at 1.30 and takes 1.40 a dollar to repay, so it has cost the company 100.00 it has not paid out yet. Drawn on the day it was borrowed, both keys are 0.00: cost and value are the same figure that day.
@@ -1164,7 +1320,7 @@ The debt was drawn at 1.30 and takes 1.40 a dollar to repay, so it has cost the 
 
 Nothing obliges a company to carry the debt in US dollars. It can write the loan into the book in its own currency, at what it was worth the day it was drawn — 100.00 USD borrowed, recorded as **130.00 CAD owed** — and plenty of books are kept exactly that way.
 
-The liability then holds no foreign currency, so it opens no cost basis, and for as long as the loan stands the sheet says nothing about the exposure at all. Draw this book with `--as-of 2026-11-30`, the day before it is repaid, and every gain key on the page reads zero while 130.00 CAD sits in the liabilities:
+The liability then holds no foreign currency, so it opens no cost basis, and for as long as the loan stands the sheet says nothing about the exposure at all. Draw this book with `--as-of 2026-11-30`, the day before it is repaid, and every gain figure on the page reads zero while 130.00 CAD sits in the liabilities:
 
 ```
 	unrealized_gains_liabilities_fx: 0.00 CAD
@@ -1175,10 +1331,16 @@ The liability then holds no foreign currency, so it opens no cost basis, and for
 The exposure has not gone anywhere. It arrives in a single entry, on the day the debt is settled — and the dollars to settle it need not be bought. A company that invoices US customers **earns** them, and what it earns carries a cost basis like anything else. This one collects 100.00 USD when the dollar is 1.40, recognising 140.00 CAD of revenue and opening a cost basis of 100.00 USD at 1.40, then settles the loan with those dollars:
 
 ```
-	realized_gains_fx: -10.00 CAD
-	total_realized_gains: -10.00 CAD
-	unrealized_gains_fx: 0.00 CAD
-	#   2026-12-01 Expenses:Foreign exchange loss -10.00 CAD
+	unrealized_gains_fx: 0.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
+	realized_gains_fx:
+		realized_gains_fx: -10.00
+		splits:
+			split:
+				date: 2026-12-01
+				account: "Expenses:Foreign exchange loss"
+				amount: -10.00
+	realized_gains_other: 0.00 CAD # not yet supported
+	total_realized_gains: -10.00 CAD # realized_gains_fx + realized_gains_other
 ```
 
 140.00 CAD of dollars extinguished a debt carried at 130.00, so the 10.00 is a loss, and the working gives the entry it came from. Drawn a day earlier, before the repayment, `realized_gains_fx` is 0.00. That one entry is the only place this book ever says the loan was foreign.
@@ -1189,7 +1351,7 @@ The exposure has not gone anywhere. It arrives in a single entry, on the day the
 
 This is a bookkeeping mistake rather than a kind of trade, and it is the common one. Two separate things put this book's cost bases out of step with what it holds, and the sheet has to cope with both.
 
-**A disposal draws a cost basis down only when it gives that basis's guid.** This company sells 3,000.00 USD as an ordinary transaction — the dollars valued at what they cost, and the 240.00 CAD it made booked straight to an income account rather than declared with `$residual$` — and it gives no guid, so nothing is drawn down. Nothing refuses that: an ordinary transaction is never obliged to give one, which is why the mistake is an easy one to make. A `payment:` block spending a foreign account whose cost bases still hold a balance *is* refused, because GnuCash writes that bank split and a payment block has no way to say which cost basis it comes out of.
+**A disposal draws a cost basis down only when it gives that basis's guid.** This company sells 3,000.00 USD as an ordinary transaction — the dollars valued at what they cost, and the 240.00 CAD it made booked straight to an income account rather than written with `$residual$` — and it gives no guid, so nothing is drawn down. Nothing refuses that: an ordinary transaction is never obliged to give one, which is why the mistake is an easy one to make. A `payment:` block spending a foreign account whose cost bases still hold a balance *is* refused, because GnuCash writes that bank split and a payment block has no way to say which cost basis it comes out of.
 
 **An arrival opens a cost basis only where the transaction says what it cost.** The 4,000.00 USD this company borrows and the 2,080.00 USD its share sale brings in are both stated wholly in US dollars, with no Canadian figure anywhere in them and no cost written on either split, so neither opens one. `fx-balances` finds exactly two cost bases in the whole book: the 5,500.00 HKD, and the 10,000.00 USD that was bought with Canadian dollars and so says what it cost.
 
@@ -1198,14 +1360,40 @@ Between them the book claims 10,000.00 USD against its cost bases while the acco
 The sheet does not price what is not there. That currency keeps GnuCash's own revaluation instead, and the working shows which figure came from where:
 
 ```
-	unrealized_gains_assets_fx: 940.00 CAD
-	#   asset 5500.00 HKD cost 1000.00 CAD, at 0.2 worth 1100.00 CAD = 100.00 CAD
-	#   USD 840.00 CAD
+	unrealized_gains_assets_fx:
+		commodities:
+			commodity:
+				commodity.mnemonic: "HKD"
+				...
+				cost_basis_balance: 5500.00 # sum of each cost_basis's cost_basis_balance
+				cost_value: 1000.00 # sum of each cost_basis's cost_value
+				accounts:
+					account:
+						guid: 7ca52b000919455bade465f3a1254114
+						name: "Assets:HKD Bank"
+						balance: 5500.00
+				balance_value: 5500.00 # sum of account's balance for all accounts
+				value: 1100.00 # cost_basis_balance * share_price
+				unrealized_gains_assets_fx: 100.00 # value - cost_value
+			commodity:
+				commodity.mnemonic: "USD"
+				type: asset
+				measured_from: gnucash_revaluation # its cost bases do not account for what the accounts hold
+				cost_value: 9781.60 # what its splits were recorded at, converted
+				value: 10621.60 # what the accounts hold, at the sheet's price
+				unrealized_gains_assets_fx: 840.00 # value - cost_value
+		cost_value: 10781.60 # sum of each commodity's cost_value
+		value: 11721.60 # sum of each commodity's value
+		unrealized_gains_assets_fx: 940.00 # value - cost_value
+	unrealized_gains_liabilities_fx: 0.00 CAD
+	unrealized_gains_fx: 940.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
 ```
 
 The Hong Kong dollars agree with their cost basis, so they are measured from it. The US dollars do not, so they are not.
 
-**The working is what tells you which happened**, and it is on the page by default: a line reading `cost … at … worth … = …` was measured from that currency's own cost bases, and a line of a commodity and an amount is GnuCash's revaluation of the whole holding. Above, the Hong Kong dollars state their arithmetic and the US dollars state a commodity — so a reader can see which currency the cost bases could not speak for without running anything else.
+**The items are what tell you which happened**, and they are on the page by default. A currency measured from its own cost bases states what they still account for as `cost_basis_balance` beside what the accounts hold as `balance_value`, and lists each basis and each account — the Hong Kong dollars above, agreeing at 5,500.00. A currency the bases cannot speak for states **`measured_from: gnucash_revaluation`** and none of those: no cost bases, no accounts, no `cost_basis_balance` and no `balance_value`, because a group with no basis behind it has nothing to put in them. It gives the cost and the worth GnuCash's own subtraction used instead, so the items still come to the 940.00 the key states.
+
+So the line that identifies the case is `measured_from:`, not a disagreement a reader has to spot between two figures — those two figures are not on this page at all. Where you want them, `fx-balances` prints them: on this book its cost bases hold 10,000.00 USD while the accounts hold 7,480.00. [Q-044](issues/Q-044-state-a-realized-gain-with-no-took-the-residual-key-and-say-what-the-balancing-amount-is.md) says what that measurement can and cannot answer for.
 
 **`fx-balances --verify-costs` will not find this one**, though it finds a great deal else. Its per-currency question compares what a currency's cost bases hold between them against what the ledger says arrived, less what was sold *against a cost basis* — and a disposal that gives no guid is on neither side of that subtraction, so the two agree while the dollars are gone. Run on the book above, it reports no finding and exits 0. What it catches is a balance that moved without a sale, not currency that left without one. The fix is in the ledger — give each disposal the cost basis it came out of.
 
@@ -1233,7 +1421,7 @@ A security's *realized* gain is a different matter: it is specified and not comp
 ## What is not covered
 
 - **Booking a year-end retranslation into the accounts.** `balance-sheet` states what currency still held is worth against what it cost — that is `unrealized_gains_fx`, above — but it only states it. Nothing is written to the book, no transaction is made, and the income and expense accounts are untouched. Under IAS 21 and ASPE 1651 an exchange difference on a monetary item belongs in profit or loss, so a filer who wants it booked writes that entry themselves; until they do it is a figure on the sheet and no account holds it, which is what the key exists to say.
-- **A security's realized gain.** `realized_gains_other` is specified and not computed. A security disposal states its gain outright rather than declaring it with `$residual$`, so nothing in the saved transaction says which income split is that gain rather than a dividend — and an account is not one or the other because of what it is called. GnuCash's own Advanced Portfolio report gives 0.00 for it on a book this tool writes, for the same reason: a disposal valued at what the units cost leaves nothing made on the disposal, and the gain lands in that report's Income column.
+- **A security's realized gain.** `realized_gains_other` is specified and not computed. A security disposal states its gain outright rather than using `$residual$`, so nothing in the saved transaction says which income split is that gain rather than a dividend — and an account is not one or the other because of what it is called. GnuCash's own Advanced Portfolio report gives 0.00 for it on a book this tool writes, for the same reason: a disposal valued at what the units cost leaves nothing made on the disposal, and the gain lands in that report's Income column.
 - **A borrowing stated wholly in the foreign currency.** US dollars borrowed straight into a US dollar account carry no figure in the book's own currency for either side, so neither side opens a cost basis and neither the cost bases nor GnuCash can say what the debt has cost. Borrowing with Canadian dollars does open one, and is measured normally.
 - **A sale that gives no cost basis.** It imports as an ordinary transaction; no cost basis is touched and no gain is computed. Name the cost basis to have the ledger check the arithmetic. `--verify-costs` does not report it either: the per-currency check compares the cost bases against what arrived less what was sold *against a cost basis*, and such a sale is on neither side — so the currency leaves the account while the cost bases go on holding it, and both sides still agree. What that check finds is a balance that moved without a sale, not currency that left without one.
 

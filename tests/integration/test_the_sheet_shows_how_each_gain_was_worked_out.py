@@ -6,19 +6,30 @@ measured against costs that appear on no line of the page. So the page states
 how each gain figure was reached, and these read that working back and add it
 up (Q-043).
 
-The working is written as `#` comment lines, which every reader of this format
-skips, so it can be there without changing what a page means to a program.
-`--no-itemize` turns it off.
+Four keys state their items rather than a figure — `realized_gains_fx`,
+`unrealized_gains_assets_fx`, `unrealized_gains_other` and
+`gnucash_balancing_amount`. Each opens with a bare key line and carries its
+items nested under it, ending in its own total, in the shape Q-044 fixes:
 
-What each line looks like, and how its figure is found:
+    unrealized_gains_assets_fx:
+        commodities:
+            commodity:
+                commodity.mnemonic: "USD"
+                type: asset
+                share_price: 1.5 # current price of commodity in balance sheet currency
+                cost_bases:
+                    cost_basis:
+                        ...
+                        unrealized_gains_assets_fx: 300.00 # value - cost_value
 
-    #   asset 5500.00 HKD cost 1000.00 CAD, at 0.2 worth 1100.00 CAD = 100.00 CAD
-    #   Assets:USD Bank 840.00 CAD
-    #   2026-07-01 Income:FX Gain 90.00 CAD
+So a reader can check every figure from the lines above it, and these assert
+each block whole rather than sampling a figure out of it: a changed comment, a
+dropped `value:` or a renamed field fails, not only a wrong number.
 
-The first is measured from the book's own cost bases and states its arithmetic,
-so its figure is what follows the `=`. The other two are a thing and what it
-came to, so the figure is the last amount on the line.
+Each block is asserted against the fixture it was measured from, which is the
+fixture Q-044's own example came from — four cost bases at four rates, four
+disposals, a stock and a fund both priced, and a US dollar bank spent out.
+`--no-itemize` leaves the keys stating their figures and takes the items away.
 """
 
 import re
@@ -27,7 +38,7 @@ from fractions import Fraction
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of, key_of, totals_of
 
 EARNED = 'tests/fixtures/a_cad_book_earning_usd_three_times.txt'
 SPENT_IN_FOUR = 'tests/fixtures/the_usd_earned_three_times_spent_out_in_four.txt'
@@ -43,67 +54,11 @@ BETWEEN_CENTS = ('tests/fixtures/'
 YEAR_END = '2026-12-31'
 
 
-def _figure_on(line):
-    """The money a working line comes to, as an exact rational."""
-    text = line.rsplit(' = ', 1)[-1] if ' = ' in line else line
-    parts = text.split()
-    assert len(parts) >= 2, line
-    return Fraction(parts[-2])
-
-
-def workings_of(page):
-    """The page's working, as `{key name: [figure, ...]}`.
-
-    A group opens with a line naming one key and nothing else — `#
-    realized_gains_fx:` — and the lines under it are its items. The prose above
-    the groups ends in no colon and opens none, and `nothing` is a group with
-    no items rather than an item of zero.
-    """
-    groups = {}
-    current = None
-    for line in page.splitlines():
-        bare = line.strip()
-        if not bare.startswith('#'):
-            continue
-        body = bare.lstrip('#').strip()
-        if not body:
-            continue
-        if body.endswith(':') and ' ' not in body[:-1]:
-            current = body[:-1]
-            groups[current] = []
-            continue
-        if current is None or body == 'nothing':
-            continue
-        groups[current].append(_figure_on(body))
-    return groups
-
-
-def _stated(page, name):
-    return Fraction(key_of(page, name).split()[0])
-
-
-def _every_group_adds_up(page):
-    """Each group's items summed against the key it is under.
-
-    `gnucash_balancing_amount` is the one exception, and the page says so
-    itself. It is GnuCash's own figure carried across unchanged, while the
-    lines under it are the accounts GnuCash revalued, each rounded to money.
-    Rounding the key to match them would make it agree with its own working and
-    stop agreeing with GnuCash's page, which is the only reason it is there. So
-    it is held to within a cent of its lines rather than to their exact sum —
-    asserting equality would be this suite requiring a guarantee the page
-    disclaims, and passing only while no fixture lands on the odd cent.
-    """
-    groups = workings_of(page)
-    assert groups, page
-    for name, figures in groups.items():
-        stated = _stated(page, name)
-        if name == 'gnucash_balancing_amount':
-            assert abs(sum(figures) - stated) <= Fraction(1, 100), (
-                name, figures, page)
-            continue
-        assert sum(figures) == stated, (name, figures, page)
-    return groups
+def _itemized(page):
+    """The four keys that carry items, as `{name: block text}`."""
+    return {name: block_of(page, name)
+            for name in ('realized_gains_fx', 'unrealized_gains_assets_fx',
+                         'unrealized_gains_other', 'gnucash_balancing_amount')}
 
 
 def _book(runner, tmp_path, fixture, name='book.gnucash'):
@@ -178,28 +133,99 @@ class TestTheWorkingAddsUpToTheKey:
     def test_on_a_book_of_cost_bases_a_fallback_and_a_security(self, tmp_path):
         """The Q-042 book: HKD measured from its cost basis, USD from GnuCash's
         own revaluation because its cost basis balance is not what the book
-        holds, and AMZN a security. Three sources, four keys."""
+        holds, and AMZN a security. Three sources, four keys.
+
+        **Both kinds of commodity group state the same two columns**, which is
+        what lets one subtraction cover the whole block. A group measured from
+        cost bases reaches `value` and `cost_value` by adding up the bases it
+        lists; a group that cannot reach them that way says
+        `measured_from: gnucash_revaluation` and gives the cost and the worth
+        GnuCash's own subtraction used. Either way the block's total is
+        `value - cost_value` over every group — there is no separate fallback
+        term added on the end, and a reader adds one column down the page.
+        """
         page = _sheet(CliRunner(), _book(CliRunner(), tmp_path, Q042))
 
-        groups = _every_group_adds_up(page)
-        assert 'unrealized_gains_assets_fx' in groups, groups
-        assert 'unrealized_gains_other' in groups, groups
-        assert 'gnucash_balancing_amount' in groups, groups
+        blocks = _itemized(page)
+        assert 'commodity.mnemonic: "HKD"' in blocks['unrealized_gains_assets_fx']
+        assert 'commodity.mnemonic: "USD"' in blocks['unrealized_gains_assets_fx']
+        assert 'measured_from: gnucash_revaluation' in blocks['unrealized_gains_assets_fx']
+        assert 'commodity.mnemonic: "AMZN"' in blocks['unrealized_gains_other']
+        assert 'commodity.mnemonic: "USD"' in blocks['gnucash_balancing_amount']
+
+        for name in ('unrealized_gains_assets_fx', 'unrealized_gains_other'):
+            totals = totals_of(page, name)
+            assert totals[name] == totals['value'] - totals['cost_value'], (
+                name, totals)
 
     def test_on_a_book_of_four_disposals_against_three_cost_bases(self, tmp_path):
         """Four realized differences, which must sum to the realized key."""
         runner = CliRunner()
         page = _sheet(runner, _spent_in_four(runner, tmp_path))
 
-        groups = _every_group_adds_up(page)
-        assert len(groups['realized_gains_fx']) == 4, groups
-        assert sum(groups['realized_gains_fx']) == Fraction(250), groups
+        assert block_of(page, 'realized_gains_fx') == '\n'.join((
+            '\t\trealized_gains_fx: 250.00',
+            '\t\tsplits:',
+            '\t\t\tsplit:',
+            '\t\t\t\tdate: 2026-07-01',
+            '\t\t\t\taccount: "Income:FX Gain"',
+            '\t\t\t\tamount: 90.00',
+            '\t\t\tsplit:',
+            '\t\t\t\tdate: 2026-08-01',
+            '\t\t\t\taccount: "Income:FX Gain"',
+            '\t\t\t\tamount: 80.00',
+            '\t\t\tsplit:',
+            '\t\t\t\tdate: 2026-09-01',
+            '\t\t\t\taccount: "Income:FX Gain"',
+            '\t\t\t\tamount: 60.00',
+            '\t\t\tsplit:',
+            '\t\t\t\tdate: 2026-10-01',
+            '\t\t\t\taccount: "Income:FX Gain"',
+            '\t\t\t\tamount: 20.00'))
 
     def test_on_a_book_of_four_cost_bases_at_four_rates(self, tmp_path):
+        """Four bases at four rates, each stating its own gain against one price."""
         runner = CliRunner()
         page = _sheet(runner, _book(runner, tmp_path, FOUR_RATES))
 
-        _every_group_adds_up(page)
+        basis = '\n'.join((
+            '\t\t\t\t\tcost_basis:',
+            '\t\t\t\t\t\tsplit_guid: <guid>',
+            '\t\t\t\t\t\taccount: "Assets:USD Bank"',
+            '\t\t\t\t\t\tcost_basis_balance: 1000.00',
+            '\t\t\t\t\t\tcost_share_price: {rate}',
+            '\t\t\t\t\t\tcost_value: {cost} # cost_basis_balance * cost_share_price',
+            '\t\t\t\t\t\tvalue: 1500.00 # cost_basis_balance * share_price',
+            '\t\t\t\t\t\tunrealized_gains_assets_fx: {gain} # value - cost_value'))
+        assert block_of(page, 'unrealized_gains_assets_fx') == '\n'.join((
+            '\t\tcommodities:',
+            '\t\t\tcommodity:',
+            '\t\t\t\tcommodity.mnemonic: "USD"',
+            '\t\t\t\ttype: asset',
+            '\t\t\t\tshare_price: 1.5 # current price of commodity in balance'
+            ' sheet currency',
+            '\t\t\t\tcost_bases:',
+            basis.format(rate='1.2', cost='1200.00', gain='300.00'),
+            basis.format(rate='1.3', cost='1300.00', gain='200.00'),
+            basis.format(rate='1.4', cost='1400.00', gain='100.00'),
+            basis.format(rate='1.5', cost='1500.00', gain='0.00'),
+            "\t\t\t\tcost_basis_balance: 4000.00 # sum of each cost_basis's"
+            ' cost_basis_balance',
+            "\t\t\t\tcost_value: 5400.00 # sum of each cost_basis's cost_value",
+            # What the accounts hold, beside what the cost bases say. Here they
+            # agree, because every dollar bought is still in the bank.
+            '\t\t\t\taccounts:',
+            '\t\t\t\t\taccount:',
+            '\t\t\t\t\t\tguid: <guid>',
+            '\t\t\t\t\t\tname: "Assets:USD Bank"',
+            '\t\t\t\t\t\tbalance: 4000.00',
+            "\t\t\t\tbalance_value: 4000.00 # sum of account's balance for all"
+            ' accounts',
+            '\t\t\t\tvalue: 6000.00 # cost_basis_balance * share_price',
+            '\t\t\t\tunrealized_gains_assets_fx: 600.00 # value - cost_value',
+            "\t\tcost_value: 5400.00 # sum of each commodity's cost_value",
+            "\t\tvalue: 6000.00 # sum of each commodity's value",
+            '\t\tunrealized_gains_assets_fx: 600.00 # value - cost_value'))
 
     def test_where_the_worth_and_the_cost_both_land_between_cents(self, tmp_path):
         """The case every other fixture rounds away.
@@ -220,34 +246,36 @@ class TestTheWorkingAddsUpToTheKey:
         page = _sheet(runner, _partly_spent(runner, tmp_path),
                       '--fx-rates', BETWEEN_CENTS)
 
-        groups = _every_group_adds_up(page)
-        assert groups['unrealized_gains_assets_fx'] == [Fraction(-733, 100)], groups
-        assert key_of(page, 'unrealized_gains_assets_fx') == '-7.33 CAD'
+        block = block_of(page, 'unrealized_gains_assets_fx')
+        assert '\t\t\t\t\t\tunrealized_gains_assets_fx: -7.33 # value - cost_value' \
+            in block.splitlines(), block
+        totals = totals_of(page, 'unrealized_gains_assets_fx')
+        assert totals['unrealized_gains_assets_fx'] == Fraction(-733, 100), totals
 
-    def test_every_key_with_a_figure_has_a_group(self, tmp_path):
-        """A gain key without a working would be the one figure taken on trust."""
+    def test_every_key_that_carries_items_states_them(self, tmp_path):
+        """Such a key without its items would be the one figure taken on trust."""
         runner = CliRunner()
         page = _sheet(runner, _spent_in_four(runner, tmp_path))
 
-        groups = workings_of(page)
-        for name in ('realized_gains_fx', 'unrealized_gains_assets_fx',
-                     'unrealized_gains_liabilities_fx', 'unrealized_gains_other',
-                     'gnucash_balancing_amount'):
-            assert name in groups, (name, page)
+        for name, block in _itemized(page).items():
+            assert block.strip(), (name, page)
 
 
 class TestTurningItOff:
 
-    def test_no_itemize_leaves_the_keys_and_takes_the_working(self, tmp_path):
+    def test_no_itemize_leaves_the_keys_and_takes_the_items(self, tmp_path):
         runner = CliRunner()
         book = _book(runner, tmp_path, Q042)
 
         page = _sheet(runner, book, '--no-itemize')
 
-        assert workings_of(page) == {}, page
-        # The figures themselves are untouched.
+        # Every key states its own figure, and none carries items under it.
+        assert key_of(page, 'unrealized_gains_assets_fx') == '940.00 CAD'
+        assert key_of(page, 'unrealized_gains_other') == '1363.20 CAD'
         assert key_of(page, 'unrealized_gains_fx') == '940.00 CAD'
         assert key_of(page, 'total_unrealized_gains') == '2303.20 CAD'
+        assert not [line for line in page.splitlines()
+                    if line.startswith('\t\t\tcommodity:')], page
 
     def test_report_passes_the_flag_through(self, tmp_path):
         """`report` draws the same balance sheet and takes the same flag.
@@ -263,8 +291,9 @@ class TestTurningItOff:
                      '--start', '2026-01-01', '--end', YEAR_END, '--no-itemize')
         assert drawn.exit_code == 0, drawn.output
 
-        assert workings_of(drawn.output) == {}, drawn.output
         assert key_of(drawn.output, 'unrealized_gains_fx') == '940.00 CAD'
+        assert not [line for line in drawn.output.splitlines()
+                    if line.startswith('\t\t\tcommodity:')], drawn.output
 
     def test_report_itemizes_by_default(self, tmp_path):
         runner = CliRunner()
@@ -274,31 +303,20 @@ class TestTurningItOff:
                      '--start', '2026-01-01', '--end', YEAR_END)
         assert drawn.exit_code == 0, drawn.output
 
-        assert workings_of(drawn.output) != {}, drawn.output
+        assert block_of(drawn.output, 'unrealized_gains_assets_fx').strip(), drawn.output
 
-    def test_the_working_is_there_without_the_flag(self, tmp_path):
+    def test_the_items_are_there_without_the_flag(self, tmp_path):
         runner = CliRunner()
         book = _book(runner, tmp_path, Q042)
 
-        assert workings_of(_sheet(runner, book)) != {}, 'itemized by default'
+        assert block_of(_sheet(runner, book),
+                        'unrealized_gains_assets_fx').strip(), 'itemized by default'
 
 
-class TestItStaysAComment:
+class TestWhereTheItemsDoNotAppear:
 
-    def test_every_working_line_is_a_comment_inside_the_block(self, tmp_path):
-        """One tab then `#`, like the block's own notes: at column 0 it would
-        read as a dated directive, and uncommented it would read as a key."""
-        runner = CliRunner()
-        page = _sheet(runner, _book(runner, tmp_path, Q042))
-
-        working = [line for line in page.splitlines()
-                   if line.startswith('\t#') and ':' in line]
-        assert working, page
-        for line in working:
-            assert line.startswith('\t#'), repr(line)
-
-    def test_the_income_statement_carries_no_gain_working(self, tmp_path):
-        """It has no gain keys, so it has nothing to show the working of."""
+    def test_the_income_statement_carries_no_gain_keys(self, tmp_path):
+        """It states no gain, so it has nothing to state the items of."""
         runner = CliRunner()
         book = _book(runner, tmp_path, Q042)
 
@@ -306,4 +324,5 @@ class TestItStaysAComment:
                          '--fiscal-year-end', YEAR_END)
 
         assert statement.exit_code == 0, statement.output
-        assert workings_of(statement.output) == {}, statement.output
+        assert 'unrealized_gains_assets_fx' not in statement.output, statement.output
+        assert 'gnucash_balancing_amount' not in statement.output, statement.output

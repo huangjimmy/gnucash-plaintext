@@ -32,7 +32,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of, block_total_of, key_of
 
 A_CAD_BOOK = 'tests/fixtures/a_cad_book_using_residual_on_an_ordinary_expense.txt'
 A_BOOK_HOLDING_US_DOLLARS = 'tests/fixtures/a_cad_book_that_bought_a_thousand_usd.txt'
@@ -92,21 +92,21 @@ class TestATransactionThatDisposesOfNothing:
         """800.00 CAD of rent, on a book that has never held foreign currency."""
         page = _page(tmp_path, STATED_ON_THE_RENT)
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == 0
         assert key_of(page, 'total_realized_gains') == '0.00 CAD'
 
     def test_the_working_lists_it_no_more_than_the_key_counts_it(self, tmp_path):
         page = _page(tmp_path, STATED_ON_THE_RENT)
 
-        listed = [line for line in page.splitlines()
-                  if line.lstrip().startswith('#   ') and 'Rent' in line]
-        assert listed == [], page
+        block = block_of(page, 'realized_gains_fx')
+        assert '\t\tsplits: # there is no split' in block.splitlines(), block
+        assert 'Rent' not in block, block
 
     def test_the_book_without_it_reads_the_same(self, tmp_path):
         """The key is what changed, so the page must not depend on it."""
         page = _page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == 0
 
 
 class TestASplitNoDifferenceCanLandOn:
@@ -129,16 +129,16 @@ class TestASplitNoDifferenceCanLandOn:
         page = _page(tmp_path, STATED_ON_A_BANK_SPLIT,
                      book=A_BOOK_HOLDING_US_DOLLARS)
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == 0
         assert key_of(page, 'total_realized_gains') == '0.00 CAD'
 
     def test_the_working_lists_no_bank_line(self, tmp_path):
         page = _page(tmp_path, STATED_ON_A_BANK_SPLIT,
                      book=A_BOOK_HOLDING_US_DOLLARS)
 
-        listed = [line for line in page.splitlines()
-                  if line.lstrip().startswith('#   ') and 'CAD Bank' in line]
-        assert listed == [], page
+        block = block_of(page, 'realized_gains_fx')
+        assert '\t\tsplits: # there is no split' in block.splitlines(), block
+        assert 'CAD Bank' not in block, block
 
 
 class TestATransactionInAnotherCurrency:
@@ -159,13 +159,13 @@ class TestATransactionInAnotherCurrency:
         page = _page(tmp_path, STATED_IN_US_DOLLARS,
                      book=A_BOOK_HOLDING_US_DOLLARS)
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == 0
         assert key_of(page, 'total_realized_gains') == '0.00 CAD'
 
     def test_the_working_lists_no_split_of_that_transaction(self, tmp_path):
         page = _page(tmp_path, STATED_IN_US_DOLLARS,
                      book=A_BOOK_HOLDING_US_DOLLARS)
 
-        listed = [line for line in page.splitlines()
-                  if line.lstrip().startswith('#   ') and 'Bank Fees' in line]
-        assert listed == [], page
+        block = block_of(page, 'realized_gains_fx')
+        assert '\t\tsplits: # there is no split' in block.splitlines(), block
+        assert 'Bank Fees' not in block, block

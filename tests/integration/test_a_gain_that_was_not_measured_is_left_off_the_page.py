@@ -23,7 +23,7 @@ which is computed in whatever currency the page is drawn in.
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_total_of, key_of
 
 A_CAD_BOOK = 'tests/fixtures/a_cad_book_holding_us_listed_shares.txt'
 A_BOOK_KEPT_IN_HKD = 'tests/fixtures/a_book_kept_in_hkd.txt'
@@ -35,8 +35,14 @@ def _states(page, key):
     Asked of whole lines, never as a substring: the page states
     `unrealized_gains_fx`, which contains `realized_gains_fx`, so
     `'realized_gains_fx' not in page` is false however the page is drawn.
+
+    Either spelling counts. A key that carries its items opens with a bare
+    line — `realized_gains_fx:` — and one that states a figure is followed by a
+    space, so matching only the second reads an itemized key as absent and this
+    would pass on a page stating it in full.
     """
-    return any(line.strip().startswith(f'{key}: ') for line in page.splitlines())
+    return any(line.strip() == f'{key}:' or line.strip().startswith(f'{key}: ')
+               for line in page.splitlines())
 
 
 def _sheet(tmp_path, ledger, as_of, *extra):
@@ -55,7 +61,7 @@ class TestAPageDrawnInTheBooksOwnCurrency:
     def test_both_realized_keys_are_stated(self, tmp_path):
         page = _sheet(tmp_path, A_CAD_BOOK, '2026-12-31')
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == 0
         assert key_of(page, 'total_realized_gains') == '0.00 CAD'
 
 

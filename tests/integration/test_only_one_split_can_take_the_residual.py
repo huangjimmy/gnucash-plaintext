@@ -29,7 +29,19 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of
+
+# What `realized_gains_fx` states for each of these sales: the 100.00 the sale
+# made, and the one split it was booked to. Asserted whole rather than as a
+# figure — a total on its own is the thing a reader cannot check, which is why
+# the key carries its items at all.
+THE_GAIN = '\n'.join((
+    '\t\trealized_gains_fx: 100.00',
+    '\t\tsplits:',
+    '\t\t\tsplit:',
+    '\t\t\t\tdate: 2026-06-01',
+    '\t\t\t\taccount: "Income:FX Gain"',
+    '\t\t\t\tamount: 100.00'))
 
 BOUGHT = 'tests/fixtures/a_cad_book_that_bought_a_thousand_usd.txt'
 TWO_MARKED = 'tests/fixtures/a_sale_marking_two_splits_as_the_residual.txt'
@@ -122,7 +134,7 @@ def test_and_the_gain_it_states_is_counted(tmp_path):
 
     drawn = _run(runner, 'balance-sheet', str(book), '--as-of', '2026-12-31')
     assert drawn.exit_code == 0, drawn.output
-    assert key_of(drawn.output, 'realized_gains_fx') == '100.00 CAD'
+    assert block_of(drawn.output, 'realized_gains_fx') == THE_GAIN
 
 
 def _sold(runner, tmp_path, sale=DECLARED):
@@ -204,7 +216,7 @@ def test_the_refused_update_leaves_the_book_as_it_was(tmp_path):
 
     drawn = _run(runner, 'balance-sheet', str(book), '--as-of', '2026-12-31')
     assert drawn.exit_code == 0, drawn.output
-    assert key_of(drawn.output, 'realized_gains_fx') == '100.00 CAD'
+    assert block_of(drawn.output, 'realized_gains_fx') == THE_GAIN
 
 
 def test_a_mark_added_to_a_bank_line_is_no_second_claim(tmp_path):
@@ -225,4 +237,4 @@ def test_a_mark_added_to_a_bank_line_is_no_second_claim(tmp_path):
 
     drawn = _run(runner, 'balance-sheet', str(book), '--as-of', '2026-12-31')
     assert drawn.exit_code == 0, drawn.output
-    assert key_of(drawn.output, 'realized_gains_fx') == '100.00 CAD'
+    assert block_of(drawn.output, 'realized_gains_fx') == THE_GAIN

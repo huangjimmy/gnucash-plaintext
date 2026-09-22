@@ -1,4 +1,4 @@
-"""Probe: how large is the cost `cost_basis_totals_by_currency_and_side` hands over?
+"""Probe: how large does a currency's cost get once its cost bases are added up?
 
 `services/gnucash_statements.py` writes that total into the report's Scheme
 source verbatim, as `{cost.numerator}/{cost.denominator}`. So whatever exact
@@ -143,15 +143,30 @@ def _bases(book_path):
 
 
 def _totals(book_path):
+    """Per currency and side, the balance and the cost the balance sheet prints.
+
+    Added up from the rows here rather than read from a function of its own,
+    because that is how the report reaches the figure: the page lists every
+    basis and its totals are the rows added together.
+    """
     from repositories.gnucash_repository import GnuCashRepository, SessionMode
-    from services.foreign_currency import cost_basis_totals_by_currency_and_side
+    from services.foreign_currency import cost_basis_items_by_currency_and_side
 
     repo = GnuCashRepository(str(book_path))
     repo.open(mode=SessionMode.READ_ONLY)
     try:
-        return cost_basis_totals_by_currency_and_side(repo.book, AS_OF)
+        rows = cost_basis_items_by_currency_and_side(repo.book, AS_OF)
     finally:
         repo.close()
+
+    totals: dict = {}
+    for row in rows:
+        sides = totals.setdefault(row['currency'], {})
+        held, spent = sides.get(row['side'], (Fraction(0), Fraction(0)))
+        sign = 1 if row['side'] == 'asset' else -1
+        sides[row['side']] = (held + sign * row['balance'],
+                              spent + sign * row['balance'] * row['cost'])
+    return totals
 
 
 def _report(label, bases, totals):

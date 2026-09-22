@@ -17,10 +17,12 @@ if either condition changed, the figure would drop to 0.00 with nothing to
 notice — on the shape a reader is most likely to have.
 """
 
+from fractions import Fraction
+
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of, block_total_of, key_of
 
 SETTLED = 'tests/fixtures/fx_invoice_usd_paid_from_cad_bank.txt'
 RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
@@ -43,15 +45,22 @@ def test_the_settlement_difference_is_realized(tmp_path):
     """100.00 USD booked at 1.40 and settled for 137.00 CAD: a 3.00 loss."""
     page = _page(tmp_path)
 
-    assert key_of(page, 'realized_gains_fx') == '-3.00 CAD'
+    assert block_total_of(page, 'realized_gains_fx') == Fraction('-3.00')
     assert key_of(page, 'total_realized_gains') == '-3.00 CAD'
 
 
 def test_the_working_lists_the_settlement(tmp_path):
-    """A gain counted without its working would be a gain taken on trust."""
+    """A gain counted without its working would be a gain taken on trust.
+
+    One `split:` under the key, giving the account the difference was booked to
+    and what it came to, and the key's own figure above them.
+    """
     page = _page(tmp_path)
 
-    listed = [line.strip() for line in page.splitlines()
-              if line.lstrip().startswith('#   ') and 'FX Gain' in line]
-    assert len(listed) == 1, page
-    assert listed[0].endswith('-3.00 CAD'), listed
+    block = block_of(page, 'realized_gains_fx').splitlines()
+    assert '\t\trealized_gains_fx: -3.00' in block, block
+    assert [line for line in block if line.strip() == 'split:'] == [
+        '\t\t\tsplit:'], block
+    assert [line.strip() for line in block
+            if line.strip().startswith(('account: ', 'amount: '))] == [
+        'account: "Income:FX Gain"', 'amount: -3.00'], block

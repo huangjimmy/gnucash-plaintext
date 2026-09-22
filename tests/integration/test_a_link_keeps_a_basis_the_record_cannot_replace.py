@@ -24,6 +24,7 @@ from click.testing import CliRunner
 
 from cli.main import cli
 from tests.conftest import _run
+from tests.integration.cost_basis_listings import cost_basis_rows
 
 RATES = 'tests/fixtures/fx_rates_usd_two_invoice_dates.yaml'
 SOURCE = 'tests/fixtures/fx_usd_invoice_booked_to_a_usd_income_account.txt'
@@ -105,7 +106,7 @@ def test_the_records_posting_split_is_no_cost_basis(tmp_path):
                                '--fx-rates', RATES])
     assert made.exit_code == 0, made.output
 
-    listing = _run(runner, 'fx-balances', str(book)).output
+    listing = cost_basis_rows(_run(runner, 'fx-balances', str(book)).output)
     assert 'Accounts Receivable' not in listing, listing
     assert 'Assets:Bank:USD' in listing, listing
 

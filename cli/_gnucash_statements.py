@@ -31,6 +31,37 @@ PRICE_SOURCE_HELP = ("Which recorded price the statement is priced from: pricedb
                      "4.8. Each reads the book's price database, so the price on a line is "
                      "one the book records.")
 
+FX_GAIN_ACCOUNT_HELP = ("An account this book's realized exchange differences are booked to. "
+                        "For a book whose disposals carry no took_the_residual, which is "
+                        "every book written before that key existed: such a book states "
+                        "realized_gains_fx: 0.00 though its income statement carries the "
+                        "difference. Repeatable, for a book keeping its gains and its losses "
+                        "in two accounts. The account is believed: on a disposal, whatever "
+                        "sits on it is taken for the exchange difference, so specifying an "
+                        "account that holds something else counts that instead — a bank "
+                        "charge on a specified account is read as a loss. What the option "
+                        "cannot do is widen where a difference may sit. Three conditions "
+                        "the book answers for itself hold either way: the account must be "
+                        "an income or expense account, the transaction must be stated in "
+                        "the book's own currency, and one of its splits must give the guid "
+                        "of the cost basis it draws on. So it counts nothing on a "
+                        "transaction that disposed of no currency, and nothing at all for "
+                        "a bank or receivable account — which is warned about, since such "
+                        "an account can never count. Applies to the "
+                        "plaintext page: --output-format html and pdf are GnuCash's own "
+                        "Balance Sheet, which states no realized gain to specify an account "
+                        "for.")
+
+MAX_ITEMS_HELP = ("How many entries each itemized list beneath a gain figure may show. "
+                  "-1, the "
+                  "default, is no cap, which is what lets a reader add a total up for "
+                  "themselves; 0 lists none of them. A book of 2,500 foreign purchases "
+                  "draws a page of 40,154 lines and 1.4 MB uncapped, so a larger one can "
+                  "be shortened with this. A shortened list says on its own line how many "
+                  "entries there are, and ends with a not_listed: entry giving the count "
+                  "and what those come to, so the entries still add up to the total "
+                  "printed beneath them.")
+
 
 def page_for(output_format: str) -> str:
     """Which page GnuCash draws for an output format: text, or HTML for HTML and PDF."""

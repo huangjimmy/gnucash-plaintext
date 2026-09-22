@@ -22,13 +22,14 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of, block_total_of, key_of
 
 BOUGHT = 'tests/fixtures/a_cad_book_that_bought_a_thousand_usd.txt'
 PLAIN = 'tests/fixtures/the_thousand_usd_sold_at_a_higher_rate.txt'
 WITH_A_CUSTOM_KEY = ('tests/fixtures/'
                      'the_thousand_usd_sold_with_a_custom_key_on_the_residual.txt')
 AS_OF = '2026-12-31'
+GUID = re.compile(r'\b[0-9a-f]{32}\b')
 
 
 def _sold(runner, tmp_path, sale, name):
@@ -62,26 +63,35 @@ def test_the_gain_is_still_counted(tmp_path):
     runner = CliRunner()
     page = _page(runner, _sold(runner, tmp_path, WITH_A_CUSTOM_KEY, 'keyed'))
 
-    assert key_of(page, 'realized_gains_fx') == '100.00 CAD'
+    assert block_total_of(page, 'realized_gains_fx') == 100
     assert key_of(page, 'total_realized_gains') == '100.00 CAD'
 
 
 def test_the_custom_key_is_no_difference_to_the_page(tmp_path):
-    """The key is the reader's own note; the statement must not turn on it."""
+    """The key is the reader's own note; the statement must not turn on it.
+
+    Compared with the guids masked, because the two books are imported
+    separately and a guid is minted fresh each time. The page gives the guid of
+    every cost basis and of every split behind GnuCash's own amount, so two
+    books built from the same ledger differ there and nowhere else — which is
+    the whole of what this has to hold.
+    """
     runner = CliRunner()
     keyed = _page(runner, _sold(runner, tmp_path, WITH_A_CUSTOM_KEY, 'keyed'))
     plain = _page(runner, _sold(runner, tmp_path, PLAIN, 'plain'))
 
-    assert keyed == plain
+    assert GUID.sub('<guid>', keyed) == GUID.sub('<guid>', plain)
 
 
 def test_the_working_still_states_the_gain(tmp_path):
     runner = CliRunner()
     page = _page(runner, _sold(runner, tmp_path, WITH_A_CUSTOM_KEY, 'keyed'))
 
-    listed = [line.strip() for line in page.splitlines()
-              if line.lstrip().startswith('#   ') and 'Income:FX Gain' in line]
-    assert listed == ['#   2026-06-01 Income:FX Gain 100.00 CAD'], page
+    block = block_of(page, 'realized_gains_fx').splitlines()
+    assert '\t\trealized_gains_fx: 100.00' in block, block
+    assert [line.strip() for line in block
+            if line.strip().startswith(('date: ', 'account: ', 'amount: '))] == [
+        'date: 2026-06-01', 'account: "Income:FX Gain"', 'amount: 100.00'], block
 
 
 def test_the_custom_key_survives_the_round_trip(tmp_path):

@@ -19,6 +19,7 @@ echo ""
 LINT_FAILED=0
 TEST_FAILED=0
 COVERAGE_FAILED=0
+DEPLOY_FAILED=0
 LINT_OUTPUT=""
 TEST_OUTPUT=""
 COVERAGE_OUTPUT=""
@@ -92,12 +93,34 @@ else
                 echo "✓ Coverage is at 100% on the union"
                 echo ""
             fi
+
+            # Every test above runs from the source folder, where the suite
+            # installs the project editable and `tests/` is a package — so a
+            # runtime data file the wheel leaves out passes all of them. This
+            # builds the wheel, installs it somewhere else and draws a real
+            # page with it, which is the only place that shows the customized
+            # GnuCash report is both shipped and loadable.
+            #
+            # Here rather than in CI alone. It was CI-only, and CI is where it
+            # caught the page's shape changing under a check that grepped for
+            # the old one — after the commit had landed and been pushed, where
+            # a gate that runs before the commit would have said so first.
+            echo "2c. Running the deployment test (built wheel, installed)..."
+            if ! DEPLOY_OUTPUT=$(./scripts/test-deployment.sh 2>&1); then
+                DEPLOY_FAILED=1
+                echo "❌ The installed package does not draw the page it should"
+                echo ""
+            else
+                echo "✓ The installed package draws the page the example publishes"
+                echo ""
+            fi
         fi
     fi
 
     # 3. Block immediately if lint, tests or coverage failed — skip AI review to
     #    save tokens
-    if [ $LINT_FAILED -eq 1 ] || [ $TEST_FAILED -eq 1 ] || [ $COVERAGE_FAILED -eq 1 ]; then
+    if [ $LINT_FAILED -eq 1 ] || [ $TEST_FAILED -eq 1 ] || [ $COVERAGE_FAILED -eq 1 ] \
+       || [ $DEPLOY_FAILED -eq 1 ]; then
         if [ $LINT_FAILED -eq 1 ]; then
             echo "Linting errors:"
             echo "$LINT_OUTPUT"
@@ -116,7 +139,12 @@ else
             echo "$COVERAGE_OUTPUT"
             echo ""
         fi
-        echo "❌ Commit blocked: fix lint/test/coverage failures before committing."
+        if [ $DEPLOY_FAILED -eq 1 ]; then
+            echo "Deployment failures (last 50 lines):"
+            echo "$DEPLOY_OUTPUT" | tail -50
+            echo ""
+        fi
+        echo "❌ Commit blocked: fix lint/test/coverage/deployment failures before committing."
         exit 1
     fi
 fi

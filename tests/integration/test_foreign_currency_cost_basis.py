@@ -15,6 +15,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from cli.main import cli
+from tests.integration.cost_basis_listings import cost_basis_rows
 
 RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
 
@@ -289,7 +290,8 @@ def test_an_overpayment_opens_a_basis_like_a_borrowing(tmp_path):
 
     listing = _balances(runner, book)
     assert 'Total USD cost basis balance: 200.00' in listing, listing
-    rows = [line for line in listing.splitlines() if 'Accounts Receivable USD' in line]
+    rows = [line for line in cost_basis_rows(listing).splitlines()
+            if 'Accounts Receivable USD' in line]
     assert len(rows) == 2, listing
     for row in rows:
         assert '100.00 USD' in row, row
@@ -445,7 +447,7 @@ def test_refunding_a_prepayment_opens_no_basis(tmp_path):
     assert 'Total USD cost basis balance: 100.00' in listing, listing
     assert listing.count('1.37 CAD/USD') == 1, listing
     assert 'Assets:Bank:USD' in listing, listing
-    assert 'Receivable' not in listing, listing
+    assert 'Receivable' not in cost_basis_rows(listing), listing
 
 
 def test_a_prepayment_arriving_as_base_currency_opens_it_on_the_receivable(tmp_path):
@@ -593,7 +595,7 @@ def test_a_refund_naming_no_lot_reads_as_the_receivable_it_resembles(tmp_path):
     lotted = tmp_path / 'lotted.gnucash'
     _import_new(runner, lotted, 'tests/fixtures/fx_refund_usd_prepayment.txt')
     lotted_listing = _balances(runner, lotted)
-    assert 'Receivable' not in lotted_listing, lotted_listing
+    assert 'Receivable' not in cost_basis_rows(lotted_listing), lotted_listing
 
 
 def test_currency_arriving_in_a_liability_counts_as_having_arrived(tmp_path):
@@ -614,7 +616,7 @@ def test_currency_arriving_in_a_liability_counts_as_having_arrived(tmp_path):
     listing = _balances(runner, book)
     assert 'Total USD cost basis balance: 100.00' in listing, listing
     assert 'USD Credit Line' in listing, listing
-    assert 'Accounts Payable' not in listing, listing
+    assert 'Accounts Payable' not in cost_basis_rows(listing), listing
 
 
 def test_an_overpayment_retargeted_into_the_lot_opens_the_credits_basis(tmp_path):

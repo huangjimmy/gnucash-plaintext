@@ -15,6 +15,7 @@ from click.testing import CliRunner
 
 from cli.main import cli
 from services.plaintext_parser import RESIDUAL_AMOUNT as RESIDUAL
+from tests.integration.cost_basis_listings import cost_basis_rows
 
 RATES = 'tests/fixtures/fx_rates_usd_dated.yaml'
 
@@ -330,7 +331,7 @@ def test_settling_in_the_records_own_currency_realizes_nothing(tmp_path):
     listing = _balances(runner, book)
     assert len(re.findall(r'100\.00 USD[^\n]+100\.00 USD', listing)) == 1, listing
     assert 'Total USD cost basis balance: 100.00 USD' in listing, listing
-    assert 'Assets:Bank:USD' not in listing, listing
+    assert 'Assets:Bank:USD' not in cost_basis_rows(listing), listing
 
     # No gain split anywhere in the payment entry — the fixture declares an
     # FX account, and it stays unused.

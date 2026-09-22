@@ -259,7 +259,7 @@ def test_no_split_is_put_in_a_lot_with_xaccSplitSetLot():  # noqa: N802 — GnuC
 
     `xaccSplitSetLot` sets the split's lot without adding the split to the
     lot's own split list (CLAUDE.md finding 9). Every reader of "what does this
-    lot hold" is then short by that split, and destroying the book segfaults
+    lot hold" then misses that split, and destroying the book segfaults
     inside `gnc_lot_remove_split`. Measured on GnuCash 5.10, after a save as
     well, by
     `tests/research/whether_a_split_put_in_a_lot_survives_destroying_the_book_probe.py`.

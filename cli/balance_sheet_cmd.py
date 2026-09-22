@@ -1,7 +1,8 @@
 """CLI command: the balance sheet of a book as of a date, printed by a customized GnuCash report (Q-042).
 
 `balance-sheet <book> --as-of YYYY-MM-DD [--currency HKD] [--fx-rates file] [--prices file]
-[--price-source pricedb-latest] [--output-format text|html|pdf] [--output file]`
+[--price-source pricedb-latest] [--fx-gain-account "Income:FX Gain"]
+[--output-format text|html|pdf] [--output file]`
 
 The figures are GnuCash's, in the currency the book is kept in: its balances,
 converted by GnuCash through the book's price database and the prices any
@@ -14,6 +15,8 @@ import click
 from cli._dates import parse_date
 from cli._gnucash_statements import (
     CURRENCY_HELP,
+    FX_GAIN_ACCOUNT_HELP,
+    MAX_ITEMS_HELP,
     OUTPUT_FORMATS,
     PRICE_SOURCE_HELP,
     PRICES_HELP,
@@ -46,9 +49,18 @@ from services.gnucash_statements import render_balance_sheet
 @click.option("--output", "output_file", default=None, type=click.Path(),
               help="Output file. Required for html and pdf; defaults to stdout for text.")
 @click.option("--itemize/--no-itemize", "itemize", default=True, show_default=True,
-              help="Show how each gain figure was worked out, as comment lines.")
+              help="Show how each gain figure was worked out, as keys nested "
+                   "under it — the cost bases, splits, securities and accounts "
+                   "it was measured from, each stating its own arithmetic in a "
+                   "trailing # comment. On by default. These are keys a reader "
+                   "and a parser both see, not comment lines; --max-items caps "
+                   "how many entries each list shows.")
+@click.option("--max-items", "max_items", type=click.IntRange(min=-1), default=-1,
+              show_default=True, help=MAX_ITEMS_HELP)
+@click.option("--fx-gain-account", "gain_accounts", multiple=True,
+              help=FX_GAIN_ACCOUNT_HELP)
 def balance_sheet(gnucash_file, as_of, currency, fx_rates_file, prices_file, price_source,
-                  output_format, output_file, itemize):
+                  output_format, output_file, itemize, max_items, gain_accounts):
     """The balance sheet as of a date, printed by a customized GnuCash report, in the book's currency."""
     check_output(output_format, output_file)
     quotes = read_price_files(fx_rates_file, prices_file)
@@ -64,7 +76,8 @@ def balance_sheet(gnucash_file, as_of, currency, fx_rates_file, prices_file, pri
         report_currency = the_currency(repo.book, currency)
         add_the_files_prices(repo.book, quotes, report_currency, [as_of])
         page = render_balance_sheet(repo.session, report_currency, as_of, page_for(output_format),
-                                    price_source=price_source, warn=warn, itemize=itemize)
+                                    price_source=price_source, warn=warn, itemize=itemize,
+                                    gain_accounts=gain_accounts, max_items=max_items)
     except PageNotRenderedError as refusal:
         raise click.ClickException(str(refusal)) from refusal
     finally:

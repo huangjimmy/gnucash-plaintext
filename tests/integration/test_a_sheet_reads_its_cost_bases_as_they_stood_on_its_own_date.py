@@ -20,16 +20,30 @@ had not yet opened, and `total_assets` stood 200.00 above the other side.
 """
 
 import re
+from fractions import Fraction
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of, block_total_of, key_of
 
 BOUGHT = ('tests/fixtures/'
           'a_cad_book_that_bought_usd_before_selling_and_rebuying_it.txt')
 SOLD_AND_REBOUGHT = 'tests/fixtures/the_usd_sold_and_rebought_at_a_higher_rate.txt'
+
+# August's sale, as `realized_gains_fx` states it, and the nothing a sheet
+# drawn before it states instead.
+THE_AUGUST_GAIN = '\n'.join((
+    '\t\trealized_gains_fx: 200.00',
+    '\t\tsplits:',
+    '\t\t\tsplit:',
+    '\t\t\t\tdate: 2026-08-01',
+    '\t\t\t\taccount: "Income:FX Gain"',
+    '\t\t\t\tamount: 200.00'))
+NOTHING_REALIZED = '\n'.join((
+    '\t\trealized_gains_fx: 0.00',
+    '\t\tsplits: # there is no split'))
 
 
 def _book(tmp_path):
@@ -79,13 +93,21 @@ class TestDrawnBeforeTheSaleThatChangedTheCost:
         """August's sale is after this date, so it has not happened here."""
         page = _sheet(tmp_path, '2026-06-30')
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_of(page, 'realized_gains_fx') == NOTHING_REALIZED
 
     def test_the_working_cites_the_cost_basis_the_book_then_had(self, tmp_path):
+        """The cost basis under the key is January's, at what January paid.
+
+        `cost_value:` is the basis's balance at the cost it was opened at, so
+        the 1,300.00 of January stands there and the 1,500.00 of August — a
+        cost basis this sheet's date is before — appears nowhere on the page.
+        """
         page = _sheet(tmp_path, '2026-06-30')
 
-        assert 'cost 1300.00 CAD' in page, page
-        assert 'cost 1500.00 CAD' not in page, page
+        block = block_of(page, 'unrealized_gains_assets_fx')
+        assert ('\t\t\t\t\t\tcost_value: 1300.00'
+                ' # cost_basis_balance * cost_share_price') in block.splitlines(), block
+        assert '1500.0' not in block, block
 
     def test_the_sheet_balances(self, tmp_path):
         page = _sheet(tmp_path, '2026-06-30')
@@ -100,7 +122,7 @@ class TestDrawnAtTheYearEnd:
     def test_the_august_gain_is_realized_and_nothing_is_left_unrealized(self, tmp_path):
         page = _sheet(tmp_path, '2026-12-31')
 
-        assert key_of(page, 'realized_gains_fx') == '200.00 CAD'
+        assert block_of(page, 'realized_gains_fx') == THE_AUGUST_GAIN
         assert key_of(page, 'unrealized_gains_fx') == '0.00 CAD'
 
     def test_the_sheet_balances(self, tmp_path):
@@ -116,6 +138,6 @@ class TestDrawnBeforeAnythingWasBought:
     def test_no_gain_either_way(self, tmp_path):
         page = _sheet(tmp_path, '2026-01-31')
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_of(page, 'realized_gains_fx') == NOTHING_REALIZED
         assert key_of(page, 'unrealized_gains_fx') == '0.00 CAD'
         assert key_of(page, 'total_assets') == '10000.00 CAD'

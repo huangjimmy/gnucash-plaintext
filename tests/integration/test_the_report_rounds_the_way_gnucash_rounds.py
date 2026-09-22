@@ -158,7 +158,8 @@ def test_a_figure_too_big_for_the_engines_arguments(tmp_path):
     those add by lowest common multiple.
 
     The figure below is measured, not chosen to be large. It is the US dollar
-    cost `cost_basis_totals_by_currency_and_side` hands the report for a book
+    cost the report reaches by adding up the rows
+    `cost_basis_items_by_currency_and_side` gives it, for a book
     of five consulting payments in US dollars, at the four-decimal rates a bank
     publishes, with part of each later spent:
     `tests/research/how_big_a_summed_cost_basis_cost_gets_probe.py` builds it

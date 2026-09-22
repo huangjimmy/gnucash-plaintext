@@ -85,7 +85,7 @@ Mechanically identical — the link removes the only CAD split and the credit-li
 
 **But the correct end state is the other way round.** On the invoice side the deposit and the receivable are the same money arriving, so one cost basis survives and A6 below says which: the receivable's. On the bill side they are two different obligations — the credit line you drew on, and the supplier you owed — and the payment moves the obligation from one to the other. Afterwards the credit line is live and the payable is settled, so the credit line's cost basis is the one that must survive. The link kills exactly that one.
 
-**The settled payable keeps its own balance**, as a collected receivable does. Consuming it was tried and is wrong: what a cost basis brought in and what it still holds are the two sides `currency_totals_that_disagree` compares, so lowering a balance with no disposal to account for it puts the book's own currency totals out by that amount. Measured — three tests failed, one of them the totals check itself, reporting 100 held against 200 arrived.
+**The settled payable keeps its own balance**, as a collected receivable does. Consuming it was tried and is wrong: what a cost basis brought in and what it still holds are the two sides `currency_totals_that_disagree` compares, so lowering a balance with no disposal to account for it leaves the book's own currency totals disagreeing by that amount. Measured — three tests failed, one of them the totals check itself, reporting 100 held against 200 arrived.
 
 ## Why no sequence of edits can repair any of it
 

@@ -51,11 +51,12 @@ dollars revalued at the nearest price.
 """
 
 import re
+from fractions import Fraction
 
 from click.testing import CliRunner
 
 from tests.conftest import _run
-from tests.integration.text_report_pages import key_of
+from tests.integration.text_report_pages import block_of, block_total_of, key_of
 
 PEGGED = 'tests/fixtures/a_cad_book_earning_cad_usd_and_hkd.txt'
 PEGGED_SPENT = 'tests/fixtures/some_of_the_cad_usd_and_hkd_spent.txt'
@@ -72,6 +73,32 @@ HIGHER_RATES = 'tests/fixtures/usd_at_the_invoice_rate_then_higher_at_the_year_e
 BELOW_RATES = 'tests/fixtures/usd_at_the_invoice_rate_then_far_below_it_at_the_year_end.yaml'
 
 YEAR_END = '2026-12-31'
+
+
+def _commodities_of(page):
+    """Each commodity under `unrealized_gains_assets_fx`, as
+    `{mnemonic: {field: text}}`.
+
+    The key states one commodity per currency the cost bases speak for, and
+    each states what its bases hold, what that cost, what the accounts hold,
+    what it is worth at the sheet's price and the difference. Only the
+    commodity's own lines, which sit four tabs in — the bases and the accounts
+    it is built from are deeper, and there may be any number of either.
+    """
+    found = {}
+    current = None
+    for line in block_of(page, 'unrealized_gains_assets_fx').splitlines():
+        if line.startswith('\t\t\t\t\t') or not line.startswith('\t\t\t\t'):
+            continue
+        field, _, rest = line.strip().partition(': ')
+        if not rest:
+            continue
+        if field == 'commodity.mnemonic':
+            current = rest.strip('"')
+            found[current] = {}
+        elif current is not None:
+            found[current][field] = rest.split(' #')[0].strip()
+    return found
 
 
 def _basis_on(listing, account_fragment):
@@ -157,26 +184,26 @@ class TestEveryDollarStillHeld:
     def test_nothing_is_realized_while_every_dollar_is_still_held(self, tmp_path):
         page, _higher, _below = self._pages(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == 0
         assert key_of(page, 'total_realized_gains') == '0.00 CAD'
 
     def test_the_whole_loss_is_unrealized(self, tmp_path):
         """2,720.00 USD that cost 3,791.14 CAD is worth 3,771.28 at 1.3865."""
         page, _higher, _below = self._pages(tmp_path)
 
-        assert key_of(page, 'unrealized_gains_assets_fx') == '-19.86 CAD'
+        assert block_total_of(page, 'unrealized_gains_assets_fx') == Fraction('-19.86')
         assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
         assert key_of(page, 'unrealized_gains_fx') == '-19.86 CAD'
-        assert key_of(page, 'unrealized_gains_other') == '0.00 CAD'
+        assert block_total_of(page, 'unrealized_gains_other') == 0
         assert key_of(page, 'total_unrealized_gains') == '-19.86 CAD'
 
     def test_gnucash_states_no_gain_on_this_book_at_any_price(self, tmp_path):
         """Neither direction moves it, because it is not measuring a movement."""
         page, higher, below = self._pages(tmp_path)
 
-        assert key_of(page, 'gnucash_balancing_amount') == '0.00 CAD'
-        assert key_of(higher, 'gnucash_balancing_amount') == '0.00 CAD'
-        assert key_of(below, 'gnucash_balancing_amount') == '0.00 CAD'
+        assert block_total_of(page, 'gnucash_balancing_amount') == 0
+        assert block_total_of(higher, 'gnucash_balancing_amount') == 0
+        assert block_total_of(below, 'gnucash_balancing_amount') == 0
 
     def test_the_sheet_balances_on_what_the_cost_basis_gives(self, tmp_path):
         page, _higher, _below = self._pages(tmp_path)
@@ -209,7 +236,7 @@ class TestEveryDollarSpent:
     def test_the_loss_is_stated_as_realized(self, tmp_path):
         page = self._page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '-19.86 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == Fraction('-19.86')
         assert key_of(page, 'total_realized_gains') == '-19.86 CAD'
 
     def test_nothing_is_unrealized_on_a_book_holding_no_foreign_money(self, tmp_path):
@@ -226,7 +253,7 @@ class TestEveryDollarSpent:
         """
         page = self._page(tmp_path)
 
-        assert key_of(page, 'gnucash_balancing_amount') == '19.86 CAD'
+        assert block_total_of(page, 'gnucash_balancing_amount') == Fraction('19.86')
 
     def test_the_sheet_balances(self, tmp_path):
         """The realized loss is in retained_earnings already and is not added again."""
@@ -247,10 +274,10 @@ class TestAThousandDollarsKeptBack:
     def test_the_two_gains_are_separate_figures(self, tmp_path):
         page = self._page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '-12.56 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == Fraction('-12.56')
         # The book owes nothing, so the whole of the unrealized figure is on
         # the asset side and the two sides come to the third.
-        assert key_of(page, 'unrealized_gains_assets_fx') == '-7.30 CAD'
+        assert block_total_of(page, 'unrealized_gains_assets_fx') == Fraction('-7.30')
         assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
         assert key_of(page, 'unrealized_gains_fx') == '-7.30 CAD'
 
@@ -270,7 +297,7 @@ class TestAThousandDollarsKeptBack:
     def test_gnucash_balancing_amount_is_stated_as_gnucash_gives_it(self, tmp_path):
         page = self._page(tmp_path)
 
-        assert key_of(page, 'gnucash_balancing_amount') == '12.56 CAD'
+        assert block_total_of(page, 'gnucash_balancing_amount') == Fraction('12.56')
 
     def test_the_sheet_balances_with_only_the_unrealized_total_in_equity(self, tmp_path):
         """3,778.58 of retained earnings less the 7.30 not yet taken."""
@@ -300,7 +327,7 @@ class TestEveryDollarSpentPricedAwayFromTheRateTheyLeftAt:
         """What the dollars cost and what they fetched are both in the book already."""
         page = self._page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '-19.86 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == Fraction('-19.86')
 
     def test_nothing_is_unrealized_whatever_the_price(self, tmp_path):
         page = self._page(tmp_path)
@@ -311,7 +338,7 @@ class TestEveryDollarSpentPricedAwayFromTheRateTheyLeftAt:
         """3,791.14 of recorded cost against 2,720.00 USD at 1.45."""
         page = self._page(tmp_path)
 
-        assert key_of(page, 'gnucash_balancing_amount') == '-152.86 CAD'
+        assert block_total_of(page, 'gnucash_balancing_amount') == Fraction('-152.86')
 
     def test_the_sheet_still_balances(self, tmp_path):
         page = self._page(tmp_path)
@@ -331,7 +358,7 @@ class TestAThousandKeptBackPricedAwayFromTheRateTheyLeftAt:
     def test_the_realized_loss_is_unchanged(self, tmp_path):
         page = self._page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '-12.56 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == Fraction('-12.56')
 
     def test_the_unrealized_figure_is_a_gain_at_this_price(self, tmp_path):
         """1,000.00 USD costing 1,393.80 is worth 1,450.00 at 1.45."""
@@ -343,7 +370,7 @@ class TestAThousandKeptBackPricedAwayFromTheRateTheyLeftAt:
         """2,397.34 of recorded cost against 1,720.00 USD at 1.45, beside a realized 12.56 and an unrealized 56.20."""
         page = self._page(tmp_path)
 
-        assert key_of(page, 'gnucash_balancing_amount') == '-96.66 CAD'
+        assert block_total_of(page, 'gnucash_balancing_amount') == Fraction('-96.66')
 
     def test_the_sheet_balances_at_the_higher_price(self, tmp_path):
         """3,778.58 of retained earnings and 56.20 not yet taken, against 3,834.78 of assets."""
@@ -365,7 +392,7 @@ class TestEveryDollarSpentPricedFarBelowWhatTheyCost:
     def test_the_realized_loss_does_not_move_with_the_report_price(self, tmp_path):
         page = self._page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '-19.86 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == Fraction('-19.86')
 
     def test_nothing_is_unrealized_whatever_the_price(self, tmp_path):
         page = self._page(tmp_path)
@@ -376,7 +403,7 @@ class TestEveryDollarSpentPricedFarBelowWhatTheyCost:
         """3,791.14 of recorded cost against 2,720.00 USD at 1.2, where 1.45 gave −152.86."""
         page = self._page(tmp_path)
 
-        assert key_of(page, 'gnucash_balancing_amount') == '527.14 CAD'
+        assert block_total_of(page, 'gnucash_balancing_amount') == Fraction('527.14')
 
     def test_the_sheet_still_balances(self, tmp_path):
         page = self._page(tmp_path)
@@ -396,7 +423,7 @@ class TestAThousandKeptBackPricedFarBelowWhatTheyCost:
     def test_the_realized_loss_is_unchanged(self, tmp_path):
         page = self._page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '-12.56 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == Fraction('-12.56')
 
     def test_the_unrealized_figure_is_a_loss_at_this_price(self, tmp_path):
         """1,000.00 USD costing 1,393.80 is worth 1,200.00 at 1.2, where 1.45 made it a gain."""
@@ -408,7 +435,7 @@ class TestAThousandKeptBackPricedFarBelowWhatTheyCost:
         """2,397.34 of recorded cost against 1,720.00 USD at 1.2, where 1.45 gave −96.66."""
         page = self._page(tmp_path)
 
-        assert key_of(page, 'gnucash_balancing_amount') == '333.34 CAD'
+        assert block_total_of(page, 'gnucash_balancing_amount') == Fraction('333.34')
 
     def test_the_sheet_balances_at_the_lower_price(self, tmp_path):
         """3,778.58 of retained earnings less the 193.80 not yet taken, against 3,584.78 of assets."""
@@ -484,24 +511,25 @@ class TestTwoForeignCurrenciesAtOnce:
 
         for as_of, (gain, _assets) in self.AS_OF.items():
             page = pages[as_of]
-            assert key_of(page, 'unrealized_gains_assets_fx') == gain, (as_of, page)
+            assert block_total_of(page, 'unrealized_gains_assets_fx') == Fraction(
+                gain.split()[0]), (as_of, page)
             assert key_of(page, 'unrealized_gains_fx') == gain, (as_of, page)
             assert key_of(page, 'total_unrealized_gains') == gain, (as_of, page)
 
     def test_the_us_dollar_stays_at_nothing_where_its_price_has_not_moved(self, tmp_path):
         """Priced 1.30 at both control dates, so 600.00 USD costing 780.00 has gained nothing.
 
-        Read off the working rather than the key, because the key is the two
+        Read off the commodity rather than the key, because the key is the two
         currencies added together and this is the one of them that must not
         move.
         """
         pages = self._pages(tmp_path)
         for as_of in self.CONTROL:
-            usd = [line for line in pages[as_of].splitlines()
-                   if '600.00 USD' in line and line.lstrip().startswith('#')]
-            assert len(usd) == 1, (as_of, pages[as_of])
-            assert 'cost 780.00 CAD' in usd[0], (as_of, usd[0])
-            assert usd[0].rstrip().endswith('= 0.00 CAD'), (as_of, usd[0])
+            usd = _commodities_of(pages[as_of])['USD']
+            assert usd['cost_basis_balance'] == '600.00', (as_of, usd)
+            assert usd['cost_value'] == '780.00', (as_of, usd)
+            assert usd['value'] == '780.00', (as_of, usd)
+            assert usd['unrealized_gains_assets_fx'] == '0.00', (as_of, usd)
 
     def test_both_currencies_move_at_once_and_each_is_measured_on_its_own(self, tmp_path):
         """At 1.40 and a peg of 7.75 neither is zero, and the two add to the key.
@@ -511,26 +539,25 @@ class TestTwoForeignCurrenciesAtOnce:
         """
         page = self._pages(tmp_path)['2026-09-30']
 
-        working = [line for line in page.splitlines()
-                   if line.lstrip().startswith('#   asset ')]
-        assert len(working) == 2, page
-        assert any('99510.00 HKD' in line and 'at 28/155' in line
-                   and line.rstrip().endswith('= 1391.00 CAD') for line in working), working
-        assert any('600.00 USD' in line and 'at 1.4' in line
-                   and line.rstrip().endswith('= 60.00 CAD') for line in working), working
-        assert key_of(page, 'unrealized_gains_assets_fx') == '1451.00 CAD'
+        found = _commodities_of(page)
+        assert set(found) == {'USD', 'HKD'}, found
+        assert found['HKD']['share_price'] == '28/155', found
+        assert found['HKD']['cost_basis_balance'] == '99510.00', found
+        assert found['HKD']['unrealized_gains_assets_fx'] == '1391.00', found
+        assert found['USD']['share_price'] == '1.4', found
+        assert found['USD']['unrealized_gains_assets_fx'] == '60.00', found
+        assert block_total_of(page, 'unrealized_gains_assets_fx') == 1451
 
     def test_the_working_states_each_currency_separately(self, tmp_path):
-        """Two lines under the one key, each its own currency, adding to it."""
+        """Two commodities under the one key, each its own currency, adding to it."""
         page = self._pages(tmp_path)['2026-12-31']
 
-        under_the_key = [line for line in page.splitlines()
-                         if line.lstrip().startswith('#   asset ')]
-        assert len(under_the_key) == 2, page
-        assert any('99510.00 HKD' in line and '= 107.00 CAD' in line
-                   for line in under_the_key), under_the_key
-        assert any('600.00 USD' in line and '= 0.00 CAD' in line
-                   for line in under_the_key), under_the_key
+        found = _commodities_of(page)
+        assert set(found) == {'USD', 'HKD'}, found
+        assert found['HKD']['cost_basis_balance'] == '99510.00', found
+        assert found['HKD']['unrealized_gains_assets_fx'] == '107.00', found
+        assert found['USD']['cost_basis_balance'] == '600.00', found
+        assert found['USD']['unrealized_gains_assets_fx'] == '0.00', found
 
     def test_realized_sums_across_both_currencies(self, tmp_path):
         """60.00 on the US dollars and 50.00 on the Hong Kong dollars.
@@ -539,7 +566,7 @@ class TestTwoForeignCurrenciesAtOnce:
         dollars cost and what they fetched are each a whole number of cents.
         """
         for as_of, page in self._pages(tmp_path).items():
-            assert key_of(page, 'realized_gains_fx') == '110.00 CAD', (as_of, page)
+            assert block_total_of(page, 'realized_gains_fx') == 110, (as_of, page)
             assert key_of(page, 'total_realized_gains') == '110.00 CAD', (as_of, page)
 
     def test_the_canadian_earning_and_spending_move_no_gain(self, tmp_path):
@@ -608,7 +635,8 @@ class TestUsdBoughtAtFourRatesAndPricedAtSix:
 
         for price, (gain, _assets) in self.PRICED.items():
             page = pages[price]
-            assert key_of(page, 'unrealized_gains_assets_fx') == gain, (price, page)
+            assert block_total_of(page, 'unrealized_gains_assets_fx') == Fraction(
+                gain.split()[0]), (price, page)
             assert key_of(page, 'unrealized_gains_fx') == gain, (price, page)
             assert key_of(page, 'total_unrealized_gains') == gain, (price, page)
 
@@ -628,7 +656,7 @@ class TestUsdBoughtAtFourRatesAndPricedAtSix:
         pages = self._pages(tmp_path)
 
         for price in self.PRICED:
-            assert key_of(pages[price], 'realized_gains_fx') == '0.00 CAD', price
+            assert block_total_of(pages[price], 'realized_gains_fx') == 0, price
             assert key_of(pages[price], 'total_realized_gains') == '0.00 CAD', price
             assert key_of(pages[price], 'unrealized_gains_liabilities_fx') == '0.00 CAD', price
 
@@ -670,9 +698,9 @@ class TestUsdBoughtAndHeld:
     def test_the_whole_movement_is_unrealized_and_none_of_it_realized(self, tmp_path):
         page = self._page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == 0
         assert key_of(page, 'total_realized_gains') == '0.00 CAD'
-        assert key_of(page, 'unrealized_gains_assets_fx') == '150.00 CAD'
+        assert block_total_of(page, 'unrealized_gains_assets_fx') == 150
         assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
         assert key_of(page, 'unrealized_gains_fx') == '150.00 CAD'
         assert key_of(page, 'total_unrealized_gains') == '150.00 CAD'
@@ -727,7 +755,7 @@ class TestUsdEarnedThreeTimesAndSpentOutInFour:
     def test_the_realized_figure_sums_across_every_disposal_and_cost_basis(self, tmp_path):
         page = self._page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '250.00 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == 250
         assert key_of(page, 'total_realized_gains') == '250.00 CAD'
 
     def test_nothing_is_unrealized_though_the_year_end_price_is_higher(self, tmp_path):
@@ -738,7 +766,7 @@ class TestUsdEarnedThreeTimesAndSpentOutInFour:
         """
         page = self._page(tmp_path)
 
-        assert key_of(page, 'unrealized_gains_assets_fx') == '0.00 CAD'
+        assert block_total_of(page, 'unrealized_gains_assets_fx') == 0
         assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
         assert key_of(page, 'unrealized_gains_fx') == '0.00 CAD'
         assert key_of(page, 'total_unrealized_gains') == '0.00 CAD'
@@ -780,18 +808,19 @@ class TestAGainRealizedAfterTheSheetIsDrawn:
     def test_a_disposal_after_the_date_realizes_nothing_on_this_sheet(self, tmp_path):
         page = self._page(tmp_path)
 
-        assert key_of(page, 'realized_gains_fx') == '0.00 CAD'
+        assert block_total_of(page, 'realized_gains_fx') == 0
         assert key_of(page, 'total_realized_gains') == '0.00 CAD'
 
     def test_the_working_lists_that_disposal_no_more_than_the_key_counts_it(self, tmp_path):
-        """The key and its working have to agree.
+        """The key and its items have to agree.
 
         A total of nothing itemized as a list of gains is worse than either,
         because the reader cannot reconcile the two and has no way to tell
-        which of them the sheet means.
+        which of them the sheet means. So the key says it found no split,
+        rather than carrying an August disposal this sheet's date is before.
         """
         page = self._page(tmp_path)
 
-        listed = [line for line in page.splitlines()
-                  if line.lstrip().startswith('#') and 'Income:FX Gain' in line]
-        assert listed == [], page
+        block = block_of(page, 'realized_gains_fx')
+        assert '\t\tsplits: # there is no split' in block.splitlines(), block
+        assert 'Income:FX Gain' not in block, block

@@ -126,7 +126,7 @@ then went in over the following three months with no build left to catch them.
 - `convert_qfx.py` - reference for QFX parsing requirements
 - `ledger.py` - reference for update workflow requirements
 - `reference_file*.txt` - sample data for understanding format
-- `.claude/` - Claude CLI directory, an agent's own state — **except `.claude/settings.json`**, which is tracked (`.gitignore` says `.claude/*` and then `!.claude/settings.json`) because it is what wires the `PreToolUse` guards that refuse a shell file-edit, an unscoped kill, and "name" used as a verb for something that has no name. `tests/unit/test_the_kill_guard_allows_one_id.py` and `tests/unit/test_the_name_guard_leaves_real_names_alone.py` read it to check each is still wired, and `scripts/test-all-versions-parallel.sh` rsyncs that one file into all eleven containers so the assertions have something to read. Re-ignoring or deleting it turns those tests red.
+- `.claude/` - Claude CLI directory, an agent's own state — **except `.claude/settings.json`**, which is tracked (`.gitignore` says `.claude/*` and then `!.claude/settings.json`) because it is what wires the `PreToolUse` guards that refuse a shell file-edit, an unscoped kill, "out" written as a verb meaning wrong, and "name" used as a verb for something that has no name. Re-ignoring or deleting it turns every one of those guards off, silently — nothing fails, the refusals simply stop happening. **The guards have no tests, deliberately**: they are shell, they run on the machine an agent works on rather than inside a test container, and the suite tests what this tool does to a GnuCash book. Check one by hand if you change it — pipe a payload into it and read the exit code, 2 being a refusal.
 
 ### Repository Layout
 - `cli/` - Click-based CLI commands; `cli/main.py` is the entry point
@@ -144,6 +144,33 @@ then went in over the following three months with no build left to catch them.
 - ✅ Test with real GnuCash Transaction/Account objects
 - ❌ No mocking of GnuCash types
 - ✅ All tests run in Docker containers
+
+### ❌ Never write a Python test for a shell script
+
+No test in `tests/` may run a `scripts/*.sh` and assert on it. Not the `PreToolUse` guards, not the commit hooks, not the build and test runners. There are none, and adding one is wrong however good the reason looks.
+
+**The suite tests what this tool does to a GnuCash book.** That is what `./scripts/test.sh` exists for, what the eleven containers exist for, and what the 100% gate is measuring. A shell script that wires an agent's editor guard is not part of that: it runs on the machine somebody is working on, not inside a container, and a Python test of it asserts on a regex through `subprocess` — testing the spelling of a pattern, not the behaviour of this tool.
+
+They also cost more than they look. Two such tests were ever committed — one for the kill guard, one for the name guard — and each made an ordinary edit harder: the guard had to exempt its own test file so the test could quote the shape it refused, the parallel runner had to rsync `.claude/settings.json` into all eleven containers so an assertion had something to read, and this file justified a `.gitignore` exception by pointing at them. Removing the two removed all three.
+
+**Check a guard by hand instead.** Pipe a payload in and read the exit code — 2 is a refusal:
+
+```bash
+printf '{"tool_input":{"command":"docker ps -q | xargs docker kill"}}' | bash scripts/refuse-unscoped-kills.sh; echo $?
+printf '{"tool_input":{"file_path":"/tmp/a.md","new_string":"the page is out by 19.86"}}' | bash scripts/refuse-out-by.sh; echo $?
+```
+
+If a review asks for a regression test on a shell hook, the answer is this section.
+
+### No `xfail`, no `skip`: a test asserts what the tool does today
+
+There is not one `xfail` or `skipif` in this suite, and that is deliberate. A test states the behaviour; a mark states one bit — "this does not pass" — and cannot say which line failed or why.
+
+**What a mark costs is every other assertion in the test.** A strict `xfail` on a test whose third assertion is wrong ends the body there: the four assertions after it never run, and pytest reports `xfailed` either way. Any genuine regression in the assertions *before* it is absorbed too, reported as the expected failure. One was added here asserting `total_unrealized_gains == '2663.20 CAD'` for a book whose page states `2303.20`; the line was never evaluated, and would have gone green with `'banana'` in it.
+
+**An unhandled case does not need a marked test.** Record the measurement in `docs/issues/`, and assert what the tool prints today. The day the case is handled, that assertion turns red, someone reads the diff and writes the new figure — which is the test working, not a mark quietly swallowing it. Finding 12 applies the same rule to a version difference: a book that segfaults GnuCash 4.x on load is written down in prose and asserted nowhere, rather than gated with `skipif`.
+
+`xfail` earns its place only where the failure cannot be written down as a value — a segfault, a hang, an interpreter crash. Where the current behaviour can be stated, stating it is strictly better.
 
 ### Test Coverage Requirements
 - Domain/Services: 80%+
@@ -181,8 +208,10 @@ then went in over the following three months with no build left to catch them.
 5. **Skipping lint before commit** - Run `./scripts/fix-lint.sh --unsafe` before staging, not after the pre-commit hook rejects you
 6. **Editing a file from the shell** - `sed -i`, `perl -i`, a `python3 - <<EOF … write_text()` heredoc, `cat > file`: every one of these applies substitutions nobody reviewed, usually across several files in one call. Read the file, then Edit it; create one with Write. `scripts/refuse-bash-file-edits.sh` blocks the shell forms outright (wired in `.claude/settings.json`), and reading — `sed -n`, `grep`, `awk` to stdout — is untouched
 
-7. **Writing "name" for something that has no name** - a guid is not a name and neither is a split, so "the message names the split" tells a reader something untrue and sends them looking for a name that is not there. What the message prints is a guid. Write what is actually there: a refusal **lists** the disposals, a report **prints** the split's guid, a block **gives** a guid, a payment **applies** a split, a guid **matches**. A real name is untouched — an account's, a customer's, `name:` in a block, `get_account_full_name`. `scripts/refuse-name-as-a-verb.sh` blocks the verb on Write and Edit, and it is a seatbelt rather than a sandbox: it catches the shapes that get typed, not every spelling. That script and `tests/unit/test_the_name_guard_leaves_real_names_alone.py` are exempt from it, because both quote the shape they refuse and could not otherwise be edited at all. This was in this file, agreed to, and broken again in the same session — twice in prose that had just been corrected for it — which is why it is a hook
+7. **Writing "name" for something that has no name** - a guid is not a name and neither is a split, so "the message names the split" tells a reader something untrue and sends them looking for a name that is not there. What the message prints is a guid. Write what is actually there: a refusal **lists** the disposals, a report **prints** the split's guid, a block **gives** a guid, a payment **applies** a split, a guid **matches**. A real name is untouched — an account's, a customer's, `name:` in a block, `get_account_full_name`. `scripts/refuse-name-as-a-verb.sh` blocks the verb on Write and Edit, and it is a seatbelt rather than a sandbox: it catches the shapes that get typed, not every spelling. That script and this file are exempt from it, because both quote the shape they refuse and could not otherwise be edited at all — which does mean the prose here, where this rule was broken twice, is the one prose the guard does not check. Read it yourself when you change it. This was in this file, agreed to, and broken again in the same session — twice in prose that had just been corrected for it — which is why it is a hook
 8. **Killing anything you did not name** - this machine runs containers and processes that are not this project's. `docker ps -q | xargs docker kill` killed the author's web server, up since May, along with the ten test containers it meant. `scripts/refuse-unscoped-kills.sh` allows **one id, named, one per command** — `docker kill gnucash-dev-debian13`, `kill 1757608`, a signal being fine (`kill -9`, `kill -s TERM`, and `kill -0` to ask whether a pid is alive) — and refuses every other shape: `$( )`, `xargs`, `pkill`/`killall`, a negative pid (a process *group*), two ids, two kills in one command, `prune`, `compose down`, `docker-compose down`, and a kill inside a string handed to `bash -c` or `eval`. A kill is read at a command position — the start, after `|`, `;`, `&`, `(`, `)`, `{`, `&&`, `||` or a `find`'s `-exec`, and behind a path, a shell keyword (`do`, `then`, `while`, `if`, …) or one of the words that run another command (`sudo`, `doas`, `env`, `time`, `timeout`, `nice`, `ionice`, `stdbuf`, `nohup`, `setsid`, `xargs`, `exec`) with whatever arguments of their own they carry. So `for p in $(pgrep -f pytest); do kill $p; done` is the incident written longhand and is refused as such, as are `sudo -u jimmy kill -- -PID`, `case x in *) kill …`, `{ pkill …; }` and `find … -exec kill {} \;`. An environment assignment is a position too (`VAR=v pkill …`), as is a backquote. A program handed to a shell as a string is refused whole, with `-c` wherever the words before it put it (`bash -lc`, `bash -x -c`, `bash -o pipefail -c`). Docker's flags are read past, so `docker compose -f x.yml down` is refused like `docker compose down`. What that costs is reading: after a runner word, `sudo cat /tmp/kill` and `… | xargs grep -n kill` are refused as kills — drop the runner word, `grep -rn kill scripts/` passes. **It is a seatbelt, not a sandbox: the goal is not to close every loophole.** A quoted command word (`'pkill' -f x`) defeats any guard that reads text, and exotic spellings nobody types are answered by saying so rather than by another alternation — each one is a chance to refuse something real, which widening this has twice done (`docker image rm gnucash-dev:debian13`, `docker rm -f a b`). A shape it wrongly refuses is a defect; a shape nobody would type getting past it is not. Reading is allowed for the asking — `docker stop --help` and `docker kill -h` name nothing to kill and pass, since the reader looking one up is usually the one who just met a refusal — and every `"command"` field of the payload is judged, so a decoy can add a refusal and cannot hide one. A sweep rarely needs stopping at all: `scripts/test.sh` runs every container with `--rm`, so an abandoned one clears itself within minutes. Kill the detached `git commit` by its own pid and let its children finish
+
+9. **Writing "out" as though it were a verb meaning wrong** - "the page is out by 19.86" asks a reader to know that "out" means wrong and that the amount is the size of the error, and it withholds the two figures, which are the whole of what they want. Write what is true: "the page does not balance: it states 3,771.28 of assets against 3,791.14 of liabilities and equity", or where only the size matters, "the totals differ by 0.01". **What separates the idiom from ordinary English is the word in front of "out".** In `laid out by WebKit` the word belongs to the verb "lay out" - it is a particle, and the sentence is correct, as in `worked out by hand`, `written back out by the exporter`, `filtered out by the export`. In the idiom nothing owns it: a copula is put in front - `is out by`, `are out by`, `was out by`, `were out by` - as though "out" were itself the verb. `totals out by` is the same fault with no copula at all, a noun set straight against it, and is the worst of them: it reads as though totalling were the act of being wrong. `scripts/refuse-out-by.sh` blocks both shapes on Write and Edit, wired in `.claude/settings.json`. `is worked out by` is untouched, and is the case that makes the rule grammatical rather than a word list: a copula is there, and the sentence is right, because what follows it is the verb. Measured before the guard was written, 34 lines held "out by" and 32 were the correct form, so a guard on the bare words would refuse thirty correct sentences and be turned off. Like the guards beside it, it judges only the lines an edit is adding, so a paragraph already written stays movable, and it exempts the two files that quote the rule in order to state it - the script and this one
 
 ## Commit Messages Are Not Hard-Wrapped
 
@@ -1105,4 +1134,43 @@ From 4.13 the type is not stored but worked out from the splits: a split on a re
 
 ---
 
-**Last Updated**: 2026-09-15
+### 30. GnuCash's own amount printer cannot write a figure this format re-imports, so reuse its decision rather than its string
+
+Discovered 2026-09-22, writing the itemized gain figures on the plaintext balance sheet.
+
+GnuCash writes a figure with `gnc:monetary->string`, which is `report-utilities.scm:127`:
+
+```scheme
+(define (gnc:monetary->string value)
+  (xaccPrintAmount
+   (gnc:gnc-monetary-amount value)
+   (gnc-commodity-print-info (gnc:gnc-monetary-commodity value) #t)))
+```
+
+`gnc-commodity-print-info` turns on `use_separators` (`gnc-ui-util.h:259`, "Print thousands separators") and the `#t` adds the currency's symbol. Measured by drawing GnuCash's own Balance Sheet against a book this tool wrote: it reads `C$99,996,200.00`, `JP¥250,000`, `$1,000.00`.
+
+**A `value:` on a plaintext page is read back by `import`, and neither a symbol nor a thousands separator survives that.** So the page cannot print GnuCash's string, and `plaintext:figure` writes the figure instead — exactly, never rounded, and as a fraction where no decimal states it, which is how `share_price:` carries `316211/229006`.
+
+**What is GnuCash's, and must be asked for rather than chosen, is how many decimal places a figure is padded to.** That is `gnc-commodity-get-fraction`, wrapped as `plaintext:places-of`. Two places assumed anywhere is wrong: a Japanese yen divides into 1, and a Korean won divided into 100 until GnuCash 5.15 changed it to 1, so the same book prints a won balance with two decimal places on ten of the eleven supported builds and none on the eleventh. Read the fraction from the commodity every time.
+
+Measured side by side on one book, by `tests/research/what_gnucashs_own_report_renders_a_figure_as_probe.py`:
+
+| GnuCash's own page | this page |
+|---|---|
+| `JP¥250,000` | `250000` |
+| `$1,000.00` | `1000.00` |
+| `C$2,500.00` | `2500.00` |
+| `C$100,000,000.00` | `100000000.00` |
+
+What it cost before that: the itemized figures went through `number->string (exact->inexact …)`, Guile's float printer, which switches to exponent form on a large value — a book holding a hundred million wrote `value: 1.0e8` into a money field, and a round figure lost its places (`1100.0`, `226.9`). The account lines never had the defect, because they already went through `plaintext:places-of`.
+
+**The general rule this is one case of**: where GnuCash has decided something —
+how a commodity divides, how money rounds, which price a report uses — call
+GnuCash and use the answer. Reimplement only the part GnuCash's own API cannot
+be handed, and say in the code why. `plaintext:as-money` is the other instance:
+it applies GnuCash's `GNC-RND-ROUND` rule by hand, because `gnc-numeric-create`
+takes two `gint64` and a cost summed across part-drawn bases outgrows that.
+
+---
+
+**Last Updated**: 2026-09-22

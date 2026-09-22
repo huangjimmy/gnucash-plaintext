@@ -1,0 +1,74 @@
+# Two cost bases of 1.00 USD each, priced where the pair and the parts round
+# to different cents.
+#
+# 1.00 USD at 1.3833 is 1.3833, which is 1.38 at the cent; two of them are
+# 2.76. The whole holding is 2.00 USD at 1.3833 = 2.7666, which is 2.77 — the
+# figure `total_assets` carries, because GnuCash converts a holding's whole
+# quantity through the price once.
+#
+# So a gain added up one cost basis at a time can differ by a cent from one
+# measured on the holding, and `total_equity` is built on the first while
+# `total_assets` is the second. This book is the smallest one that reaches it:
+# two separate purchases, nothing sold, one price.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity:Opening CAD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "13833/10000"
+	source: "user:price-editor"
+	type: "last"
+
+2026-01-15 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 100.00 CAD
+	Equity:Opening CAD -100.00 CAD
+
+2026-02-01 * "Buy 1.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1.30"
+	Assets:CAD Bank -1.30 CAD
+
+2026-03-01 * "Buy another 1.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1.30"
+	Assets:CAD Bank -1.30 CAD

@@ -16,6 +16,7 @@ from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.foreign_currency import iter_splits, split_guid
 from tests.conftest import _run
+from tests.integration.cost_basis_listings import cost_basis_rows
 
 BILL = 'tests/fixtures/fx_usd_bill_cad_expense.txt'
 BORROW = 'tests/fixtures/usd_borrowed_into_the_bank_at_a_stated_cost.txt'
@@ -33,7 +34,8 @@ def test_the_guid_is_written(tmp_path):
     assert 'Errors:       0' in borrowed.output, borrowed.output
 
     listing = _run(runner, 'fx-balances', str(book)).output
-    rows = [line.split()[1] for line in listing.splitlines() if 'Assets:Bank:USD' in line]
+    rows = [line.split()[1] for line in cost_basis_rows(listing).splitlines()
+            if 'Assets:Bank:USD' in line]
     assert len(rows) == 1, listing
     basis = rows[0]
     sale = tmp_path / 'sale.txt'

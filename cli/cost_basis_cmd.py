@@ -23,6 +23,7 @@ from services.foreign_currency import (
     BASE_CURRENCY,
     COST_BASIS_BALANCE_KEY,
     cost_bases,
+    foreign_currency_account_balances,
     verify_cost_bases,
 )
 
@@ -263,6 +264,71 @@ def _report_disagreements(disagreements, checked: int) -> None:
     click.echo('')
 
 
+def _report_account_balances(holdings, currency):
+    """What the accounts hold of each foreign currency, under the cost basis totals.
+
+    A block of its own rather than a column on each row, because the two do not
+    line up: a cost basis sits on one split's account, and the currency it
+    brought in can since have moved across several. A receivable's cost basis
+    whose money is now in two banks has no one account to put in its row.
+
+    **Held and owed are totalled apart**, because they are different facts and
+    adding them answers for neither. A cost basis balance is stored as a
+    magnitude on both sides — `open_cost_basis_balance` writes
+    `abs(split.GetAmount())` — while an account's balance carries its sign, so
+    a liability's −1,000.00 against a basis of 1,000.00 read as a 2,000.00
+    disagreement on a book where every figure is right.
+    `us_dollars_borrowed_into_a_canadian_bank.txt` is that book. The balance
+    sheet keeps the two sides apart for the same reason.
+
+    **What compares with what**: the cost basis total above covers both sides,
+    being a sum of magnitudes, so it is read against the side those bases are
+    on. Where they agree, every disposal gave the basis it drew on. Where the
+    held total falls short of a basis on the asset side, currency left without
+    saying which basis it came out of. A currency owed with no basis against it
+    is a third thing again — a borrowing stated wholly in that currency opens
+    none — and it shows here as an owed total with nothing above it to match.
+    """
+    if currency:
+        holdings = [row for row in holdings if row['currency'] == currency.upper()]
+
+    # Nothing to say where the book holds no foreign currency at all, which a
+    # book with no cost bases can be: this block is printed for such a book
+    # precisely because "what the accounts hold" is the whole of what can be
+    # said about it, and on a book holding nothing that is nothing.
+    if not holdings:
+        return
+
+    click.echo('')
+    width = max(len('ACCOUNT'),
+                max((len(row['account']) for row in holdings), default=0))
+    header = f"{'ACCOUNT':<{width}} {'BALANCE':>18}"
+    click.echo(header)
+    click.echo('-' * len(header))
+
+    held = {}
+    owed = {}
+    units = {}
+    for row in sorted(holdings, key=lambda row: (row['currency'], row['account'])):
+        shown = _format_amount(row['balance'], row['unit']) + ' ' + row['currency']
+        click.echo(f"{row['account']:<{width}} {shown:>18}")
+        # By sign, which is which side the money is on — the same division the
+        # cost bases are kept in, and for the same reason: a book can hold a
+        # currency and owe it at once, and one total for both matches neither.
+        side = owed if row['balance'] < 0 else held
+        side[row['currency']] = side.get(row['currency'], 0) + abs(row['balance'])
+        units[row['currency']] = row['unit']
+
+    click.echo('')
+    for code in sorted(set(held) | set(owed)):
+        if code in held:
+            click.echo(f'Total {code} held in accounts: '
+                       f'{_format_amount(held[code], units[code])} {code}')
+        if code in owed:
+            click.echo(f'Total {code} owed on accounts: '
+                       f'{_format_amount(owed[code], units[code])} {code}')
+
+
 @click.command('fx-balances')
 @click.argument('gnucash_file', type=click.Path(exists=True))
 @click.option('--currency', 'currency', default=None,
@@ -315,6 +381,9 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
     repo.open(mode=SessionMode.READ_ONLY)
     try:
         rows = cost_bases(repo.book)
+        # Gathered here rather than at render time: the book is closed below,
+        # and nothing read from it may be used afterwards (CLAUDE.md §26).
+        holdings = foreign_currency_account_balances(repo.book)
         verified = verify_cost_bases(repo.book) if verify_costs else None
     finally:
         repo.close()
@@ -331,9 +400,15 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
 
     if not rows:
         click.echo('No foreign-currency cost bases found.')
-        # A filter hiding every row does not make a malformed cost basis go away,
-        # and it is the one thing a reader most needs told: the notice is over
-        # the whole book, like the check below it.
+        # And then what the accounts hold, which is the whole of what this
+        # command can tell a reader about such a book — so it is printed here
+        # above all, not only where a cost basis survived the filters. A book
+        # whose bases are all spent to nothing, one filtered to a currency that
+        # has none, and one that never opened any (imported before cost bases
+        # existed, or holding a stock bought with foreign currency) all reach
+        # this line still holding money, and the block that says how much was
+        # the one thing they were not shown.
+        _report_account_balances(holdings, currency)
         _report_malformed(malformed, verified)
         _finish_verifying(verified)
         return
@@ -378,6 +453,8 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
             f'them, so how much of their currency is still unsold is not '
             f'known. State `{COST_BASIS_BALANCE_KEY}:` on the split in an '
             f'import file to give it a balance.')
+
+    _report_account_balances(holdings, currency)
 
     _report_malformed(malformed, verified)
 
