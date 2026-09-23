@@ -124,18 +124,29 @@ def directives_of(output):
             if line.strip() and not line.startswith('\t')]
 
 
+def lines_for(output, path):
+    """The block's account lines for `path`: one where it is listed, none where it is not.
+
+    Whether an account is on the page is asked this way rather than by looking
+    for its path anywhere in the output, because the report's comment lines
+    carry account paths too — the warning a page opens with where the book
+    keeps an income or expense account in another currency lists each one by
+    its path.
+    """
+    wanted = path + ' '
+    return [line.strip() for line in _own_lines(output)
+            if line.strip().startswith(wanted)]
+
+
 def amount_of(output, path):
     """What the account at `path` holds: `38532.80 CAD`.
 
     Found by its whole path, which every line carries — `Assets` and
     `Assets:CAD Bank` are two lines and neither is the other.
     """
-    wanted = path + ' '
-    found = [line.strip()[len(wanted):]
-             for line in _own_lines(output)
-             if line.strip().startswith(wanted)]
+    found = lines_for(output, path)
     assert len(found) == 1, (path, output)
-    return found[0]
+    return found[0][len(path) + 1:]
 
 
 def key_of(output, name):

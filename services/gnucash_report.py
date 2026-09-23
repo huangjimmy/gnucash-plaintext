@@ -42,6 +42,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 from infrastructure.guile import load_guile
 from services.invoice_style import the_books_invoice_style
@@ -236,19 +237,28 @@ def _say_nothing(*_args, **_kwargs) -> None:
     """The `warn` a library caller who passed none gets."""
 
 
-def _write_every_date_the_books_way(book, warn):
+def _write_every_date_the_books_way(book, warn, otherwise: Optional[str] = None):
     """Point QOF at the book's `date_format`, and say so when it cannot be.
 
     Returns what QOF held before, for the caller to put back: it is a global
     of the whole process, and a command that printed one page should not
     leave every later one — or the next test in the file — reading its book's
     format.
+
+    `otherwise` is the format to write where the book states none. A printed
+    invoice passes nothing and keeps GnuCash's own default, which follows the
+    locale of whoever ran the command (CLAUDE.md finding 15). A statement
+    passes `%Y-%m-%d`, because every date gnucash-plaintext writes is ISO and a
+    page whose date order changed with the machine that drew it could not be
+    compared with the same page drawn anywhere else.
     """
     from infrastructure.gnucash.engine import load_gnc_engine
     from infrastructure.gnucash.kvp import get_book_string_option
 
     wanted = (get_book_string_option(book, 'Business',
                                      'Fancy Date Format/custom') or '').strip()
+    if not wanted:
+        wanted = (otherwise or '').strip()
     if not wanted:
         return None
 

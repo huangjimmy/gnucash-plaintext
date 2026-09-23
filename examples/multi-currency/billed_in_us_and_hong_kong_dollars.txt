@@ -22,22 +22,22 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-22 commodity CAD
+2026-09-23 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-22 commodity HKD
+2026-09-23 commodity HKD
 	mnemonic: "HKD"
 	fullname: "Hong Kong Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-22 commodity USD
+2026-09-23 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-22 open Assets
+2026-09-23 open Assets
 	guid: "f61aaf09362d49dfa46385fa349474a1"
 	type: "Asset"
 	placeholder: #True
@@ -46,7 +46,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Assets:CAD Bank
+2026-09-23 open Assets:CAD Bank
 	guid: "92e444541b4c41538f94466f66579447"
 	type: "Bank"
 	placeholder: #False
@@ -55,7 +55,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Assets:HKD Bank
+2026-09-23 open Assets:HKD Bank
 	guid: "d6e2b43bba8a4659832a6d5843d8fefa"
 	type: "Bank"
 	placeholder: #False
@@ -64,7 +64,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "HKD"
-2026-09-22 open Assets:USD Bank
+2026-09-23 open Assets:USD Bank
 	guid: "1140d64cbd3444609ba1b92f4de6263d"
 	type: "Bank"
 	placeholder: #False
@@ -73,7 +73,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-22 open Income
+2026-09-23 open Income
 	guid: "2886ea2fb1fe49cfa7c59c9d63f21388"
 	type: "Income"
 	placeholder: #True
@@ -82,7 +82,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Income:Consulting
+2026-09-23 open Income:Consulting
 	guid: "d6383135ab8f4eef93ca56a2aacf92d6"
 	type: "Income"
 	placeholder: #False
@@ -91,7 +91,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Income:FX Gain
+2026-09-23 open Income:FX Gain
 	guid: "c99bf759096149518ace272914cdff6a"
 	type: "Income"
 	placeholder: #False
@@ -100,7 +100,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Expenses
+2026-09-23 open Expenses
 	guid: "f0850db53ffd48798151db4e685340ca"
 	type: "Expense"
 	placeholder: #True
@@ -109,7 +109,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Expenses:Rent
+2026-09-23 open Expenses:Rent
 	guid: "e35ec191d90e4464b662455953220799"
 	type: "Expense"
 	placeholder: #False
@@ -118,7 +118,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Expenses:Subcontractors
+2026-09-23 open Expenses:Subcontractors
 	guid: "f87ac913b6604bbfa577289ce867a647"
 	type: "Expense"
 	placeholder: #False
@@ -127,7 +127,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Equity
+2026-09-23 open Equity
 	guid: "141e4b1e4ef64070a881b232c6ea0b0f"
 	type: "Equity"
 	placeholder: #True
@@ -136,7 +136,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Equity:Opening CAD
+2026-09-23 open Equity:Opening CAD
 	guid: "e18136597b6e47818e7f29bb90db7282"
 	type: "Equity"
 	placeholder: #False
@@ -331,8 +331,10 @@ price
 # 						split_guid: 06f38d6ed30745c8be16b4481d6902da
 # 						account: "Assets:HKD Bank"
 # 						cost_basis_balance: 99510.00
-# 						cost_share_price: 1/6
-# 						cost_value: 16585.00 # cost_basis_balance * cost_share_price
+# 						cost_share_price: 1/6 # HKD in CAD, on the day it was bought
+# 						cost_rate: 1 # CAD per CAD, on that same day
+# 						cost_share_price_in_base: 1/6 # cost_share_price * cost_rate
+# 						cost_value: 16585.00 # cost_basis_balance * cost_share_price_in_base
 # 						value: 16692.00 # cost_basis_balance * share_price
 # 						unrealized_gains_assets_fx: 107.00 # value - cost_value
 # 				cost_basis_balance: 99510.00 # sum of each cost_basis's cost_basis_balance
@@ -354,8 +356,10 @@ price
 # 						split_guid: 905f723f4b024759bbb624d9e3d877ea
 # 						account: "Assets:USD Bank"
 # 						cost_basis_balance: 600.00
-# 						cost_share_price: 1.3
-# 						cost_value: 780.00 # cost_basis_balance * cost_share_price
+# 						cost_share_price: 1.3 # USD in CAD, on the day it was bought
+# 						cost_rate: 1 # CAD per CAD, on that same day
+# 						cost_share_price_in_base: 1.3 # cost_share_price * cost_rate
+# 						cost_value: 780.00 # cost_basis_balance * cost_share_price_in_base
 # 						value: 780.00 # cost_basis_balance * share_price
 # 						unrealized_gains_assets_fx: 0.00 # value - cost_value
 # 				cost_basis_balance: 600.00 # sum of each cost_basis's cost_basis_balance
@@ -384,7 +388,7 @@ price
 # 				date: 2026-08-01
 # 				account: "Income:FX Gain"
 # 				amount: 50.00
-# 	realized_gains_other: 0.00 CAD # not yet supported
+# 	realized_gains_other: 0.00 CAD
 # 	total_realized_gains: 110.00 CAD # realized_gains_fx + realized_gains_other
 # 	unrealized_gains_other: # sum of unrealized_gains_other of all securities and funds
 # 		securities: # there is no security or fund

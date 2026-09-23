@@ -1,0 +1,12 @@
+# 200.00 US dollars spent, giving no cost basis guid.
+#
+# Imported into `a_currency_whose_cost_bases_cannot_be_drawn_on.txt`, this is
+# not refused: the only US dollar cost basis on the asset side there holds
+# nothing, and the dollars being spent arrived with no cost of their own.
+2034-06-30 * "Supplies paid for out of the US dollars"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 270.00 CAD
+	Assets:USD Held -200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-270.00"

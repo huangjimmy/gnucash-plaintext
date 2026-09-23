@@ -1,3 +1,9 @@
+# A Canadian book that buys four currencies and spends some of each: US,
+# Hong Kong, Korean and Japanese. Each purchase opens a cost basis, the split
+# that opens it gives its own guid, and every spend below says which of the
+# four it came out of. So each currency's cost bases hold exactly what the
+# wallet holds, which is what `fx-balances` prints and what a balance sheet
+# measures an unrealized gain against.
 2024-02-22 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
@@ -279,6 +285,7 @@
 	guid: "845ce690184b40ddb960be363c7fd956"
 	currency.mnemonic: "USD"
 	Assets:Cash In Wallets:USD 10000.00 USD
+		guid: "eeeeeeeeeeeeeeeeeeeeeeeeeeee0001"
 	Equity:Opening Balances:USD -5000.00 USD
 	Assets:Cash In Wallets:CAD -6650.00 CAD
 		account.commodity.mnemonic: "CAD"
@@ -288,6 +295,7 @@
 	guid: "317c8ae6e0084c33951d052b9f1b9f23"
 	Expenses US:Groceries 31.86 USD
 	Assets:Cash In Wallets:USD -31.86 USD
+		cost_basis_split_guid: "eeeeeeeeeeeeeeeeeeeeeeeeeeee0001"
 2024-03-01 * "SHOPPERS DRUG MART #22 VANCOUVER BC BANANAS 3LB 1.99 2XBURNBRAE EGGS 2.79x2 WONDER BREAD 1.99"
 	guid: "753932189bfc4eeaaed6a987a3389ef1"
 	Expenses:Groceries 9.56 CAD
@@ -296,6 +304,7 @@
 	guid: "0d5d47eb1d684949924d7ee5eb19ca9f"
 	currency.mnemonic: "HKD"
 	Assets:Cash In Wallets:HKD 10000.00 HKD
+		guid: "eeeeeeeeeeeeeeeeeeeeeeeeeeee0002"
 	Assets:Cash In Wallets:CAD -1725.00 CAD
 		account.commodity.mnemonic: "CAD"
 		share_price: "1000000/172500"
@@ -304,14 +313,17 @@
 	guid: "70acbc74478049418f5d62f4d43947a3"
 	費用 香港:食品雜貨 69.00 HKD
 	Assets:Cash In Wallets:HKD -69.00 HKD
+		cost_basis_split_guid: "eeeeeeeeeeeeeeeeeeeeeeeeeeee0002"
 2024-03-07 * "PARKnSHOP百佳超市 膠袋 HK$1 金御膳雞蛋卷 HK$52 紅蘋果 HK$27.8 香蕉 3.5磅 6.2/磅  HK$21.7 CASTLE 亮麗三層軟韌帶 HK$24"
 	guid: "cd1571a5b8814d7bb1f4fe291ae07a48"
 	費用 香港:食品雜貨 126.50 HKD
 	Assets:Cash In Wallets:HKD -126.50 HKD
+		cost_basis_split_guid: "eeeeeeeeeeeeeeeeeeeeeeeeeeee0002"
 2024-03-12 *
 	guid: "75010aaedccb49caafccbc389a79f2b2"
 	currency.mnemonic: "CAD"
 	Assets:Cash In Wallets:KRW 197000.00 KRW
+		guid: "eeeeeeeeeeeeeeeeeeeeeeeeeeee0003"
 		account.commodity.mnemonic: "KRW"
 		share_price: "20000/19700000"
 		value: "200.00"
@@ -321,6 +333,7 @@
 	currency.mnemonic: "JPY"
 	notes: "This transaction took place at Vancouver, BC"
 	Assets:Cash In Wallets:JPY 30000 JPY
+		guid: "eeeeeeeeeeeeeeeeeeeeeeeeeeee0004"
 		action: "Buy"
 		memo:"私は３０，０００円を買います。"
 	Assets:Cash In Wallets:CAD -267.00 CAD
@@ -336,12 +349,14 @@
 		action: "Buy"
 		memo:"I bought some groceries during my \"Japan Trip\""
 	Assets:Cash In Wallets:JPY -1521 JPY
+		cost_basis_split_guid: "eeeeeeeeeeeeeeeeeeeeeeeeeeee0004"
 		action: "Decrease"
 		memo:"This transaction decreased my JPY Cash balance"
 2024-03-19 * "백설 소면(900g) 7,145 옛날국수 소면(900g) 4,089"
 	guid: "23ebba6e17464be68914047b3e4af645"
 	경비 한국:식료품 11234.00 KRW
 	Assets:Cash In Wallets:KRW -11234.00 KRW
+		cost_basis_split_guid: "eeeeeeeeeeeeeeeeeeeeeeeeeeee0003"
 2024-03-20 * "COMPASS ACCOUNT BURNABY BC"
 	guid: "b6f286da1ff64535a56c3ba7d24d7118"
 	Expenses:Public Transportation 3.15 CAD

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Pre-commit hook: Run linter, tests, and independent AI review
+# Pre-commit hook: Run linter and tests
 #
 # Flow:
 #   1. Run lint on staged Python files (skipped when none are staged)
@@ -8,9 +8,16 @@
 #      documentation-only commits (only *.md / docs/ staged), since docs cannot
 #      affect the test suite
 #   2b. Gate the eleven runs added together at 100% line and branch coverage
-#   3. If lint, tests OR coverage failed → block immediately (no AI review = no
-#      wasted tokens)
-#   4. AI review runs always (including docs-only commits) → block on concerns
+#   2c. Build the wheel, install it and draw a page with it
+#   3. If any of those failed → block immediately
+#
+# The independent AI review runs in the commit-msg hook, not here. Git runs this
+# hook before it reads the commit message, so a review started from here was
+# handed none — every review this hook ran saw "[No commit message provided]"
+# in place of the message. The commit-msg hook is given the message file, and
+# for a `git commit` git runs it only once this hook has passed, so the review
+# still costs nothing on a commit the checks above refuse. A merge runs that
+# hook without this one, and is not reviewed there.
 #
 
 echo "Running pre-commit checks..."
@@ -149,38 +156,6 @@ else
     fi
 fi
 
-# 4. AI review — only reached when lint + tests both pass
-echo "3. Running independent AI review..."
-
-STAGED_DIFF=$(git diff --staged --no-color)
-
-if [ -z "$STAGED_DIFF" ]; then
-    echo "⚠️  No staged changes - nothing to review"
-    echo ""
-    echo "✓ All pre-commit checks passed!"
-    exit 0
-fi
-
-# Allow skipping AI review for quick commits
-if [ "$SKIP_AI_REVIEW" = "1" ]; then
-    echo "⚠️  AI review skipped (SKIP_AI_REVIEW=1)"
-    echo "✓ All pre-commit checks passed!"
-    exit 0
-fi
-
-# Find the project root reliably based on the hook's execution path
-if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-    PROJECT_ROOT=$(git rev-parse --show-toplevel)
-else
-    # Fallback if not run by git
-    PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-fi
-
-# Call the unified AI review script
-if ! "$PROJECT_ROOT/scripts/review-commit.sh"; then
-    echo "❌ Commit blocked: AI review found concerns. Address them or use 'git commit --no-verify' to skip checks."
-    exit 1
-fi
-
+# The AI review follows in the commit-msg hook, which is handed the message.
 echo "✓ All pre-commit checks passed!"
 exit 0

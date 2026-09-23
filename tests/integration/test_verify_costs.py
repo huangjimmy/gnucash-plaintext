@@ -489,14 +489,13 @@ def test_a_spending_split_is_not_a_basis_however_its_cost_reads(tmp_path):
     assert back.exit_code == 0, back.output
 
 
-def test_a_cost_stated_on_a_security_is_refused(tmp_path):
-    """Shares are counted and priced, not converted, so they have no cost.
+def test_a_cost_stated_on_a_security_is_what_the_shares_cost(tmp_path):
+    """A share has a cost in the book's own currency, and a file may state it.
 
-    A stated balance on a security split has always been refused; a stated
-    cost went in and was stored, on a split `establishes_cost_basis` then
-    ignores by namespace. In a transaction with no base-currency figure in it
-    there is nothing to notice the stored figure by either, so `50 CAD/USTECH`
-    sat in the book saying what a share cost, read by nothing.
+    The purchase is written wholly in US dollars, so there is no Canadian
+    figure in it to divide — the same shape a currency arriving in its own
+    currency has, and the same answer: `cost_basis_cost` on the split says what
+    the units cost, and the cost basis opened for them carries it.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -505,9 +504,11 @@ def test_a_cost_stated_on_a_security_is_refused(tmp_path):
 
     result = runner.invoke(cli, ['import', str(book),
                                  'tests/fixtures/stated_cost_on_a_security_split.txt'])
-    assert 'security rather than a currency' in result.output, result.output
-    assert 'Transactions: 0' in result.output, result.output
-    assert 'Errors:       1' in result.output, result.output
+    assert result.exit_code == 0, result.output
+    assert 'Errors:       0' in result.output, result.output
+
+    listing = runner.invoke(cli, ['fx-balances', str(book)]).output
+    assert '50 CAD/USTECH' in listing, listing
 
 
 def test_two_bases_in_one_transaction_share_its_cost(tmp_path):

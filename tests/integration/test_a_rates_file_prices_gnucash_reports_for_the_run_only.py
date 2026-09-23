@@ -84,10 +84,14 @@ class TestARatesFile:
                       '--fx-rates', str(FIXTURES / 'usd_at_one_fifty.yaml'))
 
         assert result.exit_code == 0, result.output
-        # The gain taken on the shares is 480.00 USD, valued at the file's 1.50.
-        assert under(result.output, 'Income:Realized Gains')['value'] == '720.00'
-        assert key_of(result.output, 'total_revenue') == '9460.00 CAD'
-        assert key_of(result.output, 'net_income') == '9160.00 CAD'
+        # The interest was paid in US dollars, so the file's 1.50 prices it:
+        # 100.00 USD at 1.50 is 150.00 CAD. The gain taken on the shares is
+        # already a Canadian figure — 728.00, stated by the sale itself — so no
+        # rate reaches it and the file cannot move it.
+        assert under(result.output, 'Expenses:Interest')['value'] == '150.00'
+        assert amount_of(result.output, 'Income:Realized Gains') == '728.00 CAD'
+        assert key_of(result.output, 'total_revenue') == '9468.00 CAD'
+        assert key_of(result.output, 'net_income') == '9168.00 CAD'
 
     def test_report_prices_both_statements_from_it(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
@@ -97,7 +101,7 @@ class TestARatesFile:
                       '--fx-rates', str(FIXTURES / 'usd_at_one_fifty.yaml'))
 
         assert result.exit_code == 0, result.output
-        assert 'net_income: 9160.00 CAD' in result.output, result.output
+        assert 'net_income: 9168.00 CAD' in result.output, result.output
         assert 'share_price: "1.5"' in result.output, result.output
 
     def test_a_rate_replaces_the_books_own_price_that_day_for_the_run(self, tmp_path):
@@ -309,6 +313,20 @@ class TestAPricesFile:
             '\t\t\t\tcommodity.mnemonic: "ACME"',
             '\t\t\t\tquantity: 10.0000',
             '\t\t\t\tshare_price: 60 # what price-fn gives for this commodity',
+            '\t\t\t\tcost_bases:',
+            '\t\t\t\t\tcost_basis:',
+            '\t\t\t\t\t\tsplit_guid: <guid>',
+            '\t\t\t\t\t\taccount: "Assets:Brokerage:ACME"',
+            '\t\t\t\t\t\tcost_basis_balance: 10.0000',
+            '\t\t\t\t\t\tcost_share_price: 50 # ACME in CAD, on the day it was'
+            ' bought',
+            '\t\t\t\t\t\tcost_rate: 1 # CAD per CAD, on that same day',
+            '\t\t\t\t\t\tcost_share_price_in_base: 50 # cost_share_price *'
+            ' cost_rate',
+            '\t\t\t\t\t\tcost_value: 500.00 # cost_basis_balance *'
+            ' cost_share_price_in_base',
+            '\t\t\t\t\t\tvalue: 600.00 # cost_basis_balance * share_price',
+            '\t\t\t\t\t\tunrealized_gains_other: 100.00 # value - cost_value',
             '\t\t\t\taccounts:',
             '\t\t\t\t\taccount:',
             '\t\t\t\t\t\tguid: <guid>',
@@ -317,13 +335,27 @@ class TestAPricesFile:
             '\t\t\t\t\t\tsplits:',
             '\t\t\t\t\t\t\tsplit_amount 10.0000 | value 500.00 CAD',
             "\t\t\t\tvalue: 600.00 # the holding converted at the sheet's price",
-            "\t\t\t\tcost_value: 500.00 # its splits' values, converted",
+            '\t\t\t\tcost_value: 500.00 # what its cost bases say the units cost',
             '\t\t\t\tunrealized_gains_other: 100.00 # value - cost_value',
             '\t\t\tsecurity:',
             '\t\t\t\tcommodity.namespace: "FUND"',
             '\t\t\t\tcommodity.mnemonic: "VGRO"',
             '\t\t\t\tquantity: 20.0000',
             '\t\t\t\tshare_price: 30 # what price-fn gives for this commodity',
+            '\t\t\t\tcost_bases:',
+            '\t\t\t\t\tcost_basis:',
+            '\t\t\t\t\t\tsplit_guid: <guid>',
+            '\t\t\t\t\t\taccount: "Assets:Brokerage:VGRO"',
+            '\t\t\t\t\t\tcost_basis_balance: 20.0000',
+            '\t\t\t\t\t\tcost_share_price: 25 # VGRO in CAD, on the day it was'
+            ' bought',
+            '\t\t\t\t\t\tcost_rate: 1 # CAD per CAD, on that same day',
+            '\t\t\t\t\t\tcost_share_price_in_base: 25 # cost_share_price *'
+            ' cost_rate',
+            '\t\t\t\t\t\tcost_value: 500.00 # cost_basis_balance *'
+            ' cost_share_price_in_base',
+            '\t\t\t\t\t\tvalue: 600.00 # cost_basis_balance * share_price',
+            '\t\t\t\t\t\tunrealized_gains_other: 100.00 # value - cost_value',
             '\t\t\t\taccounts:',
             '\t\t\t\t\taccount:',
             '\t\t\t\t\t\tguid: <guid>',
@@ -332,7 +364,7 @@ class TestAPricesFile:
             '\t\t\t\t\t\tsplits:',
             '\t\t\t\t\t\t\tsplit_amount 20.0000 | value 500.00 CAD',
             "\t\t\t\tvalue: 600.00 # the holding converted at the sheet's price",
-            "\t\t\t\tcost_value: 500.00 # its splits' values, converted",
+            '\t\t\t\tcost_value: 500.00 # what its cost bases say the units cost',
             '\t\t\t\tunrealized_gains_other: 100.00 # value - cost_value',
             "\t\tvalue: 1200.00 # sum of each security's value",
             "\t\tcost_value: 1000.00 # sum of each security's cost_value",

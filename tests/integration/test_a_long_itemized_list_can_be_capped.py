@@ -301,7 +301,9 @@ def test_a_capped_security_account_list_carries_the_balance_it_left_out(tmp_path
     assert capped.exit_code == 0, capped.output
 
     listed = block_of(capped.output, 'unrealized_gains_other')
-    assert listed.count('account:') == 1, listed
+    # The accounts' own entries, five tabs in. A cost basis entry carries an
+    # `account:` line of its own, one tab further in, and is capped separately.
+    assert listed.count('\n\t\t\t\t\taccount:') == 1, listed
     assert ('\t\t\t\taccounts: # 2 accounts, 1 listed and the rest under'
             ' not_listed; --max-items -1 for all') in capped.output.splitlines()
     assert '\t\t\t\t\tnot_listed:' in capped.output.splitlines(), capped.output

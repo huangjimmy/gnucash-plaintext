@@ -1,0 +1,202 @@
+# A Canadian company buys two US-listed shares in one transaction written
+# wholly in US dollars.
+#
+# This is the book the carrying exists for. Nothing in that purchase states a
+# Canadian figure: both holdings and the dollars that paid for them are in US
+# dollars, so no split's value over its amount gives the day's rate and a cost
+# can be derived from nothing. What says what the shares cost is the cost basis
+# the dollars came out of, at 1.30, and that rate travels onto what those
+# dollars bought — apportioned by each split's own share of them.
+#
+# 2,200.00 USD leave a cost basis carrying 1.30, so 2,860.00 CAD of cost goes
+# with them:
+#
+#     2,000.00 USD to USD_TECH  ->  2,600.00 CAD  ->  52.00 a share
+#       200.00 USD to USD_CORP  ->    260.00 CAD  ->  26.00 a share
+#
+# Handing the whole 2,860.00 to the shares bought most of would price USD_TECH
+# at 57.20 and leave USD_CORP at nothing.
+#
+# `tests/fixtures/a_broker_fee_two_us_loans_and_part_of_the_shares_sold.txt` is
+# the same kind of trade with one split kept in Canadian dollars, and that one
+# Canadian figure is enough for the cost to be derived from the transaction
+# instead. The two books reach a cost by the two different routes, and only this
+# one carries it.
+#
+# What happens:
+#
+# - 2029-01-02  15,000.00 CAD of opening capital.
+# - 2029-01-05  10,000.00 USD bought at 1.30, so 13,000.00 CAD leaves the bank
+#               and a cost basis of 10,000.00 USD at 1.30 opens.
+# - 2029-01-08  50 USD_TECH at 40.00 USD and 10 USD_CORP at 20.00 USD, paid for
+#               with 2,200.00 USD out of that cost basis. Stated wholly in US
+#               dollars, which is how a US broker's confirmation reads.
+# - 2029-12-30  20 USD_TECH sold at 55.00 USD. They cost 1,040.00 CAD — 20 at
+#               52.00 — and fetch 1,100.00 USD at the 1.20 of the day, which is
+#               1,320.00 CAD, so 280.00 CAD is realized.
+#
+# What is left at the year end: 30 USD_TECH costing 1,560.00 CAD, 10 USD_CORP
+# costing 260.00 CAD, and 8,900.00 USD in the bank.
+#
+# Verified by
+# tests/integration/test_a_share_purchase_stating_no_canadian_figure_is_costed_from_its_dollars.py.
+2029-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2029-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2029-01-01 commodity USD_TECH
+	mnemonic: "USD_TECH"
+	fullname: "A technology company whose shares are priced in US dollars"
+	namespace: "NASDAQ"
+	fraction: 10000
+2029-01-01 commodity USD_CORP
+	mnemonic: "USD_CORP"
+	fullname: "Another company whose shares are priced in US dollars"
+	namespace: "NASDAQ"
+	fraction: 10000
+2029-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2029-01-01 open Assets:Tech Shares
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+2029-01-01 open Assets:Corp Shares
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_CORP"
+2029-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Income:Realized Gains
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2029-01-05 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2029-12-31 12:00:00 +0000"
+	value: "6/5"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+	currency.mnemonic: "USD"
+	time: "2029-01-08 12:00:00 +0000"
+	value: "40"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+	currency.mnemonic: "USD"
+	time: "2029-12-31 12:00:00 +0000"
+	value: "55"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_CORP"
+	currency.mnemonic: "USD"
+	time: "2029-01-08 12:00:00 +0000"
+	value: "20"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_CORP"
+	currency.mnemonic: "USD"
+	time: "2029-12-31 12:00:00 +0000"
+	value: "20"
+	source: "user:price-editor"
+	type: "last"
+
+2029-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 15000.00 CAD
+	Equity:Opening -15000.00 CAD
+
+2029-01-05 * "Buy 10,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 10000.00 USD
+		guid: "b2b2b2b2b2b2b2b2b2b2b2b2b2b20001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "13000.00"
+	Assets:CAD Bank -13000.00 CAD
+
+# Every split is in US dollars, so nothing here says what a Canadian dollar is
+# worth and no cost can be derived from the transaction. The 2,200.00 USD leave
+# a cost basis carrying 1.30, and that rate travels onto both holdings, each
+# taking its own share of it.
+2029-01-08 * "Buy 50 USD_TECH at 40.00 USD and 10 USD_CORP at 20.00 USD"
+	currency.mnemonic: "USD"
+	Assets:Tech Shares 50.0000 USD_TECH
+		guid: "b2b2b2b2b2b2b2b2b2b2b2b2b2b20002"
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "40"
+		value: "2000.00"
+	Assets:Corp Shares 10.0000 USD_CORP
+		guid: "b2b2b2b2b2b2b2b2b2b2b2b2b2b20003"
+		account.commodity.mnemonic: "USD_CORP"
+		share_price: "20"
+		value: "200.00"
+	Assets:USD Bank -2200.00 USD
+		cost_basis_split_guid: "b2b2b2b2b2b2b2b2b2b2b2b2b2b20001"
+
+2029-12-30 * "Sell 20 USD_TECH at 55.00 USD"
+	currency.mnemonic: "CAD"
+	Assets:Tech Shares -20.0000 USD_TECH
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "52"
+		value: "-1040.00"
+		cost_basis_split_guid: "b2b2b2b2b2b2b2b2b2b2b2b2b2b20002"
+	Assets:USD Bank 1100.00 USD
+		guid: "b2b2b2b2b2b2b2b2b2b2b2b2b2b20004"
+		account.commodity.mnemonic: "USD"
+		share_price: "6/5"
+		value: "1320.00"
+	Income:Realized Gains $residual$ CAD

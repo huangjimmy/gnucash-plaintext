@@ -433,6 +433,11 @@ def test_refunding_a_prepayment_opens_no_basis(tmp_path):
     is, not how many holdings there are — counting the credit as well listed
     the same 100.00 USD twice, disagreeing with the hand-written overpayment
     above over the same economics.
+
+    The refund spends the dollars the bank holds, so it says which cost basis
+    they came out of and that cost basis goes to nothing: the book ends holding
+    no US dollars and counting none, which is the state the two figures have to
+    reach together.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -442,12 +447,14 @@ def test_refunding_a_prepayment_opens_no_basis(tmp_path):
     # One lump of currency, one cost basis: the bank's 100.00 USD. The credit
     # facing it records the obligation, not a second holding — the same
     # answer the hand-written overpayment above gets, and `lot_owner:` does
-    # not change what the money is. The refund adds nothing either: it sends
-    # that money away.
-    assert 'Total USD cost basis balance: 100.00' in listing, listing
+    # not change what the money is. The refund opens nothing either: it sends
+    # that money away, and draws the bank's cost basis down to nothing on the
+    # way out.
     assert listing.count('1.37 CAD/USD') == 1, listing
     assert 'Assets:Bank:USD' in listing, listing
     assert 'Receivable' not in cost_basis_rows(listing), listing
+    assert 'Total USD cost basis balance: 0.00' in listing, listing
+    assert 'Total USD held in accounts: 0.00' in listing, listing
 
 
 def test_a_prepayment_arriving_as_base_currency_opens_it_on_the_receivable(tmp_path):
@@ -535,10 +542,12 @@ def test_prepaying_a_vendor_from_a_usd_bank_moves_the_basis_across(tmp_path):
     any other, so it gives the guid of the cost basis it spends and that cost basis goes to zero —
     the 100 USD stays counted once, on the account that now holds it.
 
-    Written without naming it, the outgoing side draws down nothing and the
-    listing keeps offering the bank's cost basis: 200.00 USD against 100.00 held.
-    That is the same rule as any sale that gives no cost basis, and it is asserted
-    here so the vendor case is not read as an exception to it.
+    Written without the guid, the file is refused, as any other disposal that
+    does not say which cost basis it came out of is refused (Q-045). It is
+    asserted here so the vendor case is not read as an exception to that rule.
+    What the refusal prevents is shown in the same test: accepted, the
+    outgoing side drew down nothing and the listing went on offering the bank's
+    cost basis, 200.00 USD against the 100.00 the book held.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -556,7 +565,7 @@ def test_prepaying_a_vendor_from_a_usd_bank_moves_the_basis_across(tmp_path):
     assert 'Total USD cost basis balance: 100.00' in listing, listing
     assert '0.00 USD' in listing, listing            # the bank's cost basis, spent
 
-    # The same prepayment naming nothing on its way out.
+    # The same prepayment with the guid line taken off.
     bare_book = tmp_path / 'bare.gnucash'
     _import_new(runner, bare_book, 'tests/fixtures/fx_vendor_prepayment_setup.txt')
     bare = tmp_path / 'bare.txt'
@@ -564,8 +573,13 @@ def test_prepaying_a_vendor_from_a_usd_bank_moves_the_basis_across(tmp_path):
         Path('tests/fixtures/fx_vendor_prepayment_from_usd_bank.txt').read_text()
         .replace('\t\tcost_basis_split_guid: "{basis_a}"\n', ''))
     result = _import(runner, bare_book, bare)
-    assert result.exit_code == 0, result.output
-    assert 'Total USD cost basis balance: 200.00' in _balances(runner, bare_book)
+    assert result.exit_code == 1, result.output
+    assert 'spends 100.00 USD the book held' in result.output, result.output
+    # Refused, so nothing of it reached the book: the bank's cost basis is
+    # whole and the payable has none.
+    bare_listing = _balances(runner, bare_book)
+    assert 'Total USD cost basis balance: 100.00' in bare_listing, bare_listing
+    assert 'Accounts Payable USD' not in cost_basis_rows(bare_listing), bare_listing
 
 
 def test_a_refund_naming_no_lot_reads_as_the_receivable_it_resembles(tmp_path):

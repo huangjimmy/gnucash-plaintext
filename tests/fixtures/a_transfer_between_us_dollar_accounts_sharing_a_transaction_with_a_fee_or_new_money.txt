@@ -1,0 +1,141 @@
+# US dollars moved between two US dollar accounts in the same transaction as a
+# fee paid out of them, and in the same transaction as more dollars bought.
+#
+# A transfer draws down no cost basis and opens none: the book holds every
+# dollar it held before. A fee spends dollars, and draws a cost basis down by
+# what it spent; dollars bought open one for what arrived. Written in one
+# transaction the two cannot be told apart — 4,010.00 USD leaving the bank and
+# 4,000.00 arriving in savings says nothing about which 10.00 was the fee — and
+# a cost basis is never guessed, so each is refused and written again as two
+# transactions.
+#
+# What happens:
+#
+# - 2031-01-02  20,000.00 CAD of opening capital.
+# - 2031-01-05  10,000.00 USD bought at 1.30 into the bank.
+# - 2031-02-01  4,000.00 USD moved to savings with a 10.00 USD fee paid out of
+#               the bank, in one transaction. Refused.
+# - 2031-02-02  the same, as two transactions: the transfer, and the fee
+#               drawing 10.00 on the cost basis. Imported.
+# - 2031-03-01  3,000.00 USD moved to savings and 1,000.00 USD bought into
+#               savings at 1.35, in one transaction. Refused.
+# - 2031-03-02  the same, as two transactions: the transfer, and the purchase
+#               opening a cost basis of 1,000.00. Imported.
+#
+# What is left: 2,990.00 USD in the bank and 8,000.00 in savings, and cost
+# bases holding 9,990.00 at 1.30 and 1,000.00 at 1.35 — 10,990.00, what the
+# accounts hold.
+#
+# Verified by
+# tests/integration/test_a_transfer_shares_no_transaction_with_a_fee_or_new_money.py.
+2031-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2031-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2031-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2031-01-01 open Assets:USD Savings
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2031-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Expenses:Bank Fees
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2031-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 20000.00 CAD
+	Equity:Opening -20000.00 CAD
+
+2031-01-05 * "Buy 10,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 10000.00 USD
+		guid: "e5e5e5e5e5e5e5e5e5e5e5e5e5e50001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "13000.00"
+	Assets:CAD Bank -13000.00 CAD
+
+2031-02-01 * "Move 4,000.00 USD to savings and pay a 10.00 USD fee, in one"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -4010.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-5213.00"
+		cost_basis_split_guid: "e5e5e5e5e5e5e5e5e5e5e5e5e5e50001"
+	Assets:USD Savings 4000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "5200.00"
+	Expenses:Bank Fees 13.00 CAD
+
+2031-02-02 * "Move 4,000.00 USD to savings"
+	currency.mnemonic: "USD"
+	Assets:USD Bank -4000.00 USD
+	Assets:USD Savings 4000.00 USD
+
+2031-02-02 * "Pay a 10.00 USD fee"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -10.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-13.00"
+		cost_basis_split_guid: "e5e5e5e5e5e5e5e5e5e5e5e5e5e50001"
+	Expenses:Bank Fees 13.00 CAD
+
+2031-03-01 * "Move 3,000.00 USD to savings and buy 1,000.00 more, in one"
+	currency.mnemonic: "CAD"
+	Assets:USD Savings 4000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "21/16"
+		value: "5250.00"
+	Assets:USD Bank -3000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-3900.00"
+	Assets:CAD Bank -1350.00 CAD
+
+2031-03-02 * "Move 3,000.00 USD to savings"
+	currency.mnemonic: "USD"
+	Assets:USD Bank -3000.00 USD
+	Assets:USD Savings 3000.00 USD
+
+2031-03-02 * "Buy 1,000.00 USD at 1.35 into savings"
+	currency.mnemonic: "CAD"
+	Assets:USD Savings 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "1350.00"
+	Assets:CAD Bank -1350.00 CAD

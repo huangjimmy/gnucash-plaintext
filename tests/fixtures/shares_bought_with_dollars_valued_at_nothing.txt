@@ -1,0 +1,86 @@
+# US-listed shares bought with US dollars, in a transaction stated in Hong Kong
+# dollars that values both at nothing.
+#
+# The shares take their cost from the dollars that paid, divided across what
+# they bought by each split's value against the value of what paid. Valued at
+# nothing, the dollars say nothing about how their 2,600.00 CAD divides, so the
+# purchase is refused with that said, rather than ending the import on a
+# division by zero.
+#
+# GnuCash takes a split valued at nothing, as
+# `tests/fixtures/a_cost_basis_whose_split_is_valued_at_nothing.txt` shows.
+#
+# Verified by
+# tests/integration/test_a_share_purchase_is_costed_from_what_the_dollars_cost_whatever_it_is_stated_in.py.
+2033-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 commodity USD_TECH
+	mnemonic: "USD_TECH"
+	fullname: "A technology company whose shares are priced in US dollars"
+	namespace: "NASDAQ"
+	fraction: 10000
+2033-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2033-01-01 open Assets:Tech Shares
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+2033-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2033-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 15000.00 CAD
+	Equity:Opening -15000.00 CAD
+
+2033-01-05 * "Buy 10,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 10000.00 USD
+		guid: "f9f9f9f9f9f9f9f9f9f9f9f9f9f90001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "13000.00"
+	Assets:CAD Bank -13000.00 CAD
+
+2033-01-08 * "Buy 50 USD_TECH for 2,000.00 USD, valued at nothing"
+	currency.mnemonic: "HKD"
+	Assets:Tech Shares 50.0000 USD_TECH
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "0"
+		value: "0.00"
+	Assets:USD Bank -2000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "0"
+		value: "0.00"
+		cost_basis_split_guid: "f9f9f9f9f9f9f9f9f9f9f9f9f9f90001"

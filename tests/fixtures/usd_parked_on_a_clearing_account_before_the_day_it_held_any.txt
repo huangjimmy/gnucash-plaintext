@@ -1,0 +1,69 @@
+# US dollars parked on a clearing account on a day it held none, in a file
+# whose later-dated deposit into that account comes first.
+#
+# A settlement that reaches a Canadian bank is parked as −100.00 USD on a
+# clearing account until a payment block places it. On 2032-03-01 the account
+# held nothing, so it goes below nothing and has spent no dollars the book had:
+# it owes a hundred. Its deposit of 500.00 USD is dated 2032-06-01, three
+# months later, and comes first in this file.
+#
+# What the account held is read at the parking's own date. Read from the whole
+# balance, the account stood at 500.00 when the parking arrived, the parking
+# took it to 400.00, and a fall of 100.00 read as a disposal of dollars the
+# account did not hold on that day — refused for giving no cost basis guid.
+#
+# Verified by
+# tests/integration/test_what_an_account_held_is_read_at_the_transactions_date.py.
+2032-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2032-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2032-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2032-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2032-01-01 open Assets:USD Clearing
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2032-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2032-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2032-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 10000.00 CAD
+	Equity:Opening -10000.00 CAD
+
+2032-06-01 * "Buy 500.00 USD at 1.30 into the clearing account"
+	currency.mnemonic: "CAD"
+	Assets:USD Clearing 500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "650.00"
+	Assets:CAD Bank -650.00 CAD
+
+2032-03-01 * "A settlement reaches the Canadian bank, parked in US dollars"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 139.00 CAD
+	Assets:USD Clearing -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "139/100"
+		value: "-139.00"

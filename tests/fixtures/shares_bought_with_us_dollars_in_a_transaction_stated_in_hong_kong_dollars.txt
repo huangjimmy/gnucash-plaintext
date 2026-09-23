@@ -1,0 +1,84 @@
+# A Canadian company buys US-listed shares with US dollars, in a transaction
+# its broker states in Hong Kong dollars.
+#
+# No split is in Canadian dollars, so the shares take their cost from the US
+# dollars that paid for them: 2,000.00 USD out of a cost basis that cost 1.30,
+# which is 2,600.00 CAD, and 52.00 a share for 50 shares. The transaction's
+# own figures are in Hong Kong dollars — 15,600.00 on each side — and what they
+# say is how the cost divides, not what it is: a split's value is a share of
+# what was paid, in whatever currency the transaction is stated in.
+#
+# Verified by
+# tests/integration/test_a_share_purchase_is_costed_from_what_the_dollars_cost_whatever_it_is_stated_in.py.
+2033-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 commodity USD_TECH
+	mnemonic: "USD_TECH"
+	fullname: "A technology company whose shares are priced in US dollars"
+	namespace: "NASDAQ"
+	fraction: 10000
+2033-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2033-01-01 open Assets:Tech Shares
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+2033-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2033-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 15000.00 CAD
+	Equity:Opening -15000.00 CAD
+
+2033-01-05 * "Buy 10,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 10000.00 USD
+		guid: "f8f8f8f8f8f8f8f8f8f8f8f8f8f80001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "13000.00"
+	Assets:CAD Bank -13000.00 CAD
+
+2033-01-08 * "Buy 50 USD_TECH for 2,000.00 USD, stated in HKD"
+	currency.mnemonic: "HKD"
+	Assets:Tech Shares 50.0000 USD_TECH
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "312"
+		value: "15600.00"
+	Assets:USD Bank -2000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "39/5"
+		value: "-15600.00"
+		cost_basis_split_guid: "f8f8f8f8f8f8f8f8f8f8f8f8f8f80001"

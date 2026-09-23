@@ -1,0 +1,146 @@
+# One entry that sells shares and spends the dollars they fetched, in a single
+# transaction, with one split standing as the difference.
+#
+# It is refused. The entry gives up two cost bases of two different kinds — the
+# shares, and the US dollars — so it realizes a difference on each, and the one
+# `$residual$` split between them cannot be both. A balance sheet states a gain
+# on currency apart from a gain on shares, as a filer's return does, so counting
+# the single figure as either would state the other as nothing, and dividing it
+# would be `import` writing a split the file never did.
+#
+# Written as two entries it is unambiguous: the shares sold for what they
+# fetched, and then those dollars spent.
+#
+# Verified by
+# tests/integration/test_an_entry_disposing_of_two_kinds_at_once_is_refused.py.
+2030-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2030-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2030-01-01 commodity USD_TECH
+	mnemonic: "USD_TECH"
+	fullname: "A company whose shares are priced in US dollars"
+	namespace: "NASDAQ"
+	fraction: 10000
+2030-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2030-01-01 open Assets:Shares
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+2030-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Income:Realized Gains
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2030-01-05 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+	currency.mnemonic: "USD"
+	time: "2030-01-08 12:00:00 +0000"
+	value: "40"
+	source: "user:price-editor"
+	type: "last"
+
+2030-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 10000.00 CAD
+	Equity:Opening -10000.00 CAD
+
+2030-01-05 * "Buy 3,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 3000.00 USD
+		guid: "c3c3c3c3c3c3c3c3c3c3c3c3c3c30001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "3900.00"
+	Assets:CAD Bank -3900.00 CAD
+
+2030-01-08 * "Buy 50 shares at 40.00 USD"
+	currency.mnemonic: "CAD"
+	Assets:Shares 50.0000 USD_TECH
+		guid: "c3c3c3c3c3c3c3c3c3c3c3c3c3c30002"
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "52"
+		value: "2600.00"
+	Assets:USD Bank -2000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-2600.00"
+		cost_basis_split_guid: "c3c3c3c3c3c3c3c3c3c3c3c3c3c30001"
+
+# Both kinds given up in one entry again, and this one is imported. No split of
+# it stands as the difference — every figure is stated outright — so there is
+# nothing ambiguous to divide and nothing for the refusal to protect. What it
+# refuses is one split being asked to be two differences, not the two disposals
+# sharing an entry.
+2030-05-31 * "Sell 10 shares and spend 100.00 USD, every figure stated"
+	currency.mnemonic: "CAD"
+	Assets:Shares -10.0000 USD_TECH
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "52"
+		value: "-520.00"
+		cost_basis_split_guid: "c3c3c3c3c3c3c3c3c3c3c3c3c3c30002"
+	Assets:USD Bank -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-130.00"
+		cost_basis_split_guid: "c3c3c3c3c3c3c3c3c3c3c3c3c3c30001"
+	Assets:CAD Bank 650.00 CAD
+
+# The refused entry: 20 shares given up and 500.00 US dollars given up, in one
+# transaction, with a single split standing as the difference on both.
+2030-06-30 * "Sell 20 shares and spend 500.00 USD in one entry"
+	currency.mnemonic: "CAD"
+	Assets:Shares -20.0000 USD_TECH
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "52"
+		value: "-1040.00"
+		cost_basis_split_guid: "c3c3c3c3c3c3c3c3c3c3c3c3c3c30002"
+	Assets:USD Bank -500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-650.00"
+		cost_basis_split_guid: "c3c3c3c3c3c3c3c3c3c3c3c3c3c30001"
+	Assets:CAD Bank 1800.00 CAD
+	Income:Realized Gains $residual$ CAD

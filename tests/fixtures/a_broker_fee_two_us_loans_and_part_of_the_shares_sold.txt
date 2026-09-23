@@ -1,0 +1,258 @@
+# A Canadian company borrows US dollars twice, buys US shares with a broker
+# charging its fee in US dollars, and sells part of the holding to repay. The
+# share rises 60% and the US dollar falls from 1.40 to 1.10 and back to 1.20,
+# so every figure has two movements in it.
+#
+# What happens:
+#
+# - 2028-01-02  20,000.00 CAD of opening capital.
+# - 2028-01-05  1,000.00 USD borrowed at 1.30 — 1,300.00 CAD in the bank and
+#               1,300.00 CAD of debt.
+# - 2028-01-06  10 shares bought at 99.00 USD with a 1.00 USD broker charge,
+#               991.00 USD in all, stated wholly in US dollars. The dollars
+#               leave a cost basis carrying 1.30, so 1,288.30 CAD of cost goes
+#               with them — and it is divided the way the dollars were:
+#               990.00 USD to the shares at 1,287.00 CAD, which is 128.70 a
+#               share, and 1.00 USD to the broker at 1.30 CAD. The 9.00 USD
+#               left over stays in the bank at 1.30.
+#
+#               The broker fee expense account is kept in Canadian dollars,
+#               because an expense is what it cost on the day it was incurred
+#               and does not change afterwards. Kept in US dollars it would
+#               hold 1.00 USD, and every statement drawn later would convert
+#               that balance at its own rate.
+# - 2028-06-30  1,010.00 USD borrowed at 1.10 to repay the first loan with
+#               10.00 USD of interest. The debt cost 1,300.00 CAD and
+#               1,000.00 USD now costs 1,100.00, so settling it realizes a
+#               gain of 200.00 CAD.
+# - 2028-12-30  7 shares sold at 158.40 USD, the 60% rise. They cost 900.90
+#               CAD — 7 at 128.70 — and fetch 1,108.80 USD at the 1.20 of the
+#               day, which is 1,330.56 CAD, so 429.66 CAD is realized on the
+#               shares.
+# - 2028-12-31  the second loan repaid with 1,030.00 USD, being 1,010.00 of
+#               principal and 20.00 of interest. That debt cost 1,111.00 CAD
+#               and 1,010.00 USD now costs 1,212.00, so settling it loses
+#               101.00 CAD.
+#
+# What is left at the year end: 3 shares costing 386.10 CAD, 87.80 USD in the
+# bank, and no debt.
+#
+# Verified by
+# tests/integration/test_a_broker_fee_two_us_loans_and_part_of_the_shares_sold.py.
+2028-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2028-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2028-01-01 commodity USD_CORP
+	mnemonic: "USD_CORP"
+	fullname: "A company whose shares are priced in US dollars"
+	namespace: "NASDAQ"
+	fraction: 10000
+2028-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2028-01-01 open Assets:Shares
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_CORP"
+2028-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Liabilities:First USD Loan
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2028-01-01 open Liabilities:Second USD Loan
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2028-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Income:Realized Gains
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Expenses:Brokerage
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2028-01-01 open Expenses:Interest
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2028-01-05 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2028-06-30 12:00:00 +0000"
+	value: "11/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2028-12-31 12:00:00 +0000"
+	value: "6/5"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_CORP"
+	currency.mnemonic: "USD"
+	time: "2028-01-06 12:00:00 +0000"
+	value: "99"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_CORP"
+	currency.mnemonic: "USD"
+	time: "2028-12-31 12:00:00 +0000"
+	value: "1584/10"
+	source: "user:price-editor"
+	type: "last"
+
+2028-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 20000.00 CAD
+	Equity:Opening -20000.00 CAD
+
+2028-01-05 * "Borrow 1,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+	Liabilities:First USD Loan -1000.00 USD
+		guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10002"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+
+# Stated wholly in US dollars, which is how a US broker's confirmation reads.
+# The 991.00 USD leave a cost basis carrying 1.30, and that rate travels with
+# them: 990.00 USD of it onto the shares and 1.00 USD of it onto the fee.
+2028-01-06 * "Buy 10 shares at 99.00 USD, broker 1.00 USD"
+	currency.mnemonic: "USD"
+	Assets:Shares 10.0000 USD_CORP
+		guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10003"
+		account.commodity.mnemonic: "USD_CORP"
+		share_price: "99"
+		value: "990.00"
+	Expenses:Brokerage 1.30 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "10/13"
+		value: "1.00"
+	Assets:USD Bank -991.00 USD
+		cost_basis_split_guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10001"
+
+2028-06-30 * "Borrow 1,010.00 USD at 1.10"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1010.00 USD
+		guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10004"
+		account.commodity.mnemonic: "USD"
+		share_price: "11/10"
+		value: "1111.00"
+	Liabilities:Second USD Loan -1010.00 USD
+		guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10005"
+		account.commodity.mnemonic: "USD"
+		share_price: "11/10"
+		value: "-1111.00"
+
+2028-06-30 * "Repay the first loan with 1,010.00 USD"
+	currency.mnemonic: "CAD"
+	Liabilities:First USD Loan 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+		cost_basis_split_guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10002"
+	Expenses:Interest 11.00 CAD
+	Assets:USD Bank -1010.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "11/10"
+		value: "-1111.00"
+		cost_basis_split_guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10004"
+	Income:FX Gain $residual$ CAD
+
+2028-12-30 * "Sell 7 shares at 158.40 USD"
+	currency.mnemonic: "CAD"
+	Assets:Shares -7.0000 USD_CORP
+		account.commodity.mnemonic: "USD_CORP"
+		share_price: "128.70"
+		value: "-900.90"
+		cost_basis_split_guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10003"
+	Assets:USD Bank 1108.80 USD
+		guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10006"
+		account.commodity.mnemonic: "USD"
+		share_price: "6/5"
+		value: "1330.56"
+	Income:Realized Gains $residual$ CAD
+
+2028-12-31 * "Repay the second loan with 1,030.00 USD"
+	currency.mnemonic: "CAD"
+	Liabilities:Second USD Loan 1010.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "11/10"
+		value: "1111.00"
+		cost_basis_split_guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10005"
+	Expenses:Interest 24.00 CAD
+	Assets:USD Bank -1030.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "6/5"
+		value: "-1236.00"
+		cost_basis_split_guid: "a1a1a1a1a1a1a1a1a1a1a1a1a1a10006"
+	Income:FX Gain $residual$ CAD

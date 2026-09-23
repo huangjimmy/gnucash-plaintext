@@ -201,6 +201,8 @@ def test_a_foreign_security_is_valued_from_a_prices_file_and_a_rates_file(tmp_pa
         '\t\t\t\tcommodity.mnemonic: "USTECH"',
         '\t\t\t\tquantity: 10.0000',
         '\t\t\t\tshare_price: 81 # what price-fn gives for this commodity',
+        '\t\t\t\tmeasured_from: gnucash_revaluation # its cost bases do not'
+        ' account for what the accounts hold',
         '\t\t\t\taccounts:',
         '\t\t\t\t\taccount:',
         '\t\t\t\t\t\tguid: <guid>',

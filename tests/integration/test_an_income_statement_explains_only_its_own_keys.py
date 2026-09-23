@@ -113,7 +113,9 @@ def test_a_trading_accounts_sheet_explains_no_gain_keys(tmp_path):
     drawn = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
     assert drawn.exit_code == 0, drawn.output
 
-    assert key_of(drawn.output, 'trading_gains') == '2303.20 CAD'
+    # 46.40 less than it once was, being the same 46.40 the share sale moved
+    # into the realized figure by stating its gain on the day.
+    assert key_of(drawn.output, 'trading_gains') == '2256.80 CAD'
     for sentence in GAIN_PROSE:
         assert sentence not in drawn.output, sentence
     assert "An account line is that account's own balance" in drawn.output, drawn.output

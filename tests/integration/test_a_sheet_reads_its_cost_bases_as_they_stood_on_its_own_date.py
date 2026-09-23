@@ -106,7 +106,8 @@ class TestDrawnBeforeTheSaleThatChangedTheCost:
 
         block = block_of(page, 'unrealized_gains_assets_fx')
         assert ('\t\t\t\t\t\tcost_value: 1300.00'
-                ' # cost_basis_balance * cost_share_price') in block.splitlines(), block
+                ' # cost_basis_balance * cost_share_price_in_base'
+                ) in block.splitlines(), block
         assert '1500.0' not in block, block
 
     def test_the_sheet_balances(self, tmp_path):

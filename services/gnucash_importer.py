@@ -7,6 +7,7 @@ Converts PlaintextDirective objects from the parser into GnuCash objects
 
 import ctypes
 import logging
+import re
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -87,8 +88,12 @@ from services.foreign_currency import (
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
     TOOK_THE_RESIDUAL_KEY,
+    a_cost_basis_is_kept_for,
     a_disposal_the_finished_book_cannot_value,
+    account_side,
     apply_cost_basis_picks,
+    carry_the_cost_to_what_it_bought,
+    cost_bases_changed,
     cost_basis_balance_of,
     cost_basis_guid_of,
     cost_of,
@@ -106,6 +111,10 @@ from services.foreign_currency import (
     parse_stated_cost,
     record_borrowed_basis,
     record_cost_bases,
+    refuse_a_difference_no_split_can_state,
+    refuse_a_disposal_of_two_kinds_at_once,
+    refuse_a_disposal_that_gives_no_cost_basis,
+    refuse_a_transfer_sharing_a_transaction,
     require_cost_basis_unused,
     running_atomic,
     smallest_unit,
@@ -9315,6 +9324,63 @@ def _restore_txn_type(transaction, directive) -> None:
     gc.xaccTransSetTxnType(transaction.instance, stated)
 
 
+def _what_an_edited_split_spends(root, child):
+    """`(commodity, side, account, amount)` where this block's split spends a holding.
+
+    A holding being foreign currency or a security, on a side of the book, left
+    by the split: a negative amount on an asset, a positive one on a
+    liability. None for anything else — a split in the book's own currency, one
+    on an income or expense account, one bringing units in, a `$residual$`
+    split, and one giving a `cost_basis_split_guid:`, which
+    `_require_no_cost_basis_edit` answers.
+    """
+    name = str(child.props['account'])
+    raw = str(child.props.get('amount', ''))
+    account = find_account(root, name)
+    commodity = account.GetCommodity().get_mnemonic()
+    side = account_side(account)
+    amount = Fraction(raw) if re.fullmatch(r'-?\d+(?:\.\d+)?', raw) else Fraction(0)
+    spends = (commodity != BASE_CURRENCY and side is not None and amount != 0
+              and (amount < 0) == (side == 'asset')
+              and not child.metadata.get(COST_BASIS_SPLIT_KEY))
+    return (commodity, side, name, amount) if spends else None
+
+
+def _refuse_an_edit_that_adds_a_disposal(existing_tx, directive, book) -> None:
+    """Refuse an edit that makes a transaction spend a holding a cost basis stands for.
+
+    A new transaction doing that is refused unless it gives the cost basis it
+    came out of, and a transfer, a share sale and a purchase written wholly in
+    a foreign currency meet checks of their own. An edit runs none of them —
+    they are asked of a transaction as it is created — so a Canadian dollar
+    bank fee edited into 100.00 US dollars spent, giving no guid, was accepted,
+    and the cost basis went on holding every dollar. The route that runs every
+    check is to delete the transaction and import it afresh, which is where
+    this sends the reader, as `_require_no_cost_basis_edit` does.
+
+    A split the transaction already has, with the same figure, is not added by
+    the edit, so correcting the memo of an old spend goes through; and a side
+    the book keeps no cost basis for has nothing to answer, as on a new
+    transaction.
+    """
+    root = book.get_root_account()
+    already = {(get_account_full_name(split.GetAccount()),
+                numeric_to_fraction(split.GetAmount()))
+               for split in existing_tx.GetSplitList()}
+    for found in filter(None, (_what_an_edited_split_spends(root, child)
+                               for child in directive.children)):
+        commodity, side, name, amount = found
+        if (name, amount) in already or not a_cost_basis_is_kept_for(book, commodity, side):
+            continue
+        held = 'held' if side == 'asset' else 'owed'
+        raise Exception(
+            f'this edit spends {_account_money_str(abs(amount), find_account(root, name))} '
+            f'{commodity} the book {held}, which a cost basis stands for, and an '
+            f'edit runs none of the checks a disposal meets. Delete the '
+            f'transaction and import it afresh, giving `{COST_BASIS_SPLIT_KEY}:` '
+            f'on the split that spent it.')
+
+
 def _require_no_cost_basis_edit(existing_tx, directive) -> None:
     """Refuse an in-place edit that would move what a cost basis rests on.
 
@@ -9941,12 +10007,6 @@ def _check_stated_balances(book, directive) -> None:
                 f'{where} is on a {BASE_CURRENCY} split, which holds no '
                 f'foreign currency for a cost basis to be about — state it on '
                 f'the split that does')
-        if commodity is not None and commodity.get_namespace() != 'CURRENCY':
-            raise Exception(
-                f'{where} is on a {currency} split, and {currency} is a '
-                f'security rather than a currency — shares are counted and '
-                f'priced, not converted, so they have no cost basis here')
-
         text = str(stated).strip()
         try:
             balance = Fraction(text)
@@ -10044,12 +10104,6 @@ def _check_stated_costs(book, directive, existing_tx=None) -> None:
             return None
         return account.GetCommodity().get_mnemonic()
 
-    def namespace_of(child):
-        # Asked only once `commodity_of` has found the account and its
-        # commodity.
-        return find_account(root, str(child.props.get('account', ''))
-                            ).GetCommodity().get_namespace()
-
     # What `cost_of` needs to derive a cost: a base-currency figure for the
     # split's own to be read against — either because the transaction is
     # stated in the book's currency, or because a split on a base-currency
@@ -10079,17 +10133,6 @@ def _check_stated_costs(book, directive, existing_tx=None) -> None:
                 f'{COST_BASIS_COST_KEY} on split {account_name!r} is on a '
                 f'{BASE_CURRENCY} split, which holds no foreign currency to '
                 f'have a cost — state it on the split that does')
-        # A security is counted and priced rather than converted, so it has no
-        # cost in the sense this key means, and `establishes_cost_basis` will
-        # never read one from it. Refused on the same terms as a stated
-        # balance, which its sibling check has always refused here: a stored
-        # `50 CAD/USTECH` is a figure the book keeps and nothing consults.
-        if namespace_of(child) not in (None, 'CURRENCY'):
-            raise Exception(
-                f'{COST_BASIS_COST_KEY} on split {account_name!r} is on a '
-                f'{currency} split, and {currency} is a security rather than '
-                f'a currency — shares are counted and priced, not converted, '
-                f'so they have no cost basis here')
         if prices_in_base:
             raise Exception(
                 f'{COST_BASIS_COST_KEY} on split {account_name!r} states '
@@ -11705,12 +11748,20 @@ class GnuCashImporter:
         # tests/unit/services/test_cost_basis_drawdown_is_reversible.py.
         taken = {}
         try:
+            refuse_a_transfer_sharing_a_transaction(transaction)
+            refuse_a_disposal_that_gives_no_cost_basis(book, transaction)
+            refuse_a_disposal_of_two_kinds_at_once(transaction)
             taken = apply_cost_basis_picks(book, transaction)
+            refuse_a_difference_no_split_can_state(book, transaction)
+            carry_the_cost_to_what_it_bought(book, transaction)
             record_cost_bases(book, transaction)
         except Exception:
             transaction.BeginEdit()
             transaction.Destroy()
             transaction.CommitEdit()
+            # A cost basis this transaction opened goes with it, and destroying
+            # it writes no balance.
+            cost_bases_changed()
             give_back_to_cost_bases(book, taken)
             raise
 
@@ -11752,6 +11803,10 @@ class GnuCashImporter:
         if directive.type != DirectiveType.TRANSACTION:
             raise ValueError(f"Expected TRANSACTION but got {directive.type}")
 
+        # An edit can remove a split that was a cost basis, and removing one
+        # writes no balance.
+        cost_bases_changed()
+
         # An account the book has not got, before anything is asked about the
         # transaction. The cost basis refusal below reads a block's figures as
         # an edit, so a misspelled account on a transaction holding a cost basis
@@ -11776,6 +11831,7 @@ class GnuCashImporter:
         # check. That is what this refusal points at.
         _refuse_a_split_on_an_account_with_no_commodity(book, directive)
         _require_no_cost_basis_edit(existing_tx, directive)
+        _refuse_an_edit_that_adds_a_disposal(existing_tx, directive, book)
 
         # A block with no splits, against a transaction that has some. The
         # block is the source of truth for the splits — one absent from it is

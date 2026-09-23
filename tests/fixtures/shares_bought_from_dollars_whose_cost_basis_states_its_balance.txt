@@ -1,0 +1,178 @@
+# The book of shares_bought_in_a_transaction_stating_no_canadian_figure.txt,
+# with the cost basis the dollars came out of stating its own balance.
+#
+# `cost_basis_balance: "7800.00"` on the dollars bought is what that cost basis
+# holds once the file has landed: 10,000.00 bought, 2,200.00 spent on the
+# shares. Every export writes the line, so this is the shape a book takes when
+# it is exported and imported again, or when its author writes the balance down.
+#
+# A stated balance is already net of the purchase, so the purchase does not
+# lower it a second time. It still spends 2,200.00 dollars that cost 1.30, and
+# that cost goes onto the shares exactly as it does when the balance is not
+# stated:
+#
+#     2,000.00 USD to USD_TECH  ->  2,600.00 CAD  ->  52.00 a share
+#       200.00 USD to USD_CORP  ->    260.00 CAD  ->  26.00 a share
+#
+# The sale then draws on the USD_TECH cost basis, which is there to draw on only
+# because the cost was carried.
+#
+# Verified by
+# tests/integration/test_a_share_purchase_is_costed_from_a_cost_basis_whose_balance_the_file_states.py.
+2029-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2029-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2029-01-01 commodity USD_TECH
+	mnemonic: "USD_TECH"
+	fullname: "A technology company whose shares are priced in US dollars"
+	namespace: "NASDAQ"
+	fraction: 10000
+2029-01-01 commodity USD_CORP
+	mnemonic: "USD_CORP"
+	fullname: "Another company whose shares are priced in US dollars"
+	namespace: "NASDAQ"
+	fraction: 10000
+2029-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2029-01-01 open Assets:Tech Shares
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+2029-01-01 open Assets:Corp Shares
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_CORP"
+2029-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2029-01-01 open Income:Realized Gains
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2029-01-05 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2029-12-31 12:00:00 +0000"
+	value: "6/5"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+	currency.mnemonic: "USD"
+	time: "2029-01-08 12:00:00 +0000"
+	value: "40"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+	currency.mnemonic: "USD"
+	time: "2029-12-31 12:00:00 +0000"
+	value: "55"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_CORP"
+	currency.mnemonic: "USD"
+	time: "2029-01-08 12:00:00 +0000"
+	value: "20"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_CORP"
+	currency.mnemonic: "USD"
+	time: "2029-12-31 12:00:00 +0000"
+	value: "20"
+	source: "user:price-editor"
+	type: "last"
+
+2029-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 15000.00 CAD
+	Equity:Opening -15000.00 CAD
+
+2029-01-05 * "Buy 10,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 10000.00 USD
+		guid: "b3b3b3b3b3b3b3b3b3b3b3b3b3b30001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "13000.00"
+		cost_basis_balance: "7800.00"
+	Assets:CAD Bank -13000.00 CAD
+
+2029-01-08 * "Buy 50 USD_TECH at 40.00 USD and 10 USD_CORP at 20.00 USD"
+	currency.mnemonic: "USD"
+	Assets:Tech Shares 50.0000 USD_TECH
+		guid: "b3b3b3b3b3b3b3b3b3b3b3b3b3b30002"
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "40"
+		value: "2000.00"
+	Assets:Corp Shares 10.0000 USD_CORP
+		guid: "b3b3b3b3b3b3b3b3b3b3b3b3b3b30003"
+		account.commodity.mnemonic: "USD_CORP"
+		share_price: "20"
+		value: "200.00"
+	Assets:USD Bank -2200.00 USD
+		cost_basis_split_guid: "b3b3b3b3b3b3b3b3b3b3b3b3b3b30001"
+
+2029-12-30 * "Sell 20 USD_TECH at 55.00 USD"
+	currency.mnemonic: "CAD"
+	Assets:Tech Shares -20.0000 USD_TECH
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "52"
+		value: "-1040.00"
+		cost_basis_split_guid: "b3b3b3b3b3b3b3b3b3b3b3b3b3b30002"
+	Assets:USD Bank 1100.00 USD
+		guid: "b3b3b3b3b3b3b3b3b3b3b3b3b3b30004"
+		account.commodity.mnemonic: "USD"
+		share_price: "6/5"
+		value: "1320.00"
+	Income:Realized Gains $residual$ CAD

@@ -1,0 +1,77 @@
+# A Canadian company exchanges US dollars for Hong Kong dollars, and writes
+# the exchange wholly in Hong Kong dollars.
+#
+# The US dollars leave a cost basis that cost 1.30 — 1,300.00 CAD for 1,000.00
+# USD — and 7,800.00 HKD arrive. Nothing in the transaction is in Canadian
+# dollars, so no split can state what the exchange realized, and the Hong Kong
+# dollars arrive with no cost to open a cost basis at: the 1,300.00 of cost
+# would leave the book with nothing to show for it. So it is refused, as a
+# share sale written wholly in a foreign currency is, and written again in
+# Canadian dollars with `$residual$`.
+#
+# Verified by
+# tests/integration/test_a_currency_exchange_stating_no_canadian_figure_is_refused.py.
+2037-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2037-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2037-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2037-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2037-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2037-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2037-01-01 open Assets:HKD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2037-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2037-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2037-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 5000.00 CAD
+	Equity:Opening -5000.00 CAD
+
+2037-01-05 * "Buy 1,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		guid: "b7b7b7b7b7b7b7b7b7b7b7b7b7b70001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+	Assets:CAD Bank -1300.00 CAD
+
+2037-02-01 * "Exchange 1,000.00 USD for 7,800.00 HKD, stated in HKD"
+	currency.mnemonic: "HKD"
+	Assets:USD Bank -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "39/5"
+		value: "-7800.00"
+		cost_basis_split_guid: "b7b7b7b7b7b7b7b7b7b7b7b7b7b70001"
+	Assets:HKD Bank 7800.00 HKD

@@ -1,0 +1,113 @@
+# 100.00 USD bought at 1.35, the bank keeping 1.00 of it as its fee on the same
+# account, with no balance stated anywhere.
+#
+# The account nets to 99.00, and 99.00 is what arrived: the fee left the moment
+# it came in. So the cost basis opens for 99.00, at the 1.35 the purchase
+# states, and holds what the account holds. Opened for the 100.00 the arriving
+# split carries, it offered a dollar the book never had.
+#
+# A second purchase brings 60.00 and 40.00 in two splits with the same 1.00
+# kept back, and the fee is taken off once, not once per split: 99.00 again.
+# A third brings 60.00 and 40.00 with 70.00 taken straight back out — more
+# than the first split brought — so what the first cannot give up comes off
+# the second: 30.00, what the account kept.
+#
+# `tests/fixtures/fx_usd_bought_with_the_banks_fee_drawn_on_it.txt` is the same
+# purchase with `cost_basis_balance: "99.00"` stated, which says the same thing
+# in the file.
+#
+# Verified by
+# tests/integration/test_a_purchase_whose_fee_stays_on_its_account_opens_what_arrived.py.
+2035-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2035-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2035-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2035-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2035-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2035-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2035-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2035-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2035-01-01 open Expenses:Bank Fees
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2035-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1000.00 CAD
+	Equity:Opening -1000.00 CAD
+
+2035-01-10 * "Buy 100 USD at 1.35, the bank keeping 1.00 USD as its fee"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "135.00"
+	Assets:USD Bank -1.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-1.35"
+	Expenses:Bank Fees 1.35 CAD
+	Assets:CAD Bank -135.00 CAD
+
+2035-01-30 * "Buy 60 and 40 USD at 1.35 in one, 70.00 USD of it paid straight back out"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 60.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "81.00"
+	Assets:USD Bank 40.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "54.00"
+	Assets:USD Bank -70.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-94.50"
+	Expenses:Bank Fees 94.50 CAD
+	Assets:CAD Bank -135.00 CAD
+
+2035-01-20 * "Buy 60 and 40 USD at 1.35 in one, the bank keeping 1.00 USD"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 60.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "81.00"
+	Assets:USD Bank 40.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "54.00"
+	Assets:USD Bank -1.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-1.35"
+	Expenses:Bank Fees 1.35 CAD
+	Assets:CAD Bank -135.00 CAD

@@ -14,6 +14,7 @@ from typing import Optional
 from repositories.gnucash_repository import GnuCashRepository
 from services.foreign_currency import (
     amounts_by_cost_basis,
+    cost_bases_changed,
     give_back_to_cost_bases,
     require_no_cost_basis_dependents,
 )
@@ -171,6 +172,9 @@ class DeleteTransactionUseCase:
         taken = amounts_by_cost_basis(target)
 
         self.repository.delete_transaction(target)
+        # A transaction deleted can take a cost basis with it, and writes no
+        # balance as it goes.
+        cost_bases_changed()
 
         give_back_to_cost_bases(self.repository.book, taken)
 

@@ -24,6 +24,10 @@
 # come back verbatim, and nothing should assume it does. Import this file and
 # export it to see for yourself.
 #
+# The buy and the sale are in one file, so the sale cannot be handed the guid
+# of the cost basis it draws on — GnuCash assigns that guid as this file is
+# read. The buying split states its own guid instead, and the sale gives it.
+#
 # Verified by tests/integration/test_half_cent_rounding.py.
 2026-01-01 open Assets
 	type: Asset
@@ -49,6 +53,7 @@
 2026-01-10 * "Buy 45 USD at 1.405"
 	currency.mnemonic: "CAD"
 	Assets:Bank:USD 45.00 USD
+		guid: "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0045"
 		account.commodity.mnemonic: "USD"
 		share_price: "1.405"
 		value: "63.23"
@@ -62,6 +67,7 @@
 	Assets:Bank:USD -45.00 USD
 		account.commodity.mnemonic: "USD"
 		share_price: "1.405"
+		cost_basis_split_guid: "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0045"
 	Assets:Bank 62.00 CAD
 		account.commodity.mnemonic: "CAD"
 		share_price: "1"

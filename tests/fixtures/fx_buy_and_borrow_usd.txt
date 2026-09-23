@@ -1,5 +1,11 @@
 # Two ways USD arrives without an invoice, each establishing its own cost basis:
 # bought with CAD at 1.35, and borrowed at 1.30.
+#
+# Each arriving split states its own guid — `0d0d…0135` for the dollars bought
+# and `0d0d…0130` for the dollars borrowed — so a file layered on this book can
+# say which of the two a disposal came out of without being handed the guid at
+# run time. The two cost 135.00 and 130.00 CAD, so which one is given decides
+# the gain, which is why nothing picks for the reader.
 2026-01-01 open Assets
 	type: Asset
 	commodity.namespace: "CURRENCY"
@@ -32,6 +38,7 @@
 2026-01-10 * "Buy 100 USD at 1.35"
 	currency.mnemonic: "CAD"
 	Assets:Bank:USD 100.00 USD
+		guid: "0d0d0d0d0d0d0d0d0d0d0d0d0d0d0135"
 		account.commodity.mnemonic: "USD"
 		share_price: "1.35"
 		value: "135.00"
@@ -43,6 +50,7 @@
 2026-01-20 * "Borrow 100 USD at 1.30"
 	currency.mnemonic: "CAD"
 	Assets:Bank:USD 100.00 USD
+		guid: "0d0d0d0d0d0d0d0d0d0d0d0d0d0d0130"
 		account.commodity.mnemonic: "USD"
 		share_price: "1.30"
 		value: "130.00"

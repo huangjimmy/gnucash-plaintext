@@ -1,0 +1,118 @@
+# A book kept in Hong Kong dollars that buys US dollars, buys US-listed shares
+# with them, and spends some of the dollars without saying which cost basis
+# they came out of.
+#
+# Cost bases are recorded in Canadian dollars, whatever currency a book is kept
+# in: `services/foreign_currency.py` reads every cost in `BASE_CURRENCY`. This
+# book states no Canadian figure anywhere, so it opens no cost basis at all, and
+# none of what depends on one applies: nothing asks the spend for a guid, the
+# shares carry no cost, and the balance sheet leaves the realized keys off
+# rather than stating a gain it did not measure.
+#
+# Verified by
+# tests/integration/test_an_hkd_book_gets_no_cost_basis_while_costs_are_recorded_in_cad.py.
+2027-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2027-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2027-01-01 commodity AMZN
+	mnemonic: "AMZN"
+	fullname: "Amazon.com"
+	namespace: "NASDAQ"
+	fraction: 10000
+2027-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2027-01-01 open Assets:HKD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2027-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2027-01-01 open Assets:AMZN
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+2027-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2027-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2027-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2027-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "HKD"
+	time: "2027-12-31 12:00:00 +0000"
+	value: "39/5"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+	currency.mnemonic: "USD"
+	time: "2027-12-31 12:00:00 +0000"
+	value: "250"
+	source: "user:price-editor"
+	type: "last"
+
+2027-01-02 * "Opening capital"
+	currency.mnemonic: "HKD"
+	Assets:HKD Bank 100000.00 HKD
+	Equity:Opening -100000.00 HKD
+
+2027-01-10 * "Buy 1,000.00 USD at 7.80"
+	currency.mnemonic: "HKD"
+	Assets:USD Bank 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "39/5"
+		value: "7800.00"
+	Assets:HKD Bank -7800.00 HKD
+
+2027-02-01 * "Buy 2 AMZN for 400.00 USD"
+	currency.mnemonic: "HKD"
+	Assets:AMZN 2.0000 AMZN
+		account.commodity.mnemonic: "AMZN"
+		share_price: "1560"
+		value: "3120.00"
+	Assets:USD Bank -400.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "39/5"
+		value: "-3120.00"
+
+2027-03-01 * "Sell 100.00 USD at 7.90"
+	currency.mnemonic: "HKD"
+	Assets:USD Bank -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "79/10"
+		value: "-790.00"
+	Assets:HKD Bank 790.00 HKD
+
+2027-06-30 * "Consulting"
+	currency.mnemonic: "HKD"
+	Assets:HKD Bank 5000.00 HKD
+	Income:Consulting -5000.00 HKD

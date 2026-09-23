@@ -5,6 +5,8 @@ This CLI provides commands to convert between GnuCash files and human-readable
 plaintext format.
 """
 
+import os
+
 import click
 
 from cli.account_balance_cmd import account_balance
@@ -41,6 +43,7 @@ from cli.unapply_cmd import unapply_payment
 from cli.unlink_cmd import unlink
 from cli.unpost_cmd import unpost_bills, unpost_invoices
 from cli.validate_cmd import validate_ledger
+from cli.verify_integrity_cmd import VERIFY_HELP, verify_integrity, verify_the_book
 from infrastructure.guile import GuileUnavailableError
 from infrastructure.pdf.printing import PdfEngineUnavailableError
 from repositories.gnucash_repository import BookUnavailableError
@@ -58,19 +61,141 @@ class _Cli(click.Group):
     themselves; the ones that do not would let it out as a traceback, and a
     refusal a reader cannot read tells them nothing about what to do next.
     Caught here, all of them say the same thing.
+
+    **`--verify-integrity` is answered here too**, and for the same reason: it
+    applies to every command that writes a book, and adding an option to each
+    of the twenty that do would be twenty chances to spell it differently or
+    leave it off. Given before the command, it runs the check once the command
+    has finished and saved. Given with no command at all, the token after it is
+    a book to check rather than a command to run, and `resolve_command` says so
+    — a `click.Group` otherwise refuses an unknown command before the callback
+    is ever reached.
     """
+
+    def resolve_command(self, ctx, args):
+        if ctx.params.get('verify_integrity') and args[0] not in self.commands:
+            # A token that is neither a command nor a file is most likely a
+            # command mistyped, so both are said rather than a missing book.
+            if not os.path.exists(args[0]):
+                raise click.UsageError(
+                    f"No such command '{args[0]}', and no book at that path to "
+                    f"check.", ctx=ctx)
+            return 'verify-integrity', self.commands['verify-integrity'], args
+        name, command, rest = super().resolve_command(ctx, args)
+        # Kept because Click hands the command its own context and does not
+        # keep it: a group sees only its own parameters afterwards, and the
+        # book the command was given is in the command's. A copy of the
+        # arguments, because Click parses that very list by taking items off
+        # it, so the list itself is empty by the time the command returns.
+        ctx.meta['dispatched'] = (name, command, list(rest))
+        return name, command, rest
 
     def invoke(self, ctx):
         try:
-            return super().invoke(ctx)
+            outcome = super().invoke(ctx)
         except (BookUnavailableError, PageNotRenderedError,
                 GuileUnavailableError, PdfEngineUnavailableError) as e:
             raise click.ClickException(str(e)) from e
+        except SystemExit as leaving:
+            # Several commands end by exiting with a code of their own — an
+            # import that reports errors exits 1 — and a check that ran only
+            # where a command returned normally would silently skip exactly
+            # the runs worth checking. The book is checked, and the command's
+            # own code is kept where the check passes; where it fails, the run
+            # ends on the check's refusal and exits 1.
+            #
+            # A command that ends by raising `click.ClickException`, or by
+            # `ctx.exit()` — Click's `Exit`, which is not a `SystemExit` — is
+            # not checked: every command that writes reports its errors and
+            # exits with a code, or refuses before it saves. One that saved
+            # and then ended either way would need catching here as well.
+            _check_what_the_command_wrote(ctx)
+            raise leaving
+        _check_what_the_command_wrote(ctx)
+        return outcome
 
 
-@click.group(cls=_Cli)
+def _the_parsed_command(ctx):
+    """The subcommand's own arguments, read back after it has run.
+
+    Parsed a second time, with `resilient_parsing`, because Click's own parse
+    happens inside a context it discards. Nothing is prompted for and no eager
+    option acts under that flag, so the second parse asks the machine nothing
+    and answers only the questions the check has: which book, and whether the
+    run was a dry run.
+    """
+    name, command, args = ctx.meta['dispatched']
+    return name, command, command.make_context(name, list(args), parent=ctx,
+                                               resilient_parsing=True)
+
+
+def _the_book_the_command_was_given(command, parsed):
+    """The book a subcommand was handed, read out of its own arguments.
+
+    **There is always one to answer with.** Every command takes a book under
+    one of the three names below — every registered command was listed and
+    read — and a run that gives none is refused by Click or by the command
+    itself before anything happens, a `UsageError` that ends the run without
+    reaching the check. A command added with its book under another name
+    would hand the check the string `'None'`, which then reports that no book
+    is at that path; give it one of these three names.
+
+    `gnucash_file` is the positional book on every command. The same book is
+    `gnucash_path` behind `-i/--input` on `import` and behind `-o/--output` on
+    `import-beancount`, and `input_file` behind `-i/--input` on `export`,
+    `export-transaction`, `validate` and `export-beancount`. `input_file` is
+    read only as that option: `import`'s `input_file` is the plaintext ledger,
+    a positional argument, and checking that would open the wrong file.
+    """
+    behind_the_input_flag = any(
+        param.name == 'input_file' and '-i' in getattr(param, 'opts', ())
+        for param in command.params)
+    return str(parsed.params.get('gnucash_file')
+               or parsed.params.get('gnucash_path')
+               or (parsed.params.get('input_file') if behind_the_input_flag else None))
+
+
+def _check_what_the_command_wrote(ctx) -> None:
+    """Reopen the book the command was given and check it, where asked.
+
+    Reopened rather than asked of the session the command used, because what is
+    worth checking is the book on disk — the one the next command will read.
+
+    The standalone spelling is left alone: it does the check itself and would
+    otherwise do it twice.
+    """
+    if not ctx.params.get('verify_integrity'):
+        return
+    if ctx.invoked_subcommand in (None, 'verify-integrity'):
+        return
+    # A command that refused before saving leaves no book to reopen — an
+    # `import --new` whose ledger GnuCash would not take. Its own refusal is
+    # already printed; this says the check found nothing to read, where a
+    # traceback said nothing a reader could use.
+    _name, command, parsed = _the_parsed_command(ctx)
+    # A dry run writes nothing — `import-beancount -o new.gnucash --dry-run`
+    # leaves no book at all — so there is nothing the command did to check.
+    if parsed.params.get('dry_run'):
+        click.echo('--verify-integrity: a dry run writes nothing, so there is '
+                   'nothing to check.')
+        return
+    try:
+        report = verify_the_book(_the_book_the_command_was_given(command, parsed))
+    except (BookUnavailableError, PageNotRenderedError,
+            GuileUnavailableError) as e:
+        raise click.ClickException(f'the book could not be checked: {e}') from e
+    if not report.passed:
+        raise click.ClickException(
+            f'this command left the book with {len(report.findings)} thing(s) '
+            f'wrong with it, each printed above')
+
+
+@click.group(cls=_Cli, invoke_without_command=True)
+@click.option('--verify-integrity', 'verify_integrity', is_flag=True,
+              is_eager=True, help=VERIFY_HELP)
 @click.version_option(version='0.4.0', prog_name='gnucash-plaintext')
-def cli():
+@click.pass_context
+def cli(ctx, verify_integrity):
     """
     GnuCash Plaintext - Work with GnuCash files in plaintext format.
 
@@ -81,13 +206,27 @@ def cli():
       Export transactions:
         $ gnucash-plaintext export ledger.gnucash transactions.txt
 
+    \b
       Import transactions:
         $ gnucash-plaintext import ledger.gnucash transactions.txt
 
+    \b
       Validate ledger:
         $ gnucash-plaintext validate ledger.gnucash
+
+    \b
+      Check whether a book is consistent and balanced, after a command
+      that writes it or on its own:
+        $ gnucash-plaintext --verify-integrity import ledger.gnucash today.txt
+        $ gnucash-plaintext --verify-integrity ledger.gnucash
     """
-    pass
+    if ctx.invoked_subcommand is None and verify_integrity:
+        raise click.UsageError(
+            '--verify-integrity takes a book to check, or a command to run '
+            'before checking the book it was given', ctx=ctx)
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+        ctx.exit()
 
 
 # Register commands
@@ -124,6 +263,7 @@ cli.add_command(migrate, name='migrate')
 cli.add_command(find_orphan_payments, name='find-orphan-payments')
 cli.add_command(find_prepayments, name='find-prepayments')
 cli.add_command(fx_balances, name='fx-balances')
+cli.add_command(verify_integrity, name='verify-integrity')
 
 
 if __name__ == '__main__':

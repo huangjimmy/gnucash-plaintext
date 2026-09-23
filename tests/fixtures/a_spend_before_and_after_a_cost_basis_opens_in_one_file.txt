@@ -1,0 +1,99 @@
+# One file spending US dollars before any cost basis is kept for them and after
+# one opens.
+#
+# The dollars first come in borrowed, in a transaction written wholly in US
+# dollars, which states no cost and opens no cost basis — so spending 10.00 of
+# them and then 5.00 more gives no guid and is not refused: there is none to
+# give, and the second spend is answered from what the first found. Then 100.00 USD
+# are bought at 1.30, which opens one. The same spend after that draws on a
+# cost basis the book now keeps, and giving no guid is refused.
+#
+# Whether the book keeps a cost basis is remembered through an import, because
+# it is asked of every spend that gives no guid. This file is what shows that
+# the answer is forgotten when a cost basis opens.
+#
+# Verified by
+# tests/integration/test_whether_a_cost_basis_is_kept_is_asked_again_once_one_opens.py.
+2036-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2036-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2036-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2036-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2036-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2036-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2036-01-01 open Liabilities:USD Loan
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2036-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2036-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2036-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1000.00 CAD
+	Equity:Opening -1000.00 CAD
+
+2036-01-05 * "Borrow 500.00 USD"
+	currency.mnemonic: "USD"
+	Assets:USD Bank 500.00 USD
+	Liabilities:USD Loan -500.00 USD
+
+2036-01-10 * "Sell 10.00 USD before any cost basis is kept"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -10.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "-14.00"
+	Assets:CAD Bank 14.00 CAD
+
+2036-01-12 * "Sell 5.00 USD, still before any cost basis is kept"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -5.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "-7.00"
+	Assets:CAD Bank 7.00 CAD
+
+2036-01-15 * "Buy 100.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "130.00"
+	Assets:CAD Bank -130.00 CAD
+
+2036-01-20 * "Sell 10.00 USD after a cost basis opened"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -10.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "-14.00"
+	Assets:CAD Bank 14.00 CAD

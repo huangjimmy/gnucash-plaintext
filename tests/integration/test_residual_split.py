@@ -45,13 +45,19 @@ def _export_text(runner, book, out):
 
 def test_residual_books_the_difference(tmp_path):
     """100 USD that cost 135.00 CAD, sold for 139.00: a 4.00 CAD gain lands on
-    the named account rather than in GnuCash's own Imbalance account."""
+    the account the file states rather than in GnuCash's own Imbalance account.
+
+    The dollars sold are the ones bought at 1.35, so the sale gives that cost
+    basis's guid — `fx_buy_and_borrow_usd.txt` writes it on the split itself.
+    The book holds a second cost basis of the same currency at 1.30, and which
+    of the two is given is what decides whether the gain is 4.00 or 9.00.
+    """
     runner = CliRunner()
     book = _book_with_usd(runner, tmp_path)
     fixture = tmp_path / 'sale.txt'
     fixture.write_text(
         Path('tests/fixtures/fx_sell_usd_one_cost_basis.txt').read_text()
-        .replace('\t\tcost_basis_split_guid: "{basis_guid}"\n', '')
+        .replace('{basis_guid}', '0d0d0d0d0d0d0d0d0d0d0d0d0d0d0135')
         .replace('share_price: "1.40"', 'share_price: "1.35"')
         .replace('value: "-140.00"', 'value: "-135.00"'))
     result = _import(runner, book, str(fixture))

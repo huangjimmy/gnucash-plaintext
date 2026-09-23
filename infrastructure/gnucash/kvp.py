@@ -490,11 +490,38 @@ def set_custom_metadata(obj, metadata: dict) -> None:
         ValueError: If any key in *metadata* contains a colon.
     """
     _validate_custom_keys(metadata)
+    # A write that sets a watched key, or drops one the slot held — the whole
+    # slot is replaced, so leaving a key out removes it — is counted, for a
+    # reader keeping an answer that depends on those keys (`watch_custom_key`).
+    global _watched_key_writes
+    if (any(key in metadata for key in _WATCHED_KEYS)
+            or any(f'"{key}"' in (_get_string_slot(obj, PT_DATA_SLOT) or '')
+                   for key in _WATCHED_KEYS)):
+        _watched_key_writes += 1
     try:
         json_str = json.dumps(metadata, ensure_ascii=False, sort_keys=True)
         _set_string_slot(obj, PT_DATA_SLOT, json_str)
     except Exception as e:
         logging.error(f"Failed to store custom metadata: {e}")
+
+
+_WATCHED_KEYS: set = set()
+_watched_key_writes = 0
+
+
+def watch_custom_key(key: str) -> None:
+    """Count every `set_custom_metadata` that sets or drops `key` from now on.
+
+    For a reader that keeps an answer read from that key and must know when
+    to ask again, whichever writer changed it — a count kept here sees every
+    one, where a count kept by each writer misses the next writer added.
+    """
+    _WATCHED_KEYS.add(key)
+
+
+def watched_key_writes() -> int:
+    """How many writes have set or dropped a watched key so far."""
+    return _watched_key_writes
 
 
 def set_book_string_option(book, section: str, name: str, value: str) -> bool:

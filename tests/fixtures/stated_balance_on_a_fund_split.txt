@@ -1,12 +1,13 @@
 # A basis balance stated on the fund units a purchase brought in.
 #
 # 1.000 FUNDX is bought for 100.00 CAD, and `cost_basis_balance:` is written on
-# the FUNDX split. A fund is a security, not a currency: its units are counted
-# and priced, never converted, so no cost basis lives on the split and nothing
-# would read the balance.
+# the FUNDX split. A fund is a holding with a cost in the book's own currency
+# (Q-046), so the split is a cost basis and the stated balance is what is left
+# of it — all of it here, the purchase having sold none.
 #
-# What this fixture produces: a refusal saying FUNDX is a security, and no
-# transaction.
+# What this fixture produces: one cost basis, 1.00 FUNDX at 100 CAD/FUNDX.
+# Two decimal places because the FUNDX commodity divides into 100, whatever
+# smallest unit the account is kept to.
 #
 # Verified by tests/integration/test_stated_balance_is_checked.py.
 2026-01-01 commodity FUNDX

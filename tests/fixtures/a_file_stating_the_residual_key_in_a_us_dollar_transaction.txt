@@ -10,8 +10,12 @@
 # total with no price applied to it and nothing on the page saying the units
 # differ — the sum states one currency, and a figure in another cannot join it.
 #
-# Nothing here gives a cost basis guid, and nothing needs to: the currency is
-# asked about before the disposal is.
+# The 20.00 leaves a US dollar bank the book keeps a cost basis for, so the
+# split spending it says which one — `a_cad_book_that_bought_a_thousand_usd.txt`
+# gives that split a guid of its own for files like this to point at. What is
+# being measured here is unaffected: the currency of the transaction is asked
+# about before the marked split is counted, and it is asked whether or not a
+# disposal accompanies it.
 2026-03-01 open Expenses
 	type: "Expense"
 	placeholder: #True
@@ -25,5 +29,6 @@
 2026-03-01 * "Bank fee charged in US dollars"
 	currency.mnemonic: "USD"
 	Assets:USD Bank -20.00 USD
+		cost_basis_split_guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1000"
 	Expenses:USD Bank Fees 20.00 USD
 		took_the_residual: "true"
