@@ -1,0 +1,70 @@
+# 1,000.00 US dollars bought at 1.30, and 400.00 of them moved to a savings
+# account in a transaction stated in Canadian dollars, each side valued at the
+# 1.30 they cost.
+#
+# The move is a transfer: the book held the 400.00 before and holds them after,
+# so the savings split is no cost basis. An earlier release read it as an
+# arrival at 1.30 and stored a cost basis balance on it.
+#
+# Verified by
+# tests/integration/test_a_transfer_an_earlier_release_gave_a_balance_is_reported.py.
+2039-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2039-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2039-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2039-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2039-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2039-01-01 open Assets:USD Savings
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2039-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2039-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2039-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 5000.00 CAD
+	Equity:Opening -5000.00 CAD
+
+2039-01-05 * "Buy 1,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+	Assets:CAD Bank -1300.00 CAD
+
+2039-02-01 * "Move 400.00 USD to savings"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -400.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-520.00"
+	Assets:USD Savings 400.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "520.00"

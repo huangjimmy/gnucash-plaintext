@@ -8,6 +8,10 @@
 # path that takes the plain attach rather than the restatement, and so the one
 # a sign guard reaches unconditionally.
 #
+# The 100.00 leaves a bank the book keeps a cost basis for — the one
+# `money_booked_to_a_cad_account.txt` opened at 1.39 — so the bank split says
+# it came out of that.
+#
 # What this fixture produces: a USD transaction, bank −100.00 against a loose
 # receivable split of +100.00.
 #
@@ -19,6 +23,7 @@
 	Assets:Bank:USD -100.00 USD
 		guid: "beef0055beef0066beef0077beef0088"
 		account.commodity.mnemonic: "USD"
+		cost_basis_split_guid: "1a2b3c4d5e6f70819a2b3c4d5e6f7081"
 	Assets:Accounts Receivable USD 100.00 USD
 		guid: "beef0099beef00aabeef00bbbeef00cc"
 		account.commodity.mnemonic: "USD"

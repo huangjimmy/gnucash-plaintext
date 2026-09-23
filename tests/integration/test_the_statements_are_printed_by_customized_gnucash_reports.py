@@ -11,6 +11,8 @@ Every expected figure below is the one GnuCash's Balance Sheet and Income
 Statement reports give for the same book.
 """
 
+from fractions import Fraction
+
 from click.testing import CliRunner
 
 from tests.conftest import _run
@@ -22,6 +24,7 @@ from tests.integration.text_report_pages import book_from as _book
 from tests.integration.text_report_pages import directive_of as _directive
 from tests.integration.text_report_pages import directives_of as _directives
 from tests.integration.text_report_pages import key_of as _key
+from tests.integration.text_report_pages import lines_for as _lines_for
 from tests.integration.text_report_pages import under as _under
 
 
@@ -141,12 +144,13 @@ class TestAFiscalYearThatIsNotTheCalendars:
         assert result.exit_code == 0, result.output
         assert _directive(result.output) == '2025-07-01 income-statement'
         assert _amount(result.output, 'Income:Consulting') == '6900.00 CAD'
-        assert _amount(result.output, 'Income:Realized Gains') == '480.00 USD'
-        assert _under(result.output, 'Income:Realized Gains') == {
-            'account.commodity.mnemonic': 'USD',
-            'share_price': '1.38',
-            'value': '662.40'}
-        assert _key(result.output, 'net_income') == '7512.40 CAD'
+        # 728.00 CAD, stated in the book's own currency by the sale itself:
+        # 8 shares costing 260.00 each against the 2,080.00 USD they fetched at
+        # the 1.35 of the day. An account kept in Canadian dollars carries no
+        # price or value line, because there is nothing to convert.
+        assert _amount(result.output, 'Income:Realized Gains') == '728.00 CAD'
+        assert _under(result.output, 'Income:Realized Gains') == {}
+        assert _key(result.output, 'net_income') == '7578.00 CAD'
 
     def test_an_account_the_period_never_touched_is_left_off(self, tmp_path):
         """The FX sale is in 2026-07 and the interest in 2026-09, so a year ending 03-31 has neither.
@@ -164,8 +168,8 @@ class TestAFiscalYearThatIsNotTheCalendars:
                       '--fiscal-year-end', '2026-03-31')
 
         assert result.exit_code == 0, result.output
-        assert 'Income:Realized FX Gains' not in result.output, result.output
-        assert 'Expenses:Interest' not in result.output, result.output
+        assert _lines_for(result.output, 'Income:Realized FX Gains') == [], result.output
+        assert _lines_for(result.output, 'Expenses:Interest') == [], result.output
         assert _amount(result.output, 'Expenses:Fees') == '50.00 CAD'
 
 
@@ -207,65 +211,47 @@ class TestACadBookOverOneFiscalYear:
     def test_a_gain_taken_is_income_and_a_gain_on_what_is_held_is_a_key(self, tmp_path):
         """Both kinds of gain on one page, reached by different routes.
 
-        The 480.00 USD taken on the shares and the 240.00 CAD taken on the
+        The 728.00 CAD taken on the shares and the 240.00 CAD taken on the
         currency are income, so on a balance sheet they are inside
         `retained_earnings` along with the consulting and the fees. What the
         holdings have made since they were bought is held by no account, so it
         is a key of the block.
 
-        **Why this passes, and why 940.00 is not the figure this book ought to
-        have.** The assertions state what `balance-sheet` prints today, which
-        is what every test here does. The page is right about the book it is
-        given: the book's US dollar cost basis says 10,000.00 where the bank
-        holds 7,480.00, so those dollars cannot be measured from their own
-        cost and keep GnuCash's revaluation instead, which comes to 840.00.
-        Add the 100.00 the Hong Kong dollars are measured for and the key is
-        940.00.
-
-        The book is what is wrong. The AMZN purchase spent US dollars and
-        should have drawn that basis down; it did not, because a stock bought
-        with a foreign currency is not yet recognised as consuming that
-        currency's cost basis — `docs/issues/Q-045-draw-a-stock-bought-with-
-        foreign-currency-from-that-currencys-cost-basis-and-open-one-for-what-
-        a-sale-brings-in.md`. With the basis drawn down to what the bank
-        holds, these dollars would be measured from their own cost and this
-        key would not be 940.00.
-
-        **So this figure is expected to change, and the test is how anyone
-        finds out.** The day Q-045 lands, this assertion turns red, whoever
-        did it reads the diff and writes the new number. That is the test
-        working. It is deliberately not an `xfail`: a mark asserts only that
-        the test does not pass, so it cannot check a figure, and it swallows
-        every other assertion in the body — see "No `xfail`, no `skip`" in
-        CLAUDE.md.
+        The US dollars are the one holding here the cost bases cannot speak
+        for: they hold 3,480.00 where the bank holds 7,480.00, the 4,000.00
+        between them being the borrowing, which is stated wholly in US dollars
+        and so says nothing about what those dollars cost. Those keep GnuCash's
+        revaluation at 505.60; the Hong Kong dollars are measured from their own
+        cost bases at 100.00, and the two come to the 605.60 the key states.
         """
         book = _book(tmp_path, self.FIXTURE)
 
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
 
         assert result.exit_code == 0, result.output
-        assert _key(result.output, 'retained_earnings') == '12679.60 CAD'
-        # The two parts, never one line: 940.00 on the foreign currency and
-        # 1,363.20 on the shares. The book's HKD cost basis accounts for
-        # 100.00 of the currency figure. Its USD cost basis balance says
-        # 10,000.00 where the book owns 4,980.00, so those dollars keep
-        # GnuCash's own revaluation instead — they are currency either way,
-        # which is why they are here and not in `_other`.
-        # All 940.00 of the currency figure is on the asset side. The USD loan
+        assert _key(result.output, 'retained_earnings') == '12726.00 CAD'
+        # The two parts, never one line: 605.60 on the foreign currency and
+        # 1,651.20 on the shares. The book's HKD cost basis accounts for
+        # 100.00 of the currency figure; its USD cost bases hold 3,480.00
+        # where the book owns 4,980.00, so those dollars keep GnuCash's own
+        # revaluation instead — they are currency either way, which is why
+        # they are here and not in `_other`.
+        # All 605.60 of the currency figure is on the asset side. The USD loan
         # was borrowed in a transaction stated wholly in US dollars, so it has
         # no cost basis and its split values convert at the same price as its
         # balance — neither the book nor GnuCash can see what it has cost, and
         # the key says 0.00 rather than leaving the reader to wonder.
         assert _key(result.output, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
-        assert _key(result.output, 'unrealized_gains_fx') == '940.00 CAD'
+        assert _key(result.output, 'unrealized_gains_fx') == '605.60 CAD'
         # And the items add to the key they sit under: the HKD group measured
         # from its own cost bases at 100.00, the USD group under
-        # `measured_from: gnucash_revaluation` at 840.00.
-        assert _block_total_of(result.output, 'unrealized_gains_assets_fx') == 940
-        # In full, because the shares are the one holding here whose gain the
-        # cost bases say nothing about: 20 bought and 8 sold leave 12 AMZN,
-        # whose splits were valued at 3,408.00 CAD and which are worth 4,771.20
-        # at the year-end price.
+        # `measured_from: gnucash_revaluation` at 505.60.
+        assert _block_total_of(result.output, 'unrealized_gains_assets_fx') == Fraction('605.60')
+        # In full: 20 AMZN bought and 8 sold leave 12, and their cost is what
+        # the cost bases hold — 260.00 a share, being the 200.00 USD they were
+        # bought at carried through the 1.30 those dollars cost. Worth 4,771.20
+        # at the year-end price, so the gain is 1,651.20 and it carries both
+        # movements, the share's and the dollar's.
         assert _block_of(result.output, 'unrealized_gains_other') == '\n'.join((
             '\t\tsecurities: # security, fund, etc',
             '\t\t\tsecurity:',
@@ -273,21 +259,35 @@ class TestACadBookOverOneFiscalYear:
             '\t\t\t\tcommodity.mnemonic: "AMZN"',
             '\t\t\t\tquantity: 12.0000',
             '\t\t\t\tshare_price: 397.6 # what price-fn gives for this commodity',
+            '\t\t\t\tcost_bases:',
+            '\t\t\t\t\tcost_basis:',
+            '\t\t\t\t\t\tsplit_guid: <guid>',
+            '\t\t\t\t\t\taccount: "Assets:AMZN"',
+            '\t\t\t\t\t\tcost_basis_balance: 12.0000',
+            '\t\t\t\t\t\tcost_share_price: 260 # AMZN in CAD, on the day it was'
+            ' bought',
+            '\t\t\t\t\t\tcost_rate: 1 # CAD per CAD, on that same day',
+            '\t\t\t\t\t\tcost_share_price_in_base: 260 # cost_share_price *'
+            ' cost_rate',
+            '\t\t\t\t\t\tcost_value: 3120.00 # cost_basis_balance *'
+            ' cost_share_price_in_base',
+            '\t\t\t\t\t\tvalue: 4771.20 # cost_basis_balance * share_price',
+            '\t\t\t\t\t\tunrealized_gains_other: 1651.20 # value - cost_value',
             '\t\t\t\taccounts:',
             '\t\t\t\t\taccount:',
             '\t\t\t\t\t\tguid: <guid>',
             '\t\t\t\t\t\tname: "Assets:AMZN"',
             '\t\t\t\t\t\tbalance: 12.0000',
             '\t\t\t\t\t\tsplits:',
-            '\t\t\t\t\t\t\tsplit_amount 20.0000 | value 4000.00 USD',
-            '\t\t\t\t\t\t\tsplit_amount -8.0000 | value -1600.00 USD',
+            '\t\t\t\t\t\t\tsplit_amount 20.0000 | value 5200.00 CAD',
+            '\t\t\t\t\t\t\tsplit_amount -8.0000 | value -2080.00 CAD',
             "\t\t\t\tvalue: 4771.20 # the holding converted at the sheet's price",
-            "\t\t\t\tcost_value: 3408.00 # its splits' values, converted",
-            '\t\t\t\tunrealized_gains_other: 1363.20 # value - cost_value',
+            '\t\t\t\tcost_value: 3120.00 # what its cost bases say the units cost',
+            '\t\t\t\tunrealized_gains_other: 1651.20 # value - cost_value',
             "\t\tvalue: 4771.20 # sum of each security's value",
-            "\t\tcost_value: 3408.00 # sum of each security's cost_value",
-            '\t\tunrealized_gains_other: 1363.20 # value - cost_value')), result.output
-        assert _key(result.output, 'total_unrealized_gains') == '2303.20 CAD'
+            "\t\tcost_value: 3120.00 # sum of each security's cost_value",
+            '\t\tunrealized_gains_other: 1651.20 # value - cost_value')), result.output
+        assert _key(result.output, 'total_unrealized_gains') == '2256.80 CAD'
 
     def test_each_account_states_what_it_holds_and_what_gnucash_made_of_it(self, tmp_path):
         """The plaintext format's own shape: the account, then a split's keys."""
@@ -340,8 +340,11 @@ class TestACadBookOverOneFiscalYear:
         assert result.exit_code == 0, result.output
         text = ' '.join(readable('\n'.join(
             sheet.extract_text() for sheet in pypdf.PdfReader(str(page)).pages)).split())
-        for figure in ('C$38,532.80', 'C$10,621.60', 'C$2,303.20'):
+        for figure in ('C$38,532.80', 'C$10,621.60', 'C$2,256.80'):
             assert figure in text, text
+        # GnuCash's own page dates itself the way every date this format
+        # writes is dated, rather than the way the machine's locale would.
+        assert 'Balance Sheet 2026-12-31' in text, text
 
     def test_the_income_statement_for_the_fiscal_year(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
@@ -350,9 +353,9 @@ class TestACadBookOverOneFiscalYear:
                       '--fiscal-year-end', '2026-12-31')
 
         assert result.exit_code == 0, result.output
-        assert _key(result.output, 'total_revenue') == '9421.60 CAD'
+        assert _key(result.output, 'total_revenue') == '9468.00 CAD'
         assert _key(result.output, 'total_expenses') == '292.00 CAD'
-        assert _key(result.output, 'net_income') == '9129.60 CAD'
+        assert _key(result.output, 'net_income') == '9176.00 CAD'
 
     def test_the_income_statement_states_its_period_and_its_accounts(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
@@ -366,11 +369,8 @@ class TestACadBookOverOneFiscalYear:
         assert _key(result.output, 'end') == '2026-12-31'
         assert _amount(result.output, 'Income:Consulting') == '8500.00 CAD'
         assert _amount(result.output, 'Income:Realized FX Gains') == '240.00 CAD'
-        assert _amount(result.output, 'Income:Realized Gains') == '480.00 USD'
-        assert _under(result.output, 'Income:Realized Gains') == {
-            'account.commodity.mnemonic': 'USD',
-            'share_price': '1.42',
-            'value': '681.60'}
+        assert _amount(result.output, 'Income:Realized Gains') == '728.00 CAD'
+        assert _under(result.output, 'Income:Realized Gains') == {}
         assert _amount(result.output, 'Expenses:Fees') == '150.00 CAD'
         assert _amount(result.output, 'Expenses:Interest') == '100.00 USD'
         assert _under(result.output, 'Expenses:Interest')['value'] == '142.00'
@@ -531,13 +531,19 @@ class TestABookUsingTradingAccounts:
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
 
         assert result.exit_code == 0, result.output
-        assert _key(result.output, 'trading_gains') == '2303.20 CAD'
+        assert _key(result.output, 'trading_gains') == '2256.80 CAD'
         assert 'unrealized_gains_assets_fx' not in result.output, result.output
         assert 'unrealized_gains_liabilities_fx' not in result.output, result.output
         assert 'unrealized_gains_fx' not in result.output, result.output
         assert 'unrealized_gains_other' not in result.output, result.output
         assert 'total_unrealized_gains' not in result.output, result.output
-        assert _key(result.output, 'retained_earnings') == '12679.60 CAD'
+        # 46.40 more than the same book's retained earnings once carried, and
+        # the same 46.40 less is in `trading_gains` above. The share sale
+        # realized 728.00 CAD — 8 shares costing 260.00 against the 2,080.00
+        # USD they fetched at the 1.35 of that day. Booked in US dollars it was
+        # 480.00 USD, which the report converted at the year-end 1.42 to
+        # 681.60, retranslating a gain months after the day it was realized.
+        assert _key(result.output, 'retained_earnings') == '12726.00 CAD'
         assert _key(result.output, 'total_liabilities_and_equity') == '38532.80 CAD'
 
 

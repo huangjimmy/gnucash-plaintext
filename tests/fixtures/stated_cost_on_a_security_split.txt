@@ -1,9 +1,8 @@
 # A cost stated on a share purchase, in a transaction with no CAD figure in
-# it. Shares are counted and priced rather than converted, so a security has
-# no cost basis here and nothing would ever read this — and with the whole
-# transaction in USD there is no derived cost for anything to notice the
-# stored one by. Refused at the door instead, on the same terms as a stated
-# balance on the same split.
+# it. A share is a holding with a cost in the book's own currency (Q-046), and
+# a transaction written wholly in US dollars states no such figure — the same
+# shape a currency arriving in its own currency has. So `cost_basis_cost:`
+# says what the units cost, and the cost basis opened for them carries it.
 2024-03-06 * "Buy USTECH with a cost stated on it"
 	currency.mnemonic: "USD"
 	Assets:Brokerage:USTECH 10 USTECH

@@ -90,6 +90,22 @@ def test_edited_guid_match_skipped_with_hint_and_unchanged(tmp_path):
     assert _bal(gf, 'Assets.Accounts Receivable') == 0.0
 
 
+def test_a_split_added_is_an_edit_too(tmp_path):
+    """The same deposit with its 200.00 divided across two splits: three splits where the book holds two."""
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    assert _import(runner, gf, TX, 'tx.txt', tmp_path).exit_code == 0
+    guid = _guid200(gf)
+
+    divided = (f'2026-01-01 * "Deposit"\n\tguid: "{guid}"\n'
+               f'\tAssets:Bank 200.00 CAD\n\tIncome -150.00 CAD\n'
+               f'\tAssets:Accounts Receivable -50.00 CAD\n')
+    r = _import(runner, gf, divided, 'divided.txt', tmp_path)
+    assert r.exit_code == 0, r.output
+    assert 'different content' in r.output.lower(), r.output
+    assert _bal(gf, 'Income') == -200.0
+
+
 def test_unchanged_guid_match_skipped_without_hint(tmp_path):
     runner = CliRunner()
     gf = _new_book(runner, tmp_path)

@@ -1,0 +1,136 @@
+# A book holding US dollars that no cost basis can speak for, and one cost
+# basis spent to the last cent.
+#
+# `Assets:USD Spent` bought 100.00 USD at 1.30 and sold every one of them
+# against that basis, so the basis stays on the book reading 0.00 — a row with
+# no units left to draw on. `Assets:USD Held` was paid 500.00 USD in a
+# transaction stated wholly in US dollars, which says nothing about what they
+# cost, so no cost basis was opened for them at all.
+#
+# Spending those dollars is therefore not refused for saying no cost basis guid:
+# the refusal asks first whether the book keeps a basis on that side that could
+# be drawn on, and the only one here holds nothing. A reader sent to a listing
+# of one row they could not have used would be worse than not being asked.
+#
+# Verified by
+# tests/integration/test_a_disposal_is_allowed_where_no_cost_basis_can_be_drawn_on.py.
+2034-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:USD Spent
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Assets:USD Held
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Liabilities:USD Loan
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses:Supplies
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2034-01-05 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2034-12-31 12:00:00 +0000"
+	value: "7/5"
+	source: "user:price-editor"
+	type: "last"
+
+2034-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 5000.00 CAD
+	Equity:Opening -5000.00 CAD
+
+2034-01-05 * "Buy 100.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Spent 100.00 USD
+		guid: "f6f6f6f6f6f6f6f6f6f6f6f6f6f60001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "130.00"
+	Assets:CAD Bank -130.00 CAD
+
+# Every one of them sold, so the cost basis is left reading 0.00.
+2034-02-10 * "Sell all 100.00 USD at 1.35"
+	currency.mnemonic: "CAD"
+	Assets:USD Spent -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-130.00"
+		cost_basis_split_guid: "f6f6f6f6f6f6f6f6f6f6f6f6f6f60001"
+	Assets:CAD Bank 135.00 CAD
+	Income:FX Gain $residual$ CAD
+
+# Borrowed in a transaction stated wholly in US dollars, so there is no Canadian
+# figure in it to say what either side cost and neither side opens a cost basis.
+2034-03-01 * "Borrow 500.00 USD"
+	currency.mnemonic: "USD"
+	Assets:USD Held 500.00 USD
+		guid: "f6f6f6f6f6f6f6f6f6f6f6f6f6f60002"
+		account.commodity.mnemonic: "USD"
+	Liabilities:USD Loan -500.00 USD
+		account.commodity.mnemonic: "USD"

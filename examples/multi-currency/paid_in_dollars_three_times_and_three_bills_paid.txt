@@ -20,17 +20,17 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-22 commodity CAD
+2026-09-23 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-22 commodity USD
+2026-09-23 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-22 open Assets
+2026-09-23 open Assets
 	guid: "6de9eab40d014f8ea475c8a245b7a16f"
 	type: "Asset"
 	placeholder: #True
@@ -39,7 +39,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Assets:CAD Bank
+2026-09-23 open Assets:CAD Bank
 	guid: "65753c552964439eb1daaba5efa6ff45"
 	type: "Bank"
 	placeholder: #False
@@ -48,7 +48,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Assets:USD Bank
+2026-09-23 open Assets:USD Bank
 	guid: "3e01833506a14b08a8f43b801c036ccb"
 	type: "Bank"
 	placeholder: #False
@@ -57,7 +57,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-22 open Income
+2026-09-23 open Income
 	guid: "d35cc85ff0e24276b2fff82240dbb034"
 	type: "Income"
 	placeholder: #True
@@ -66,7 +66,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Income:Consulting
+2026-09-23 open Income:Consulting
 	guid: "fe2b3a9bce644e5bbda6cbd904971924"
 	type: "Income"
 	placeholder: #False
@@ -75,7 +75,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Income:FX Gain
+2026-09-23 open Income:FX Gain
 	guid: "252a49eb5e5a416292ccdeca54282ebe"
 	type: "Income"
 	placeholder: #False
@@ -84,7 +84,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Expenses
+2026-09-23 open Expenses
 	guid: "2cabf0febdf54f77b372baf73e031209"
 	type: "Expense"
 	placeholder: #True
@@ -93,7 +93,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Expenses:Subcontractors
+2026-09-23 open Expenses:Subcontractors
 	guid: "154ac34ff22049e88d1b410bd1698c46"
 	type: "Expense"
 	placeholder: #False
@@ -102,7 +102,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Equity
+2026-09-23 open Equity
 	guid: "a8c04e2a5def4f168c800ffe0210fc50"
 	type: "Equity"
 	placeholder: #True
@@ -111,7 +111,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Equity:Opening CAD
+2026-09-23 open Equity:Opening CAD
 	guid: "eecbed0b1ae147ab98876264e70e22cc"
 	type: "Equity"
 	placeholder: #False
@@ -264,24 +264,30 @@ price
 # 						split_guid: 7570827bd78b4063bebfa08026ea76fb
 # 						account: "Assets:USD Bank"
 # 						cost_basis_balance: 0.00
-# 						cost_share_price: 1.3
-# 						cost_value: 0.00 # cost_basis_balance * cost_share_price
+# 						cost_share_price: 1.3 # USD in CAD, on the day it was bought
+# 						cost_rate: 1 # CAD per CAD, on that same day
+# 						cost_share_price_in_base: 1.3 # cost_share_price * cost_rate
+# 						cost_value: 0.00 # cost_basis_balance * cost_share_price_in_base
 # 						value: 0.00 # cost_basis_balance * share_price
 # 						unrealized_gains_assets_fx: 0.00 # value - cost_value
 # 					cost_basis:
 # 						split_guid: 79027a5116ed4ad98ef81ac533a30cfd
 # 						account: "Assets:USD Bank"
 # 						cost_basis_balance: 0.00
-# 						cost_share_price: 1.35
-# 						cost_value: 0.00 # cost_basis_balance * cost_share_price
+# 						cost_share_price: 1.35 # USD in CAD, on the day it was bought
+# 						cost_rate: 1 # CAD per CAD, on that same day
+# 						cost_share_price_in_base: 1.35 # cost_share_price * cost_rate
+# 						cost_value: 0.00 # cost_basis_balance * cost_share_price_in_base
 # 						value: 0.00 # cost_basis_balance * share_price
 # 						unrealized_gains_assets_fx: 0.00 # value - cost_value
 # 					cost_basis:
 # 						split_guid: f04d9a9d4cee424da61e467a5f8ee287
 # 						account: "Assets:USD Bank"
 # 						cost_basis_balance: 0.00
-# 						cost_share_price: 1.4
-# 						cost_value: 0.00 # cost_basis_balance * cost_share_price
+# 						cost_share_price: 1.4 # USD in CAD, on the day it was bought
+# 						cost_rate: 1 # CAD per CAD, on that same day
+# 						cost_share_price_in_base: 1.4 # cost_share_price * cost_rate
+# 						cost_value: 0.00 # cost_basis_balance * cost_share_price_in_base
 # 						value: 0.00 # cost_basis_balance * share_price
 # 						unrealized_gains_assets_fx: 0.00 # value - cost_value
 # 				cost_basis_balance: 0.00 # sum of each cost_basis's cost_basis_balance
@@ -318,7 +324,7 @@ price
 # 				date: 2026-10-01
 # 				account: "Income:FX Gain"
 # 				amount: 20.00
-# 	realized_gains_other: 0.00 CAD # not yet supported
+# 	realized_gains_other: 0.00 CAD
 # 	total_realized_gains: 250.00 CAD # realized_gains_fx + realized_gains_other
 # 	unrealized_gains_other: # sum of unrealized_gains_other of all securities and funds
 # 		securities: # there is no security or fund

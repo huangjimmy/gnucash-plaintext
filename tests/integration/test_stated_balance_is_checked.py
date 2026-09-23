@@ -116,14 +116,27 @@ def test_a_balance_on_a_split_that_holds_no_foreign_currency_is_refused(tmp_path
     assert 'Errors:       1' in result.output, result.output
 
 
-def test_a_balance_on_a_split_holding_fund_units_is_refused(tmp_path):
-    """Fund units are counted and priced, never converted, so they carry no cost basis."""
-    result = _import(CliRunner(), tmp_path / 'book.gnucash',
+def test_a_balance_on_a_split_holding_fund_units_is_taken(tmp_path):
+    """A fund unit is a holding with a cost, so a balance on it is read (Q-046).
+
+    The file states 1.000 of the 1.000 units bought as still unsold, which is
+    what the purchase itself would open, and the run takes it. Every other
+    question this file asks of a stated balance is asked of this one too: that
+    it parses, that it is positive, that it fits the unit the commodity is
+    counted to, and that it is no more than the split brought in.
+    """
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    result = _import(runner, book,
                      'tests/fixtures/stated_balance_on_a_fund_split.txt')
 
-    assert ("cost_basis_balance on split 'Assets:Fund' is on a FUNDX split, and "
-            "FUNDX is a security rather than a currency") in result.output, result.output
-    assert 'Errors:       1' in result.output, result.output
+    assert 'Errors:       0' in result.output, result.output
+    listing = runner.invoke(cli, ['fx-balances', str(book)]).output
+    # Two decimal places because FUNDX itself divides into 100, whatever the
+    # account's own smallest unit says: the commodity is what a quantity of it
+    # is counted to (CLAUDE.md finding 30).
+    assert 'Total FUNDX cost basis balance: 1.00' in listing, listing
+    assert '100 CAD/FUNDX' in listing, listing
 
 
 def test_a_balance_on_an_account_never_opened_is_refused_for_the_account(tmp_path):

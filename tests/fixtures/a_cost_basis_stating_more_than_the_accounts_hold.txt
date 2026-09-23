@@ -1,0 +1,102 @@
+# A book whose cost basis stands for currency the accounts no longer hold.
+#
+# 1,000.00 USD are bought, 400.00 of them are sold against that cost basis, and
+# the purchase split states `cost_basis_balance: "1000.00"`. A stated balance is
+# what that cost basis holds once the file has landed — it is how a book
+# carrying sales gnucash-plaintext never saw gets one — so the statement stands
+# and the drawdown does not, and the book is left offering 1,000.00 USD against
+# a bank holding 600.00.
+#
+# Nothing refuses it as it lands: the figure is inside what the split brought
+# in, which is what the rule on a stated balance asks. What finds it afterwards
+# is `--verify-integrity`, which reads the cost bases against what the accounts
+# hold and reports the 400.00 that is gone.
+#
+# Verified by
+# tests/integration/test_verify_integrity_checks_whether_a_book_is_consistent_and_balanced.py.
+2031-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2031-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2031-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2031-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2031-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2031-01-05 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2031-06-30 12:00:00 +0000"
+	value: "7/5"
+	source: "user:price-editor"
+	type: "last"
+
+2031-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 5000.00 CAD
+	Equity:Opening -5000.00 CAD
+
+# The stated balance is the whole 1,000.00, so the sale below draws nothing off
+# it as far as the finished book is concerned.
+2031-01-05 * "Buy 1,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		guid: "d4d4d4d4d4d4d4d4d4d4d4d4d4d40001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+		cost_basis_balance: "1000.00"
+	Assets:CAD Bank -1300.00 CAD
+
+2031-06-30 * "Sell 400.00 USD at 1.40"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -400.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-520.00"
+		cost_basis_split_guid: "d4d4d4d4d4d4d4d4d4d4d4d4d4d40001"
+	Assets:CAD Bank 560.00 CAD
+	Income:FX Gain $residual$ CAD

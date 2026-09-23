@@ -71,7 +71,10 @@ class TestABookUsingTradingAccounts:
         assert result.exit_code == 0, result.output
         assert 'total_trading' not in result.output, result.output
         assert 'Trading' not in result.output, result.output
-        assert key_of(result.output, 'total_revenue') == '9421.60 CAD'
+        # 46.40 more than it once was: the share sale realized 728.00 CAD on
+        # the day, where booking it as 480.00 USD had the report convert it at
+        # the year-end 1.42 to 681.60.
+        assert key_of(result.output, 'total_revenue') == '9468.00 CAD'
 
     def test_the_balance_sheet_states_the_trading_gains(self, tmp_path):
         book = a_book_using_trading_accounts(tmp_path, THE_CAD_BOOK)
@@ -79,7 +82,10 @@ class TestABookUsingTradingAccounts:
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-12-31')
 
         assert result.exit_code == 0, result.output
-        assert key_of(result.output, 'trading_gains') == '2303.20 CAD'
+        # 46.40 less than it once was, being the same 46.40 the share sale
+        # moved into the realized figure by stating its gain on the day rather
+        # than leaving it to be converted at the year end.
+        assert key_of(result.output, 'trading_gains') == '2256.80 CAD'
         assert key_of(result.output, 'total_equity') == '34982.80 CAD'
 
 

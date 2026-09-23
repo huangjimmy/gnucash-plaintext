@@ -1,0 +1,87 @@
+# A Canadian company sells US-listed shares, and writes the sale wholly in US
+# dollars.
+#
+# The shares have a cost basis in Canadian dollars: 20 bought for 5,200.00 CAD,
+# 260.00 a share. Selling 8 of them for 2,080.00 USD draws that cost basis down
+# by 2,080.00 CAD of cost and realizes whatever the dollars fetched above it —
+# and a transaction with no split in Canadian dollars has nowhere to state that
+# figure, while the dollars it brings in arrive with no cost to open a cost
+# basis at. So the sale is refused, as a repayment written wholly in US dollars
+# that realizes a difference is, and written again in Canadian dollars with
+# `$residual$`.
+#
+# Verified by
+# tests/integration/test_a_share_sale_stating_no_canadian_figure_is_refused.py.
+2034-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 commodity USD_TECH
+	mnemonic: "USD_TECH"
+	fullname: "A technology company whose shares are priced in US dollars"
+	namespace: "NASDAQ"
+	fraction: 10000
+2034-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Assets:Tech Shares
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "USD_TECH"
+2034-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income:Realized Gains
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2034-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 10000.00 CAD
+	Equity:Opening -10000.00 CAD
+
+2034-01-08 * "Buy 20 USD_TECH for 5,200.00 CAD"
+	currency.mnemonic: "CAD"
+	Assets:Tech Shares 20.0000 USD_TECH
+		guid: "a9a9a9a9a9a9a9a9a9a9a9a9a9a90001"
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "260"
+		value: "5200.00"
+	Assets:CAD Bank -5200.00 CAD
+
+2034-06-30 * "Sell 8 USD_TECH for 2,080.00 USD, written wholly in US dollars"
+	currency.mnemonic: "USD"
+	Assets:Tech Shares -8.0000 USD_TECH
+		account.commodity.mnemonic: "USD_TECH"
+		share_price: "260"
+		value: "-2080.00"
+		cost_basis_split_guid: "a9a9a9a9a9a9a9a9a9a9a9a9a9a90001"
+	Assets:USD Bank 2080.00 USD

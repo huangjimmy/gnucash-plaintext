@@ -184,7 +184,14 @@ class TestTheWorkingAddsUpToTheKey:
             '\t\t\t\tamount: 20.00'))
 
     def test_on_a_book_of_four_cost_bases_at_four_rates(self, tmp_path):
-        """Four bases at four rates, each stating its own gain against one price."""
+        """Four bases at four rates, each stating its own gain against one price.
+
+        Every one of these dollars was bought with Canadian ones, so the pair
+        the trade happened at is the book's own currency against the foreign
+        one: `cost_share_price` and `cost_share_price_in_base` are the same
+        number and `cost_rate` is 1. A security priced in a foreign currency is
+        where the three come apart.
+        """
         runner = CliRunner()
         page = _sheet(runner, _book(runner, tmp_path, FOUR_RATES))
 
@@ -193,8 +200,13 @@ class TestTheWorkingAddsUpToTheKey:
             '\t\t\t\t\t\tsplit_guid: <guid>',
             '\t\t\t\t\t\taccount: "Assets:USD Bank"',
             '\t\t\t\t\t\tcost_basis_balance: 1000.00',
-            '\t\t\t\t\t\tcost_share_price: {rate}',
-            '\t\t\t\t\t\tcost_value: {cost} # cost_basis_balance * cost_share_price',
+            '\t\t\t\t\t\tcost_share_price: {rate} # USD in CAD, on the day it'
+            ' was bought',
+            '\t\t\t\t\t\tcost_rate: 1 # CAD per CAD, on that same day',
+            '\t\t\t\t\t\tcost_share_price_in_base: {rate} # cost_share_price'
+            ' * cost_rate',
+            '\t\t\t\t\t\tcost_value: {cost} # cost_basis_balance *'
+            ' cost_share_price_in_base',
             '\t\t\t\t\t\tvalue: 1500.00 # cost_basis_balance * share_price',
             '\t\t\t\t\t\tunrealized_gains_assets_fx: {gain} # value - cost_value'))
         assert block_of(page, 'unrealized_gains_assets_fx') == '\n'.join((
@@ -270,10 +282,20 @@ class TestTurningItOff:
         page = _sheet(runner, book, '--no-itemize')
 
         # Every key states its own figure, and none carries items under it.
-        assert key_of(page, 'unrealized_gains_assets_fx') == '940.00 CAD'
-        assert key_of(page, 'unrealized_gains_other') == '1363.20 CAD'
-        assert key_of(page, 'unrealized_gains_fx') == '940.00 CAD'
-        assert key_of(page, 'total_unrealized_gains') == '2303.20 CAD'
+        #
+        # The currency figure is 334.40 lower than it once was and the security
+        # figure 288.00 higher, and both come of the same change: the AMZN
+        # purchase and sale are stated in Canadian dollars, so their split
+        # values are Canadian figures the sheet's rate no longer moves. The
+        # 288.00 is the currency movement on the 12 shares still held — 2,400
+        # USD of cost at the 0.12 the dollar rose. The old figure left it out:
+        # it converted the cost at the sheet's own rate, the same rate the
+        # worth is converted at, so the dollar's movement was on both sides of
+        # the subtraction and none of it reached the difference.
+        assert key_of(page, 'unrealized_gains_assets_fx') == '605.60 CAD'
+        assert key_of(page, 'unrealized_gains_other') == '1651.20 CAD'
+        assert key_of(page, 'unrealized_gains_fx') == '605.60 CAD'
+        assert key_of(page, 'total_unrealized_gains') == '2256.80 CAD'
         assert not [line for line in page.splitlines()
                     if line.startswith('\t\t\tcommodity:')], page
 
@@ -291,7 +313,7 @@ class TestTurningItOff:
                      '--start', '2026-01-01', '--end', YEAR_END, '--no-itemize')
         assert drawn.exit_code == 0, drawn.output
 
-        assert key_of(drawn.output, 'unrealized_gains_fx') == '940.00 CAD'
+        assert key_of(drawn.output, 'unrealized_gains_fx') == '605.60 CAD'
         assert not [line for line in drawn.output.splitlines()
                     if line.startswith('\t\t\tcommodity:')], drawn.output
 

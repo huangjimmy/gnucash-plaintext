@@ -1,0 +1,71 @@
+# A cost basis on a split the transaction values at nothing.
+#
+# The transaction is stated in Hong Kong dollars and moves US dollars, so no
+# split of it is in the book's own currency and nothing in it says what those US
+# dollars cost. The split says so itself with `cost_basis_cost:`. Its `value:`
+# is 0.00 — the transaction prices it at nothing — so the price per unit the
+# transaction gives is nothing, and the stated cost stands alone.
+#
+# What that settles: the itemized entry cannot divide the cost into a price and
+# a rate, because there is no price to divide by. It states the cost as both, at
+# a rate of 1.
+#
+# Verified by
+# tests/integration/test_a_cost_basis_whose_split_is_valued_at_nothing.py.
+2033-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2033-01-01 open Assets:HKD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2033-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2033-01-05 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+2033-01-05 * "Dollars moved in a Hong Kong dollar entry that prices them at nothing"
+	currency.mnemonic: "HKD"
+	Assets:USD Bank 1000.00 USD
+		guid: "e5e5e5e5e5e5e5e5e5e5e5e5e5e50001"
+		account.commodity.mnemonic: "USD"
+		value: "0.00"
+		cost_basis_cost: "1.30 CAD/USD"
+	Assets:HKD Bank 0.00 HKD
+		account.commodity.mnemonic: "HKD"
+		value: "0.00"

@@ -306,38 +306,40 @@ write_example "$B" 2026-12-31 \
     "the disposal is valued at what the dollars cost, so that report sees no" \
     "gain on the disposal and counts the 100.00 as income instead."
 
-# --- Spent dollars without recording which purchase -------------------------
+# --- Dollars that arrived with no Canadian figure to cost them --------------
 B="$BOOKS/drift.gnucash"
 gp import --new "$B" \
     "$F/a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt" > /dev/null
 settle "$B"
 write_example "$B" 2026-12-31 \
-    dollars_spent_without_recording_the_purchase.txt \
-    "A company that spent US dollars without recording which purchase they came from" \
-    "A bookkeeping mistake rather than a kind of trade, and the common one." \
-    "A disposal draws down a cost basis only when it gives that basis's" \
-    "guid. Spend foreign currency without one and the money leaves the" \
-    "account while the cost bases go on holding it: this book says it has" \
-    "10,000.00 USD against its cost bases while the accounts hold 7,480.00" \
-    "and owe 2,500.00." \
+    dollars_that_arrived_with_no_canadian_figure_to_cost_them.txt \
+    "A company whose US dollars arrived with no Canadian figure to cost them" \
+    "A cost basis records what a currency cost, and only a transaction" \
+    "stating a figure in the book's own currency can say. This company" \
+    "bought 10,000.00 USD with Canadian dollars, and sold shares for" \
+    "2,080.00 USD in a transaction stated in Canadian dollars, so both say" \
+    "what they cost. It also borrowed 4,000.00 USD in a transaction written" \
+    "wholly in US dollars, which says nothing. Every disposal here gives the" \
+    "cost basis it came out of, so the cost bases are drawn down as the" \
+    "dollars go, and they end holding 3,480.00 USD against the 7,480.00 the" \
+    "accounts hold. The 4,000.00 between them is the borrowing." \
     "" \
     "The sheet does not price what is not there. Those dollars keep" \
-    "GnuCash's own revaluation instead, while the Hong Kong dollars — whose" \
-    "cost basis does agree — are measured from theirs." \
+    "GnuCash's own revaluation instead, and say so with measured_from:" \
+    "gnucash_revaluation, while the Hong Kong dollars — whose cost basis" \
+    "does agree with what the account holds — are measured from theirs." \
     "" \
-    "The working below is what says which figure came from where: a line" \
-    "reading cost ... at ... worth ... was measured from that currency's own" \
-    "cost bases, and a line of a commodity and an amount is GnuCash's" \
-    "revaluation of that account." \
+    "The way out is to state the borrowing in Canadian dollars, at the rate" \
+    "of the day. Then every dollar in the book has a cost behind it and the" \
+    "whole currency is measured from its own cost bases." \
     "" \
-    "fx-balances --verify-costs will not find this one, though it finds a" \
-    "great deal else. Its per-currency question compares what a currency's" \
-    "cost bases hold between them against what the ledger says arrived, less" \
-    "what was sold against a cost basis — and a disposal that gives no guid" \
-    "is on neither side of that subtraction, so the two agree while the" \
-    "dollars are gone. It catches a balance that moved without a sale, not" \
-    "currency that left without one. The fix is in the ledger: give each" \
-    "disposal the cost basis it came out of."
+    "fx-balances --verify-costs finds nothing here, and there is nothing to" \
+    "find: no cost basis has moved without a sale. What it cannot tell you" \
+    "is that a currency arrived uncosted, which is what measured_from on the" \
+    "balance sheet is for." \
+    "" \
+    "The page opens with a warning, because the book keeps Expenses:Interest" \
+    "in US dollars — which gnucash-plaintext does not support."
 
 # --- Bought US-listed shares and still holds them ---------------------------
 B="$BOOKS/shares.gnucash"
@@ -350,11 +352,10 @@ write_example "$B" 2026-12-31 \
     "3,120.00 CAD left the bank — 260.00 CAD a share. Still held at the year" \
     "end, with the share at 280.00 USD and the dollar at 1.42." \
     "" \
-    "Shares are counted in units and priced, not converted, so they open no" \
-    "cost basis and keep GnuCash's own revaluation. This book holds no" \
-    "foreign currency at all, so the page states the whole gain under" \
-    "unrealized_gains_other with unrealized_gains_fx at 0.00 — which a book" \
-    "holding currency and shares together cannot show apart."
+    "The shares open a cost basis of their own, in the book's own currency," \
+    "at the 260.00 a share they cost. This book holds no foreign currency at" \
+    "all, so the page states the whole gain under unrealized_gains_other" \
+    "with unrealized_gains_fx at 0.00."
 
 # --- A US loan recorded in Canadian dollars, settled with earned dollars ----
 B="$BOOKS/cadloan.gnucash"

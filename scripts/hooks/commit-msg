@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# commit-msg hook: refuse an attribution line, and a hard-wrapped message.
+# commit-msg hook: refuse an attribution line and a hard-wrapped message, then run the independent AI review with the message.
 #
 # CLAUDE.md says no attribution lines, and an agent working here is told otherwise by the tool running it, which appends a `Co-Authored-By:` trailer and a session URL to commits. That instruction arrives with each run and is written nowhere a reader of this repo can see, so the rule is enforced here rather than trusted. The switch on the tool's side is the `attribution` object in Claude Code settings, which stops the line being offered at all; this is the floor under it.
 #
@@ -95,6 +95,32 @@ if [ -n "$WRAPPED" ]; then
     echo "$WRAPPED"
     echo ""
     echo "Write one paragraph as one line and separate paragraphs with a blank line. Lists, tables, quotes and fenced code are left alone."
+    exit 1
+fi
+
+# The independent AI review of the staged diff runs here, with the message, and not in the pre-commit hook: git runs that hook before it reads the message, so a review started there was handed none and read "[No commit message provided]" in its place. For a `git commit`, git runs this hook only once the pre-commit hook has passed, so a commit the lint, the suite or the coverage gate refuses still costs no review.
+#
+# Two runs of this hook are not reviewed. A merge that makes a commit runs this hook and not the pre-commit one, and its staged diff is everything being merged in — hours of review with no lint, suite or coverage gate before it. And a commit with nothing staged — an amend that only rewords, a reword in a rebase — has no change to review.
+#
+# What is handed over is the message as it will be stored: git's comment lines and everything below the scissors line `git commit -v` adds are left out.
+if [ "$SKIP_AI_REVIEW" = "1" ]; then
+    echo "⚠️  AI review skipped (SKIP_AI_REVIEW=1)"
+    exit 0
+fi
+if [ -e "$(git rev-parse --git-dir)/MERGE_HEAD" ]; then
+    echo "⚠️  A merge commit: the pre-commit checks did not run, so neither does the AI review"
+    exit 0
+fi
+if git diff --staged --quiet; then
+    echo "⚠️  No staged changes - nothing to review"
+    exit 0
+fi
+
+echo "3. Running independent AI review..."
+MESSAGE=$(awk '/^# ------------------------ >8 ------------------------$/ { exit } { print }' "$MESSAGE_FILE" | git stripspace --strip-comments)
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+if ! "$PROJECT_ROOT/scripts/review-commit.sh" -m "$MESSAGE"; then
+    echo "❌ Commit blocked: AI review found concerns. Address them, or skip the review alone with SKIP_AI_REVIEW=1 — --no-verify skips every check, the attribution and wrapping ones as well."
     exit 1
 fi
 

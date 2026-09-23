@@ -190,6 +190,15 @@ class TestABalanceAFileStatesOnASplitThatSpends:
     lands, `--verify-costs` reports the split and says the one line that
     clears it, and `--atomic` — which answers for what a file leaves behind —
     rolls the same file back.
+
+    The split also says which cost basis its 0.72 came out of, because Q-045
+    refuses a disposal that does not, and that is the reason the report gives
+    for the figure being unreadable: a split that picks another's cost basis is
+    the disposal, not the source. The other reason — a split that lowers this
+    account's currency rather than raising it — is what a split spending on a
+    side the book keeps no cost basis for still gets, and
+    `test_verify_costs_says_why_a_split_holding_a_balance_is_no_cost_basis.py`
+    holds one of each.
     """
 
     def test_the_file_lands(self, tmp_path):
@@ -211,7 +220,8 @@ class TestABalanceAFileStatesOnASplitThatSpends:
         verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
         assert verified.exit_code == 1, verified.output
         assert COST_BASIS_BALANCE_KEY in verified.output, verified.output
-        assert 'rather than raising it' in verified.output, verified.output
+        assert 'it is a disposal rather than a source' in verified.output, \
+            verified.output
 
     def test_and_atomic_rolls_it_back(self, tmp_path):
         """The mode that answers for the book a file leaves behind."""

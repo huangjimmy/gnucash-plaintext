@@ -3,8 +3,13 @@
 A `cost_basis_balance` on a split that is no cost basis is read by nothing, and
 the report gives the reason the split is not one, as the thing to go and look
 at. Each case here is a split a book can be left holding a balance on, by a hand
-edit or by an older tool, and each has a reason of its own: a share, a sale, a
-line of nothing, a refund of an owner's credit, and a settlement.
+edit or by an older tool, and each has a reason of its own: a sale, a line of
+nothing, a refund of an owner's credit, and a settlement.
+
+A share is not among them. It was, while a security was counted and priced
+rather than converted and so had no cost basis at all; Q-046 gives it one in
+the book's own currency, and a balance on a share purchase is now read like any
+other.
 """
 
 import re
@@ -33,12 +38,6 @@ def _import(runner, book, *args):
     result = _run(runner, 'import', *args)
     assert result.exit_code == 0, result.output
     assert 'Errors:       0' in result.output, result.output
-
-
-def _a_share_bought(runner, tmp_path):
-    book = tmp_path / 'book.gnucash'
-    _import(runner, book, '--new', str(book), 'tests/fixtures/foreign_security_book.txt')
-    return book, 'Assets:Brokerage:USTECH', lambda split: True
 
 
 def _a_sale(runner, tmp_path):
@@ -102,14 +101,13 @@ def _a_balance_left_on(book, account_name, which):
 
 
 @pytest.mark.parametrize('book_with, reason', [
-    (_a_share_bought, 'USTECH is a security rather than a currency'),
     (_a_sale, "it picks another split's cost basis, so it is a disposal rather "
               "than a source"),
     (_a_line_of_nothing, 'it moves nothing, so it brought no currency in'),
     (_a_refund, "it settles an owner's credit rather than posting a record, so "
                 "it sends USD back rather than bringing any in"),
     (_a_settlement, "it lowers this account's USD rather than raising it"),
-], ids=['share', 'sale', 'nothing', 'refund', 'settlement'])
+], ids=['sale', 'nothing', 'refund', 'settlement'])
 def test_the_reason_is_the_one_that_split_has(tmp_path, book_with, reason):
     runner = CliRunner()
     book, account_name, which = book_with(runner, tmp_path)

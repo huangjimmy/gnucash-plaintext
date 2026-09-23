@@ -6,6 +6,10 @@
 # the currency's alone.
 #
 # `the_thousand_usd_sold_at_a_higher_rate.txt` sells every dollar of it.
+#
+# The split that buys them gives its own guid, `0b0b0b0b0b0b0b0b0b0b0b0b0b0b1000`,
+# so a file layered on this book can say a disposal came out of that cost basis
+# without being handed the guid at run time.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
@@ -74,6 +78,7 @@ price
 2026-02-01 * "Buy 1,000.00 USD at 1.30"
 	currency.mnemonic: "CAD"
 	Assets:USD Bank 1000.00 USD
+		guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1000"
 		account.commodity.mnemonic: "USD"
 		share_price: "13/10"
 		value: "1300.00"

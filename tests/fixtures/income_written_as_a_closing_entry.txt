@@ -1,0 +1,68 @@
+# A book where ordinary income is written in a transaction described as a
+# closing entry.
+#
+# The two statements read that transaction differently, which is what makes the
+# book inconsistent. GnuCash's Income Statement takes a "Closing Entries
+# pattern" — `Closing Entries` by default, matched against the description — and
+# leaves what it matches out, because a closing entry moves the year's profit
+# into equity rather than earning anything. The balance sheet has no such rule:
+# whatever an income account holds is in `retained_earnings`.
+#
+# So the 500.00 CAD below is inside the sheet's retained earnings and outside
+# the income statement's net income, and the two figures disagree by it on a
+# book that balances perfectly well. Neither page is wrong on its own terms;
+# the description is.
+#
+# `--verify-integrity` is what reads one against the other and says so.
+#
+# Verified by
+# tests/integration/test_verify_integrity_checks_whether_a_book_is_consistent_and_balanced.py.
+2032-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2032-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2032-01-01 open Assets:Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2032-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2032-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2032-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2032-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2032-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:Bank 1000.00 CAD
+	Equity:Opening -1000.00 CAD
+
+2032-03-31 * "Consulting billed and collected"
+	currency.mnemonic: "CAD"
+	Assets:Bank 2000.00 CAD
+	Income:Consulting -2000.00 CAD
+
+# Ordinary income, described as a closing entry. The income statement leaves it
+# out and the balance sheet keeps it in.
+2032-06-30 * "Closing Entries"
+	currency.mnemonic: "CAD"
+	Assets:Bank 500.00 CAD
+	Income:Consulting -500.00 CAD

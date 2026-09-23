@@ -67,19 +67,23 @@ def test_each_currency_is_totalled_with_what_is_held_apart_from_what_is_owed(tmp
 def test_it_is_stated_beside_the_cost_basis_totals_and_they_differ(tmp_path):
     """The whole point: on this book the two do not agree, and the page says so.
 
-    10,000.00 USD was bought and a cost basis opened for it. The dollars have
-    since gone out to buy shares, repay a loan and pay interest — all in
-    transactions stated wholly in US dollars, and not one of them gives that
-    cost basis's guid — so the basis was never drawn down. A reader now sees
+    10,000.00 USD was bought with Canadian dollars and a cost basis opened for
+    it. Shares, a loan repayment and interest have taken 8,600.00 of those
+    dollars back out, each saying so, leaving 1,400.00 on that cost basis; the
+    share sale brought 2,080.00 back in at the 1.35 of the day and opened a
+    cost basis of its own. The accounts hold 7,480.00, and the 4,000.00
+    between the two figures is what the borrowing brought in: it is stated
+    wholly in US dollars, so there is no Canadian figure in it to say what
+    those dollars cost and no cost basis was opened for them. A reader sees
     both figures without leaving the listing.
     """
     lines = [line.rstrip() for line in _listing(tmp_path).splitlines()]
 
-    assert 'Total USD cost basis balance: 10,000.00 USD' in lines, lines
+    assert 'Total USD cost basis balance: 3,480.00 USD' in lines, lines
     assert 'Total USD held in accounts: 7,480.00 USD' in lines, lines
     # The cost bases come first: the listing is about them, and what the
     # accounts hold is stated against it.
-    assert (lines.index('Total USD cost basis balance: 10,000.00 USD')
+    assert (lines.index('Total USD cost basis balance: 3,480.00 USD')
             < lines.index('Total USD held in accounts: 7,480.00 USD')), lines
 
 

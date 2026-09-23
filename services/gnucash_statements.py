@@ -38,6 +38,7 @@ from typing import Callable, List, Optional, Tuple
 import infrastructure.gnucash
 from infrastructure.gnucash.engine import load_gnc_engine
 from infrastructure.guile import load_guile
+from services.book_currency import the_books_own_currency_or
 from services.gnucash_report import (
     PageNotRenderedError,
     _dialect,
@@ -204,6 +205,7 @@ def _render(session, template: str, called: str, currency: str,
         BASE_CURRENCY,
         cost_basis_items_by_currency_and_side,
         realized_fx_items_up_to,
+        realized_other_items_up_to,
     )
 
     warn = warn or _say_nothing
@@ -279,6 +281,16 @@ def _render(session, template: str, called: str, currency: str,
                       if takes_the_cost_bases else [])
     realized = sum((figure for _when, _account, figure in realized_items),
                    Fraction(0))
+    # Kept apart from the currency figure all the way to the page: a gain on
+    # shares and a gain on currency are separate keys, separate lines on a
+    # return, and a program reading gnucash-plaintext's pages may handle
+    # currency and not securities.
+    realized_other_items = (realized_other_items_up_to(
+        session.book, realized_as_of)
+        if takes_the_cost_bases else [])
+    realized_other = sum(
+        (figure for _when, _account, figure in realized_other_items),
+        Fraction(0))
     # What the foreign money the book still holds cost, in the book's own
     # currency, for the report to measure its value against. GnuCash works cost
     # out from the sum of an account's split values, which is not what the
@@ -307,7 +319,13 @@ def _render(session, template: str, called: str, currency: str,
     # the figure and the listing cannot come apart.
     was = None
     try:
-        was = _write_every_date_the_books_way(session.book, warn)
+        # ISO where the book states no format of its own, so a date on
+        # GnuCash's own page reads the way every date the plaintext page writes
+        # does. Left to GnuCash it follows the locale of whoever ran the
+        # command, and the same book drew `12/31/26` on one machine and
+        # `31/12/26` on another (CLAUDE.md finding 15).
+        was = _write_every_date_the_books_way(session.book, warn,
+                                              otherwise='%Y-%m-%d')
         with tempfile.TemporaryDirectory(prefix='gnucash-statement-') as work:
             work = Path(work)
             run = _runner(lib, work / 'errors.txt')
@@ -358,10 +376,14 @@ def _render(session, template: str, called: str, currency: str,
                 basis_rows = (list(cost_basis_items_by_currency_and_side(
                     session.book, realized_as_of))
                     if takes_the_cost_bases else [])
-                items = '(list ' + ' '.join(
-                    f'(list {_scheme_string(when)} {_scheme_string(account)}'
-                    f' {figure.numerator}/{figure.denominator})'
-                    for when, account, figure in realized_items) + ')'
+                def _as_items(rows):
+                    return '(list ' + ' '.join(
+                        f'(list {_scheme_string(when)} {_scheme_string(account)}'
+                        f' {figure.numerator}/{figure.denominator})'
+                        for when, account, figure in rows) + ')'
+
+                items = _as_items(realized_items)
+                other_items = _as_items(realized_other_items)
                 # Each row carries the guid and the account as well, so a
                 # listing on the page can be checked against `fx-balances`, and
                 # the grouping by currency and side is done from these rather
@@ -373,13 +395,22 @@ def _render(session, template: str, called: str, currency: str,
                         f' {_scheme_string(row["account"])}'
                         f' {_scheme_string(row["currency"])}'
                         f' {_scheme_string(row["side"])}'
+                        f' {_scheme_string(row["namespace"])}'
                         f' {row["balance"].numerator}/{row["balance"].denominator}'
-                        f' {row["cost"].numerator}/{row["cost"].denominator})'
+                        f' {row["cost"].numerator}/{row["cost"].denominator}'
+                        f' {row["cost_in_pair"].numerator}'
+                        f'/{row["cost_in_pair"].denominator}'
+                        f' {row["cost_rate"].numerator}/{row["cost_rate"].denominator}'
+                        f' {_scheme_string(row["pair_currency"])})'
                         for row in basis_rows) + ')'
                 costed = (f'(plaintext:set-cost-basis-items! {basis_items})'
                           f'(plaintext:set-realized-fx! '
                           f'{realized.numerator}/{realized.denominator})'
                           f'(plaintext:set-realized-items! {items})'
+                          f'(plaintext:set-realized-other! '
+                          f'{realized_other.numerator}/'
+                          f'{realized_other.denominator})'
+                          f'(plaintext:set-realized-other-items! {other_items})'
                           # Whether that figure was worked out at all. Where it
                           # was not, the zero above means "not measured", and
                           # the page leaves the two realized keys off rather
@@ -396,7 +427,12 @@ def _render(session, template: str, called: str, currency: str,
                           # being no cap. Written on every render for the same
                           # reason as the rest: the variable outlives the page,
                           # and `report` draws two.
-                          f'(plaintext:set-max-items! {int(max_items)})')
+                          f'(plaintext:set-max-items! {int(max_items)})'
+                          # The currency the book is kept in, which is what its
+                          # income and expense accounts are asked to be in —
+                          # not the one this page is drawn in.
+                          f'(plaintext:set-book-currency! '
+                          f'{_scheme_string(the_books_own_currency_or(session.book, currency))})')
             page = work / 'page'
             dated = '\n'.join(
                 f'    (set-opt options {_scheme_string(section)} {_scheme_string(name)}'

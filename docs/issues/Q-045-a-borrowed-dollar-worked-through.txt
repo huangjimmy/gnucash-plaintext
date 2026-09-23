@@ -1,0 +1,297 @@
+A BORROWED DOLLAR, WORKED THROUGH
+=================================
+
+A Canadian book borrows 1,000.00 USD at 1% for a year, never spends it, is paid
+1,010.00 USD by a customer in the meantime, and repays 1,010.00 USD at the end.
+Every cost basis it opens and consumes is written out below, with the
+transaction that does it.
+
+Why this case: it is the smallest book that touches both sides of the cost
+bases. A borrowing raises the owed side and the held side at once, interest
+raises the owed side on its own, and the repayment lowers both — so it says
+what a cost basis has to do at every point, and it is the case that showed the
+refusal in `refuse_a_disposal_that_gives_no_cost_basis` had to ask per side
+rather than per currency.
+
+The rates, which are the whole of the arithmetic:
+
+    2026-01-02   1.30 CAD per USD    the loan is drawn
+    2026-06-30   1.35 CAD per USD    the customer pays
+    2027-01-02   1.40 CAD per USD    the loan is repaid
+
+Read `cost_basis_balance:` as "this split brought in this many units and this
+many are still unspent", and `cost_basis_split_guid:` as "these units came out
+of that split". The guids below are written in words, as <the 1,000.00
+borrowing basis>, so the working can be followed; a real file writes 32 hex
+characters. It has two ways to get them. `fx-balances` prints the guid of every
+cost basis a book already holds, which is what a file written after the fact
+uses. A file that opens a cost basis and consumes it in one run cannot do that,
+because GnuCash assigns the guid as the file is read — so it writes `guid:` on
+the split itself, which the import obeys, and gives that same guid to the
+disposal below. `tests/fixtures/account_balance_test_data.txt` is the shortest
+example: one opening purchase of 8,000.00 HKD carrying its own guid, and one
+fare consuming 300.00 of it.
+
+
+t0 — THE LOAN IS DRAWN
+----------------------
+
+    2026-01-02 * "Borrow 1,000.00 USD for a year at 1%"
+    	currency.mnemonic: "CAD"
+    	Assets:USD Bank 1000.00 USD
+    		account.commodity.mnemonic: "USD"
+    		share_price: "1.30000"
+    		value: "1300.00"
+    		cost_basis_balance: "1000.00"
+    	Liabilities:USD Loan -1000.00 USD
+    		account.commodity.mnemonic: "USD"
+    		share_price: "1.30000"
+    		value: "-1300.00"
+    		cost_basis_balance: "1000.00"
+
+**Two cost bases, one on each side, and both are right.** The book now holds
+1,000.00 USD that cost it 1,300.00 CAD, and owes 1,000.00 USD that it received
+1,300.00 CAD for. Those are different facts about different obligations and
+neither stands in for the other.
+
+    asset      1,000.00 USD  at 1.30 CAD  =  1,300.00 CAD   Assets:USD Bank
+    liability  1,000.00 USD  at 1.30 CAD  =  1,300.00 CAD   Liabilities:USD Loan
+
+    bank holds 1,000.00 USD          agrees with the asset basis
+    loan owes  1,000.00 USD          agrees with the liability basis
+
+The book is flat in US dollars: it holds as many as it owes. If the dollar
+moves tomorrow, the gain on the money it holds is the loss on the money it owes
+and the two cancel — which is what a borrowing nobody has spent should do, and
+only shows up as nil because both sides are measured.
+
+
+t1 — THE CUSTOMER PAYS
+----------------------
+
+    2026-06-30 * "Customer pays invoice INV-1, 1,010.00 USD"
+    	currency.mnemonic: "CAD"
+    	Assets:USD Bank 1010.00 USD
+    		account.commodity.mnemonic: "USD"
+    		share_price: "1.35000"
+    		value: "1363.50"
+    		cost_basis_balance: "1010.00"
+    	Income:Consulting -1363.50 CAD
+
+A third cost basis, on the held side, at a different rate from the first. Two
+bases of one currency on one account, and they stay two: 1,010.00 USD taken on
+at 1.35 is not 1,000.00 taken on at 1.30, and a disposal will have to say which
+of them it draws on.
+
+    asset      1,000.00 USD  at 1.30 CAD  =  1,300.00 CAD   Assets:USD Bank
+    asset      1,010.00 USD  at 1.35 CAD  =  1,363.50 CAD   Assets:USD Bank
+    liability  1,000.00 USD  at 1.30 CAD  =  1,300.00 CAD   Liabilities:USD Loan
+
+    bank holds 2,010.00 USD          agrees with the asset bases
+    loan owes  1,000.00 USD          agrees with the liability basis
+
+
+t2 — THE INTEREST IS OWED
+-------------------------
+
+    2027-01-02 * "Interest for the year, 10.00 USD"
+    	currency.mnemonic: "CAD"
+    	Expenses:Interest 14.00 CAD
+    	Liabilities:USD Loan -10.00 USD
+    		account.commodity.mnemonic: "USD"
+    		share_price: "1.40000"
+    		value: "-14.00"
+    		cost_basis_balance: "10.00"
+
+**Interest raises the owed side, so it opens a cost basis like any other
+arrival.** The book now owes 10.00 USD it did not owe before, and what that
+obligation cost is 14.00 CAD — the expense recognised the day it arose. Nothing
+about it differs from the borrowing except the size and the rate.
+
+    asset      1,000.00 USD  at 1.30 CAD  =  1,300.00 CAD   Assets:USD Bank
+    asset      1,010.00 USD  at 1.35 CAD  =  1,363.50 CAD   Assets:USD Bank
+    liability  1,000.00 USD  at 1.30 CAD  =  1,300.00 CAD   Liabilities:USD Loan
+    liability     10.00 USD  at 1.40 CAD  =     14.00 CAD   Liabilities:USD Loan
+
+    bank holds 2,010.00 USD          agrees
+    loan owes  1,010.00 USD          agrees
+
+
+t3 — THE LOAN IS REPAID
+-----------------------
+
+    2027-01-02 * "Repay the loan, 1,010.00 USD"
+    	currency.mnemonic: "CAD"
+    	Liabilities:USD Loan 1000.00 USD
+    		account.commodity.mnemonic: "USD"
+    		share_price: "1.30000"
+    		value: "1300.00"
+    		cost_basis_split_guid: "<the 1,000.00 borrowing basis>"
+    	Liabilities:USD Loan 10.00 USD
+    		account.commodity.mnemonic: "USD"
+    		share_price: "1.40000"
+    		value: "14.00"
+    		cost_basis_split_guid: "<the 10.00 interest basis>"
+    	Assets:USD Bank -1010.00 USD
+    		account.commodity.mnemonic: "USD"
+    		share_price: "1.35000"
+    		value: "-1363.50"
+    		cost_basis_split_guid: "<the 1,010.00 invoice basis>"
+    	Expenses:Foreign exchange loss $residual$ CAD
+
+**Every split leaves at what its units cost, not at today's rate**: 1.30 on the
+principal, 1.40 on the interest, 1.35 on the dollars the customer paid. That is
+the convention every disposal in this format follows, and it is what leaves
+something for `$residual$` to take:
+
+    1,300.00 + 14.00 - 1,363.50 = -49.50
+
+so the residual is 49.50 CAD of loss. Written at 1.40 throughout, the
+transaction balances by itself and the import refuses it — `$residual$ has
+nothing to take — the other splits already balance` — which is the right
+refusal, because a disposal whose splits balance realized nothing, and this one
+realized 49.50.
+
+**Nothing states `took_the_residual` beside `$residual$`.** The two are the two
+spellings of the same thing: write the token and the import works the figure
+out and writes the key on the split it resolved to, or work the figure out by
+hand, write it, and state the key yourself. Writing both says once what the
+import is about to say anyway.
+
+**Three guids, because three cost bases are consumed**, and the loan split is
+written twice, once per basis it draws on. This is the transaction
+that decides the shape of the refusal. The dollars leave the bank — an asset
+basis is consumed — and the debt they pay off goes — a liability basis is
+consumed. They were taken on at different rates and on different days, so each
+realizes a difference of its own, and one guid cannot say both.
+
+    asset side
+      consumed  1,010.00 USD at 1.35  =  1,363.50 CAD of cost
+      fetched   1,010.00 USD at 1.40  =  1,414.00 CAD
+      realized                          +   50.50 CAD    a gain
+
+    liability side
+      consumed  1,000.00 USD at 1.30  =  1,300.00 CAD of cost
+      paid off  1,000.00 USD at 1.40  =  1,400.00 CAD
+      realized                          -  100.00 CAD    a loss
+      consumed     10.00 USD at 1.40  =     14.00 CAD of cost
+      paid off     10.00 USD at 1.40  =     14.00 CAD
+      realized                                0.00 CAD
+
+Note the liability side needs both of its bases, 1,000.00 and 10.00, to make up
+the 1,010.00 paid off. Which of them a repayment draws on is the file's to say
+exactly as it is on the held side; the two above happen to be taken in full, so
+the file could give either guid first, but a partial repayment could not.
+
+    asset      1,000.00 USD  at 1.30 CAD  =  1,300.00 CAD   Assets:USD Bank
+    liability      0.00 USD                                 both spent to nothing
+
+    bank holds 1,000.00 USD          agrees with the asset basis
+    loan owes      0.00 USD          agrees: nothing owed, nothing left based
+
+A cost basis spent to nothing stays on the book reading 0.00 rather than
+disappearing — `fx-balances` lists it and `--with-balance-only` is the flag for
+hiding it — so what is checked here is the balance, never the absence of a row.
+
+
+t4 — THE DOLLARS THE LOAN BROUGHT IN ARE SOLD
+---------------------------------------------
+
+    2027-01-03 * "Sell the remaining 1,000.00 USD at 1.40"
+    	currency.mnemonic: "CAD"
+    	Assets:Bank 1400.00 CAD
+    	Assets:USD Bank -1000.00 USD
+    		account.commodity.mnemonic: "USD"
+    		share_price: "1.30000"
+    		value: "-1300.00"
+    		cost_basis_split_guid: "<the 1,000.00 borrowing basis, held side>"
+    	Income:FX Gain $residual$ CAD
+
+They cost 1.30 and fetch 1.40, so they leave at 1,300.00 against 1,400.00 taken
+in and the residual is a gain of 100.00 CAD — exactly what the owed side lost
+on the same dollars at t3.
+
+**An exchange gain account, not a revenue one.** What this realizes is a gain
+on having held US dollars, and booking it to `Income:Consulting` would put it
+on the income statement as money earned from customers, inside `total_revenue`,
+where nothing on the page would say otherwise.
+
+    every US dollar figure is now nought:
+
+    asset bases      0.00 USD        bank holds  0.00 USD
+    liability bases  0.00 USD        loan owes   0.00 USD
+
+
+WHAT THE BOOK MADE, CHECKED TWO WAYS
+------------------------------------
+
+From the bases:
+
+    +  50.50 CAD   gain on the dollars the customer paid, held 1.35 -> 1.40
+    - 100.00 CAD   loss on the principal, owed 1.30 -> 1.40
+       0.00 CAD   on the interest, owed and paid at the same rate
+    ------------
+    -  49.50 CAD   realized on foreign currency
+
+    and separately, 14.00 CAD of interest expense.
+
+From the cash, which must agree:
+
+    borrowed  1,000.00 USD at 1.30  =  1,300.00 CAD of value received
+    repaid    1,010.00 USD at 1.40  =  1,414.00 CAD of value given up
+    ------------
+    the borrowing cost                   114.00 CAD
+
+    of which 14.00 CAD is interest — 10.00 USD at 1.40 — and the remaining
+    100.00 CAD is the currency moving against a debt held in it.
+
+    the dollars the customer paid rose 1.35 -> 1.40 on 1,010.00
+                                       =  +50.50 CAD
+
+    114.00 - 14.00 = 100.00 loss on the loan, against 50.50 gained on the
+    receipts: -49.50 CAD realized, and 14.00 CAD of interest. The two ways
+    agree.
+
+**The two exposures are real and opposite, and only a book that measures both
+sides finds them.** The loan is a short position in US dollars for a year and
+the receipt is a long one for six months. Netting the sides together — treating
+the repayment as though it moved nothing because the splits sum to zero in US
+dollars — hides a 100.00 CAD loss behind a 50.50 CAD gain and reports -49.50 as
+though nothing had happened twice.
+
+
+WHAT THIS CASE SETTLED
+----------------------
+
+1. **A borrowing opens two cost bases**, one per side. Already the behaviour,
+   and this shows why: the held dollars and the owed dollars are separate
+   exposures taken on at the same rate and disposed of at different times.
+
+2. **Interest opens a liability cost basis.** It raises the owed side, and
+   every arrival on a side is costed.
+
+3. **A repayment consumes a basis on each side, so it gives a guid on each
+   side.** `refuse_a_disposal_that_gives_no_cost_basis` asked per currency
+   first, which let a repayment giving only the loan's guid through while the
+   bank's dollars went unaccounted for — probe case 4 exactly: the liability
+   agreed, the asset was 2,000.00 adrift, exit 0. It asks per side now.
+
+4. **A currency's bases are consumed by guid, never by rule.** At t3 the held
+   side has two bases at 1.30 and 1.35, and which one the repayment draws on
+   moves the realized figure by 50.50 CAD. Nothing in the book prefers one, so
+   nothing may choose: the file says, or the import refuses.
+
+5. **Every split of a disposal leaves at what its units cost.** Written at the
+   day's rate instead, the transaction balances by itself and `$residual$` is
+   refused for having nothing to take. That refusal is right, and it is how the
+   format keeps a disposal from silently realizing nothing.
+
+6. **A borrowing nobody spends ends level, and only both sides show it.** The
+   100.00 CAD lost on owing the dollars is the 100.00 gained on holding them.
+   Measured on one side alone the book appears to have lost 100.00 on a loan it
+   never used.
+
+This whole walkthrough is a test:
+`tests/integration/test_a_borrowed_dollar_keeps_its_cost_bases_in_step.py` runs
+these five transactions one at a time and asks the invariant before and after
+each of them, ending on every US dollar figure being nought.

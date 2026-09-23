@@ -5,6 +5,12 @@
 # positive, it fits the cent, and it is no more than the 0.72 the split
 # carries. What it is not is a cost basis — the split lowers this account's
 # USD — so nothing will ever read the figure.
+#
+# Lowering it is a disposal, so the same split says which cost basis the 0.72
+# came out of: the 2,720.00 USD deposit, whose split
+# `fx_usd_deposit_against_due_from_director.txt` gives a guid of its own. The
+# two keys are about different things and both belong here — one says what this
+# split brought in, which is nothing, and the other says what it spent.
 2026-08-14 * "Charges for: TRANSFER-0000002"
 	currency.mnemonic: "CAD"
 	Expenses:Non-farming expenses – Operating expenses:Bank charges 1.01 CAD
@@ -13,3 +19,4 @@
 		share_price: "1.4029"
 		value: "-1.01"
 		cost_basis_balance: "0.72"
+		cost_basis_split_guid: "00e958a8d56547d484d7629000292dc3"

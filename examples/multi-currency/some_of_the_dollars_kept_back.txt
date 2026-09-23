@@ -19,17 +19,17 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-22 commodity CAD
+2026-09-23 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-22 commodity USD
+2026-09-23 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-22 open Assets
+2026-09-23 open Assets
 	guid: "3c52a98b574840b2a6ff23a4783e4347"
 	type: "Asset"
 	placeholder: #False
@@ -38,7 +38,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Assets:Accounts Receivable USD
+2026-09-23 open Assets:Accounts Receivable USD
 	guid: "52e6b9b8f73c418c901742a52c0290ae"
 	type: "A/Receivable"
 	placeholder: #False
@@ -47,7 +47,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-22 open Assets:Bank
+2026-09-23 open Assets:Bank
 	guid: "90d3ce409ab54908be1afbd2958ed4cc"
 	type: "Bank"
 	placeholder: #False
@@ -56,7 +56,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Assets:Bank:USD
+2026-09-23 open Assets:Bank:USD
 	guid: "70ac6f7b1a4f457a8929597e45e54278"
 	type: "Bank"
 	placeholder: #False
@@ -65,7 +65,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-22 open Income
+2026-09-23 open Income
 	guid: "442d674f29734d6a9aec9a39e41adfa0"
 	type: "Income"
 	placeholder: #False
@@ -74,7 +74,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Income:FX Gain
+2026-09-23 open Income:FX Gain
 	guid: "3aeddab6fd714983bbcde653ba7cb2ad"
 	type: "Income"
 	placeholder: #False
@@ -83,7 +83,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Income:Sales
+2026-09-23 open Income:Sales
 	guid: "8c736fd7a2aa4dfeb7e8aa3a91985b9e"
 	type: "Income"
 	placeholder: #False
@@ -92,7 +92,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Expenses
+2026-09-23 open Expenses
 	guid: "cc57c8cee2ca4295ab1052f37bdd9bf0"
 	type: "Expense"
 	placeholder: #False
@@ -101,7 +101,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-22 open Expenses:Bank charges
+2026-09-23 open Expenses:Bank charges
 	guid: "67622ebf27bf4dd19c9c89d8d876fb70"
 	type: "Expense"
 	placeholder: #False
@@ -245,8 +245,10 @@ invoice "INV-USD-1"
 # 						split_guid: 92d8e34e303c498c99403191d0ecc2e9
 # 						account: "Assets:Accounts Receivable USD"
 # 						cost_basis_balance: 1000.00
-# 						cost_share_price: 189557/136000
-# 						cost_value: 1393.80 # cost_basis_balance * cost_share_price
+# 						cost_share_price: 1 # USD in USD, on the day it was bought
+# 						cost_rate: 189557/136000 # CAD per USD, on that same day
+# 						cost_share_price_in_base: 189557/136000 # cost_share_price * cost_rate
+# 						cost_value: 1393.80 # cost_basis_balance * cost_share_price_in_base
 # 						value: 1386.50 # cost_basis_balance * share_price
 # 						unrealized_gains_assets_fx: -7.30 # value - cost_value
 # 				cost_basis_balance: 1000.00 # sum of each cost_basis's cost_basis_balance
@@ -275,7 +277,7 @@ invoice "INV-USD-1"
 # 				date: 2026-08-17
 # 				account: "Income:FX Gain"
 # 				amount: -12.56
-# 	realized_gains_other: 0.00 CAD # not yet supported
+# 	realized_gains_other: 0.00 CAD
 # 	total_realized_gains: -12.56 CAD # realized_gains_fx + realized_gains_other
 # 	unrealized_gains_other: # sum of unrealized_gains_other of all securities and funds
 # 		securities: # there is no security or fund

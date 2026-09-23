@@ -91,3 +91,18 @@ def book_currency(book, stated: Optional[str] = None) -> str:
     raise BookCurrencyUnknownError(
         f'The book\'s top-level accounts are held in {", ".join(held)}, so nothing says '
         f'which of them the book is kept in. {_HOW_TO_STATE_IT}')
+
+
+def the_books_own_currency_or(book, given: str) -> str:
+    """The currency the book is kept in, or `given` where nothing says which.
+
+    What an income or expense account is asked to be kept in. A statement drawn
+    in another currency does not change the currency the book is kept in, and
+    an account kept in the book's own currency is not warned about because a
+    page was asked for in US dollars. Where the book does not say, the currency
+    the reader gave is the only answer there is.
+    """
+    try:
+        return book_currency(book)
+    except BookCurrencyUnknownError:
+        return given

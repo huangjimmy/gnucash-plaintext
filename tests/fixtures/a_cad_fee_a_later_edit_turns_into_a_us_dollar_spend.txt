@@ -1,0 +1,67 @@
+# A book keeping a US dollar cost basis, and a Canadian dollar bank fee that
+# `tests/fixtures/the_fee_edited_into_a_us_dollar_spend_giving_no_cost_basis.txt`
+# edits, with `--strategy update`, into 100.00 US dollars spent.
+#
+# Verified by
+# tests/integration/test_an_edit_that_adds_a_disposal_is_refused.py.
+2038-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2038-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2038-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2038-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2038-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2038-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2038-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2038-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2038-01-01 open Expenses:Bank Fees
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2038-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 5000.00 CAD
+	Equity:Opening -5000.00 CAD
+
+2038-01-05 * "Buy 1,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		guid: "c1c1c1c1c1c1c1c1c1c1c1c1c1c10001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+	Assets:CAD Bank -1300.00 CAD
+
+2038-02-01 * "Bank fee"
+	guid: "c1c1c1c1c1c1c1c1c1c1c1c1c1c1f001"
+	currency.mnemonic: "CAD"
+	Expenses:Bank Fees 5.00 CAD
+	Assets:CAD Bank -5.00 CAD
