@@ -1,0 +1,34 @@
+# 1,000.00 USD bought into A at −500.00 with 7,800.00 HKD, in a transaction
+# stated in Canadian dollars, giving A's owed cost basis.
+#
+# The split into A crosses zero: it repays the 500.00 owed, at the 1.35 that
+# cost, 675.00, and brings 500.00 in. With a second foreign currency in the
+# transaction, its Canadian dollar figures say what the Hong Kong dollars were
+# worth, not what the US dollars came at, so the value on the split is the
+# file's statement of it: 1,375.00, which costs the 500.00 brought in at 1.40.
+#
+# Imported into the book usd_moved_out_of_an_empty_account.txt makes.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-02-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-02-01 open Assets:HKD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+
+2034-02-01 * "Buy 1,000.00 USD into A with Hong Kong dollars"
+	currency.mnemonic: "CAD"
+	Assets:HKD Bank -7800.00 HKD
+		account.commodity.mnemonic: "HKD"
+		share_price: "55/312"
+		value: "-1375.00"
+	Assets:USD A 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "11/8"
+		value: "1375.00"
+		cost_basis_split_guid: "0a0a0000000000000000000000000001"

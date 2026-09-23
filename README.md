@@ -410,8 +410,32 @@ cost basis the USD came out of — `fx-balances` lists them.
 Three things are asked before that, and each is a case where nothing was disposed of:
 
 - **what the side holds has to fall**, netted across the transaction, so 4,000.00 USD moved from one US dollar account to another is no disposal — the book holds every dollar it held before, and drawing a cost basis down there would destroy what it still owns;
-- **an account below nothing holds nothing.** A clearing account taken from 0.00 to −100.00 US dollars has not spent a hundred dollars, it owes a hundred, which is the shape a parked settlement takes while it waits for a `payment:` block to place it on the receivable;
+- **an account below nothing holds nothing, it owes.** A clearing account taken from 0.00 to −100.00 US dollars has not spent a hundred dollars, it owes a hundred, which is the shape a parked settlement takes while it waits for a `payment:` block to place it on the receivable. What it owes is on the owed side of the book, with a cost basis there, as a loan's is;
 - **a side the book keeps no cost basis for is left alone.** There is nothing there to draw down and nothing to state — a book whose dollars all arrived stated in dollars keeps none, and neither does a book whose accounts are all in one currency that is not the book's own.
+
+**The part of a balance past zero is on the other side of the book.** An asset account below zero owes its currency, and a liability account above zero holds it, whatever the account's type. A split that takes an account across zero is read as two movements: the part up to zero moves the side the balance is leaving, and the part past zero moves the other side.
+
+- 500.00 USD moved at 1.35 from a US dollar account holding nothing to another is a borrowing: it opens a cost basis of 500.00 held on the account it went into and one of 500.00 owed on the account it came out of. Moved out of an account holding 1,000.00, 1,200.00 is 1,000.00 moved, which opens nothing, and 200.00 borrowed, which opens a cost basis on each side.
+- Money back into that account repays what it owes, and gives the guid of the owed cost basis as any repayment does. 1,000.00 USD of income at 1.40 into an account at −500.00 is one split that does both: it repays the 500.00 owed and brings in 500.00 held. It gives the owed cost basis, and is valued at the 500.00 repaid at what it cost, 675.00, plus the 500.00 brought in at 1.40, 700.00, so 1,375.00 against the 1,400.00 of income. `$residual$` takes the 25.00 lost on repaying at 1.40 a debt taken on at 1.35, and the held cost basis opens at 1.40. Valued at 1,400.00, the day's rate throughout as GnuCash's own register writes it, the split is refused and the refusal gives the 1,375.00, as a sale valued at anything but its cost is:
+
+```
+2034-02-01 * "1,000.00 USD of income paid into A"
+	currency.mnemonic: "CAD"
+	Assets:USD A 1000.00 USD
+		share_price: "11/8"
+		value: "1375.00"
+		cost_basis_split_guid: "<A's owed cost basis>"
+	Income:Consulting -1400.00 CAD
+	Income:FX Gain $residual$ CAD
+```
+
+- A US dollar credit card paid past zero holds a credit. 200.00 charged to a card holding 200.00 spends that credit and draws down a cost basis of dollars held; it opens nothing owed.
+- A balance transfer from one US dollar card to another moves what is owed within the owed side: no guid, nothing drawn down, nothing opened. Transferring 500.00 off a card that owes 300.00 takes it to a credit of 200.00, so 300.00 moves and 200.00 is a borrowing, owed on the card it went to and held on the card it came from, each opening a cost basis.
+- Paying off more than is owed is the mirror. 500.00 from a US dollar bank onto a card owing 300.00 repays 300.00, giving the card's owed cost basis and the bank's held one, and moves 200.00 to the card's credit. The bank's cost basis falls by the 300.00 the held side lost, and the bank's split is valued at what all 500.00 cost.
+
+`balance-sheet` counts each account on the side its balance is on, so an owed cost basis on a bank account is revalued with the loans. This is currency's rule: a share account below zero is shares sold that were never bought, not shares owed, and it opens nothing.
+
+A book imported before a balance past zero had a side of its own has no owed cost basis for an account an earlier import took below zero, so the next money into that account repays a debt the cost bases never held. Bring it forward through its export, as a book whose disposals gave no cost basis is: the rebuilt book opens the owed cost basis, and a later deposit repaying it is refused until it gives that cost basis's guid. [Q-047](docs/issues/Q-047-give-the-part-of-a-balance-past-zero-a-cost-basis-on-the-other-side.md) works through each case.
 
 **A repayment written wholly in the foreign currency is refused where it realizes a difference.** Repaying a US dollar loan out of US dollars the book holds draws a cost basis down on each side, and where the two cost different amounts a dollar, the difference is realized. `$residual$` states it, in the book's own currency, and a transaction with no split in that currency has nowhere to put it:
 

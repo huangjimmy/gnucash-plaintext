@@ -1,0 +1,14 @@
+# The edit a_usd_card_overpaid_then_its_travel_edited_onto_it.txt describes:
+# the travel charged to the card holding a credit of 200.00 USD, giving no
+# guid, with `--strategy update`.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-02-01 * "Travel"
+	guid: "0c0c0000000000000000000000000002"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 280.00 CAD
+	Liabilities:USD Card -200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "-280.00"

@@ -1,0 +1,19 @@
+# A refilled with 500.00 USD from C, as in
+# usd_moved_out_of_an_empty_account_then_refilled.txt, but written wholly in
+# US dollars.
+#
+# It repays what A owes, which cost 1.35, with dollars C held at 1.30, so it
+# realizes 25.00 CAD, and a transaction with no split in Canadian dollars has
+# nowhere to state it. It is refused, as a US dollar loan repaid out of US
+# dollars held at another cost is.
+#
+# Imported into the book usd_moved_out_of_an_empty_account.txt makes.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-02-01 * "Refill A with 500.00 USD from C, in US dollars"
+	currency.mnemonic: "USD"
+	Assets:USD C -500.00 USD
+		cost_basis_split_guid: "0a0a0000000000000000000000000003"
+	Assets:USD A 500.00 USD
+		cost_basis_split_guid: "0a0a0000000000000000000000000001"

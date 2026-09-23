@@ -1,0 +1,17 @@
+# The fees paid from savings in
+# usd_moved_with_a_fee_in_a_book_keeping_no_usd_cost_basis.txt corrected from
+# 150.00 USD to 80.00 USD, with `--strategy update`.
+#
+# At 150.00 the split took savings from 100.00 to −50.00 and brought 50.00 in
+# on the owed side, which the import recorded on it. At 80.00 savings stays at
+# 20.00, so the split brings nothing in past zero, and the record goes. The
+# transaction touches no cost basis — the book keeps none for US dollars — so
+# the edit is made in place.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2035-01-20 * "Fees paid from savings"
+	guid: "0b0b0000000000000000000000000001"
+	currency.mnemonic: "USD"
+	Assets:USD Savings -80.00 USD
+	Expenses:USD Bank Fees 80.00 USD

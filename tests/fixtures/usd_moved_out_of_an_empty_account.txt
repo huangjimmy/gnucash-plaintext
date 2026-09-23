@@ -1,0 +1,146 @@
+# 500.00 USD moved from a US dollar account holding nothing to another, and
+# what follows from the first account being left below zero.
+#
+# A at −500.00 owes 500.00 US dollars, so the transfer is a borrowing: 500.00
+# arrives on the held side at B and 500.00 on the owed side at A, each opening
+# a cost basis at the 1.35 the transfer is stated at. The rest of the book is
+# written in the files layered on this one:
+#
+# - usd_moved_out_of_an_empty_account_then_sold.txt sells B's 500.00 at 1.40;
+# - usd_moved_out_of_an_empty_account_then_refilled.txt refills A from C;
+# - usd_moved_out_of_an_empty_account_then_income_into_it.txt pays 1,000.00
+#   USD of income into A, crossing zero in one split.
+#
+# USD stands at 1.30 on 2034-01-05, 1.35 on 2034-01-10 and 1.40 on 2034-02-01.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:USD A
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Assets:USD B
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Assets:USD C
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Liabilities:USD Card
+	type: "Credit Card"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Liabilities:USD Card 2
+	type: "Credit Card"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses:Travel
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2034-01-05 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2034-01-10 12:00:00 +0000"
+	value: "27/20"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2034-02-01 12:00:00 +0000"
+	value: "7/5"
+	source: "user:price-editor"
+	type: "last"
+
+2034-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 10000.00 CAD
+	Equity:Opening -10000.00 CAD
+
+2034-01-05 * "Buy 1,000.00 USD at 1.30 into C"
+	currency.mnemonic: "CAD"
+	Assets:USD C 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+		guid: "0a0a0000000000000000000000000003"
+	Assets:CAD Bank -1300.00 CAD
+
+2034-01-10 * "Move 500.00 USD from an empty A to B"
+	currency.mnemonic: "CAD"
+	Assets:USD A -500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-675.00"
+		guid: "0a0a0000000000000000000000000001"
+	Assets:USD B 500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "675.00"
+		guid: "0a0a0000000000000000000000000002"

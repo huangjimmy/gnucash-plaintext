@@ -107,6 +107,15 @@ COST_BASIS_BALANCE_KEY = 'cost_basis_balance'
 # after any write that sets or drops this key (`a_cost_basis_is_kept_for`).
 watch_custom_key(COST_BASIS_BALANCE_KEY)
 
+# KVP on a foreign-currency split whose account's balance crosses or lies past
+# zero: how much of its amount arrived, on either side, as the import read the
+# account's balance on the transaction's date (Q-047). Written only where that
+# differs from what the account's type says — the whole amount for a split
+# raising the account in its own direction, nothing otherwise — so a book
+# written before it reads as it always did. The import writes it and never
+# takes it from a file; the export leaves it out.
+COST_BASIS_BROUGHT_IN_KEY = 'cost_basis_brought_in'
+
 # KVP on a sale's foreign-currency split: the guid of the split whose cost
 # basis this sale picks.
 COST_BASIS_SPLIT_KEY = 'cost_basis_split_guid'
@@ -269,6 +278,9 @@ def cost_of(split) -> Optional[Fraction]:
     return stated_cost_of(split)
 
 
+_being_priced: Set[str] = set()
+
+
 def derived_cost_of(split) -> Optional[Fraction]:
     """What the transaction itself says this split's currency cost, or None.
 
@@ -292,6 +304,37 @@ def derived_cost_of(split) -> Optional[Fraction]:
         if base_per_tx_currency is None:
             return None
         per_unit *= base_per_tx_currency
+    # A split crossing zero that gives a guid carries two things in one value:
+    # what it repaid, at the cost of the cost basis it gives, and what it
+    # brought in. 1,000.00 USD into an account at −500.00 valued at 1,375.00
+    # repays 500.00 owed at 1.35, which is 675.00, so the 500.00 it brought in
+    # cost 700.00, 1.40 each (Q-047).
+    guid = cost_basis_guid_of(split)
+    brought_in = (None if split_moves(split) is None else _stored_brought_in(split))
+    if guid and brought_in:
+        # A split already being priced prices nothing: one giving its own guid,
+        # or two giving each other's, asked what they cost, went on asking
+        # until Python gave up. A guid matching nothing, or a split with no
+        # cost, prices nothing either; `_validate_pick` refuses all three and
+        # says which.
+        this = split_guid(split)
+        if this in _being_priced:
+            return None
+        _being_priced.add(this)
+        try:
+            repaid = find_split_by_guid(split.GetBook(), guid)
+            repaid_cost = cost_of(repaid) if repaid is not None else None
+        finally:
+            _being_priced.discard(this)
+        if repaid_cost is None:
+            return None
+        whole = per_unit * abs(amount)
+        left = (whole - repaid_cost * (abs(amount) - brought_in)) / brought_in
+        # Valued under what it repaid cost, what is left for the part brought
+        # in is below nothing, and prices no currency;
+        # `_a_crossing_valued_against_another_cost` refuses it where the
+        # transaction says what its currency fetched.
+        per_unit = left if left > 0 else Fraction(0)
     return per_unit or None
 
 
@@ -662,14 +705,14 @@ def refuse_a_transfer_sharing_a_transaction(transaction) -> None:
     by_account: Dict[tuple, Fraction] = {}
     units_of: Dict[str, int] = {}
     for split in transaction.GetSplitList():
-        side = _side_of(split)
-        if side is None:
+        split_move = split_moves(split)
+        if split_move is None:
             continue
         commodity = split_commodity(split)
         units_of[commodity] = smallest_unit(split)
-        key = (commodity, side, get_account_full_name(split.GetAccount()))
-        by_account[key] = (by_account.get(key, Fraction(0))
-                           + _fraction(split.GetAmount()) * (1 if side == 'asset' else -1))
+        for side, change in zip(('asset', 'liability'), split_move):
+            key = (commodity, side, get_account_full_name(split.GetAccount()))
+            by_account[key] = by_account.get(key, Fraction(0)) + change
     moves: Dict[tuple, Dict[str, Fraction]] = {}
     for (commodity, side, _account), change in by_account.items():
         figures = moves.setdefault(
@@ -683,7 +726,44 @@ def refuse_a_transfer_sharing_a_transaction(transaction) -> None:
         rose, fell = figures['rose'], figures['fell']
         if not rose or not fell or rose == fell:
             continue
-        if not any(split_commodity(split) == commodity and _side_of(split) == side
+        # A transfer out of an account holding less than it sends is a
+        # borrowing for the rest: 1,200.00 USD out of an account holding
+        # 1,000.00 moves 1,000.00 and owes 200.00, and the 200.00 more held is
+        # the 200.00 more owed. Nothing there needs telling apart (Q-047).
+        # And its mirror, paying off more than is owed: 500.00 USD out of an
+        # account onto a card owing 300.00 repays 300.00 and moves 200.00 to
+        # the card's credit, and the 300.00 less held is the 300.00 less owed.
+        #
+        # Only where every account moving on the other side crossed zero, moving
+        # this side too. 1,000.00 from C and 200.00 charged to a card, into B,
+        # adds up the same, and is a transfer sharing a transaction with a
+        # borrowing: nothing says which of B's dollars moved and which arrived.
+        other_side = 'liability' if side == 'asset' else 'asset'
+        other = moves.get((commodity, other_side))
+        crossed = all(by_account.get((commodity, side, account), Fraction(0)) != 0
+                      for (each, on, account), change in by_account.items()
+                      if each == commodity and on == other_side and change != 0)
+        if other is not None and crossed and (
+                (rose > fell and other['fell'] == 0 and other['rose'] == rose - fell)
+                or (fell > rose and other['rose'] == 0 and other['fell'] == fell - rose)):
+            drawing = [split for split in transaction.GetSplitList()
+                       if split_commodity(split) == commodity and cost_basis_guid_of(split)
+                       and the_side_it_draws(split) == side]
+            if fell > rose and len(drawing) > 1:
+                unit = figures['unit']
+                held = 'held' if side == 'asset' else 'owed'
+                raise Exception(
+                    f'this transaction pays off {_format(fell - rose, unit)} '
+                    f'{commodity} {"owed" if side == "asset" else "held"} and moves '
+                    f'{_format(rose, unit)} {commodity} within the {held} side, and '
+                    f'{len(drawing)} splits give a cost basis on the {held} side: '
+                    f'nothing says which of them the {_format(rose, unit)} that only '
+                    f'moved came out of, and a cost basis is never chosen for you. '
+                    f'Write what moved as a transaction of its own.')
+            continue
+        if not any(split_commodity(split) == commodity
+                   and split_moves(split) is not None
+                   and split_moves(split)[0 if side == 'asset' else 1] != 0
                    and (cost_basis_guid_of(split) or establishes_cost_basis(split))
                    for split in transaction.GetSplitList()):
             continue
@@ -756,10 +836,12 @@ def refuse_a_difference_no_split_can_state(book, transaction) -> None:
     # it cost, the second arrives with no cost to open a cost basis at, and
     # the cost the first gave up leaves the book with nothing to show for it.
     paying = [split for split in transaction.GetSplitList()
-              if cost_basis_guid_of(split) and _side_of(split) == 'asset']
+              if cost_basis_guid_of(split) and the_side_it_draws(split) == 'asset']
     spent = {split_commodity(split) for split in paying}
+    # Currency arriving on the held side, read from what each split moves: a
+    # card paid past zero brings a credit in there as a bank does.
     bought = [split for split in transaction.GetSplitList()
-              if _side_of(split) == 'asset' and _fraction(split.GetAmount()) > 0
+              if split_moves(split) is not None and split_moves(split)[0] > 0
               and is_a_currency(split.GetAccount().GetCommodity())
               and split_commodity(split) not in spent]
     if paying and bought:
@@ -785,11 +867,15 @@ def refuse_a_difference_no_split_can_state(book, transaction) -> None:
             continue
         # A split with no side — a receivable or a payable, settled through its
         # lot — is kept under None and never compared: only a held side against
-        # an owed one realizes a difference here.
-        units = abs(_fraction(split.GetAmount()))
+        # an owed one realizes a difference here. The side is the one the split
+        # draws on, whatever its account's type: 500.00 USD into a bank at
+        # −500.00 pays off what the bank owed, and a refill written wholly in
+        # US dollars out of dollars held at another cost realized a difference
+        # no split stated, read by type as two held splits (Q-047).
+        units = draws_down(split)
         cost = cost_of(find_split_by_guid(book, basis_guid))
         units_of[split_commodity(split)] = smallest_unit(split)
-        figures = drawn.setdefault((split_commodity(split), _side_of(split)),
+        figures = drawn.setdefault((split_commodity(split), the_side_it_draws(split)),
                                    [Fraction(0), Fraction(0)])
         figures[0] += units
         figures[1] += units * cost
@@ -862,19 +948,28 @@ def establishes_cost_basis(split) -> bool:
     # mnemonic, and it answers the empty string for a split that has none —
     # which the check above has already turned away.
     account = split.GetAccount()
-    if cost_basis_guid_of(split):
-        return False
-
     amount = _fraction(split.GetAmount())
     if amount == 0:
         return False
-    # Which way the split moves is asked before what it cost, because reading
-    # the cost can raise — a `cost_basis_cost` that does not parse is refused
-    # rather than ignored — and a split that establishes nothing has no cost
-    # worth refusing over. Asked first, a spend carrying such a line was
-    # reported as an unreadable cost basis, listing and all.
-    if not _raises_a_foreign_balance(split, account, amount):
-        return False
+    # Where its account crossed or lay past zero, the import recorded what the
+    # split brought in, and that decides it — a split giving a guid included,
+    # since 1,000.00 into an account at −500.00 repays 500.00 owed out of the
+    # cost basis it gives and brings the other 500.00 in (Q-047).
+    brought_in = (None if account.GetType() in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE)
+                  else _stored_brought_in(split))
+    if brought_in is not None:
+        if not brought_in:
+            return False
+    else:
+        if cost_basis_guid_of(split):
+            return False
+        # Which way the split moves is asked before what it cost, because
+        # reading the cost can raise — a `cost_basis_cost` that does not parse
+        # is refused rather than ignored — and a split that establishes nothing
+        # has no cost worth refusing over. Asked first, a spend carrying such a
+        # line was reported as an unreadable cost basis, listing and all.
+        if not _raises_a_foreign_balance(split, account, amount):
+            return False
     if _only_moved_within_one_side(split, account, amount):
         return False
     return cost_of(split) is not None
@@ -924,22 +1019,23 @@ def _only_moved_within_one_side(split, account, amount: Fraction) -> bool:
         return False
 
     commodity = split_commodity(split)
-    side = _DEBIT_TYPES if account.GetType() in _DEBIT_TYPES else _CREDIT_TYPES
-    # Which way this side's balance rises: a debit on a bank, a credit on a
-    # loan, whose balance goes up as its amount goes down.
-    rising = 1 if side is _DEBIT_TYPES else -1
+    # The side this split brings its currency in on: what comes into an account
+    # is held, and what goes out of one below zero is owed, whatever the
+    # account's type (Q-047).
+    at = 0 if amount > 0 else 1
 
+    # Each split's move on that side, so an account taken below zero adds to
+    # the owed side rather than taking off the held one: 500.00 moved from an
+    # empty account to another is 500.00 more held and 500.00 more owed, a
+    # borrowing, where netting the two amounts read it as a transfer.
     net = Fraction(0)
     for other in split.GetParent().GetSplitList():
         if split_commodity(other) != commodity:
             continue
-        its_account = other.GetAccount()
-        its_type = its_account.GetType() if its_account is not None else None
-        if its_type in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+        moves = split_moves(other)
+        if moves is None:
             continue
-        if its_type not in side:
-            continue
-        net += rising * _fraction(other.GetAmount())
+        net += moves[at]
     # `<= 0` rather than `== 0`: a transfer that also pays a fee out of the
     # same account leaves the side lower than it started, and a side that lost
     # units has nothing arriving on it to cost.
@@ -1252,7 +1348,7 @@ def balance_came_from_file(split) -> bool:
 def open_cost_basis_balance(split) -> Fraction:
     """Open a cost basis: none of what it brought in has been charged against
     yet, so all of it is still there to measure a disposal against."""
-    opening = abs(_fraction(split.GetAmount()))
+    opening = brought_in_by(split)
     write_cost_basis_balance(split, opening)
     return opening
 
@@ -1336,7 +1432,7 @@ def _drawn_down_after(book, as_of) -> dict:
         when = split.GetParent().GetDate().date()
         if when <= as_of:
             continue
-        drawn[guid] = drawn.get(guid, Fraction(0)) + abs(_fraction(split.GetAmount()))
+        drawn[guid] = drawn.get(guid, Fraction(0)) + draws_down(split)
     return drawn
 
 
@@ -1533,7 +1629,7 @@ def raise_cost_basis_balance(split, amount: Fraction) -> Fraction:
         # `_carry_basis_to_residue` refuses. Leave it as it is; the fault is
         # reported, and correcting the figure is what unblocks it.
         return Fraction(0)
-    restored = min(current + amount, abs(_fraction(split.GetAmount())))
+    restored = min(current + amount, brought_in_by(split))
     write_cost_basis_balance(split, restored)
     return restored
 
@@ -1599,7 +1695,7 @@ def record_cost_bases(book, transaction) -> None:
     what it can: 60.00 and 40.00 arriving with 70.00 taken back out leave the
     first at nothing and the second at 30.00, what the account kept.
     """
-    still_to_take: Dict[str, Fraction] = {}
+    still_to_take: Dict[tuple, Fraction] = {}
     for split in transaction.GetSplitList():
         if not establishes_cost_basis(split):
             continue
@@ -1609,20 +1705,52 @@ def record_cost_bases(book, transaction) -> None:
         opened = open_cost_basis_balance_if_none_is_stored(split)
         if opened is None:
             continue
-        account = get_account_full_name(split.GetAccount())
-        if account not in still_to_take:
-            arriving = _fraction(split.GetAmount())
-            still_to_take[account] = sum(
-                (abs(_fraction(other.GetAmount()))
-                 for other in transaction.GetSplitList()
-                 if get_account_full_name(other.GetAccount()) == account
-                 and _fraction(other.GetAmount()) * arriving < 0
-                 and not cost_basis_guid_of(other)),
-                Fraction(0))
-        taken = min(opened, still_to_take[account])
+        at, taken_back = _what_the_transaction_took_back(transaction, split)
+        if at not in still_to_take:
+            still_to_take[at] = taken_back()
+        taken = min(opened, still_to_take[at])
         if taken:
             write_cost_basis_balance(split, opened - taken)
-            still_to_take[account] -= taken
+            still_to_take[at] -= taken
+
+
+def _what_the_transaction_took_back(transaction, split):
+    """Where what an arriving split opens is reduced from, and by how much.
+
+    A key shared by every arriving split that draws on the same figure, and a
+    function working the figure out, so it is worked out once per key.
+
+    On a receivable or a payable, what the same account took back out. Anywhere
+    else, what left the side the split arrives on, from any account, and not
+    by a disposal giving a guid: that much of what arrived only moved. 1,200.00
+    USD out of an account holding 1,000.00 and into another is 1,000.00 moved
+    and 200.00 borrowed, so the account it went into opens a cost basis for
+    200.00 (Q-047).
+
+    Across accounts this is reached only by that borrowing:
+    `refuse_a_transfer_sharing_a_transaction` turns away every other
+    transaction in which one account on a side rises while another falls and a
+    cost basis is touched, so a purchase into one account beside a move out of
+    another never gets here.
+    """
+    arriving = _fraction(split.GetAmount())
+    if split_moves(split) is None:
+        account = get_account_full_name(split.GetAccount())
+        return (account,), lambda: sum(
+            (abs(_fraction(other.GetAmount()))
+             for other in transaction.GetSplitList()
+             if get_account_full_name(other.GetAccount()) == account
+             and _fraction(other.GetAmount()) * arriving < 0
+             and not cost_basis_guid_of(other)),
+            Fraction(0))
+    commodity = split_commodity(split)
+    side = 0 if arriving > 0 else 1
+    return (commodity, side), lambda: sum(
+        (max(-moves[side], Fraction(0))
+         for other in transaction.GetSplitList()
+         if split_commodity(other) == commodity and not cost_basis_guid_of(other)
+         for moves in [split_moves(other)] if moves is not None),
+        Fraction(0))
 
 
 def carry_the_cost_to_what_it_bought(book, transaction) -> None:
@@ -1672,7 +1800,7 @@ def carry_the_cost_to_what_it_bought(book, transaction) -> None:
     # What paid is what left a held cost basis. A debt a transaction pays off
     # draws its own cost basis down too, and it bought nothing.
     paying = [split for split in transaction.GetSplitList()
-              if cost_basis_guid_of(split) and _side_of(split) == 'asset']
+              if cost_basis_guid_of(split) and the_side_it_draws(split) == 'asset']
     if not arriving or not paying:
         return
     # `apply_cost_basis_picks` found and checked every guid given before it
@@ -1680,7 +1808,7 @@ def carry_the_cost_to_what_it_bought(book, transaction) -> None:
     # alone — so each guid matches a split and each split has a cost. A figure
     # missing here would be that check having let something through, which is
     # worth the raise it would get rather than a holding quietly left uncosted.
-    given_up = sum(abs(_fraction(split.GetAmount()))
+    given_up = sum(draws_down(split)
                    * cost_of(find_split_by_guid(book, cost_basis_guid_of(split)))
                    for split in paying)
     # Divided by value, in whatever currency the transaction is stated in: a
@@ -1877,7 +2005,7 @@ def amounts_by_cost_basis(transaction) -> Dict[str, Fraction]:
         guid = cost_basis_guid_of(split)
         if not guid:
             continue
-        taken[guid] = taken.get(guid, Fraction(0)) + abs(_fraction(split.GetAmount()))
+        taken[guid] = taken.get(guid, Fraction(0)) + draws_down(split)
     return taken
 
 
@@ -1970,17 +2098,19 @@ def refuse_a_disposal_that_gives_no_cost_basis(book, transaction) -> None:
     for (commodity, side), gone in _what_left_each_side(transaction).items():
         if gone >= 0:
             continue
+        # The splits taking units off that side, whatever their account's type:
+        # 200.00 charged to a card holding a credit of 200.00 spends what was
+        # held, and 1,000.00 into an account at −500.00 pays off 500.00 owed.
         on_that_side = [split for split in transaction.GetSplitList()
                         if split_commodity(split) == commodity
-                        and _side_of(split) == side]
+                        and the_side_it_draws(split) == side]
         # What the splits giving a guid take off the side, against what left
         # it. Enough to cover the fall and the disposal has said where all of
         # it came from; short, and the rest came out of a cost basis no split
         # gives. Asked as "does any split give one", 100.00 USD out of one
         # bank giving its cost basis let 50.00 out of a second bank through
         # with none, and the cost bases held 600.00 against 550.00.
-        leaving = 1 if side == 'asset' else -1
-        given = sum((max(-leaving * _fraction(split.GetAmount()), Fraction(0))
+        given = sum((drawn_by(split)
                      for split in on_that_side if cost_basis_guid_of(split)),
                     Fraction(0))
         not_given = -gone - given
@@ -2099,24 +2229,6 @@ def _accounts_holding(book, commodity: str) -> Iterator:
     yield from walk(book.get_root_account())
 
 
-def _side_of(split) -> Optional[str]:
-    """Which side of the book this split's account sits on, or None.
-
-    None for a business account and for anything that is neither a debit nor a
-    credit type — an income or expense split takes no side, holds no currency
-    and consumes no cost basis.
-
-    The account is read without asking whether there is one. The one split
-    known to lack it is the trading split GnuCash 4.8 lists before attaching
-    its account on a book with trading accounts (CLAUDE.md finding 12), and no
-    caller meets it: `test_a_foreign_purchase_imports_into_a_trading_accounts_book.py`
-    puts a transaction that makes one through every caller on every build, and
-    it imports whole. A caller that did meet it would raise rather than read a
-    side for a split no account gives one.
-    """
-    return account_side(split.GetAccount())
-
-
 def account_side(account) -> Optional[str]:
     """Which side of the book an account sits on: 'asset', 'liability' or None.
 
@@ -2174,55 +2286,225 @@ def _what_left_each_side(transaction) -> Dict[tuple, Fraction]:
     falls. A trading account needs no rule of its own — its type is neither a
     debit nor a credit one, so the loop below passes it over.
     """
-    # Grouped by account before anything is asked of a balance, because two
-    # splits of one transaction can sit on the same account and it is the
-    # account's own fall that is wanted, not each split's.
-    on_each_account: Dict[tuple, list] = {}
+    # Each split's own move on each side, which `mark_what_arrives_past_zero`
+    # has already read from the account's balance on the transaction's date.
+    net: Dict[tuple, Fraction] = {}
     for split in transaction.GetSplitList():
         # `split_commodity` answers the empty string for a split with no
         # account, which is the shape GnuCash makes for itself on a
-        # trading-accounts book (CLAUDE.md finding 12), so the line above turns
-        # that one away and the account below is there to read.
+        # trading-accounts book (CLAUDE.md finding 12), so this turns that one
+        # away and `split_moves` has an account to read.
         commodity = split_commodity(split)
         if not commodity or commodity == BASE_CURRENCY:
             continue
-        account = split.GetAccount()
-        account_type = account.GetType()
-        if account_type in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+        moves = split_moves(split)
+        if moves is None:
             continue
-        if account_type in _DEBIT_TYPES:
-            side, rising = 'asset', 1
-        elif account_type in _CREDIT_TYPES:
-            side, rising = 'liability', -1
-        else:
-            continue
-        at = (commodity, side, get_account_full_name(account))
-        entry = on_each_account.setdefault(at, [rising, account, Fraction(0)])
-        entry[2] += _fraction(split.GetAmount())
+        for side, change in zip(('asset', 'liability'), moves):
+            net[(commodity, side)] = net.get((commodity, side), Fraction(0)) + change
+    return net
 
-    net: Dict[tuple, Fraction] = {}
+
+def mark_what_arrives_past_zero(transaction) -> None:
+    """Record, on each split whose account crosses or lies past zero, what it brought in.
+
+    An asset account below zero owes its currency and a liability account above
+    zero holds it (Q-047). So a split is read against its account's balance on
+    the transaction's date: the part of its move above zero is on the held
+    side, the part below zero on the owed side. 500.00 USD out of a bank holding
+    nothing brings 500.00 in on the owed side; 1,000.00 into it at −500.00
+    repays 500.00 owed and brings 500.00 in on the held side; 200.00 charged
+    to a card holding 200.00 spends what it held and brings nothing in.
+
+    Written only where that differs from what the account's type says, and
+    removed where it does not, so a file cannot state it: a split that raises
+    its account in its own direction from zero or beyond brought its whole
+    amount in, as it always did.
+
+    Read at the transaction's own date, as the book holds it when this runs.
+    It is already committed, so taking its own splits back off is what each
+    account held without it. A file's transactions are imported in the order
+    the file gives them, which is the order its writer meant.
+    """
     # GnuCash's own balance as of a moment counts every split dated before it,
     # so the start of the next day counts everything on the transaction's own
     # date. Handed a `datetime`, as every date is handed to GnuCash here
     # (CLAUDE.md finding 20).
     day_after = datetime.combine(transaction.GetDate().date() + timedelta(days=1),
                                  datetime.min.time())
-    for (commodity, side, _name), (rising, account, moved) in on_each_account.items():
-        # Taken at the transaction's own date. It is already committed into the
-        # book by the time the check runs, so taking its own splits back off is
-        # what the account held without it. Read from the whole balance, a
-        # deposit dated three months later that came first in the file made a
-        # parking on a day the account held nothing read as a spend.
-        #
-        # A file's transactions are imported in the order the file gives them,
-        # which is the order its writer meant, so this reads what the book held
-        # as that order has built it.
-        with_it = rising * _fraction(account.GetBalanceAsOfDate(day_after))
-        without_it = with_it - rising * moved
-        fell = max(without_it, Fraction(0)) - max(with_it, Fraction(0))
-        at = (commodity, side)
-        net[at] = net.get(at, Fraction(0)) - fell
-    return net
+    on_each_account: Dict[str, list] = {}
+    for split in transaction.GetSplitList():
+        commodity = split_commodity(split)
+        if not commodity or commodity == BASE_CURRENCY:
+            continue
+        account_type = split.GetAccount().GetType()
+        if account_type not in (_DEBIT_TYPES | _CREDIT_TYPES) or account_type in (
+                ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+            continue
+        # Currency alone. A share account below zero is shares sold that were
+        # never bought, or bought in a book this one never saw, not shares
+        # owed; read as owing, 10 shares sold out of an account holding none
+        # opened an owed cost basis the next purchase had to give the guid of.
+        if not is_a_currency(split.GetAccount().GetCommodity()):
+            continue
+        on_each_account.setdefault(get_account_full_name(split.GetAccount()), []).append(split)
+
+    for splits in on_each_account.values():
+        account = splits[0].GetAccount()
+        moved = sum((_fraction(split.GetAmount()) for split in splits), Fraction(0))
+        position = _fraction(account.GetBalanceAsOfDate(day_after)) - moved
+        # In an order of the import's own, not the transaction's: GnuCash does
+        # not keep a transaction's splits in the order a file gives them. The
+        # splits moving the account the way it moves overall come first, then
+        # the rest, each in guid order. A card owing nothing, charged 150.00 and
+        # refunded 100.00 in one transaction, reads the charge first either
+        # way: 150.00 owed, 100.00 of it repaid. Read refund first, it was a
+        # credit of 100.00 brought in and then a charge crossing zero, for a
+        # card that went from owing nothing to owing 50.00.
+        splits.sort(key=lambda split: (
+            0 if _fraction(split.GetAmount()) * moved > 0 else 1, split_guid(split)))
+        for split in splits:
+            _record_what_it_brought_in(transaction, split, position)
+            position += _fraction(split.GetAmount())
+
+
+def _record_what_it_brought_in(transaction, split, before: Fraction) -> None:
+    """Write or remove `cost_basis_brought_in` on one split, its account at `before`."""
+    account_type = split.GetAccount().GetType()
+    amount = _fraction(split.GetAmount())
+    after = before + amount
+    held = max(after, Fraction(0)) - max(before, Fraction(0))
+    owed = max(-after, Fraction(0)) - max(-before, Fraction(0))
+    brought_in = max(held, Fraction(0)) + max(owed, Fraction(0))
+    by_type = (amount if account_type in _DEBIT_TYPES and amount > 0 else
+               -amount if account_type in _CREDIT_TYPES and amount < 0 else
+               Fraction(0))
+    # A split giving a guid says where its units came from. It brings anything
+    # in only where it crosses zero, drawing on the side it leaves and arriving
+    # past it; one that draws nothing on the side it leaves is a disposal as the
+    # reader wrote it, and its guid decides what it drew. 40.00 USD sold out of
+    # an empty bank against an invoice not yet collected gives the invoice's
+    # guid, and opening a cost basis owed for the 40.00 as well counted it
+    # twice (Q-047).
+    if cost_basis_guid_of(split) and not (held < 0 if amount < 0 else owed < 0):
+        brought_in = by_type
+    metadata = dict(get_custom_metadata(split))
+    if brought_in == by_type:
+        if COST_BASIS_BROUGHT_IN_KEY not in metadata:
+            return
+        del metadata[COST_BASIS_BROUGHT_IN_KEY]
+    else:
+        metadata[COST_BASIS_BROUGHT_IN_KEY] = _format(brought_in, smallest_unit(split))
+    transaction.BeginEdit()
+    set_custom_metadata(split, metadata)
+    transaction.CommitEdit()
+
+
+def _stored_brought_in(split) -> Optional[Fraction]:
+    """What `mark_what_arrives_past_zero` recorded this split brought in, or None."""
+    raw = get_custom_metadata(split).get(COST_BASIS_BROUGHT_IN_KEY)
+    if raw is None or raw == '':
+        return None
+    return Fraction(str(raw))
+
+
+def split_moves(split) -> Optional[tuple]:
+    """What this split moves on each side: (held, owed), each + for in and − for out.
+
+    None for a split on a receivable or a payable, settled through its lots,
+    and for one on an account holding no currency.
+
+    Where the import recorded what the split brought in, the move is read from
+    that and the amount: 1,000.00 into an account at −500.00 brought 500.00 in
+    on the held side and took 500.00 off the owed side. Where it recorded
+    nothing, the account's type decides, as it always did: a bank's split moves
+    the held side by its amount and a loan's split the owed side.
+    """
+    account = split.GetAccount()
+    account_type = account.GetType()
+    if account_type in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+        return None
+    if account_type not in (_DEBIT_TYPES | _CREDIT_TYPES):
+        return None
+    amount = _fraction(split.GetAmount())
+    brought_in = _stored_brought_in(split)
+    if brought_in is None:
+        if account_type in _DEBIT_TYPES:
+            return amount, Fraction(0)
+        return Fraction(0), -amount
+    if amount > 0:
+        return brought_in, brought_in - amount
+    return amount + brought_in, brought_in
+
+
+def brought_in_by(split) -> Fraction:
+    """How much of its currency a cost basis split brought in.
+
+    Its whole amount, except where its account crossed zero: 1,000.00 USD into
+    an account at −500.00 brought 500.00 in, and repaid the other 500.00.
+    """
+    brought_in = _stored_brought_in(split)
+    return abs(_fraction(split.GetAmount())) if brought_in is None else brought_in
+
+
+def drawn_by(split) -> Fraction:
+    """How much of the cost basis it gives a disposal split draws down.
+
+    Its whole amount, except where it crosses zero: 1,000.00 USD into an
+    account at −500.00 repays 500.00 of what the account owed, and the other
+    500.00 arrives. A split on a receivable or a payable is its whole amount.
+    """
+    moves = split_moves(split)
+    whole = abs(_fraction(split.GetAmount()))
+    if moves is None:
+        return whole
+    held, owed = moves
+    drawn = -held if _fraction(split.GetAmount()) < 0 else -owed
+    return drawn if drawn > 0 else whole
+
+
+def draws_down(split) -> Fraction:
+    """How far a disposal split lowers the cost basis it gives.
+
+    What it draws (`drawn_by`), except where it is the only split drawing on
+    its side and the side lost less than that: the rest of what it sent only
+    moved to another account on the same side. 500.00 USD out of C onto a card
+    owing 300.00 repays 300.00 and moves 200.00 onto the card's credit, so C's
+    cost basis falls by 300.00, the held side's loss, where drawn down by the
+    500.00 C sent it would stand for 200.00 fewer dollars than the held side
+    holds (Q-047).
+
+    The split is still valued at what all it sent cost, as every disposal is:
+    the part that moved leaves at what it cost and arrives at the same.
+    """
+    drawn = drawn_by(split)
+    at = {'asset': 0, 'liability': 1}.get(the_side_it_draws(split))
+    if at is None:
+        return drawn
+    commodity = split_commodity(split)
+    moving = [(other, split_moves(other)) for other in split.GetParent().GetSplitList()
+              if split_commodity(other) == commodity and split_moves(other) is not None]
+    lost = -sum((moves[at] for _other, moves in moving), Fraction(0))
+    drawing = [other for other, moves in moving
+               if cost_basis_guid_of(other) and moves[at] < 0]
+    return lost if len(drawing) == 1 and 0 < lost < drawn else drawn
+
+
+def the_side_it_draws(split) -> Optional[str]:
+    """The side a disposal split draws from: 'asset', 'liability', or None.
+
+    The side it takes units off, whatever the account's type: a card holding a
+    credit of 200.00 spends what it held when 200.00 is charged to it, and
+    500.00 into a bank at −500.00 pays off what the bank owed. Read from the
+    amount's sign alone, money into a bank holding some read as paying off
+    what is owed. A split taking nothing off either side draws on neither, and
+    so does one on a receivable or a payable, whose lots settle them.
+    """
+    moves = split_moves(split)
+    if moves is None:
+        return None
+    held, owed = moves
+    return 'asset' if held < 0 else 'liability' if owed < 0 else None
 
 
 def apply_cost_basis_picks(book, transaction) -> Dict[str, Fraction]:
@@ -2249,8 +2531,7 @@ def apply_cost_basis_picks(book, transaction) -> Dict[str, Fraction]:
         basis = _validate_pick(book, split, basis_guid)
         if basis is None:                     # stated in the file; already net
             continue
-        wanted[basis_guid] = wanted.get(basis_guid, Fraction(0)) + abs(
-            _fraction(split.GetAmount()))
+        wanted[basis_guid] = wanted.get(basis_guid, Fraction(0)) + draws_down(split)
 
     checked = []
     for basis_guid, total in wanted.items():
@@ -2265,7 +2546,7 @@ def apply_cost_basis_picks(book, transaction) -> Dict[str, Fraction]:
                 f'of it. State `{COST_BASIS_BALANCE_KEY}:` on that split in an '
                 f'import file to give it a balance.')
         if total > available:
-            held = abs(_fraction(basis.GetAmount()))
+            held = brought_in_by(basis)
             unit = smallest_unit(basis)
             raise Exception(
                 f'{_format(total, unit)} {currency} against cost basis {basis_guid} '
@@ -2335,8 +2616,14 @@ def _validate_pick(book, selling_split, basis_guid: str):
     # does a split on one: an overpayment's credit sits on the receivable as
     # money owed back, and the dollars it brought in are in the bank, costed by
     # that credit. Selling them out of the bank gives the credit's guid.
-    spending_side = _side_of(selling_split)
-    basis_side = _side_of(basis)
+    #
+    # Each side is read from which way the money moves, not from the account's
+    # type (Q-047): an account below zero owes, so what goes into it pays off
+    # a cost basis of dollars owed, and a card above zero holds a credit, so
+    # what is charged to it spends a cost basis of dollars held.
+    spending_side = the_side_it_draws(selling_split)
+    basis_side = (None if split_moves(basis) is None
+                  else 'asset' if _fraction(basis.GetAmount()) > 0 else 'liability')
     if None not in (spending_side, basis_side) and spending_side != basis_side:
         spent = 'held' if spending_side == 'asset' else 'owed'
         stands_for = 'held' if basis_side == 'asset' else 'owed'
@@ -2497,10 +2784,12 @@ def a_sale_valued_against_another_cost(selling_split, basis,
     transaction = selling_split.GetParent()
     if transaction is None or transaction_currency(transaction) != BASE_CURRENCY:
         return None
+    if split_moves(selling_split) is not None and _stored_brought_in(selling_split):
+        return _a_crossing_valued_against_another_cost(selling_split, basis, basis_guid)
     # Priced: both callers ask this only of a split that establishes a cost
     # basis, and a split establishes one only once something says its cost.
     basis_cost = cost_of(basis)
-    sold = abs(_fraction(selling_split.GetAmount()))
+    sold = drawn_by(selling_split)
     stated = abs(_fraction(selling_split.GetValue()))
     currency = split_commodity(selling_split)
     base_unit = transaction.GetCurrency().get_fraction()
@@ -2524,6 +2813,74 @@ def a_sale_valued_against_another_cost(selling_split, basis,
         f'at the cost basis it picks, so the {BASE_CURRENCY} the sale fetched '
         f'and the '
         f'residual gain or loss stand apart')
+
+
+def _a_crossing_valued_against_another_cost(split, basis, basis_guid: str) -> Optional[str]:
+    """What is wrong with a split crossing zero valued at anything but what it repaid and brought in.
+
+    Such a split values two things in one figure: what it repaid, at the cost
+    of the cost basis it gives, and what it brought in, at the rate the
+    transaction fetched it at. 1,000.00 USD of income worth 1,400.00 CAD into
+    an account at −500.00 repays 500.00 owed at 1.35, 675.00, and brings in
+    500.00 at 1.40, 700.00, so it is valued at 1,375.00 and `$residual$` takes
+    the 25.00 the repayment lost (Q-047).
+
+    Valued at 1,400.00 — the day's rate throughout, as GnuCash's register
+    writes it — the 25.00 would sit in the held cost basis, costing the 500.00
+    at 1.45, and no gain or loss would be stated. Valued at 600.00, what is
+    left for the 500.00 brought in is a cost below nothing.
+
+    What the part brought in came at is read from the transaction. Where this
+    is its one foreign-currency split, it is what the book-currency splits
+    fetched for the whole amount, the `$residual$` split aside. Where another
+    split moves the same currency, the part brought in only moved from it, and
+    came at the cost of the cost basis that split gives: 500.00 USD from C onto
+    a card owing 300.00 repays 300.00 at the card's 1.35 and moves 200.00 at
+    C's 1.30, so the card's split is worth 665.00. Beside a second currency,
+    or beside splits of this one giving no single cost basis, nothing here can
+    say what the part brought in came at, and the value is the file's
+    statement of it.
+    """
+    transaction = split.GetParent()
+    currency = split_commodity(split)
+    # By guid: GnuCash hands back a new wrapper for the same split on every
+    # call, so `is` never matches it.
+    this = split_guid(split)
+    others = [each for each in transaction.GetSplitList()
+              if split_guid(each) != this and split_commodity(each)
+              and split_commodity(each) != BASE_CURRENCY]
+    same = [each for each in others if split_commodity(each) == currency]
+    sources = [each for each in same if cost_basis_guid_of(each)]
+    if len(others) != len(same) or (same and len(sources) != 1):
+        return None
+    amount = abs(_fraction(split.GetAmount()))
+    if same:
+        source = find_split_by_guid(split.GetBook(), cost_basis_guid_of(sources[0]))
+        rate = (cost_of(source) if source is not None else None) or Fraction(0)
+    else:
+        fetched = abs(sum((_fraction(each.GetValue()) for each in transaction.GetSplitList()
+                           if split_commodity(each) == BASE_CURRENCY
+                           and not took_the_residual(each)),
+                          Fraction(0)))
+        rate = fetched / amount
+    repaid = drawn_by(split)
+    brought_in = brought_in_by(split)
+    basis_cost = cost_of(basis)
+    base_unit = transaction.GetCurrency().get_fraction()
+    expected = numeric_to_fraction(to_money(repaid * basis_cost + brought_in * rate, base_unit))
+    stated = abs(_fraction(split.GetValue()))
+    if stated == expected:
+        return None
+    unit = smallest_unit(split)
+    return (
+        f'this split repays {_format(repaid, unit)} {currency} from cost basis '
+        f'{basis_guid} at {exact_text(basis_cost)} {BASE_CURRENCY}/{currency} and '
+        f'brings {_format(brought_in, unit)} {currency} in at the '
+        f'{exact_text(rate)} {BASE_CURRENCY}/{currency} it came at, '
+        f'i.e. {_format(expected, base_unit)} {BASE_CURRENCY}, but is valued at '
+        f'{_format(stated, base_unit)} {BASE_CURRENCY} — value it at that, so '
+        f'what the repayment realized stands apart in the residual and what it '
+        f'brought in is costed at the rate it came at')
 
 
 def _require_stated_cost(selling_split, basis, basis_guid: str) -> None:
@@ -3127,7 +3484,8 @@ def verify_cost_bases(book, totals: bool = True) -> Dict:
                 f"it reads as empty meanwhile")
 
         available = row['balance']
-        if available is not None and (available < 0 or available > row['amount']):
+        brought_in = brought_in_by(split)
+        if available is not None and (available < 0 or available > brought_in):
             # Written exactly, not through the currency's smallest unit: the
             # figure is being reported *because* it is past one of those two
             # bounds, and rounding it to the cent is how "100.001 against
@@ -3135,7 +3493,7 @@ def verify_cost_bases(book, totals: bool = True) -> Dict:
             problems.append(
                 f"cost basis balance is "
                 f"{_format(available, row['unit'])} {row['currency']} "
-                f"against the {_format(row['amount'], row['unit'])} this "
+                f"against the {_format(brought_in, row['unit'])} this "
                 f"cost basis brought in — a balance can only fall by what a "
                 f"sale "
                 f"takes and rise by what one gives back")
@@ -3202,14 +3560,16 @@ def currency_totals_that_disagree(book) -> List[Dict]:
         currency = split_commodity(split)
         if not currency or currency == BASE_CURRENCY:
             continue
-        amount = abs(_fraction(split.GetAmount()))
         named = cost_basis_guid_of(split)
+        # A split giving a guid is a sale of what it draws, and a split crossing
+        # zero is an arrival of what it brought in besides (Q-047), so one
+        # split can be counted on both sides below.
         if named:
-            sales.append((currency, amount, named))
-            continue
+            sales.append((currency, draws_down(split), named))
         try:
             if not establishes_cost_basis(split):
                 continue
+            amount = brought_in_by(split)
             balance = cost_basis_balance_of(split)
         except Exception:
             # A cost basis whose own figures cannot be read is reported by the
@@ -3389,7 +3749,7 @@ def cost_bases(book) -> List[Dict]:
                 # commodity it would have to read that from.
                 'unit': smallest_unit(split),
                 'cost': cost_of(split),
-                'brought_in': abs(_fraction(split.GetAmount())),
+                'brought_in': brought_in_by(split),
                 'balance': cost_basis_balance_of(split),
                 'malformed': False,
             }

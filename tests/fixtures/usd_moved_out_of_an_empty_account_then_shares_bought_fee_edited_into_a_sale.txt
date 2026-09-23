@@ -1,0 +1,19 @@
+# The bank fee of usd_moved_out_of_an_empty_account_then_shares_bought.txt
+# edited with `--strategy update` into a sale of 5 of the 10 shares, giving no
+# guid.
+#
+# A sale draws down the shares' cost basis, and an edit runs none of the
+# checks a disposal meets, so it is refused and sent to delete-and-import. A
+# share's side is its account's type: what a split brings in past zero is read
+# for currency alone.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-02-02 * "Bank fee"
+	guid: "0c0c0000000000000000000000000003"
+	currency.mnemonic: "CAD"
+	Assets:AMZN -5 AMZN
+		account.commodity.mnemonic: "AMZN"
+		share_price: "260"
+		value: "-1300.00"
+	Assets:CAD Bank 1300.00 CAD

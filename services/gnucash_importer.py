@@ -10,7 +10,7 @@ import logging
 import re
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from fractions import Fraction
 from typing import Dict, List, Optional, Set
 
@@ -85,6 +85,7 @@ from services.foreign_currency import (
     APPLIED_FROM_CREDIT_KEY,
     BASE_CURRENCY,
     COST_BASIS_BALANCE_KEY,
+    COST_BASIS_BROUGHT_IN_KEY,
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
     TOOK_THE_RESIDUAL_KEY,
@@ -101,10 +102,12 @@ from services.foreign_currency import (
     establishes_cost_basis,
     give_back_to_cost_bases,
     has_cost_basis_balance,
+    is_a_currency,
     is_a_spent_credit,
     lower_cost_basis_balance,
     malformed_cost_basis_balance_of,
     mark_as_having_taken_the_residual,
+    mark_what_arrives_past_zero,
     move_disposals_to_the_new_basis,
     note_stated_balance,
     open_what_an_edit_made_a_basis,
@@ -2130,6 +2133,26 @@ def refuse_a_stated_orphan_mark(metadata, where: str) -> None:
             f'book and only until that record is rebuilt, and no export writes it. '
             f'Remove the line; to say a split is an owner\'s money, name the '
             f'owner with `lot_owner:`.')
+
+
+def refuse_a_stated_brought_in(metadata, where: str) -> None:
+    """Refuse a file stating what a split brought in across zero.
+
+    The import reads it from the account's balance on the transaction's date
+    and records it itself (Q-047), and the export never writes it. Stated on a
+    split the import passes over — a receivable, a payable, a split in the
+    book's own currency — it stayed in the book and was believed: a
+    receivable's 100.00 USD stating `cost_basis_brought_in: "1.00"` opened a
+    cost basis of 1.00, and `--verify-costs` checked it against that 1.00.
+    Refused on a transaction as on a split, for the reason
+    `refuse_a_stated_orphan_mark` gives.
+    """
+    if COST_BASIS_BROUGHT_IN_KEY in metadata:
+        raise Exception(
+            f'{where}: `{COST_BASIS_BROUGHT_IN_KEY}:` is not a key a file may '
+            f'state. The import reads what a split brought in across zero from '
+            f'its account\'s balance on the transaction\'s date, and no export '
+            f'writes it. Remove the line.')
 
 
 def _refuse_to_discard_a_part_sold_balance(split, guid: str) -> None:
@@ -9324,15 +9347,20 @@ def _restore_txn_type(transaction, directive) -> None:
     gc.xaccTransSetTxnType(transaction.instance, stated)
 
 
-def _what_an_edited_split_spends(root, child):
-    """`(commodity, side, account, amount)` where this block's split spends a holding.
+def _what_an_edited_split_spends(root, child, existing_tx, when):
+    """`(commodity, side, account, amount, spent)` where this block's split spends a holding.
 
     A holding being foreign currency or a security, on a side of the book, left
-    by the split: a negative amount on an asset, a positive one on a
-    liability. None for anything else — a split in the book's own currency, one
-    on an income or expense account, one bringing units in, a `$residual$`
-    split, and one giving a `cost_basis_split_guid:`, which
-    `_require_no_cost_basis_edit` answers.
+    by the split. A security's side is its account's type: a negative amount on
+    an asset. A currency's is read from its account's balance on the
+    transaction's date, without the transaction's own splits on it, as the
+    import reads a new transaction's (Q-047): 1,000.00 USD into an account at
+    −500.00 pays off 500.00 owed, and 200.00 charged to a card holding a
+    credit of 200.00 spends 200.00 held. Read by type alone, an edit could do
+    either giving no guid and go through. None for anything else — a split in
+    the book's own currency, one on an income or expense account, one bringing
+    units in, a `$residual$` split, and one giving a `cost_basis_split_guid:`,
+    which `_require_no_cost_basis_edit` answers.
     """
     name = str(child.props['account'])
     raw = str(child.props.get('amount', ''))
@@ -9340,10 +9368,26 @@ def _what_an_edited_split_spends(root, child):
     commodity = account.GetCommodity().get_mnemonic()
     side = account_side(account)
     amount = Fraction(raw) if re.fullmatch(r'-?\d+(?:\.\d+)?', raw) else Fraction(0)
-    spends = (commodity != BASE_CURRENCY and side is not None and amount != 0
-              and (amount < 0) == (side == 'asset')
-              and not child.metadata.get(COST_BASIS_SPLIT_KEY))
-    return (commodity, side, name, amount) if spends else None
+    if (commodity == BASE_CURRENCY or side is None or amount == 0
+            or child.metadata.get(COST_BASIS_SPLIT_KEY)):
+        return None
+    if not is_a_currency(account.GetCommodity()):
+        spends = (amount < 0) == (side == 'asset')
+        return (commodity, side, name, amount, abs(amount)) if spends else None
+    day_after = datetime.combine(when + timedelta(days=1), datetime.min.time())
+    before = numeric_to_fraction(account.GetBalanceAsOfDate(day_after)) - sum(
+        (numeric_to_fraction(split.GetAmount()) for split in existing_tx.GetSplitList()
+         if get_account_full_name(split.GetAccount()) == name
+         and existing_tx.GetDate().date() <= when),
+        Fraction(0))
+    after = before + amount
+    held = max(after, Fraction(0)) - max(before, Fraction(0))
+    owed = max(-after, Fraction(0)) - max(-before, Fraction(0))
+    if held < 0:
+        return (commodity, 'asset', name, amount, -held)
+    if owed < 0:
+        return (commodity, 'liability', name, amount, -owed)
+    return None
 
 
 def _refuse_an_edit_that_adds_a_disposal(existing_tx, directive, book) -> None:
@@ -9367,14 +9411,15 @@ def _refuse_an_edit_that_adds_a_disposal(existing_tx, directive, book) -> None:
     already = {(get_account_full_name(split.GetAccount()),
                 numeric_to_fraction(split.GetAmount()))
                for split in existing_tx.GetSplitList()}
-    for found in filter(None, (_what_an_edited_split_spends(root, child)
+    when = datetime.strptime(str(directive.props['date']), '%Y-%m-%d').date()
+    for found in filter(None, (_what_an_edited_split_spends(root, child, existing_tx, when)
                                for child in directive.children)):
-        commodity, side, name, amount = found
+        commodity, side, name, amount, spent = found
         if (name, amount) in already or not a_cost_basis_is_kept_for(book, commodity, side):
             continue
         held = 'held' if side == 'asset' else 'owed'
         raise Exception(
-            f'this edit spends {_account_money_str(abs(amount), find_account(root, name))} '
+            f'this edit spends {_account_money_str(spent, find_account(root, name))} '
             f'{commodity} the book {held}, which a cost basis stands for, and an '
             f'edit runs none of the checks a disposal meets. Delete the '
             f'transaction and import it afresh, giving `{COST_BASIS_SPLIT_KEY}:` '
@@ -11424,8 +11469,14 @@ class GnuCashImporter:
         refuse_a_stated_orphan_mark(
             directive.metadata,
             f'the transaction dated {directive.props.get("date", "?")}')
+        refuse_a_stated_brought_in(
+            directive.metadata,
+            f'the transaction dated {directive.props.get("date", "?")}')
         for split_directive in directive.children:
             refuse_a_stated_orphan_mark(
+                split_directive.metadata,
+                f'the split on {split_directive.props.get("account", "?")!r}')
+            refuse_a_stated_brought_in(
                 split_directive.metadata,
                 f'the split on {split_directive.props.get("account", "?")!r}')
 
@@ -11748,6 +11799,9 @@ class GnuCashImporter:
         # tests/unit/services/test_cost_basis_drawdown_is_reversible.py.
         taken = {}
         try:
+            # First, because every check below reads what each split moves on
+            # each side, and a split whose account crosses zero moves both.
+            mark_what_arrives_past_zero(transaction)
             refuse_a_transfer_sharing_a_transaction(transaction)
             refuse_a_disposal_that_gives_no_cost_basis(book, transaction)
             refuse_a_disposal_of_two_kinds_at_once(transaction)
@@ -11879,8 +11933,14 @@ class GnuCashImporter:
         refuse_a_stated_orphan_mark(
             directive.metadata,
             f'the transaction dated {directive.props.get("date", "?")}')
+        refuse_a_stated_brought_in(
+            directive.metadata,
+            f'the transaction dated {directive.props.get("date", "?")}')
         for split_directive in directive.children:
             refuse_a_stated_orphan_mark(
+                split_directive.metadata,
+                f'the split on {split_directive.props.get("account", "?")!r}')
+            refuse_a_stated_brought_in(
                 split_directive.metadata,
                 f'the split on {split_directive.props.get("account", "?")!r}')
             # As the create path reads it, and here rather than beside the
@@ -12176,6 +12236,9 @@ class GnuCashImporter:
         for split in stated_balance_splits:
             note_stated_balance(split)
 
+        # What each split brought in is read again, because an edit can turn
+        # which way a split moves (Q-047).
+        mark_what_arrives_past_zero(existing_tx)
         open_what_an_edit_made_a_basis(existing_tx, splits_before)
 
     @staticmethod
