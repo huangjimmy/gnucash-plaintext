@@ -1,0 +1,31 @@
+# 300.00 USD of travel charged to a US dollar card at 1.35, and 500.00 USD
+# transferred from it to a second US dollar card at 1.40 — more than it owes.
+#
+# The first card goes from owing 300.00 to holding a credit of 200.00. So the
+# first 300.00 of the transfer moves what is owed from one card to the other,
+# which draws down no cost basis and opens none, and the other 200.00 is a
+# borrowing: 200.00 more owed on the second card and 200.00 held on the first,
+# each opening a cost basis at the 1.40 the transfer is stated at.
+#
+# Imported into the book usd_moved_out_of_an_empty_account.txt makes.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-01-20 * "Travel charged to the card"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 405.00 CAD
+	Liabilities:USD Card -300.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-405.00"
+
+2034-02-01 * "Balance transfer of 500.00 USD from the card to card 2"
+	currency.mnemonic: "CAD"
+	Liabilities:USD Card 500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "700.00"
+	Liabilities:USD Card 2 -500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "-700.00"

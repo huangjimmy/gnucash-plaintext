@@ -1,0 +1,34 @@
+# A US dollar credit card owing nothing, paid 200.00 USD from C, and then
+# 280.00 CAD of travel charged to it at 1.40.
+#
+# The card at +200.00 holds 200.00 US dollars, so the payment moves 200.00
+# from C to the card within the held side: a transfer, which draws down no
+# cost basis and opens none. The charge takes the card back to 0.00, spending
+# what it held rather than borrowing anything, so it draws down a cost basis of
+# dollars held — C's, at 1.30 — and opens nothing on the owed side. 200.00 at
+# 1.30 is 260.00 of cost against 280.00 of travel, so 20.00 is realized.
+#
+# Imported into the book usd_moved_out_of_an_empty_account.txt makes.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-01-10 * "Pay 200.00 USD onto the card from C"
+	currency.mnemonic: "CAD"
+	Assets:USD C -200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-270.00"
+	Liabilities:USD Card 200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "270.00"
+
+2034-02-01 * "Travel charged to the card's 200.00 USD credit"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 280.00 CAD
+	Liabilities:USD Card -200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-260.00"
+		cost_basis_split_guid: "0a0a0000000000000000000000000003"
+	Income:FX Gain $residual$ CAD

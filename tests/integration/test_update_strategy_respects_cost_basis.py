@@ -212,15 +212,14 @@ def test_a_refused_update_leaves_the_transaction_alone(tmp_path, stated):
     assert 'Assets:Bank:USD' not in after.split('2026-01-10 *')[1], after
 
 
-def test_correcting_a_sign_error_opens_the_basis_it_creates(tmp_path):
-    """A cost basis can arrive by correcting a split, not only by adding one.
+def test_a_sign_error_is_corrected_by_deleting_and_importing_again(tmp_path):
+    """A purchase written with its signs reversed is a borrowing until it is corrected.
 
-    Splits are matched by account, so fixing reversed signs reuses the very
-    same split — same guid — and it becomes a purchase where it was not one
-    before. Skipping every split that existed before the edit left that
-    currency `none recorded`, over a message saying this tool never wrote the
-    split. What matters is whether it was a cost basis before, not whether it
-    existed.
+    The bank goes to −100.00 and owes 100.00 US dollars, so the transaction
+    opens a cost basis on the owed side (Q-047). An edit in place of a
+    transaction touching a cost basis is refused and sent to delete-and-import,
+    and the purchase imported again opens a cost basis for the 100.00 held,
+    with nothing left owed and no cost basis `none recorded`.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -228,8 +227,9 @@ def test_correcting_a_sign_error_opens_the_basis_it_creates(tmp_path):
         'import', '--new', str(book),
         'tests/fixtures/usd_purchase_with_sign_error.txt'])
     assert result.exit_code == 0, result.output
-    assert 'No foreign-currency cost bases found' in runner.invoke(
-        cli, ['fx-balances', str(book)]).output
+    listing = runner.invoke(cli, ['fx-balances', str(book)]).output
+    assert 'Total USD owed on accounts: 100.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 100.00 USD' in listing, listing
 
     text = _exported(runner, book, tmp_path / 'out.txt')
     guid = re.search(r'Buy 100 USD at 1\.35"\n\tguid: "([0-9a-f]{32})"', text).group(1)
@@ -247,11 +247,21 @@ def test_correcting_a_sign_error_opens_the_basis_it_creates(tmp_path):
 
     result = runner.invoke(cli, ['import', str(book), str(edited),
                                  '--strategy', 'update'])
+    assert result.exit_code != 0, result.output
+    assert 'touches a cost basis' in result.output, result.output
+    assert 'delete-transactions --by-guid' in result.output, result.output
+
+    deleted = runner.invoke(cli, ['delete-transactions', str(book), '--by-guid', guid,
+                                  '-o', str(tmp_path / 'undo.txt')])
+    assert deleted.exit_code == 0, deleted.output
+    result = runner.invoke(cli, ['import', str(book), str(edited)])
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
     assert 'none recorded' not in listing, listing
     assert 'Total USD cost basis balance: 100.00' in listing, listing
+    assert 'Total USD held in accounts: 100.00 USD' in listing, listing
+    assert 'owed on accounts' not in listing, listing
 
 
 def test_the_same_export_gives_the_same_balance_either_way_in(tmp_path):

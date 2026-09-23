@@ -1,0 +1,24 @@
+# The travel of
+# usd_moved_out_of_an_empty_account_then_income_in_canadian_dollars.txt edited
+# with `--strategy update` into 200.00 USD charged to the card, after 200.00
+# USD was paid onto the card owing nothing, giving no guid.
+#
+# The card holds a credit of 200.00, so the charge spends what it held, which
+# draws down a cost basis of dollars held, and an edit runs none of the checks
+# a disposal meets. So it is refused and sent to delete-and-import.
+#
+# The payment onto the card is imported first, as a block of its own; the edit
+# is ..._travel_charged_to_the_card.txt.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-01-10 * "Pay 200.00 USD onto the card from C"
+	currency.mnemonic: "CAD"
+	Assets:USD C -200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-270.00"
+	Liabilities:USD Card 200.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "270.00"

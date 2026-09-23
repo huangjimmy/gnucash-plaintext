@@ -1,0 +1,23 @@
+# 1,400.00 CAD of consulting income into the Canadian bank, and 280.00 CAD of
+# travel paid from it, each with a guid of its own, so that an edit with
+# `--strategy update` can turn them into US dollar transactions:
+#
+# - ..._income_edited_into_a.txt pays the income into A, which owes 500.00;
+# - a_usd_card_overpaid_then_its_travel_edited_onto_it.txt charges the travel
+#   to a card holding a credit.
+#
+# Imported into the book usd_moved_out_of_an_empty_account.txt makes.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-02-01 * "Consulting income"
+	guid: "0c0c0000000000000000000000000001"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1400.00 CAD
+	Income:Consulting -1400.00 CAD
+
+2034-02-01 * "Travel"
+	guid: "0c0c0000000000000000000000000002"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 280.00 CAD
+	Assets:CAD Bank -280.00 CAD

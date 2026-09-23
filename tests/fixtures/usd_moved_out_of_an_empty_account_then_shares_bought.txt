@@ -1,0 +1,32 @@
+# 10 shares bought for 2,600.00 CAD, which opens a cost basis for them, and a
+# 10.00 CAD bank fee with a guid of its own, which
+# ..._shares_bought_fee_edited_into_a_sale.txt edits into a sale of 5 of the
+# shares with `--strategy update`.
+#
+# Imported into the book usd_moved_out_of_an_empty_account.txt makes.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-02-01 commodity AMZN
+	mnemonic: "AMZN"
+	fullname: "Amazon.com Inc"
+	namespace: "NASDAQ"
+	fraction: 10000
+2034-02-01 open Assets:AMZN
+	type: "Stock"
+	commodity.namespace: "NASDAQ"
+	commodity.mnemonic: "AMZN"
+
+2034-02-01 * "Buy 10 AMZN"
+	currency.mnemonic: "CAD"
+	Assets:AMZN 10 AMZN
+		account.commodity.mnemonic: "AMZN"
+		share_price: "260"
+		value: "2600.00"
+	Assets:CAD Bank -2600.00 CAD
+
+2034-02-02 * "Bank fee"
+	guid: "0c0c0000000000000000000000000003"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 10.00 CAD
+	Assets:CAD Bank -10.00 CAD

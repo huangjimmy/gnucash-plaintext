@@ -1,0 +1,74 @@
+# A book whose US dollars all arrived in a borrowing written wholly in US
+# dollars, which states no cost and so opens no cost basis, moving 100.00 USD
+# between two of its accounts with a 1.00 USD fee in the same transaction.
+#
+# A transfer sharing a transaction with a fee is refused where the transaction
+# touches a cost basis, because nothing in it says which units moved and which
+# left. This one touches none: there is no cost basis for the fee to draw down
+# and none for the transfer to leave alone, so it is imported as written.
+#
+# Then 150.00 USD of fees paid from savings, which holds 100.00, takes it to
+# −50.00, and the import records the 50.00 it brought in on the owed side.
+# usd_moved_with_a_fee_in_a_book_keeping_no_usd_cost_basis_fees_corrected.txt
+# corrects the fees to 80.00.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2035-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2035-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2035-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2035-01-01 open Assets:USD Chequing
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2035-01-01 open Assets:USD Savings
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2035-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2035-01-01 open Liabilities:USD Loan
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2035-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2035-01-01 open Expenses:USD Bank Fees
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2035-01-05 * "Borrow 500.00 USD"
+	currency.mnemonic: "USD"
+	Assets:USD Chequing 500.00 USD
+	Liabilities:USD Loan -500.00 USD
+
+2035-01-10 * "Move 100.00 USD to savings, with a 1.00 USD fee"
+	currency.mnemonic: "USD"
+	Assets:USD Chequing -101.00 USD
+	Assets:USD Savings 100.00 USD
+	Expenses:USD Bank Fees 1.00 USD
+
+2035-01-20 * "Fees paid from savings"
+	guid: "0b0b0000000000000000000000000001"
+	currency.mnemonic: "USD"
+	Assets:USD Savings -150.00 USD
+	Expenses:USD Bank Fees 150.00 USD

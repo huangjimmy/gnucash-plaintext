@@ -537,6 +537,46 @@
 ;; 7,480.00 USD against 2,500.00 USD owed would answer 4,980.00 — a figure
 ;; neither side's cost bases account for, so neither would match and both would
 ;; fall back to GnuCash's revaluation.
+;; The accounts whose balance at `moment` is on this side of the sheet: an
+;; asset account below zero owes its currency and a liability account above
+;; zero holds it (Q-047). So a US dollar bank at -500.00 is counted with the
+;; owed side, where the cost basis it opened sits, and not against the held
+;; side's cost bases. Counted by type, it took 500.00 off what the held side
+;; holds, neither side matched its cost bases, and both fell back to GnuCash's
+;; revaluation.
+;;
+;; A receivable or a payable stays on its type's side: its lots keep a posting
+;; apart from a credit, and its balance is the two added together. So does an
+;; account holding shares: a share account below zero is not shares owed, and
+;; the import reads currency alone past zero.
+(define (plaintext:on-the-side-of-its-balance side asset-accounts
+                                              liability-accounts moment)
+  (define (stays-on-its-types-side? account)
+    (let ((commodity (xaccAccountGetCommodity account)))
+      (or (memv (xaccAccountGetType account)
+                (list ACCT-TYPE-RECEIVABLE ACCT-TYPE-PAYABLE))
+          (not commodity)
+          (not (string=? (gnc-commodity-get-namespace commodity) "CURRENCY")))))
+  (define (balance account)
+    (plaintext:exact (xaccAccountGetBalanceAsOfDate account moment)))
+  (if (string=? side "asset")
+      (append (filter (lambda (account)
+                        (or (stays-on-its-types-side? account)
+                            (>= (balance account) 0)))
+                      asset-accounts)
+              (filter (lambda (account)
+                        (and (not (stays-on-its-types-side? account))
+                             (> (balance account) 0)))
+                      liability-accounts))
+      (append (filter (lambda (account)
+                        (or (stays-on-its-types-side? account)
+                            (<= (balance account) 0)))
+                      liability-accounts)
+              (filter (lambda (account)
+                        (and (not (stays-on-its-types-side? account))
+                             (< (balance account) 0)))
+                      asset-accounts))))
+
 (define (plaintext:held-in accounts commodity moment)
   (let loop ((rest accounts) (total 0))
     (if (null? rest)
@@ -2474,8 +2514,14 @@
                            (plaintext:fallback-accounts
                             side accounts moment report-commodity)))
                        report-commodity))))
-               (unrealized-assets-fx (side-fx "asset" asset-accounts))
-               (unrealized-liabilities-fx (side-fx "liability" liability-accounts))
+               ;; Each side's foreign currency is what is held or owed on it,
+               ;; whatever type of account it sits in.
+               (held-accounts (plaintext:on-the-side-of-its-balance
+                               "asset" asset-accounts liability-accounts moment))
+               (owed-accounts (plaintext:on-the-side-of-its-balance
+                               "liability" asset-accounts liability-accounts moment))
+               (unrealized-assets-fx (side-fx "asset" held-accounts))
+               (unrealized-liabilities-fx (side-fx "liability" owed-accounts))
                (unrealized-fx (+ unrealized-assets-fx unrealized-liabilities-fx))
                ;; An account held in the book's own currency takes no part in
                ;; either key. Reading GnuCash's reconstruction for one charged
@@ -2697,7 +2743,7 @@
                 (append
                  (if plaintext:itemize?
                      (plaintext:cost-basis-block price-fn report-commodity moment
-                                                 asset-accounts
+                                                 held-accounts
                                                  gnucash-worth-and-cost)
                      (list (string-append
                             (plaintext:indent 1) "unrealized_gains_assets_fx: "

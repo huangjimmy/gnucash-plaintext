@@ -36,6 +36,7 @@ from infrastructure.gnucash.utils import (
 )
 from repositories.gnucash_repository import GnuCashRepository
 from services.foreign_currency import (
+    COST_BASIS_BROUGHT_IN_KEY,
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
     derived_cost_of,
@@ -1056,7 +1057,14 @@ class ExportTransactionsUseCase:
             (commodity.get_namespace(), commodity.get_mnemonic())
             for commodity in (the_commodity_a_split_is_written_in(split, transaction)
                               for split in tx_splits)})
-        if len(split_currencies) > 1:
+        # And where every split is in one currency that is not the
+        # transaction's: 500.00 USD moved between two US dollar accounts in a
+        # transaction stated in Canadian dollars. Left out, the import read the
+        # transaction as a US dollar one and each split's 675.00 CAD value as
+        # its amount, so the book rebuilt from the export moved 675.00 USD.
+        if len(split_currencies) > 1 or (
+                split_currencies
+                and split_currencies[0] != (tx_currency_namespace, tx_currency_symbol)):
             lines.append(f'\tcurrency.mnemonic: {encode_value_as_string(tx_currency_symbol)}')
 
         if tx_doc_link is not None:
@@ -1431,8 +1439,11 @@ class ExportTransactionsUseCase:
         # stale one last, which is the one a re-import reads. Well-formed,
         # it puts the settlement on a credit the book never named; malformed,
         # the export refuses to re-import at all.
+        # `cost_basis_brought_in` too: the import works it out from the
+        # account's balance on the transaction's date, and never takes it from
+        # a file (Q-047).
         _q014_reserved_split = {'lot_owner', 'lot_guid', 'guid',
-                                ORPHANED_BY_UNPOST_KEY}
+                                ORPHANED_BY_UNPOST_KEY, COST_BASIS_BROUGHT_IN_KEY}
         custom_split_meta = get_custom_metadata(split)
         for key, value in sorted(custom_split_meta.items()):
             if key in _q014_reserved_split:

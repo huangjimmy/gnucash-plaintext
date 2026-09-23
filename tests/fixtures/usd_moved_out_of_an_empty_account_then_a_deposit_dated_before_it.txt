@@ -1,0 +1,21 @@
+# 500.00 USD bought into A at 1.30, dated 2034-01-05 — before the 2034-01-10
+# transfer out of A — and imported after it.
+#
+# By date, A held 500.00 when the transfer moved 500.00 out, so the transfer
+# borrowed nothing. But the transfer was read against A's balance when it was
+# imported, when A held nothing, and recorded 500.00 owed on A and 500.00 held
+# on B; nothing reads it again. The book then keeps cost bases of 2,000.00 held
+# against 1,500.00 its accounts hold, and 500.00 owed against nothing owed, and
+# `--verify-integrity` reports both. Q-047 records it.
+#
+# Imported into the book usd_moved_out_of_an_empty_account.txt makes.
+#
+# Verified by
+# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+2034-01-05 * "Buy 500.00 USD at 1.30 into A"
+	currency.mnemonic: "CAD"
+	Assets:USD A 500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "650.00"
+	Assets:CAD Bank -650.00 CAD
