@@ -1,0 +1,39 @@
+# A 500.00 USD invoice posted and not yet paid, onto
+# accounts_for_spending_currency_its_own_import_brings_in.txt, imported with
+# usd_at_the_invoice_rate_then_lower_at_the_year_end.yaml.
+#
+# Its posting split on the receivable is a cost basis of 500.00 USD, and it is
+# drawn down only by settling the invoice: a disposal giving its guid is
+# refused. So when a_usd_arrival_and_a_fee_giving_no_cost_basis_in_one_transaction.txt
+# is refused below it, the cost bases the refusal lists leave it out.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 open Assets:Accounts Receivable USD
+	type: Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+customer "C-USD"
+	name: "US Customer"
+	currency: USD
+
+invoice "INV-USD-1"
+	customer_id: "C-USD"
+	currency: USD
+	date_opened: 2026-08-13
+	entry:
+		date: 2026-08-13
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 500
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-08-13
+		due: 2026-09-13
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-1"
+		accumulate: true

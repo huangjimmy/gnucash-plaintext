@@ -1,0 +1,13 @@
+# Q-050 E10, written the first way its refusal gives: the fee's splits dropped
+# and the arrival written net of it, `Assets:Wise USD 2719.28 USD` with its
+# `value: "3800.00"`. The 3,800.00 then buys 2,719.28 USD, a cost basis of
+# 2,719.28, and no fee is recorded.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, the transfer fee in the exchange spread"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2719.28 USD
+		account.commodity.mnemonic: "USD"
+		value: "3800.00"
+	Income:Sales -3800.00 CAD

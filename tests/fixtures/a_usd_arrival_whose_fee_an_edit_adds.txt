@@ -1,0 +1,25 @@
+# Q-050 E9: the arrival as the book holds it, then with a fee added by
+# `--strategy update` giving the arrival's position, which resolves to the
+# `guid:` its line gives. An edit in place does not add a split drawing on a
+# cost basis (Q-048), so the edit is refused.
+#
+# The first block alone is imported first; the test then imports the whole
+# file with `--strategy update`, where the second block is the edit.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, less the transfer fee"
+	guid: "0e5e00000000000000000000000000a9"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e5e0000000000000000000000000008"
+		account.commodity.mnemonic: "USD"
+		share_price: "380000/272000"
+		value: "3800.00"
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "101/72"
+		value: "-1.01"
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$
+	Income:Sales -3800.00 CAD
+	Expenses:Bank charges 1.01 CAD

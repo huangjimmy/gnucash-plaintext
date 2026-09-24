@@ -1,0 +1,26 @@
+# Two US dollar arrivals, each transaction and split giving its guid, for
+# an_edit_giving_the_position_of_a_line_that_gives_no_guid.txt to edit.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-01 * "Dollars bought earlier"
+	guid: "0e5e00000000000000000000000000c1"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 500.00 USD
+		guid: "0e5e00000000000000000000000000c2"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "650.00"
+	Assets:Chequing -650.00 CAD
+		guid: "0e5e00000000000000000000000000c3"
+
+2026-08-13 * "Received money"
+	guid: "0e5e00000000000000000000000000c4"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e5e00000000000000000000000000c5"
+		account.commodity.mnemonic: "USD"
+		share_price: "380000/272000"
+		value: "3800.00"
+	Income:Sales -3800.00 CAD
+		guid: "0e5e00000000000000000000000000c6"

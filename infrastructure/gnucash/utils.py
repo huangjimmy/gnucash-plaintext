@@ -552,6 +552,17 @@ class DecimalAsWritten(float):
     __repr__ = __str__
 
 
+class Variable(str):
+    """A value written unquoted between `$`, as `$residual$` is written in an amount.
+
+    Written in quotes the same text is a string, and stays one. Unquoted it is a
+    variable the import resolves: `$transactions_to_import[0].splits[0].guid$` is
+    the guid GnuCash assigns the first split of the file's first transaction
+    (Q-050). The text is kept as written, so a variable nothing resolves is
+    refused quoting it.
+    """
+
+
 def decode_value_from_string(s: str):
     """
     Decode value from plaintext string representation.
@@ -588,6 +599,8 @@ def decode_value_from_string(s: str):
     elif s.startswith('"'):
         content = s[1:-1]
         return unescape_string(content)
+    elif len(s) > 1 and s.startswith('$') and s.endswith('$'):
+        return Variable(s)
     else:
         # Bare integer (e.g. fraction: 100) or bare float (e.g. fraction: 1)
         # All unquoted non-keyword values in the plaintext format are numbers.

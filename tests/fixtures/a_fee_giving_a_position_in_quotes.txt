@@ -1,0 +1,18 @@
+# Q-050 E16: the arrival's position written in quotes. Quoted it is a string,
+# read as a guid like any other, and refused as matching no split.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, less the transfer fee"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "380000/272000"
+		value: "3800.00"
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "101/72"
+		value: "-1.01"
+		cost_basis_split_guid: "$transactions_to_import[0].splits[0].guid$"
+	Income:Sales -3800.00 CAD
+	Expenses:Bank charges 1.01 CAD

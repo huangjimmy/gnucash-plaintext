@@ -7,7 +7,9 @@
 # read in an order of the import's own: the splits moving the account the way
 # it moves overall come first. The card ends owing 50.00, so the charge is
 # read first either way — it opens 150.00 owed, the refund repays 100.00 of
-# it — and neither split crosses zero.
+# it — and neither split crosses zero. The refund repays what the charge
+# borrowed, so it gives the charge's position as the cost basis it draws on
+# (Q-050).
 #
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes.
 #
@@ -23,4 +25,5 @@
 		account.commodity.mnemonic: "USD"
 		share_price: "7/5"
 		value: "140.00"
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$
 	Expenses:Travel 70.00 CAD

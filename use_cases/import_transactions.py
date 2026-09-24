@@ -19,6 +19,13 @@ from services.gnucash_importer import (
     the_guid_a_block_names,
 )
 from services.plaintext_parser import DirectiveType, PlaintextParser
+from services.positions_in_the_file import (
+    number_the_transactions,
+    record_the_guids_it_gives,
+    resolve_for_an_edit,
+    the_variables_where_none_is_read,
+    what_is_wrong_with_the_positions,
+)
 from services.prices import apply_price_blocks
 from services.transaction_matcher import TransactionMatcher
 
@@ -381,6 +388,15 @@ class ImportTransactionsUseCase:
         # answer either while the run is still building it.
         note_what_the_file_states(parser.root_directive.children)
 
+        # Every transaction block given its position in the file, and every
+        # position a split gives checked before any of the file is applied: one
+        # pointing below, past the end, or at itself can never be resolved, and
+        # applying the file up to it would leave half of it in the book (Q-050).
+        transactions = number_the_transactions(parser.root_directive.children)
+        if not parser.errors:
+            parser.errors.extend(the_variables_where_none_is_read(parser.root_directive))
+            parser.errors.extend(what_is_wrong_with_the_positions(transactions))
+
         if parser.errors:
             # Normalise parser (syntax) errors into the same {'error': ...} shape
             # the transaction/account failure paths use, so result.errors is
@@ -501,6 +517,16 @@ class ImportTransactionsUseCase:
                 guid = the_guid_a_block_names(child.metadata)
                 if guid not in existing_guid_map:
                     raise ValueError(f"Transaction GUID {guid!r} not found in book")
+                # In file order, so a position is resolved against the
+                # transactions above it, each recorded as it is reached. A
+                # position at a line giving no `guid:` is found here, before
+                # any transaction is edited (Q-050).
+                try:
+                    resolve_for_an_edit(child, existing_guid_map[guid])
+                except Exception as e:
+                    raise ValueError(
+                        f"transaction on {child.props.get('date', '?')} "
+                        f"\"{child.props.get('tx_desc') or '(no description)'}\": {e}") from e
 
             for child in tx_directives:
                 guid = the_guid_a_block_names(child.metadata)
@@ -543,6 +569,7 @@ class ImportTransactionsUseCase:
                                 child, existing_guid_map[guid])
                             if changed:
                                 result.guid_changed_skips += 1
+                            record_the_guids_it_gives(child, [existing_guid_map[guid]])
                             logging.warning(
                                 "Skipping %s (GUID match): %s \"%s\" [%s]\n"
                                 "  matched existing transaction by GUID: %s",
@@ -598,6 +625,7 @@ class ImportTransactionsUseCase:
                             matched_guids,
                         )
                         result.skipped_count += 1
+                        record_the_guids_it_gives(child, matched_existing)
                         continue
 
                     # Create transaction
@@ -611,6 +639,10 @@ class ImportTransactionsUseCase:
                     result.new_transactions.append(tx)
 
                 except Exception as e:
+                    # Its splits, if any were made, went with it, so a position
+                    # below pointing at one is refused for that rather than
+                    # given a guid the book does not hold (Q-050).
+                    child.split_guids = None
                     logging.error(f"Failed to import transaction: {e}")
                     result.errors.append({
                         'transaction': child.props,

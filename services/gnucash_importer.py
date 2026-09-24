@@ -89,6 +89,7 @@ from services.foreign_currency import (
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
     TOOK_THE_RESIDUAL_KEY,
+    SpendGivingNoCostBasisError,
     a_cost_basis_is_kept_for,
     a_disposal_the_finished_book_cannot_value,
     account_side,
@@ -112,6 +113,7 @@ from services.foreign_currency import (
     mark_what_arrives_past_zero,
     move_disposals_to_the_new_basis,
     note_stated_balance,
+    open_the_cost_bases_its_own_splits_draw_on,
     open_what_an_edit_made_a_basis,
     parse_stated_cost,
     record_borrowed_basis,
@@ -172,6 +174,7 @@ from services.plaintext_parser import (
     DirectiveType,
     PlaintextDirective,
 )
+from services.positions_in_the_file import give_the_positions_their_guids, the_ways_to_write_it
 
 # Q-028: book-level `company` directive — plaintext key ↔ Business option slot.
 # These land at `options → Business → <slot>`, the exact slots GnuCash's own
@@ -11769,7 +11772,9 @@ class GnuCashImporter:
                         for child in directive.children
                         if child.type == DirectiveType.SPLIT))
 
-            # Create splits
+            # Create splits, kept in the order the block writes them, which is
+            # what a position in the file counts (Q-050).
+            made = []
             for child in directive.children:
                 split_directive: PlaintextDirective = child
                 split_account_str = split_directive.props['account']
@@ -11797,6 +11802,7 @@ class GnuCashImporter:
                         scu=split_account.GetCommoditySCU())
 
                 split = Split(book)
+                made.append(split)
                 split.SetParent(transaction)
                 split.SetAccount(split_account)
                 split.SetAmount(amount)
@@ -11941,6 +11947,10 @@ class GnuCashImporter:
                         and has_cost_basis_balance(split)):
                     stated_balance_splits.append(split)
 
+            # Once every split has its guid: a position may point at a split
+            # written below it in the same block.
+            give_the_positions_their_guids(directive, made)
+
             # Store any non-standard metadata as KVP slots
             custom_tx_meta = _custom_keys_to_store(
                 directive.metadata, KNOWN_TX_METADATA_KEYS)
@@ -11992,18 +12002,34 @@ class GnuCashImporter:
             refuse_a_transfer_sharing_a_transaction(transaction)
             refuse_a_disposal_that_gives_no_cost_basis(book, transaction)
             refuse_a_disposal_of_two_kinds_at_once(transaction)
+            # Before the draws are checked, so a split drawing on the
+            # currency its own transaction brings in finds that cost basis
+            # open (Q-050).
+            open_the_cost_bases_its_own_splits_draw_on(transaction)
             taken = apply_cost_basis_picks(book, transaction)
             refuse_a_difference_no_split_can_state(book, transaction)
             carry_the_cost_to_what_it_bought(book, transaction)
             record_cost_bases(book, transaction)
-        except Exception:
-            transaction.BeginEdit()
-            transaction.Destroy()
-            transaction.CommitEdit()
-            # A cost basis this transaction opened goes with it, and destroying
-            # it writes no balance.
-            cost_bases_changed()
-            give_back_to_cost_bases(book, taken)
+        except Exception as refused:
+            message = None
+            try:
+                # Read while the splits still exist: the ways to write a spend
+                # that gave no cost basis are given in the file's own positions.
+                if isinstance(refused, SpendGivingNoCostBasisError):
+                    message = the_ways_to_write_it(refused, directive, made, book)
+            finally:
+                # Whatever reading them does, the transaction goes. An error
+                # working them out is a defect in that code, and is raised as
+                # itself rather than hidden behind the refusal it was reading.
+                transaction.BeginEdit()
+                transaction.Destroy()
+                transaction.CommitEdit()
+                # A cost basis this transaction opened goes with it, and
+                # destroying it writes no balance.
+                cost_bases_changed()
+                give_back_to_cost_bases(book, taken)
+            if message:
+                raise Exception(message) from refused
             raise
 
         logging.debug(f"Created transaction on {date_str}")

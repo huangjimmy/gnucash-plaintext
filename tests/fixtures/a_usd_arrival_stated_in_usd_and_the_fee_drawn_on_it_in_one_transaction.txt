@@ -1,0 +1,22 @@
+# Q-050 E3: the reported arrival as a US dollar statement writes it — the
+# transaction stated in US dollars, the director's account for 3,791.14 CAD —
+# and a 0.72 USD fee out of the arrival, charged as 1.00 CAD.
+#
+# The fee gives the arrival's position. Its value is in US dollars, the
+# transaction's own currency, and the cost basis is left with 2,719.28.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, less the transfer fee"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+	Assets:Wise USD -0.72 USD
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$
+	Assets:Due from shareholder -3791.14 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "272000/379114"
+		value: "-2720.00"
+	Expenses:Bank charges 1.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "72/100"
+		value: "0.72"

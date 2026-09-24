@@ -1,23 +1,21 @@
 # 100.00 USD bought at 1.35, the bank keeping 1.00 of it as its fee on the same
 # account, with no balance stated anywhere.
 #
-# The account nets to 99.00, and 99.00 is what arrived: the fee left the moment
-# it came in. So the cost basis opens for 99.00, at the 1.35 the purchase
-# states, and holds what the account holds. Opened for the 100.00 the arriving
-# split carries, it offered a dollar the book never had.
+# The purchase opens a cost basis for 100.00 at the 1.35 it states, and the
+# fee, giving the purchase's position in this file, draws 1.00 of it: 99.00 is
+# left, what the account holds. A fee giving no cost basis is refused (Q-050).
 #
 # A second purchase brings 60.00 and 40.00 in two splits with the same 1.00
-# kept back, and the fee is taken off once, not once per split: 99.00 again.
-# A third brings 60.00 and 40.00 with 70.00 taken straight back out — more
-# than the first split brought — so what the first cannot give up comes off
-# the second: 30.00, what the account kept.
+# kept back, drawn on the 60.00: 99.00 again. A third brings 60.00 and 40.00
+# with 70.00 paid straight back out — more than the first split brought — so
+# the 70.00 is written as two splits, each drawing on one: 60.00 on the first
+# and 10.00 on the second, leaving 30.00, what the account kept.
 #
 # `tests/fixtures/fx_usd_bought_with_the_banks_fee_drawn_on_it.txt` is the same
-# purchase with `cost_basis_balance: "99.00"` stated, which says the same thing
-# in the file.
+# purchase with `cost_basis_balance: "99.00"` stated.
 #
 # Verified by
-# tests/integration/test_a_purchase_whose_fee_stays_on_its_account_opens_what_arrived.py.
+# tests/integration/test_a_purchase_whose_fee_draws_on_it_leaves_what_the_account_holds.py.
 2035-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
@@ -75,6 +73,7 @@
 		account.commodity.mnemonic: "USD"
 		share_price: "27/20"
 		value: "-1.35"
+		cost_basis_split_guid: $transactions_to_import[1].splits[0].guid$
 	Expenses:Bank Fees 1.35 CAD
 	Assets:CAD Bank -135.00 CAD
 
@@ -88,10 +87,16 @@
 		account.commodity.mnemonic: "USD"
 		share_price: "27/20"
 		value: "54.00"
-	Assets:USD Bank -70.00 USD
+	Assets:USD Bank -60.00 USD
 		account.commodity.mnemonic: "USD"
 		share_price: "27/20"
-		value: "-94.50"
+		value: "-81.00"
+		cost_basis_split_guid: $transactions_to_import[2].splits[0].guid$
+	Assets:USD Bank -10.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-13.50"
+		cost_basis_split_guid: $transactions_to_import[2].splits[1].guid$
 	Expenses:Bank Fees 94.50 CAD
 	Assets:CAD Bank -135.00 CAD
 
@@ -109,5 +114,6 @@
 		account.commodity.mnemonic: "USD"
 		share_price: "27/20"
 		value: "-1.35"
+		cost_basis_split_guid: $transactions_to_import[3].splits[0].guid$
 	Expenses:Bank Fees 1.35 CAD
 	Assets:CAD Bank -135.00 CAD
