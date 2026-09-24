@@ -1,0 +1,42 @@
+# 100,000 JPY arriving in a yen bank, in a transaction stated in yen, with its
+# other split on the director's account for 900.00 CAD.
+#
+# a_jpy_arrival_booked_to_the_directors_account_restated_in_cad.txt states it
+# in Canadian dollars at 910.00, which re-prices the cost basis and is refused.
+# The refusal gives the book's values in yen, which divides into 1, and the
+# file's in Canadian dollars, which divide into 100.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity JPY
+	mnemonic: "JPY"
+	fullname: "Japanese Yen"
+	namespace: "CURRENCY"
+	fraction: 1
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Wise JPY
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "JPY"
+2026-01-01 open Assets:Due from shareholder
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-08-13 * "Received yen"
+	guid: "0d0d0000000000000000000000000005"
+	currency.mnemonic: "JPY"
+	Assets:Wise JPY 100000 JPY
+	Assets:Due from shareholder -900.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1000/9"
+		value: "-100000"

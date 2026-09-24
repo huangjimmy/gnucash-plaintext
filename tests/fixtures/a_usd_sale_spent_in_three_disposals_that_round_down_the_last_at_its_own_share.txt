@@ -1,0 +1,20 @@
+# The last of the three disposals of a_usd_sale_spent_in_three_disposals_that_round_down.txt,
+# valued as the reported book was: at its own share of the cost basis rounded,
+# 2,710.68 × 381589/272000 = 3,802.8109…, so 3,802.81. With 1.01 and 12.06
+# before it that is 3,815.88 of the 3,815.89 the dollars cost, and the exchange
+# splits come to a realized loss of 44.60 where it is 44.61.
+#
+# Verified by
+# tests/integration/test_the_last_disposal_of_a_cost_basis_takes_what_is_left_of_its_cost.py.
+2026-08-17 * "Moved to chequing"
+	guid: "0e0e0000000000000000000000000005"
+	currency.mnemonic: "CAD"
+	Assets:Chequing 3758.36 CAD
+	Assets:Wise USD -2710.68 USD
+		guid: "0e0e0000000000000000000000000006"
+		account.commodity.mnemonic: "USD"
+		share_price: "380281/271068"
+		value: "-3802.81"
+		cost_basis_split_guid: "0e0e0000000000000000000000000002"
+	Income:Foreign exchange gains/losses 44.45 CAD
+		guid: "0e0e0000000000000000000000000007"

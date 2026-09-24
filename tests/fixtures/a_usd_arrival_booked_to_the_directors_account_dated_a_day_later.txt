@@ -1,0 +1,19 @@
+# The arrival of a_usd_arrival_booked_to_the_directors_account.txt moved from
+# 2026-08-13 to 2026-08-14, every split and figure the same, for
+# `--strategy update`.
+#
+# A cost basis's date is part of it: it is when the currency arrived, and the
+# day every reading of it as of a date turns on. So moving it is a change to
+# the cost basis, and is refused as one, the refusal giving both dates.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-14 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+	Assets:Due from shareholder -3791.14 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "272000/379114"
+		value: "-2720.00"

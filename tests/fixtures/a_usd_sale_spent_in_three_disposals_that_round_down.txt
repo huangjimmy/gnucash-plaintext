@@ -1,0 +1,110 @@
+# The reported case's figures. A sale of 2,720.00 USD into a US dollar bank,
+# stated in US dollars with its income split at 3,815.89 CAD, so the dollars'
+# cost basis costs 381589/272000 CAD per USD. Three transactions then spend all
+# 2,720.00 USD, each drawing on that cost basis:
+#
+#   0.72 USD, a bank charge of 1.00 CAD     exact cost 1.0100…, valued 1.01
+#   8.60 USD, a bank charge of 11.92 CAD    exact cost 12.0649…, valued 12.06
+#   2,710.68 USD, 3,758.36 CAD to chequing  the last, in a file of its own
+#
+# The last is ..._the_last_at_what_is_left.txt: valued at what is left of the
+# cost basis's 3,815.89, 3,802.82, so the three values add up to what the
+# dollars cost, and the exchange splits, 0.01 + 0.14 + 44.46, to the realized
+# loss: 3,815.89 − 3,771.28 = 44.61.
+#
+# Or ..._the_last_at_its_own_share.txt: valued at its own share of the cost
+# rounded, 3,802.81, as the reported book was. The three values then add up to
+# 3,815.88, and the exchange splits to a realized loss of 44.60.
+#
+# A second sale of 1,020.00 USD at 1,413.82 CAD is still held, so a balance
+# sheet at 1.4096 (fx_rates_usd_at_1_4096.yaml) states an unrealized gain.
+#
+# Verified by
+# tests/integration/test_the_last_disposal_of_a_cost_basis_takes_what_is_left_of_its_cost.py and
+# tests/integration/test_a_balance_sheet_states_the_realized_gain_the_book_did_not_record.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Chequing
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Wise USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Foreign exchange gains/losses
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank charges
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-07-31 * "Sale of 2,720.00 USD"
+	guid: "0e0e0000000000000000000000000001"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e0e0000000000000000000000000002"
+	Income:Sales -3815.89 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "272000/381589"
+		value: "-2720.00"
+
+2026-08-13 * "Wise charges"
+	guid: "0e0e0000000000000000000000000003"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.00 CAD
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "101/72"
+		value: "-1.01"
+		cost_basis_split_guid: "0e0e0000000000000000000000000002"
+	Income:Foreign exchange gains/losses 0.01 CAD
+
+2026-08-17 * "Wise charges"
+	guid: "0e0e0000000000000000000000000004"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 11.92 CAD
+	Assets:Wise USD -8.60 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "603/430"
+		value: "-12.06"
+		cost_basis_split_guid: "0e0e0000000000000000000000000002"
+	Income:Foreign exchange gains/losses 0.14 CAD
+
+2026-08-31 * "Sale of 1,020.00 USD"
+	guid: "0e0e0000000000000000000000000008"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 1020.00 USD
+	Income:Sales -1413.82 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "102000/141382"
+		value: "-1020.00"

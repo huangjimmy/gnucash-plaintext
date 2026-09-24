@@ -429,9 +429,10 @@ Which repair a book needs depends on whether anything drew on that cost basis be
 **Something drew on it** — a transfer fee spent out of the deposit, say. Re-pointing it at the receivable's cost basis in place is refused, because its transaction picks a cost basis:
 
 ```
-Error: transaction <guid> touches a cost basis, so its amounts, values,
-accounts, cost basis picks and the currency it is stated in cannot be edited
-in place …
+Error: transaction <guid> touches a cost basis, and this edit would change it,
+so it cannot be edited in place: the split <guid> on '…Chequing…' draws 0.72
+USD … from cost basis <deposit's guid>, and would draw … from <receivable's
+guid> …
 ```
 
 so it is deleted and written again, in three steps:
@@ -442,9 +443,11 @@ so it is deleted and written again, in three steps:
 
 The fee's value has to be what the receivable's cost basis costs times what it takes, as any disposal's does, so check it after the change rather than assuming: the deposit was entered at whatever rate its author used, and the invoice at its posting-date rate. Where the two differ the fee's `value:` changes with the cost basis it draws on.
 
+An edit in place is accepted wherever every cost basis the transaction opens is what it was, and every disposal in it draws what it drew at the value it had: moving the Canadian dollar split that sets a rate to another account goes through. Re-pointing the fee is refused because it changes what the fee draws on. The refusal says which splits the book and the file hold differently and what that would change, and where other transactions draw on the transaction's cost basis it lists them and gives one `delete-transactions` command deleting them first and then it, which is the order a delete accepts. It follows the chain, so a transaction drawing on a cost basis one of them opened is listed and deleted before that one.
+
 Both routes end with `--verify-costs` clean and the account totals level, which is how you know the book is out of it.
 
-**Or commit it as one transaction.** `import --atomic` applies the file and then reads the book it left, instead of checking each block as it is applied. It all commits or it all rolls back, and one cost-basis check is deferred to the end the way a database defers a constraint — the refusal to edit a transaction a cost basis rests on. It is deferred for a transaction that holds a cost basis, and for a disposal re-pointed at another one; a block that restates what a disposal takes, or drops the line giving its cost basis, is refused as it lands whether the flag is passed or not, because nothing on that path draws a cost basis down or gives one back. The other checks still run block by block. That is what the two-step method above exists to work around. What a rollback answers for is what the file introduces: the same questions are asked of the book before it is read, and a fault already there is not this file's to answer for. The repair is then three blocks stating one end state:
+**Or commit it as one transaction.** `import --atomic` applies the file and then reads the book it left, instead of checking each block as it is applied. It all commits or it all rolls back, and one cost-basis check is deferred to the end the way a database defers a constraint — the refusal to edit a transaction a cost basis rests on. It is deferred for a transaction that holds a cost basis, and for a disposal re-pointed at another one; a block that restates what a disposal takes, or clears the line giving its cost basis with `cost_basis_split_guid: ""`, is refused as it lands whether the flag is passed or not (a block that leaves the line out keeps the pick), because nothing on that path draws a cost basis down or gives one back. So is a block moving the date of a transaction that holds a cost basis or draws on one: the finished book is asked what each cost basis holds and what it cost, and no question there reads what it held on each day in between, which is what a date moves. The other checks still run block by block. That is what the two-step method above exists to work around. What a rollback answers for is what the file introduces: the same questions are asked of the book before it is read, and a fault already there is not this file's to answer for. The repair is then three blocks stating one end state:
 
 ```
 2026-07-31 * "INV-USD-001" …          the receivable's cost basis, at 2719.28

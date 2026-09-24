@@ -1,0 +1,20 @@
+# The last of the three disposals of a_usd_sale_spent_in_three_disposals_that_round_down.txt,
+# valued at what is left of the cost basis: 3,815.89 − 1.01 − 12.06 = 3,802.82.
+# The exchange split is what that leaves, 44.46, and the three come to the
+# realized loss of 44.61.
+#
+# Verified by
+# tests/integration/test_the_last_disposal_of_a_cost_basis_takes_what_is_left_of_its_cost.py and
+# tests/integration/test_a_balance_sheet_states_the_realized_gain_the_book_did_not_record.py.
+2026-08-17 * "Moved to chequing"
+	guid: "0e0e0000000000000000000000000005"
+	currency.mnemonic: "CAD"
+	Assets:Chequing 3758.36 CAD
+	Assets:Wise USD -2710.68 USD
+		guid: "0e0e0000000000000000000000000006"
+		account.commodity.mnemonic: "USD"
+		share_price: "190141/135534"
+		value: "-3802.82"
+		cost_basis_split_guid: "0e0e0000000000000000000000000002"
+	Income:Foreign exchange gains/losses 44.46 CAD
+		guid: "0e0e0000000000000000000000000007"

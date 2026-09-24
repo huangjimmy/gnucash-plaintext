@@ -1,0 +1,18 @@
+# The second repayment of two_usd_owed_on_a_card_for_2_01_cad_and_paid_off_a_dollar_at_a_time.txt,
+# the last of that cost basis, valued at what is left of it: 2.01 − 1.01 =
+# 1.00. Its loss is 0.40, and the two come to the realized loss of 0.79.
+#
+# Verified by
+# tests/integration/test_a_balance_sheet_states_the_realized_gain_the_book_did_not_record.py.
+2026-03-01 * "Pay 1.00 USD off the card"
+	guid: "0c0c0000000000000000000000000002"
+	currency.mnemonic: "CAD"
+	Liabilities:USD Card 1.00 USD
+		guid: "0c0c0000000000000000000000000003"
+		account.commodity.mnemonic: "USD"
+		share_price: "1"
+		value: "1.00"
+		cost_basis_split_guid: "0c0c0000000000000000000000000001"
+	Assets:Chequing -1.40 CAD
+	Income:Foreign exchange gains/losses 0.40 CAD
+		guid: "0c0c0000000000000000000000000004"

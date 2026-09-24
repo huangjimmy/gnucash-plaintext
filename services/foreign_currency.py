@@ -1517,6 +1517,7 @@ def cost_basis_items_by_currency_and_side(book, as_of) -> List[Dict]:
 
     rows: List[Dict] = []
     drawn_since = _drawn_down_after(book, as_of)
+    disposals = _disposals_by_cost_basis(book, as_of)
     for split in iter_splits(book):
         try:
             if not establishes_cost_basis(split):
@@ -1543,6 +1544,28 @@ def cost_basis_items_by_currency_and_side(book, as_of) -> List[Dict]:
             # arrives here. That basis counts for nothing, as it does in what
             # `fx-balances` totals, rather than taking the whole page down.
             continue
+        # Outside that: its disposals are read with a cost that parsed, and
+        # one that raised there would drop the cost basis from the page with
+        # nothing to say so, where every other figure of it is sound.
+        drawing = disposals.get(split_guid(split), [])
+        # Only where every disposal is valued as the import requires —
+            # its own share rounded, or what is left for the last — is the
+            # difference a realized gain not recorded: the values' rounding.
+        # Otherwise it is a disposal valued against another cost, or a cost
+        # stated wrong, which `--verify-costs` reports; stated here, the whole
+        # of it would read as a gain and balance a page that should not
+        # balance. So the cost held is then what the currency still held
+        # cost, and no gain is stated. The question is asked of the book as
+        # it stands, not as of the sheet's date, and the answer is the same: a
+        # disposal valued at what is left took the balance to zero, so it is
+        # the last there will ever be, and a later one cannot change whether
+        # it stands.
+        held = balance * cost + (
+            what_the_rounding_left(split, drawing)
+            if not any(a_sale_valued_against_another_cost(
+                each, split, split_guid(split), in_the_book=True)
+                for each in drawing)
+            else Fraction(0))
         # Neither `cost` nor `currency` is asked about again: a split gets past
         # `establishes_cost_basis` only when it has a commodity and a cost that
         # reads, since that function ends by returning `cost_of(split) is not
@@ -1568,8 +1591,25 @@ def cost_basis_items_by_currency_and_side(book, as_of) -> List[Dict]:
             'cost_in_pair': in_pair,
             'cost_rate': rate,
             'pair_currency': pair_currency,
+            # What the book still holds of its cost: what it cost less what
+            # its disposals were valued at. `balance × cost` is what the
+            # currency still held cost, and the two differ where the
+            # disposals' values, each rounded to the cent, add up to more or
+            # less than what they drew cost: that difference is a realized
+            # gain the book did not record.
+            'cost_held': held,
         })
     return rows
+
+
+def _disposals_by_cost_basis(book, as_of) -> dict:
+    """Per cost basis guid, every disposal dated on or before `as_of` that draws on it."""
+    found: dict = {}
+    for split in iter_splits(book):
+        guid = cost_basis_guid_of(split)
+        if guid and split.GetParent().GetDate().date() <= as_of:
+            found.setdefault(guid, []).append(split)
+    return found
 
 
 def what_a_unit_cost_in_its_pair(split, cost: Fraction):
@@ -2305,7 +2345,38 @@ def _what_left_each_side(transaction) -> Dict[tuple, Fraction]:
     return net
 
 
-def mark_what_arrives_past_zero(transaction) -> None:
+def what_each_account_held_without(transaction, accounts, when,
+                                   came_after=frozenset()) -> Dict[str, Fraction]:
+    """What each account held at the end of `when` before this transaction.
+
+    Read before an edit opens the transaction: inside an open edit GnuCash
+    still counts each split on the account it was on before, so a balance read
+    there is a balance of the transaction as it was. The transaction's own
+    splits are taken off where it is dated on or before `when`, since only
+    then does the balance count them.
+
+    `came_after` is the guids of transactions drawing on this one's cost
+    bases, directly or down the chain. Each was imported after it, since it
+    could not draw on a cost basis the book did not yet hold, so its splits
+    dated on or before `when` are taken off too: read with them, a fee of 0.72
+    USD dated the same day as a 2,720.00 USD arrival made the account read as
+    holding -0.72 before the arrival, and the arrival as bringing in 2,719.28.
+    """
+    day_after = datetime.combine(when + timedelta(days=1), datetime.min.time())
+    not_before = set(came_after) | {transaction.GetGUID().to_string()}
+    held: Dict[str, Fraction] = {}
+    for account in accounts:
+        taken_off = sum((_fraction(split.GetAmount()) for split in account.GetSplitList()
+                         if split.GetParent().GetDate().date() <= when
+                         and split.GetParent().GetGUID().to_string() in not_before),
+                        Fraction(0))
+        held[get_account_full_name(account)] = (
+            _fraction(account.GetBalanceAsOfDate(day_after)) - taken_off)
+    return held
+
+
+def mark_what_arrives_past_zero(transaction, held_without=None, as_it_was=None,
+                                leaving=frozenset()) -> None:
     """Record, on each split whose account crosses or lies past zero, what it brought in.
 
     An asset account below zero owes its currency and a liability account above
@@ -2325,6 +2396,12 @@ def mark_what_arrives_past_zero(transaction) -> None:
     It is already committed, so taking its own splits back off is what each
     account held without it. A file's transactions are imported in the order
     the file gives them, which is the order its writer meant.
+
+    `as_it_was` is given on an edit: each split's guid, with the account,
+    amount and date it had before the edit. Where the edit left every split
+    on an account as it was, those splits keep what they recorded; moved to
+    another date, or beside a split that changed, they are read again. `leaving` is the guids of splits an open edit has destroyed,
+    which GnuCash lists until the commit.
     """
     # GnuCash's own balance as of a moment counts every split dated before it,
     # so the start of the next day counts everything on the transaction's own
@@ -2335,7 +2412,7 @@ def mark_what_arrives_past_zero(transaction) -> None:
     on_each_account: Dict[str, list] = {}
     for split in transaction.GetSplitList():
         commodity = split_commodity(split)
-        if not commodity or commodity == BASE_CURRENCY:
+        if not commodity or commodity == BASE_CURRENCY or split_guid(split) in leaving:
             continue
         account_type = split.GetAccount().GetType()
         if account_type not in (_DEBIT_TYPES | _CREDIT_TYPES) or account_type in (
@@ -2349,10 +2426,14 @@ def mark_what_arrives_past_zero(transaction) -> None:
             continue
         on_each_account.setdefault(get_account_full_name(split.GetAccount()), []).append(split)
 
-    for splits in on_each_account.values():
+    for name, splits in on_each_account.items():
         account = splits[0].GetAccount()
         moved = sum((_fraction(split.GetAmount()) for split in splits), Fraction(0))
-        position = _fraction(account.GetBalanceAsOfDate(day_after)) - moved
+        # Given on an edit, read before it opened (`what_each_account_held_without`):
+        # while it is open the balances are the transaction's as it was, and
+        # after its commit they count what came after it the same day.
+        position = (held_without[name] if held_without is not None
+                    else _fraction(account.GetBalanceAsOfDate(day_after)) - moved)
         # In an order of the import's own, not the transaction's: GnuCash does
         # not keep a transaction's splits in the order a file gives them. The
         # splits moving the account the way it moves overall come first, then
@@ -2363,8 +2444,24 @@ def mark_what_arrives_past_zero(transaction) -> None:
         # card that went from owing nothing to owing 50.00.
         splits.sort(key=lambda split: (
             0 if _fraction(split.GetAmount()) * moved > 0 else 1, split_guid(split)))
+        # An edit that leaves every split on this account as it was — the
+        # same splits, at the same amounts, on the same date — leaves them
+        # keeping what they recorded when they were imported. Read again, a
+        # fee of 0.72 USD dated the same day and imported after a 2,720.00 USD
+        # arrival made the arrival read as bringing in 2,719.28, and an edit
+        # moving only the arrival's other split left the cost basis's price as
+        # it was yet changed what it brought in. Every split on the account or none: where one is
+        # added, removed or re-amounted, the others start from a different
+        # place, and are read again with it.
+        when = transaction.GetDate().date()
+        kept = (as_it_was is not None
+                and {guid for guid, was in as_it_was.items() if was[0] == name}
+                == {split_guid(split) for split in splits}
+                and all(as_it_was[split_guid(split)] == (name, _fraction(split.GetAmount()), when)
+                        for split in splits))
         for split in splits:
-            _record_what_it_brought_in(transaction, split, position)
+            if not kept:
+                _record_what_it_brought_in(transaction, split, position)
             position += _fraction(split.GetAmount())
 
 
@@ -2760,8 +2857,8 @@ def a_sale_against_another_currencys_basis(selling_split, basis,
         f'draw on nothing')
 
 
-def a_sale_valued_against_another_cost(selling_split, basis,
-                                       basis_guid: str) -> Optional[str]:
+def a_sale_valued_against_another_cost(selling_split, basis, basis_guid: str,
+                                       in_the_book=False) -> Optional[str]:
     """What is wrong where a sale's value is not what its cost basis cost, or None.
 
     A sale must value what it sells at the cost of the cost basis it picks. That is
@@ -2802,7 +2899,41 @@ def a_sale_valued_against_another_cost(selling_split, basis,
     # valued half a cent off its cost basis on purpose as readily as one off by
     # accident.
     expected = numeric_to_fraction(to_money(basis_cost * sold, base_unit))
-    if stated == expected:
+    # Asked of a book, the last disposal is not known: the book keeps no
+    # record of the order they were imported in. Nor is it from a file that
+    # states the cost basis's balance, as every export does: the balance is
+    # what the whole file leaves, 0.00 once it is spent, so every disposal in
+    # the file would read as the last, and one in the middle valued at its
+    # own share was refused — a book could not be rebuilt from its export. So
+    # there one valued at its own share stands, and one valued at what is
+    # left, which is looked for only then: it walks the book.
+    either = in_the_book or balance_came_from_file(basis)
+    if either and stated == expected:
+        return None
+    left = what_is_left_of_the_cost(selling_split, basis, basis_guid,
+                                    draws_down(selling_split), base_unit,
+                                    in_the_book)
+    if left is not None and not either:
+        # The last disposal of a cost basis takes what is left of its cost, so
+        # the values of all of them add up to what the currency cost and the
+        # residual splits beside them to the realized gain or loss. Each
+        # valued at its own share rounded instead, 2,720.00 USD that cost
+        # 3,815.89 CAD left at 1.01, 12.06 and 3,802.81, which is 3,815.88,
+        # and the book recorded a realized loss of 44.60 where it was 44.61.
+        if stated == left:
+            return None
+        return (
+            f'this split sells the last {_format(sold, smallest_unit(selling_split))} '
+            f'{currency} of cost basis {basis_guid}, valued at '
+            f'{_format(stated, base_unit)} {BASE_CURRENCY}, but cost basis '
+            f'{basis_guid} cost {exact_text(basis_cost)} {BASE_CURRENCY} per '
+            f'{currency}, and what is left of cost basis {basis_guid} is what '
+            f'the last of it cost plus what the rounding of the disposals before '
+            f'it left, i.e. {_format(left, base_unit)} '
+            f'{BASE_CURRENCY} — value the last of it at that, so the values of '
+            f'all of them add up to what the {currency} cost and the residual '
+            f'splits to the realized gain or loss')
+    if stated in (expected, left):
         return None
     return (
         f'this split sells {_format(sold, smallest_unit(selling_split))} '
@@ -2813,6 +2944,68 @@ def a_sale_valued_against_another_cost(selling_split, basis,
         f'at the cost basis it picks, so the {BASE_CURRENCY} the sale fetched '
         f'and the '
         f'residual gain or loss stand apart')
+
+
+def what_is_left_of_the_cost(selling_split, basis, basis_guid: str, drawn: Fraction,
+                             base_unit: int, drawn_already=False) -> Optional[Fraction]:
+    """What is left of a cost basis's cost for the disposal that takes the last of it, or None.
+
+    The disposal takes the last of it where it draws down all the cost basis
+    had left before it. On an import that is the balance as it stands, since
+    the disposal has not drawn yet. In a book, in an edit of one, or where the
+    file stated the balance, it has drawn already, and it is the last where
+    nothing is left and no other disposal of the cost basis is dated after it.
+
+    What is left of the cost is what the last of the currency cost, plus what
+    each other disposal drew at the cost less what it was valued at — the part
+    of the cost the rounding of their values left behind — rounded to the
+    cent. None for a disposal that is not the last.
+    """
+    balance = cost_basis_balance_of(basis)
+    if balance is None:
+        return None
+    drawn_already = drawn_already or balance_came_from_file(basis)
+    # Drawn already, the balance is what every disposal left, this one and
+    # any after it. So it is the last only where nothing is left and no other
+    # disposal is dated after it: once a cost basis is empty, every disposal
+    # of it would otherwise read as its last, and the 0.72 USD charge of the
+    # 13th could take the rounding of the two dated the 17th. Two of the same
+    # day may each be the last, since a book keeps no order within a day.
+    if balance != (0 if drawn_already else drawn):
+        return None
+    this = split_guid(selling_split)
+    others = [split for split in iter_splits(selling_split.GetBook())
+              if cost_basis_guid_of(split) == basis_guid and split_guid(split) != this]
+    when = selling_split.GetParent().GetDate().date()
+    if drawn_already and any(other.GetParent().GetDate().date() > when for other in others):
+        return None
+    return numeric_to_fraction(to_money(
+        drawn * cost_of(basis) + what_the_rounding_left(basis, others), base_unit))
+
+
+def what_the_rounding_left(basis, disposals) -> Fraction:
+    """What `disposals` drew at the cost basis's cost, less what they were valued at.
+
+    What each was valued at is its value where its transaction is stated in
+    the book's own currency and it lowers the cost basis by all it sends,
+    which is the figure the book records it leaving at. Otherwise no figure of
+    the book's own says what it took of this cost basis — stated in another
+    currency, its value is in none; crossing zero, its value covers what it
+    brought in too; sending more than it draws down, the rest moved to another
+    account on the same side and still stands on this cost basis — and it took
+    exactly what it drew at the cost, which leaves nothing.
+
+    Each value is its share of the cost rounded to the cent, so this is a
+    fraction of a cent per disposal: 0.72, 8.60 and 2,710.68 USD at
+    381589/272000 valued at 1.01, 12.06 and 3,802.81 leave 0.01 of the
+    3,815.89 the dollars cost.
+    """
+    basis_cost = cost_of(basis)
+    return sum((draws_down(split) * basis_cost - abs(_fraction(split.GetValue()))
+                for split in disposals
+                if transaction_currency(split.GetParent()) == BASE_CURRENCY
+                and not (split_moves(split) is not None and _stored_brought_in(split))
+                and draws_down(split) == drawn_by(split)), Fraction(0))
 
 
 def _a_crossing_valued_against_another_cost(split, basis, basis_guid: str) -> Optional[str]:
@@ -3072,6 +3265,101 @@ def transactions_measuring_against(book, transaction) -> List[str]:
     return users
 
 
+def transactions_drawing_on(book, transaction, bases) -> List[tuple]:
+    """`(guid, description)` of each transaction that must be deleted before this one.
+
+    `bases` is the guids of this transaction's cost bases, as the book holds
+    them. They are given rather than read here, because a transaction still
+    open for an edit reads as the edit leaves it: a split moved onto a
+    Canadian dollar account opens no cost basis there, and whatever draws on
+    it would be missed.
+
+    Every transaction drawing on this one's cost bases, and every transaction
+    drawing on theirs, and so on: a conversion drawn on this one's dollars
+    opens a cost basis of its own, and a fee drawn on that keeps the
+    conversion from being deleted in turn. Listed in an order
+    `delete-transactions` accepts, each after everything drawing on it, and
+    each once. A description gives what each draws on any cost basis, added
+    up by currency across its splits.
+    """
+    drawn_on: Dict[str, list] = {}
+    for split in iter_splits(book):
+        basis = cost_basis_guid_of(split)
+        if basis:
+            drawn_on.setdefault(basis, []).append(split.GetParent())
+    ordered: Dict[str, str] = {}
+    visiting = {transaction.GetGUID().to_string()}
+
+    def delete_before(its_bases) -> None:
+        drawers = {parent.GetGUID().to_string(): parent
+                   for basis in its_bases for parent in drawn_on.get(basis, [])}
+        for guid, parent in sorted(drawers.items(), key=lambda item: item[1].GetDate()):
+            # A transaction drawing on two cost bases of the chain is reached
+            # twice, and is listed once; the transaction the chain starts from
+            # is not listed at all.
+            if guid in visiting or guid in ordered:
+                continue
+            visiting.add(guid)
+            delete_before(split_guid(split) for split in parent.GetSplitList()
+                          if establishes_cost_basis(split))
+            by_commodity: Dict[str, list] = {}
+            for split in parent.GetSplitList():
+                if cost_basis_guid_of(split):
+                    by_commodity.setdefault(split_commodity(split), []).append(split)
+            drawn = ', '.join(
+                f'{_format(sum(abs(_fraction(s.GetAmount())) for s in splits), smallest_unit(splits[0]))} '
+                f'{commodity}' for commodity, splits in sorted(by_commodity.items()))
+            label = parent.GetDescription() or '(no description)'
+            ordered[guid] = f"{parent.GetDate().strftime('%Y-%m-%d')} {label!r} ({drawn})"
+
+    delete_before(bases)
+    return list(ordered.items())
+
+
+def cost_basis_facts(transaction, leaving=frozenset()) -> List[tuple]:
+    """What this transaction's cost bases are and what its disposals draw, as facts to compare.
+
+    An edit in place is accepted when these are the same after it as before
+    it: the edit then leaves what each cost basis holds and cost as it was,
+    and what each disposal draws and is valued at, and every other figure in the transaction
+    is the file's to correct.
+
+    - A cost basis: its split, the account it sits on, its currency and side,
+      what it brought in, what it cost, and its date. The account counts,
+      because the accounts drawn on a cost basis hold what it stands for:
+      moved to another bank, it would leave a disposal spending from the
+      first drawing on a cost basis kept on the second. The date counts, because it is when the currency
+      arrived, and every reading of the cost bases as of a day turns on it.
+    - A disposal: its split, its account, the cost basis it gives, the side it
+      draws on, what it draws down, its value, which is what that cost basis
+      cost, and its date, which is when it drew the cost basis down.
+
+    Everything else is left out: the account of a split in the book's own
+    currency that sets a rate, how the rate's totals are divided between such
+    splits, a memo, a description.
+
+    `leaving` is the guids of splits an open edit has destroyed, which GnuCash
+    lists until the commit.
+    """
+    facts = []
+    when = transaction.GetDate().strftime('%Y-%m-%d')
+    for split in transaction.GetSplitList():
+        guid = split_guid(split)
+        if guid in leaving:
+            continue
+        name = get_account_full_name(split.GetAccount())
+        commodity = split_commodity(split)
+        if establishes_cost_basis(split):
+            facts.append(('basis', guid, name, commodity,
+                          'asset' if _fraction(split.GetAmount()) > 0 else 'liability',
+                          brought_in_by(split), cost_of(split), when))
+        picked = cost_basis_guid_of(split)
+        if picked:
+            facts.append(('draws', guid, name, commodity, picked, the_side_it_draws(split),
+                          draws_down(split), abs(_fraction(split.GetValue())), when))
+    return sorted(facts, key=str)
+
+
 def a_disposal_the_finished_book_cannot_value(book, transaction) -> str:
     """A disposal on this transaction's cost bases that no later check can value.
 
@@ -3232,7 +3520,7 @@ def what_the_disposals_get_wrong(book) -> List[Dict]:
                 if not wrong and establishes_cost_basis(basis):
                     wrong = (
                         a_sale_valued_against_another_cost(
-                            split, basis, picked)
+                            split, basis, picked, in_the_book=True)
                         or a_sale_against_an_uncollected_receivable(
                             split, basis, picked))
                 if not wrong:

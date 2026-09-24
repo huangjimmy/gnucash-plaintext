@@ -1,0 +1,18 @@
+# The first disposal of a_usd_sale_spent_in_three_disposals_that_round_down.txt,
+# the 0.72 USD bank charge of 2026-08-13, restated at 1.02 for
+# `--strategy update`: 1.01 is its share of the cost rounded, and it is not
+# the last disposal of the cost basis, since two more are dated after it. An
+# edit in place moving its value is refused.
+#
+# Verified by
+# tests/integration/test_the_last_disposal_of_a_cost_basis_takes_what_is_left_of_its_cost.py.
+2026-08-13 * "Wise charges"
+	guid: "0e0e0000000000000000000000000003"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.00 CAD
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "17/12"
+		value: "-1.02"
+		cost_basis_split_guid: "0e0e0000000000000000000000000002"
+	Income:Foreign exchange gains/losses 0.02 CAD

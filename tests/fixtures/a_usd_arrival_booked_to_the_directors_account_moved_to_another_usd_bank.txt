@@ -1,0 +1,24 @@
+# The arrival of a_usd_arrival_booked_to_the_directors_account.txt with its US
+# dollar split moved to a second US dollar bank, for `--strategy update`.
+#
+# The cost basis sits on that split, so it would move to the second bank with
+# it, while the 0.72 USD fee drawn on it stays on the first, taking the first
+# bank to −0.72. The cost basis would not stand for what either bank holds, so
+# the edit is refused, and the refusal says which cost basis would move.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-01-01 open Assets:Wise USD 2
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-08-13 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2 2720.00 USD
+		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+	Assets:Due from shareholder -3791.14 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "272000/379114"
+		value: "-2720.00"

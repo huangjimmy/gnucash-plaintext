@@ -1,0 +1,21 @@
+# The arrival of a_usd_arrival_booked_to_the_directors_account.txt with its
+# Canadian dollar split divided: 2,000.00 CAD to income and 1,791.14 CAD left
+# on the director's account, for `--strategy update`.
+#
+# The cost basis is priced at the Canadian dollar splits' amounts added up
+# over their values added up, which stay 3,791.14 over 2,720.00, so it costs
+# what it cost and the edit goes through.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-13 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+	Income:Sales -2000.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "-1434.92"
+	Assets:Due from shareholder -1791.14 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "-1285.08"

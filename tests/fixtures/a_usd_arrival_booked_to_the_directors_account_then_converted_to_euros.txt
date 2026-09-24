@@ -1,0 +1,51 @@
+# Imported after a_usd_arrival_booked_to_the_directors_account.txt: 1,000.00
+# of the arrival's dollars converted into 900.00 EUR, drawn on the arrival's
+# cost basis and opening a euro cost basis, and a fee of 1.00 EUR drawn on that
+# and 0.10 USD drawn on the arrival's.
+#
+# The euro fee draws on the conversion, and the conversion on the arrival. So
+# the arrival can be deleted only once both are gone, the euro fee first: a
+# refused edit of the arrival gives one `delete-transactions --by-guid`
+# command deleting the arrival's own fee, the euro fee, the conversion and the
+# arrival, in that order, listing the euro fee once though it draws on both.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-01-01 commodity EUR
+	mnemonic: "EUR"
+	fullname: "Euro"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets:Wise EUR
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+
+2026-08-14 * "Converted to euros"
+	guid: "0d0d0000000000000000000000000002"
+	currency.mnemonic: "CAD"
+	Assets:Wise EUR 900.00 EUR
+		guid: "0d0d0000000000000000000000000003"
+		account.commodity.mnemonic: "EUR"
+		share_price: "139380/90000"
+		value: "1393.80"
+	Assets:Wise USD -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "139380/100000"
+		value: "-1393.80"
+		cost_basis_split_guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+
+2026-08-15 * "Wise euro charges"
+	guid: "0d0d0000000000000000000000000004"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.69 CAD
+	Assets:Wise EUR -1.00 EUR
+		account.commodity.mnemonic: "EUR"
+		share_price: "155/100"
+		value: "-1.55"
+		cost_basis_split_guid: "0d0d0000000000000000000000000003"
+	Assets:Wise USD -0.10 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "14/10"
+		value: "-0.14"
+		cost_basis_split_guid: "3cdacfb099e9c7fbe795b8aa317313bd"

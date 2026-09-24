@@ -151,8 +151,34 @@ def test_re_pointing_it_at_another_basis_still_commits(tmp_path):
         after.read_text()), after.read_text()
 
 
+def test_leaving_the_pick_out_leaves_it_where_it_is(tmp_path):
+    """A block without its `cost_basis_split_guid:` line keeps the pick the book holds.
+
+    An absent key is not an instruction (CLAUDE.md finding 11): the fee still
+    draws on its cost basis, every cost basis is what it was, and the edit
+    goes through.
+    """
+    runner = CliRunner()
+    book = _a_basis_with_a_fee_drawn_on_it(runner, tmp_path)
+
+    out = tmp_path / 'before.txt'
+    assert _run(runner, 'export', str(book), str(out)).exit_code == 0
+    dropped = tmp_path / 'dropped.txt'
+    dropped.write_text(re.sub(r'\t\tcost_basis_split_guid: "[0-9a-f]{32}"\n',
+                              '', _the_fee_block(out.read_text())))
+
+    result = _run(runner, 'import', str(book), str(dropped), '--atomic',
+                  '--strategy', 'update', '--fx-rates', RATES)
+    assert result.exit_code == 0, result.output
+
+    after = tmp_path / 'after.txt'
+    assert _run(runner, 'export', str(book), str(after)).exit_code == 0
+    assert 'cost_basis_split_guid' in _the_fee_block(after.read_text()), \
+        after.read_text()
+
+
 def test_dropping_the_pick_is_refused_too(tmp_path):
-    """Taking the line off does not give the cost basis back what the fee took.
+    """Clearing the line does not give the cost basis back what the fee took.
 
     A sale that draws on nothing takes nothing, which is true of the state the
     file asks for and says nothing about the state it is leaving: the 10.00
@@ -170,7 +196,8 @@ def test_dropping_the_pick_is_refused_too(tmp_path):
     assert _run(runner, 'export', str(book), str(out)).exit_code == 0
     dropped = tmp_path / 'dropped.txt'
     dropped.write_text(re.sub(r'\t\tcost_basis_split_guid: "[0-9a-f]{32}"\n',
-                              '', _the_fee_block(out.read_text())))
+                              '\t\tcost_basis_split_guid: ""\n',
+                              _the_fee_block(out.read_text())))
 
     result = _run(runner, 'import', str(book), str(dropped), '--atomic',
                   '--strategy', 'update', '--fx-rates', RATES)

@@ -246,7 +246,8 @@
                  (* sign balance)
                  (* sign balance (plaintext:basis-item-cost item))
                  side
-                 (plaintext:basis-item-namespace item))))
+                 (plaintext:basis-item-namespace item)
+                 (* sign (plaintext:basis-item-cost-held item)))))
        plaintext:cost-basis-items))
 
 ;; What the book has already taken on foreign currency by the report's date, in
@@ -452,6 +453,10 @@
   (list-ref item 8))
 (define (plaintext:basis-item-pair-currency item)
   (list-ref item 9))
+;; What the book still holds of the basis's cost: what it cost less what its
+;; disposals were valued at, worked out by `cost_basis_items_by_currency_and_side`.
+(define (plaintext:basis-item-cost-held item)
+  (list-ref item 10))
 
 ;; The distinct currency and side pairs those rows cover, in the order they
 ;; first appear. US dollars never meet Hong Kong dollars, and a currency held
@@ -597,6 +602,7 @@
 (define (plaintext:basis-cost basis) (car (cdr (cdr basis))))
 (define (plaintext:basis-side basis) (car (cdr (cdr (cdr basis)))))
 (define (plaintext:basis-namespace basis) (car (cdr (cdr (cdr (cdr basis))))))
+(define (plaintext:basis-cost-held basis) (list-ref basis 5))
 
 ;; What this commodity's cost bases on this side say the holding cost, in the
 ;; report's currency — or #f where the book keeps none for it.
@@ -1827,6 +1833,135 @@
                                     (sum (cdr rest) held spent))))))
                      total)))))))
 
+;; The realized gain the book did not record, over the cost bases the
+;; unrealized key of `want` and `side` is measured from.
+;;
+;; A disposal is valued at what it drew cost, rounded to the cent, and its
+;; residual split states the gain or loss on it. Several such values add up to
+;; more or less than what the currency they drew cost, and the residual splits
+;; beside them then add up to that much less or more than the realized gain:
+;; 2,720.00 USD that cost 3,815.89 CAD, spent at 1.01, 12.06 and 3,802.81, left
+;; 3,815.88, and the book records a realized loss of 44.60 where it is 44.61.
+;;
+;; Per cost basis it is what the currency still held cost — balance times cost,
+;; rounded as `plaintext:revaluation` rounds it — less what the book still
+;; holds of the cost, which is what it cost less what its disposals were valued
+;; at. The unrealized key measures from the first, and `retained_earnings`
+;; carries what the book recorded, so this is what equity needs for the page to
+;; balance, and it is a figure of its own rather than a part of either.
+;;
+;; Each cost basis that has one, as `(item cost-value cost-held difference)`
+;; with the owed side's figures negative, so the itemized page lists what the
+;; key is the sum of.
+(define (plaintext:realized-not-recorded side accounts moment report-commodity want)
+  (let ((table (gnc-commodity-table-get-table (gnc-get-current-book))))
+    (let per ((pairs (plaintext:cost-basis-pairs)) (found '()))
+      (if (null? pairs)
+          found
+          (let* ((pair (car pairs))
+                 (commodity (plaintext:commodity-of table (car pair) (cdr pair)))
+                 (is-currency (and commodity
+                                   (string=? (gnc-commodity-get-namespace commodity)
+                                             "CURRENCY"))))
+            (per (cdr pairs)
+                 (if (and commodity
+                          (if (eq? want 'security) (not is-currency) is-currency)
+                          (string=? (cdr pair) side)
+                          (plaintext:measured-from-cost-bases?
+                           commodity side accounts moment))
+                     (let each ((rest plaintext:cost-basis-items) (found found))
+                       (if (null? rest)
+                           found
+                           (let* ((item (car rest))
+                                  (sign (if (string=? (plaintext:basis-item-side item)
+                                                      "asset")
+                                            1 -1))
+                                  (cost-value (plaintext:as-money
+                                               (* sign (plaintext:basis-item-balance item)
+                                                  (plaintext:basis-item-cost item))
+                                               report-commodity))
+                                  ;; At the cent, as the cost value is: where no
+                                  ;; gain is stated the cost held is the cost of
+                                  ;; what is still held, and the two then agree.
+                                  (cost-held (plaintext:as-money
+                                              (* sign (plaintext:basis-item-cost-held item))
+                                              report-commodity))
+                                  (difference (- cost-value cost-held)))
+                             (each (cdr rest)
+                                   (if (and (string=? (plaintext:basis-item-currency item)
+                                                      (car pair))
+                                            (string=? (plaintext:basis-item-side item)
+                                                      (cdr pair))
+                                            (not (zero? difference)))
+                                       (append found
+                                               (list (list item cost-value cost-held
+                                                           difference)))
+                                       found)))))
+                     found)))))))
+
+;; `realized_gains_not_recorded` with the cost bases it is made of under it,
+;; each with the two figures it is the difference of, in the shape the
+;; unrealized keys itemize their cost bases.
+(define (plaintext:not-recorded-block entries report-commodity)
+  (let ((places (plaintext:places-of report-commodity)))
+    (append
+     (list (string-append (plaintext:indent 1) "realized_gains_not_recorded:")
+           (string-append (plaintext:indent 2) "cost_bases:"
+                          (plaintext:listing-note
+                           (length entries) "cost bases" "cost basis"
+                           " # there is no cost basis")))
+     (let loop ((rest (plaintext:first-of entries)) (lines '()))
+       (if (null? rest)
+           lines
+           (let* ((entry (car rest))
+                  (item (car entry)))
+             (loop (cdr rest)
+                   (append
+                    lines
+                    (list (string-append (plaintext:indent 3) "cost_basis:")
+                          (string-append (plaintext:indent 4) "split_guid: "
+                                         (plaintext:basis-item-guid item))
+                          (string-append (plaintext:indent 4) "account: \""
+                                         (plaintext:basis-item-account item) "\"")
+                          (string-append (plaintext:indent 4) "cost_basis_balance: "
+                                         (plaintext:figure
+                                          (plaintext:basis-item-balance item) 0))
+                          (string-append (plaintext:indent 4) "cost_share_price_in_base: "
+                                         (plaintext:figure
+                                          (plaintext:basis-item-cost item) 0))
+                          (string-append (plaintext:indent 4) "cost_value: "
+                                         (plaintext:figure (car (cdr entry)) places)
+                                         " # cost_basis_balance * cost_share_price_in_base")
+                          (string-append (plaintext:indent 4) "cost_held: "
+                                         (plaintext:figure (car (cdr (cdr entry))) places)
+                                         " # what it cost, less what the disposals"
+                                         " drawn on it were valued at")
+                          (string-append (plaintext:indent 4)
+                                         "realized_gains_not_recorded: "
+                                         (plaintext:figure
+                                          (car (cdr (cdr (cdr entry)))) places)
+                                         " # cost_value - cost_held")))))))
+     (let ((left-out (plaintext:after-first entries)))
+       (if (null? left-out)
+           '()
+           (plaintext:not-listed
+            3 (length left-out)
+            (list (cons "realized_gains_not_recorded"
+                        (plaintext:figure
+                         (let sum ((xs left-out) (total 0))
+                           (if (null? xs)
+                               total
+                               (sum (cdr xs) (+ total (car (cdr (cdr (cdr (car xs)))))))))
+                         places))))))
+     (list (string-append (plaintext:indent 2) "realized_gains_not_recorded: "
+                          (plaintext:figure
+                           (let sum ((xs entries) (total 0))
+                             (if (null? xs)
+                                 total
+                                 (sum (cdr xs) (+ total (car (cdr (cdr (cdr (car xs)))))))))
+                           places)
+                          " # sum of each cost_basis's realized_gains_not_recorded")))))
+
 ;; What a collector comes to in the report's currency, as an exact rational.
 ;; Converted by the report's own exchange function, so every price is GnuCash's
 ;; and comes from whichever price source the page was asked for.
@@ -2569,6 +2704,25 @@
                            (plaintext:securities-gnucash-keeps securities moment)))
                        report-commodity))))
                (total-unrealized (+ unrealized-fx unrealized-other))
+               ;; What the book's residual splits leave out of the realized
+               ;; gain, over the same cost bases the unrealized keys are
+               ;; measured from. Into equity beside them, because
+               ;; `retained_earnings` carries only what the book recorded.
+               (not-recorded-entries
+                (if use-trading-accounts?
+                    '()
+                    (append (plaintext:realized-not-recorded
+                             "asset" held-accounts moment report-commodity "CURRENCY")
+                            (plaintext:realized-not-recorded
+                             "liability" owed-accounts moment report-commodity "CURRENCY")
+                            (plaintext:realized-not-recorded
+                             "asset" (plaintext:securities holdings) moment
+                             report-commodity 'security))))
+               (realized-not-recorded
+                (let sum ((xs not-recorded-entries) (total 0))
+                  (if (null? xs)
+                      total
+                      (sum (cdr xs) (+ total (car (cdr (cdr (cdr (car xs))))))))))
                ;; The amount GnuCash calculates just to balance the book,
                ;; carried across as GnuCash gives it so a reader can find the
                ;; same number on GnuCash's own page. Never added into anything.
@@ -2639,7 +2793,8 @@
                      (gnc:sum-collector-commodity
                       (plaintext:collector equity-balance retained-earnings trading-balance)
                       report-commodity exchange-fn)))
-                   total-unrealized))
+                   total-unrealized
+                   realized-not-recorded))
                (liabilities-and-equity
                 (+ (plaintext:exact
                     (gnc:gnc-monetary-amount
@@ -2704,7 +2859,12 @@
             (plaintext:currency-warning income-expense-accounts report-commodity)
             (if use-trading-accounts?
                 plaintext:notes
-                (append plaintext:notes plaintext:gain-notes)))
+                (append plaintext:notes plaintext:gain-notes
+                        (if (null? not-recorded-entries)
+                            '()
+                            (list "# realized_gains_not_recorded reaches total_equity"
+                                  "# as well: retained_earnings carries only the"
+                                  "# realized gain the book recorded.")))))
            title
            (append
             (list (plaintext:key 1 "currency.mnemonic"
@@ -2792,6 +2952,20 @@
                         (plaintext:indent 1) "total_unrealized_gains: "
                         (plaintext:amount-of total-unrealized report-commodity)
                         " # unrealized_gains_fx + unrealized_gains_other"))
+                 ;; Only where there is one: a book whose disposals were each
+                 ;; valued at what is left of their cost records its realized
+                 ;; gain whole, and a zero here would state nothing.
+                 (cond ((null? not-recorded-entries) '())
+                       (plaintext:itemize?
+                        (plaintext:not-recorded-block not-recorded-entries
+                                                      report-commodity))
+                       (else
+                        (list (string-append
+                               (plaintext:indent 1) "realized_gains_not_recorded: "
+                               (plaintext:amount-of realized-not-recorded report-commodity)
+                               " # what the disposals' values, each rounded to the"
+                               " cent, leave out of the realized gain the book"
+                               " records"))))
                  (if plaintext:itemize?
                      (plaintext:balancing-block holdings moment report-commodity
                                                 exchange-fn price-fn

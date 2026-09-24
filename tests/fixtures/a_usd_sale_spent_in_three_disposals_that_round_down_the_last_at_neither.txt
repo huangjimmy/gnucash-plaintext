@@ -1,0 +1,19 @@
+# The last of the three disposals of a_usd_sale_spent_in_three_disposals_that_round_down.txt,
+# valued at 3,802.80: neither its own share of the cost rounded, 3,802.81,
+# nor what is left of it, 3,802.82. An edit in place moving the value to it
+# changes what the disposal took, and is refused.
+#
+# Verified by
+# tests/integration/test_the_last_disposal_of_a_cost_basis_takes_what_is_left_of_its_cost.py.
+2026-08-17 * "Moved to chequing"
+	guid: "0e0e0000000000000000000000000005"
+	currency.mnemonic: "CAD"
+	Assets:Chequing 3758.36 CAD
+	Assets:Wise USD -2710.68 USD
+		guid: "0e0e0000000000000000000000000006"
+		account.commodity.mnemonic: "USD"
+		share_price: "95070/67767"
+		value: "-3802.80"
+		cost_basis_split_guid: "0e0e0000000000000000000000000002"
+	Income:Foreign exchange gains/losses 44.44 CAD
+		guid: "0e0e0000000000000000000000000007"

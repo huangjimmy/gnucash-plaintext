@@ -1,0 +1,20 @@
+# The arrival of a_usd_arrival_booked_to_the_directors_account.txt with its
+# Canadian dollar split restated at 3,800.00 CAD, for `--strategy update`.
+#
+# The cost basis is priced at that split's amount over the 2,720.00 USD, so
+# this re-prices it, and a cost basis a fee already draws on cannot be
+# re-priced in place. The refusal says which split and which figure changed,
+# and, since a transaction draws on the cost basis, lists it and gives the one
+# command that deletes the two together.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-13 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+	Assets:Due from shareholder -3800.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "68/95"
+		value: "-2720.00"

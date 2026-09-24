@@ -1,0 +1,18 @@
+# The arrival of a_usd_arrival_booked_to_the_directors_account.txt restated at
+# 3,800.00 CAD and moved to 2026-08-14, for `--strategy update --atomic`.
+#
+# `--atomic` defers the restated figure to the finished book, and does not
+# defer a date move, so the block is refused as it lands for the date alone,
+# and the refusal gives the date and not the figure it would have deferred.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-14 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+	Assets:Due from shareholder -3800.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "68/95"
+		value: "-2720.00"
