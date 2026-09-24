@@ -170,14 +170,18 @@ def test_under_atomic_a_re_price_the_file_states_in_full_is_allowed(tmp_path):
     assert verified.exit_code == 0, verified.output
 
 
-@pytest.mark.parametrize('price', ['0.9', 'abc'], ids=['another-price', 'not-a-number'])
-def test_a_price_stated_without_a_value_is_weighed_on_its_own(tmp_path, price):
+@pytest.mark.parametrize('price, refusal', [
+    ('0.9', "the file states 10.00 CAD on 'Expenses:Bank Fees' valued at 9.00"),
+    ('abc', "the share_price on split 'Expenses:Bank Fees' must be a number, got 'abc'"),
+], ids=['another-price', 'not-a-number'])
+def test_a_price_stated_without_a_value_is_weighed_on_its_own(tmp_path, price, refusal):
     """The fee split with its `value:` taken off and a `share_price:` of its own.
 
     With one amount and the price, the price is what values the split, so it is
     the figure the cost basis would rest on: 0.9 is not the 4/5 the book holds,
-    and `abc` cannot be read at all. Either way the edit cannot be made in
-    place.
+    and re-prices the cost basis, which cannot be done in place. The refusal
+    gives the split at the value the edit would write, 10.00 at 0.9. `abc` cannot be
+    read at all, and is refused as a figure that is not a number.
     """
     runner = CliRunner()
     book, text = _book_and_export(runner, tmp_path)
@@ -193,18 +197,19 @@ def test_a_price_stated_without_a_value_is_weighed_on_its_own(tmp_path, price):
 
     message = result.output + str(result.exception)
     assert result.exit_code != 0, message
-    assert 'cannot be edited in place' in message, message
+    assert refusal in message, message
     assert _cost_of_the_basis(runner, book) == before
 
 
 @pytest.mark.parametrize('edits, refusal', [
     ([('\tExpenses:Bank Fees 10.00 CAD\n', '\tExpenses:Bank Fees $residual$ CAD\n')],
-     'cannot be edited in place'),
-    ([('\t\tvalue: "8.00"\n', '\t\tvalue: "eight"\n')], 'cannot be edited in place'),
+     "the amount on split 'Expenses:Bank Fees' must be a number, got '$residual$'"),
+    ([('\t\tvalue: "8.00"\n', '\t\tvalue: "eight"\n')],
+     "the value on split 'Expenses:Bank Fees' must be a number, got 'eight'"),
     ([('\tExpenses:Bank Fees 10.00 CAD\n', '\tExpenses:Bank Fees 12.00 CAD\n'),
       ('\t\tvalue: "8.00"\n', '')], 'cannot be edited in place'),
     ([('\tExpenses:Bank Fees 10.00 CAD\n', '\tExpenses:Bank Fees --10.00 CAD\n')],
-     'cannot be edited in place'),
+     "the amount on split 'Expenses:Bank Fees' must be a number, got '--10.00'"),
     ([('\tExpenses:Bank Fees 10.00 CAD\n', '\tExpenses:Bank Fees 1O.00 CAD\n')],
      'could not be read'),
 ], ids=['a-residual-amount', 'a-value-that-is-not-a-number', 'a-new-amount-with-no-value',
@@ -212,11 +217,12 @@ def test_a_price_stated_without_a_value_is_weighed_on_its_own(tmp_path, price):
 def test_a_fee_split_whose_figures_cannot_be_weighed_is_refused(tmp_path, edits, refusal):
     """The fee split edited so what the cost basis would rest on cannot be read.
 
-    A `$residual$` amount, a value that is not a number, and a new amount with
-    no value to go with it all leave the cost basis with a figure nothing can
-    weigh, so the transaction cannot be edited in place. An amount that is not
-    a number is a line the parser cannot read, and the file is refused before
-    anything is compared. Measured on 5.10 and 3.4.
+    A `$residual$` amount, a value that is not a number and an amount with two
+    signs are figures the edit cannot apply, and each is refused for itself,
+    the split and the field given. A new amount with no value to go with it is
+    applied, re-prices the cost basis, and cannot be edited in place. An amount
+    that is not a number is a line the parser cannot read, and the file is
+    refused before anything is compared. Measured on 5.10 and 3.4.
     """
     runner = CliRunner()
     book, text = _book_and_export(runner, tmp_path)
@@ -237,14 +243,15 @@ def test_a_fee_split_whose_figures_cannot_be_weighed_is_refused(tmp_path, edits,
     assert _cost_of_the_basis(runner, book) == before
 
 
-def test_under_atomic_added_splits_of_nothing_are_refused_for_the_price_they_leave_unread(tmp_path):
+def test_under_atomic_two_added_zero_amount_cad_splits_leave_the_cost_basis_as_it_was(tmp_path):
     """Two 0.00 CAD splits, each stating a value of 0.00 and no price.
 
-    A split of no amount has no price its two amounts give, a split the file
-    adds has no booked one to fall back on, and GnuCash's own answer for one
-    differs by version (0 on 5.10 and 1 on 3.4, for a value of 0.00). So what
-    the cost basis would rest on afterwards cannot be worked out here, and the
-    directive is refused rather than deferred.
+    A split of no amount has no price its two amounts give, and GnuCash's own
+    answer for one differs by version (0 on 5.10 and 1 on 3.4, for a value of
+    0.00), so the figures the edit changes could not be weighed one by one, and
+    the edit was refused. What decides it is the cost basis itself, read once
+    the edit is applied: the CAD splits' amounts and values added up are what
+    they were, so the cost basis costs what it cost and the edit goes through.
     """
     runner = CliRunner()
     book, text = _book_and_export(runner, tmp_path)
@@ -261,10 +268,8 @@ def test_under_atomic_added_splits_of_nothing_are_refused_for_the_price_they_lea
     result = _run(runner, 'import', str(book), str(edited), '--atomic',
                   '--strategy', 'update')
 
-    message = result.output + str(result.exception)
-    assert result.exit_code != 0, message
-    assert 'cannot be edited in place' in message, message
-    assert 'Rolled back' in result.output, result.output
+    assert result.exit_code == 0, result.output
+    assert 'Changes saved' in result.output, result.output
     assert _cost_of_the_basis(runner, book) == before
 
 

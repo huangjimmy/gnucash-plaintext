@@ -1,0 +1,19 @@
+# The fee of a_usd_arrival_booked_to_the_directors_account.txt moved from
+# 2026-08-13 to 2026-08-14, every split and figure the same, for
+# `--strategy update`.
+#
+# A disposal's date is when it drew the cost basis down, so moving it changes
+# what the cost basis held on every day between, and is refused, the refusal
+# giving both dates.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-14 * "Wise charges"
+	guid: "0d0d0000000000000000000000000001"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.00 CAD
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "25/18"
+		value: "-1.00"
+		cost_basis_split_guid: "3cdacfb099e9c7fbe795b8aa317313bd"

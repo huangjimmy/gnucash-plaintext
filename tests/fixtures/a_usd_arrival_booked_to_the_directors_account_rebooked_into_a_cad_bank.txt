@@ -1,0 +1,20 @@
+# The arrival of a_usd_arrival_booked_to_the_directors_account.txt rebooked as
+# 3,791.14 CAD into a Canadian dollar bank, for `--strategy update`: the US
+# dollar split is gone from the block, so the edit removes it.
+#
+# The cost basis sits on that split, and the fee still draws 0.72 USD on it,
+# so the edit would leave the fee giving a cost basis the book no longer
+# holds. It is refused, saying the cost basis would be gone.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-08-13 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 3791.14 CAD
+	Assets:Due from shareholder -3791.14 CAD

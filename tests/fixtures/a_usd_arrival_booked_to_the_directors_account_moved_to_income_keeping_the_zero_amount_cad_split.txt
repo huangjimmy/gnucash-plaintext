@@ -1,0 +1,21 @@
+# The arrival of ..._given_a_zero_amount_cad_split.txt with its 3,791.14 CAD
+# split moved to income, for `--strategy update`, and its 0.00 CAD split kept
+# as it is. A split whose amount is zero has no rate of its own, so it is
+# compared at the rate the book holds for it; no figure a cost basis rests on
+# has moved, and the edit goes through.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-13 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+	Income:Sales -3791.14 CAD
+		guid: "6e1edce56a2f4ac8b84f15a96bd3ca56"
+		account.commodity.mnemonic: "CAD"
+		share_price: "272000/379114"
+		value: "-2720.00"
+	Assets:Due from shareholder 0.00 CAD
+		guid: "0d0d0000000000000000000000000006"
+		account.commodity.mnemonic: "CAD"

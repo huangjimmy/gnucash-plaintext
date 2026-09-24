@@ -96,10 +96,12 @@ from services.foreign_currency import (
     carry_the_cost_to_what_it_bought,
     cost_bases_changed,
     cost_basis_balance_of,
+    cost_basis_facts,
     cost_basis_guid_of,
     cost_of,
     disposals_drawing_on,
     establishes_cost_basis,
+    find_split_by_guid,
     give_back_to_cost_bases,
     has_cost_basis_balance,
     is_a_currency,
@@ -128,6 +130,9 @@ from services.foreign_currency import (
     the_bases_a_transaction_has,
     total_cost_basis_balance_in,
     transaction_currency,
+    transactions_drawing_on,
+    what_each_account_held_without,
+    what_is_left_of_the_cost,
     write_cost_basis_balance,
     write_cost_basis_cost,
 )
@@ -9225,9 +9230,9 @@ def _basis_figures_in_directive(directive, booked, relevant, book, priced_by_cad
                                 already_used=frozenset()):
     """The same figures as the incoming version states them.
 
-    A split that states no `value:` is compared on its booked value, since the
-    file is not restating it — only what the file actually says is treated as
-    a change.
+    A split that states no `value:` is worth its amount, which is what the
+    format means by leaving it out, or its amount times a `share_price:` it
+    states instead: the edit writes it so either way.
 
     Three kinds of split are compared. The accounts the booked side uses. Any
     split this file points at a cost basis with, whichever account it is on: a
@@ -9246,7 +9251,6 @@ def _basis_figures_in_directive(directive, booked, relevant, book, priced_by_cad
     -20.00 CAD` re-priced the cost basis from 25/18 to 19/14, silently. Removing a
     split was always caught, because a removed split is on the booked side.
     """
-    booked_values = {(row[0], row[1]): row[2] for row in booked}
     booked_rates = {(row[0], row[1]): row[3] for row in booked}
     root = book.get_root_account()
     rows = []
@@ -9272,9 +9276,9 @@ def _basis_figures_in_directive(directive, booked, relevant, book, priced_by_cad
             return None
         stated_value = child.metadata.get('value')
         if stated_value is None:
-            value = booked_values.get((account, amount))
-            if value is None:
-                return None
+            # Every split has a value; the format leaves `value:` out where
+            # it is the amount, and the edit writes it so.
+            value = amount
         else:
             try:
                 value = Fraction(str(stated_value))
@@ -9290,7 +9294,7 @@ def _basis_figures_in_directive(directive, booked, relevant, book, priced_by_cad
         # `GetSharePrice` answers for the book's side. A split of no amount has
         # no such price, and is read as before.
         stated_rate = child.metadata.get('share_price')
-        if stated_value is not None and amount:
+        if (stated_value is not None or stated_rate is None) and amount:
             rate = value / amount
         elif stated_rate is None:
             rate = booked_rates.get((account, amount))
@@ -9301,6 +9305,9 @@ def _basis_figures_in_directive(directive, booked, relevant, book, priced_by_cad
                 rate = Fraction(str(stated_rate))
             except (ValueError, ZeroDivisionError):
                 return None
+            # With no `value:` beside it, the price is what the edit values
+            # the split at: `SetSharePrice` revalues it at amount × price.
+            value = value if stated_value is not None else amount * rate
         picked = str(child.metadata.get(COST_BASIS_SPLIT_KEY) or '')
         rows.append((account, amount, value, rate,
                      picked.replace('-', '').lower()))
@@ -9426,14 +9433,20 @@ def _refuse_an_edit_that_adds_a_disposal(existing_tx, directive, book) -> None:
             f'on the split that spent it.')
 
 
-def _require_no_cost_basis_edit(existing_tx, directive) -> None:
-    """Refuse an in-place edit that would move what a cost basis rests on.
+def _require_no_cost_basis_edit(existing_tx, directive):
+    """Whether an in-place edit moves a figure a cost basis is read from.
+
+    None where no figure it compares has moved, or where `--atomic` defers the question, and
+    the rows compared — the book's and the file's — where something has.
+    Something moving does not mean a cost basis has: `update_transaction` then
+    compares the cost bases themselves, before the edit and once it is applied,
+    and refuses only where they differ (Q-048).
 
     Only the figures matter. A memo, a description, an action, a date, a
     doc_link — none of them can change what a cost basis holds or what it cost, so
     editing those on a transaction that touches a cost basis is ordinary and goes
     through. Changing an amount, a value, an account or the cost basis a split
-    picks does change it, and cannot be checked from here: the rules that
+    picks can change it, and cannot be checked from here: the rules that
     govern a sale run over a transaction's splits once they are book state,
     and an in-place edit has already overwritten what the old amounts drew
     before anything can re-check them. Left alone, that accepted a sale of
@@ -9530,16 +9543,190 @@ def _require_no_cost_basis_edit(existing_tx, directive) -> None:
             f'the cost basis back exactly what was taken from it, and the fresh '
             f'import checks the new figures against it.')
 
-    raise Exception(
-        f'transaction {guid} touches a cost basis, so its amounts, values, '
-        f'accounts, cost basis picks and the currency it is stated in cannot '
-        f'be '
-        f'edited in place — a memo or description can. Delete it and import '
-        f'the new version instead: '
-        f'`delete-transactions --by-guid {guid.replace("-", "")}` gives the '
-        f'cost basis back exactly what this transaction took, and the fresh '
-        f'import '
-        f'checks the new figures against it.')
+    # A figure a cost basis is read from has moved, which does not mean the
+    # cost basis has: moving the split that sets the rate to another account,
+    # or dividing it between two, leaves every cost basis where it was. So the
+    # cost bases are compared, before the edit and once it is applied, and the
+    # edit is refused only where they differ (`update_transaction`).
+    return booked, incoming
+
+
+def _with_values_the_import_requires(book, existing_tx, before, after):
+    """The facts after an edit, with a disposal whose value alone moved to what the import requires read as it was.
+
+    A book an earlier import wrote holds the last disposal of a cost basis at
+    its own share of the cost rounded, 3,802.81 where what is left of the
+    cost is 3,802.82, so the realized gain it records is 0.01 short. Restating
+    that value draws the same currency from the same cost basis, on the same
+    date, and leaves every cost basis's balance, cost and date as they were:
+    only the value moves, and to the one figure an import of the disposal
+    would require. So the edit is how such a book is corrected, and it stands.
+    A value moved anywhere else is still a change, and refused.
+    """
+    was = {(fact[0], fact[1]): fact for fact in before}
+    read = []
+    for fact in after:
+        old = was.get((fact[0], fact[1]))
+        if (fact[0] == 'draws' and old is not None and old != fact
+                and old[:7] + old[8:] == fact[:7] + fact[8:]):
+            split = next(each for each in existing_tx.GetSplitList()
+                         if split_guid(each) == fact[1])
+            # Only the last disposal, and only to what is left: the one
+            # correction a book an earlier import wrote needs. Any other
+            # disposal's value moved is a change, whatever it moves to.
+            left = what_is_left_of_the_cost(
+                split, find_split_by_guid(book, fact[4]), fact[4], fact[6],
+                split.GetParent().GetCurrency().get_fraction(), drawn_already=True)
+            # And stated in the book's own currency, which is what `left` is
+            # in: a value stated in another is in no figure to compare it with.
+            if (transaction_currency(split.GetParent()) == BASE_CURRENCY
+                    and left is not None and fact[7] == left):
+                fact = old
+        read.append(fact)
+    return read
+
+
+def _an_edit_moving_a_cost_basis(book, existing_tx, rows, before, after,
+                                 booked_unit, drawing) -> str:
+    """The refusal of an edit that changes a cost basis: what changed, and a route that works.
+
+    Which splits the book holds and the file states differently, then what
+    that does to a cost basis or a disposal — which is what the rule asks.
+    Refused with no more than "touches a cost basis", a reader could not tell
+    which line of a long block had moved.
+
+    **And a route that can be taken.** Deleting the transaction and importing
+    it afresh runs every check, but a transaction whose cost basis something
+    draws on cannot be deleted before what draws on it. Sent to delete it
+    alone, the reader was refused a second time. So where anything draws on
+    it, the command given deletes those first and then it, in one run, which
+    is the order `delete-transactions` accepts.
+
+    Everything about the book is taken from before the edit: the transaction
+    is still open, and reads as the edit leaves it. `booked_unit` is how
+    finely its currency then divided, `before` gives its cost bases, and
+    `drawing` is `transactions_drawing_on` read before the edit opened.
+    """
+    guid = existing_tx.GetGUID().to_string().replace('-', '')
+    root = book.get_root_account()
+    stated_unit = existing_tx.GetCurrency().get_fraction()
+
+    def a_split(row, unit):
+        commodity = find_account(root, row[0]).GetCommodity()
+        text = (f'{money_text(row[1], commodity.get_fraction())} '
+                f'{commodity.get_mnemonic()} on {row[0]!r} valued at '
+                f'{money_text(row[2], unit)}')
+        # The pick too: a split whose pick alone is cleared or changed would
+        # otherwise read the same in the book as in the file.
+        if row[4]:
+            text += f', drawn on cost basis {row[4]}'
+        return text
+
+    said = []
+    if rows is not None and rows[1] is not None:
+        booked, incoming = rows
+        stated = list(incoming)
+        held = []
+        for row in booked:
+            if row in stated:
+                stated.remove(row)
+            else:
+                held.append(row)
+        if held:
+            said.append('the book holds ' + '; '.join(a_split(row, booked_unit)
+                                                      for row in held))
+        if stated:
+            said.append('the file states ' + '; '.join(a_split(row, stated_unit)
+                                                       for row in stated))
+
+    # Each change with why it cannot be made in place: the reader is told what
+    # the edit would do to the book, not only that it touches a cost basis.
+    was = {(fact[0], fact[1]): fact for fact in before}
+    would = {(fact[0], fact[1]): fact for fact in after}
+    dated = {(fact[-1], would[key][-1]) for key, fact in was.items()
+             if key in would and fact[-1] != would[key][-1]}
+    for old_date, new_date in sorted(dated):
+        said.append(f'it is dated {old_date} and would be dated {new_date} — a cost '
+                    f'basis is dated when its currency arrived and a disposal when it '
+                    f'drew one down, and what the cost bases held on every day between '
+                    f'would change')
+    # Compared only because the date moved, where no figure compared moved or
+    # `--atomic` deferred what did: the date is the reason, and a figure the
+    # run would have deferred is not given as one.
+    for key in (sorted(set(was) | set(would)) if rows is not None else []):
+        old, new = was.get(key), would.get(key)
+        if key[0] == 'basis':
+            if new is None:
+                said.append(f'cost basis {key[1]} on {old[2]!r} would be gone — '
+                            f'every split drawing on it would give a cost basis the '
+                            f'book no longer holds')
+            elif old is None:
+                said.append(f'a cost basis would open on {new[2]!r} — a cost basis '
+                            f'opens as a transaction is imported, where every check '
+                            f'on it runs')
+            else:
+                if old[2] != new[2]:
+                    said.append(f'cost basis {key[1]} on {old[2]!r} would be on '
+                                f'{new[2]!r} — a cost basis stands for what the '
+                                f'account it is on holds, and a split spending from '
+                                f'{old[2]!r} would draw on a cost basis kept on '
+                                f'{new[2]!r}')
+                if old[6] != new[6]:
+                    said.append(f'cost basis {key[1]} costs {exact_text(old[6])} '
+                                f'{BASE_CURRENCY}/{old[3]} and would cost '
+                                f'{exact_text(new[6])} — every disposal already '
+                                f'drawn on it was valued at what it cost, and every '
+                                f'gain measured against it would move')
+                if old[5] != new[5] or old[4] != new[4]:
+                    said.append(f'cost basis {key[1]} brought in {exact_text(old[5])} '
+                                f'{old[3]} {"held" if old[4] == "asset" else "owed"} '
+                                f'and would bring in {exact_text(new[5])} '
+                                f'{"held" if new[4] == "asset" else "owed"} — it would '
+                                f'stand for other currency than what arrived')
+        elif new is None:
+            said.append(f'the split {key[1]} would no longer draw on cost basis '
+                        f'{old[4]} — what it took would stay off that cost basis '
+                        f'balance')
+        elif old is None:
+            said.append(f'a split on {new[2]!r} would draw on cost basis {new[4]} — '
+                        f'an edit takes no amount off a cost basis balance, so '
+                        f'that balance would still count what the split spends')
+        elif old[:8] != new[:8]:
+            said.append(f'the split {key[1]} on {old[2]!r} draws {exact_text(old[6])} '
+                        f'{old[3]} valued at {exact_text(old[7])} from cost basis '
+                        f'{old[4]}, and would draw {exact_text(new[6])} on '
+                        f'{new[2]!r} valued at {exact_text(new[7])} from {new[4]} — '
+                        f'what it took would stay off the first cost basis balance, '
+                        f'and the new amount would be taken off no cost basis '
+                        f'balance')
+
+    if drawing:
+        route = (
+            f'{len(drawing)} transaction(s) draw on its cost basis — '
+            f'{"; ".join(label for _guid, label in drawing)} — and it cannot be '
+            f'deleted before them. Delete them with it and import them all '
+            f'again: `delete-transactions --by-guid '
+            f'{" ".join(each.replace("-", "") for each, _label in drawing)} {guid}` '
+            f'deletes those first and gives each cost basis back what they '
+            f'took, and the fresh import checks every figure.')
+    else:
+        route = (
+            f'Delete it and import the new version instead: '
+            f'`delete-transactions --by-guid {guid}` gives the cost basis back '
+            f'exactly what this transaction took, and the fresh import checks '
+            f'the new figures against it.')
+    # Every difference in the facts has a sentence above. Should a fact gain a
+    # field none of them reads, the refusal still says what kind of thing moved.
+    reasons = ('; '.join(said)
+               or 'what a cost basis in it holds, or what a disposal in it draws, '
+                  'would differ')
+    return (f'transaction {guid} touches a cost basis, and this edit would change '
+            f'it, so it cannot be edited in place: {reasons}. An edit in '
+            f'place runs none of the checks a new transaction meets, and gives a '
+            f'cost basis balance no amount back that a disposal took, so a change '
+            f'to a cost basis is made by '
+            f'deleting and importing again; a memo, a description, or a figure no '
+            f'cost basis rests on can be edited in place. {route}')
 
 
 def _say_the_balances_are_the_files_to_state(booked, incoming, guid: str) -> None:
@@ -11884,8 +12071,53 @@ class GnuCashImporter:
         # back exactly what that sale took, and the new import runs every
         # check. That is what this refusal points at.
         _refuse_a_split_on_an_account_with_no_commodity(book, directive)
-        _require_no_cost_basis_edit(existing_tx, directive)
+        to_compare = _require_no_cost_basis_edit(existing_tx, directive)
         _refuse_an_edit_that_adds_a_disposal(existing_tx, directive, book)
+        # Where a figure a cost basis is read from has moved, the cost bases
+        # themselves are compared once the edit is applied, before it is
+        # committed. Read here, before the transaction is opened: what each
+        # account held without it has to be read while GnuCash still counts
+        # its splits where they are.
+        as_it_was = {split_guid(split): (get_account_full_name(split.GetAccount()),
+                                         numeric_to_fraction(split.GetAmount()),
+                                         existing_tx.GetDate().date())
+                     for split in existing_tx.GetSplitList()}
+        # And where the date moves: a cost basis's date is when its currency
+        # arrived, and a disposal's when it drew one down, so a date is part of
+        # both (`cost_basis_facts`).
+        # Only on a transaction touching a cost basis: one touching none may be
+        # edited into one that opens a cost basis, which
+        # `open_what_an_edit_made_a_basis` opens after the commit.
+        when = datetime.strptime(str(directive.props['date']), '%Y-%m-%d').date()
+        date_moves = when != existing_tx.GetDate().date()
+        facts_before = cost_basis_facts(existing_tx)
+        compare = to_compare is not None or (date_moves and bool(facts_before))
+        # Read for any transaction touching a cost basis, compared or not: the
+        # reading after the commit needs the same balances, and under
+        # `--atomic`, where a changed figure is not compared, it is the only
+        # reading there is. Read from the balance as of the day instead, it
+        # counted a fee drawn on the arrival the same day as though it came
+        # before it, and recorded 2,719.28 brought in where it was 2,720.00.
+        held_without = None
+        if compare or facts_before:
+            root = book.get_root_account()
+            # Each account the transaction is on or the block gives, once, by
+            # its full name, which is what the balances are looked up by.
+            touched = {get_account_full_name(account): account for account in (
+                [split.GetAccount() for split in existing_tx.GetSplitList()]
+                + [find_account(root, str(child.props['account']))
+                   for child in directive.children])}
+            # What draws on its cost bases, down the chain, read before the
+            # edit opens: those came after it, and are what a refused edit
+            # gives to delete first.
+            drawing = transactions_drawing_on(
+                book, existing_tx, {fact[1] for fact in facts_before if fact[0] == 'basis'})
+            held_without = what_each_account_held_without(
+                existing_tx, touched.values(), when,
+                came_after={guid for guid, _label in drawing})
+            # How finely the book's values are kept: read now, because an
+            # edit may restate the currency, and yen divide into 1.
+            booked_unit = existing_tx.GetCurrency().get_fraction()
 
         # A block with no splits, against a transaction that has some. The
         # block is the source of truth for the splits — one absent from it is
@@ -12079,12 +12311,20 @@ class GnuCashImporter:
             # thing the edit does.
             _set_the_account_each_block_gives(accounts_the_blocks_give)
 
+            # The splits this edit destroys. GnuCash lists a destroyed split
+            # in its transaction, account and figures as they were, until the
+            # commit, so the cost bases read before the commit leave them out:
+            # read with them, an arrival rebooked into a Canadian dollar bank
+            # still showed the US dollar cost basis it had just removed.
+            destroyed: set = set()
+
             # Splits for accounts the file no longer names. Refused above
             # where one is in a lot — nothing here decides anything, it
             # carries out the plan.
             for acct_name, splits in grouped_splits.items():
                 if acct_name not in desired_by_account:
                     for split in splits:
+                        destroyed.add(split_guid(split))
                         split.Destroy()
 
             # Update existing splits or create new ones. Each block updates
@@ -12099,6 +12339,7 @@ class GnuCashImporter:
                 # about a transaction's splits, as it always was. One in a
                 # lot was refused above, before anything moved.
                 for surplus in orphaned:
+                    destroyed.add(split_guid(surplus))
                     surplus.Destroy()
 
                 for i, split_directive in enumerate(split_directives):
@@ -12217,6 +12458,19 @@ class GnuCashImporter:
                         stated_balance_splits.append(split)
 
             _restore_txn_type(existing_tx, directive)
+            # Before the commit, so the rollback below undoes it all, what it
+            # records past zero included. The edit stands where every cost
+            # basis is what it was and every disposal draws what it drew.
+            if compare:
+                mark_what_arrives_past_zero(existing_tx, held_without, as_it_was,
+                                            leaving=destroyed)
+                facts_after = _with_values_the_import_requires(
+                    book, existing_tx, facts_before,
+                    cost_basis_facts(existing_tx, leaving=destroyed))
+                if facts_after != facts_before:
+                    raise Exception(_an_edit_moving_a_cost_basis(
+                        book, existing_tx, to_compare, facts_before, facts_after,
+                        booked_unit, drawing))
             existing_tx.CommitEdit()
             logging.debug(f"Updated transaction on {date_str}")
 
@@ -12237,8 +12491,9 @@ class GnuCashImporter:
             note_stated_balance(split)
 
         # What each split brought in is read again, because an edit can turn
-        # which way a split moves (Q-047).
-        mark_what_arrives_past_zero(existing_tx)
+        # which way a split moves (Q-047), from what each account held before
+        # the transaction where that was read.
+        mark_what_arrives_past_zero(existing_tx, held_without, as_it_was=as_it_was)
         open_what_an_edit_made_a_basis(existing_tx, splits_before)
 
     @staticmethod

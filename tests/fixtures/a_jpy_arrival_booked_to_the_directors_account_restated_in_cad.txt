@@ -1,0 +1,16 @@
+# The arrival of a_jpy_arrival_booked_to_the_directors_account.txt stated in
+# Canadian dollars at 910.00, for `--strategy update`: that re-prices the cost
+# basis, and is refused. The Canadian dollar split states no `value:`, as a
+# split in the currency its transaction is stated in needs none: its value is
+# its amount, and the refusal gives it as the file states it.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-13 * "Received yen"
+	guid: "0d0d0000000000000000000000000005"
+	currency.mnemonic: "CAD"
+	Assets:Wise JPY 100000 JPY
+		account.commodity.mnemonic: "JPY"
+		share_price: "91/10000"
+		value: "910.00"
+	Assets:Due from shareholder -910.00 CAD

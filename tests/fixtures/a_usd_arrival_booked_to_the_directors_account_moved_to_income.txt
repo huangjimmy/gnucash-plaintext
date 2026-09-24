@@ -1,0 +1,18 @@
+# The arrival of a_usd_arrival_booked_to_the_directors_account.txt with its
+# Canadian dollar split moved from the director's account to income, for
+# `--strategy update`. Every figure is the same: the US dollar split, its guid,
+# and the Canadian dollar split's amount, value and share price. So the rate
+# the cost basis is priced at, 3,791.14 over 2,720.00, has not moved, and the
+# edit goes through.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-13 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+	Income:Sales -3791.14 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "272000/379114"
+		value: "-2720.00"

@@ -1,0 +1,77 @@
+# 2,720.00 USD arriving in a US dollar bank, in a transaction stated in US
+# dollars, with its other split on the director's account for 3,791.14 CAD
+# because nobody yet knew what the money was for; and a 0.72 USD bank fee drawn
+# on the cost basis the arrival opened.
+#
+# The transaction is stated in US dollars, so what the dollars cost is worked
+# out from its Canadian dollar split: 3,791.14 CAD over 2,720.00 USD. That split
+# sets the rate; its account does not.
+#
+# - ..._moved_to_income.txt moves the Canadian dollar split to income with
+#   `--strategy update`, every figure the same;
+# - ..._amount_changed.txt restates its amount, which re-prices the cost basis.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Wise USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Due from shareholder
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Bank charges
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-08-13 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+	Assets:Due from shareholder -3791.14 CAD
+		guid: "6e1edce56a2f4ac8b84f15a96bd3ca56"
+		account.commodity.mnemonic: "CAD"
+		share_price: "272000/379114"
+		value: "-2720.00"
+
+2026-08-13 * "Wise charges"
+	guid: "0d0d0000000000000000000000000001"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.00 CAD
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "25/18"
+		value: "-1.00"
+		cost_basis_split_guid: "3cdacfb099e9c7fbe795b8aa317313bd"

@@ -1,0 +1,19 @@
+# The fee of a_usd_arrival_booked_to_the_directors_account.txt with its pick
+# cleared, for `--strategy update`: every figure the same, and
+# `cost_basis_split_guid: ""` where it gave the arrival's cost basis.
+#
+# The 0.72 USD came off the cost basis balance when the fee was imported, and
+# an edit does not put it back on. It is refused, and the split the book holds is given
+# with the cost basis it draws on, so the two lines of the refusal differ.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-13 * "Wise charges"
+	guid: "0d0d0000000000000000000000000001"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.00 CAD
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "25/18"
+		value: "-1.00"
+		cost_basis_split_guid: ""
