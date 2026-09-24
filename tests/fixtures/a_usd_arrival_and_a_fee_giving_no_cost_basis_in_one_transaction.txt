@@ -1,0 +1,20 @@
+# Q-050 E10: the arrival and a 0.72 USD fee out of it, the fee giving no cost
+# basis. The fee spends dollars, and every spend gives the cost basis it
+# draws on, so the transaction is refused — and the refusal gives both ways
+# to write it: the arrival net of the fee, 2,719.28 USD for the 3,800.00, or
+# the fee kept, giving the arrival's position.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, less the transfer fee"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "380000/272000"
+		value: "3800.00"
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "101/72"
+		value: "-1.01"
+	Income:Sales -3800.00 CAD
+	Expenses:Bank charges 1.01 CAD

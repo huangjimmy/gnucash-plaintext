@@ -407,6 +407,8 @@ held, which draws down a cost basis, but no split says which one. State
 cost basis the USD came out of — `fx-balances` lists them.
 ```
 
+The message goes on to list each cost basis that split could give, written as the line to add: each one the book holds by its guid, with what it has left (not an invoice's or a bill's, which settling it draws down), and each arrival in the same transaction or in one above it in the file by its position (see "A file that opens a cost basis and spends it in one run" below). Where the currency held left an account the same transaction brings it into, it also gives the arrival written net of what was spent, which makes the spend part of what the currency cost and records no spend. It chooses none of them.
+
 Three things are asked before that, and each is a case where nothing was disposed of:
 
 - **what the side holds has to fall**, netted across the transaction, so 4,000.00 USD moved from one US dollar account to another is no disposal — the book holds every dollar it held before, and drawing a cost basis down there would destroy what it still owns;
@@ -452,7 +454,7 @@ Where both sides cost the same a dollar nothing is realized, and the repayment i
 
 A share sale written wholly in the foreign currency is refused the same way, and always: the shares leave at what they cost in the book's own currency, what they fetched arrives in another with no cost to open a cost basis at, and no split can state the gain between them. Write it in Canadian dollars, the shares at what they cost and the currency at what it fetched, with a `$residual$` split. So is one currency held exchanged for another in a transaction stating no Canadian figure — US dollars for Hong Kong dollars, stated in Hong Kong dollars — for the same reason: what the US dollars cost leaves, and the Hong Kong dollars arrive with no cost to open a cost basis at.
 
-**A transfer is written as a transaction of its own.** 4,000.00 USD moved from one US dollar account to another draws down no cost basis and opens none. A fee paid out of those accounts in the same transaction, or more dollars bought into them, does — and in one transaction nothing says which units moved and which left or arrived: 4,010.00 USD leaving the bank and 4,000.00 arriving in savings does not say which 10.00 was the fee. So such a transaction is refused, and written again as the transfer and the fee, or the transfer and the purchase. Two splits on one account are not a transfer: 100.00 USD bought with the bank keeping 1.00 of it as its fee is 99.00 arriving, and the cost basis opens for the 99.00 the account kept.
+**A transfer is written as a transaction of its own.** 4,000.00 USD moved from one US dollar account to another draws down no cost basis and opens none. A fee paid out of those accounts in the same transaction, or more dollars bought into them, does — and in one transaction nothing says which units moved and which left or arrived: 4,010.00 USD leaving the bank and 4,000.00 arriving in savings does not say which 10.00 was the fee. So such a transaction is refused, and written again as the transfer and the fee, or the transfer and the purchase. Two splits on one account are not a transfer: 100.00 USD bought with the bank keeping 1.00 of it as its fee is a purchase and a spend, and the fee gives the purchase's position as the cost basis it draws on (below), which leaves 99.00. A fee giving no cost basis is refused, and the refusal gives the two ways to write it: the arrival net of the fee, so the fee is part of what the dollars cost and no fee is recorded, or the fee kept, with every cost basis it could give listed as the line to add.
 
 **A book written before a disposal had to say which cost basis it came out of** — by GnuCash's own register, or by an earlier gnucash-plaintext — is read as it stands. Its export is a ledger like any other, and imported into a new book it meets the same rules, so each such disposal is refused and everything else is imported. The refusals list every one of them. For each:
 
@@ -466,7 +468,23 @@ A cost basis with no stored `cost_basis_balance` — one made in GnuCash's regis
 
 Run the import with `--verify-integrity`, and it says whether the cost bases then hold what the accounts hold. `tests/integration/test_a_book_whose_disposals_give_no_cost_basis_is_brought_forward.py` does it for a spend written in GnuCash's register.
 
-**A file that opens a cost basis and spends it in one run gives the split its own guid.** `cost_basis_split_guid:` takes the guid of the split the cost basis sits on, and GnuCash assigns that guid as the file is read, so there is nothing to copy out of `fx-balances` yet. Write `guid:` on the arriving split and give the same guid to the disposal below it:
+**A file that opens a cost basis and spends it in one run gives the arriving split by its position in the file.** `cost_basis_split_guid:` takes the guid of the split the cost basis sits on, and GnuCash assigns that guid as the file is read, so there is nothing to copy out of `fx-balances` yet. Give instead the variable `$transactions_to_import[n].splits[m].guid$`: the file's n-th transaction block and its m-th split line, each counted from 0 in the order the file writes them. `open`, `commodity`, `price`, `invoice`, `bill` and `company` blocks are not counted. Write it unquoted, as `$residual$` is written; in quotes it is a string, read as a guid, and matches no split. It is read only as `cost_basis_split_guid:` on a split of a transaction; written anywhere else, such as a payment block's `txn_split_guid:`, the file is refused before any of it is applied.
+
+```
+2026-08-13 * "Received money, less the transfer fee"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		value: "3800.00"
+	Assets:Wise USD -0.72 USD
+		value: "-1.01"
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$
+	Income:Sales -3800.00 CAD
+	Expenses:Bank charges 1.01 CAD
+```
+
+The arrival opens a cost basis of 2,720.00 USD costing 3,800.00, and the fee draws 0.72 of it, leaving 2,719.28. The position points at a split of the same transaction or of one above it. One below has not been imported when it is read, so the whole file is refused before any of it is applied, saying to move that block above. What the book keeps is the guid of the split it points at, exactly as though the file had written it, so `export` writes the guid. One transaction may mix the two: a split giving a guid draws on a cost basis the book already holds, and another giving a position draws on one the file brings in. Under `--strategy update`, and for a transaction the import passes over as already in the book, a position is the `guid:` the line it points at gives, which an export writes on every split.
+
+The other way is to write `guid:` on the arriving split yourself and give the same guid to the disposal below it:
 
 ```
 2026-01-10 * "Buy 45 USD at 1.405"
@@ -2502,7 +2520,7 @@ Standalone transactions are created (with their declared `guid:` on both the tra
 
 A ledger states transactions in the order the book keeps them, which is GnuCash's own and the one every register shows: the posted date, then `num` where the transactions carry one, then when each was entered, then the description, then the guid. Two transactions of one day are ordered by the `num` you give them, and two carrying none by their descriptions.
 
-With one exception, which is about the file rather than the book: **a transaction holding a cost basis is stated above any transaction that draws on it.** `cost_basis_split_guid:` is resolved as each block is applied, so a sale whose cost basis the file states further down is refused with "matches no split in the book". Two transactions of one day, one a deposit and one a fee drawn on it, come out fee-first by description — and that ledger does not rebuild the book it came from.
+With one exception, which is about the file rather than the book: **a transaction holding a cost basis is stated above any transaction that draws on it.** `cost_basis_split_guid:` is resolved as each block is applied, so a sale whose cost basis the file states further down is refused with "matches no split in the book", and one giving that cost basis by its position is refused before any of the file is applied. Two transactions of one day, one a deposit and one a fee drawn on it, come out fee-first by description — and that ledger does not rebuild the book it came from.
 
 The exception does not ask which of the two is dated first, so a cost basis dated *after* the sale drawn on it — a mistyped date — is stated above the sale, and the file goes out of date order to stay readable. Where two transactions draw on each other no order reads back, and the book's own is written. A running balance is unaffected either way: `--with-balance` states a figure as at a date, added up over the book in its own order.
 

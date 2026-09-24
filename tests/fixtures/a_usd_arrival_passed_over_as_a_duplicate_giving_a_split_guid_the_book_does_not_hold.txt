@@ -1,0 +1,26 @@
+# Q-050 E19, onto a_usd_arrival_whose_fee_an_edit_adds_the_arrival_alone.txt:
+# the arrival written again with no transaction `guid:`, so the import passes
+# over it as a duplicate of the one the book holds, but its split giving a
+# `guid:` that is no split of that transaction. The fee below, giving the
+# arrival's position, is refused: which split of the book that line is cannot
+# be read from the file.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, less the transfer fee"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e5e0000000000000000000000000077"
+		account.commodity.mnemonic: "USD"
+		share_price: "380000/272000"
+		value: "3800.00"
+	Income:Sales -3800.00 CAD
+
+2026-08-14 * "The transfer fee"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.01 CAD
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "101/72"
+		value: "-1.01"
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$

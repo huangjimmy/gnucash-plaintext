@@ -1,0 +1,33 @@
+# Q-050 E5: 2,720.00 USD arriving for 3,800.00 CAD, 1,000.00 of them
+# converted into 900.00 EUR, and a 1.00 EUR fee out of the euros, in one
+# transaction. The conversion gives the dollars' position and opens a euro
+# cost basis; the fee gives the euros' position.
+#
+# The conversion draws 1,000.00 USD, valued at 1,397.06, and the euros cost
+# the same; the fee draws 1.00 EUR, valued at 1,397.06 / 900.00 = 1.5522…,
+# 1.55. Left: 1,720.00 USD and 899.00 EUR.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, some to euros, and a euro fee"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "380000/272000"
+		value: "3800.00"
+	Assets:Wise USD -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "139706/100000"
+		value: "-1397.06"
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$
+	Assets:Wise EUR 900.00 EUR
+		account.commodity.mnemonic: "EUR"
+		share_price: "139706/90000"
+		value: "1397.06"
+	Assets:Wise EUR -1.00 EUR
+		account.commodity.mnemonic: "EUR"
+		share_price: "155/100"
+		value: "-1.55"
+		cost_basis_split_guid: $transactions_to_import[0].splits[2].guid$
+	Income:Sales -3800.00 CAD
+	Expenses:Bank charges 1.55 CAD

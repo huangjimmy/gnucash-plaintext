@@ -1,0 +1,22 @@
+# Q-050 E10 on the owed side: E4 with the repayment giving no cost basis.
+#
+# 2.00 USD charged to the card and 1.00 USD paid back in one transaction, the
+# repayment saying nothing of which cost basis it repays. Refused as E10 is,
+# and the first way the refusal gives is the charge written net of the
+# repayment, `Liabilities:USD Card -1.00 USD`, keeping its value.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Supplies on the card, part paid back"
+	currency.mnemonic: "CAD"
+	Expenses:Supplies 2.01 CAD
+	Liabilities:USD Card -2.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "201/200"
+		value: "-2.01"
+	Liabilities:USD Card 1.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "101/100"
+		value: "1.01"
+	Assets:Chequing -1.40 CAD
+	Income:Foreign exchange gains/losses 0.39 CAD

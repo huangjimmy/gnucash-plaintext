@@ -1,0 +1,29 @@
+# Q-050 E2: 2,720.00 USD arriving, a 0.72 USD fee, and the other 2,719.28
+# sent on to a Canadian dollar account, all in one transaction and both
+# giving the arrival's position.
+#
+# The fee is valued at its share of the cost, 1.01, and the rest is the last
+# of the cost basis, valued at what is left of the 3,800.00, 3,798.99. The
+# cost basis is spent to 0.00.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, the fee, and the rest to chequing"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "380000/272000"
+		value: "3800.00"
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "101/72"
+		value: "-1.01"
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$
+	Assets:Wise USD -2719.28 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "379899/271928"
+		value: "-3798.99"
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$
+	Income:Sales -3800.00 CAD
+	Expenses:Bank charges 1.01 CAD
+	Assets:Chequing 3798.99 CAD

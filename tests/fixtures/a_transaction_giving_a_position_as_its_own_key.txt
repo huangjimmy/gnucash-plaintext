@@ -1,0 +1,12 @@
+# Q-050 E23: a position written on a transaction rather than on one of its
+# splits. A position is read only as `cost_basis_split_guid:` on a split, so
+# the file is refused before any of it is applied, saying where a position is
+# read. Onto accounts_for_spending_currency_its_own_import_brings_in.txt.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money"
+	currency.mnemonic: "CAD"
+	cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$
+	Assets:Chequing 500.00 CAD
+	Income:Sales -500.00 CAD

@@ -1,0 +1,23 @@
+# Q-050 E10, stated in US dollars: the arrival of E3 and a 0.72 USD fee giving
+# no cost basis, in one transaction stated in USD.
+#
+# Refused as E10 is. In a transaction stated in US dollars a US dollar split's
+# value is its amount, so the arrival written net of the fee is 2,719.28 USD
+# valued 2,719.28, and the splits beside it are then valued 2,719.28 between
+# them in place of 2,720.00: the 3,791.14 CAD bought 2,719.28 USD. The refusal
+# says so.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, less the transfer fee"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+	Assets:Wise USD -0.72 USD
+	Assets:Due from shareholder -3791.14 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "272000/379114"
+		value: "-2720.00"
+	Expenses:Bank charges 1.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "72/100"
+		value: "0.72"

@@ -1,0 +1,14 @@
+# The arrival of a_usd_arrival_whose_fee_an_edit_adds.txt as the book holds
+# it before the edit: no fee.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money, less the transfer fee"
+	guid: "0e5e00000000000000000000000000a9"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e5e0000000000000000000000000008"
+		account.commodity.mnemonic: "USD"
+		share_price: "380000/272000"
+		value: "3800.00"
+	Income:Sales -3800.00 CAD

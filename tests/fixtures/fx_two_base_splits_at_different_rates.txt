@@ -13,6 +13,9 @@
 # nothing in the rounded amounts separates the two cases. Rates run forward
 # into figures; the figures do not run back into rates.
 #
+# The 8.00 USD fee is taken out of the 100.00 that arrived, so it gives the
+# arrival's position as the cost basis it draws on (Q-050).
+#
 # Verified by tests/integration/test_verify_costs.py.
 2026-01-01 open Assets
 	type: Asset
@@ -53,6 +56,7 @@
 		account.commodity.mnemonic: "USD"
 		share_price: "1"
 		value: "-8.00"
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$
 	Income:Sales -140.00 CAD
 		account.commodity.mnemonic: "CAD"
 		value: "-100.00"

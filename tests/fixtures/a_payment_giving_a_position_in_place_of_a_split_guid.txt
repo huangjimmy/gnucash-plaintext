@@ -1,0 +1,36 @@
+# Q-050 E23: a position written where it is not read, as the split an
+# invoice's payment block settles from.
+#
+# A position is read only as `cost_basis_split_guid:` on a split of a
+# transaction. Anywhere else an unquoted `$…$` is a variable this format does
+# not read there, and the file is refused before any of it is applied, saying
+# where a position is read. Onto
+# accounts_for_spending_currency_its_own_import_brings_in.txt.
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-13 * "Received money"
+	currency.mnemonic: "CAD"
+	Assets:Chequing 500.00 CAD
+	Income:Sales -500.00 CAD
+
+customer "C-CAD"
+	name: "A Customer"
+	currency: CAD
+
+invoice "INV-CAD-1"
+	customer_id: "C-CAD"
+	currency: CAD
+	date_opened: 2026-08-13
+	entry:
+		date: 2026-08-13
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 500
+		taxable: false
+		tax_included: false
+	payment:
+		date: 2026-08-13
+		txn_split_guid: $transactions_to_import[0].splits[0].guid$
