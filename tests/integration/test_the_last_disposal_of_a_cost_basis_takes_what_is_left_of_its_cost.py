@@ -122,7 +122,12 @@ def test_a_book_holding_it_at_its_own_share_is_corrected_in_place(
 
 
 def test_a_value_moved_to_any_other_figure_in_place_is_refused(tmp_path):
-    """3,802.80 is neither the share, 3,802.81, nor what is left, 3,802.82."""
+    """3,802.80 is neither the share, 3,802.81, nor what is left, 3,802.82.
+
+    Read as a new transaction would be (Q-051), the disposal takes the last of
+    the cost basis, and is refused as a new import of it would be, giving what
+    is left of the cost.
+    """
     book = _book(tmp_path, LOSS)
     last = LOSS + '_the_last_at_what_is_left.txt'
     made = _run(CliRunner(), 'import', str(book), last)
@@ -133,12 +138,22 @@ def test_a_value_moved_to_any_other_figure_in_place_is_refused(tmp_path):
                 '--strategy', 'update')
 
     assert done.exit_code != 0, done.output
-    assert 'cannot be edited in place' in done.output, done.output
+    assert ('what is left of cost basis 0e0e0000000000000000000000000002 is what the '
+            'last of it cost plus what the rounding of the disposals before it left, '
+            'i.e. 3802.82 CAD') in done.output, done.output
     assert _exchange_account(book) == Fraction('44.60')
 
 
-def test_a_disposal_that_is_not_the_last_is_not_revalued_in_place(tmp_path):
-    """The 0.72 USD charge of 08-13 at 1.02: two disposals of the cost basis are dated after it."""
+def test_a_disposal_edited_in_place_takes_what_is_left_when_it_draws_the_last_of_it(tmp_path):
+    """The 0.72 USD charge of 08-13 at 1.02, on a book whose last disposal an earlier import left a cent short.
+
+    Read as a new transaction would be (Q-051), what the charge drew is given
+    back and drawn again, and it is then what takes the last 0.72 of the cost
+    basis: what is left of the cost is 1.02, because the disposal an earlier
+    import valued at its own share, 3,802.81, left a cent of the cost behind.
+    Valued at that, the three disposals add up to what the dollars cost, and
+    the book records the whole realized loss, 44.61.
+    """
     book = _book(tmp_path, LOSS)
     last = LOSS + '_the_last_at_what_is_left.txt'
     made = _run(CliRunner(), 'import', str(book), last)
@@ -148,9 +163,8 @@ def test_a_disposal_that_is_not_the_last_is_not_revalued_in_place(tmp_path):
     done = _run(CliRunner(), 'import', str(book), LOSS + '_the_first_fee_at_1_02.txt',
                 '--strategy', 'update')
 
-    assert done.exit_code != 0, done.output
-    assert 'cannot be edited in place' in done.output, done.output
-    assert _exchange_account(book) == Fraction('44.60')
+    assert done.exit_code == 0, done.output
+    assert _exchange_account(book) == Fraction('44.61')
 
 
 @pytest.mark.parametrize('base, what_is_left, realized', CASES)

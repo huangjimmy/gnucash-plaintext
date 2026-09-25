@@ -1,0 +1,176 @@
+# Q-051: the book a statement's US dollar lines are imported onto, against a
+# holding account, and later edited into what they were.
+#
+# Two invoices to one customer, 2,720.00 USD (INV-USD-1) and 4,000.00 USD
+# (INV-USD-2, for a part payment), and two bills from one supplier, 1,000.00
+# USD (BILL-USD-1) and 1,500.00 USD (BILL-USD-2, for a part payment), posted
+# at the rates of
+# usd_at_the_rates_the_statement_lines_records_were_posted_at.yaml: 1.393801
+# on 2026-07-31 and 1.38 on 2026-08-01. Imported with
+# `--include-business-objects`.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-07-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-07-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-07-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Wise USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Assets:USD Savings
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Assets:Chequing
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Due from director
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Accounts Receivable USD
+	type: "Receivable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Liabilities:Accounts Payable USD
+	type: "Payable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Equity:Opening balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Income:FX gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Expenses:Bank charges
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Expenses:Supplies
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-USD"
+	name: "Example Customer Inc"
+	currency: USD
+
+vendor "V-USD"
+	name: "Example Supplier Inc"
+	currency: USD
+
+invoice "INV-USD-1"
+	customer_id: "C-USD"
+	currency: USD
+	date_opened: 2026-07-31
+	entry:
+		date: 2026-07-31
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 2720
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-31
+		due: 2026-08-30
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-1"
+		accumulate: true
+
+invoice "INV-USD-2"
+	customer_id: "C-USD"
+	currency: USD
+	date_opened: 2026-07-31
+	entry:
+		date: 2026-07-31
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 4000
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-31
+		due: 2026-08-30
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-2"
+		accumulate: true
+
+bill "BILL-USD-1"
+	vendor_id: "V-USD"
+	currency: USD
+	date_opened: 2026-08-01
+	entry:
+		date: 2026-08-01
+		description: "Parts"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 1000
+		taxable: false
+	posted:
+		date: 2026-08-01
+		due: 2026-08-31
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-1"
+		accumulate: true
+
+bill "BILL-USD-2"
+	vendor_id: "V-USD"
+	currency: USD
+	date_opened: 2026-08-01
+	entry:
+		date: 2026-08-01
+		description: "Parts"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 1500
+		taxable: false
+	posted:
+		date: 2026-08-01
+		due: 2026-08-31
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-2"
+		accumulate: true

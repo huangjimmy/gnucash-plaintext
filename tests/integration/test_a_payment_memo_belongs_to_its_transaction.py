@@ -727,8 +727,10 @@ class TestTheFileSayingItTwice:
             _receivable_memos(book)
         # And one transaction changed is one transaction: the pass that
         # updates it from its own block reports it, and the memo written
-        # from the invoice's block is the same transaction.
-        assert _updated(result) == 2, result.output
+        # from the invoice's block is the same transaction. The invoice's
+        # posting, stated as the book holds it, is up to date.
+        assert _updated(result) == 1, result.output
+        assert 'Up to date:   1 (no new changes, not edited)' in result.output, result.output
 
     def test_and_the_two_halves_agreeing_restores_as_it_always_did(self,
                                                                    tmp_path):
@@ -1022,10 +1024,11 @@ class TestTheTransactionItselfIsInTheFileToo:
 
         assert 'Corrected memo' in _bank_memos(book), _bank_memos(book)
         # The figure `--strategy update` reports is the transactions the file
-        # named, changed or not — so correcting a memo must not add to it a
-        # second time. Measured against the same file with nothing edited.
-        assert _updated(result) == _updated(first), (result.output,
-                                                     first.output)
+        # changed. The untouched file changes none: every transaction in it
+        # is up to date. The corrected one changes one, the payment, and the
+        # memo its payment block restates adds nothing to that.
+        assert _updated(first) == 0, first.output
+        assert _updated(result) == 1, result.output
 
 
 class TestASplitTheFileDoesNotState:

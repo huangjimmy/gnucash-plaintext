@@ -1,7 +1,8 @@
 # The last of the three disposals of a_usd_sale_spent_in_three_disposals_that_round_down.txt,
 # valued at 3,802.80: neither its own share of the cost rounded, 3,802.81,
-# nor what is left of it, 3,802.82. An edit in place moving the value to it
-# changes what the disposal took, and is refused.
+# nor what is left of it, 3,802.82. An edit in place moving the value to it is
+# read as a new transaction would be (Q-051), and refused as a new import of it
+# would be, giving what is left of the cost.
 #
 # Verified by
 # tests/integration/test_the_last_disposal_of_a_cost_basis_takes_what_is_left_of_its_cost.py.

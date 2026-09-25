@@ -249,6 +249,7 @@ def _load_gobject() -> Optional[ctypes.CDLL]:
         return ctypes.CDLL('libgobject-2.0.so.0')
 
 
+@lru_cache(maxsize=1)
 def _load_gnc_engine() -> ctypes.CDLL:
     """
     Load libgncmod-engine with RTLD_GLOBAL promotion.
@@ -259,6 +260,11 @@ def _load_gnc_engine() -> ctypes.CDLL:
 
     qof_instance_set_kvp / qof_instance_get_kvp live in
     libgncmod-engine.so (not libgnc-engine.so).  Promote both paths.
+
+    Cached, as `_load_gobject` is: every KVP read and write asks for it, and
+    loaded afresh each time it opened three handles per read. On a book of
+    2,000 transactions an unchanged `--strategy update` spent 120 s of its
+    216 s here (`tests/research/how_long_an_unchanged_update_takes_as_a_book_grows_probe.py`).
     """
     for path in (
         '/usr/lib/x86_64-linux-gnu/gnucash/gnucash/libgncmod-engine.so',
@@ -494,10 +500,21 @@ def set_custom_metadata(obj, metadata: dict) -> None:
     # slot is replaced, so leaving a key out removes it — is counted, for a
     # reader keeping an answer that depends on those keys (`watch_custom_key`).
     global _watched_key_writes
+    held = ((_get_string_slot(obj, PT_DATA_SLOT) or '')
+            if _WATCHED_KEYS or _LOGGED_KEYS else '')
     if (any(key in metadata for key in _WATCHED_KEYS)
-            or any(f'"{key}"' in (_get_string_slot(obj, PT_DATA_SLOT) or '')
-                   for key in _WATCHED_KEYS)):
+            or any(f'"{key}"' in held for key in _WATCHED_KEYS)):
         _watched_key_writes += 1
+    # And each change of a logged key's value, with the object it is on, for
+    # a reader keeping an index of that key (`log_custom_key_changes`). Only
+    # an object with a guid to give: an invoice or a bill has no `GetGUID`
+    # (CLAUDE.md finding 13), and a person may write the key among an
+    # invoice's own custom keys, which is no split's pick.
+    for key, changes in _LOGGED_KEYS.items():
+        if (key in metadata or f'"{key}"' in held) and hasattr(obj, 'GetGUID'):
+            was = get_custom_metadata(obj).get(key)
+            if was != metadata.get(key):
+                changes.append((obj.GetGUID().to_string(), was, metadata.get(key)))
     try:
         json_str = json.dumps(metadata, ensure_ascii=False, sort_keys=True)
         _set_string_slot(obj, PT_DATA_SLOT, json_str)
@@ -522,6 +539,36 @@ def watch_custom_key(key: str) -> None:
 def watched_key_writes() -> int:
     """How many writes have set or dropped a watched key so far."""
     return _watched_key_writes
+
+
+#: Each logged key, and every change of its value `set_custom_metadata` has
+#: made since the log was last forgotten: `(guid, was, now)`.
+_LOGGED_KEYS: dict = {}
+
+
+def log_custom_key_changes(key: str) -> None:
+    """Record, from now on, every `set_custom_metadata` that changes `key`'s value.
+
+    For a reader keeping an index of that key across a whole book, which it
+    brings up to date from the changes rather than walking the book again:
+    `watch_custom_key` says only that something changed.
+    """
+    _LOGGED_KEYS.setdefault(key, [])
+
+
+def custom_key_changes(key: str) -> list:
+    """The changes of a logged key since the log was last forgotten.
+
+    The same list until `forget_custom_key_changes`, which starts a new one:
+    a reader holding the old list knows its index is out of date.
+    """
+    return _LOGGED_KEYS[key]
+
+
+def forget_custom_key_changes() -> None:
+    """Start every log afresh, so it does not grow for as long as a process runs."""
+    for key in _LOGGED_KEYS:
+        _LOGGED_KEYS[key] = []
 
 
 def set_book_string_option(book, section: str, name: str, value: str) -> bool:

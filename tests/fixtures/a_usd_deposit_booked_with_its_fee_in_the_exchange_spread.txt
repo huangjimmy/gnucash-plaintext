@@ -1,0 +1,16 @@
+# Q-051 E8: a_usd_deposit_and_its_fee_on_a_holding_account.txt booked with
+# the fee as part of the exchange spread: the fee's two splits dropped and
+# the deposit written net of it, 2,719.28 USD for 3,814.88 CAD. The deposit
+# establishes a cost basis for what it now brings in, at its new figures.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "0e510000000000000000000000000a01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2719.28 USD
+		guid: "0e510000000000000000000000000a02"
+		account.commodity.mnemonic: "USD"
+		value: "3814.88"
+	Assets:Due from director -3814.88 CAD
+		guid: "0e510000000000000000000000000a03"

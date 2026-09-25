@@ -1,0 +1,48 @@
+# Q-051: a_usd_deposit_booked_as_the_invoice_it_collected.txt, with two sales
+# of 1,400.00 USD out of Wise added to it, each drawing on the invoice's cost
+# basis too, valued at what that costs, 1.3938: 1,951.32 each. Wise holds
+# the 5,000.00 USD usd_bought_into_wise_before_the_statement.txt and
+# more_usd_bought_into_wise_before_the_statement.txt bought as well, so the
+# account does not cross zero.
+#
+# Imported onto a book where the deposit already settles INV-USD-2, a
+# 4,000.00 invoice, for 2,720.00. The fee and the two sales draw 2,800.72 of
+# its cost basis between them, and 2,720.00 of it has been collected, so the
+# edit is refused. The receivable split is in the invoice's lot and the
+# file's payment block applies it too, and it collects 2,720.00 once, not
+# twice. Each sale draws less than was collected, and it is what they draw
+# together that is checked.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "0e510000000000000000000000000a01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e510000000000000000000000000a02"
+		account.commodity.mnemonic: "USD"
+		value: "3815.89"
+	Assets:Accounts Receivable USD -2720.00 USD
+		guid: "0e510000000000000000000000000a03"
+		account.commodity.mnemonic: "USD"
+		value: "-3791.14"
+	Expenses:Bank charges 1.01 CAD
+		guid: "0e510000000000000000000000000a04"
+	Assets:Wise USD -0.72 USD
+		guid: "0e510000000000000000000000000a05"
+		account.commodity.mnemonic: "USD"
+		value: "-1.00"
+		cost_basis_split_guid: "{invoice_posting}"
+	Assets:Wise USD -1400.00 USD
+		guid: "0e510000000000000000000000000a06"
+		account.commodity.mnemonic: "USD"
+		value: "-1951.32"
+		cost_basis_split_guid: "{invoice_posting}"
+	Assets:Wise USD -1400.00 USD
+		guid: "0e510000000000000000000000000a08"
+		account.commodity.mnemonic: "USD"
+		value: "-1951.32"
+		cost_basis_split_guid: "{invoice_posting}"
+	Assets:Chequing 3902.64 CAD
+		guid: "0e510000000000000000000000000a07"
+	Income:FX gain $residual$ CAD

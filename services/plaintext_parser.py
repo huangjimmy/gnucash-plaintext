@@ -178,6 +178,10 @@ class PlaintextDirective:
         self.level = level
         self.parent = parent
         self.line = line
+        # A transaction's block as the file writes it, its head and every line
+        # under it but comments, so an update can tell a block the book's own
+        # export would write from one that changes something.
+        self.text: List[str] = [line.rstrip()] if directive_type == DirectiveType.TRANSACTION else []
 
 
 class PlaintextIndentation:
@@ -337,6 +341,13 @@ class PlaintextParser:
             vendor_id = parse_vendor(line.strip())
             bill_id = parse_bill(line.strip())
             block_type = parse_block(line.strip())
+            # A line under a transaction is part of that transaction's block.
+            block = parent_directive
+            while block.parent is not None and block.parent.parent is not None:
+                block = block.parent
+            if block.type == DirectiveType.TRANSACTION:
+                block.text.append(line.rstrip())
+
             # How many directives the parent held before this line, so one the
             # line adds can be checked against where it was written.
             children_before = len(parent_directive.children)

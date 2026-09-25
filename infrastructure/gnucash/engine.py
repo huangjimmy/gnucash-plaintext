@@ -228,6 +228,8 @@ def verify_ctypes_functions(lib, required_functions=None):
             # account kept in the transaction's currency.
             'xaccSplitGetValue',
             'xaccSplitSetAmount',
+            # What an edit put back as it stood reads its type from.
+            'xaccTransGetTxnType',
             'gnc_lot_new',
             'xaccAccountInsertLot',
             'gnc_lot_add_split',
@@ -509,6 +511,9 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.xaccSplitSetAmount.argtypes            = [ctypes.c_void_p, GncNumericC]
     lib.xaccTransGetDate.restype               = ctypes.c_int64
     lib.xaccTransGetDate.argtypes              = [ctypes.c_void_p]
+    # One byte, NUL on GnuCash 3.4 to 4.8 for a transaction never given one.
+    lib.xaccTransGetTxnType.restype            = ctypes.c_char
+    lib.xaccTransGetTxnType.argtypes           = [ctypes.c_void_p]
     lib.gnc_lot_new.restype                    = ctypes.c_void_p
     lib.gnc_lot_new.argtypes                   = [ctypes.c_void_p]
     # Read by nobody, so `None` is right whether the C function returns void or

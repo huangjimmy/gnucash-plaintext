@@ -1,17 +1,16 @@
-"""Q-040: `--atomic` reaches a state no sequence of separate changes can.
+"""Q-040: a book an older version left wrong is repaired as one file under `--atomic`, or in two runs.
 
-Repairing a book an older version left wrong takes two changes, and each order
-is refused:
+Repairing it takes two changes:
 
-* clear the deposit's balance first, and the fee below it draws on a split
-  that is no cost basis;
-* re-point the fee first, and its value no longer matches the cost basis it
-  now draws on — and the in-place check refuses it before that, because its
-  transaction draws on a cost basis at all.
+* clear the deposit's balance, which alone leaves the fee below it drawing on
+  a split that is no cost basis;
+* re-point the fee at the receivable's cost basis.
 
-There is no third order. `--atomic` applies both, then reads the book it left:
-the checks that run block by block are skipped, and the same questions are
-asked of the result instead, at commit time.
+Re-pointing the fee first was refused until Q-051, because an edit in place
+could not change what a disposal draws on. It is now read as a new
+transaction would be — what it drew is given back and it draws afresh — so
+re-pointing it and then clearing the balance repairs the book in two runs.
+`--atomic` applies both in one, and reads the book it left before saving it.
 
 Everything the guards protected is still asked, which the refusal tests below
 hold in place — a file may not use this to leave a book that does not add up.
@@ -135,8 +134,15 @@ def _the_repair(runner, book, tmp_path):
     return repair, ar_basis
 
 
-def test_neither_edit_is_allowed_on_its_own(tmp_path):
-    """Which is why the repair has to commit as one, rather than in two runs."""
+def test_re_pointing_the_fee_and_then_clearing_the_balance_repairs_it_in_two_runs(tmp_path):
+    """Since Q-051 the fee's edit is read as a new transaction would be.
+
+    What it drew is given back to the deposit's cost basis, and its 0.72 USD
+    comes off the receivable's, where the money it spent is. The deposit's
+    balance, 2,720.00 on a split that is no cost basis, is what
+    `--verify-costs` reports until it is cleared, and clearing it finishes the
+    repair.
+    """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
     _stranded(runner, book)
@@ -148,14 +154,38 @@ def test_neither_edit_is_allowed_on_its_own(tmp_path):
         r'Assets:Current assets:Accounts receivable:USD 2720\.00 USD\n'
         r'\t+guid: "([0-9a-f]{32})"', text).group(1)
 
-    # Re-point the fee: refused before its figures are even looked at.
     repoint = tmp_path / 'repoint.txt'
     repoint.write_text(
         _block_for(text, '2026-08-13 * "Charges').replace(DEPOSIT_SPLIT, ar_basis))
-    refused = _run(runner, 'import', str(book), str(repoint),
-                   '--strategy', 'update')
-    assert refused.exit_code != 0, refused.output
-    assert 'cannot be edited in place' in refused.output, refused.output
+    moved = _run(runner, 'import', str(book), str(repoint), '--strategy', 'update')
+    assert moved.exit_code == 0, moved.output
+    assert _stored_balance(book, ar_basis) == '2719.28'
+    assert _stored_balance(book, DEPOSIT_SPLIT) == '2720.00'
+    still_wrong = _run(runner, 'fx-balances', str(book), '--verify-costs')
+    assert still_wrong.exit_code == 1, still_wrong.output
+    assert DEPOSIT_SPLIT in still_wrong.output, still_wrong.output
+
+    clear = tmp_path / 'clear.txt'
+    clear.write_text(re.sub(r'\t\tcost_basis_balance: "[^"]*"\n',
+                            '\t\tcost_basis_balance: ""\n',
+                            _block_for(text, '2026-08-13 * "Received')))
+    assert _run(runner, 'import', str(book), str(clear),
+                '--strategy', 'update').exit_code == 0
+
+    assert _stored_balance(book, DEPOSIT_SPLIT) is None
+    verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
+    assert verified.exit_code == 0, verified.output
+
+
+def test_clearing_the_balance_first_leaves_the_fee_drawing_on_no_cost_basis(tmp_path):
+    """The other order, which the finished book still reports."""
+    runner = CliRunner()
+    book = tmp_path / 'book.gnucash'
+    _stranded(runner, book)
+
+    exported = tmp_path / 'out.txt'
+    assert _run(runner, 'export', str(book), str(exported)).exit_code == 0
+    text = exported.read_text()
 
     # Clearing the balance on its own is allowed, and leaves the fee drawing
     # on a split that is now no cost basis. The stranded balance the other
@@ -180,18 +210,16 @@ def test_neither_edit_is_allowed_on_its_own(tmp_path):
     assert f'cost_basis_split_guid: "{DEPOSIT_SPLIT}"' in half.read_text()
 
 
-def test_stating_the_balance_gross_of_the_files_own_disposal(tmp_path):
-    """2,720.00 where 2,719.28 belongs — what the run does with it.
+def test_restating_the_balance_the_book_holds_beside_the_repair(tmp_path):
+    """2,720.00 on the receivable, as the book already holds it: the fee draws its 0.72 from it.
 
-    A stated balance is what the cost basis holds once the file has landed, net of
-    the file's own disposals, and the repair's fee draws 0.72 USD from the
-    receivable it re-points at. Stating the gross figure asks the book to
-    offer currency the fee has taken.
-
-    Nothing refuses it. The balance is inside what the cost basis brought in, which
-    is the question the finished book asks, and the per-currency totals that
-    would notice are a warning `--verify-costs` prints and refuses nothing
-    over. So the run commits, and the listing goes on offering the 0.72.
+    A figure an update restates as the book holds it states nothing new, so
+    it is not read as a balance the file gives net of its own disposals
+    (Q-051) — an export restates every balance, and an owner editing one
+    transaction of it would otherwise have the rest of the export tell the
+    edit's draws to leave those balances alone. The repair's fee is read as a
+    new transaction would be, draws 0.72 USD from the receivable, and the
+    book is level.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -218,9 +246,10 @@ def test_stating_the_balance_gross_of_the_files_own_disposal(tmp_path):
     assert result.exit_code == 0, result.output
     assert 'Changes saved' in result.output, result.output
 
+    assert _stored_balance(book, ar_basis) == '2719.28'
     verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
     assert verified.exit_code == 0, verified.output
-    assert 'Nothing is refused' in verified.output, verified.output
+    assert 'Nothing is refused' not in verified.output, verified.output
 
 
 def test_the_repair_commits_under_atomic(tmp_path):

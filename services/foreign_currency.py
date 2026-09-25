@@ -79,7 +79,10 @@ from gnucash.gnucash_core_c import (
 )
 
 from infrastructure.gnucash.kvp import (
+    custom_key_changes,
+    forget_custom_key_changes,
     get_custom_metadata,
+    log_custom_key_changes,
     set_custom_metadata,
     watch_custom_key,
     watched_key_writes,
@@ -91,6 +94,7 @@ from infrastructure.gnucash.utils import (
     money_text,
     numeric_to_fraction,
     qof_instance,
+    qof_pointer,
     to_money,
 )
 
@@ -119,6 +123,9 @@ COST_BASIS_BROUGHT_IN_KEY = 'cost_basis_brought_in'
 # KVP on a sale's foreign-currency split: the guid of the split whose cost
 # basis this sale picks.
 COST_BASIS_SPLIT_KEY = 'cost_basis_split_guid'
+# Which splits draw on each cost basis is kept for the whole book, and brought
+# up to date from each change of this key (`splits_drawing_on`).
+log_custom_key_changes(COST_BASIS_SPLIT_KEY)
 
 # KVP on a sale's foreign-currency split: measure against a receivable that has
 # not been collected yet, deliberately.
@@ -387,8 +394,52 @@ def _base_per_unit_of(transaction) -> Optional[Fraction]:
 
 def cost_basis_guid_of(split) -> str:
     """The guid of the split whose cost basis this split picks, or ''."""
-    value = get_custom_metadata(split).get(COST_BASIS_SPLIT_KEY, '')
+    return _as_a_pick(get_custom_metadata(split).get(COST_BASIS_SPLIT_KEY, ''))
+
+
+def _as_a_pick(value) -> str:
     return str(value).replace('-', '').lower() if value else ''
+
+
+def splits_drawing_on(book, basis_guid: str) -> list:
+    """Every split in the book giving this cost basis, as `cost_basis_guid_of` reads it.
+
+    From an index of the whole book, built by walking it once and then kept
+    up to date from each change of `cost_basis_split_guid`, which
+    `set_custom_metadata` logs. Walked again for each question, an update
+    touching 800 transactions that draw on cost bases walked a book of 2,000
+    transactions 800 times (`tests/research/how_long_an_unchanged_update_takes_as_a_book_grows_probe.py`).
+
+    Each split the index gives is looked up and asked again, so a split
+    destroyed since, whose pick no write took off, is not given.
+
+    It rests on every pick being written through `set_custom_metadata`,
+    which is how this tool writes each one. GnuCash writes none of its own.
+    Where it divides a split, applying an owner's credit, the part keeping
+    the split's guid keeps its KVPs, the pick among them, and the part it
+    carves off holds none (CLAUDE.md finding 10), so nothing the engine
+    does adds a pick the log misses. A pick written any other way would not
+    be found until the next import walks the book again.
+    """
+    changes = custom_key_changes(COST_BASIS_SPLIT_KEY)
+    kept = getattr(book, '_plaintext_drawn_on', None)
+    if kept is None or kept[0] is not changes:
+        index: Dict[str, set] = {}
+        for split in iter_splits(book):
+            picked = cost_basis_guid_of(split)
+            if picked:
+                index.setdefault(picked, set()).add(split_guid(split))
+        kept = [changes, len(changes), index]
+        book._plaintext_drawn_on = kept
+    for guid, was, now in changes[kept[1]:]:
+        guid = _as_a_pick(guid)
+        kept[2].get(_as_a_pick(was), set()).discard(guid)
+        if now:
+            kept[2].setdefault(_as_a_pick(now), set()).add(guid)
+    kept[1] = len(changes)
+    found = (find_split_by_guid(book, guid) for guid in sorted(kept[2].get(basis_guid, ())))
+    return [split for split in found
+            if split is not None and cost_basis_guid_of(split) == basis_guid]
 
 
 def takes_an_exchange_difference(account) -> bool:
@@ -767,6 +818,18 @@ def refuse_a_transfer_sharing_a_transaction(transaction) -> None:
                    and (cost_basis_guid_of(split) or establishes_cost_basis(split))
                    for split in transaction.GetSplitList()):
             continue
+        # The splits giving a cost basis say they are what left. Where the
+        # rest is a transfer — as much leaving one account of the side as
+        # arrives in another — nothing is left unsaid: 2,720.00 USD moved from
+        # savings into a bank, and a 0.72 USD fee out of the bank giving the
+        # cost basis it spends. Refused, a book started part-way through its
+        # life, its savings an opening balance, could not record a transfer
+        # and its fee as the bank writes them (Q-051). Where the rest is not a
+        # transfer, a split giving a cost basis carries units that only moved,
+        # and nothing says which: 4,010.00 USD out of savings giving its cost
+        # basis, 4,000.00 into the bank.
+        if _the_rest_is_a_transfer(transaction, commodity, side):
+            continue
         unit = figures['unit']
         held = 'held' if side == 'asset' else 'owed'
         what = (f'{_format(fell - rose, unit)} {commodity} leaves that side'
@@ -779,6 +842,25 @@ def refuse_a_transfer_sharing_a_transaction(transaction) -> None:
             f'one transaction says which units moved and which did not. Write '
             f'the transfer as a transaction of its own, and what left or '
             f'arrived as another.')
+
+
+def _the_rest_is_a_transfer(transaction, commodity: str, side: str) -> bool:
+    """Whether, leaving out the splits that give a cost basis, this side only moves between accounts.
+
+    Netted by account, as the transfer check nets them: what one account of
+    the side gave up, another took, and something did.
+    """
+    at = 0 if side == 'asset' else 1
+    by_account: Dict[str, Fraction] = {}
+    for split in transaction.GetSplitList():
+        moves = split_moves(split) if split_commodity(split) == commodity else None
+        if moves is None or cost_basis_guid_of(split):
+            continue
+        name = get_account_full_name(split.GetAccount())
+        by_account[name] = by_account.get(name, Fraction(0)) + moves[at]
+    rose = sum((change for change in by_account.values() if change > 0), Fraction(0))
+    fell = -sum((change for change in by_account.values() if change < 0), Fraction(0))
+    return rose > 0 and rose == fell
 
 
 def refuse_a_difference_no_split_can_state(book, transaction) -> None:
@@ -1043,6 +1125,16 @@ def _only_moved_within_one_side(split, account, amount: Fraction) -> bool:
         if split_commodity(other) != commodity or cost_basis_guid_of(other) in (
                 here - {split_guid(other)}):
             continue
+        # Dollars a customer paid off an invoice leave the receivable as they
+        # arrive in the bank: collected, not bought. The invoice's posting is
+        # their cost basis, so the arrival they make is no second one — as a
+        # collection into a US dollar bank never was, being stated in the
+        # dollars. Stated in Canadian dollars beside a bank charge, the
+        # arrival read as dollars bought, and the book held two cost bases
+        # for one lump of money (Q-051).
+        if at == 0 and _settles_an_invoice(other):
+            net += _fraction(other.GetAmount())
+            continue
         moves = split_moves(other)
         if moves is None:
             continue
@@ -1051,6 +1143,68 @@ def _only_moved_within_one_side(split, account, amount: Fraction) -> bool:
     # same account leaves the side lower than it started, and a side that lost
     # units has nothing arriving on it to cost.
     return net <= 0 and amount != 0
+
+
+def _settles_an_invoice(split) -> bool:
+    """Whether this split takes currency off a receivable by settling an invoice that prices it.
+
+    In the invoice's lot, or applied to an invoice by this file's `payment:`
+    block, which puts it in that lot once the transaction it is in has been
+    imported (Q-051). And only an invoice whose posting is a cost basis: one
+    booked to an income account kept in its own currency prices nothing, and
+    the deposit settling it is then the only cost the book has for that money.
+
+    An invoice the same file creates is not in the book yet when its
+    collection is read: the business objects come after the transactions.
+    Its posting is, imported with them, and the file's `posted_txn_guid:`
+    finds it. Read as dollars bought instead, a book rebuilt from an export
+    kept a balance on the deposit that nothing reads.
+    """
+    from infrastructure.gnucash.utils import wrap_invoice_or_bill
+    from services.gnucash_importer import (
+        _POSTINGS_THE_FILE_STATES,
+        _SPLITS_THE_FILES_PAYMENTS_APPLY,
+        _find_invoices_by_id,
+        _find_transaction_by_guid,
+    )
+
+    account = split.GetAccount()
+    if (account is None or account.GetType() != ACCT_TYPE_RECEIVABLE
+            or _fraction(split.GetAmount()) >= 0):
+        return False
+    book = account.get_book()
+    applied = _SPLITS_THE_FILES_PAYMENTS_APPLY.get(split_guid(split))
+    if applied is not None and applied[0] == 'invoice':
+        found = _find_invoices_by_id(book, applied[1])
+        if not found:
+            stated = _POSTINGS_THE_FILE_STATES.get(applied)
+            transaction = _find_transaction_by_guid(book, stated) if stated else None
+            here = get_account_full_name(account)
+            return _the_posting_prices(next(
+                (each for each in (transaction.GetSplitList() if transaction else [])
+                 if get_account_full_name(each.GetAccount()) == here), None))
+        record = found[0] if len(found) == 1 else None
+    else:
+        raw_lot = split.GetLot()
+        raw_invoice = (_gc.gncInvoiceGetInvoiceFromLot(qof_instance(raw_lot))
+                       if raw_lot is not None else None)
+        record = wrap_invoice_or_bill(raw_invoice) if raw_invoice else None
+    if record is None or not record.IsPosted():
+        return False
+    posted = get_account_full_name(record.GetPostedAcc())
+    return _the_posting_prices(next((each for each in record.GetPostedTxn().GetSplitList()
+                                     if get_account_full_name(each.GetAccount()) == posted),
+                                    None))
+
+
+def _the_posting_prices(posting) -> bool:
+    """Whether an invoice's posting split is a cost basis, so the invoice prices what collects it."""
+    try:
+        return posting is not None and establishes_cost_basis(posting)
+    except Exception:
+        # A stored cost that will not parse prices nothing here, as it counts
+        # for nothing wherever these are added up; `--verify-costs` reports it.
+        return False
 
 
 def _raises_a_foreign_balance(split, account, amount: Fraction) -> bool:
@@ -1293,8 +1447,39 @@ def _format(value: Fraction, unit: int) -> str:
 
 
 
+#: Each cost basis balance this import run has written, as the book held it
+#: before the run first wrote it (`balance_the_run_found`).
+_balances_the_run_found: Dict[str, object] = {}
+
+
+def balance_the_run_found(split):
+    """This split's `cost_basis_balance` text as the book held it when the import run started.
+
+    What a block restating the balance is compared with. An export writes
+    every balance, and a block below one that drew on the cost basis
+    restates the balance from before that draw: compared with the balance
+    the draw had just left, it read as a figure the file changed, and was
+    written back over the draw (Q-051).
+    """
+    guid = split_guid(split)
+    if guid in _balances_the_run_found:
+        return _balances_the_run_found[guid]
+    return get_custom_metadata(split).get(COST_BASIS_BALANCE_KEY)
+
+
+def note_the_balance_the_run_found(split) -> None:
+    """Record this split's balance as the book holds it, unless the run has already.
+
+    Asked by every write of a balance, and by every clearing of one: cleared
+    first and written after, the balance the run found read as none.
+    """
+    _balances_the_run_found.setdefault(
+        split_guid(split), get_custom_metadata(split).get(COST_BASIS_BALANCE_KEY))
+
+
 def write_cost_basis_balance(split, available: Fraction) -> None:
     """Record a split's cost basis balance in its KVP, keeping its other keys."""
+    note_the_balance_the_run_found(split)
     metadata = dict(get_custom_metadata(split))
     metadata[COST_BASIS_BALANCE_KEY] = _format(available, smallest_unit(split))
     transaction = split.GetParent()
@@ -1321,10 +1506,18 @@ _running_atomic = False
 
 def begin_import_run(atomic: bool = False) -> None:
     """Forget which balances the previous file stated, and whether this one is
-    being applied with `--atomic`."""
+    being applied with `--atomic`.
+
+    And the changes of `cost_basis_split_guid` logged so far, so the log does
+    not grow for as long as the process runs: `splits_drawing_on` walks the
+    book once more instead. And the balances the previous run found, which
+    `balance_the_run_found` answers for this one afresh.
+    """
     global _running_atomic
     _stated_in_file.clear()
+    _balances_the_run_found.clear()
     _running_atomic = atomic
+    forget_custom_key_changes()
 
 
 def running_atomic() -> bool:
@@ -1350,6 +1543,11 @@ def running_atomic() -> bool:
 def note_stated_balance(split) -> None:
     """This cost basis arrived with its balance already written in the file."""
     _stated_in_file.add(split_guid(split))
+
+
+def forget_stated_balance(split) -> None:
+    """The file's statement of this balance did not stand: its edit was refused and put back (Q-051)."""
+    _stated_in_file.discard(split_guid(split))
 
 
 def balance_came_from_file(split) -> bool:
@@ -1765,6 +1963,36 @@ def record_cost_bases(book, transaction) -> None:
             still_to_take[at] -= taken
 
 
+def what_a_new_import_would_open(transaction) -> Dict[str, Fraction]:
+    """What each cost basis this transaction establishes would open at, were it imported new.
+
+    The figures `open_the_cost_bases_its_own_splits_draw_on` and
+    `record_cost_bases` write on a book holding no balance for any of them:
+    everything brought in where another of its splits draws on the cost
+    basis, and otherwise less what the transaction took back out. Written
+    nowhere. An edit reads it of the old version, so the part of a stored
+    balance these figures do not explain, which a file stated, is kept when
+    the new version opens its cost bases (Q-051).
+    """
+    drawn_on = {cost_basis_guid_of(split) for split in transaction.GetSplitList()}
+    opened: Dict[str, Fraction] = {}
+    still_to_take: Dict[tuple, Fraction] = {}
+    for split in transaction.GetSplitList():
+        if not establishes_cost_basis(split):
+            continue
+        brought = brought_in_by(split)
+        if split_guid(split) in drawn_on:
+            opened[split_guid(split)] = brought
+            continue
+        at, taken_back = _what_the_transaction_took_back(transaction, split)
+        if at not in still_to_take:
+            still_to_take[at] = taken_back()
+        taken = min(brought, still_to_take[at])
+        still_to_take[at] -= taken
+        opened[split_guid(split)] = brought - taken
+    return opened
+
+
 def open_the_cost_bases_its_own_splits_draw_on(transaction) -> None:
     """Open, first, each cost basis this transaction opens that another of its splits draws on.
 
@@ -2107,12 +2335,24 @@ def give_back_to_cost_bases(book, taken: Dict[str, Fraction]) -> Set[str]:
 
 
 def find_split_by_guid(book, guid: str):
-    """The split with this guid, or None."""
-    wanted = guid.replace('-', '').lower()
-    for split in iter_splits(book):
-        if split_guid(split) == wanted:
-            return split
-    return None
+    """The split with this guid, or None.
+
+    Looked up in the book's own table of splits, as `_find_transaction_by_guid`
+    looks up a transaction. Walked instead, every pick checked and every
+    draw given back walked the whole book, once each.
+
+    Only a split on an account, as the walk of the accounts found: GnuCash
+    4.8 lists a trading split before its account is attached (CLAUDE.md
+    finding 12).
+    """
+    from gnucash import Split
+    from gnucash.gnucash_core_c import GncGUID, string_to_guid, xaccSplitLookup
+    wanted = GncGUID()
+    if not string_to_guid(guid.replace('-', '').lower(), wanted):
+        return None
+    raw = xaccSplitLookup(wanted, book.instance)
+    split = None if raw is None else Split(instance=raw)
+    return split if split is not None and split.GetAccount() is not None else None
 
 
 def refuse_a_disposal_that_gives_no_cost_basis(book, transaction) -> None:
@@ -2190,11 +2430,16 @@ def refuse_a_disposal_that_gives_no_cost_basis(book, transaction) -> None:
         # cheap ones above turn away every transaction that moves no currency
         # and every disposal that has already said which basis it draws on. A
         # cost basis the transaction opens itself counts as one kept: a fee
-        # beside the arrival it came out of spends the arrival's dollars.
+        # beside the arrival it came out of spends the arrival's dollars. So
+        # does an invoice the transaction collects: a fee beside a customer's
+        # payment spends dollars whose cost is that invoice's (Q-051).
         if not (a_cost_basis_is_kept_for(book, commodity, side)
                 or any(establishes_cost_basis(split) and split_commodity(split) == commodity
                        and _fraction(split.GetAmount()) * (1 if side == 'asset' else -1) > 0
-                       for split in transaction.GetSplitList())):
+                       for split in transaction.GetSplitList())
+                or (side == 'asset'
+                    and any(_settles_an_invoice(split) and split_commodity(split) == commodity
+                            for split in transaction.GetSplitList()))):
             continue
         raise SpendGivingNoCostBasisError(
             commodity, side, not_given,
@@ -2426,7 +2671,7 @@ def _what_left_each_side(transaction) -> Dict[tuple, Fraction]:
     return net
 
 
-def what_each_account_held_without(transaction, accounts, when,
+def what_each_account_held_without(book, transaction, accounts, when,
                                    came_after=frozenset()) -> Dict[str, Fraction]:
     """What each account held at the end of `when` before this transaction.
 
@@ -2443,13 +2688,22 @@ def what_each_account_held_without(transaction, accounts, when,
     USD dated the same day as a 2,720.00 USD arrival made the account read as
     holding -0.72 before the arrival, and the arrival as bringing in 2,719.28.
     """
+    # The splits taken off are those of these transactions, read from each,
+    # not searched for among every split of the account: that search, once
+    # per transaction an update touches, grew with the book times the file.
+    from services.gnucash_importer import _find_transaction_by_guid
+    dated = [transaction] + [each for each in (_find_transaction_by_guid(book, guid)
+                                               for guid in sorted(came_after))
+                             if each is not None]
+    dated = [each for each in dated if each.GetDate().date() <= when]
     day_after = datetime.combine(when + timedelta(days=1), datetime.min.time())
-    not_before = set(came_after) | {transaction.GetGUID().to_string()}
     held: Dict[str, Fraction] = {}
     for account in accounts:
-        taken_off = sum((_fraction(split.GetAmount()) for split in account.GetSplitList()
-                         if split.GetParent().GetDate().date() <= when
-                         and split.GetParent().GetGUID().to_string() in not_before),
+        here = account.GetGUID().to_string()
+        taken_off = sum((_fraction(split.GetAmount()) for each in dated
+                         for split in each.GetSplitList()
+                         if split.GetAccount() is not None
+                         and split.GetAccount().GetGUID().to_string() == here),
                         Fraction(0))
         held[get_account_full_name(account)] = (
             _fraction(account.GetBalanceAsOfDate(day_after)) - taken_off)
@@ -2828,15 +3082,19 @@ def _validate_pick(book, selling_split, basis_guid: str):
     return basis
 
 
-def a_sale_against_an_uncollected_receivable(selling_split, basis,
-                                             basis_guid: str) -> Optional[str]:
+def a_sale_against_an_uncollected_receivable(selling_split, basis, basis_guid: str,
+                                             in_the_book: bool = False) -> Optional[str]:
     """A receivable that has not been collected holds no currency to sell.
 
     An invoice's A/R split states currency the customer owes, not currency the
     book has. Selling against it before the invoice is paid is selling money
     that has not arrived — this tool keeps books, it does not support trading a
     position it does not hold. The lot is the test: it closes when the record
-    is settled.
+    is settled, and what a part payment put in it is collected, and can be
+    sold up to that much (Q-051).
+
+    `in_the_book` is for a sale the book already holds, whose draw the cost
+    basis's stored balance already reflects.
 
     A payable is not restricted. Its lot is open precisely until the bill is
     paid, and settling it with foreign cash is the ordinary way that happens.
@@ -2896,6 +3154,8 @@ def a_sale_against_an_uncollected_receivable(selling_split, basis,
         return
     if forced:
         return
+    if _collected_for_what_is_drawn(selling_split, basis, raw_lot, in_the_book):
+        return
     currency = split_commodity(basis)
     return (
         f'cost basis {basis_guid} is a split on '
@@ -2904,6 +3164,64 @@ def a_sale_against_an_uncollected_receivable(selling_split, basis,
         f'there is none to sell. Record the payment first, or add '
         f'`{COST_BASIS_FORCE_KEY}: true` to this split to measure against it '
         f'anyway.')
+
+
+def _collected_for_what_is_drawn(selling_split, basis, raw_lot, in_the_book: bool) -> bool:
+    """Whether what has been collected of the invoice covers what is drawn on its cost basis.
+
+    What is collected counts: the invoice's settlements in its lot, and,
+    while a file is imported, the splits of the sale's transaction the file's
+    `payment:` block applies to it. A deposit booked as an invoice's
+    collection, its bank fee in the same transaction drawing on the invoice's
+    cost basis, is imported before the block puts its receivable split in the
+    invoice's lot, so the lot still reads unpaid while the fee is checked
+    (Q-051).
+
+    What was drawn counts too: what the cost basis gave up already, and what
+    this split draws, which `in_the_book` says the stored balance already
+    reflects. So a part payment of 2,720.00 of a 4,000.00 invoice holds
+    2,720.00 and no more, as the file is imported and in the book it leaves.
+    """
+    # Imported here, as `_a_yes_or_no` is above: `gnucash_importer` reads
+    # this module.
+    from infrastructure.gnucash.utils import wrap_invoice_or_bill
+    from services.gnucash_importer import _SPLITS_THE_FILES_PAYMENTS_APPLY
+
+    brought_in = _fraction(basis.GetAmount())
+    lot = raw_lot if hasattr(raw_lot, 'get_balance') else GncLot(instance=raw_lot)
+    left = lot.get_balance()
+    collected = brought_in - Fraction(left.num(), left.denom())
+    if _SPLITS_THE_FILES_PAYMENTS_APPLY:
+        # A lot linked to no invoice, which GnuCash allows on a receivable,
+        # has no record a block of the file applies a split to.
+        raw_invoice = _gc.gncInvoiceGetInvoiceFromLot(qof_instance(raw_lot))
+        record = ('invoice', wrap_invoice_or_bill(raw_invoice).GetID()) if raw_invoice else None
+        account = get_account_full_name(basis.GetAccount())
+        # Not a split already in the lot: the lot's balance counts it above,
+        # and an export applies it again by its block, so an edit of a part
+        # payment read 2,720.00 collected as 5,440.00.
+        # The whole split: the block applies all of it, whatever `amount:` it
+        # states, and a block stating 1,000.00 against a 2,720.00 split
+        # leaves 2,720.00 in the invoice's lot.
+        in_the_lot = qof_pointer(raw_lot)
+        collected += sum((-_fraction(split.GetAmount())
+                          for split in selling_split.GetParent().GetSplitList()
+                          if _SPLITS_THE_FILES_PAYMENTS_APPLY.get(split_guid(split)) == record
+                          and get_account_full_name(split.GetAccount()) == account
+                          and (split.GetLot() is None
+                               or qof_pointer(split.GetLot()) != in_the_lot)),
+                         Fraction(0))
+    if collected <= 0:
+        return False
+    # Every split of the sale's transaction giving this cost basis, not this
+    # one alone: each is checked before any is drawn, and two sales of
+    # 1,400.00 each passed against 2,720.00 collected.
+    held = cost_basis_balance_of(basis)
+    drawn = ((brought_in - held if held is not None else Fraction(0))
+             + (Fraction(0) if in_the_book else
+                sum((draws_down(split) for split in selling_split.GetParent().GetSplitList()
+                     if cost_basis_guid_of(split) == split_guid(basis)), Fraction(0))))
+    return drawn <= collected
 
 
 def _require_basis_collected(selling_split, basis, basis_guid: str) -> None:
@@ -3370,17 +3688,12 @@ def transactions_drawing_on(book, transaction, bases) -> List[tuple]:
     each once. A description gives what each draws on any cost basis, added
     up by currency across its splits.
     """
-    drawn_on: Dict[str, list] = {}
-    for split in iter_splits(book):
-        basis = cost_basis_guid_of(split)
-        if basis:
-            drawn_on.setdefault(basis, []).append(split.GetParent())
     ordered: Dict[str, str] = {}
     visiting = {transaction.GetGUID().to_string()}
 
     def delete_before(its_bases) -> None:
-        drawers = {parent.GetGUID().to_string(): parent
-                   for basis in its_bases for parent in drawn_on.get(basis, [])}
+        drawers = {split.GetParent().GetGUID().to_string(): split.GetParent()
+                   for basis in its_bases for split in splits_drawing_on(book, basis)}
         for guid, parent in sorted(drawers.items(), key=lambda item: item[1].GetDate()):
             # A transaction drawing on two cost bases of the chain is reached
             # twice, and is listed once; the transaction the chain starts from
@@ -3404,7 +3717,7 @@ def transactions_drawing_on(book, transaction, bases) -> List[tuple]:
     return list(ordered.items())
 
 
-def cost_basis_facts(transaction, leaving=frozenset()) -> List[tuple]:
+def cost_basis_facts(transaction) -> List[tuple]:
     """What this transaction's cost bases are and what its disposals draw, as facts to compare.
 
     An edit in place is accepted when these are the same after it as before
@@ -3426,15 +3739,13 @@ def cost_basis_facts(transaction, leaving=frozenset()) -> List[tuple]:
     currency that sets a rate, how the rate's totals are divided between such
     splits, a memo, a description.
 
-    `leaving` is the guids of splits an open edit has destroyed, which GnuCash
-    lists until the commit.
+    Read on a committed transaction: until the commit, GnuCash still lists
+    the splits an open edit has destroyed.
     """
     facts = []
     when = transaction.GetDate().strftime('%Y-%m-%d')
     for split in transaction.GetSplitList():
         guid = split_guid(split)
-        if guid in leaving:
-            continue
         name = get_account_full_name(split.GetAccount())
         commodity = split_commodity(split)
         if establishes_cost_basis(split):
@@ -3478,10 +3789,10 @@ def a_disposal_the_finished_book_cannot_value(book, transaction) -> str:
     draws on, so the file states both, and a re-price moves them together.
     """
     here = {split_guid(split) for split in transaction.GetSplitList()}
+    # Asked only of a transaction whose cost basis another draws on, so there
+    # is a cost basis to walk for.
     basis_guids = {split_guid(split) for split in transaction.GetSplitList()
                    if establishes_cost_basis(split)}
-    if not basis_guids or book is None:
-        return ''
     for split in iter_splits(book):
         parent = split.GetParent()
         if parent is None or transaction_currency(parent) == BASE_CURRENCY:
@@ -3615,7 +3926,7 @@ def what_the_disposals_get_wrong(book) -> List[Dict]:
                         a_sale_valued_against_another_cost(
                             split, basis, picked, in_the_book=True)
                         or a_sale_against_an_uncollected_receivable(
-                            split, basis, picked))
+                            split, basis, picked, in_the_book=True))
                 if not wrong:
                     continue
                 problem = wrong

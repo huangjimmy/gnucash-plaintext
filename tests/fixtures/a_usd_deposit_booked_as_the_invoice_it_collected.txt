@@ -1,0 +1,35 @@
+# Q-051 E1: a_usd_deposit_and_its_fee_on_a_holding_account.txt as the owner
+# books it once they know the deposit was the customer paying INV-USD-1.
+#
+# The holding-account amount is the receivable settling the invoice, at the
+# 3,791.14 it was posted at; the 1.01 is the bank charge; the fee's 0.72 comes
+# out of the invoice's cost basis, `{invoice_posting}` in this file, which the
+# test fills in with that split's guid, valued at what it costs, 1.00. The one
+# `$residual$` split states what the collection and the fee realize, -24.76.
+# Imported with `--strategy update`, beside INV-USD-1's `payment:` block
+# giving this transaction and its receivable split.
+#
+# The new shape is the invoice's collection, which establishes no cost basis:
+# the dollars' cost is the invoice's.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "0e510000000000000000000000000a01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e510000000000000000000000000a02"
+		account.commodity.mnemonic: "USD"
+		value: "3815.89"
+	Assets:Accounts Receivable USD -2720.00 USD
+		guid: "0e510000000000000000000000000a03"
+		account.commodity.mnemonic: "USD"
+		value: "-3791.14"
+	Expenses:Bank charges 1.01 CAD
+		guid: "0e510000000000000000000000000a04"
+	Assets:Wise USD -0.72 USD
+		guid: "0e510000000000000000000000000a05"
+		account.commodity.mnemonic: "USD"
+		value: "-1.00"
+		cost_basis_split_guid: "{invoice_posting}"
+	Income:FX gain $residual$ CAD

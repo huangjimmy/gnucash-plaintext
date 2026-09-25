@@ -13,6 +13,11 @@ the purchase opened a cost basis of 4,000.00 for 1,000.00 that arrived, which
 then held 3,000.00 more. So each is refused and written again as two
 transactions, and the cost bases then hold what the accounts hold.
 
+A fee written as a split of its own, giving its cost basis beside a transfer
+of whole splits, is not this: it says it is what left, and the rest is a
+transfer (Q-051). `test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py`
+imports that shape, and edits a deposit into it.
+
 `tests/fixtures/a_transfer_between_us_dollar_accounts_sharing_a_transaction_with_a_fee_or_new_money.txt`
 writes both refused shapes, and each again as two transactions.
 """

@@ -176,12 +176,12 @@ def test_a_stranded_balance_nothing_drew_on_is_cleared_in_one_file(tmp_path):
     assert 'accounts hold' not in verified.output, verified.output
 
 
-def test_a_disposal_must_be_deleted_before_the_balance_can_be_cleared(tmp_path):
-    """Re-pointing it in place is refused, so it is deleted and written again.
+def test_the_disposal_is_re_pointed_in_place_and_the_balance_cleared(tmp_path):
+    """Re-pointed at the receivable's cost basis in place, where the money it spent is.
 
-    Deleting gives the stranded cost basis back what the disposal took, the balance
-    is then cleared, and the disposal is imported again measured against the
-    receivable's cost basis — where the money it spent actually is.
+    The edit is read as a new transaction would be (Q-051): it gives the
+    stranded cost basis back what the disposal took, and draws the 0.72 from
+    the receivable's. The balance is then cleared, and the book is sound.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -195,20 +195,11 @@ def test_a_disposal_must_be_deleted_before_the_balance_can_be_cleared(tmp_path):
         r'Assets:Current assets:Accounts receivable:USD 2720\.00 USD\n'
         r'\t+guid: "([0-9a-f]{32})"', text).group(1)
 
-    # Re-pointing in place: refused, and the refusal spells out what to do
-    # instead.
     fee_block = _block_for(text, '2026-08-13 * "Charges')
     repoint = tmp_path / 'repoint.txt'
     repoint.write_text(fee_block.replace(DEPOSIT_SPLIT, ar_basis))
-    refused = _run(runner, 'import', str(book), str(repoint),
-                   '--strategy', 'update')
-    assert refused.exit_code != 0, refused.output
-    assert 'delete-transactions' in refused.output, refused.output
-
-    # What to do instead.
-    dropped = _run(runner, 'delete-transactions', str(book), FEE_TX,
-                   '--by-guid', '-o', str(tmp_path / 'deleted.txt'))
-    assert dropped.exit_code == 0, dropped.output
+    moved = _run(runner, 'import', str(book), str(repoint), '--strategy', 'update')
+    assert moved.exit_code == 0, moved.output
 
     deposit = _block_for(text, '2026-08-13 * "Received')
     clear = tmp_path / 'clear.txt'
@@ -218,13 +209,6 @@ def test_a_disposal_must_be_deleted_before_the_balance_can_be_cleared(tmp_path):
                   '--strategy', 'update')
     assert result.exit_code == 0, result.output
     assert _stored_balance(book, DEPOSIT_SPLIT) is None
-
-    again = tmp_path / 'again.txt'
-    again.write_text(
-        Path('tests/fixtures/fx_fee_drawn_from_the_deposits_basis.txt')
-        .read_text().replace(DEPOSIT_SPLIT, ar_basis))
-    result = _run(runner, 'import', str(book), str(again))
-    assert result.exit_code == 0, result.output
 
     verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
     assert verified.exit_code == 0, verified.output

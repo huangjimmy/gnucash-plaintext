@@ -204,19 +204,23 @@ class TestRemovingOrAddingWhatACostBasisRestsOn:
                 'would be gone') in done.output, done.output
         assert f'delete-transactions --by-guid {THE_FEE} {THE_ARRIVAL}' in done.output, done.output
 
-    def test_a_second_split_drawing_on_the_cost_basis_is_refused(self, tmp_path):
-        """An edit takes no amount off a cost basis balance, so the new 0.28 USD would stay on it."""
+    def test_a_second_split_drawing_on_the_cost_basis_is_drawn_on_it(self, tmp_path):
+        """Read as a new transaction would be (Q-051), the fee draws both its splits: 1.00 USD in all."""
         book = _book(tmp_path)
         done = _run(CliRunner(), 'import', str(book), FEE_GIVEN_A_SECOND_SPLIT,
                     '--strategy', 'update')
 
-        assert done.exit_code != 0, done.output
-        assert ("a split on 'Assets:Wise USD' would draw on cost basis "
-                '3cdacfb099e9c7fbe795b8aa317313bd') in done.output, done.output
+        assert done.exit_code == 0, done.output
+        [(account, balance, _cost)] = _read(book)[0]
+        assert (account, balance) == ('Assets:Wise USD', Fraction('2719.00'))
 
 
 class TestMovingTheDate:
-    """A cost basis's date, and a disposal's, is part of it: moving either is refused."""
+    """A cost basis's date is part of it, and moving it is refused while the fee draws on it.
+
+    The fee's own date is not: the fee's edit is read as a new transaction
+    would be (Q-051), and a new fee dated a day later draws what it drew.
+    """
 
     def test_the_arrival_moved_a_day_later_is_refused(self, tmp_path):
         book = _book(tmp_path)
@@ -226,15 +230,14 @@ class TestMovingTheDate:
         assert 'it is dated 2026-08-13 and would be dated 2026-08-14' in done.output, done.output
         assert f'delete-transactions --by-guid {THE_FEE} {THE_ARRIVAL}' in done.output, done.output
 
-    def test_under_atomic_the_move_is_refused_as_it_lands(self, tmp_path):
-        """What `--atomic` defers is checked on the finished book, and no check there
-        reads what the cost bases held on each day, so a date move is not deferred."""
+    def test_under_atomic_the_fee_moved_a_day_later_is_read_as_new(self, tmp_path):
         book = _book(tmp_path)
         done = _run(CliRunner(), 'import', str(book), FEE_A_DAY_LATER, '--strategy', 'update',
                     '--atomic')
 
-        assert done.exit_code != 0, done.output
-        assert 'it is dated 2026-08-13 and would be dated 2026-08-14' in done.output, done.output
+        assert done.exit_code == 0, done.output
+        [(account, balance, _cost)] = _read(book)[0]
+        assert (account, balance) == ('Assets:Wise USD', Fraction('2719.28'))
 
     def test_under_atomic_the_refusal_gives_the_date_and_not_a_figure_it_defers(self, tmp_path):
         book = _book(tmp_path)
@@ -245,13 +248,13 @@ class TestMovingTheDate:
         assert 'it is dated 2026-08-13 and would be dated 2026-08-14' in done.output, done.output
         assert 'would cost' not in done.output, done.output
 
-    def test_the_fee_moved_a_day_later_is_refused(self, tmp_path):
+    def test_the_fee_moved_a_day_later_is_read_as_new(self, tmp_path):
         book = _book(tmp_path)
         done = _run(CliRunner(), 'import', str(book), FEE_A_DAY_LATER, '--strategy', 'update')
 
-        assert done.exit_code != 0, done.output
-        assert 'it is dated 2026-08-13 and would be dated 2026-08-14' in done.output, done.output
-        assert f'delete-transactions --by-guid {THE_FEE}' in done.output, done.output
+        assert done.exit_code == 0, done.output
+        [(account, balance, _cost)] = _read(book)[0]
+        assert (account, balance) == ('Assets:Wise USD', Fraction('2719.28'))
 
 
 class TestRestatingWhatSetsTheRate:
@@ -269,17 +272,17 @@ class TestRestatingWhatSetsTheRate:
         assert ('the file states -3800.00 CAD on '
                 "'Assets:Due from shareholder' valued at -2720.00") in output, output
 
-    def test_a_cleared_pick_is_given_on_the_line_the_book_holds(self, tmp_path):
-        """Every figure the same, so only the pick tells the two lines apart."""
+    def test_a_cleared_pick_is_refused_as_a_spend_giving_no_cost_basis(self, tmp_path):
+        """Every figure the same and the pick cleared: read as new, the fee spends dollars held giving no cost basis."""
         book = _book(tmp_path)
+        before = _read(book)[0]
         done = _run(CliRunner(), 'import', str(book), FEE_DRAWN_ON_NO_COST_BASIS,
                     '--strategy', 'update')
 
         assert done.exit_code != 0, done.output
-        assert ("the book holds -0.72 USD on 'Assets:Wise USD' valued at -1.00, "
-                'drawn on cost basis 3cdacfb099e9c7fbe795b8aa317313bd; '
-                "the file states -0.72 USD on 'Assets:Wise USD' valued at -1.00; "
-                ) in done.output, done.output
+        assert ('this transaction spends 0.72 USD the book held, which draws down a '
+                'cost basis, but no split says which one') in done.output, done.output
+        assert _read(book)[0] == before
 
     def test_it_lists_what_draws_on_the_cost_basis(self, tmp_path):
         _, output = self._refused(tmp_path)
@@ -299,9 +302,9 @@ class TestRestatingWhatSetsTheRate:
         assert _read(book) == ([], []), _read(book)
 
 
-class TestARefusalOfAnEditChangingTheCurrency:
-    def test_the_book_is_given_in_its_currency_and_the_file_in_the_files(self, tmp_path):
-        """Yen divides into 1 and Canadian dollars into 100: each line is given at its own."""
+class TestAnEditChangingTheCurrency:
+    def test_the_yen_arrival_restated_in_canadian_dollars_is_priced_at_its_new_figures(self, tmp_path):
+        """Nothing draws on the yen's cost basis, so the edit is read as a new transaction would be (Q-051)."""
         book = tmp_path / 'book.gnucash'
         made = _run(CliRunner(), 'import', '--new', str(book), YEN_ARRIVAL)
         assert made.exit_code == 0 and 'Errors:       0' in made.output, made.output
@@ -309,12 +312,9 @@ class TestARefusalOfAnEditChangingTheCurrency:
         done = _run(CliRunner(), 'import', str(book), YEN_ARRIVAL_RESTATED_IN_CAD,
                     '--strategy', 'update')
 
-        assert done.exit_code != 0, done.output
-        assert ('the book holds -900.00 CAD on '
-                "'Assets:Due from shareholder' valued at -100000") in done.output, done.output
-        assert ("-100000.00" not in done.output), done.output
-        assert ('the file states -910.00 CAD on '
-                "'Assets:Due from shareholder' valued at -910.00") in done.output, done.output
+        assert done.exit_code == 0, done.output
+        [(_account, _balance, cost)] = _read(book)[0]
+        assert cost == Fraction(910, 100000)
 
 
 class TestAddingAZeroAmountJpySplitOnTheYenBank:

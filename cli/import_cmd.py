@@ -558,7 +558,8 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 input_file, resolution_strategy,
                 on_accounts_ready=(_owners_and_tax_tables
                                    if include_business_objects else None),
-                atomic=atomic)
+                atomic=atomic,
+                applies_payments=include_business_objects)
             # A file that could not be read is refused, not summarised. The
             # hook above never runs for one — the parse is checked before any
             # declaration is carried out — so both paths agree on the exit code
@@ -638,6 +639,13 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             click.echo("=" * 50)
             click.echo(f"  Transactions: {result.imported_count}")
             click.echo(f"  Updated:      {result.updated_count}")
+            # Transactions the file states as the book already holds them:
+            # no new changes, so they are up to date and were not edited.
+            # Only where there were any, so a run that is not an update reads
+            # as it always has.
+            if result.up_to_date_count:
+                click.echo(f"  Up to date:   {result.up_to_date_count} "
+                           f"(no new changes, not edited)")
             click.echo(f"  Commodities:  {result.commodities_created} created, "
                        f"{result.commodities_updated} updated")
             if result.prices_seen:
@@ -910,6 +918,12 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             failed = result.error_count > 0 or rolled_back
 
         finally:
+            # What this file stated about its payments belongs to this run. A
+            # command reading a book later in the same process, as the suite
+            # does, read the file's `payment:` blocks as applying splits and
+            # counted a part payment already in its lot a second time.
+            from services.gnucash_importer import note_what_the_file_states
+            note_what_the_file_states([])
             repo.close()
 
         if failed:

@@ -352,18 +352,18 @@ class TestAFeeGivingNoCostBasis:
 
 
 class TestAnEditInPlace:
-    def test_a_fee_added_by_an_edit_is_refused(self, tmp_path):
-        """E9: the position resolves to the arrival's `guid:`, and Q-048 refuses the draw."""
+    def test_a_fee_added_by_an_edit_draws_on_the_arrival(self, tmp_path):
+        """E9: the position resolves to the arrival's `guid:`, and the edit is read as new (Q-051)."""
         book, first = _import(tmp_path, 'a_usd_arrival_whose_fee_an_edit_adds_the_arrival_alone.txt')
         _imported(first)
 
         done = _run(CliRunner(), 'import', str(book),
                     FIXTURES + 'a_usd_arrival_whose_fee_an_edit_adds.txt', '--strategy', 'update')
 
-        assert done.exit_code != 0, done.output
-        assert 'cannot be edited in place' in done.output, done.output
-        assert ('would draw on cost basis 0e5e0000000000000000000000000008'
-                in done.output), done.output
+        _imported(done)
+        assert _bases(book) == [('Assets:Wise USD', 'USD', 'asset', Fraction('2719.28'))]
+        assert _picks(book) == ['0e5e0000000000000000000000000008']
+        _sound(book)
 
     def test_a_position_at_a_line_giving_no_guid_refuses_the_whole_file(self, tmp_path):
         """E20: found before any transaction is edited, so the first keeps its description."""

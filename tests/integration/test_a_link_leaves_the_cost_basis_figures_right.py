@@ -104,9 +104,18 @@ def _invoices_and_a_parked_deposit(runner, book, with_fee):
         assert result.exit_code == 0, result.output
 
 
-def _linked_to_the_invoice(runner, book, tmp_path):
+def _linked_to_the_invoice(runner, book, tmp_path, the_invoice_alone=False):
+    """The book's export with INV-USD-001 paid by the deposit, imported as an update.
+
+    `the_invoice_alone` gives the invoice's block without the rest of the
+    ledger, for a book whose deposit a restated line of its own would refuse
+    before the link is reached.
+    """
     before = _exported(runner, book, tmp_path / 'before.txt',
                        '--include-business-objects')
+    if the_invoice_alone:
+        before = before[before.index('invoice "INV-USD-001"'):]
+        before = before[:before.index('\n\n')] + '\n' if '\n\n' in before else before
     linked = tmp_path / 'linked.txt'
     linked.write_text(_with_payment(before, 'invoice "INV-USD-001"', [
         '\tpayment:',
@@ -191,7 +200,10 @@ def test_a_link_is_refused_where_the_balance_will_not_parse(tmp_path):
         repo.close()
     assert _stored_balance(book, DEPOSIT_SPLIT) == '2,000.00'
 
-    refused = _linked_to_the_invoice(runner, book, tmp_path)
+    # The invoice's block alone: the export restates the deposit's balance
+    # beside it, and that line is refused as not a number before the link is
+    # reached, which is a different question.
+    refused = _linked_to_the_invoice(runner, book, tmp_path, the_invoice_alone=True)
     message = refused.output + str(refused.exception)
     assert refused.exit_code != 0, message
     assert "reads '2,000.00', which is not a figure" in message, message

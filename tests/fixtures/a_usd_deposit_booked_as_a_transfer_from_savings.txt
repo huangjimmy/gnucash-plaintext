@@ -1,0 +1,33 @@
+# Q-051 E7: a_usd_deposit_and_its_fee_on_a_holding_account.txt booked as
+# 2,720.00 USD moved from Assets:USD Savings, whose dollars are the opening
+# balance of usd_held_in_savings_as_an_opening_balance.txt, the bank's 0.72
+# USD fee still in the same transaction, drawing on that opening balance's
+# cost basis and valued at what it cost, 0.97.
+#
+# The fee gives the cost basis it spends, so it is what left, and the rest
+# moved: 2,720.00 out of savings and into Wise draws down no cost basis and
+# opens none. The deposit's own cost basis is not established, and the
+# opening balance's falls by the fee alone, to 2,999.28, what the two
+# accounts hold between them.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "0e510000000000000000000000000a01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e510000000000000000000000000a02"
+		account.commodity.mnemonic: "USD"
+		value: "3672.00"
+	Assets:USD Savings -2720.00 USD
+		guid: "0e510000000000000000000000000a03"
+		account.commodity.mnemonic: "USD"
+		value: "-3672.00"
+	Expenses:Bank charges 1.01 CAD
+		guid: "0e510000000000000000000000000a04"
+	Assets:Wise USD -0.72 USD
+		guid: "0e510000000000000000000000000a05"
+		account.commodity.mnemonic: "USD"
+		value: "-0.97"
+		cost_basis_split_guid: "0e510000000000000000000000000e02"
+	Income:FX gain $residual$ CAD

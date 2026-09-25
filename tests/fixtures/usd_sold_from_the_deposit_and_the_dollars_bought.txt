@@ -1,0 +1,24 @@
+# Q-051: 10.00 USD sold for 14.00 CAD, 5.00 drawn on the statement's deposit
+# (a_usd_deposit_and_its_fee_on_a_holding_account.txt), valued at what it
+# cost, 3,815.89 / 2,720.00 × 5 = 7.01, and 5.00 drawn on the dollars bought
+# before it (usd_bought_into_wise_before_the_statement.txt), at 1.35: 6.75.
+# The deposit's draw comes first.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-20 * "Sold 10 USD from two cost bases"
+	guid: "0e510000000000000000000000000921"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD -5.00 USD
+		guid: "0e510000000000000000000000000922"
+		account.commodity.mnemonic: "USD"
+		value: "-7.01"
+		cost_basis_split_guid: "0e510000000000000000000000000a02"
+	Assets:Wise USD -5.00 USD
+		guid: "0e510000000000000000000000000923"
+		account.commodity.mnemonic: "USD"
+		value: "-6.75"
+		cost_basis_split_guid: "0e510000000000000000000000000d02"
+	Assets:Chequing 14.00 CAD
+		guid: "0e510000000000000000000000000924"
+	Income:FX gain $residual$ CAD

@@ -19,6 +19,7 @@ from gnucash import Account, Query, Session, Split, Transaction
 from gnucash.gnucash_core import GnuCashBackendException
 
 from infrastructure.gnucash.engine import load_gnc_engine
+from infrastructure.gnucash.kvp import forget_custom_key_changes
 from infrastructure.gnucash.utils import transaction_under_construction
 
 if TYPE_CHECKING:
@@ -314,12 +315,18 @@ class GnuCashRepository:
 
         Nothing read from the book may be used after this: its accounts,
         commodities and transactions are freed with it.
+
+        And the log of KVP changes an index of the book was kept from
+        (`log_custom_key_changes`) is started afresh. It is the book's: kept,
+        every command in a long-lived process, the suite's among them, added
+        to it with nothing ever taking it away.
         """
         if self.session is not None:
             session = self.session
             self.session = None
             self._book = None
             session.destroy()
+        forget_custom_key_changes()
         self._discard_the_private_copy()
 
     def save(self):

@@ -1,0 +1,22 @@
+# Q-051 E7a: a_usd_fee_on_a_holding_account_imported_before_the_dollars_it_spent.txt
+# booked as the bank charge, once the book holds the dollars it spent.
+#
+# Read as a new transaction, the fee now spends 1.00 USD held, so it gives the
+# cost basis it came out of, the dollars bought at 1.35, valued 1.35, with the
+# difference against the 0.72 charged stated by the `$residual$` split. It
+# establishes no cost basis, and the owed-side cost basis the old version
+# established is not established.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-20 * "Transfer fee"
+	guid: "0e510000000000000000000000000f01"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 0.72 CAD
+		guid: "0e510000000000000000000000000f02"
+	Assets:Wise USD -1.00 USD
+		guid: "0e510000000000000000000000000f03"
+		account.commodity.mnemonic: "USD"
+		value: "-1.35"
+		cost_basis_split_guid: "0e510000000000000000000000000d02"
+	Income:FX gain $residual$ CAD
