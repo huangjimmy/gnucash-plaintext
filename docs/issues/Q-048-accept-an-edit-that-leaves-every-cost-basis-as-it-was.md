@@ -13,10 +13,10 @@
 A user moved the other split of a US dollar arrival from the director's account to income with `--strategy update`. The arrival, as the book held it:
 
 ```
-2026-08-13 * "Received money from REDACTED PAYER with reference 091000014286964 | ..."
+2026-08-13 * "Received money from REDACTED PAYER with reference 000000000000000 | ..."
 	guid: "e1d60fe6bc104e018c50c67dd61665ec"
 	currency.mnemonic: "USD"
-	Assets:...:Wise Payments Canada Inc. Chequing 170710882080137 2720.00 USD
+	Assets:...:Foreign Payments Provider Chequing 2720.00 USD
 		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
 		cost_basis_balance: "0.00"
 	Assets:Current assets:Due from shareholder(s)/director(s) -3791.14 CAD

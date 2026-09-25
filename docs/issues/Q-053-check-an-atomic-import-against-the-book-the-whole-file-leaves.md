@@ -20,6 +20,27 @@ On what `--atomic` should be: "then --atomic should be all constraints deferred"
 
 And on the tests: "gnucash plaintext dont know undo, but test case know what is undo!"
 
+### The request this was for
+
+A user's application links a US dollar deposit to the invoice it collected. The bank's export writes the deposit and its 0.72 USD fee as two transactions stated in US dollars, the fee drawing on the deposit's cost basis. The application imports the invoice's block with a `payment:` block giving the deposit's transaction and the bank account, and nothing else. Reproduced with the test book's names (`tests/fixtures/a_usd_deposit_and_its_fee_stated_in_usd_as_two_transactions.txt`, `tests/fixtures/inv_usd_1_paid_by_linking_the_deposit.txt`):
+
+```
+invoice "INV-USD-1"
+	…
+	payment:
+		bank_account: "Assets:Wise USD"
+		txn_guid: "0e530000000000000000000000000b21"
+```
+
+On #115 (`5cc252e`), with `--atomic`, it is refused: "linking this payment discards the cost basis on split … but 1 disposal(s) are measured against that cost basis: 2026-08-13 'Charges for the deposit' (0.72 USD)".
+
+#115 did not record this request and did not test it. Its tests booked the deposit by editing the deposit's own transaction, its split moved onto the receivable, with a `payment:` block giving `txn_split_guid:`. The request links the deposit by `txn_guid:` and `bank_account:`, and that link is checked in the invoice's block, which read the fee as the book held it, and which is not applied again once refused.
+
+What each file does:
+
+- **The link alone.** Once the deposit pays the invoice, its dollars are the invoice's collected dollars, and the deposit's split is no cost basis. The fee still gives that split as the cost basis it draws on, and the import does not choose another for it: a cost basis is what the file gives. So the link alone is refused, and the refusal says what to add, the fee restated in the same file drawing on the invoice's cost basis, imported with `--atomic`.
+- **The link and the fee restated, in one file, with `--atomic`.** Accepted. The link reads the fee's version in the file, so it does not count the fee as drawing on the deposit's cost basis, and it does not read the deposit's balance, short by the 0.72 the fee drew, as currency sold outside the book. The fee is applied again once the link has collected the invoice, drawing on the invoice's cost basis.
+
 ## Why a block was refused over its place in the file
 
 An import applies the transactions first and the invoice and bill blocks after them. Read one block at a time, each of these is refused:
@@ -79,6 +100,14 @@ An edit sets the posted date only where the file moves the day. `test_the_export
 | a withdrawal booked as BILL-USD-1's payment (Q-051 E4), undone and booked again | `TestAWithdrawalBookedAsTheBillItPaid` |
 | a split in a lot the file does not take off: the invoice not stated, still paid by the transaction, the invoice's own posting, an owner's credit | `TestASplitInALotTheFileDoesNotTakeOff` |
 | the export after an undo is the export from before, line for line and in the same order, but for the memo; failed on 3.8 before an edit kept the moment a transaction was posted at | `test_the_export_keeps_its_order` |
+| the request this was for: a deposit and its fee stated in US dollars as two transactions, the invoice's `payment:` block linking the deposit by `txn_guid:` and `bank_account:`, and nothing else: refused, saying to restate the fee in the same file, and the book file unchanged | `test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py::test_the_link_alone_is_refused_saying_to_restate_the_fee_in_the_same_file` |
+| the same link with the fee restated in the same file, drawing on the invoice's cost basis: accepted, and `fx-balances --verify-costs` finds nothing wrong. Refused on #115: the link read the fee as the book held it, and the deposit's cost basis, short by the fee's 0.72, was read as currency sold outside the book | `…::test_the_link_and_the_fee_restated_in_one_file_are_accepted` |
+| the same link with the fee restated keeping its US dollar split and giving no cost basis: the fee is a spend refused for that, the whole file is rolled back, and the book file is unchanged | `…::test_the_link_and_the_fee_restated_giving_no_cost_basis_are_refused` |
+| the fee restated onto the invoice at 1.01 CAD, where 0.72 of the invoice's dollars cost 1.00: refused, saying 1.00. Accepted on #115, and `--verify-costs` reported nothing: a disposal in a transaction stated in US dollars was not valued against its cost basis | `…::test_the_fee_restated_onto_the_invoice_at_another_cad_figure_is_refused` |
+| the fee corrected to 0.73 USD at the invoice's cost, 1.02 CAD: accepted, Wise USD and the invoice's cost basis both at 2,719.27 | `…::test_the_fee_restated_onto_the_invoice_drawing_another_amount_at_its_cost_is_accepted` |
+| the fee restated onto INV-USD-2, not collected: refused | `…::test_the_fee_restated_onto_an_invoice_not_collected_is_refused` |
+| the fee restated onto BILL-USD-1, dollars the book owes: refused, saying the bank's dollars are held. Accepted on #115, leaving Wise USD at 2,719.28 while INV-USD-1's cost basis offered 2,720.00, and the bill's cost basis at 999.28 against 1,000.00 owed | `…::test_the_fee_restated_onto_a_bill_is_refused` |
+| the link giving the fee's transaction, another bank account, or the deposit's bank split as `txn_split_guid:`: refused | `…::test_the_link_giving_the_fee_s_transaction_is_refused`, `…::test_the_link_giving_another_bank_account_is_refused`, `…::test_the_link_giving_the_deposit_s_bank_split_is_refused` |
 | a book kept in HKD, holding USD and CAD, its deposit on a suspense account booked as INV-HK-1's collection, undone and booked again | `TestABookKeptInHongKongDollars` |
 
 Each undo asserts the export after it holds the blocks of the export from before the booking, but for the two `memo:` lines, and that `fx-balances --verify-costs` lists the same cost bases, with no warning.

@@ -110,6 +110,7 @@ from services.foreign_currency import (
     cost_of,
     deferring_edits_in_place,
     disposals_drawing_on,
+    drawn_by,
     establishes_cost_basis,
     find_split_by_guid,
     forget_custom_key_changes,
@@ -1361,7 +1362,13 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
             # side keeps it.
             write_cost_basis_cost(split, cost)
             continue
-        drawn = disposals_drawing_on(book, split)
+        # Under `--atomic`, of the book the file leaves: a fee the same file
+        # restates onto the record's cost basis no longer draws on this one
+        # (Q-053). The file's version is applied once the link has collected
+        # the record.
+        drawn = disposals_drawing_on(
+            book, split,
+            lambda each, basis=guid: _still_draws_once_the_file_is_applied(each, basis))
         if drawn:
             listed = '; '.join(sorted(drawn))
             raise Exception(
@@ -1372,9 +1379,18 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
                 f'disposal(s) are measured against that cost basis: {listed}. They '
                 f'were valued at the rate this payment was entered at, which '
                 f'the record need not share, so they cannot simply be pointed '
-                f'at the record\'s cost basis. Delete them, link the payment, and '
-                f'import them again measured against the record\'s cost basis.')
-        _refuse_to_discard_a_part_sold_balance(split, guid)
+                f'at the record\'s cost basis. With --atomic, restate them in '
+                f'this file, drawing on the record\'s cost basis and valued at '
+                f'its cost, beside this block. Or delete them, link the '
+                f'payment, and import them again measured against the record\'s '
+                f'cost basis.')
+        # What each drew, which is not its whole amount where it crossed zero.
+        drawn_elsewhere = sum(
+            (drawn_by(each)
+             for each in splits_drawing_on(book, guid)
+             if not _still_draws_once_the_file_is_applied(each, guid)),
+            Fraction(0))
+        _refuse_to_discard_a_part_sold_balance(split, guid, drawn_elsewhere)
         _strip_a_settlements_basis(split)
 
 
@@ -2249,8 +2265,14 @@ def refuse_a_stated_brought_in(metadata, where: str) -> None:
             f'writes it. Remove the line.')
 
 
-def _refuse_to_discard_a_part_sold_balance(split, guid: str) -> None:
+def _refuse_to_discard_a_part_sold_balance(split, guid: str,
+                                           drawn_elsewhere: Fraction = Fraction(0)) -> None:
     """Refuse to discard a cost basis balance that is below what it brought in.
+
+    `drawn_elsewhere` is what the disposals the file moves onto another cost
+    basis drew on this one, under `--atomic` (Q-053): the balance is short by
+    it only until their version in the file is applied, so it is no currency
+    sold outside the book.
 
     The difference is currency sold outside this book. A balance a file states
     is authoritative — README says so, and it is how a book carrying sales
@@ -2289,7 +2311,7 @@ def _refuse_to_discard_a_part_sold_balance(split, guid: str) -> None:
     if balance is None:
         return
     brought_in = abs(numeric_to_fraction(split.GetAmount()))
-    if balance >= brought_in:
+    if balance + drawn_elsewhere >= brought_in:
         return
     unit = smallest_unit(split)
     currency = split_commodity(split)

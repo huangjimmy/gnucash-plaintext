@@ -83,9 +83,9 @@ By step 7 all 2,720.00 USD have been spent. They went in three transactions, and
 
 | transaction | USD spent | valued at cost | what it fetched | to Foreign exchange gains/losses |
 |---|---|---|---|---|
-| Wise charge | 0.72 | 1.00 | 1.00 of bank charge | none |
+| Bank charge | 0.72 | 1.00 | 1.00 of bank charge | none |
 | transfer to the payee | 2,710.68 | 3,778.15 | 3,758.36 | 19.79 |
-| Wise charge | 8.60 | 11.99 | 11.92 of bank charge | 0.07 |
+| Bank charge | 8.60 | 11.99 | 11.92 of bank charge | 0.07 |
 | | **2,720.00** | **3,791.14** | **3,771.28** | **19.86** |
 
 Three disposals, and only two produce a gain or loss. The first produces none because 0.72 USD at that cost is 1.00 CAD, which is exactly what the charge was.
@@ -703,7 +703,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137
+2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing
 	guid: "<guid>"
 	type: "Asset"
 	placeholder: #False
@@ -759,13 +759,13 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 * "Received money from REDACTED PAYER with reference 091000014286964 | Received money from REDACTED PAYER with reference 091000014286964"
+2026-08-13 * "Received money from REDACTED PAYER with reference 000000000000000 | Received money from REDACTED PAYER with reference 000000000000000"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0001"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 2720.00 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 2720.00 USD
 		guid: "<guid>"
 		cost_basis_balance: "2720.00"
 	Assets:Current assets:Due from shareholder(s)/director(s) -3791.14 CAD
@@ -773,10 +773,10 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "272000/379114"
 		value: "-2720.00"
-2026-08-13 * "Wise Charges for: TRANSFER-2308077507 | Wise Charges for: TRANSFER-2308077507"
+2026-08-13 * "Charges for: TRANSFER-0001 | Charges for: TRANSFER-0001"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0001"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 1.00 CAD
@@ -784,7 +784,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "0.72"
 		value: "0.72"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -0.72 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -0.72 USD
 		guid: "<guid>"
 2026-08-13 * "USD-INV-<id>" "Invoice USD-INV-<id>"
 	guid: "<guid>"
@@ -807,7 +807,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 2026-08-17 * "REDACTED PAYEE | Sent money to REDACTED PAYEE (fee: 8.60 USD)"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 3758.36 CAD
@@ -815,12 +815,12 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "271068/375836"
 		value: "2710.68"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -2710.68 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -2710.68 USD
 		guid: "<guid>"
-2026-08-17 * "Wise | Wise Charges for: TRANSFER-2316634310"
+2026-08-17 * "Foreign Payments Provider | Charges for: TRANSFER-0002"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 11.92 CAD
@@ -828,10 +828,10 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "860/1192"
 		value: "8.60"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -8.60 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -8.60 USD
 		guid: "<guid>"
 ----- COST BASES
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
 	Assets:Current assets:Accounts receivable:USD acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
 ----- INCOME STATEMENT
 2026-01-01 income-statement
@@ -925,7 +925,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137
+2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing
 	guid: "<guid>"
 	type: "Asset"
 	placeholder: #False
@@ -981,13 +981,13 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 * "Received money from REDACTED PAYER with reference 091000014286964 | Received money from REDACTED PAYER with reference 091000014286964"
+2026-08-13 * "Received money from REDACTED PAYER with reference 000000000000000 | Received money from REDACTED PAYER with reference 000000000000000"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0001"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 2720.00 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 2720.00 USD
 		guid: "<guid>"
 		cost_basis_balance: "2720.00"
 	Assets:Current assets:Due from shareholder(s)/director(s) -3791.14 CAD
@@ -995,10 +995,10 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "272000/379114"
 		value: "-2720.00"
-2026-08-13 * "Wise Charges for: TRANSFER-2308077507 | Wise Charges for: TRANSFER-2308077507"
+2026-08-13 * "Charges for: TRANSFER-0001 | Charges for: TRANSFER-0001"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0001"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 1.00 CAD
@@ -1006,7 +1006,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "0.72"
 		value: "0.72"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -0.72 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -0.72 USD
 		guid: "<guid>"
 2026-08-13 * "USD-INV-<id>" "Invoice USD-INV-<id>"
 	guid: "<guid>"
@@ -1029,7 +1029,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 2026-08-17 * "REDACTED PAYEE | Sent money to REDACTED PAYEE (fee: 8.60 USD)"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 3758.36 CAD
@@ -1037,12 +1037,12 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "271068/375836"
 		value: "2710.68"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -2710.68 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -2710.68 USD
 		guid: "<guid>"
-2026-08-17 * "Wise | Wise Charges for: TRANSFER-2316634310"
+2026-08-17 * "Foreign Payments Provider | Charges for: TRANSFER-0002"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 11.92 CAD
@@ -1050,10 +1050,10 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "860/1192"
 		value: "8.60"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -8.60 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -8.60 USD
 		guid: "<guid>"
 ----- COST BASES
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
 	Assets:Current assets:Accounts receivable:USD acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
 ----- INCOME STATEMENT
 2026-01-01 income-statement
@@ -1147,7 +1147,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137
+2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing
 	guid: "<guid>"
 	type: "Asset"
 	placeholder: #False
@@ -1203,21 +1203,21 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 * "Received money from REDACTED PAYER with reference 091000014286964 | Received money from REDACTED PAYER with reference 091000014286964"
+2026-08-13 * "Received money from REDACTED PAYER with reference 000000000000000 | Received money from REDACTED PAYER with reference 000000000000000"
 	guid: "<guid>"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0001"
 	txn_type: P
 	owner: customer:CUST-USD-INV-<id>
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 2720.00 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 2720.00 USD
 		guid: "<guid>"
 	Assets:Current assets:Accounts receivable:USD -2720.00 USD
 		guid: "<guid>"
-2026-08-13 * "Wise Charges for: TRANSFER-2308077507 | Wise Charges for: TRANSFER-2308077507"
+2026-08-13 * "Charges for: TRANSFER-0001 | Charges for: TRANSFER-0001"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0001"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 1.00 CAD
@@ -1225,7 +1225,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "0.72"
 		value: "0.72"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -0.72 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -0.72 USD
 		guid: "<guid>"
 2026-08-13 * "USD-INV-<id>" "Invoice USD-INV-<id>"
 	guid: "<guid>"
@@ -1248,7 +1248,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 2026-08-17 * "REDACTED PAYEE | Sent money to REDACTED PAYEE (fee: 8.60 USD)"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 3758.36 CAD
@@ -1256,12 +1256,12 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "271068/375836"
 		value: "2710.68"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -2710.68 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -2710.68 USD
 		guid: "<guid>"
-2026-08-17 * "Wise | Wise Charges for: TRANSFER-2316634310"
+2026-08-17 * "Foreign Payments Provider | Charges for: TRANSFER-0002"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 11.92 CAD
@@ -1269,7 +1269,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "860/1192"
 		value: "8.60"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -8.60 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -8.60 USD
 		guid: "<guid>"
 ----- COST BASES
 	Assets:Current assets:Accounts receivable:USD acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
@@ -1361,7 +1361,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137
+2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing
 	guid: "<guid>"
 	type: "Asset"
 	placeholder: #False
@@ -1417,13 +1417,13 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 * "Received money from REDACTED PAYER with reference 091000014286964 | Received money from REDACTED PAYER with reference 091000014286964"
+2026-08-13 * "Received money from REDACTED PAYER with reference 000000000000000 | Received money from REDACTED PAYER with reference 000000000000000"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0001"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 2720.00 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 2720.00 USD
 		guid: "<guid>"
 		cost_basis_balance: "2720.00"
 	Assets:Current assets:Due from shareholder(s)/director(s) -3791.14 CAD
@@ -1431,10 +1431,10 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "272000/379114"
 		value: "-2720.00"
-2026-08-13 * "Wise Charges for: TRANSFER-2308077507 | Wise Charges for: TRANSFER-2308077507"
+2026-08-13 * "Charges for: TRANSFER-0001 | Charges for: TRANSFER-0001"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0001"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 1.00 CAD
@@ -1442,7 +1442,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "0.72"
 		value: "0.72"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -0.72 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -0.72 USD
 		guid: "<guid>"
 2026-08-13 * "USD-INV-<id>" "Invoice USD-INV-<id>"
 	guid: "<guid>"
@@ -1465,7 +1465,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 2026-08-17 * "REDACTED PAYEE | Sent money to REDACTED PAYEE (fee: 8.60 USD)"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 3758.36 CAD
@@ -1473,12 +1473,12 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "271068/375836"
 		value: "2710.68"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -2710.68 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -2710.68 USD
 		guid: "<guid>"
-2026-08-17 * "Wise | Wise Charges for: TRANSFER-2316634310"
+2026-08-17 * "Foreign Payments Provider | Charges for: TRANSFER-0002"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 11.92 CAD
@@ -1486,10 +1486,10 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "860/1192"
 		value: "8.60"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -8.60 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -8.60 USD
 		guid: "<guid>"
 ----- COST BASES
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
 	Assets:Current assets:Accounts receivable:USD acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
 ----- INCOME STATEMENT
 2026-01-01 income-statement
@@ -1583,7 +1583,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137
+2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing
 	guid: "<guid>"
 	type: "Asset"
 	placeholder: #False
@@ -1639,21 +1639,21 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 * "Received money from REDACTED PAYER with reference 091000014286964 | Received money from REDACTED PAYER with reference 091000014286964"
+2026-08-13 * "Received money from REDACTED PAYER with reference 000000000000000 | Received money from REDACTED PAYER with reference 000000000000000"
 	guid: "<guid>"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0001"
 	txn_type: P
 	owner: customer:CUST-USD-INV-<id>
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 2720.00 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 2720.00 USD
 		guid: "<guid>"
 	Assets:Current assets:Accounts receivable:USD -2720.00 USD
 		guid: "<guid>"
-2026-08-13 * "Wise Charges for: TRANSFER-2308077507 | Wise Charges for: TRANSFER-2308077507"
+2026-08-13 * "Charges for: TRANSFER-0001 | Charges for: TRANSFER-0001"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0001"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 1.00 CAD
@@ -1661,7 +1661,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "0.72"
 		value: "0.72"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -0.72 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -0.72 USD
 		guid: "<guid>"
 2026-08-13 * "USD-INV-<id>" "Invoice USD-INV-<id>"
 	guid: "<guid>"
@@ -1684,7 +1684,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 2026-08-17 * "REDACTED PAYEE | Sent money to REDACTED PAYEE (fee: 8.60 USD)"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 3758.36 CAD
@@ -1692,12 +1692,12 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "271068/375836"
 		value: "2710.68"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -2710.68 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -2710.68 USD
 		guid: "<guid>"
-2026-08-17 * "Wise | Wise Charges for: TRANSFER-2316634310"
+2026-08-17 * "Foreign Payments Provider | Charges for: TRANSFER-0002"
 	guid: "<guid>"
 	currency.mnemonic: "USD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Assets:Current assets:Due from shareholder(s)/director(s) 11.92 CAD
@@ -1705,7 +1705,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		account.commodity.mnemonic: "CAD"
 		share_price: "860/1192"
 		value: "8.60"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -8.60 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -8.60 USD
 		guid: "<guid>"
 ----- COST BASES
 	Assets:Current assets:Accounts receivable:USD acquired 2,720.00 USD balance 2,720.00 USD cost 189557/136000 CAD/USD on 2026-08-13
@@ -1797,7 +1797,7 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137
+2026-08-13 open Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing
 	guid: "<guid>"
 	type: "Asset"
 	placeholder: #False
@@ -1901,14 +1901,14 @@ Closing it means recording a cost in the currency the book is kept in and readin
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-08-13 * "Received money from REDACTED PAYER with reference 091000014286964 | Received money from REDACTED PAYER with reference 091000014286964"
+2026-08-13 * "Received money from REDACTED PAYER with reference 000000000000000 | Received money from REDACTED PAYER with reference 000000000000000"
 	guid: "<guid>"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0001"
 	txn_type: P
 	owner: customer:CUST-USD-INV-<id>
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 2720.00 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing 2720.00 USD
 		guid: "<guid>"
 	Assets:Current assets:Accounts receivable:USD -2720.00 USD
 		guid: "<guid>"
@@ -1930,15 +1930,15 @@ Closing it means recording a cost in the currency the book is kept in and readin
 		value: "-2720.00"
 		action: "Invoice"
 		memo:"Invoice USD-INV-<id>"
-2026-08-13 * "Wise Charges for: TRANSFER-2308077507 | Wise Charges for: TRANSFER-2308077507"
+2026-08-13 * "Charges for: TRANSFER-0001 | Charges for: TRANSFER-0001"
 	guid: "<guid>"
 	currency.mnemonic: "CAD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2308077507"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0001"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Expenses:Non-farming expenses – Operating expenses:Bank charges 1.00 CAD
 		guid: "<guid>"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -0.72 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -0.72 USD
 		guid: "<guid>"
 		account.commodity.mnemonic: "USD"
 		share_price: "100/72"
@@ -1947,30 +1947,30 @@ Closing it means recording a cost in the currency the book is kept in and readin
 2026-08-17 * "REDACTED PAYEE | Sent money to REDACTED PAYEE (fee: 8.60 USD)"
 	guid: "<guid>"
 	currency.mnemonic: "CAD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Equity:Equity:Retained earnings/deficit 3758.36 CAD
 		guid: "<guid>"
 	Income:Non-farming revenue:Foreign exchange gains/losses 19.79 CAD
 		guid: "<guid>"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -2710.68 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -2710.68 USD
 		guid: "<guid>"
 		account.commodity.mnemonic: "USD"
 		share_price: "377815/271068"
 		value: "-3778.15"
 		cost_basis_split_guid: "<guid>"
-2026-08-17 * "Wise | Wise Charges for: TRANSFER-2316634310"
+2026-08-17 * "Foreign Payments Provider | Charges for: TRANSFER-0002"
 	guid: "<guid>"
 	currency.mnemonic: "CAD"
-	doc_link: "juneworks:ofx:Wise Payments Canada Inc.:170710882080137:FEE-TRANSFER-2316634310"
+	doc_link: "bank-statement:foreign-payments-provider:FEE-TRANSFER-0002"
 	gnucash.tx.imported_at: "<ts>"
 	gnucash.tx.updated_at: "<ts>"
 	Expenses:Non-farming expenses – Operating expenses:Bank charges 11.92 CAD
 		guid: "<guid>"
 	Income:Non-farming revenue:Foreign exchange gains/losses 0.07 CAD
 		guid: "<guid>"
-	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Wise Payments Canada Inc. Chequing 170710882080137 -8.60 USD
+	Assets:Current assets:Cash and deposits:Deposits in Canadian banks and institutions – Foreign currency:Foreign Payments Provider Chequing -8.60 USD
 		guid: "<guid>"
 		account.commodity.mnemonic: "USD"
 		share_price: "1199/860"

@@ -1,0 +1,27 @@
+# Q-053: a bank statement's 2,720.00 USD deposit and the bank's 0.72 USD fee,
+# written as two transactions stated in US dollars, as a bank exporting its
+# fees separately writes them and an application imports them: the deposit's
+# other side on Assets:Due from director at 3,791.14 CAD, and the fee drawing
+# on the deposit's cost basis, its other side on the same account at 1.00.
+#
+# Verified by
+# tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
+2026-08-13 * "Balance-leaving deposit"
+	guid: "0e530000000000000000000000000b21"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e530000000000000000000000000b22"
+	Assets:Due from director -3791.14 CAD
+		guid: "0e530000000000000000000000000b23"
+		account.commodity.mnemonic: "CAD"
+		value: "-2720.00"
+2026-08-13 * "Charges for the deposit"
+	guid: "0e530000000000000000000000000b31"
+	currency.mnemonic: "USD"
+	Assets:Due from director 1.00 CAD
+		guid: "0e530000000000000000000000000b32"
+		account.commodity.mnemonic: "CAD"
+		value: "0.72"
+	Assets:Wise USD -0.72 USD
+		guid: "0e530000000000000000000000000b33"
+		cost_basis_split_guid: "0e530000000000000000000000000b22"
