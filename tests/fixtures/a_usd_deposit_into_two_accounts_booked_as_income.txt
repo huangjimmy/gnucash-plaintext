@@ -1,0 +1,19 @@
+# Q-051: a_usd_deposit_into_two_accounts_on_a_holding_account.txt booked as
+# income. Only the Canadian dollar side moves, so both arriving splits
+# establish the cost bases they did, at the same figures.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-15 * "Received money in two accounts"
+	guid: "0e510000000000000000000000000901"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 100.00 USD
+		guid: "0e510000000000000000000000000902"
+		account.commodity.mnemonic: "USD"
+		value: "140.00"
+	Assets:USD Savings 50.00 USD
+		guid: "0e510000000000000000000000000903"
+		account.commodity.mnemonic: "USD"
+		value: "70.00"
+	Income:Sales -210.00 CAD
+		guid: "0e510000000000000000000000000904"

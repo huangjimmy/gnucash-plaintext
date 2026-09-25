@@ -2155,12 +2155,15 @@ class TestAnAmountEditedAfterTheSettlementLanded:
     figure to 60.00 reported `unchanged` at exit 0, leaving the ledger stating
     60.00 for money that moved 100.00.
 
-    The key spelling is deliberately not asked the same question. `amount:`
-    means a different figure there — `_bank_side_figure_of` reads it as what
-    moved through the bank, residue included — which is why the remedy this
-    tool prints for an overpayment states 120.00 beside a 100.00 split and a
-    `prepayment: 20`. Weighing that against the split the key gives would refuse the
-    tool's own advice.
+    The key spelling is asked a narrower question. With `prepayment:` beside
+    it, `amount:` means a different figure — `_bank_side_figure_of` reads it
+    as what moved through the bank, residue included — which is why the
+    remedy this tool prints for an overpayment states 120.00 beside a 100.00
+    split and a `prepayment: 20`, and that is not weighed. Without one, the
+    split on the record's own receivable is attached whole, so `amount:` has
+    to be what it carries: stated otherwise, the book holding the
+    transaction is paid the split and a book that never held it is entered
+    the block's figure (Q-051).
     """
 
     @pytest.fixture
@@ -2224,14 +2227,12 @@ class TestAnAmountEditedAfterTheSettlementLanded:
         assert again.exit_code != 0, again.output
         assert 'unchanged' not in again.output, again.output
 
-    def test_the_key_spelling_states_the_bank_side_instead(self, book):
-        """Not the same question, and deliberately so.
+    def test_the_key_spelling_misstating_its_split_is_refused(self, book):
+        """`amount: 999` against the 60.00 split `txn_split_guid:` gives, with no `prepayment:`.
 
-        `amount:` on `txn_guid:` + `txn_split_guid:` is what moved through the
-        bank, residue and all — which is why the overpayment remedy states
-        120.00 beside a 100.00 split and a `prepayment: 20`. Weighing it
-        against the split the key gives would refuse this tool's own advice, so the
-        block below is accepted where the directive form of it is refused.
+        The split is attached whole, so the book holding the transaction
+        would record 60.00 paid, and a book that never held it would enter
+        999. Accepted, the first happened and nothing was said.
         """
         assert CliRunner().invoke(
             cli, ['import', str(book), TWO_SPLITS]).exit_code == 0
@@ -2240,7 +2241,9 @@ class TestAnAmountEditedAfterTheSettlementLanded:
             'import', str(book), KEY_SPELLING_MISSTATED,
             '--include-business-objects'])
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code != 0, result.output
+        assert ('states amount: 999, and the split given in txn_split_guid '
+                '708192a3b4c5d6e7f809122334455667 carries 60.00') in result.output, result.output
 
 
 class TestABlockNamingOneSplitAndMisstatingIt:

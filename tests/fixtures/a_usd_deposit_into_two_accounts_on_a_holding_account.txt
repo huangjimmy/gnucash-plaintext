@@ -1,0 +1,20 @@
+# Q-051: 150.00 USD arriving in two accounts, 100.00 into Wise and 50.00 into
+# savings, its other side on Assets:Due from director, before the owner knows
+# what it is. Each arriving split establishes a cost basis for what it brings
+# in, at 1.40 CAD/USD: 140.00 and 70.00.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-15 * "Received money in two accounts"
+	guid: "0e510000000000000000000000000901"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 100.00 USD
+		guid: "0e510000000000000000000000000902"
+		account.commodity.mnemonic: "USD"
+		value: "140.00"
+	Assets:USD Savings 50.00 USD
+		guid: "0e510000000000000000000000000903"
+		account.commodity.mnemonic: "USD"
+		value: "70.00"
+	Assets:Due from director -210.00 CAD
+		guid: "0e510000000000000000000000000904"

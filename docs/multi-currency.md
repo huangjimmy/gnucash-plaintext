@@ -428,28 +428,13 @@ Which repair a book needs depends on whether anything drew on that cost basis be
 
 `import --strategy update`. The receivable's posting split is then the single cost basis for that money, which is where the link should have left the book. Export the transaction and edit that one line rather than writing the block by hand, so the figures are the ones the book holds.
 
-**Something drew on it** — a transfer fee spent out of the deposit, say. Re-pointing it at the receivable's cost basis in place is refused, because its transaction picks a cost basis:
-
-```
-Error: transaction <guid> touches a cost basis, and this edit would change it,
-so it cannot be edited in place: the split <guid> on '…Chequing…' draws 0.72
-USD … from cost basis <deposit's guid>, and would draw … from <receivable's
-guid> …
-```
-
-so it is deleted and written again, in three steps:
-
-1. `delete-transactions <book> <fee-tx-guid> --by-guid -o fee.txt` — which gives the stranded cost basis back exactly what the fee took, and saves the transaction as plaintext so you have it;
-2. clear the stranded balance as above;
-3. import `fee.txt` with `cost_basis_split_guid:` changed to the receivable's cost basis — where the money it spent actually is.
+**Something drew on it** — a transfer fee spent out of the deposit, say. Re-point it at the receivable's cost basis in place, with `--strategy update`: nothing else draws on the fee, so its edit is read as a new transaction would be (Q-051). What it drew is given back to the deposit's cost basis, it draws its 0.72 USD from the receivable's — where the money it spent actually is — and its value is checked against what that cost basis cost, as any new disposal's is. The deposit then holds its whole 2,720.00 again on a split that is no cost basis, which `--verify-costs` reports until the balance is cleared as above. Two runs, and `--verify-costs` is clean and the account totals level, which is how you know the book is out of it.
 
 The fee's value has to be what the receivable's cost basis costs times what it takes, as any disposal's does, so check it after the change rather than assuming: the deposit was entered at whatever rate its author used, and the invoice at its posting-date rate. Where the two differ the fee's `value:` changes with the cost basis it draws on.
 
-An edit in place is accepted wherever every cost basis the transaction opens is what it was, and every disposal in it draws what it drew at the value it had: moving the Canadian dollar split that sets a rate to another account goes through. Re-pointing the fee is refused because it changes what the fee draws on. The refusal says which splits the book and the file hold differently and what that would change, and where other transactions draw on the transaction's cost basis it lists them and gives one `delete-transactions` command deleting them first and then it, which is the order a delete accepts. It follows the chain, so a transaction drawing on a cost basis one of them opened is listed and deleted before that one.
+An edit to a transaction whose cost basis another transaction draws on is still refused where it would change that cost basis: the refusal says which splits the book and the file hold differently and what that would change, and gives one `delete-transactions` command deleting the transactions drawing on it first and then it, which is the order a delete accepts. It follows the chain, so a transaction drawing on a cost basis one of them opened is listed and deleted before that one.
 
-Both routes end with `--verify-costs` clean and the account totals level, which is how you know the book is out of it.
-
-**Or commit it as one transaction.** `import --atomic` applies the file and then reads the book it left, instead of checking each block as it is applied. It all commits or it all rolls back, and one cost-basis check is deferred to the end the way a database defers a constraint — the refusal to edit a transaction a cost basis rests on. It is deferred for a transaction that holds a cost basis, and for a disposal re-pointed at another one; a block that restates what a disposal takes, or clears the line giving its cost basis with `cost_basis_split_guid: ""`, is refused as it lands whether the flag is passed or not (a block that leaves the line out keeps the pick), because nothing on that path draws a cost basis down or gives one back. So is a block moving the date of a transaction that holds a cost basis or draws on one: the finished book is asked what each cost basis holds and what it cost, and no question there reads what it held on each day in between, which is what a date moves. The other checks still run block by block. That is what the two-step method above exists to work around. What a rollback answers for is what the file introduces: the same questions are asked of the book before it is read, and a fault already there is not this file's to answer for. The repair is then three blocks stating one end state:
+**Or commit it as one transaction.** `import --atomic` applies the file and then reads the book it left. It all commits or it all rolls back, and one cost-basis check is deferred to the end the way a database defers a constraint — the refusal to edit a transaction whose cost basis another transaction draws on. An edit nothing else rests on is read as a new transaction would be, as without the flag: a disposal restated or re-pointed gives back what it drew and draws what it states, and one whose `cost_basis_split_guid:` line is cleared with `""` is refused as a spend giving no cost basis (a block that leaves the line out keeps the pick). A block moving the date of a transaction whose cost basis another draws on is refused as it lands: the finished book is asked what each cost basis holds and what it cost, and no question there reads what it held on each day in between, which is what a date moves. What a rollback answers for is what the file introduces: the same questions are asked of the book before it is read, and a fault already there is not this file's to answer for. The repair is then three blocks stating one end state:
 
 ```
 2026-07-31 * "INV-USD-001" …          the receivable's cost basis, at 2719.28
@@ -457,9 +442,7 @@ Both routes end with `--verify-costs` clean and the account totals level, which 
 2026-08-13 * "Charges for: …"         the fee, cost_basis_split_guid: <the receivable's>
 ```
 
-No order of those three is legal one at a time: clear the deposit first and the fee draws on a split that is no cost basis, re-point the fee first and it is refused before its figures are even read. Committed together they are fine, and the finished book is checked before anything is saved.
-
-The receivable states **2719.28**, not 2720.00, because a stated balance is what that cost basis holds once the file has landed — net of the file's own disposals. State 2720.00 and nothing refuses it: the balance is inside what the cost basis brought in, which is what the finished book is asked, and the per-currency totals that would notice are a warning `--verify-costs` prints and refuses nothing over. The book then offers 0.72 USD the fee has already taken, and the listing goes on saying so.
+The receivable states **2719.28**, the figure the fee's draw leaves it at, and the file states it net of its own disposals. Restated as the book holds it, 2720.00, it states nothing: an update restates every balance an export carries, so only a figure the file changes is read as stated, and the fee's draw takes the 0.72 off it all the same.
 
 ### Prepayments, refunds, and the lot
 

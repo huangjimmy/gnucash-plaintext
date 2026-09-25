@@ -1,0 +1,20 @@
+# Q-051 E7a: a statement's 1.00 USD fee out of Assets:Wise USD, its other
+# side 0.72 CAD on Assets:Due from director, imported while the book holds no
+# US dollars in Wise. Onto a_usd_invoice_and_bill_for_statement_lines_on_a_holding_account.txt,
+# before usd_bought_into_wise_before_the_statement.txt.
+#
+# Out of an account holding nothing, the 1.00 is owed: the fee establishes a
+# cost basis on the owed side, 1.00 USD at 0.72. The dollars bought are dated
+# earlier and imported after it, so the fee, read again, spends dollars held.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-20 * "Transfer fee"
+	guid: "0e510000000000000000000000000f01"
+	currency.mnemonic: "CAD"
+	Assets:Due from director 0.72 CAD
+		guid: "0e510000000000000000000000000f02"
+	Assets:Wise USD -1.00 USD
+		guid: "0e510000000000000000000000000f03"
+		account.commodity.mnemonic: "USD"
+		value: "-0.72"

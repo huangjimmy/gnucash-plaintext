@@ -1,0 +1,32 @@
+# Q-051 E4: a_usd_withdrawal_and_its_fee_on_a_holding_account.txt as the
+# owner books it once they know the withdrawal paid BILL-USD-1.
+#
+# The holding-account amount is the payable the bill is settled by, at the
+# 1,380.00 it was posted at; the 1.01 is the bank charge; the dollars and the
+# fee draw on the dollars held as before. The `$residual$` split states what
+# the new version realizes, -30.04. Imported with `--strategy update`, beside
+# BILL-USD-1's `payment:` block giving this transaction and its payable split.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-20 * "Paid Example Supplier Inc"
+	guid: "0e510000000000000000000000000b01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD -1000.00 USD
+		guid: "0e510000000000000000000000000b02"
+		account.commodity.mnemonic: "USD"
+		value: "-1350.00"
+		cost_basis_split_guid: "0e510000000000000000000000000d02"
+	Liabilities:Accounts Payable USD 1000.00 USD
+		guid: "0e510000000000000000000000000b03"
+		account.commodity.mnemonic: "USD"
+		value: "1380.00"
+	Expenses:Bank charges 1.01 CAD
+		guid: "0e510000000000000000000000000b04"
+	Assets:Wise USD -0.72 USD
+		guid: "0e510000000000000000000000000b05"
+		account.commodity.mnemonic: "USD"
+		value: "-0.97"
+		cost_basis_split_guid: "0e510000000000000000000000000d02"
+	Income:FX gain $residual$ CAD
+		guid: "0e510000000000000000000000000b06"

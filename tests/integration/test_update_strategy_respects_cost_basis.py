@@ -84,13 +84,14 @@ def test_editing_a_sale_beyond_its_basis_is_refused_on_reimport(tmp_path):
                                  '--strategy', 'update'])
 
     after = _balance_on_the_basis(book)
-    # Refused for the right reason — the cost basis — and pointed at the route
-    # that does work: delete the transaction (which gives the cost basis back what
-    # it took) and import the new version, where every check runs again.
+    # Refused for the reason a new import of the sale would be: read as new
+    # (Q-051), 400.00 USD out of an account holding 200.00 draws what it holds
+    # and owes the rest, and its value states neither at what it cost.
+    assert result.exit_code != 0, result.output
     assert 'cost basis' in result.output, (
         f'a sale of 400.00 USD against a cost basis holding {before} USD was not '
         f'refused:\n{result.output}')
-    assert 'delete-transactions' in result.output, result.output
+    assert 'this split repays 200.00 USD from cost basis' in result.output, result.output
     assert after == before, (
         f'the cost basis moved from {before} to {after} on a refused edit')
 
@@ -212,14 +213,14 @@ def test_a_refused_update_leaves_the_transaction_alone(tmp_path, stated):
     assert 'Assets:Bank:USD' not in after.split('2026-01-10 *')[1], after
 
 
-def test_a_sign_error_is_corrected_by_deleting_and_importing_again(tmp_path):
+def test_a_sign_error_is_corrected_by_an_edit_in_place(tmp_path):
     """A purchase written with its signs reversed is a borrowing until it is corrected.
 
     The bank goes to −100.00 and owes 100.00 US dollars, so the transaction
-    opens a cost basis on the owed side (Q-047). An edit in place of a
-    transaction touching a cost basis is refused and sent to delete-and-import,
-    and the purchase imported again opens a cost basis for the 100.00 held,
-    with nothing left owed and no cost basis `none recorded`.
+    opens a cost basis on the owed side (Q-047). Nothing else draws on it, so
+    the corrected purchase is read as a new transaction would be (Q-051): it
+    opens a cost basis for the 100.00 held, with nothing left owed and no
+    cost basis `none recorded`.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -247,14 +248,6 @@ def test_a_sign_error_is_corrected_by_deleting_and_importing_again(tmp_path):
 
     result = runner.invoke(cli, ['import', str(book), str(edited),
                                  '--strategy', 'update'])
-    assert result.exit_code != 0, result.output
-    assert 'touches a cost basis' in result.output, result.output
-    assert 'delete-transactions --by-guid' in result.output, result.output
-
-    deleted = runner.invoke(cli, ['delete-transactions', str(book), '--by-guid', guid,
-                                  '-o', str(tmp_path / 'undo.txt')])
-    assert deleted.exit_code == 0, deleted.output
-    result = runner.invoke(cli, ['import', str(book), str(edited)])
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output

@@ -8,6 +8,7 @@ Converts PlaintextDirective objects from the parser into GnuCash objects
 import ctypes
 import logging
 import re
+from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -38,6 +39,7 @@ from gnucash.gnucash_core_c import (
     ACCT_TYPE_PAYABLE,
     ACCT_TYPE_RECEIVABLE,
     ACCT_TYPE_STOCK,
+    ACCT_TYPE_TRADING,
     gncTaxTableEntrySetAccount,
     xaccAccountGetTypeStr,
     xaccTransSetIsClosingTxn,
@@ -93,7 +95,10 @@ from services.foreign_currency import (
     a_cost_basis_is_kept_for,
     a_disposal_the_finished_book_cannot_value,
     account_side,
+    amounts_by_cost_basis,
     apply_cost_basis_picks,
+    balance_came_from_file,
+    balance_the_run_found,
     carry_the_cost_to_what_it_bought,
     cost_bases_changed,
     cost_basis_balance_of,
@@ -103,6 +108,8 @@ from services.foreign_currency import (
     disposals_drawing_on,
     establishes_cost_basis,
     find_split_by_guid,
+    forget_custom_key_changes,
+    forget_stated_balance,
     give_back_to_cost_bases,
     has_cost_basis_balance,
     is_a_currency,
@@ -113,6 +120,7 @@ from services.foreign_currency import (
     mark_what_arrives_past_zero,
     move_disposals_to_the_new_basis,
     note_stated_balance,
+    note_the_balance_the_run_found,
     open_the_cost_bases_its_own_splits_draw_on,
     open_what_an_edit_made_a_basis,
     parse_stated_cost,
@@ -127,12 +135,14 @@ from services.foreign_currency import (
     smallest_unit,
     split_commodity,
     split_guid,
+    splits_drawing_on,
     states_the_residual_mark,
     takes_an_exchange_difference,
     the_bases_a_transaction_has,
     total_cost_basis_balance_in,
     transaction_currency,
     transactions_drawing_on,
+    what_a_new_import_would_open,
     what_each_account_held_without,
     what_is_left_of_the_cost,
     write_cost_basis_balance,
@@ -1902,6 +1912,9 @@ def begin_lot_attachments() -> None:
     TRANSACTIONS_A_MEMO_CORRECTED.clear()
     _MEMOS_THE_TRANSACTIONS_STATE.clear()
     _BLOCKS_SETTLING_FROM_A_TRANSACTION.clear()
+    _SPLITS_THE_FILES_PAYMENTS_APPLY.clear()
+    _POSTINGS_THE_FILE_STATES.clear()
+    _TRANSACTIONS_THE_RUN_REFUSED.clear()
     _PERSISTED_CURRENCY_FRACTION.clear()
 
 
@@ -1949,6 +1962,39 @@ _MEMOS_THE_TRANSACTIONS_STATE: dict = {}
 #: that establishes a shared payment, the second invoice is not posted when
 #: the first one's block is read.
 _BLOCKS_SETTLING_FROM_A_TRANSACTION: dict = {}
+
+#: The split each of this file's `payment:` blocks applies by
+#: `txn_split_guid:`, and the invoice or bill whose block it is, as
+#: `(kind, id)`. A transaction is imported before the blocks, so a deposit
+#: booked as an invoice's collection, its fee drawing on that invoice, is
+#: read while the invoice's lot does not hold the split yet: this is how the
+#: fee's check knows the same transaction collects it (Q-051).
+_SPLITS_THE_FILES_PAYMENTS_APPLY: dict = {}
+
+#: The posting transaction each of this file's invoices gives by
+#: `posted_txn_guid:`, as `(kind, id)` to the guid. A book built from a
+#: ledger holds the posting, imported with the transactions, before the
+#: invoice itself, which comes with the business objects. So a deposit
+#: settling an invoice the same file creates is read while no invoice of
+#: that id is in the book, and this is where its posting is found (Q-051).
+_POSTINGS_THE_FILE_STATES: dict = {}
+
+#: The transactions this file states that the run could not import, by guid,
+#: with why. A `payment:` block giving one of them finds no transaction in the
+#: book, and would otherwise record a payment of its own for money the file
+#: says moved in that transaction (Q-051).
+_TRANSACTIONS_THE_RUN_REFUSED: dict = {}
+
+
+def note_a_transaction_the_run_refused(directive, reason: str) -> None:
+    """Record that this file's transaction was not imported, so no `payment:` block stands in for it."""
+    stated = directive.metadata.get('guid')
+    if not _states_a_guid(stated):
+        return
+    try:
+        _TRANSACTIONS_THE_RUN_REFUSED[_normalise_guid(stated)] = reason
+    except Exception:
+        return
 
 
 #: Payment transactions whose memo a `payment:` block corrected this run.
@@ -2836,6 +2882,10 @@ ACCT_TYPE_MAP = {
     "Receivable": ACCT_TYPE_RECEIVABLE,      # natural form
     "Stock": ACCT_TYPE_STOCK,
     "Cash": ACCT_TYPE_CASH,
+    # GnuCash's own, for a book with "Use Trading Accounts" on: the export
+    # writes these accounts under this type, and refused, a trading-accounts
+    # book's own export would not import back into it.
+    "Trading": ACCT_TYPE_TRADING,
 }
 
 
@@ -3586,7 +3636,7 @@ def _its_counterpart(transaction, target, metadata):
     return _the_bank_split_named(transaction, metadata)
 
 
-def note_what_the_file_states(directives) -> None:
+def note_what_the_file_states(directives, applies_payments: bool = False) -> None:
     """Read the two things about a payment only the whole file can say.
 
     **What each split's memo is**, from the transaction section. Read from
@@ -3603,9 +3653,20 @@ def note_what_the_file_states(directives) -> None:
     an ordinary one settling a single record — so the bank split they
     share was offered as that block's counterpart and took its wording,
     which is the thing a shared split is not anybody's block to do.
+
+    **Which split each block applies to its record**, and only where
+    `applies_payments` says the run applies the blocks. A transaction is
+    read before any block, and a receivable split the block will apply is
+    read as collecting that invoice (Q-051). A run without
+    `--include-business-objects` applies no block, so the split never
+    settles the invoice. Read as collected anyway, the run saved a fee
+    drawn on an invoice nobody had paid.
     """
     _MEMOS_THE_TRANSACTIONS_STATE.clear()
     _BLOCKS_SETTLING_FROM_A_TRANSACTION.clear()
+    _SPLITS_THE_FILES_PAYMENTS_APPLY.clear()
+    _POSTINGS_THE_FILE_STATES.clear()
+    _TRANSACTIONS_THE_RUN_REFUSED.clear()
     for directive in directives:
         if directive.type == DirectiveType.TRANSACTION:
             for split in directive.children:
@@ -3619,7 +3680,14 @@ def note_what_the_file_states(directives) -> None:
                 except Exception:
                     continue
         elif directive.type in (DirectiveType.INVOICE, DirectiveType.BILL):
+            kind = 'invoice' if directive.type == DirectiveType.INVOICE else 'bill'
             for child in directive.children:
+                if child.type == DirectiveType.POSTED:
+                    posting = child.metadata.get('posted_txn_guid')
+                    if applies_payments and _states_a_guid(posting):
+                        _POSTINGS_THE_FILE_STATES[
+                            (kind, str(directive.props.get('id', '')))] = str(posting)
+                    continue
                 if child.type != DirectiveType.PAYMENT:
                     continue
                 named = child.metadata.get('txn_guid')
@@ -3631,6 +3699,16 @@ def note_what_the_file_states(directives) -> None:
                     continue
                 _BLOCKS_SETTLING_FROM_A_TRANSACTION[wanted] = (
                     _BLOCKS_SETTLING_FROM_A_TRANSACTION.get(wanted, 0) + 1)
+                applied = child.metadata.get('txn_split_guid')
+                if not applies_payments or not _states_a_guid(applied):
+                    continue
+                # The whole split: a block giving `txn_split_guid:` applies
+                # all of it to its record, whatever `amount:` it states.
+                try:
+                    _SPLITS_THE_FILES_PAYMENTS_APPLY[_normalise_guid(applied)] = (
+                        kind, str(directive.props.get('id', '')))
+                except Exception:
+                    continue
 
 
 def _the_block_is_stating_the_bank_splits_memo(
@@ -7252,6 +7330,51 @@ def _refuse_a_split_settling_another_record(record, split, kind: str,
         f'already spoken for.')
 
 
+def _refuse_an_amount_the_split_does_not_carry(pay_dir, split, record, kind: str,
+                                               doc_id: str, named) -> None:
+    """Refuse a block whose `amount:` is not what the split it gives carries, where that split is attached whole.
+
+    A split already on the record's own receivable or payable, given by
+    `txn_split_guid:` with no `prepayment:` beside it, is attached whole. So
+    a block stating another amount gives the file two meanings. In the book
+    holding the transaction, the record is paid what the split carries,
+    whatever `amount:` says: a block stating 1,000.00 against a 2,720.00
+    split recorded 2,720.00 paid and said nothing (Q-051). Read into a book
+    that never held the transaction, the guids resolve to nothing and the
+    payment is entered from the block, at 1,000.00. An export states the
+    split's own amount.
+
+    Not a block declaring `prepayment:`. Its `amount:` states what moved
+    through the bank, and its `prepayment:` is weighed against the
+    transaction's other receivable or payable splits, the ones the block does
+    not apply: the overpayment remedy states 120.00 beside a 100.00 split and
+    `prepayment: 20`. Not a split parked on another account either, which is
+    moved onto the record's and may be in another currency than the block's
+    amount.
+    """
+    on = split.GetAccount()
+    if ('amount' not in pay_dir.metadata or 'prepayment' in pay_dir.metadata
+            or on is None or record.GetPostedAcc() is None
+            or get_account_full_name(on) != get_account_full_name(record.GetPostedAcc())):
+        return
+    # Both as sizes: which way the split runs is the record's, and a block
+    # written with a sign, as a refund can be, states the same figure.
+    stated = abs(Fraction(str(pay_dir.metadata.get('amount'))))
+    carried = abs(numeric_to_fraction(split.GetAmount()))
+    if stated == carried:
+        return
+    account = split.GetAccount()
+    raise Exception(
+        f'{kind} {doc_id}: the payment block states amount: '
+        f'{pay_dir.metadata.get("amount")}, and the split given in txn_split_guid '
+        f'{named} carries {_account_money_str(carried, account)}. The split is '
+        f'attached whole, so here the {kind.lower()} would be paid what it '
+        f'carries, and in a book that never held the transaction the payment '
+        f'would be entered at {pay_dir.metadata.get("amount")}. State amount: '
+        f'{_account_money_str(carried, account)}, or declare the part that is '
+        f'not this {kind.lower()}\'s with prepayment:.')
+
+
 def _refuse_another_owners_split(record, split, kind: str, doc_id: str) -> None:
     """Refuse a split the book records as somebody else's money.
 
@@ -7863,6 +7986,24 @@ def _apply_the_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
     # so asking for one spelling made the answer depend on which word the
     # writer used — the alias minted a payment, the canonical key refused the
     # run, for the same block.
+    # A transaction this file states and the run refused, whether as a new
+    # transaction or as an edit. The money moved in that transaction as the
+    # file writes it, so recording a payment from the block would enter it a
+    # second way, and settling from what the book still holds would settle
+    # from a version the file replaces (Q-051).
+    refused = next((reason for guid, reason in _TRANSACTIONS_THE_RUN_REFUSED.items()
+                    if txn_guid and guid == str(txn_guid).replace('-', '').lower()),
+                   None)
+    if refused is not None:
+        # The transaction's own reason last, as it was written: it can end
+        # in a list, and a sentence pasted after it ran into the list's last
+        # line.
+        raise Exception(
+            f'{kind_of(record)} {record.GetID()}: {txn_key} {txn_guid} is a '
+            f'transaction this file states, and it was not imported. No '
+            f'payment is recorded from this block, because the money moved '
+            f'in that transaction. Correct it, and import the file again. '
+            f'Why it was not imported: {refused}')
     describes_itself = bool(
         pay_dir.metadata.get('date') and pay_dir.metadata.get('amount')
         and _payment_xfer_account_name(pay_dir.metadata))
@@ -8408,6 +8549,9 @@ def _apply_the_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
                     record.GetID())
                 _refuse_a_split_settling_another_record(
                     record, target_split, 'Bill' if is_bill else 'Invoice',
+                    record.GetID(), declared_split_guid)
+                _refuse_an_amount_the_split_does_not_carry(
+                    pay_dir, target_split, record, 'Bill' if is_bill else 'Invoice',
                     record.GetID(), declared_split_guid)
 
                 # Read before the move, which is what takes the split out of
@@ -9522,36 +9666,58 @@ def _require_no_cost_basis_edit(existing_tx, directive):
     if incoming is not None and incoming == booked and not the_currency_moved:
         return          # nothing a cost basis rests on has moved
 
-    guid = existing_tx.GetGUID().to_string()
-    if (running_atomic() and not the_currency_moved
-            and _no_disposal_takes_a_new_figure(booked, incoming)):
-        # The deferral rests on the finished book asking the same questions,
-        # and one of them cannot be asked of a disposal stated in a foreign
-        # currency: its value is in no base-currency figure, so there is
-        # nothing to compare against what its cost basis cost. Deferred there, a
-        # basis with only such disposals beneath it was re-priced, saved, and
-        # called sound.
-        unvaluable = a_disposal_the_finished_book_cannot_value(book, existing_tx)
-        if not unvaluable:
-            _say_the_balances_are_the_files_to_state(booked, incoming, guid)
-            return
-        raise Exception(
-            f'transaction {guid} holds a cost basis that {unvaluable} draws '
-            f'on, and --atomic cannot defer the refusal to edit it here: a '
-            f'disposal stated in a foreign currency states its value in no '
-            f'{BASE_CURRENCY} figure, so the finished book cannot ask whether '
-            f'it is still valued at what this cost basis cost. Delete this '
-            f'transaction and import the new version instead: '
-            f'`delete-transactions --by-guid {guid.replace("-", "")}` gives '
-            f'the cost basis back exactly what was taken from it, and the fresh '
-            f'import checks the new figures against it.')
-
     # A figure a cost basis is read from has moved, which does not mean the
     # cost basis has: moving the split that sets the rate to another account,
     # or dividing it between two, leaves every cost basis where it was. So the
-    # cost bases are compared, before the edit and once it is applied, and the
-    # edit is refused only where they differ (`update_transaction`).
+    # cost bases are compared, before the edit and once it is applied: where
+    # they differ the edit is read as a new transaction would be, and refused
+    # where another transaction draws on one that moves (`update_transaction`).
     return booked, incoming
+
+
+def _the_figures_can_be_deferred(before, after, currency_moved: bool) -> bool:
+    """Whether `--atomic` defers the refusal of an edit moving a cost basis another transaction draws on.
+
+    That is the repair no single block can make: each block is refused while
+    the others still read as they were, so the refusal waits for the finished
+    book, which asks the same questions of everything the file leaves. Only
+    there: an edit nothing else rests on is read as a new transaction would be
+    (Q-051), under the flag as without it.
+
+    Only where the edit leaves every disposal of its own as it was — the
+    split, the cost basis it gives, what it draws and its value — because a
+    deferred edit is applied in place, and a disposal applied in place
+    draws nothing: re-pointed or restated, it would leave one cost basis short
+    and another undrawn. Nor where the transaction's currency moves.
+    """
+    draws = [fact for fact in before if fact[0] == 'draws']
+    return (running_atomic() and not currency_moved
+            and draws == [fact for fact in after if fact[0] == 'draws'])
+
+
+def _defer_to_the_finished_book(book, existing_tx) -> None:
+    """Leave an edit `_the_figures_can_be_deferred` defers to the finished book, or refuse it where that book cannot ask.
+
+    It cannot where a disposal on the cost basis is stated in a foreign
+    currency: its value is in no base-currency figure, so the finished book
+    cannot ask whether it is still valued at what the cost basis cost.
+    Deferred there, a basis with only such disposals beneath it was
+    re-priced, saved, and called sound.
+    """
+    guid = existing_tx.GetGUID().to_string()
+    unvaluable = a_disposal_the_finished_book_cannot_value(book, existing_tx)
+    if not unvaluable:
+        return
+    raise Exception(
+        f'transaction {guid} holds a cost basis that {unvaluable} draws '
+        f'on, and --atomic cannot defer the refusal to edit it here: a '
+        f'disposal stated in a foreign currency states its value in no '
+        f'{BASE_CURRENCY} figure, so the finished book cannot ask whether '
+        f'it is still valued at what this cost basis cost. Delete this '
+        f'transaction and import the new version instead: '
+        f'`delete-transactions --by-guid {guid.replace("-", "")}` gives '
+        f'the cost basis back exactly what was taken from it, and the fresh '
+        f'import checks the new figures against it.')
 
 
 def _with_values_the_import_requires(book, existing_tx, before, after):
@@ -9591,19 +9757,17 @@ def _with_values_the_import_requires(book, existing_tx, before, after):
 
 def _an_edit_moving_a_cost_basis(book, existing_tx, rows, before, after,
                                  booked_unit, drawing) -> str:
-    """The refusal of an edit that changes a cost basis: what changed, and a route that works.
+    """The refusal of an edit that changes a cost basis another transaction draws on: what changed, and a route that works.
 
     Which splits the book holds and the file states differently, then what
-    that does to a cost basis or a disposal — which is what the rule asks.
-    Refused with no more than "touches a cost basis", a reader could not tell
-    which line of a long block had moved.
+    that does to the cost basis. Refused with no more than "touches a cost
+    basis", a reader could not tell which line of a long block had moved.
 
-    **And a route that can be taken.** Deleting the transaction and importing
-    it afresh runs every check, but a transaction whose cost basis something
-    draws on cannot be deleted before what draws on it. Sent to delete it
-    alone, the reader was refused a second time. So where anything draws on
-    it, the command given deletes those first and then it, in one run, which
-    is the order `delete-transactions` accepts.
+    **And a route that can be taken.** A transaction whose cost basis
+    something draws on cannot be deleted before what draws on it. Sent to
+    delete it alone, the reader was refused a second time. So the command
+    given deletes those first and then it, in one run, which is the order
+    `delete-transactions` accepts.
 
     Everything about the book is taken from before the edit: the transaction
     is still open, and reads as the edit leaves it. `booked_unit` is how
@@ -9656,17 +9820,15 @@ def _an_edit_moving_a_cost_basis(book, existing_tx, rows, before, after,
     # Compared only because the date moved, where no figure compared moved or
     # `--atomic` deferred what did: the date is the reason, and a figure the
     # run would have deferred is not given as one.
-    for key in (sorted(set(was) | set(would)) if rows is not None else []):
-        old, new = was.get(key), would.get(key)
+    # Only the cost bases the old version established: nothing can draw on one
+    # the new version adds, so it moves nothing another transaction rests on.
+    for key in (sorted(was) if rows is not None else []):
+        old, new = was[key], would.get(key)
         if key[0] == 'basis':
             if new is None:
                 said.append(f'cost basis {key[1]} on {old[2]!r} would be gone — '
                             f'every split drawing on it would give a cost basis the '
                             f'book no longer holds')
-            elif old is None:
-                said.append(f'a cost basis would open on {new[2]!r} — a cost basis '
-                            f'opens as a transaction is imported, where every check '
-                            f'on it runs')
             else:
                 if old[2] != new[2]:
                     said.append(f'cost basis {key[1]} on {old[2]!r} would be on '
@@ -9686,127 +9848,330 @@ def _an_edit_moving_a_cost_basis(book, existing_tx, rows, before, after,
                                 f'and would bring in {exact_text(new[5])} '
                                 f'{"held" if new[4] == "asset" else "owed"} — it would '
                                 f'stand for other currency than what arrived')
-        elif new is None:
-            said.append(f'the split {key[1]} would no longer draw on cost basis '
-                        f'{old[4]} — what it took would stay off that cost basis '
-                        f'balance')
-        elif old is None:
-            said.append(f'a split on {new[2]!r} would draw on cost basis {new[4]} — '
-                        f'an edit takes no amount off a cost basis balance, so '
-                        f'that balance would still count what the split spends')
-        elif old[:8] != new[:8]:
-            said.append(f'the split {key[1]} on {old[2]!r} draws {exact_text(old[6])} '
-                        f'{old[3]} valued at {exact_text(old[7])} from cost basis '
-                        f'{old[4]}, and would draw {exact_text(new[6])} on '
-                        f'{new[2]!r} valued at {exact_text(new[7])} from {new[4]} — '
-                        f'what it took would stay off the first cost basis balance, '
-                        f'and the new amount would be taken off no cost basis '
-                        f'balance')
 
-    if drawing:
-        route = (
-            f'{len(drawing)} transaction(s) draw on its cost basis — '
-            f'{"; ".join(label for _guid, label in drawing)} — and it cannot be '
-            f'deleted before them. Delete them with it and import them all '
-            f'again: `delete-transactions --by-guid '
-            f'{" ".join(each.replace("-", "") for each, _label in drawing)} {guid}` '
-            f'deletes those first and gives each cost basis back what they '
-            f'took, and the fresh import checks every figure.')
-    else:
-        route = (
-            f'Delete it and import the new version instead: '
-            f'`delete-transactions --by-guid {guid}` gives the cost basis back '
-            f'exactly what this transaction took, and the fresh import checks '
-            f'the new figures against it.')
+    route = (
+        f'{len(drawing)} transaction(s) draw on its cost basis — '
+        f'{"; ".join(label for _guid, label in drawing)} — and it cannot be '
+        f'deleted before them. Delete them with it and import them all '
+        f'again: `delete-transactions --by-guid '
+        f'{" ".join(each.replace("-", "") for each, _label in drawing)} {guid}` '
+        f'deletes those first and gives each cost basis back what they '
+        f'took, and the fresh import checks every figure.')
     # Every difference in the facts has a sentence above. Should a fact gain a
     # field none of them reads, the refusal still says what kind of thing moved.
     reasons = ('; '.join(said)
                or 'what a cost basis in it holds, or what a disposal in it draws, '
                   'would differ')
-    return (f'transaction {guid} touches a cost basis, and this edit would change '
-            f'it, so it cannot be edited in place: {reasons}. An edit in '
-            f'place runs none of the checks a new transaction meets, and gives a '
-            f'cost basis balance no amount back that a disposal took, so a change '
-            f'to a cost basis is made by '
-            f'deleting and importing again; a memo, a description, or a figure no '
-            f'cost basis rests on can be edited in place. {route}')
+    return (f'transaction {guid} touches a cost basis another transaction draws '
+            f'on, and this edit would change it, so it cannot be edited in place: '
+            f'{reasons}. What draws on it drew at its figures, and would be left '
+            f'drawing on a cost basis that is gone or is no longer the one it drew '
+            f'on; an edit nothing else rests on is read as a new transaction would '
+            f'be. {route}')
 
 
-def _say_the_balances_are_the_files_to_state(booked, incoming, guid: str) -> None:
-    """Say so where a block re-points a disposal and nothing draws a cost basis down.
+def _refuse_a_new_version_that_does_not_balance(transaction, leaving) -> None:
+    """Refuse, before the commit, a new version whose values do not add up to nothing.
 
-    Re-pointing is what a repair does and is allowed under `--atomic`. What
-    it cannot do is recompute either balance: a cost basis balance is lowered in
-    `apply_cost_basis_picks`, where a disposal is created, and raised in
-    `give_back_to_cost_bases`, where one is deleted, and an edit runs neither.
-    So the cost basis the disposal leaves keeps a balance lower than it should
-    be by the units it took, and the cost basis it joins is not drawn down for
-    them.
-
-    Both figures are the file's to state — which is what README says of any
-    stated balance, net of the file's own disposals — and the finished book
-    cannot tell that they were not: the two errors cancel in the only
-    book-wide question asked. A 10.00 USD fee re-pointed from one cost basis to
-    another leaves the first reading 90.00 with nothing drawing on it and the
-    second 60.00 with a fee drawing on it, and every check passes.
-
-    A note rather than a refusal, because the repair this exists for states
-    those balances in the same file and would be refused by its own remedy.
+    GnuCash balances a transaction at its commit by adding a split on an
+    `Imbalance` account for the difference. A new version read as a new
+    transaction has to be a correct one, and a figure no line of the file
+    states is not (Q-051): a fee's `share_price:` restated from 0.8 to 0.9
+    left 1.00 USD for GnuCash to park, and the edit went through.
     """
-    moved = ({row[4] for row in incoming if row[4]}
-             - {row[4] for row in booked if row[4]})
-    if not moved:
-        return
-    _echo_note(
-        f'note: transaction {guid} points a disposal at another cost basis. '
-        f'A cost basis balance is lowered where a disposal is created and raised '
-        f'where one is deleted, and an edit does neither — so the cost basis this '
-        f'disposal leaves keeps a balance lower by what it took, and the cost '
-        f'basis it joins is not drawn down for it. '
-        f'State `{COST_BASIS_BALANCE_KEY}:` on both '
-        f'in this file if either should read differently.')
+    values = sum((numeric_to_fraction(split.GetValue())
+                  for split in transaction.GetSplitList()
+                  if split_guid(split) not in leaving),
+                 Fraction(0))
+    if values:
+        currency = transaction.GetCurrency()
+        raise Exception(
+            f'the new version of this transaction does not balance: its values '
+            f'come to {money_text(values, currency.get_fraction())} '
+            f'{currency.get_mnemonic()}, which GnuCash would put on an '
+            f'Imbalance account. State the values so they add up to nothing, '
+            f'or give one split `$residual$` to take the difference.')
 
 
-def _no_disposal_takes_a_new_figure(booked, incoming) -> bool:
-    """Whether every disposal this file states is one the book already holds.
+def _a_split_moves(transaction, directive) -> bool:
+    """Whether the block puts a split on another account, or at another amount, than the book holds.
 
-    The rows are `(account, amount, value, rate, basis picked)`, and the guid
-    is what a repair changes: the fee that drew on a deposit draws on the
-    receivable instead, at the same 0.72 USD and the same value. So the first
-    four are compared and the fifth is not.
-
-    A figure that moves is refused, and so is a disposal the file adds to a
-    split that had none — both mean currency drawn out of a cost basis that nothing
-    draws down, since the update path never calls `apply_cost_basis_picks`.
-
-    Dropping a pick is refused for the same reason read the other way round. A
-    sale that draws on nothing takes nothing, which is true of the state the
-    file asks for and says nothing about the state it leaves: the currency
-    came out of the cost basis when the sale was imported, and the only path that
-    gives it back is deleting the transaction, which is what
-    `give_back_to_cost_bases` is called from. Allowed, the pool would be short
-    by what the sale took with nothing in the book recording it, and every
-    question the finished book is asked would pass — there is no disposal left
-    to ask about.
-
-    An unreadable directive answers no. `_basis_figures_in_directive` returns
-    None where a figure cannot be resolved — a `$residual$` amount, a value
-    the file neither states nor the book holds — and what a disposal takes is
-    exactly what could not be read.
+    A `$residual$` split is compared by its account alone. Its amount is what
+    the other splits leave over, so it moves only where they do, or where the
+    residual goes to another account. Compared as the token, it never equalled
+    the book's figure, and a block changing only its description was read as a
+    new transaction.
     """
-    if incoming is None:
-        return False
-    held = [row[:4] for row in booked if row[4]]
-    for row in incoming:
-        if not row[4]:
+    def amount(text):
+        try:
+            return Fraction(str(text))
+        except (ValueError, ZeroDivisionError):
+            return str(text)
+    held = Counter((get_account_full_name(split.GetAccount()),
+                    numeric_to_fraction(split.GetAmount()))
+                   for split in transaction.GetSplitList())
+    stated = Counter((str(child.props.get('account', '')), amount(child.props.get('amount', '')))
+                     for child in directive.children
+                     if str(child.props.get('amount', '')) != RESIDUAL_AMOUNT)
+    residual = sorted(str(child.props.get('account', '')) for child in directive.children
+                      if str(child.props.get('amount', '')) == RESIDUAL_AMOUNT)
+    return bool(stated - held) or sorted(name for name, _ in (held - stated).elements()) != residual
+
+
+def _own_cost_bases_another_transaction_draws_on(book, transaction, before) -> set:
+    """Which of the cost bases the old version established another transaction draws on.
+
+    Asked of `splits_drawing_on`'s index of the book, not by walking it: an
+    update file booking many statement lines asks it once for each.
+    """
+    here = transaction.GetGUID().to_string()
+    return {fact[1] for fact in before if fact[0] == 'basis'
+            and any(split.GetParent().GetGUID().to_string() != here
+                    for split in splits_drawing_on(book, fact[1]))}
+
+
+def _cost_bases_moved_under_other_transactions(book, transaction, before, after) -> List[str]:
+    """The cost bases of this transaction that another draws on, and that the edit changes or no longer establishes.
+
+    An edit is read as the transaction would be read if it were new, and is
+    accepted where the book is correct afterwards (Q-051). A cost basis
+    nothing else draws on may change, or not be established at all: a
+    deposit booked as an invoice's collection establishes none, because the
+    dollars' cost is the invoice's. One another transaction draws on may not,
+    because that transaction drew at its figures and would be left drawing on
+    nothing, or valued at a cost that is no longer this one's.
+    """
+    drawn_on = _own_cost_bases_another_transaction_draws_on(book, transaction, before)
+    was = {fact[1]: fact for fact in before if fact[0] == 'basis'}
+    now = {fact[1]: fact for fact in after if fact[0] == 'basis'}
+    return sorted(guid for guid in drawn_on if was.get(guid) != now.get(guid))
+
+
+def _what_the_book_holds_apart(transaction, taken: Dict[str, Fraction]) -> dict:
+    """For each cost basis the transaction establishes, the part of its stored balance its own figures do not explain.
+
+    Read before the edit. Imported new, a cost basis would hold what
+    `what_a_new_import_would_open` gives, less what the transaction's own
+    splits draw on it. A stored balance differs from that by what a file
+    stated: currency sold outside the book, which README calls the balance's
+    whole purpose. An edit read as new opens its cost bases afresh, so that
+    difference is put back afterwards (`_keep_what_the_book_held_apart`).
+    Opened afresh and left there, 2,000.00 USD stated of a 2,719.28 deposit
+    came back as 2,719.28, and offered again the 719.28 sold elsewhere.
+
+    None for a cost basis holding no balance, which is read as holding
+    nothing and is left holding none. A balance that will not parse is left
+    out, and the edit leaves it where it is for `--verify-costs` to report.
+    """
+    apart = {}
+    for guid, figure in what_a_new_import_would_open(transaction).items():
+        split = next(each for each in transaction.GetSplitList() if split_guid(each) == guid)
+        if malformed_cost_basis_balance_of(split):
             continue
-        if row[:4] not in held:
-            return False
-        held.remove(row[:4])
-    # Every disposal the book holds is one the file states, matched figure for
-    # figure. What is left over is a disposal the file has dropped or moved
-    # somewhere this walk cannot see.
-    return not held
+        held = cost_basis_balance_of(split)
+        apart[guid] = None if held is None else held - (figure - taken.get(guid, Fraction(0)))
+    return apart
+
+
+def _give_back_what_the_old_version_drew(book, taken: Dict[str, Fraction],
+                                         given_back: Dict[str, Fraction]) -> None:
+    """Give back, once the edit is committed, what the old version drew.
+
+    Records in `given_back` what was given back, which is what a refused new
+    version takes again when the old one is put back. Deleting a transaction
+    gives each cost basis back what its splits took, and an edit read as a
+    new transaction does the same before the new version draws.
+
+    Each cost basis is recorded as soon as it has had its amount back, in the
+    caller's own dict. Returned at the end instead, a give-back failing on
+    its second cost basis, over a `cost_basis_brought_in` that will not
+    parse, left the caller holding nothing: the first kept what it was given
+    back, and the saved book offered it twice.
+
+    A balance this file states is left as the file states it, and nothing is
+    given back to it: it is stated net of the file's own disposals, and the
+    new version's are among them.
+    """
+    # Only to a cost basis holding a stored balance. One holding none is read
+    # as holding nothing, whether it never had one or the file cleared it a
+    # block earlier, and giving back to it would open it at everything its
+    # split brought in: the repair that clears a deposit's stranded balance and
+    # re-points the fee that drew on it had the balance back at 2,720.00.
+    for guid, amount in taken.items():
+        basis = find_split_by_guid(book, guid)
+        if (basis is not None and has_cost_basis_balance(basis)
+                and not balance_came_from_file(basis)):
+            give_back_to_cost_bases(book, {guid: amount})
+            given_back[guid] = amount
+
+
+def _clear_what_the_old_version_opened(book, transaction, before, apart: dict) -> set:
+    """Clear the stored balance of each cost basis the old version established and nothing else draws on.
+
+    Returns those cost bases. The new version opens each afresh if its shape
+    still establishes it, and leaves none behind where it does not — kept,
+    the deposit of an invoice's collection went on offering the dollars the
+    invoice's own cost basis already stands for. A balance this file states
+    stays, and one `_what_the_book_holds_apart` left out, which will not
+    parse, stays too.
+
+    Apart from the give-back, so a failure here still leaves the caller
+    holding what was given back, to take it again when the old version is
+    put back.
+    """
+    own = {fact[1] for fact in before if fact[0] == 'basis'}
+    drawn_on = _own_cost_bases_another_transaction_draws_on(book, transaction, before)
+    cleared = set()
+    # Inside an edit of its own: a KVP written outside one never reaches disk
+    # (CLAUDE.md finding 11).
+    transaction.BeginEdit()
+    for split in transaction.GetSplitList():
+        guid = split_guid(split)
+        if guid not in own - drawn_on or guid not in apart or balance_came_from_file(split):
+            continue
+        # What the run found, before it is taken off: written again after,
+        # the balance would read as found empty.
+        note_the_balance_the_run_found(split)
+        metadata = dict(get_custom_metadata(split))
+        metadata.pop(COST_BASIS_BALANCE_KEY, None)
+        set_custom_metadata(split, metadata)
+        cleared.add(guid)
+    transaction.CommitEdit()
+    cost_bases_changed()
+    return cleared
+
+
+def _keep_what_the_book_held_apart(book, transaction, apart: dict, cleared: set) -> None:
+    """Put back, on each cost basis the edit opened afresh, what `_what_the_book_holds_apart` read.
+
+    A cost basis that held no balance holds none again. One whose shape no
+    longer establishes it holds none, and is left so. Refused where the new
+    version's own splits draw more than the cost basis holds once what was
+    sold outside the book stays sold.
+    """
+    for guid in sorted(cleared):
+        split = find_split_by_guid(book, guid)
+        if split is None or not has_cost_basis_balance(split):
+            continue
+        if apart[guid] is None:
+            transaction.BeginEdit()
+            metadata = dict(get_custom_metadata(split))
+            metadata.pop(COST_BASIS_BALANCE_KEY, None)
+            set_custom_metadata(split, metadata)
+            transaction.CommitEdit()
+            continue
+        held = cost_basis_balance_of(split) + apart[guid]
+        if held < 0:
+            commodity = split.GetAccount().GetCommodity()
+            unit = commodity.get_fraction()
+            raise Exception(
+                f'cost basis {guid} would hold '
+                f'{money_text(held - apart[guid], unit)} {commodity.get_mnemonic()} '
+                f'as this edit opens it. The book held '
+                f'{money_text(-apart[guid], unit)} less than its figures give, '
+                f'which a file stated as sold outside the book. So the '
+                f'transaction\'s own splits would draw {money_text(-held, unit)} '
+                f'more than it holds.')
+        write_cost_basis_balance(split, held)
+    cost_bases_changed()
+
+
+def _the_transaction_as_it_stands(transaction) -> dict:
+    """Everything an edit can change, read so a refused edit can be put back."""
+    try:
+        doc_link = transaction.GetDocLink()
+    except AttributeError:
+        doc_link = transaction.GetAssociation()
+    from infrastructure.gnucash.engine import load_gnc_engine
+    return {
+        # Set from the block before the commit, and stored on GnuCash 3.4 to
+        # 4.8: put back without it, a refused edit saved a deposit as a
+        # payment there.
+        'txn_type': load_gnc_engine().xaccTransGetTxnType(int(transaction.instance)),
+        'date': transaction.GetDate(),
+        'num': transaction.GetNum(),
+        'description': transaction.GetDescription(),
+        'notes': transaction.GetNotes(),
+        'doc_link': doc_link,
+        'currency': transaction.GetCurrency(),
+        'metadata': dict(get_custom_metadata(transaction)),
+        'splits': [{
+            'guid': split_guid(split),
+            'account': split.GetAccount(),
+            'amount': split.GetAmount(),
+            'value': split.GetValue(),
+            'memo': split.GetMemo(),
+            'action': split.GetAction(),
+            # Which the import never writes, and GnuCash's register does: a
+            # split the edit removed is made again, and made unreconciled it
+            # lost what the register recorded.
+            'reconcile': split.GetReconcile(),
+            'reconciled_on': split.GetDateReconciled(),
+            'metadata': dict(get_custom_metadata(split)),
+        } for split in transaction.GetSplitList()],
+    }
+
+
+def _put_the_old_version_back(book, transaction, stood: dict,
+                              given_back: Optional[Dict[str, Fraction]] = None,
+                              taken_after: Optional[Dict[str, Fraction]] = None) -> None:
+    """Restore a transaction whose new version was refused after it was committed.
+
+    The new version is read from the book, so a refusal comes after the
+    commit. What it drew is given back, what was given back of the old
+    version's draws on cost bases outside it is taken again, and every field
+    and split is set back as it stood, each split under its own guid — the
+    stored cost basis balances of its own splits included, which is what they
+    were before the edit gave anything back.
+    """
+    give_back_to_cost_bases(book, taken_after or {})
+    own = {each['guid'] for each in stood['splits']}
+    for guid, amount in (given_back or {}).items():
+        basis = find_split_by_guid(book, guid) if guid not in own else None
+        if basis is not None:
+            lower_cost_basis_balance(basis, amount)
+    transaction.BeginEdit()
+    transaction.SetCurrency(stood['currency'])
+    # The moment it was posted at, not its date: the normalizing setter moves
+    # a transaction posted at local midnight, as GnuCash 3.4 to 4.8's register
+    # writes one, to 10:59 UTC.
+    transaction.SetDatePostedSecs(stood['date'])
+    transaction.SetNum(stood['num'] or '')
+    transaction.SetDescription(stood['description'] or '')
+    transaction.SetNotes(stood['notes'] or '')
+    try:
+        transaction.SetDocLink(stood['doc_link'] or '')
+    except AttributeError:
+        transaction.SetAssociation(stood['doc_link'] or '')
+    set_custom_metadata(transaction, stood['metadata'])
+    gc.xaccTransSetTxnType(transaction.instance, stood['txn_type'].decode('ascii'))
+    current = {split_guid(split): split for split in transaction.GetSplitList()}
+    for guid, split in current.items():
+        if guid not in own:
+            split.Destroy()
+    for each in stood['splits']:
+        split = current.get(each['guid'])
+        if split is None:
+            split = Split(book)
+            split.SetParent(transaction)
+            _set_object_guid(book, split, 'split', 'the transaction put back', each['guid'])
+        split.SetAccount(each['account'])
+        split.SetAmount(each['amount'])
+        split.SetValue(each['value'])
+        split.SetMemo(each['memo'] or '')
+        split.SetAction(each['action'] or '')
+        split.SetReconcile(each['reconcile'])
+        split.SetDateReconciledSecs(each['reconciled_on'])
+        set_custom_metadata(split, each['metadata'])
+    transaction.CommitEdit()
+    # The balances the refused version stated are not stated any more: the
+    # book holds the old ones, and a later block drawing on one lowers it.
+    # Left marked, a sale restated further down the file drew nothing.
+    for split in transaction.GetSplitList():
+        forget_stated_balance(split)
+    cost_bases_changed()
+
+
 
 
 def _splits_in_lot(record):
@@ -12098,7 +12463,16 @@ class GnuCashImporter:
         # check. That is what this refusal points at.
         _refuse_a_split_on_an_account_with_no_commodity(book, directive)
         to_compare = _require_no_cost_basis_edit(existing_tx, directive)
-        _refuse_an_edit_that_adds_a_disposal(existing_tx, directive, book)
+        currency_moved = ('currency.mnemonic' in directive.metadata
+                          and str(directive.metadata['currency.mnemonic'])
+                          != transaction_currency(existing_tx))
+        # A transaction touching a cost basis whose splits move is read as a
+        # new transaction would be (Q-051), meeting every check a disposal
+        # meets; this guard stands in for them only where that reading does
+        # not happen.
+        splits_move = not running_atomic() and _a_split_moves(existing_tx, directive)
+        if not (splits_move and cost_basis_facts(existing_tx)):
+            _refuse_an_edit_that_adds_a_disposal(existing_tx, directive, book)
         # Where a figure a cost basis is read from has moved, the cost bases
         # themselves are compared once the edit is applied, before it is
         # committed. Read here, before the transaction is opened: what each
@@ -12117,7 +12491,27 @@ class GnuCashImporter:
         when = datetime.strptime(str(directive.props['date']), '%Y-%m-%d').date()
         date_moves = when != existing_tx.GetDate().date()
         facts_before = cost_basis_facts(existing_tx)
-        compare = to_compare is not None or (date_moves and bool(facts_before))
+        # And wherever a split's account or amount moves on a transaction
+        # touching a cost basis, though no figure a cost basis is read from
+        # moved: read as new, what the transaction's foreign currency does can
+        # change with it. A fee read as owed while it sat against a holding
+        # account, booked as a bank charge, spends dollars held (Q-051).
+        # Not under `--atomic`, which defers what an edit does to a cost basis
+        # to the finished book, as it always has.
+        compare = (to_compare is not None
+                   or (bool(facts_before) and (date_moves or splits_move)))
+        # What the old version took from each cost basis, and the transaction
+        # as it stands, read before anything moves. An edit that changes a
+        # cost basis is read as the transaction would be read if it were new
+        # (Q-051): what the old version drew is given back first, and where
+        # the new version is refused, the old one is put back from this.
+        # Read only where the edit can be read as new, the one path that
+        # gives back and clears: an edit compared with nothing returns right
+        # after its commit, and read for it they were thrown away.
+        taken_before = amounts_by_cost_basis(existing_tx) if compare and facts_before else {}
+        apart = (_what_the_book_holds_apart(existing_tx, taken_before)
+                 if compare and facts_before else {})
+        as_it_stood = _the_transaction_as_it_stands(existing_tx)
         # Read for any transaction touching a cost basis, compared or not: the
         # reading after the commit needs the same balances, and under
         # `--atomic`, where a changed figure is not compared, it is the only
@@ -12139,7 +12533,7 @@ class GnuCashImporter:
             drawing = transactions_drawing_on(
                 book, existing_tx, {fact[1] for fact in facts_before if fact[0] == 'basis'})
             held_without = what_each_account_held_without(
-                existing_tx, touched.values(), when,
+                book, existing_tx, touched.values(), when,
                 came_after={guid for guid, _label in drawing})
             # How finely the book's values are kept: read now, because an
             # edit may restate the currency, and yen divide into 1.
@@ -12288,6 +12682,22 @@ class GnuCashImporter:
                     f'Cannot find commodity ({stated_namespace}, {stated_mnemonic}) '
                     f'when trying to update transaction {directive.line}')
 
+        # `$residual$` as the create path reads it: what the other splits
+        # leave over, in the currency the transaction will be stated in, and
+        # the split taking it marked where it states an exchange difference.
+        # An edit is how a statement line is booked into what it was, and
+        # what that booking realizes is stated this way (Q-051).
+        edit_currency = (commodity_table.lookup(
+                             directive.metadata.get('currency.namespace', 'CURRENCY'),
+                             directive.metadata['currency.mnemonic'])
+                         if 'currency.mnemonic' in directive.metadata
+                         else existing_tx.GetCurrency())
+        residual_amount_str = _resolve_residual(directive, edit_currency, root_account)
+        residual_states_an_fx_difference = (
+            edit_currency.get_mnemonic() == BASE_CURRENCY
+            and any(child.metadata.get(COST_BASIS_SPLIT_KEY)
+                    for child in directive.children))
+
         existing_tx.BeginEdit()
         try:
             # Update transaction-level scalar fields
@@ -12369,10 +12779,16 @@ class GnuCashImporter:
                     surplus.Destroy()
 
                 for i, split_directive in enumerate(split_directives):
-                    amount = stated_money(
-                        split_directive.props['amount'], split_account_currency,
-                        f'the amount on split {acct_name!r}',
-                        scu=split_account.GetCommoditySCU())
+                    takes_the_residual = (
+                        str(split_directive.props['amount']) == RESIDUAL_AMOUNT)
+                    if takes_the_residual:
+                        amount = to_money(Fraction(str(residual_amount_str)),
+                                          split_account_currency.get_fraction())
+                    else:
+                        amount = stated_money(
+                            split_directive.props['amount'], split_account_currency,
+                            f'the amount on split {acct_name!r}',
+                            scu=split_account.GetCommoditySCU())
 
                     if 'value' in split_directive.metadata:
                         value = stated_money(
@@ -12459,8 +12875,20 @@ class GnuCashImporter:
                     # Update split-level custom metadata: a key the block names
                     # wins, a key named empty comes off, and a key the block
                     # does not mention is left alone.
-                    _merge_slot_keys_named(split, split_directive.metadata,
-                                           KNOWN_SPLIT_METADATA_KEYS)
+                    # A `cost_basis_balance:` restating what the book held when
+                    # the run started states nothing, and is not written: an
+                    # export restates every balance, and a block earlier in
+                    # the file may have drawn on this one since. Compared as
+                    # the book holds it, text and all: a balance that will not
+                    # parse is compared as written, not read.
+                    stated = dict(split_directive.metadata)
+                    if (COST_BASIS_BALANCE_KEY in stated
+                            and str(stated[COST_BASIS_BALANCE_KEY]) == str(balance_the_run_found(split))):
+                        del stated[COST_BASIS_BALANCE_KEY]
+                    _merge_slot_keys_named(split, stated, KNOWN_SPLIT_METADATA_KEYS)
+                    if (takes_the_residual and residual_states_an_fx_difference
+                            and takes_an_exchange_difference(split_account)):
+                        mark_as_having_taken_the_residual(split)
 
                     # Q-035: as on the create path — a file stating a cost basis's
                     # basis balance is stating it net of every sale in that
@@ -12479,29 +12907,35 @@ class GnuCashImporter:
                     # carries a balance already, from the book, and noting
                     # that would mark a cost basis as spoken for by a file that
                     # never mentioned it.
-                    if (COST_BASIS_BALANCE_KEY in split_directive.metadata
-                            and has_cost_basis_balance(split)):
+                    #
+                    # And the figure must be one the file changes: a restated
+                    # one was taken out above. An export writes every cost
+                    # basis's balance, so an owner editing one transaction of
+                    # it restates the rest as the book holds them; noted,
+                    # those figures told a fee the edit now draws on an
+                    # invoice's cost basis to leave the balance alone, and the
+                    # book went on offering the 0.72 the fee took (Q-051).
+                    if COST_BASIS_BALANCE_KEY in stated and has_cost_basis_balance(split):
                         stated_balance_splits.append(split)
 
             _restore_txn_type(existing_tx, directive)
-            # Before the commit, so the rollback below undoes it all, what it
-            # records past zero included. The edit stands where every cost
-            # basis is what it was and every disposal draws what it drew.
+            # Before the commit, so the rollback below undoes it all: a new
+            # version touching a cost basis that does not balance is not a
+            # correct transaction, and GnuCash would balance it on commit.
             if compare:
-                mark_what_arrives_past_zero(existing_tx, held_without, as_it_was,
-                                            leaving=destroyed)
-                facts_after = _with_values_the_import_requires(
-                    book, existing_tx, facts_before,
-                    cost_basis_facts(existing_tx, leaving=destroyed))
-                if facts_after != facts_before:
-                    raise Exception(_an_edit_moving_a_cost_basis(
-                        book, existing_tx, to_compare, facts_before, facts_after,
-                        booked_unit, drawing))
+                _refuse_a_new_version_that_does_not_balance(existing_tx, destroyed)
             existing_tx.CommitEdit()
             logging.debug(f"Updated transaction on {date_str}")
 
         except Exception:
             existing_tx.RollbackEdit()
+            # The rollback puts back each split's KVPs, and the picks among
+            # them, with nothing logged: the index of what draws on each
+            # cost basis kept the refused block's picks, and a later block
+            # in the file read the cost basis the refused block had moved
+            # away from as drawn on by nothing. Forgotten, the index is
+            # built from the book again the next time it is asked.
+            forget_custom_key_changes()
             raise
 
         # After the commit, and outside the block that rolls back — a rollback
@@ -12519,8 +12953,73 @@ class GnuCashImporter:
         # What each split brought in is read again, because an edit can turn
         # which way a split moves (Q-047), from what each account held before
         # the transaction where that was read.
-        mark_what_arrives_past_zero(existing_tx, held_without, as_it_was=as_it_was)
-        open_what_an_edit_made_a_basis(existing_tx, splits_before)
+        if not compare:
+            mark_what_arrives_past_zero(existing_tx, held_without, as_it_was=as_it_was)
+            open_what_an_edit_made_a_basis(existing_tx, splits_before)
+            return
+
+        # Read after the commit, and afresh, as a new transaction would be.
+        # Before it, GnuCash lists a destroyed split in its transaction with
+        # its figures, and a cost read then counted it: the fee's two splits
+        # taken off a purchase a sale drew on read as leaving the cost basis
+        # as it was, and the edit re-priced it under the sale. Kept from the
+        # old reading, a fee read as owed out of an empty account compared
+        # equal once booked as a bank charge, though read now it spends
+        # dollars held (Q-051).
+        #
+        # Everything from here on is after the commit, so whatever fails in
+        # it, a refusal or an error reading the new version, puts the old
+        # version back as it stood, with what it drew. Otherwise the new
+        # version stays in the book, and without `--atomic` it is saved.
+        given_back: dict = {}
+        taken_after: dict = {}
+        try:
+            mark_what_arrives_past_zero(existing_tx, held_without)
+            facts_after = _with_values_the_import_requires(
+                book, existing_tx, facts_before, cost_basis_facts(existing_tx))
+            if facts_after == facts_before and not splits_move:
+                open_what_an_edit_made_a_basis(existing_tx, splits_before)
+                return
+            # Read as a new transaction would be read, unless another
+            # transaction draws on a cost basis of this one that the new
+            # version would not establish, or at other figures: that
+            # transaction would be left drawing on nothing, or valued at a
+            # cost that is no longer this one's.
+            if _cost_bases_moved_under_other_transactions(
+                    book, existing_tx, facts_before, facts_after):
+                # A date is not deferred: no question asked of the finished
+                # book reads what a cost basis held on each day in between,
+                # which is what a date moves. Refused for it, the refusal
+                # gives the date and not a figure the run would have deferred.
+                deferrable = _the_figures_can_be_deferred(facts_before, facts_after,
+                                                          currency_moved)
+                if date_moves or not deferrable:
+                    raise Exception(_an_edit_moving_a_cost_basis(
+                        book, existing_tx, None if deferrable else to_compare,
+                        facts_before, facts_after, booked_unit, drawing))
+                _defer_to_the_finished_book(book, existing_tx)
+                open_what_an_edit_made_a_basis(existing_tx, splits_before)
+                return
+            # Every check a new transaction meets, and its cost bases opened
+            # and drawn as a new transaction's are, in the order
+            # `create_transaction` runs them, once what the old version drew
+            # is given back.
+            _give_back_what_the_old_version_drew(book, taken_before, given_back)
+            cleared = _clear_what_the_old_version_opened(
+                book, existing_tx, facts_before, apart)
+            refuse_a_transfer_sharing_a_transaction(existing_tx)
+            refuse_a_disposal_that_gives_no_cost_basis(book, existing_tx)
+            refuse_a_disposal_of_two_kinds_at_once(existing_tx)
+            open_the_cost_bases_its_own_splits_draw_on(existing_tx)
+            taken_after = apply_cost_basis_picks(book, existing_tx)
+            refuse_a_difference_no_split_can_state(book, existing_tx)
+            carry_the_cost_to_what_it_bought(book, existing_tx)
+            record_cost_bases(book, existing_tx)
+            _keep_what_the_book_held_apart(book, existing_tx, apart, cleared)
+        except Exception:
+            _put_the_old_version_back(book, existing_tx, as_it_stood,
+                                      given_back, taken_after)
+            raise
 
     @staticmethod
     def import_company(directive: PlaintextDirective, book: Book):

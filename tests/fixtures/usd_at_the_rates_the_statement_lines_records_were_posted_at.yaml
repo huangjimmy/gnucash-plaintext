@@ -1,0 +1,6 @@
+# The rates a_usd_invoice_and_bill_for_statement_lines_on_a_holding_account.txt
+# posts its records at: the invoices at 1.393801, which is 3,791.14 CAD for
+# 2,720.00 USD, and the bill at 1.38, which is 1,380.00 CAD for 1,000.00 USD.
+USD/CAD:
+  2026-07-31: 1.393801
+  2026-08-01: 1.38

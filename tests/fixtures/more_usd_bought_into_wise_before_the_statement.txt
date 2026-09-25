@@ -1,0 +1,17 @@
+# Q-051: 3,000.00 USD more bought into Wise before the statement, at 1.35 CAD
+# each, so that with usd_bought_into_wise_before_the_statement.txt the account
+# holds 5,000.00 USD before the deposit arrives. A sale of 2,800.00 USD in the
+# deposit's own transaction then draws all of it without taking the account
+# past zero.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-02 * "More dollars bought"
+	guid: "0e510000000000000000000000000911"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 3000.00 USD
+		guid: "0e510000000000000000000000000912"
+		account.commodity.mnemonic: "USD"
+		value: "4050.00"
+	Assets:Chequing -4050.00 CAD
+		guid: "0e510000000000000000000000000913"

@@ -15,6 +15,7 @@ from services.foreign_currency import begin_import_run
 from services.gnucash_importer import (
     GnuCashImporter,
     begin_lot_attachments,
+    note_a_transaction_the_run_refused,
     note_what_the_file_states,
     the_guid_a_block_names,
 )
@@ -28,6 +29,34 @@ from services.positions_in_the_file import (
 )
 from services.prices import apply_price_blocks
 from services.transaction_matcher import TransactionMatcher
+from use_cases.export_transactions import ExportTransactionsUseCase, UnwritableFigureError
+
+
+def _the_book_would_write(exporter, transaction, directive) -> bool:
+    """Whether the transaction is up to date: the block has no new changes, and importing it would write nothing.
+
+    Up to date means every value the update writes from the block is the
+    value the book already holds: the transaction's date, number, description,
+    notes, document link, currency and KVPs; the same splits by guid, none
+    added and none removed; each split's account, amount, value, memo,
+    action and KVPs, the cost basis it draws on and a stated balance among
+    them.
+
+    Decided against the book's own export, which is the statement of what
+    the book holds: exported and imported again, a book is the book it was,
+    and the suite holds that round trip throughout. So a block reading line
+    for line as the export writes this transaction, blank lines and comments
+    aside, is up to date. Anything else is edited, even where it comes out the
+    same: a figure written another way, keys in another order, `$residual$`,
+    a position instead of a guid, a `balance:` line. That errs toward editing,
+    which is what every block met before.
+    """
+    try:
+        written = exporter.format_transaction_list([transaction])
+    except UnwritableFigureError:
+        return False
+    return ([line for line in written.splitlines() if line.strip()]
+            == [line for line in directive.text if line.strip()])
 
 
 class ImportResult:
@@ -36,6 +65,10 @@ class ImportResult:
     def __init__(self):
         self.imported_count = 0
         self.updated_count = 0
+        # Transactions `--strategy update` found up to date: the file states
+        # them as the book already holds them, no new changes, so they were
+        # not edited.
+        self.up_to_date_count = 0
         # The transactions `--strategy update` reported under that figure.
         # A `payment:` block correcting one of their memos adds to the same
         # figure, and one transaction changed is one transaction changed.
@@ -329,6 +362,7 @@ class ImportTransactionsUseCase:
         resolution_strategy: ResolutionStrategy = ResolutionStrategy.SKIP,
         on_accounts_ready=None,
         atomic: bool = False,
+        applies_payments: bool = False,
     ) -> ImportResult:
         """
         Import from full GnuCash plaintext format file.
@@ -364,6 +398,10 @@ class ImportTransactionsUseCase:
             resolution_strategy: How to handle conflicts
             on_accounts_ready: Called with (parser, result) once the accounts
                 exist, before transactions are read
+            applies_payments: Whether the caller applies the file's invoice
+                and bill blocks after the transactions. Only then does a
+                `payment:` block's `txn_split_guid:` say the split will
+                settle that record.
 
         Returns:
             ImportResult with summary
@@ -386,7 +424,7 @@ class ImportTransactionsUseCase:
         # transaction section gives each split, and how many invoices
         # settle from each transaction. Read here because the book cannot
         # answer either while the run is still building it.
-        note_what_the_file_states(parser.root_directive.children)
+        note_what_the_file_states(parser.root_directive.children, applies_payments)
 
         # Every transaction block given its position in the file, and every
         # position a split gives checked before any of the file is applied: one
@@ -528,10 +566,27 @@ class ImportTransactionsUseCase:
                         f"transaction on {child.props.get('date', '?')} "
                         f"\"{child.props.get('tx_desc') or '(no description)'}\": {e}") from e
 
+            # A block the book's own export would write, line for line, is
+            # the transaction as the book holds it: no new changes, so the
+            # transaction is up to date, and it is not edited, not committed
+            # and not counted as updated.
+            # A file exported whole with a few transactions changed is the
+            # ordinary way to correct a book, and editing every other block
+            # too cost a commit each, which GnuCash pays in proportion to the
+            # size of the accounts: an unchanged export of 5,000 transactions
+            # took 58 s, and every block was reported updated
+            # (`tests/research/how_long_an_edit_read_as_new_takes_on_a_large_book_probe.py`).
+            exporter = ExportTransactionsUseCase(self.repository)
             for child in tx_directives:
                 guid = the_guid_a_block_names(child.metadata)
                 existing_tx = existing_guid_map[guid]
                 try:
+                    # Inside the block's own error handling: whatever the
+                    # export meets in the book is that block's error, as
+                    # anything else reading it is, not the end of the run.
+                    if _the_book_would_write(exporter, existing_tx, child):
+                        result.up_to_date_count += 1
+                        continue
                     importer.update_transaction(existing_tx, child, book)
                     result.updated_count += 1
                     # Which transactions this pass has already reported, so
@@ -540,6 +595,7 @@ class ImportTransactionsUseCase:
                     result.updated_transaction_guids.add(
                         existing_tx.GetGUID().to_string())
                 except Exception as e:
+                    note_a_transaction_the_run_refused(child, str(e))
                     logging.error(f"Failed to update transaction {guid}: {e}")
                     result.errors.append({'transaction': child.props, 'error': str(e)})
                     result.error_count += 1
@@ -643,6 +699,9 @@ class ImportTransactionsUseCase:
                     # below pointing at one is refused for that rather than
                     # given a guid the book does not hold (Q-050).
                     child.split_guids = None
+                    # And a `payment:` block giving it records no payment of
+                    # its own for money the file says moved here (Q-051).
+                    note_a_transaction_the_run_refused(child, str(e))
                     logging.error(f"Failed to import transaction: {e}")
                     result.errors.append({
                         'transaction': child.props,

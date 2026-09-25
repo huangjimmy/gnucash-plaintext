@@ -1,0 +1,19 @@
+# 20.00 USD of the cost basis fx_two_base_splits_at_different_rates.txt opens,
+# sold for 28.00 CAD and valued at what it cost, 25/18 × 20.00 = 27.78.
+# `{basis}` is that cost basis's split, which the test fills in.
+#
+# Once this draws on it, the purchase's cost basis is not the purchase's
+# alone: an edit re-pricing it, or changing what it brought in, would leave
+# this sale valued at a cost that is no longer the cost basis's, and is
+# refused, or under `--atomic` left to the finished book, which refuses it.
+#
+# Verified by
+# tests/integration/test_an_update_restating_what_prices_a_cost_basis_is_read_as_new.py.
+2026-01-20 * "Sell 20 USD"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -20.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "-27.78"
+		cost_basis_split_guid: "{basis}"
+	Assets:Bank 28.00 CAD
+	Income:Sales $residual$ CAD

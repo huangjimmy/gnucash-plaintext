@@ -50,7 +50,7 @@ A split draws on a cost basis through `cost_basis_split_guid:`, written as a gui
 | E6 | E1 under `--atomic` | as E1, committed |
 | E7 | A fee whose position is a transaction below it | refused before any of the file is applied, giving the position and saying to move that block above |
 | E8 | The arrival in one transaction and the fee, giving its position, in a later one | as E1 |
-| E9 | A fee added by `--strategy update` to an arrival the book holds | refused: an edit in place does not add a split drawing on a cost basis (Q-048) |
+| E9 | A fee added by `--strategy update` to an arrival the book holds | accepted: the edit is read as a new transaction would be (Q-051), and the fee draws 0.72 of the arrival's cost basis, leaving 2,719.28 |
 | E10 | The arrival and a fee giving no cost basis, one transaction | refused, as a spend giving no cost basis is anywhere, and the refusal gives the two ways to write it: the arrival net of the fee, which makes the fee part of what the dollars cost and records no fee; or the fee kept, giving its cost basis — the arrival's position in its own transaction, an arrival's position above, or the guid of a cost basis the book holds, each listed. It chooses none |
 | E11 | The book holds 500.00 USD bought at 1.30; a transaction brings 2,720.00 USD in and pays its 0.72 USD fee from the 500.00, giving that cost basis's guid | the 500.00 falls to 499.28, valued 0.94; the arrival opens 2,720.00 whole |
 | E12 | As E11, with a second 0.72 USD fee giving the arrival's position | each fee draws on the cost basis it gives: 499.28 and 2,719.28 left |
@@ -94,7 +94,7 @@ A split draws on a cost basis through `cost_basis_split_guid:`, written as a gui
 
 **What draws on it.** Any split that gives `cost_basis_split_guid:` — a fee, a sale, a withdrawal, a conversion, a repayment, a split crossing zero — and more than one in a transaction (E2), the last of a cost basis valued at what is left of its cost (Q-049).
 
-**How the file is imported.** A new book, an existing one, and `--atomic` (E6) resolve a position the same way. Under `--strategy update`, and for a transaction the import passes over as already in the book, a position is the `guid:` the line it points at gives; an edit in place adds no split drawing on a cost basis (E9), by the rule of Q-048.
+**How the file is imported.** A new book, an existing one, and `--atomic` (E6) resolve a position the same way. Under `--strategy update`, and for a transaction the import passes over as already in the book, a position is the `guid:` the line it points at gives; an edit in place adding a split drawing on a cost basis is read as a new transaction would be (E9, Q-051).
 
 **What else reads the book.** The guid saved is the split's own, so `export` writes the guid and the ledger rebuilds the book; `delete-transactions` of a transaction whose only disposals are its own gives the cost basis back and deletes it; the balance sheet, `fx-balances` and `--verify-costs` read the draw as any other.
 
@@ -135,7 +135,7 @@ Any spend giving no cost basis is refused with the same list, wherever it stands
 | E6 | `test_under_atomic` |
 | E7 | `test_a_transaction_below_refuses_the_whole_file` |
 | E8 | `test_a_transaction_above` |
-| E9 | `test_a_fee_added_by_an_edit_is_refused` |
+| E9 | `test_a_fee_added_by_an_edit_draws_on_the_arrival` |
 | E10 | `test_it_is_refused`, `test_the_refusal_gives_the_arrival_net_of_the_fee`, `test_stated_in_us_dollars_the_splits_beside_the_arrival_are_valued_at_what_is_kept`, `test_the_arrival_written_as_the_refusal_says_imports` (stated in each currency), `test_the_refusal_gives_the_position_of_the_arrival`, `test_the_refusal_lists_the_cost_bases_the_book_holds` |
 | E11 | `test_a_fee_paid_from_dollars_held_leaves_the_arrival_whole` |
 | E12 | `test_one_fee_from_each_draws_on_the_one_it_gives` |
@@ -150,4 +150,4 @@ Any spend giving no cost basis is refused with the same list, wherever it stands
 | E10, owed side | `test_a_repayment_is_offered_no_net_charge` |
 | export | `test_the_export_writes_the_guid_and_rebuilds_the_book` |
 
-Fixtures that spent currency their own transaction brings in and gave no cost basis now give the arrival's position: `usd_bought_with_the_bank_keeping_part_as_its_fee_drawn_on_the_purchase.txt` (with `tests/integration/test_a_purchase_whose_fee_draws_on_it_leaves_what_the_account_holds.py`), `fx_two_base_splits_at_different_rates.txt`, and the two card fixtures of `tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py`. The re-pricing rule above is covered by the two `--atomic` tests of `tests/integration/test_an_added_cad_split_cannot_reprice_a_basis.py`, and its limit by `tests/integration/test_a_repriced_basis_is_caught_under_its_sales.py`.
+Fixtures that spent currency their own transaction brings in and gave no cost basis now give the arrival's position: `usd_bought_with_the_bank_keeping_part_as_its_fee_drawn_on_the_purchase.txt` (with `tests/integration/test_a_purchase_whose_fee_draws_on_it_leaves_what_the_account_holds.py`), `fx_two_base_splits_at_different_rates.txt`, and the two card fixtures of `tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py`. The re-pricing rule above is covered by the two `--atomic` tests of `tests/integration/test_an_update_restating_what_prices_a_cost_basis_is_read_as_new.py`, and its limit by `tests/integration/test_a_repriced_basis_is_caught_under_its_sales.py`.

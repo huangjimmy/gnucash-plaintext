@@ -1,0 +1,21 @@
+# Q-051 E7: a book started part-way through its life, the 3,000.00 USD its
+# savings account already held entered as an opening balance against equity,
+# valued at what those dollars cost, 4,050.00 CAD. Onto
+# a_usd_invoice_and_bill_for_statement_lines_on_a_holding_account.txt.
+#
+# The value is what says what the dollars cost, so the opening balance opens a
+# cost basis of 3,000.00 USD at 1.35, and whatever later spends them gives it,
+# as a spend of dollars bought would. A book need not be imported from the
+# day its currency arrived.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-01 * "Opening balance"
+	guid: "0e510000000000000000000000000e01"
+	currency.mnemonic: "CAD"
+	Assets:USD Savings 3000.00 USD
+		guid: "0e510000000000000000000000000e02"
+		account.commodity.mnemonic: "USD"
+		value: "4050.00"
+	Equity:Opening balances -4050.00 CAD
+		guid: "0e510000000000000000000000000e03"

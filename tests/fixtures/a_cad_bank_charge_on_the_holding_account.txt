@@ -1,0 +1,14 @@
+# Q-051: a Canadian dollar bank charge on the holding account, touching no
+# cost basis. A test corrects its description in the same file as an edit
+# that is refused, so the run has a change to save, and the saved book shows
+# what the refused edit left behind.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-09-01 * "Bank charge"
+	guid: "0e510000000000000000000000000c11"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 5.00 CAD
+		guid: "0e510000000000000000000000000c12"
+	Assets:Due from director -5.00 CAD
+		guid: "0e510000000000000000000000000c13"

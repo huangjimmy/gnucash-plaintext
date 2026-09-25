@@ -1,0 +1,23 @@
+# Q-051 E6: a_usd_deposit_and_its_fee_on_a_holding_account.txt booked as
+# income not invoiced. Only the Canadian dollar side moves, so the deposit
+# establishes the same cost basis at the same figures, and the fee goes on
+# drawing on it.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "0e510000000000000000000000000a01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e510000000000000000000000000a02"
+		account.commodity.mnemonic: "USD"
+		value: "3815.89"
+	Income:Sales -3815.89 CAD
+		guid: "0e510000000000000000000000000a03"
+	Expenses:Bank charges 1.01 CAD
+		guid: "0e510000000000000000000000000a04"
+	Assets:Wise USD -0.72 USD
+		guid: "0e510000000000000000000000000a05"
+		account.commodity.mnemonic: "USD"
+		value: "-1.01"
+		cost_basis_split_guid: "0e510000000000000000000000000a02"

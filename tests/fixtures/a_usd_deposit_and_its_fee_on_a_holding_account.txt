@@ -1,0 +1,27 @@
+# Q-051: a statement's 2,720.00 USD deposit, imported before the owner knows
+# what it is, its other side on Assets:Due from director, and the bank's
+# 0.72 USD fee out of it in the same transaction, the fee's other side on the
+# holding account too.
+#
+# US dollars arriving against Canadian dollars leaving an asset is buying
+# them, so the deposit establishes a cost basis at 3,815.89 for 2,720.00, and
+# the fee draws 0.72 of it, valued 1.01: 2,719.28 left.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "0e510000000000000000000000000a01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e510000000000000000000000000a02"
+		account.commodity.mnemonic: "USD"
+		value: "3815.89"
+	Assets:Due from director -3815.89 CAD
+		guid: "0e510000000000000000000000000a03"
+	Assets:Due from director 1.01 CAD
+		guid: "0e510000000000000000000000000a04"
+	Assets:Wise USD -0.72 USD
+		guid: "0e510000000000000000000000000a05"
+		account.commodity.mnemonic: "USD"
+		value: "-1.01"
+		cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$

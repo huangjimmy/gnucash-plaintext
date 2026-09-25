@@ -2,9 +2,9 @@
 # split out of the same bank, 0.28 USD more drawn on the arrival's cost basis,
 # for `--strategy update`.
 #
-# An edit takes no amount off a cost basis balance, so the balance would still
-# count those 0.28 USD. It is refused, saying a split would draw on the cost
-# basis.
+# The edit is read as a new transaction would be (Q-051): what the fee drew
+# is given back, and both its splits draw on the cost basis, 1.00 USD in all,
+# leaving 2,719.00.
 #
 # Verified by
 # tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.

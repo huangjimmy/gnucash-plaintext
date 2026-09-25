@@ -2,9 +2,8 @@
 # cleared, for `--strategy update`: every figure the same, and
 # `cost_basis_split_guid: ""` where it gave the arrival's cost basis.
 #
-# The 0.72 USD came off the cost basis balance when the fee was imported, and
-# an edit does not put it back on. It is refused, and the split the book holds is given
-# with the cost basis it draws on, so the two lines of the refusal differ.
+# Read as a new transaction would be (Q-051), the fee spends 0.72 USD the book
+# holds giving no cost basis, and is refused as a new spend giving none is.
 #
 # Verified by
 # tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.

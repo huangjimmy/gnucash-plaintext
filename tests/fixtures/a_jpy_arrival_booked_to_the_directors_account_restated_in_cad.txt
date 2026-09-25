@@ -1,8 +1,9 @@
 # The arrival of a_jpy_arrival_booked_to_the_directors_account.txt stated in
-# Canadian dollars at 910.00, for `--strategy update`: that re-prices the cost
-# basis, and is refused. The Canadian dollar split states no `value:`, as a
-# split in the currency its transaction is stated in needs none: its value is
-# its amount, and the refusal gives it as the file states it.
+# Canadian dollars at 910.00, for `--strategy update`. Nothing draws on the
+# yen's cost basis, so the edit is read as a new transaction would be (Q-051),
+# and the cost basis is priced at 910.00 for 100,000 yen. The Canadian dollar
+# split states no `value:`, as a split in the currency its transaction is
+# stated in needs none: its value is its amount.
 #
 # Verified by
 # tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.

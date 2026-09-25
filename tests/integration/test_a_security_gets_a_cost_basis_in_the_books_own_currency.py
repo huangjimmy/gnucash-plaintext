@@ -48,13 +48,13 @@ def test_the_cost_basis_travels_through_an_export_and_back(tmp_path):
     assert 'Total USTECH cost basis balance: 10.0000' in listing, listing
 
 
-def test_a_share_count_is_corrected_by_deleting_and_importing_again(tmp_path):
+def test_a_share_count_is_corrected_by_an_edit_in_place(tmp_path):
     """The rule every cost basis follows, now that a share has one.
 
-    A transaction a cost basis rests on cannot have its amounts edited in
-    place: the balance was opened from those amounts, and an edit would leave
-    the two saying different things. The refusal says what to do instead, and
-    it is what a currency purchase has always said.
+    A purchase whose cost basis nothing else draws on is read, edited, as a
+    new transaction would be (Q-051): 12 shares for the money that bought 10
+    opens a cost basis of 12 at the price the two figures give, and the
+    balance says what the amounts say.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -70,9 +70,12 @@ def test_a_share_count_is_corrected_by_deleting_and_importing_again(tmp_path):
     result = runner.invoke(cli, ['import', str(book), str(edited),
                                  '--strategy', 'update'])
 
-    assert result.exit_code != 0, result.output
-    assert 'touches a cost basis' in result.output, result.output
-    assert 'delete-transactions --by-guid' in result.output, result.output
+    assert result.exit_code == 0, result.output
+    listing = runner.invoke(cli, ['fx-balances', str(book)]).output
+    assert 'Total USTECH cost basis balance: 12.0000 USTECH' in listing, listing
+    assert 'Total USTECH held in accounts: 12.0000 USTECH' in listing, listing
+    verified = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
+    assert verified.exit_code == 0, verified.output
 
 
 def test_a_currency_in_a_securities_typed_account_is_still_currency(tmp_path):
