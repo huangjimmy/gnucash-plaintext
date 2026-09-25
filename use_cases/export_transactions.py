@@ -1096,11 +1096,9 @@ class ExportTransactionsUseCase:
         _tx_ptr = int(transaction.instance)
         _emitted_txn_type = False
         _emitted_owner = False
-        # Every supported build carries these symbols, so declaring them
-        # cannot fail.
-        _lib.xaccTransGetTxnType.restype = _ctypes.c_char
-        _lib.xaccTransGetTxnType.argtypes = [_ctypes.c_void_p]
-        # A `c_char` return comes back as one byte, on every build.
+        # Every supported build carries these symbols, and the shared engine
+        # declares them. A `c_char` return comes back as one byte, on every
+        # build.
         _t = _lib.xaccTransGetTxnType(_tx_ptr).decode('ascii', errors='replace')
         # 'N' is normal and so is an unset field, which older GnuCash
         # hands back as NUL rather than 'N'. Emitting that wrote a literal
@@ -1109,12 +1107,6 @@ class ExportTransactionsUseCase:
             lines.append(f'\ttxn_type: {_t}')
             _emitted_txn_type = True
 
-        _lib.gncOwnerGetOwnerFromTxn.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
-        _lib.gncOwnerGetOwnerFromTxn.restype = _ctypes.c_int
-        _lib.gncOwnerGetID.argtypes = [_ctypes.c_void_p]
-        _lib.gncOwnerGetID.restype = _ctypes.c_char_p
-        _lib.gncOwnerGetType.argtypes = [_ctypes.c_void_p]
-        _lib.gncOwnerGetType.restype = _ctypes.c_int
         _owner_buf = _ctypes.create_string_buffer(256)
         _owner_p = _ctypes.cast(_owner_buf, _ctypes.c_void_p).value
         if _lib.gncOwnerGetOwnerFromTxn(_tx_ptr, _owner_p) == 1:
@@ -1354,19 +1346,9 @@ class ExportTransactionsUseCase:
         import ctypes as _ctypes
 
         from infrastructure.gnucash.engine import load_gnc_engine as _load
+        # Every supported build carries these symbols, and the shared engine
+        # declares them.
         _lib = _load()
-        # Every supported build carries these symbols, so declaring them
-        # cannot fail.
-        _lib.xaccSplitGetLot.argtypes = [_ctypes.c_void_p]
-        _lib.xaccSplitGetLot.restype = _ctypes.c_void_p
-        _lib.gncInvoiceGetInvoiceFromLot.argtypes = [_ctypes.c_void_p]
-        _lib.gncInvoiceGetInvoiceFromLot.restype = _ctypes.c_void_p
-        _lib.gncOwnerGetOwnerFromLot.argtypes = [_ctypes.c_void_p, _ctypes.c_void_p]
-        _lib.gncOwnerGetOwnerFromLot.restype = _ctypes.c_int
-        _lib.gncOwnerGetID.argtypes = [_ctypes.c_void_p]
-        _lib.gncOwnerGetID.restype = _ctypes.c_char_p
-        _lib.gncOwnerGetType.argtypes = [_ctypes.c_void_p]
-        _lib.gncOwnerGetType.restype = _ctypes.c_int
         _lot_ptr = _lib.xaccSplitGetLot(int(split.instance))
         # Q-035: not for a settlement an unpost loosened. `lot_owner:` is
         # how a file says "this split is an owner's credit, put it in a lot
@@ -1398,11 +1380,6 @@ class ExportTransactionsUseCase:
                         # carries the guid accessors, and an owner the lot
                         # answers with is an entity, so it always has a guid
                         # to read.
-                        _lib.gncOwnerGetGUID.argtypes = [_ctypes.c_void_p]
-                        _lib.gncOwnerGetGUID.restype = _ctypes.c_void_p
-                        _lib.guid_to_string_buff.argtypes = [
-                            _ctypes.c_void_p, _ctypes.c_char_p]
-                        _lib.guid_to_string_buff.restype = _ctypes.c_char_p
                         _gb = _ctypes.create_string_buffer(40)
                         _lib.guid_to_string_buff(
                             _lib.gncOwnerGetGUID(_owner_p), _gb)

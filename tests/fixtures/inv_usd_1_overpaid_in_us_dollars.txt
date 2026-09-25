@@ -1,0 +1,30 @@
+# Q-049: INV-USD-1, 2,720.00 USD, paid 3,000.00 USD into Wise USD, which
+# leaves 280.00 USD on the receivable as the customer's credit. A book keeping
+# cost bases opens a cost basis for that credit at the invoice's cost, since
+# nothing in a payment stated in US dollars says what the dollars cost.
+#
+# Verified by tests/integration/test_a_book_can_keep_no_cost_bases.py.
+invoice "INV-USD-1"
+	customer_id: "C-USD"
+	currency: USD
+	date_opened: 2026-07-31
+	entry:
+		date: 2026-07-31
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 2720
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-31
+		due: 2026-08-30
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-1"
+		accumulate: true
+	payment:
+		date: 2026-08-13
+		amount: 3000
+		account: "Assets:Wise USD"
+		memo: "Received money from Example Customer Inc"

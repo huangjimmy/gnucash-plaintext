@@ -18,7 +18,7 @@ and in the **Status** column below.
 | [T-006](T-006-fx-rates-yaml-error-paths-untested.md) | FX rates YAML error paths are untested | low | closed |
 | [T-007](T-007-plaintext-parser-edge-cases-untested.md) | Plaintext parser edge cases are not tested | medium | closed |
 | [T-008](T-008-tax-included-and-payment-reconciliation-coverage.md) | tax_included pricing untested; bill tax flags not persisted; payment/credit reconciliation gaps | high | open |
-| [T-009](T-009-line-and-branch-coverage-is-not-measured-or-gated.md) | Coverage is measured by nothing, so unreachable code is found by review; ctypes signatures declared per-caller | high | open |
+| [T-009](T-009-line-and-branch-coverage-is-not-measured-or-gated.md) | Coverage is measured by nothing, so unreachable code is found by review; ctypes signatures declared per-caller | high | closed |
 
 ## Security
 
@@ -31,7 +31,7 @@ and in the **Status** column below.
 
 | ID | Title | Severity | Status |
 |----|-------|----------|--------|
-| [F-001](F-001-qfx-dependency-declared-but-not-implemented.md) | QFX/OFX dependency declared but feature not implemented | medium | open |
+| [F-001](F-001-qfx-dependency-declared-but-not-implemented.md) | QFX/OFX dependency declared but feature not implemented | medium | closed |
 | [F-002](F-002-balance-sheet-command-missing.md) | No balance-sheet command | enhancement | closed |
 | [F-003](F-003-export-date-range-filter-missing.md) | export command has no date-range filter | enhancement | closed |
 | [F-004](F-004-no-search-find-transaction-command.md) | No search / find-transaction command | enhancement | closed |

@@ -523,26 +523,8 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
     posting = record.GetPostedTxn()
     posting_guid = _norm_guid(posting.GetGUID().to_string()) if posting else ''
 
+    # Every signature it uses is the shared engine's.
     lib = load_gnc_engine()
-    for name, restype, argtypes in [
-        ('gnc_lot_get_split_list',   ctypes.c_void_p, [ctypes.c_void_p]),
-        ('gnc_lot_remove_split',     None,            [ctypes.c_void_p, ctypes.c_void_p]),
-        ('gnc_lot_get_balance',      GncNumericC,     [ctypes.c_void_p]),
-        ('xaccSplitGetParent',       ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccSplitGetAccount',      ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccSplitSetAccount',      None,            [ctypes.c_void_p, ctypes.c_void_p]),
-        ('xaccSplitGetAmount',       GncNumericC,     [ctypes.c_void_p]),
-        ('xaccAccountGetType',       ctypes.c_int,    [ctypes.c_void_p]),
-        ('xaccTransGetCurrency',     ctypes.c_void_p, [ctypes.c_void_p]),
-        ('gnc_commodity_get_mnemonic', ctypes.c_char_p, [ctypes.c_void_p]),
-        ('xaccTransBeginEdit',       None,            [ctypes.c_void_p]),
-        ('xaccTransCommitEdit',      None,            [ctypes.c_void_p]),
-        ('qof_instance_get_guid',    ctypes.c_void_p, [ctypes.c_void_p]),
-        ('guid_to_string_buff',      ctypes.c_char_p, [ctypes.c_void_p, ctypes.c_char_p]),
-    ]:
-        f = getattr(lib, name)
-        f.restype = restype
-        f.argtypes = argtypes
 
     def _guid_of(instance_ptr) -> str:
         """Any QOF instance's guid — a transaction's here, and a split's below.

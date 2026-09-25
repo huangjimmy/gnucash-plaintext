@@ -1,0 +1,32 @@
+# Q-053: two transfer fees on one day, on the same two accounts, and the
+# dollars the second draws on bought in a transaction written below it.
+#
+# The first fee draws on the dollars bought before the statement, which the
+# book holds. The second gives the guid of a split the file creates further
+# down, so it is refused in the first pass and applied in the next, once that
+# purchase is in the book. The two fees share a date and their accounts,
+# which is all the check for a duplicate compares, and they are two fees.
+#
+# Verified by
+# tests/integration/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
+2026-08-20 * "Transfer fee"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 0.97 CAD
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		value: "-0.97"
+		cost_basis_split_guid: "0e510000000000000000000000000d02"
+2026-08-20 * "Transfer fee"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.94 CAD
+	Assets:Wise USD -1.44 USD
+		account.commodity.mnemonic: "USD"
+		value: "-1.94"
+		cost_basis_split_guid: "0e530000000000000000000000000f22"
+2026-08-19 * "More dollars bought"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 100.00 USD
+		guid: "0e530000000000000000000000000f22"
+		account.commodity.mnemonic: "USD"
+		value: "135.00"
+	Assets:Chequing -135.00 CAD

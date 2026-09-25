@@ -1,0 +1,8 @@
+# Q-049: a book whose owner keeps its foreign currency as GnuCash does, with no
+# cost bases. The switch is the book's own, beside `base_currency:`, so every
+# command reads the same answer.
+#
+# Verified by tests/integration/test_a_book_can_keep_no_cost_bases.py.
+company
+	name: "Example Books Inc"
+	cost_bases: "off"

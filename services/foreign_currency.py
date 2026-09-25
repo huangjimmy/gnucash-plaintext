@@ -97,6 +97,7 @@ from infrastructure.gnucash.utils import (
     qof_pointer,
     to_money,
 )
+from repositories.gnucash_repository import WHAT_TO_FORGET_WHEN_A_BOOK_OPENS
 
 # The currency the book reports in. Hardcoded tool-wide (see `services/fx_rates.py`,
 # which quotes every rate in CAD).
@@ -160,6 +161,128 @@ APPLIED_FROM_CREDIT_KEY = 'applied_from_credit'
 # or the other because of its name (docs/multi-currency.md). The file said
 # which, and this is the book's record of it.
 TOOK_THE_RESIDUAL_KEY = 'took_the_residual'
+
+# The `company` block's key saying whether the book keeps cost bases (Q-049).
+# Cost bases are gnucash-plaintext's, not GnuCash's: GnuCash asks no one which
+# lot a dollar came out of. `cost_bases: "off"` keeps the book's foreign
+# currency as GnuCash does, and `"on"`, or no line at all, keeps cost bases.
+COST_BASES_KEY = 'cost_bases'
+
+# The cost basis keys, which a book keeping no cost bases holds none of. Not
+# `took_the_residual`: the realized gain a file states is the file's, and no
+# cost basis decides it.
+COST_BASIS_KEYS = (COST_BASIS_BALANCE_KEY, COST_BASIS_BROUGHT_IN_KEY,
+                   COST_BASIS_SPLIT_KEY, COST_BASIS_FORCE_KEY, COST_BASIS_COST_KEY)
+
+
+#: Each book's answer to `book_keeps_cost_bases`, by the book's address. Asked
+#: for every split a cost basis writer is handed and every transaction the
+#: realized gain walk reads, so the book's custom metadata is read and parsed
+#: once per book rather than once per question. An address can be reused only
+#: by a book opened after another was closed, and `GnuCashRepository.open`
+#: forgets every answer.
+_WHETHER_EACH_BOOK_KEEPS_COST_BASES: Dict[int, bool] = {}
+
+
+def book_keeps_cost_bases(book) -> bool:
+    """Whether the book keeps cost bases: the `company` block's `cost_bases:` is not `off` (Q-049)."""
+    from infrastructure.gnucash.kvp import get_book_custom_metadata
+
+    address = qof_pointer(book)
+    if address not in _WHETHER_EACH_BOOK_KEEPS_COST_BASES:
+        _WHETHER_EACH_BOOK_KEEPS_COST_BASES[address] = (
+            str(get_book_custom_metadata(book).get(COST_BASES_KEY, '')).strip() != 'off')
+    return _WHETHER_EACH_BOOK_KEEPS_COST_BASES[address]
+
+
+def forget_whether_books_keep_cost_bases() -> None:
+    """Forget each book's answer, once a `company` block has set `cost_bases:` or a book is opened (Q-049)."""
+    _WHETHER_EACH_BOOK_KEEPS_COST_BASES.clear()
+
+
+# What a run learned of a book it did not save is not what the file holds: a
+# dry run or a rolled-back `--atomic` run of a `company` block setting
+# `cost_bases:` leaves it behind. A book opened is asked afresh.
+WHAT_TO_FORGET_WHEN_A_BOOK_OPENS.append(forget_whether_books_keep_cost_bases)
+
+
+def refuse_a_cost_bases_setting_it_cannot_read(value) -> None:
+    """Refuse a `cost_bases:` other than `on` or `off`; an empty one removes the line, which keeps them."""
+    if value is None or str(value).strip() in ('', 'on', 'off'):
+        return
+    raise ValueError(
+        f'cost_bases: "{value}" is neither "on" nor "off". "off" keeps the '
+        f'book\'s foreign currency as GnuCash does, with no cost bases, and '
+        f'"on", or no line, keeps them')
+
+
+def refuse_turning_cost_bases_on_in_place(book, value) -> None:
+    """Refuse a `company` block turning cost bases on in a book that keeps none (Q-049).
+
+    `"on"`, or the line cleared, would turn them on in place, over a book
+    whose disposals gave no cost basis and whose holdings no cost basis
+    accounts for: the next spend refused for want of one, and `fx-balances`
+    and the balance sheet reading cost bases that account for nothing. A
+    book is never half on, so it is turned on by bringing it forward through
+    its export into a new book, where every disposal gives its cost basis.
+    """
+    if book_keeps_cost_bases(book) or str(value or '').strip() == 'off':
+        return
+    raise ValueError(
+        'this book keeps no cost bases, and turning them on in place would '
+        'leave every earlier disposal with none to draw on. Bring the book '
+        'forward through its export instead: remove the `cost_bases:` line '
+        'and import the export into a new book, giving each disposal the '
+        'cost basis it draws on (README, "A book that keeps no cost bases")')
+
+
+def clear_every_cost_basis(book) -> int:
+    """Take every cost basis key off the book's splits, for a book turned to keep none; how many splits held one (Q-049).
+
+    A book keeping no cost bases holds none of their keys, so it is never half
+    on: a figure left behind would be exported, and the import refuses a file
+    stating one into such a book. Each transaction is edited on its own, since
+    a KVP written outside an edit never reaches disk (CLAUDE.md finding 11).
+    """
+    cleared = 0
+    for split in list(iter_splits(book)):
+        metadata = dict(get_custom_metadata(split))
+        if not any(key in metadata for key in COST_BASIS_KEYS):
+            continue
+        for key in COST_BASIS_KEYS:
+            metadata.pop(key, None)
+        transaction = split.GetParent()
+        transaction.BeginEdit()
+        set_custom_metadata(split, metadata)
+        transaction.CommitEdit()
+        cleared += 1
+    if cleared:
+        cost_bases_changed()
+    return cleared
+
+
+def refuse_a_cost_basis_key_where_none_is_kept(book, directive) -> None:
+    """Refuse a transaction block stating a cost basis key into a book that keeps no cost bases (Q-049).
+
+    Such a book records none, so a figure the file states would be recorded by
+    nothing, and a book is never half on. A key stated empty says to clear it,
+    which is what the book already is.
+    """
+    if book_keeps_cost_bases(book):
+        return
+    lines = [('the transaction', directive.metadata)] + [
+        (f'the split on {child.props.get("account", "?")!r}', child.metadata)
+        for child in directive.children]
+    for where, metadata in lines:
+        for key in COST_BASIS_KEYS:
+            if key in metadata and str(metadata[key] or '').strip():
+                raise ValueError(
+                    f'{where} dated {directive.props.get("date", "?")} states '
+                    f'{key}:, and this book keeps no cost bases '
+                    f'(`cost_bases: "off"` in its company block), so nothing '
+                    f'would record it. Remove the line, or turn cost bases on '
+                    f'by bringing the book forward through its export (README, '
+                    f'"A book that keeps no cost bases")')
 
 # Account types whose balance a positive amount increases (assets, receivables)
 # and those a negative amount increases (liabilities, payables). Used to tell a
@@ -521,8 +644,9 @@ def _could_hold_an_exchange_difference(split) -> bool:
     transaction = split.GetParent()
     if transaction_currency(transaction) != BASE_CURRENCY:
         return False
-    return any(cost_basis_guid_of(other)
-               for other in transaction.GetSplitList())
+    # What it disposed of, which in a book keeping no cost bases is read from
+    # the splits in another commodity (Q-049).
+    return bool(what_a_disposal_gave_up(transaction))
 
 
 def counts_as_an_exchange_difference(split, gain_accounts=()) -> bool:
@@ -665,14 +789,39 @@ def what_a_disposal_gave_up(transaction) -> set:
     first, so its account and commodity are there to read. The split GnuCash
     makes for itself with no account yet attached (CLAUDE.md finding 12) carries
     no key and is passed over by the line above.
+
+    A book that keeps no cost bases (Q-049) gives none, so there the disposal
+    is a split in anything other than the book's own currency: the only thing
+    in such an entry that can have been given up for a difference to be
+    realized on.
     """
+    # Through a split: SWIG gives a transaction no `GetBook`.
+    splits = transaction.GetSplitList()
+    keeps = not splits or book_keeps_cost_bases(splits[0].GetBook())
     kinds = set()
-    for split in transaction.GetSplitList():
-        if not cost_basis_guid_of(split):
+    for split in splits:
+        if not (cost_basis_guid_of(split) if keeps else _held_in_another_commodity(split)):
             continue
         commodity = split.GetAccount().GetCommodity()
         kinds.add('CURRENCY' if is_a_currency(commodity) else 'security')
     return kinds
+
+
+def _held_in_another_commodity(split) -> bool:
+    """Whether the split is on an account kept in anything but the book's own currency.
+
+    In a book that keeps no cost bases (Q-049) the realized difference is what
+    the file states with `$residual$`, which no cost basis decides: beside a
+    split in another currency or a security it is that holding's realized
+    difference, whichever way the split moves.
+    """
+    account = split.GetAccount()
+    return account is not None and not is_the_books_own_currency(account.GetCommodity())
+
+
+def is_the_books_own_currency(commodity) -> bool:
+    """Whether the commodity is the currency cost bases are recorded in: the one place that is asked."""
+    return is_a_currency(commodity) and commodity.get_mnemonic() == BASE_CURRENCY
 
 
 def _realized_items_up_to(book, as_of, kind: str, gain_accounts=()) -> list:
@@ -1478,7 +1627,12 @@ def note_the_balance_the_run_found(split) -> None:
 
 
 def write_cost_basis_balance(split, available: Fraction) -> None:
-    """Record a split's cost basis balance in its KVP, keeping its other keys."""
+    """Record a split's cost basis balance in its KVP, keeping its other keys.
+
+    Nothing, in a book that keeps no cost bases (Q-049).
+    """
+    if not book_keeps_cost_bases(split.GetBook()):
+        return
     note_the_balance_the_run_found(split)
     metadata = dict(get_custom_metadata(split))
     metadata[COST_BASIS_BALANCE_KEY] = _format(available, smallest_unit(split))
@@ -1503,6 +1657,10 @@ _stated_in_file = set()
 #: import, and read by the cost-basis checks that run block by block.
 _running_atomic = False
 
+#: Whether that run has reached the edits no order of its blocks can apply,
+#: which it applies in place (`defer_edits_in_place`).
+_deferring_edits_in_place = False
+
 
 def begin_import_run(atomic: bool = False) -> None:
     """Forget which balances the previous file stated, and whether this one is
@@ -1513,16 +1671,31 @@ def begin_import_run(atomic: bool = False) -> None:
     book once more instead. And the balances the previous run found, which
     `balance_the_run_found` answers for this one afresh.
     """
-    global _running_atomic
+    global _running_atomic, _deferring_edits_in_place
     _stated_in_file.clear()
     _balances_the_run_found.clear()
     _running_atomic = atomic
+    _deferring_edits_in_place = False
     forget_custom_key_changes()
 
 
 def running_atomic() -> bool:
-    """Whether this import was given `--atomic`, so the cost-basis checks that
-    run block by block are skipped, and asked at the end instead.
+    """Whether this import was given `--atomic`, so the book is checked once the whole file is applied (Q-053)."""
+    return _running_atomic
+
+
+def defer_edits_in_place() -> None:
+    """Let an `--atomic` run apply in place the edits no order of the file's blocks can apply.
+
+    Called by `cli/import_cmd.py` once applying the refused blocks again has
+    stopped applying anything (Q-053).
+    """
+    global _deferring_edits_in_place
+    _deferring_edits_in_place = _running_atomic
+
+
+def deferring_edits_in_place() -> bool:
+    """Whether an edit moving a cost basis another transaction draws on is applied in place, and its checks asked of the finished book.
 
     Those checks exist because the rules governing a disposal read splits once
     they are book state, and an edit made in place has already overwritten what
@@ -1531,13 +1704,15 @@ def running_atomic() -> bool:
     import.
 
     Under `--atomic` the file commits or it rolls back, and `cli/import_cmd.py`
-    reads the finished book before saving anything — the same questions,
-    deferred to commit time the way a database defers a constraint. That is the
-    only way to reach a state that cannot be arrived at in any order without
-    something one of those checks refuses, which is what repairing a book
-    takes.
+    reads the finished book before saving anything. Most blocks refused block
+    by block are refused only because of where they sit in the file, and are
+    applied once the rest of the file is in the book, through every check. What
+    is left is a repair no order can make: two edits each refused while the
+    other still reads as it was. Only those are applied in place, and asked at
+    the end instead. Applied in place first, an edit kept a cost basis its new
+    version does not establish, which the rest of the file then left behind.
     """
-    return _running_atomic
+    return _deferring_edits_in_place
 
 
 def note_stated_balance(split) -> None:
@@ -2261,7 +2436,11 @@ def write_cost_basis_cost(split, cost: Fraction) -> None:
     currency fetched less what it cost, so every gain measured against that cost
     would be larger than the truth by the same 1/9000 a dollar: 0.005 CAD on
     these 45.00 USD.
+
+    Nothing, in a book that keeps no cost bases (Q-049).
     """
+    if not book_keeps_cost_bases(split.GetBook()):
+        return
     currency = split_commodity(split)
     # Each caller refuses a split of nothing before reaching here, and has to:
     # `record_borrowed_basis` returns early for one, and the importer's link
@@ -2808,7 +2987,9 @@ def mark_what_arrives_past_zero(transaction, held_without=None, as_it_was=None,
 
 
 def _record_what_it_brought_in(transaction, split, before: Fraction) -> None:
-    """Write or remove `cost_basis_brought_in` on one split, its account at `before`."""
+    """Write or remove `cost_basis_brought_in` on one split, its account at `before`; nothing, in a book that keeps no cost bases (Q-049)."""
+    if not book_keeps_cost_bases(split.GetBook()):
+        return
     account_type = split.GetAccount().GetType()
     amount = _fraction(split.GetAmount())
     after = before + amount

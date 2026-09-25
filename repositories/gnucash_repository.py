@@ -158,6 +158,12 @@ class SessionMode:
     NEW = "new"
 
 
+#: What a service kept about the books opened before this one, each a function
+#: that forgets it, run whenever a book is opened. A service registers its own:
+#: the repository keeps no business state and knows nothing of what is kept.
+WHAT_TO_FORGET_WHEN_A_BOOK_OPENS: List[Callable[[], None]] = []
+
+
 class GnuCashRepository:
     """Repository for GnuCash file operations"""
 
@@ -189,6 +195,8 @@ class GnuCashRepository:
         if self.session is not None:
             raise RuntimeError("Session already open")
         self._read_only = mode == SessionMode.READ_ONLY
+        for forget in WHAT_TO_FORGET_WHEN_A_BOOK_OPENS:
+            forget()
 
         uri = f"xml://{self.file_path}"
 

@@ -132,7 +132,7 @@ then went in over the following three months with no build left to catch them.
 - `cli/` - Click-based CLI commands; `cli/main.py` is the entry point
 - `services/` - business logic (importer, exporter, matcher, validator, renderer, statement-reconciler, ...)
 - `use_cases/` - orchestration that composes services for a single CLI command
-- `infrastructure/` - I/O adapters: `gnucash/` (engine bindings + ctypes wrappers), `plaintext/`, `pdf/`, `qfx/`. `gnucash/reports/` holds the customized GnuCash reports (`.scm`) the balance sheet and income statement are printed with, shipped as package data; an invoice or bill is drawn by GnuCash's own Printable Invoice and has none
+- `infrastructure/` - I/O adapters: `gnucash/` (engine bindings + ctypes wrappers), `plaintext/`, `pdf/`. `gnucash/reports/` holds the customized GnuCash reports (`.scm`) the balance sheet and income statement are printed with, shipped as package data; an invoice or bill is drawn by GnuCash's own Printable Invoice and has none
 - `repositories/` - thin GnuCash session and query layer
 - `tests/` - `unit/` (services / use cases / infrastructure / repositories) and `integration/` (CLI end-to-end); `research/` holds long-running scenario probes
 - `docs/` - design notes, issue tracker (`docs/issues/`), research probes, post-mortems

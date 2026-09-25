@@ -1,0 +1,16 @@
+# Q-049: the fee of usd_spent_on_a_fee_and_sold_giving_no_cost_basis.txt,
+# restated as 0.80 USD valued 1.12, where it was 0.72 valued 1.01, and the
+# bank charge with it. The test fills in `{fee}`, `{charge}` and `{spent}` with
+# the guids the book gave them. A book keeping no cost bases has no cost basis
+# for the new figures to disagree with, so the edit is made in place.
+#
+# Verified by tests/integration/test_a_book_can_keep_no_cost_bases.py.
+2026-08-20 * "Transfer fee"
+	guid: "{fee}"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.12 CAD
+		guid: "{charge}"
+	Assets:Wise USD -0.80 USD
+		guid: "{spent}"
+		account.commodity.mnemonic: "USD"
+		value: "-1.12"

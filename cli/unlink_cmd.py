@@ -84,7 +84,13 @@ from infrastructure.gnucash.utils import money_text
             'that account\'s currency where it differs.')
 def unlink(gnucash_file, record_id, to_account_name, txn_guids, take_all,
            is_bill, by_guid, fx_rates_file):
-    """Undo an invoice's payment by unlinking the transaction that paid it."""
+    """Undo an invoice's payment by unlinking the transaction that paid it.
+
+    Where the export from before the payment was booked was kept, importing
+    it with --atomic is the recommended way to undo the booking: one file,
+    and the export taken after it books it again. This command is for a book
+    whose earlier export nobody kept.
+    """
     result = take_the_payment_off(
         gnucash_file, record_id, to_account_name, txn_guids=txn_guids,
         take_all=take_all, is_bill=is_bill, by_guid=by_guid,

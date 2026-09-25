@@ -11,10 +11,11 @@ from typing import Dict, List
 
 from repositories.gnucash_repository import GnuCashRepository
 from services.conflict_resolver import ConflictResolver, ResolutionStrategy
-from services.foreign_currency import begin_import_run
+from services.foreign_currency import begin_import_run, running_atomic
 from services.gnucash_importer import (
     GnuCashImporter,
     begin_lot_attachments,
+    forget_a_transaction_the_run_refused,
     note_a_transaction_the_run_refused,
     note_what_the_file_states,
     the_guid_a_block_names,
@@ -120,6 +121,10 @@ class ImportResult:
         # but the edit was skipped as a "duplicate". Drives a hint at
         # --strategy update. A plain re-import of unchanged txs does not count.
         self.guid_changed_skips = 0
+        # The transaction blocks refused, each with its entry in `errors` and
+        # a way to apply it again. `--atomic` applies them again once the
+        # rest of the file is in the book (Q-053).
+        self.refused_blocks = []
 
     def get_summary(self) -> str:
         """Get summary string"""
@@ -532,6 +537,9 @@ class ImportTransactionsUseCase:
         # Step 3: Import transactions with duplicate detection
         existing_transactions = self.repository.get_all_transactions()
         existing_guid_map = {tx.GetGUID().to_string(): tx for tx in existing_transactions}
+        # Which transactions the book held before the run, which is what a
+        # block is matched against however many passes it takes.
+        self._the_book_before = set(existing_guid_map)
 
         # UPDATE strategy: validate ALL transactions before applying ANY update.
         # This ensures atomicity: either the whole file is valid and all updates
@@ -578,135 +586,201 @@ class ImportTransactionsUseCase:
             # (`tests/research/how_long_an_edit_read_as_new_takes_on_a_large_book_probe.py`).
             exporter = ExportTransactionsUseCase(self.repository)
             for child in tx_directives:
-                guid = the_guid_a_block_names(child.metadata)
-                existing_tx = existing_guid_map[guid]
-                try:
-                    # Inside the block's own error handling: whatever the
-                    # export meets in the book is that block's error, as
-                    # anything else reading it is, not the end of the run.
-                    if _the_book_would_write(exporter, existing_tx, child):
-                        result.up_to_date_count += 1
-                        continue
-                    importer.update_transaction(existing_tx, child, book)
-                    result.updated_count += 1
-                    # Which transactions this pass has already reported, so
-                    # a `payment:` block correcting one of their memos is
-                    # not counted a second time under the same figure.
-                    result.updated_transaction_guids.add(
-                        existing_tx.GetGUID().to_string())
-                except Exception as e:
-                    note_a_transaction_the_run_refused(child, str(e))
-                    logging.error(f"Failed to update transaction {guid}: {e}")
-                    result.errors.append({'transaction': child.props, 'error': str(e)})
-                    result.error_count += 1
+                self._apply_an_edit(importer, exporter, child,
+                                    existing_guid_map[the_guid_a_block_names(child.metadata)],
+                                    result)
             return result
 
         for child in parser.root_directive.children:
             if child.type == DirectiveType.TRANSACTION:
-                try:
-                    # Check for match by GUID if present (non-UPDATE strategies)
-                    if 'guid' in child.metadata:
-                        # As the book spells it, for the reason the update
-                        # strategy gives above.
-                        guid = the_guid_a_block_names(child.metadata)
-                        if guid in existing_guid_map:
-                            _date = child.props.get('date', '?')
-                            _desc = child.props.get('tx_desc') or '(no description)'
-                            _splits = ', '.join(
-                                f"{s.props.get('account', '?')} {s.props.get('amount', '?')}"
-                                for s in child.children
-                                if s.props.get('account')
-                            )
-                            # If the incoming content actually differs from the
-                            # existing tx, the user is editing — but the default
-                            # strategy skips it. Count that so the CLI can hint
-                            # at --strategy update (it is not a true duplicate).
-                            changed = _guid_match_content_differs(
-                                child, existing_guid_map[guid])
-                            if changed:
-                                result.guid_changed_skips += 1
-                            record_the_guids_it_gives(child, [existing_guid_map[guid]])
-                            logging.warning(
-                                "Skipping %s (GUID match): %s \"%s\" [%s]\n"
-                                "  matched existing transaction by GUID: %s",
-                                'EDITED transaction' if changed else 'duplicate',
-                                _date, _desc, _splits, guid,
-                            )
-                            result.skipped_count += 1
-                            continue
-
-                    # Q-020: route through the matcher so the full signature
-                    # contract (date, accounts, doc_link, tx_num, owner) is
-                    # honoured. The prior inline scan compared only date and
-                    # the set of accounts, silently dropping legitimate
-                    # second same-day transactions distinguished by any of
-                    # the other three fields.
-                    date_str = child.props['date']
-                    split_accounts = [split.props['account'] for split in child.children]
-                    incoming_doc_link = child.metadata.get('doc_link')
-                    incoming_tx_num = child.props.get('tx_num')
-                    incoming_owner = child.metadata.get('owner')
-                    incoming_sig = self.matcher.get_signature_for_plaintext(
-                        date_str, split_accounts,
-                        doc_link=incoming_doc_link,
-                        tx_num=incoming_tx_num,
-                        owner=incoming_owner,
-                    )
-
-                    matched_existing = [
-                        tx for tx in existing_transactions
-                        if self.matcher.get_signature(tx) == incoming_sig
-                    ]
-
-                    if matched_existing:
-                        _desc = child.props.get('tx_desc') or '(no description)'
-                        _splits = ', '.join(
-                            f"{s.props.get('account', '?')} {s.props.get('amount', '?')}"
-                            for s in child.children
-                            if s.props.get('account')
-                        )
-                        matched_guids = ', '.join(
-                            tx.GetGUID().to_string() for tx in matched_existing
-                        )
-                        logging.warning(
-                            "Skipping duplicate (signature match): %s \"%s\" [%s]\n"
-                            "  signature: date=%s accounts=%s doc_link=%r tx_num=%r owner=%r\n"
-                            "  matched existing transaction(s): %s",
-                            date_str, _desc, _splits,
-                            incoming_sig[0],
-                            list(incoming_sig[1]),
-                            incoming_sig[2],
-                            incoming_sig[3],
-                            incoming_sig[4],
-                            matched_guids,
-                        )
-                        result.skipped_count += 1
-                        record_the_guids_it_gives(child, matched_existing)
-                        continue
-
-                    # Create transaction
-                    tx = importer.create_transaction(child, book)
-                    result.imported_count += 1
-                    # Counted here, so a `payment:` block writing a memo
-                    # onto a transaction this run created is not counted
-                    # again as one it updated. `create_transaction` returns the
-                    # transaction or raises; it never answers None.
-                    result.new_transaction_guids.add(tx.GetGUID().to_string())
-                    result.new_transactions.append(tx)
-
-                except Exception as e:
-                    # Its splits, if any were made, went with it, so a position
-                    # below pointing at one is refused for that rather than
-                    # given a guid the book does not hold (Q-050).
-                    child.split_guids = None
-                    # And a `payment:` block giving it records no payment of
-                    # its own for money the file says moved here (Q-051).
-                    note_a_transaction_the_run_refused(child, str(e))
-                    logging.error(f"Failed to import transaction: {e}")
-                    result.errors.append({
-                        'transaction': child.props,
-                        'error': str(e)
-                    })
-                    result.error_count += 1
+                self._apply_a_block(importer, child, existing_guid_map,
+                                    existing_transactions, result)
 
         return result
+
+    def apply_again_what_was_refused(self, result: 'ImportResult') -> bool:
+        """Apply each transaction block the run refused again, against the book the rest of the file left; whether any was applied.
+
+        `--atomic` checks the book the file leaves, not the book half way
+        through it (Q-053). A block can be refused only because of where it
+        sits in the file: a fee drawing on an invoice's cost basis is refused
+        while the invoice's `payment:` block, applied after the transactions,
+        has not collected it yet, and a split is refused a new account while
+        the invoice's `payment: none`, applied after them too, has not taken it
+        out of the invoice's lot. No order of the blocks suits every file: a
+        booking wants the transactions first, and the file that undoes it wants
+        the payment blocks first.
+
+        So a refused block is applied again once the rest of the file is in
+        the book, through the same path and the same checks, and again after
+        that for as long as another pass applies something. A block still
+        refused when a pass applies nothing is refused against every other
+        block of the file applied, which is the book the file describes.
+        """
+        refused, result.refused_blocks = result.refused_blocks, []
+        # The book as the rest of the file left it, read once a pass. The
+        # invoice and bill blocks ran in between, and an invoice unposted and
+        # posted again destroys its posting transaction and makes it anew
+        # under the same guid: a handle read before them can be to freed
+        # memory. So an edit looks its transaction up again by its guid, and a
+        # new block is matched against the transactions the book held before
+        # the run, as the first pass matched it, each looked up as it stands
+        # now. Not against what the run itself made: matched against the
+        # blocks this file created, a second fee of one day on the same
+        # accounts was skipped as a duplicate of the first, since the match
+        # compares no amount, and the payments the invoice and bill blocks
+        # made are no more the book's to match against.
+        transactions = [tx for tx in self.repository.get_all_transactions()
+                        if tx.GetGUID().to_string() in self._the_book_before]
+        self._the_book_now = ({tx.GetGUID().to_string(): tx for tx in transactions},
+                              transactions)
+        applied = False
+        for block in refused:
+            result.errors.remove(block['error'])
+            result.error_count -= 1
+            forget_a_transaction_the_run_refused(block['directive'])
+            applied = block['apply']() or applied
+        return applied
+
+    def _refused(self, result, child, error, said, apply) -> None:
+        """Report the block as refused, and keep it for `apply_again_what_was_refused`.
+
+        Logged as an error, but under `--atomic` only at debug level: a block
+        a later pass applies was refused only where it sat, and the ones still
+        refused at the end are in the run's summary as errors either way.
+        """
+        (logging.debug if running_atomic() else logging.error)(said)
+        note_a_transaction_the_run_refused(child, str(error))
+        entry = {'transaction': child.props, 'error': str(error)}
+        result.errors.append(entry)
+        result.error_count += 1
+        result.refused_blocks.append({'directive': child, 'error': entry, 'apply': apply})
+
+    def _apply_an_edit(self, importer, exporter, child, existing_tx, result) -> bool:
+        """Apply a `--strategy update` block to the transaction it gives; whether it was applied or already up to date."""
+        try:
+            # Inside the block's own error handling: whatever the export
+            # meets in the book is that block's error, as anything else
+            # reading it is, not the end of the run.
+            if _the_book_would_write(exporter, existing_tx, child):
+                result.up_to_date_count += 1
+                return True
+            importer.update_transaction(existing_tx, child, self.repository.book)
+            result.updated_count += 1
+            # Which transactions this pass has already reported, so a
+            # `payment:` block correcting one of their memos is not counted
+            # a second time under the same figure.
+            result.updated_transaction_guids.add(existing_tx.GetGUID().to_string())
+            return True
+        except Exception as e:
+            guid = the_guid_a_block_names(child.metadata)
+            self._refused(result, child, e, f"Failed to update transaction {guid}: {e}",
+                          lambda: self._apply_an_edit(
+                              importer, exporter, child, self._the_book_now[0].get(guid), result))
+            return False
+
+    def _apply_a_block(self, importer, child, existing_guid_map,
+                       existing_transactions, result) -> bool:
+        """Import a transaction block that is not an edit; whether it was created or matched one the book holds."""
+        book = self.repository.book
+        try:
+            # Check for match by GUID if present (non-UPDATE strategies)
+            if 'guid' in child.metadata:
+                # As the book spells it, for the reason the update strategy
+                # gives above.
+                guid = the_guid_a_block_names(child.metadata)
+                if guid in existing_guid_map:
+                    _date = child.props.get('date', '?')
+                    _desc = child.props.get('tx_desc') or '(no description)'
+                    _splits = ', '.join(
+                        f"{s.props.get('account', '?')} {s.props.get('amount', '?')}"
+                        for s in child.children
+                        if s.props.get('account')
+                    )
+                    # If the incoming content actually differs from the
+                    # existing tx, the user is editing — but the default
+                    # strategy skips it. Count that so the CLI can hint at
+                    # --strategy update (it is not a true duplicate).
+                    changed = _guid_match_content_differs(
+                        child, existing_guid_map[guid])
+                    if changed:
+                        result.guid_changed_skips += 1
+                    record_the_guids_it_gives(child, [existing_guid_map[guid]])
+                    logging.warning(
+                        "Skipping %s (GUID match): %s \"%s\" [%s]\n"
+                        "  matched existing transaction by GUID: %s",
+                        'EDITED transaction' if changed else 'duplicate',
+                        _date, _desc, _splits, guid,
+                    )
+                    result.skipped_count += 1
+                    return True
+
+            # Q-020: route through the matcher so the full signature contract
+            # (date, accounts, doc_link, tx_num, owner) is honoured. The prior
+            # inline scan compared only date and the set of accounts, silently
+            # dropping legitimate second same-day transactions distinguished
+            # by any of the other three fields.
+            date_str = child.props['date']
+            split_accounts = [split.props['account'] for split in child.children]
+            incoming_doc_link = child.metadata.get('doc_link')
+            incoming_tx_num = child.props.get('tx_num')
+            incoming_owner = child.metadata.get('owner')
+            incoming_sig = self.matcher.get_signature_for_plaintext(
+                date_str, split_accounts,
+                doc_link=incoming_doc_link,
+                tx_num=incoming_tx_num,
+                owner=incoming_owner,
+            )
+
+            matched_existing = [
+                tx for tx in existing_transactions
+                if self.matcher.get_signature(tx) == incoming_sig
+            ]
+
+            if matched_existing:
+                _desc = child.props.get('tx_desc') or '(no description)'
+                _splits = ', '.join(
+                    f"{s.props.get('account', '?')} {s.props.get('amount', '?')}"
+                    for s in child.children
+                    if s.props.get('account')
+                )
+                matched_guids = ', '.join(
+                    tx.GetGUID().to_string() for tx in matched_existing
+                )
+                logging.warning(
+                    "Skipping duplicate (signature match): %s \"%s\" [%s]\n"
+                    "  signature: date=%s accounts=%s doc_link=%r tx_num=%r owner=%r\n"
+                    "  matched existing transaction(s): %s",
+                    date_str, _desc, _splits,
+                    incoming_sig[0],
+                    list(incoming_sig[1]),
+                    incoming_sig[2],
+                    incoming_sig[3],
+                    incoming_sig[4],
+                    matched_guids,
+                )
+                result.skipped_count += 1
+                record_the_guids_it_gives(child, matched_existing)
+                return True
+
+            # Create transaction
+            tx = importer.create_transaction(child, book)
+            result.imported_count += 1
+            # Counted here, so a `payment:` block writing a memo onto a
+            # transaction this run created is not counted again as one it
+            # updated. `create_transaction` returns the transaction or raises;
+            # it never answers None.
+            result.new_transaction_guids.add(tx.GetGUID().to_string())
+            result.new_transactions.append(tx)
+            return True
+
+        except Exception as e:
+            # Its splits, if any were made, went with it, so a position below
+            # pointing at one is refused for that rather than given a guid the
+            # book does not hold (Q-050).
+            child.split_guids = None
+            # And a `payment:` block giving it records no payment of its own
+            # for money the file says moved here (Q-051).
+            self._refused(result, child, e, f"Failed to import transaction: {e}", lambda: self._apply_a_block(
+                importer, child, *self._the_book_now, result))
+            return False
