@@ -39,6 +39,7 @@ from services.foreign_currency import (
     COST_BASIS_BROUGHT_IN_KEY,
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
+    PENDING,
     derived_cost_of,
     establishes_cost_basis,
     is_a_spent_credit,
@@ -1446,7 +1447,11 @@ class ExportTransactionsUseCase:
             if (key == COST_BASIS_SPLIT_KEY
                     and _the_basis_it_gives_was_spent(split, value)):
                 continue
-            lines.append(f'\t\t{key}: {encode_value_as_string(value)}')
+            # Unquoted, as the file wrote it: in quotes it is a string, and
+            # read back as the guid of a split the book does not hold.
+            lines.append(f'\t\t{key}: '
+                         + (PENDING if key == COST_BASIS_SPLIT_KEY and value == PENDING
+                            else encode_value_as_string(value)))
 
         # Running balance — emitted last so it reads as a post-transaction annotation
         if balance is not None:

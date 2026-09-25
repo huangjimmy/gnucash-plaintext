@@ -1,0 +1,43 @@
+# Q-053: a bank statement's 2,720.00 USD deposit and three lines after it, as
+# an application writes them before anyone has decided which cost basis each
+# line draws on: each sale gives `cost_basis_split_guid: $pending$`. Each is
+# imported, draws on nothing, and is listed as pending until an edit gives it
+# its cost basis.
+#
+# Verified by
+# tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
+2026-08-13 * "Balance-leaving deposit"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e530000000000000000000000000c22"
+	Assets:Due from director -3791.14 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "136000/189557"
+		value: "-2720.00"
+2026-08-13 * "Charges for the deposit"
+	guid: "0e530000000000000000000000000c31"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -0.72 USD
+		guid: "0e530000000000000000000000000c32"
+		cost_basis_split_guid: $pending$
+	Assets:Due from director 1.00 CAD
+		guid: "0e530000000000000000000000000c33"
+		account.commodity.mnemonic: "CAD"
+		share_price: "18/25"
+		value: "0.72"
+2026-08-17 * "Sent money"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -2710.68 USD
+		cost_basis_split_guid: $pending$
+	Assets:Due from director 3758.36 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "67767/93959"
+		value: "2710.68"
+2026-08-17 * "Charges for the transfer"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -8.60 USD
+		cost_basis_split_guid: $pending$
+	Assets:Due from director 11.92 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "215/298"
+		value: "8.60"

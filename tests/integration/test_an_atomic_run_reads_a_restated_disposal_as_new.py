@@ -153,7 +153,10 @@ def test_dropping_the_pick_is_refused(tmp_path):
     message = result.output + str(result.exception)
     assert result.exit_code != 0, message
     assert 'Changes saved' not in result.output, result.output
-    assert 'no split says which one' in message, message
+    assert ('this transaction is an expense of 10.00 USD the book held: Assets:Bank:USD, '
+            'a Bank account in USD, is credited 10.00 USD; Expenses:Fees, an Expense account '
+            'in CAD, is debited 14.00 CAD. An expense requires a consumption of one or more '
+            'cost bases, but no split says which.') in message, message
 
     after = _exported(runner, book, tmp_path / 'after.txt')
     assert 'cost_basis_split_guid' in _the_fee_block(after), after

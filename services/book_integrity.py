@@ -61,6 +61,7 @@ from services.foreign_currency import (
     cost_basis_items_by_currency_and_side,
     foreign_currency_account_balances,
     iter_splits,
+    pending_disposals,
     profit_and_loss_accounts_in_another_currency,
     verify_cost_bases,
 )
@@ -311,6 +312,16 @@ def _check_the_profit_and_loss_currency(book, own: str,
     return False
 
 
+def _pending_totals(pending) -> str:
+    """What the pending disposals took, per currency: `2,720.00 USD`."""
+    totals: Dict[str, Fraction] = {}
+    units: Dict[str, int] = {}
+    for row in pending:
+        totals[row['currency']] = totals.get(row['currency'], Fraction(0)) + row['amount']
+        units[row['currency']] = row['unit']
+    return ', '.join(f'{_money(totals[code], units[code])} {code}' for code in sorted(totals))
+
+
 def _check_the_cost_bases(book, report: IntegrityReport) -> None:
     # A book that keeps no cost bases holds none to check (Q-049).
     if not book_keeps_cost_bases(book):
@@ -322,8 +333,14 @@ def _check_the_cost_bases(book, report: IntegrityReport) -> None:
             f'every cost basis agrees with the ledger it comes from: {reason}')
         return
     if report.as_of is not None:
+        # A disposal pending its cost basis drew on none, and the cost bases
+        # are counted net of what it took (`cost_basis_items_by_currency_and_side`),
+        # so it is not a finding; it is said how many there are and how much.
+        pending = [row for row in pending_disposals(book) if row['when'] <= report.as_of]
         report.checked.append(
-            'no cost basis holds more of a currency than the accounts do')
+            'no cost basis holds more of a currency than the accounts do'
+            + (f', beside {len(pending)} disposal(s) pending their cost basis: '
+               f'{_pending_totals(pending)}, which drew on none' if pending else ''))
         units: Dict[str, int] = {}
         held = _holdings(book, report.as_of, units)
         for at, balance in sorted(_cost_bases(book, report.as_of, units).items()):

@@ -16,5 +16,5 @@ SPEND = 'tests/fixtures/a_spend_of_45_50_usd_giving_no_cost_basis.txt'
 def test_the_amount_is_written_at_the_currencys_decimals(tmp_path):
     done = CliRunner().invoke(cli, ['import', str(book_from(tmp_path, BOOK)), SPEND])
 
-    assert ('error: Sell 45.50 USD at 1.40: this transaction spends 45.50 USD '
-            'the book held') in done.output, done.output
+    assert ('error: Sell 45.50 USD at 1.40: this transaction is a sale of 45.50 USD '
+            'the book held for 63.70 CAD') in done.output, done.output

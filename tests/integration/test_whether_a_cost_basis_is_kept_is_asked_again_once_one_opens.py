@@ -25,8 +25,10 @@ def test_the_spend_before_is_imported_and_the_spend_after_is_refused(tmp_path):
         cli, ['import', '--new', str(tmp_path / 'book.gnucash'), LEDGER])
 
     assert 'Errors:       1' in done.output, done.output
-    assert ('error: Sell 10.00 USD after a cost basis opened: this transaction '
-            'spends 10.00 USD the book held') in done.output, done.output
+    assert ('error: Sell 10.00 USD after a cost basis opened: this transaction is a '
+            'sale of 10.00 USD the book held for 14.00 CAD: Assets:USD Bank, a Bank '
+            'account in USD, is credited 10.00 USD; Assets:CAD Bank, a Bank account in '
+            'CAD, is debited 14.00 CAD.') in done.output, done.output
     assert 'Sell 10.00 USD before any cost basis is kept:' not in done.output, done.output
     assert 'Sell 5.00 USD, still before any cost basis is kept:' not in done.output, \
         done.output

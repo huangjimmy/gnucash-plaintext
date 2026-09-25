@@ -792,8 +792,8 @@ class TestAnOwedFeeBookedAsASpend:
         message = _refused(_edited(book, tmp_path, FEE_HEAD,
                                    'a_usd_fee_booked_as_the_bank_charge_giving_no_cost_basis.txt'))
 
-        assert ('this transaction spends 1.00 USD the book held, which draws down a '
-                'cost basis, but no split says which one') in message, message
+        assert ('this transaction is an expense of 1.00 USD the book held: Assets:Wise USD, '
+                'a Bank account in USD, is credited 1.00 USD; ') in message, message
         assert _bases(book) == before
 
 
@@ -802,8 +802,8 @@ class TestAnOwedFeeBookedAsASpend:
                  "cost_basis_split_guid '0e510000000000000000000000000a02' matches a split "
                  'that is no USD cost basis', id='the-pick-left-out-is-kept'),
     pytest.param('a_usd_deposit_booked_as_the_invoice_it_collected_with_the_fees_cost_basis_cleared.txt',
-                 'this transaction spends 0.72 USD the book held, which draws down a cost '
-                 'basis, but no split says which one', id='the-pick-cleared'),
+                 'this transaction is an expense of 0.72 USD the book held: Assets:Wise USD, '
+                 'a Bank account in USD, is credited 0.72 USD; ', id='the-pick-cleared'),
 ])
 def test_a_new_version_that_is_not_a_correct_transaction_is_refused(tmp_path, booked, refusal):
     """E13: refused with a new import's reasons, and the transaction is as it was.
@@ -1029,6 +1029,7 @@ def test_a_payment_block_giving_a_transaction_the_import_refused_records_no_paym
     # the list's lead-in.
     assert ('0e510000000000000000000000000a01 is a transaction this file states, and it '
             'was not imported. No payment is recorded from this block') in message, message
-    assert 'Why it was not imported: this transaction spends 0.72 USD' in message, message
+    assert ('Why it was not imported: this transaction is an expense of 0.72 USD the book '
+            'held: Assets:Wise USD, a Bank account in USD, is credited 0.72 USD; ') in message, message
     assert 'payment: none' in _block(_exported(book, tmp_path), 'invoice "INV-USD-1"')
     assert [row for row in _bases(book) if row[0] == 'Assets:Wise USD'] == []

@@ -91,10 +91,12 @@ from services.foreign_currency import (
     COST_BASIS_BROUGHT_IN_KEY,
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
+    PENDING,
     TOOK_THE_RESIDUAL_KEY,
     SpendGivingNoCostBasisError,
     a_cost_basis_is_kept_for,
     a_disposal_the_finished_book_cannot_value,
+    a_part,
     account_side,
     amounts_by_cost_basis,
     apply_cost_basis_picks,
@@ -152,9 +154,11 @@ from services.foreign_currency import (
     total_cost_basis_balance_in,
     transaction_currency,
     transactions_drawing_on,
+    what_a_disposal_is,
     what_a_new_import_would_open,
     what_each_account_held_without,
     what_is_left_of_the_cost,
+    why_it_consumes_a_cost_basis,
     write_cost_basis_balance,
     write_cost_basis_cost,
 )
@@ -9653,9 +9657,10 @@ def _basis_figures_in_directive(directive, booked, relevant, book, priced_by_cad
             # With no `value:` beside it, the price is what the edit values
             # the split at: `SetSharePrice` revalues it at amount × price.
             value = value if stated_value is not None else amount * rate
+        # Read as the book's side is, `cost_basis_guid_of`: `$pending$` is no pick.
         picked = str(child.metadata.get(COST_BASIS_SPLIT_KEY) or '')
         rows.append((account, amount, value, rate,
-                     picked.replace('-', '').lower()))
+                     '' if picked == PENDING else picked.replace('-', '').lower()))
     return sorted(rows, key=lambda row: (row[0], row[1], row[2], row[3], row[4]))
 
 
@@ -9699,6 +9704,26 @@ def _restore_txn_type(transaction, directive) -> None:
     gc.xaccTransSetTxnType(transaction.instance, stated)
 
 
+def _stated_amount(child) -> Fraction:
+    """The amount a split line states, or 0 for `$residual$` and anything else not a figure."""
+    raw = str(child.props.get('amount', ''))
+    return Fraction(raw) if re.fullmatch(r'-?\d+(?:\.\d+)?', raw) else Fraction(0)
+
+
+def _what_the_line_takes(child, splits) -> Fraction:
+    """A split line's amount, and for `$residual$` what the other lines leave over.
+
+    `$residual$` is in the transaction's own currency, so what it takes is the
+    other lines' values added up, the other way. Read as nothing, a sale whose
+    Canadian dollars were written as the residual was refused as an expense.
+    """
+    if str(child.props.get('amount', '')) != RESIDUAL_AMOUNT:
+        return _stated_amount(child)
+    return -sum((_split_value_fraction(other) for other in splits
+                 if other is not child
+                 and str(other.props.get('amount', '')) != RESIDUAL_AMOUNT), Fraction(0))
+
+
 def _what_an_edited_split_spends(root, child, existing_tx, when):
     """`(commodity, side, account, amount, spent)` where this block's split spends a holding.
 
@@ -9715,11 +9740,10 @@ def _what_an_edited_split_spends(root, child, existing_tx, when):
     which `_require_no_cost_basis_edit` answers.
     """
     name = str(child.props['account'])
-    raw = str(child.props.get('amount', ''))
     account = find_account(root, name)
     commodity = account.GetCommodity().get_mnemonic()
     side = account_side(account)
-    amount = Fraction(raw) if re.fullmatch(r'-?\d+(?:\.\d+)?', raw) else Fraction(0)
+    amount = _stated_amount(child)
     if (commodity == BASE_CURRENCY or side is None or amount == 0
             or child.metadata.get(COST_BASIS_SPLIT_KEY)):
         return None
@@ -9764,18 +9788,31 @@ def _refuse_an_edit_that_adds_a_disposal(existing_tx, directive, book) -> None:
                 numeric_to_fraction(split.GetAmount()))
                for split in existing_tx.GetSplitList()}
     when = datetime.strptime(str(directive.props['date']), '%Y-%m-%d').date()
-    for found in filter(None, (_what_an_edited_split_spends(root, child, existing_tx, when)
-                               for child in directive.children)):
+    splits = [child for child in directive.children if child.type == DirectiveType.SPLIT]
+    read = [(child, _what_an_edited_split_spends(root, child, existing_tx, when))
+            for child in splits]
+    for child, found in read:
+        if found is None:
+            continue
         commodity, side, name, amount, spent = found
         if (name, amount) in already or not a_cost_basis_is_kept_for(book, commodity, side):
             continue
-        held = 'held' if side == 'asset' else 'owed'
+        # The file's splits, read as a new transaction's are, so the refusal
+        # says what kind of transaction the edit makes.
+        kind = what_a_disposal_is(
+            commodity, side, _account_money_str(spent, find_account(root, name)),
+            [a_part(find_account(root, name), amount, spent if side == 'liability'
+                    else Fraction(0))],
+            [a_part(find_account(root, str(other.props['account'])),
+                    _what_the_line_takes(other, splits),
+                    other_found[4] if other_found and other_found[1] == 'liability'
+                    else Fraction(0))
+             for other, other_found in read if other is not child])
         raise Exception(
-            f'this edit spends {_account_money_str(spent, find_account(root, name))} '
-            f'{commodity} the book {held}, which a cost basis stands for, and an '
-            f'edit runs none of the checks a disposal meets. Delete the '
+            f'{why_it_consumes_a_cost_basis(kind, "this edit makes the transaction")} '
+            f'An edit runs none of the checks a disposal meets. Delete the '
             f'transaction and import it afresh, giving `{COST_BASIS_SPLIT_KEY}:` '
-            f'on the split that spent it.')
+            f'on the split that disposes of it.')
 
 
 def _require_no_cost_basis_edit(existing_tx, directive):
