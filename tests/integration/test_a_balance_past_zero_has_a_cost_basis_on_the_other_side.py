@@ -310,8 +310,10 @@ class TestIncomePaidIntoTheEmptyAccountAcrossZero:
         done = _run(runner, 'import', str(book), INCOME_GIVING_NO_COST_BASIS)
 
         assert 'Errors:       1' in done.output, done.output
-        assert ('this transaction spends 500.00 USD the book owed, which draws '
-                'down a cost basis, but no split says which one') in done.output, done.output
+        assert ('this transaction is a repayment of 500.00 USD the book owed: Assets:USD A, '
+                'a Bank account in USD, is debited 1000.00 USD, 500.00 of it repaying what '
+                'it owed. A repayment requires a consumption of one or more cost bases, '
+                'but no split says which.') in done.output, done.output
 
 
 class TestWhatASplitBroughtInIsTheImportsToRead:
@@ -484,8 +486,10 @@ class TestABookImportedBeforeABalancePastZeroHadASide:
         rebuilt = _run(runner, 'import', '--new', str(fresh), str(exported))
 
         assert 'Errors:       1' in rebuilt.output, rebuilt.output
-        assert ('this transaction spends 500.00 USD the book owed, which draws down '
-                'a cost basis, but no split says which one') in rebuilt.output, rebuilt.output
+        assert ('this transaction is a repayment of 500.00 USD the book owed: Assets:USD A, '
+                'a Bank account in USD, is debited 1000.00 USD, 500.00 of it repaying what '
+                'it owed. A repayment requires a consumption of one or more cost bases, '
+                'but no split says which.') in rebuilt.output, rebuilt.output
         assert A_OWES in _bases(fresh), _bases(fresh)
 
 
@@ -614,8 +618,9 @@ class TestAnEditInPlace:
         done = self._edited(tmp_path, INCOME_EDITED_INTO_A)
 
         assert done.exit_code != 0, done.output
-        assert ('this edit spends 500.00 USD the book owed, which a cost basis '
-                'stands for') in done.output, done.output
+        assert ('this edit makes the transaction a repayment of 500.00 USD the book owed: '
+                'Assets:USD A, a Bank account in USD, is debited 1000.00 USD, 500.00 of it '
+                'repaying what it owed. A repayment requires') in done.output, done.output
 
     def test_a_fee_edited_into_a_sale_of_shares_is_refused(self, tmp_path):
         """A share's side is its account's type, and a sale of 5 of 10 spends 5 held."""
@@ -624,15 +629,20 @@ class TestAnEditInPlace:
                     '--strategy', 'update')
 
         assert done.exit_code != 0, done.output
-        assert 'this edit spends 5.0000 AMZN the book held' in done.output, done.output
+        assert ('this edit makes the transaction a sale of 5.0000 AMZN the book held for '
+                '1300.00 CAD: Assets:AMZN, a Stock account in AMZN, is credited 5.0000 AMZN; '
+                'Assets:CAD Bank, a Bank account in CAD, is debited 1300.00 CAD. A sale '
+                'requires') in done.output, done.output
 
     def test_travel_edited_onto_a_card_holding_a_credit_is_refused(self, tmp_path):
         """200.00 charged to a card holding 200.00 spends what it held."""
         done = self._edited(tmp_path, CARD_OVERPAID_FOR_THE_EDIT, TRAVEL_CHARGED_TO_THE_CARD)
 
         assert done.exit_code != 0, done.output
-        assert ('this edit spends 200.00 USD the book held, which a cost basis '
-                'stands for') in done.output, done.output
+        assert ('this edit makes the transaction an expense of 200.00 USD the book held: '
+                'Liabilities:USD Card, a Credit Card account in USD, is credited 200.00 USD; '
+                'Expenses:Travel, an Expense account in CAD, is debited 280.00 CAD. An expense '
+                'requires') in done.output, done.output
 
 
 class TestTheExportRebuildsTheSameCostBases:

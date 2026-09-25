@@ -1,0 +1,38 @@
+# Q-053: a bank statement's 2,720.00 USD deposit and three lines after it, as
+# an application wrote them with no `cost_basis_split_guid:` on any of them.
+# Read from the splits, each of the three sells US dollars the book holds for
+# Canadian dollars on Assets:Due from director: 0.72 for 1.00, 2,710.68 for
+# 3,758.36 and 8.60 for 11.92. A sale says which cost basis it draws on, so
+# each is refused, and the refusal says it is a sale.
+#
+# Verified by
+# tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
+2026-08-13 * "Balance-leaving deposit"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e530000000000000000000000000c22"
+	Assets:Due from director -3791.14 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "136000/189557"
+		value: "-2720.00"
+2026-08-13 * "Charges for the deposit"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -0.72 USD
+	Assets:Due from director 1.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "18/25"
+		value: "0.72"
+2026-08-17 * "Sent money"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -2710.68 USD
+	Assets:Due from director 3758.36 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "67767/93959"
+		value: "2710.68"
+2026-08-17 * "Charges for the transfer"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -8.60 USD
+	Assets:Due from director 11.92 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "215/298"
+		value: "8.60"

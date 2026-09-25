@@ -54,10 +54,13 @@ The transaction always outranks the stored cost, which is consulted only where t
 **A disposal that does not say which cost basis it came out of is refused**, on a side the book keeps a cost basis for. Which basis a disposal drew on decides the gain it realized, and no rule picks one for you — not the oldest, not the largest, not the one that makes the figures come out flattest. The message says what to write and where `fx-balances` lists the guids:
 
 ```
-error: Sell 3,000.00 USD at 1.38: this transaction spends 3000.00 USD the book
-held, which draws down a cost basis, but no split says which one. State
-`cost_basis_split_guid:` on the split that spent it, giving the guid of the
-cost basis the USD came out of — `fx-balances` lists them.
+error: Sell 3,000.00 USD at 1.38: this transaction is a sale of 3000.00 USD
+the book held for 4140.00 CAD: Assets:USD Bank, a Bank account in USD, is
+credited 3000.00 USD; Assets:CAD Bank, a Bank account in CAD, is debited
+4140.00 CAD. A sale requires a consumption of one or more cost bases, but no
+split says which. State `cost_basis_split_guid:` on the split that disposes of
+it, giving the guid of the cost basis the USD came out of — `fx-balances` lists
+them.
 ```
 
 The message goes on to list each cost basis that split could give, as the line to add: the book's by guid, and an arrival in the same transaction or one above it in the file by its position, `cost_basis_split_guid: $transactions_to_import[n].splits[m].guid$` (Q-050). Beside an arrival on the account the currency left, it also gives the arrival written net of the spend, so the spend is part of what the currency cost and nothing is recorded as spent.

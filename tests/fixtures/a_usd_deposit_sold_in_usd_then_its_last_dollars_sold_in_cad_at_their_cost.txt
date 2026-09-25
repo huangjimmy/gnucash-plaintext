@@ -1,0 +1,42 @@
+# Q-053: a bank statement's 2,720.00 USD deposit and three lines after it,
+# each giving the deposit's cost basis. The first two are stated in US
+# dollars as the bank writes them: 0.72 for 1.00 CAD, and 2,710.68 for
+# 3,758.36 CAD, dollars that cost 3,778.15, so the second loses 19.79 that
+# no split of it can record. The last, 8.60 USD, is written in CAD, the way
+# the README says to state a sale in the book's own currency: the dollars at
+# what their cost basis cost, 189557/136000, and the other split taking the
+# `$residual$`. It is the last of the cost basis and is valued at its own
+# cost, 11.99; the 19.79 is the second line's, and is not put on it.
+#
+# Verified by
+# tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
+2026-08-13 * "Balance-leaving deposit"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e530000000000000000000000000c22"
+	Assets:Due from director -3791.14 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "136000/189557"
+		value: "-2720.00"
+2026-08-13 * "Charges for the deposit"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -0.72 USD
+		cost_basis_split_guid: "0e530000000000000000000000000c22"
+	Assets:Due from director 1.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "18/25"
+		value: "0.72"
+2026-08-17 * "Sent money"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -2710.68 USD
+		cost_basis_split_guid: "0e530000000000000000000000000c22"
+	Assets:Due from director 3758.36 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "67767/93959"
+		value: "2710.68"
+2026-08-17 * "Charges for the transfer"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD -8.60 USD
+		share_price: "189557/136000"
+		cost_basis_split_guid: "0e530000000000000000000000000c22"
+	Assets:Due from director $residual$ CAD

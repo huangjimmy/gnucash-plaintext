@@ -902,7 +902,11 @@
 ;; the first and the third the same number and the rate 1, which is why a share
 ;; priced in a foreign currency is the first holding to need them apart (Q-046).
 (define (plaintext:basis-entry item bal cv vl commodity report-commodity gain-key)
-  (let ((places (plaintext:places-of report-commodity)))
+  ;; The disposals pending their cost basis come as a row of their own,
+  ;; `$pending$`, at what their transactions recorded: nothing was bought on a
+  ;; day, so its comments say what the figures are instead.
+  (let* ((places (plaintext:places-of report-commodity))
+         (pending? (string=? (plaintext:basis-item-guid item) "$pending$")))
     (list
      (string-append (plaintext:indent 5) "cost_basis:")
      (string-append (plaintext:indent 6) "split_guid: "
@@ -915,14 +919,22 @@
      (string-append (plaintext:indent 6) "cost_share_price: "
                     (plaintext:figure
                      (plaintext:basis-item-cost-in-pair item) 0)
-                    " # " (plaintext:basis-item-currency item) " in "
-                    (plaintext:basis-item-pair-currency item)
-                    ", on the day it was bought")
+                    ;; A pending row's cost is only its rate below, so the
+                    ;; price in its own commodity says nothing and is not
+                    ;; described: "AMZN in AMZN" would be read as a price.
+                    (if pending?
+                        ""
+                        (string-append
+                         " # " (plaintext:basis-item-currency item) " in "
+                         (plaintext:basis-item-pair-currency item)
+                         ", on the day it was bought")))
      (string-append (plaintext:indent 6) "cost_rate: "
                     (plaintext:figure (plaintext:basis-item-cost-rate item) 0)
                     " # " (gnc-commodity-get-mnemonic report-commodity) " per "
                     (plaintext:basis-item-pair-currency item)
-                    ", on that same day")
+                    (if pending?
+                        ", what the pending disposals' transactions recorded"
+                        ", on that same day"))
      (string-append (plaintext:indent 6) "cost_share_price_in_base: "
                     (plaintext:figure
                      (plaintext:basis-item-cost item) 0)

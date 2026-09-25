@@ -241,8 +241,8 @@ class TestCostBasesTheBookHolds:
                              'a_usd_arrival_with_one_fee_from_dollars_held_and_one_giving_no_cost_basis.txt')
 
         assert done.exit_code != 0, done.output
-        assert ('this transaction spends 0.72 USD the book held, which draws down a '
-                'cost basis, but no split says which one') in done.output, done.output
+        assert ('this transaction is an expense of 0.72 USD the book held: Assets:Wise USD, '
+                'a Bank account in USD, is credited 0.72 USD; ') in done.output, done.output
         assert 'Split 2 of this transaction, out of Assets:Wise USD' in done.output, done.output
         assert _bases(book) == [('Assets:Wise USD', 'USD', 'asset', Fraction('500.00'))]
 
@@ -257,8 +257,10 @@ class TestAFeeGivingNoCostBasis:
         """E10: the fee spends dollars, and every spend gives its cost basis."""
         book, output = self._refused(tmp_path)
 
-        assert ('this transaction spends 0.72 USD the book held, which draws down a cost '
-                'basis, but no split says which one') in output, output
+        assert ('this transaction is an expense of 0.72 USD the book held: Assets:Wise USD, '
+                'a Bank account in USD, is credited 0.72 USD; Expenses:Bank charges, an '
+                'Expense account in CAD, is debited 1.01 CAD. An expense requires a consumption '
+                'of one or more cost bases, but no split says which.') in output, output
         assert 'Split 1 of this transaction, out of Assets:Wise USD, can be written' in output, output
         assert _bases(book) == []
 
@@ -294,13 +296,56 @@ class TestAFeeGivingNoCostBasis:
             tmp_path, 'usd_owed_on_a_card_and_part_of_it_repaid_giving_no_cost_basis.txt')
 
         assert done.exit_code != 0, done.output
-        assert ('this transaction spends 1.00 USD the book owed, which draws down a '
-                'cost basis') in done.output, done.output
+        assert ('this transaction is a repayment of 1.00 USD the book owed: Liabilities:USD '
+                'Card, a Credit Card account in USD, is debited 1.00 USD, 1.00 of it repaying '
+                'what it owed. A repayment requires') in done.output, done.output
         assert 'exchange spread' not in done.output, done.output
         assert ('`cost_basis_split_guid: $transactions_to_import[0].splits[1].guid$` — '
                 'the 2.00 USD this transaction brings into Liabilities:USD Card'
                 in done.output), done.output
         assert _bases(book) == []
+
+    def test_a_repayment_pending_its_cost_basis_is_taken_off_the_owed_side(self, tmp_path):
+        """The card charged 2.00 USD on the 13th and 1.00 repaid on the 14th giving `$pending$`: the owed side's cost bases are counted net of it."""
+        charge_then_repay = tmp_path / 'card.txt'
+        charge_then_repay.write_text(
+            '2026-08-13 * "Supplies on the card"\n'
+            '\tcurrency.mnemonic: "CAD"\n'
+            '\tExpenses:Supplies 2.01 CAD\n'
+            '\tLiabilities:USD Card -2.00 USD\n'
+            '\t\taccount.commodity.mnemonic: "USD"\n'
+            '\t\tshare_price: "201/200"\n'
+            '\t\tvalue: "-2.01"\n'
+            '2026-08-14 * "Card part paid back"\n'
+            '\tcurrency.mnemonic: "CAD"\n'
+            '\tLiabilities:USD Card 1.00 USD\n'
+            '\t\taccount.commodity.mnemonic: "USD"\n'
+            '\t\tshare_price: "101/100"\n'
+            '\t\tvalue: "1.01"\n'
+            '\t\tcost_basis_split_guid: $pending$\n'
+            '\tAssets:Chequing -1.01 CAD\n')
+        book = tmp_path / 'book.gnucash'
+        made = _run(CliRunner(), 'import', '--new', str(book), ACCOUNTS)
+        assert made.exit_code == 0, made.output
+
+        done = _run(CliRunner(), 'import', str(book), str(charge_then_repay), '--atomic')
+
+        _imported(done)
+        # The card's cost basis still holds the 2.00 charged, and the pending
+        # row takes the 1.00 repaid off it: 1.00 owed, as the card owes.
+        assert sorted(_bases(book)) == [
+            ('Liabilities:USD Card', 'USD', 'liability', Fraction('2.00')),
+            ('pending their cost basis', 'USD', 'liability', Fraction('-1.00'))]
+        listed = _run(CliRunner(), 'fx-balances', str(book))
+        assert ('1 disposal(s) pending their cost basis, drawing on none until an edit gives '
+                'it: 1.00 USD') in listed.output, listed.output
+        # The owed side is one line on the page. What it cost is 2.01 charged
+        # less the 1.01 the pending repayment recorded; no rate is given for
+        # the 1.00 USD still owed, so it is valued at nothing.
+        page = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-08-14',
+                    '--output-format', 'text', '--itemize')
+        assert '\tunrealized_gains_liabilities_fx: 1.00 CAD\n' in page.output, page.output
+        assert _run(CliRunner(), '--verify-integrity', str(book)).exit_code == 0
 
     def test_fees_from_two_accounts_beside_an_arrival_are_refused_as_a_transfer(self, tmp_path):
         """E22: one US dollar account rising while another falls is refused first, as a transfer."""

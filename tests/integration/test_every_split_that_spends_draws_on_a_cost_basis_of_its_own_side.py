@@ -32,8 +32,8 @@ class TestASplitGivingNoCostBasisBesideOneThatGivesOne:
         _, done = _imported(tmp_path, TWO_BANKS)
 
         assert 'Errors:       1' in done.output, done.output
-        assert ('this transaction spends 50.00 USD the book held, which draws '
-                'down a cost basis, but no split says which one') in done.output, done.output
+        assert ('this transaction is a sale of 50.00 USD the book held: Assets:USD '
+                'Savings, a Bank account in USD, is credited 50.00 USD; ') in done.output, done.output
 
     def test_the_cost_bases_still_match_the_accounts(self, tmp_path):
         book, _ = _imported(tmp_path, TWO_BANKS)

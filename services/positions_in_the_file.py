@@ -24,6 +24,7 @@ from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
 from infrastructure.gnucash.utils import Variable, get_account_full_name, money_text
 from services.foreign_currency import (
     COST_BASIS_SPLIT_KEY,
+    PENDING,
     _accounts_holding,
     _fraction,
     cost_basis_balance_of,
@@ -82,7 +83,8 @@ def what_is_wrong_with_the_positions(transactions) -> List[str]:
                  f'{transaction.props.get("tx_desc") or "(no description)"!r}')
         for line, split in enumerate(transaction.children):
             for key, value in split.metadata.items():
-                if not isinstance(value, Variable):
+                if not isinstance(value, Variable) or (
+                        key == COST_BASIS_SPLIT_KEY and value == PENDING):
                     continue
                 position = the_position(value)
                 if key != COST_BASIS_SPLIT_KEY or position is None:

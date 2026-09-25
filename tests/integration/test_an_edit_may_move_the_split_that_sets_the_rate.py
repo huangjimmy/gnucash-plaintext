@@ -280,8 +280,8 @@ class TestRestatingWhatSetsTheRate:
                     '--strategy', 'update')
 
         assert done.exit_code != 0, done.output
-        assert ('this transaction spends 0.72 USD the book held, which draws down a '
-                'cost basis, but no split says which one') in done.output, done.output
+        assert ('this transaction is an expense of 0.72 USD the book held: Assets:Wise USD, '
+                'a Bank account in USD, is credited 0.72 USD; ') in done.output, done.output
         assert _read(book)[0] == before
 
     def test_it_lists_what_draws_on_the_cost_basis(self, tmp_path):

@@ -574,7 +574,10 @@ def test_prepaying_a_vendor_from_a_usd_bank_moves_the_basis_across(tmp_path):
         .replace('\t\tcost_basis_split_guid: "{basis_a}"\n', ''))
     result = _import(runner, bare_book, bare)
     assert result.exit_code == 1, result.output
-    assert 'spends 100.00 USD the book held' in result.output, result.output
+    assert ('this transaction is a payment of 100.00 USD the book held: Assets:Bank:USD, '
+            'a Bank account in USD, is credited 100.00 USD; Liabilities:Accounts Payable '
+            'USD, an Accounts Payable account in USD, is debited 100.00 USD. A payment '
+            'requires') in result.output, result.output
     # Refused, so nothing of it reached the book: the bank's cost basis is
     # whole and the payable has none.
     bare_listing = _balances(runner, bare_book)

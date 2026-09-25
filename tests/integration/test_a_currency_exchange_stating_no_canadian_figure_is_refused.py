@@ -23,7 +23,7 @@ def test_the_exchange_is_refused_and_says_how_to_write_it(tmp_path):
 
     assert 'Errors:       1' in done.output, done.output
     assert ('error: Exchange 1,000.00 USD for 7,800.00 HKD, stated in HKD: this '
-            'transaction spends 1000.00 USD, which cost 1.3 CAD/USD, for '
+            'transaction sells 1000.00 USD, which cost 1.3 CAD/USD, for '
             '7800.00 HKD, and is written wholly in HKD, so no split in it can '
             'state what the exchange realized, and the HKD arrive with no cost '
             'to open a cost basis at. Write it in CAD, each split valued at '

@@ -25,6 +25,7 @@ from services.foreign_currency import (
     book_keeps_cost_bases,
     cost_bases,
     foreign_currency_account_balances,
+    pending_disposals,
     verify_cost_bases,
 )
 
@@ -102,7 +103,7 @@ def _format_cost(value, currency: str) -> str:
     return f'{_grouped(exact_text(value))} {BASE_CURRENCY}/{currency}'
 
 
-def _finish_verifying(verified) -> None:
+def _finish_verifying(verified, pending: int = 0) -> None:
     """Report what the check found and set the exit code, once.
 
     Both endings of the listing — the empty one a filter can leave and the
@@ -112,7 +113,8 @@ def _finish_verifying(verified) -> None:
     if verified is None:
         return
     click.echo('')
-    _report_disagreements(verified['findings'], verified['checked'])
+    _report_disagreements(verified['findings'], verified['checked'],
+                          pending)
     _report_currency_totals(verified.get('currency_totals') or [])
     if verified['findings']:
         raise SystemExit(1)
@@ -173,7 +175,7 @@ def _report_malformed(malformed: int, verified) -> None:
             f'split each is on.')
 
 
-def _report_disagreements(disagreements, checked: int) -> None:
+def _report_disagreements(disagreements, checked: int, pending: int = 0) -> None:
     """What `--verify-costs` found, said in full.
 
     Every disagreement is reported, not the first — the run gathers them all
@@ -188,9 +190,12 @@ def _report_disagreements(disagreements, checked: int) -> None:
     hand. A cost basis that could not be read at all carries its traceback for the
     same reason.
     """
+    # A disposal pending its cost basis is not a disagreement: the file said
+    # its cost basis is not decided, and it is counted, not reported as wrong.
+    still = f' {pending} disposal(s) are pending their cost basis.' if pending else ''
     if not disagreements:
         click.echo(f'Checked {checked} cost basis(es): every cost agrees with '
-                   f'the figures it is derived from.')
+                   f'the figures it is derived from.{still}')
         return
 
     # "and found" rather than "of which", because the two numbers do not count
@@ -200,7 +205,7 @@ def _report_disagreements(disagreements, checked: int) -> None:
     # one stranded balance and no cost bases read "Checked 0 cost basis(es); 1
     # disagree".
     click.echo(f'Checked {checked} cost basis(es), and found '
-               f'{len(disagreements)} thing(s) that do not hold:')
+               f'{len(disagreements)} thing(s) that do not hold:{still}')
     for row in disagreements:
         click.echo('')
         click.echo(f"{row['date']}  {row['account']}")
@@ -263,6 +268,24 @@ def _report_disagreements(disagreements, checked: int) -> None:
             for line in row['traceback'].rstrip().splitlines():
                 click.echo(f'    | {line}')
     click.echo('')
+
+
+def _report_pending(pending) -> None:
+    """The disposals giving `cost_basis_split_guid: $pending$`, per currency.
+
+    Each drew on no cost basis, so the cost bases above offer what they add up
+    to beyond what the accounts hold, until an edit gives each its cost basis.
+    """
+    for code in sorted({row['currency'] for row in pending}):
+        mine = [row for row in pending if row['currency'] == code]
+        total = sum((row['amount'] for row in mine), Fraction(0))
+        click.echo(f'{len(mine)} disposal(s) pending their cost basis, drawing on '
+                   f'none until an edit gives it: '
+                   f"{_format_amount(total, mine[0]['unit'])} {code}")
+        for row in mine:
+            click.echo(f"{row['date']}   {row['account']}   "
+                       f"{_format_amount(row['amount'], row['unit'])} {code}   "
+                       f"{row['description']}")
 
 
 def _report_account_balances(holdings, currency):
@@ -386,6 +409,8 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
         # Gathered here rather than at render time: the book is closed below,
         # and nothing read from it may be used afterwards (CLAUDE.md §26).
         holdings = foreign_currency_account_balances(repo.book)
+        pending = [row for row in pending_disposals(repo.book)
+                   if not currency or row['currency'] == currency.upper()]
         verified = verify_cost_bases(repo.book) if verify_costs and keeps else None
     finally:
         repo.close()
@@ -419,9 +444,10 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
         # existed, or holding a stock bought with foreign currency) all reach
         # this line still holding money, and the block that says how much was
         # the one thing they were not shown.
+        _report_pending(pending)
         _report_account_balances(holdings, currency)
         _report_malformed(malformed, verified)
-        _finish_verifying(verified)
+        _finish_verifying(verified, len(pending))
         return
 
     # Size the account column to the longest name rather than truncating it:
@@ -464,6 +490,7 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
             f'them, so how much of their currency is still unsold is not '
             f'known. State `{COST_BASIS_BALANCE_KEY}:` on the split in an '
             f'import file to give it a balance.')
+    _report_pending(pending)
 
     _report_account_balances(holdings, currency)
 
@@ -474,5 +501,6 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
     # answer "is anything wrong" while hiding what, and hide the listing the
     # reader needs to make sense of it. The count is every cost basis in the book —
     # `rows` is what the filters left, and filtering a listing narrows what is
-    # shown, not what was checked.
-    _finish_verifying(verified)
+    # shown, not what was checked. The pending count is of the currency asked
+    # for, as the listing of them above is.
+    _finish_verifying(verified, len(pending))

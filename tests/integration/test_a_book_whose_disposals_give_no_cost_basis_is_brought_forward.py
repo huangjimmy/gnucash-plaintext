@@ -79,9 +79,11 @@ def test_the_export_imported_again_refuses_the_spend_and_says_which(tmp_path):
         cli, ['import', '--new', str(tmp_path / 'new.gnucash'), str(ledger)])
 
     assert 'Errors:       1' in done.output, done.output
-    assert ('error: Sell 400.00 USD at 1.40: this transaction spends 400.00 USD '
-            'the book held, which draws down a cost basis, but no split says '
-            'which one.') in done.output, done.output
+    assert ('error: Sell 400.00 USD at 1.40: this transaction is a sale of 400.00 USD '
+            'the book held for 560.00 CAD: Assets:USD Bank, a Bank account in USD, is '
+            'credited 400.00 USD; Assets:CAD Bank, a Bank account in CAD, is debited '
+            '560.00 CAD. A sale requires a consumption of one or more cost bases, but no split says '
+            'which.') in done.output, done.output
 
 
 def test_the_rest_is_imported_and_lists_the_cost_basis_to_give(tmp_path):
