@@ -3,7 +3,7 @@ id: F-001
 title: QFX/OFX dependency declared but feature not implemented
 category: feature
 severity: medium
-status: open
+status: closed
 ---
 
 ## Problem
@@ -42,3 +42,7 @@ This would restore a feature that existed conceptually in the v0.1 design
 
 - `pyproject.toml`
 - `infrastructure/qfx/__init__.py`
+
+## Resolution
+
+Option A. `ofxparse` and `beautifulsoup4` are no longer dependencies, and the empty `infrastructure.qfx` package is gone from the tree and from `[tool.setuptools] packages`. Nothing imported either library. A bank statement reaches a book as a plaintext ledger: whatever reads the bank's QFX, OFX or CAMT file writes the ledger, and `import` reads it.

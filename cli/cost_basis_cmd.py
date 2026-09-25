@@ -22,6 +22,7 @@ from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.foreign_currency import (
     BASE_CURRENCY,
     COST_BASIS_BALANCE_KEY,
+    book_keeps_cost_bases,
     cost_bases,
     foreign_currency_account_balances,
     verify_cost_bases,
@@ -380,13 +381,23 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
     repo = GnuCashRepository(gnucash_file)
     repo.open(mode=SessionMode.READ_ONLY)
     try:
+        keeps = book_keeps_cost_bases(repo.book)
         rows = cost_bases(repo.book)
         # Gathered here rather than at render time: the book is closed below,
         # and nothing read from it may be used afterwards (CLAUDE.md §26).
         holdings = foreign_currency_account_balances(repo.book)
-        verified = verify_cost_bases(repo.book) if verify_costs else None
+        verified = verify_cost_bases(repo.book) if verify_costs and keeps else None
     finally:
         repo.close()
+
+    # A book that keeps no cost bases has none to list or check (Q-049). What
+    # its accounts hold is still what a reader came for.
+    if not keeps:
+        click.echo('This book keeps no cost bases (`cost_bases: "off"` in its '
+                   'company block): its foreign currency is kept as GnuCash '
+                   'keeps it.')
+        _report_account_balances(holdings, currency)
+        return
 
     malformed = sum(1 for row in rows if row.get('malformed'))
 

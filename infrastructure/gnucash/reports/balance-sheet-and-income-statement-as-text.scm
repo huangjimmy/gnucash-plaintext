@@ -397,6 +397,20 @@
 ;; book has, and absence is the honest answer where nothing was worked out.
 (define plaintext:realized-known? #t)
 
+;; Whether the book keeps cost bases (Q-049). A book whose `company` block says
+;; `cost_bases: "off"` has none, so every currency and security it holds is
+;; measured from GnuCash's revaluation, and the page says that is why rather
+;; than that its cost bases disagree with its accounts.
+(define plaintext:keeps-cost-bases? #t)
+
+(define (plaintext:set-keeps-cost-bases! keeps)
+  (set! plaintext:keeps-cost-bases? keeps))
+
+(define (plaintext:why-measured-from-revaluation)
+  (if plaintext:keeps-cost-bases?
+      " # its cost bases do not account for what the accounts hold"
+      " # this book keeps no cost bases"))
+
 (define (plaintext:set-realized-known! known)
   (set! plaintext:realized-known? known))
 
@@ -1042,8 +1056,7 @@
                            (string-append (plaintext:indent 4) "type: asset")
                            (string-append
                             (plaintext:indent 4) "measured_from: gnucash_revaluation"
-                            " # its cost bases do not account for what the"
-                            " accounts hold")
+                            (plaintext:why-measured-from-revaluation))
                            (string-append
                             (plaintext:indent 4) "cost_value: "
                             (plaintext:figure (cdr parts)
@@ -1466,8 +1479,7 @@
                     (list (string-append
                            (plaintext:indent 4)
                            "measured_from: gnucash_revaluation"
-                           " # its cost bases do not account for what the"
-                           " accounts hold")))
+                           (plaintext:why-measured-from-revaluation))))
                 (list (string-append
                        (plaintext:indent 4) "accounts:"
                        (plaintext:listing-note (length held) "accounts"

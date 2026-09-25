@@ -81,14 +81,8 @@ def _read_owner_from_transaction(transaction) -> Optional[str]:
     setter is a no-op from Python on GnuCash 5.x).
     """
     # Not guarded: the engine library loads, and has these functions, on every
-    # supported build.
+    # supported build. Their signatures are the shared engine's.
     lib = load_gnc_engine()
-    lib.gncOwnerGetOwnerFromTxn.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    lib.gncOwnerGetOwnerFromTxn.restype = ctypes.c_int
-    lib.gncOwnerGetID.argtypes = [ctypes.c_void_p]
-    lib.gncOwnerGetID.restype = ctypes.c_char_p
-    lib.gncOwnerGetType.argtypes = [ctypes.c_void_p]
-    lib.gncOwnerGetType.restype = ctypes.c_int
 
     tx_ptr = int(transaction.instance)
     owner_buf = ctypes.create_string_buffer(256)

@@ -35,7 +35,6 @@ from typing import List
 from gnucash import Book
 
 from infrastructure.gnucash.engine import (
-    GncNumericC,
     iterate_glist,
     load_gnc_engine,
     safe_ctypes_string,
@@ -309,34 +308,8 @@ def find_lot_payment_transactions(rec) -> List[OrphanPayment]:
     # commands and the importer both check it is posted first.
     lot = rec.GetPostedLot()
 
+    # Every signature the walk uses is the shared engine's.
     lib = load_gnc_engine()
-    # Lazily configure ctypes function signatures used in the walk.
-    # argtypes is non-optional for every pointer arg (CLAUDE.md §1).
-    # GncNumeric returns must use `restype=GncNumericC` (ctypes marshals the
-    # 16-byte struct value, NOT a pointer to it).
-    for name, restype, argtypes in [
-        ('gnc_lot_get_split_list',     ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccSplitGetParent',         ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccSplitGetAmount',         GncNumericC,     [ctypes.c_void_p]),
-        ('xaccTransGetTxnType',        ctypes.c_char,   [ctypes.c_void_p]),
-        ('xaccTransCountSplits',       ctypes.c_int,    [ctypes.c_void_p]),
-        ('xaccTransGetSplit',          ctypes.c_void_p, [ctypes.c_void_p, ctypes.c_int]),
-        ('xaccTransGetDate',           ctypes.c_int64,  [ctypes.c_void_p]),
-        ('xaccTransGetDescription',    ctypes.c_char_p, [ctypes.c_void_p]),
-        ('xaccTransGetCurrency',       ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccSplitGetAccount',        ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccSplitGetMemo',           ctypes.c_char_p, [ctypes.c_void_p]),
-        ('xaccAccountGetType',         ctypes.c_int,    [ctypes.c_void_p]),
-        ('gnc_commodity_get_mnemonic', ctypes.c_char_p, [ctypes.c_void_p]),
-        ('gnc_commodity_get_fraction', ctypes.c_int,    [ctypes.c_void_p]),
-        ('qof_instance_get_guid',      ctypes.c_void_p, [ctypes.c_void_p]),
-        ('guid_to_string_buff',        ctypes.c_char_p, [ctypes.c_void_p, ctypes.c_char_p]),
-        ('xaccAccountGetName',         ctypes.c_char_p, [ctypes.c_void_p]),
-        ('gnc_account_get_parent',     ctypes.c_void_p, [ctypes.c_void_p]),
-    ]:
-        f = getattr(lib, name)
-        f.restype = restype
-        f.argtypes = argtypes
 
     def _acct_full_name(acct_ptr) -> str:
         """Build the account's full path using `:` as separator, the project's
@@ -648,25 +621,8 @@ def find_prepayments_in_book(book: Book,
     import gnucash.gnucash_core_c as _gc
     from gnucash import GncLot, Split
 
+    # Every signature it uses is the shared engine's.
     lib = load_gnc_engine()
-    for name, restype, argtypes in [
-        ('xaccAccountGetType',         ctypes.c_int,    [ctypes.c_void_p]),
-        ('xaccSplitGetAccount',        ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccSplitGetAmount',         GncNumericC,     [ctypes.c_void_p]),
-        ('xaccTransGetDate',           ctypes.c_int64,  [ctypes.c_void_p]),
-        ('xaccTransGetDescription',    ctypes.c_char_p, [ctypes.c_void_p]),
-        ('xaccTransGetCurrency',       ctypes.c_void_p, [ctypes.c_void_p]),
-        ('gnc_commodity_get_mnemonic', ctypes.c_char_p, [ctypes.c_void_p]),
-        ('gnc_commodity_get_fraction', ctypes.c_int,    [ctypes.c_void_p]),
-        ('qof_instance_get_guid',      ctypes.c_void_p, [ctypes.c_void_p]),
-        ('guid_to_string_buff',        ctypes.c_char_p, [ctypes.c_void_p, ctypes.c_char_p]),
-        # gncOwnerGetOwnerFromLot/FromTxn/GetID/GetType are set in
-        # `_setup_lib_restypes`, on the same cached handle, for every caller.
-        ('gncOwnerGetName',            ctypes.c_char_p, [ctypes.c_void_p]),
-    ]:
-        f = getattr(lib, name)
-        f.restype = restype
-        f.argtypes = argtypes
 
     owner_buf = ctypes.create_string_buffer(256)
     owner_ptr = ctypes.cast(owner_buf, ctypes.c_void_p).value
@@ -1003,34 +959,8 @@ def find_orphan_payments_in_book(book: Book,
       - `vendor_id` (e.g. "V001") restricts to that vendor's orphans.
       - Pass neither for the full book sweep.
     """
+    # Every signature it uses is the shared engine's.
     lib = load_gnc_engine()
-    for name, restype, argtypes in [
-        ('xaccTransGetTxnType',        ctypes.c_char,   [ctypes.c_void_p]),
-        ('xaccTransCountSplits',       ctypes.c_int,    [ctypes.c_void_p]),
-        ('xaccTransGetSplit',          ctypes.c_void_p, [ctypes.c_void_p, ctypes.c_int]),
-        ('xaccTransGetDate',           ctypes.c_int64,  [ctypes.c_void_p]),
-        ('xaccTransGetDescription',    ctypes.c_char_p, [ctypes.c_void_p]),
-        ('xaccTransGetCurrency',       ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccSplitGetAccount',        ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccSplitGetMemo',           ctypes.c_char_p, [ctypes.c_void_p]),
-        ('xaccSplitGetAmount',         GncNumericC,     [ctypes.c_void_p]),
-        ('xaccSplitGetLot',            ctypes.c_void_p, [ctypes.c_void_p]),
-        ('xaccAccountGetType',         ctypes.c_int,    [ctypes.c_void_p]),
-        ('gnc_commodity_get_mnemonic', ctypes.c_char_p, [ctypes.c_void_p]),
-        ('gnc_commodity_get_fraction', ctypes.c_int,    [ctypes.c_void_p]),
-        ('gncInvoiceGetInvoiceFromLot', ctypes.c_void_p, [ctypes.c_void_p]),
-        ('gncOwnerGetOwnerFromTxn',    ctypes.c_int,    [ctypes.c_void_p, ctypes.c_void_p]),
-        ('gncOwnerGetID',              ctypes.c_char_p, [ctypes.c_void_p]),
-        ('gncOwnerGetName',            ctypes.c_char_p, [ctypes.c_void_p]),
-        ('gncOwnerGetType',            ctypes.c_int,    [ctypes.c_void_p]),
-        ('qof_instance_get_guid',      ctypes.c_void_p, [ctypes.c_void_p]),
-        ('guid_to_string_buff',        ctypes.c_char_p, [ctypes.c_void_p, ctypes.c_char_p]),
-        ('xaccAccountGetName',         ctypes.c_char_p, [ctypes.c_void_p]),
-        ('gnc_account_get_parent',     ctypes.c_void_p, [ctypes.c_void_p]),
-    ]:
-        f = getattr(lib, name)
-        f.restype = restype
-        f.argtypes = argtypes
 
     def _acct_full_name(acct_ptr) -> str:
         """As `find_lot_payment_transactions` builds it, and for the reason

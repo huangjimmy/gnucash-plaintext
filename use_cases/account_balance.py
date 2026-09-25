@@ -215,11 +215,10 @@ class AccountBalanceUseCase:
 
         Raises MissingFxRateError when no pricedb entry exists for a currency.
         """
-        import ctypes
 
         from gnucash.gnucash_core_c import gnc_pricedb_get_db, gnc_pricedb_lookup_latest
 
-        from infrastructure.gnucash.engine import GncNumericC, load_gnc_engine
+        from infrastructure.gnucash.engine import load_gnc_engine
 
         book = self.repository.book
         commod_table = book.get_table()
@@ -227,8 +226,6 @@ class AccountBalanceUseCase:
         pricedb = gnc_pricedb_get_db(book.instance)
 
         lib = load_gnc_engine()
-        lib.gnc_price_get_value.restype = GncNumericC
-        lib.gnc_price_get_value.argtypes = [ctypes.c_void_p]
 
         def get_rate(currency: str) -> Fraction:
             if currency == "CAD":
@@ -401,7 +398,6 @@ class AccountBalanceUseCase:
             fx_rates:   FxRates instance with currency->CAD rates
             price_date: Date to use for new price entries (always today)
         """
-        import ctypes
         from datetime import datetime
 
         from gnucash import GncNumeric, GncPrice
@@ -418,7 +414,7 @@ class AccountBalanceUseCase:
             gnc_pricedb_lookup_latest,
         )
 
-        from infrastructure.gnucash.engine import GncNumericC, load_gnc_engine
+        from infrastructure.gnucash.engine import load_gnc_engine
 
         book = self.repository.book
         book_instance = book.instance
@@ -427,10 +423,9 @@ class AccountBalanceUseCase:
         pricedb = gnc_pricedb_get_db(book_instance)
 
         # gnc_price_get_value returns gnc_numeric by value; SWIG wraps it as an
-        # opaque int on some platforms. Use ctypes with GncNumericC to read it.
+        # opaque int on some platforms. Read through ctypes, declared by the
+        # shared engine to return GncNumericC.
         lib = load_gnc_engine()
-        lib.gnc_price_get_value.restype = GncNumericC
-        lib.gnc_price_get_value.argtypes = [ctypes.c_void_p]
 
         # Noon, so the day is the day whatever the reader's timezone does with
         # midnight. Given to the wrapper as a `datetime` and never as seconds:

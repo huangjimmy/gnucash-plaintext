@@ -203,6 +203,7 @@ def _render(session, template: str, called: str, currency: str,
             max_items: int = -1) -> str:
     from services.foreign_currency import (
         BASE_CURRENCY,
+        book_keeps_cost_bases,
         cost_basis_items_by_currency_and_side,
         realized_fx_items_up_to,
         realized_other_items_up_to,
@@ -215,7 +216,12 @@ def _render(session, template: str, called: str, currency: str,
     # The balance sheet states it and adds it into nothing — it is inside
     # `retained_earnings` already, having gone through the income statement —
     # so a reader can tell it from the gain the book has yet to take.
-    takes_the_cost_bases = realized_as_of is not None and currency == BASE_CURRENCY
+    measures_realized = realized_as_of is not None and currency == BASE_CURRENCY
+    # A book that keeps no cost bases (Q-049) still states the realized gains
+    # its transactions record, which no cost basis decides, and measures every
+    # unrealized gain from GnuCash's own revaluation.
+    keeps_cost_bases = book_keeps_cost_bases(session.book)
+    takes_the_cost_bases = measures_realized and keeps_cost_bases
     # The differences one by one, for the page to show its working, and the key
     # totalled from those same items. One walk of the book: asking a second
     # time cost twice and let the key and the working it is said to add up to
@@ -236,13 +242,13 @@ def _render(session, template: str, called: str, currency: str,
     # option in silence. The cost bases are recorded in the book's own currency,
     # so a page asked for in a second one measures no realized gain at all and
     # the account specified has nothing to apply to.
-    if (gain_accounts and not takes_the_cost_bases and realized_as_of is not None
+    if (gain_accounts and not measures_realized and realized_as_of is not None
             and template in (BALANCE_SHEET_AS_TEXT, INCOME_STATEMENT_AS_TEXT)):
         warn(f'--fx-gain-account is not applied to a page in {currency}: the '
              f'cost bases a realized gain is measured from are recorded in '
              f'{BASE_CURRENCY}, so this page states no realized gain',
              key=('fx-gain-account-other-currency', currency))
-    if (takes_the_cost_bases and gain_accounts
+    if (measures_realized and gain_accounts
             and template in (BALANCE_SHEET_AS_TEXT, INCOME_STATEMENT_AS_TEXT)):
         from infrastructure.gnucash.utils import find_account
         from services.foreign_currency import takes_an_exchange_difference
@@ -278,7 +284,7 @@ def _render(session, template: str, called: str, currency: str,
                      key=('fx-gain-account-wrong-type', name))
     realized_items = (realized_fx_items_up_to(session.book, realized_as_of,
                                               gain_accounts)
-                      if takes_the_cost_bases else [])
+                      if measures_realized else [])
     realized = sum((figure for _when, _account, figure in realized_items),
                    Fraction(0))
     # Kept apart from the currency figure all the way to the page: a gain on
@@ -287,7 +293,7 @@ def _render(session, template: str, called: str, currency: str,
     # currency and not securities.
     realized_other_items = (realized_other_items_up_to(
         session.book, realized_as_of)
-        if takes_the_cost_bases else [])
+        if measures_realized else [])
     realized_other = sum(
         (figure for _when, _account, figure in realized_other_items),
         Fraction(0))
@@ -421,7 +427,12 @@ def _render(session, template: str, called: str, currency: str,
                           # every render for the same reason as the rest: the
                           # variable outlives the page, and `report` draws two.
                           f'(plaintext:set-realized-known! '
-                          f'{"#t" if takes_the_cost_bases else "#f"})'
+                          f'{"#t" if measures_realized else "#f"})'
+                          # Whether the book keeps cost bases, so a currency
+                          # measured from GnuCash's revaluation says why
+                          # (Q-049).
+                          f'(plaintext:set-keeps-cost-bases! '
+                          f'{"#t" if keeps_cost_bases else "#f"})'
                           f'(plaintext:set-itemize! '
                           f'{"#t" if itemize else "#f"})'
                           # How many entries each itemized list may show, -1

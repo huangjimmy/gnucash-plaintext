@@ -30,9 +30,11 @@ Setting argtypes = [ctypes.c_void_p] tells ctypes to pass the full 64-bit
 value.  This is mandatory; omitting it will crash on Ubuntu (and silently
 give wrong results on any 64-bit platform if the pointer happens to be >4 GB).
 """
+import contextlib
 import ctypes
 import logging
 from functools import lru_cache
+from typing import Optional
 
 ENGINE_LIB_PATHS = [
     '/usr/lib/x86_64-linux-gnu/gnucash/libgnc-engine.so',            # Debian 11/12/13, Ubuntu 22/24
@@ -46,6 +48,47 @@ ENGINE_LIB_PATHS = [
 class GncNumericC(ctypes.Structure):
     """Mirrors the C GncNumeric struct: {int64 num, int64 denom}."""
     _fields_ = [('num', ctypes.c_int64), ('denom', ctypes.c_int64)]
+
+
+class GValue(ctypes.Structure):
+    """
+    GLib GValue struct (64-bit layout):
+        GType g_type  (8 bytes = c_ulong on LP64)
+        union data[2] (2 × 8 bytes = two c_uint64)
+    """
+    _fields_ = [
+        ('g_type', ctypes.c_ulong),
+        ('data', ctypes.c_uint64 * 2),
+    ]
+
+
+G_TYPE_STRING = 64  # G_TYPE_STRING on all platforms (GLib constant)
+
+
+@lru_cache(maxsize=1)
+def load_gobject() -> Optional[ctypes.CDLL]:
+    """Load libgobject-2.0, which builds the GValue every KVP call passes, with its signatures declared.
+
+    Here beside the engine's handle, so each signature is declared once, on
+    the one handle every caller holds (T-009).
+
+    None where the library is absent, which is a broken install rather than a
+    version difference: every supported build has it. The KVP callers report
+    and carry on rather than raising, so an import meeting it does not abort
+    part-way through a book. That None is the implicit one the suppressed
+    `OSError` falls out to.
+    """
+    with contextlib.suppress(OSError):
+        gobj = ctypes.CDLL('libgobject-2.0.so.0')
+        gobj.g_value_init.argtypes = [ctypes.POINTER(GValue), ctypes.c_ulong]
+        gobj.g_value_init.restype = ctypes.POINTER(GValue)
+        gobj.g_value_set_string.argtypes = [ctypes.POINTER(GValue), ctypes.c_char_p]
+        gobj.g_value_set_string.restype = None
+        gobj.g_value_get_string.argtypes = [ctypes.POINTER(GValue)]
+        gobj.g_value_get_string.restype = ctypes.c_char_p
+        gobj.g_value_unset.argtypes = [ctypes.POINTER(GValue)]
+        gobj.g_value_unset.restype = None
+        return gobj
 
 
 class GncAccountValueC(ctypes.Structure):
@@ -279,6 +322,26 @@ def verify_ctypes_functions(lib, required_functions=None):
             # The release, which decides how a book to read is opened
             # (`repositories/gnucash_repository.py`, CLAUDE.md finding 27).
             'gnc_version',
+            # Declared here since T-009, where they were declared beside
+            # their callers: the lot walks, taking a payment off, the orphan
+            # listing, and the KVP and book option calls.
+            'gnc_lot_get_split_list',
+            'gnc_lot_remove_split',
+            'xaccSplitGetLot',
+            'xaccSplitGetMemo',
+            'xaccTransBeginEdit',
+            'xaccTransCommitEdit',
+            'xaccTransCountSplits',
+            'xaccTransGetSplit',
+            'xaccTransGetDescription',
+            'xaccTransGetCurrency',
+            'gnc_commodity_get_fraction',
+            'gncOwnerGetName',
+            'qof_instance_set_kvp',
+            'qof_instance_get_kvp',
+            'qof_instance_set_dirty',
+            'qof_book_get_string_option',
+            'qof_book_set_string_option',
         ]
 
     missing = [f for f in required_functions if not hasattr(lib, f)]
@@ -533,6 +596,34 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.xaccAccountInsertLot.argtypes          = [ctypes.c_void_p, ctypes.c_void_p]
     lib.xaccAccountGetLotList.restype          = ctypes.c_void_p
     lib.xaccAccountGetLotList.argtypes         = [ctypes.c_void_p]
+    # Walking a lot, taking a payment off it, and reading what each
+    # transaction in it is: `unapply-payment`, `unlink`, the unposts and the
+    # orphan listing. Declared here once, as every signature is, because the
+    # handle is shared by every caller (T-009).
+    lib.gnc_lot_get_split_list.restype         = ctypes.c_void_p
+    lib.gnc_lot_get_split_list.argtypes        = [ctypes.c_void_p]
+    lib.gnc_lot_remove_split.restype           = None
+    lib.gnc_lot_remove_split.argtypes          = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.xaccSplitGetLot.restype                = ctypes.c_void_p
+    lib.xaccSplitGetLot.argtypes               = [ctypes.c_void_p]
+    lib.xaccSplitGetMemo.restype               = ctypes.c_char_p
+    lib.xaccSplitGetMemo.argtypes              = [ctypes.c_void_p]
+    lib.xaccTransBeginEdit.restype             = None
+    lib.xaccTransBeginEdit.argtypes            = [ctypes.c_void_p]
+    lib.xaccTransCommitEdit.restype            = None
+    lib.xaccTransCommitEdit.argtypes           = [ctypes.c_void_p]
+    lib.xaccTransCountSplits.restype           = ctypes.c_int
+    lib.xaccTransCountSplits.argtypes          = [ctypes.c_void_p]
+    lib.xaccTransGetSplit.restype              = ctypes.c_void_p
+    lib.xaccTransGetSplit.argtypes             = [ctypes.c_void_p, ctypes.c_int]
+    lib.xaccTransGetDescription.restype        = ctypes.c_char_p
+    lib.xaccTransGetDescription.argtypes       = [ctypes.c_void_p]
+    lib.xaccTransGetCurrency.restype           = ctypes.c_void_p
+    lib.xaccTransGetCurrency.argtypes          = [ctypes.c_void_p]
+    lib.gnc_commodity_get_fraction.restype     = ctypes.c_int
+    lib.gnc_commodity_get_fraction.argtypes    = [ctypes.c_void_p]
+    lib.gncOwnerGetName.restype                = ctypes.c_char_p
+    lib.gncOwnerGetName.argtypes               = [ctypes.c_void_p]
     # A split's amount is in its *account's* commodity, which is not the
     # transaction's on a foreign invoice settled from a base-currency bank.
     lib.xaccAccountGetCommodity.restype        = ctypes.c_void_p
@@ -624,6 +715,18 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     # next open (CLAUDE.md finding 18, on a book rather than a lot).
     lib.qof_book_mark_session_dirty.restype    = None
     lib.qof_book_mark_session_dirty.argtypes   = [ctypes.c_void_p]
+    # The KVP calls `infrastructure/gnucash/kvp.py` makes. The two
+    # `qof_instance_*_kvp` are variadic, so only their return is declared:
+    # ctypes passes each argument the caller has already cast.
+    lib.qof_instance_set_kvp.restype           = None
+    lib.qof_instance_get_kvp.restype           = None
+    lib.qof_instance_set_dirty.restype         = None
+    lib.qof_instance_set_dirty.argtypes        = [ctypes.c_void_p]
+    lib.qof_book_get_string_option.restype     = ctypes.c_char_p
+    lib.qof_book_get_string_option.argtypes    = [ctypes.c_void_p, ctypes.c_char_p]
+    lib.qof_book_set_string_option.restype     = None
+    lib.qof_book_set_string_option.argtypes    = [ctypes.c_void_p, ctypes.c_char_p,
+                                                  ctypes.c_char_p]
     # ── The price database ───────────────────────────────────────────────────
     # One entry per commodity, currency and moment (Q-041), written through
     # the calls GnuCash's own Price Editor makes. A time is a time64 passed

@@ -3,7 +3,7 @@ id: T-009
 title: Line and branch coverage is measured by nothing, so unreachable code is found by review instead; ctypes signatures are declared per-caller
 category: tests
 severity: high
-status: open
+status: closed
 ---
 
 ## Problem
@@ -156,9 +156,13 @@ The 98% per-build bar is a point below the lowest build in the table above, whic
 
 The threshold stays in `scripts/coverage.sh` rather than moving to `fail_under` in `[tool.coverage.report]`, which was the earlier plan and is wrong: every reporter reads that setting, including the eleven per-build reports in CI and any `pytest --cov` a contributor runs, and not one of those can reach 100. The figure belongs to the union, so it lives with the script that measures the union.
 
-## Remaining work
+## The `KNOWN` list is empty
 
-1. Empty the `KNOWN` list in `test_c_bindings_are_declared_once.py`, file by file, starting with the two bare `CDLL(None)` handles.
+Every signature listed above is declared in `_setup_lib_restypes` and named in `verify_ctypes_functions`, and the local blocks are gone, so `KNOWN` in `test_c_bindings_are_declared_once.py` is empty.
+
+- **The two bare `CDLL(None)` handles in `services/gnucash_importer.py`**, which read an invoice's and a bill's guid, take the shared handle.
+- **`infrastructure/gnucash/kvp.py` loads nothing of its own.** Its KVP and book option calls are the shared engine's. libgobject, which builds the GValue each of those calls passes, is loaded by `load_gobject` in `infrastructure/gnucash/engine.py`, which declares its four signatures once. `kvp.py` keeps the names `_load_gnc_engine` and `_load_gobject` as the engine's, so what reads or replaces them still finds them.
+- **The loop forms in `use_cases/unapply_payment.py` and `use_cases/unpost_business_objects.py`** are gone. Twelve of their functions were not in the shared engine before: `gnc_lot_get_split_list`, `gnc_lot_remove_split`, `xaccSplitGetLot`, `xaccSplitGetMemo`, `xaccTransBeginEdit`, `xaccTransCommitEdit`, `xaccTransCountSplits`, `xaccTransGetSplit`, `xaccTransGetDescription`, `xaccTransGetCurrency`, `gnc_commodity_get_fraction` and `gncOwnerGetName`. They are declared there now, with the types their callers gave them.
 
 `# pragma: no cover` stays rare and reasoned. A defensive `raise` for a SWIG symbol whose absence means a broken install is a fair use; "hard to test" is not.
 

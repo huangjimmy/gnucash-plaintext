@@ -57,6 +57,7 @@ from services.book_currency import (
     the_books_own_currency_or,
 )
 from services.foreign_currency import (
+    book_keeps_cost_bases,
     cost_basis_items_by_currency_and_side,
     foreign_currency_account_balances,
     iter_splits,
@@ -311,6 +312,15 @@ def _check_the_profit_and_loss_currency(book, own: str,
 
 
 def _check_the_cost_bases(book, report: IntegrityReport) -> None:
+    # A book that keeps no cost bases holds none to check (Q-049).
+    if not book_keeps_cost_bases(book):
+        reason = ('this book keeps no cost bases (`cost_bases: "off"` in its '
+                  'company block)')
+        report.not_checked.append(
+            f'no cost basis holds more of a currency than the accounts do: {reason}')
+        report.not_checked.append(
+            f'every cost basis agrees with the ledger it comes from: {reason}')
+        return
     if report.as_of is not None:
         report.checked.append(
             'no cost basis holds more of a currency than the accounts do')

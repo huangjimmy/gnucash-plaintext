@@ -1,0 +1,14 @@
+# Q-049: 100.00 USD bought into Wise USD, recorded at 137.00, for 140.00 CAD
+# out of Chequing, the 3.00 between them on a `$residual$` split. In a book
+# that keeps no cost bases a realized difference is what the file states, so
+# the 3.00 is stated as realized, whichever way the USD split moves; a file
+# meaning a bank charge gives it an amount of its own.
+#
+# Verified by tests/integration/test_a_book_can_keep_no_cost_bases.py.
+2026-08-25 * "Dollars bought"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "137.00"
+	Assets:Chequing -140.00 CAD
+	Income:FX gain $residual$ CAD

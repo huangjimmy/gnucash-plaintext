@@ -1,0 +1,31 @@
+# Q-053: a statement's 2,720.00 USD deposit, imported before the owner knows
+# what it is, its other side on Assets:Due from director, and the bank's
+# 0.72 USD fee as a transaction of its own, the way a bank that exports its
+# fees separately writes them. The fee's other side is on the holding account
+# too.
+#
+# US dollars arriving against Canadian dollars leaving an asset is buying
+# them, so the deposit establishes a cost basis at 3,815.89 for 2,720.00, and
+# the fee draws 0.72 of it, valued 1.01: 2,719.28 left.
+#
+# Verified by
+# tests/integration/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "0e530000000000000000000000000c01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e530000000000000000000000000c02"
+		account.commodity.mnemonic: "USD"
+		value: "3815.89"
+	Assets:Due from director -3815.89 CAD
+		guid: "0e530000000000000000000000000c03"
+2026-08-13 * "Transfer fee"
+	guid: "0e530000000000000000000000000d01"
+	currency.mnemonic: "CAD"
+	Assets:Due from director 1.01 CAD
+		guid: "0e530000000000000000000000000d02"
+	Assets:Wise USD -0.72 USD
+		guid: "0e530000000000000000000000000d03"
+		account.commodity.mnemonic: "USD"
+		value: "-1.01"
+		cost_basis_split_guid: "0e530000000000000000000000000c02"

@@ -1,0 +1,133 @@
+# Q-053: a book kept in Hong Kong dollars, holding US and Canadian dollars
+# too, with an invoice of 7,800.00 HKD to Harbour Trading, unpaid, and a
+# 7,800.00 HKD deposit imported from the bank statement against
+# Assets:Suspense before the owner knew what it was.
+#
+# Verified by
+# tests/integration/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
+2026-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Assets:HKD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Suspense
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Assets:Accounts Receivable
+	type: "Receivable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Equity:Opening HKD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Equity:Opening USD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity:Opening CAD
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income:Consulting
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "HKD"
+	time: "2026-03-31 12:00:00 +0000"
+	value: "78/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	currency.mnemonic: "HKD"
+	time: "2026-03-31 12:00:00 +0000"
+	value: "57/10"
+	source: "user:price-editor"
+	type: "last"
+
+customer "C-HK"
+	name: "Harbour Trading"
+	currency: HKD
+
+invoice "INV-HK-1"
+	customer_id: "C-HK"
+	currency: HKD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Consulting"
+		quantity: 1
+		price: 7800
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-03-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-HK-1"
+		accumulate: true
+
+2026-01-02 * "Opening USD"
+	currency.mnemonic: "USD"
+	Assets:USD Bank 1000.00 USD
+	Equity:Opening USD -1000.00 USD
+
+2026-01-02 * "Opening CAD"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 2000.00 CAD
+	Equity:Opening CAD -2000.00 CAD
+
+2026-03-12 * "Received from Harbour Trading"
+	guid: "0e530000000000000000000000000f01"
+	currency.mnemonic: "HKD"
+	Assets:HKD Bank 7800.00 HKD
+		guid: "0e530000000000000000000000000f02"
+	Assets:Suspense -7800.00 HKD
+		guid: "0e530000000000000000000000000f03"

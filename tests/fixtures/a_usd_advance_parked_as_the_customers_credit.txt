@@ -1,0 +1,14 @@
+# Q-053: 100.00 USD Example Customer Inc paid into Wise USD before any
+# invoice asked for it, parked on the receivable as C-USD's credit. Its
+# receivable split stands in C-USD's credit lot, which belongs to no invoice.
+#
+# Verified by
+# tests/integration/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
+2026-08-14 * "Advance from Example Customer Inc"
+	guid: "0e530000000000000000000000000e01"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 100.00 USD
+		guid: "0e530000000000000000000000000e02"
+	Assets:Accounts Receivable USD -100.00 USD
+		guid: "0e530000000000000000000000000e03"
+		lot_owner: "customer:C-USD"

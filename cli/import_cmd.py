@@ -603,6 +603,21 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                     for k, v in late_result.counts[kind].items():
                         biz_result.counts[kind][k] += v
 
+            # `--atomic` checks the book the file leaves, so a transaction
+            # block refused only because of where it sits in the file is
+            # applied again now that the rest of the file is in the book, and
+            # again for as long as a pass applies something (Q-053). What is
+            # still refused then is a repair no order can make, and those
+            # edits are applied in place, their checks asked of the finished
+            # book below.
+            if atomic and result.refused_blocks:
+                from services.foreign_currency import defer_edits_in_place
+                while use_case.apply_again_what_was_refused(result):
+                    pass
+                defer_edits_in_place()
+                while use_case.apply_again_what_was_refused(result):
+                    pass
+
             # open_prepayment: the per-account summary is informational and
             # derived, so the book is authoritative — recompute from the live
             # lots and WARN (never fail) when a declared block disagrees. The
@@ -825,6 +840,12 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 repo.save()
                 saved = True
                 click.echo("✓ Changes saved")
+
+                # The payments the file took off the invoices and bills it
+                # states unpaid by them, said now that they are off (Q-053).
+                from services.gnucash_importer import payments_the_run_took_off
+                for taken in payments_the_run_took_off():
+                    click.echo(f'  {taken}', err=True)
 
                 # What the unposts left, as the saved book holds it. A payment
                 # the run put back is no orphan, and a run that saves nothing

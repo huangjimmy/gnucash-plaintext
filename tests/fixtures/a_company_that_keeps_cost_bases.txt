@@ -1,0 +1,6 @@
+# Q-049: `cost_bases: "on"` keeps cost bases, as a book with no line does.
+#
+# Verified by tests/integration/test_a_book_can_keep_no_cost_bases.py.
+company
+	name: "Example Books Inc"
+	cost_bases: "on"

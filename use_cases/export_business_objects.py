@@ -146,10 +146,6 @@ class ExportBusinessObjectsUseCase:
         """
         import ctypes
         lib = self._lib
-        lib.qof_instance_get_guid.argtypes = [ctypes.c_void_p]
-        lib.qof_instance_get_guid.restype = ctypes.c_void_p
-        lib.guid_to_string_buff.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-        lib.guid_to_string_buff.restype = ctypes.c_char_p
 
         def guid_for_ptr(qof_ptr):
             # Every instance has a guid, so there is always one to read.

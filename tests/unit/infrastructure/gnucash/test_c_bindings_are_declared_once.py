@@ -18,10 +18,9 @@ So the rule is one place per library, and `LOADERS` names them:
 at load that the build actually has them, and `infrastructure/guile.py` for
 libguile, which GnuCash's own report needs in-process to draw an invoice.
 
-This test is a ratchet. `KNOWN` lists what has not been moved yet, exactly, and
-the test fails both ways: a declaration that is not listed is new debt and is
-refused, and a listed one that has gone must be struck off. It cannot grow
-quietly and it cannot be stale.
+This test is a ratchet, and it has reached the end: `KNOWN` is empty. It fails
+both ways: a declaration that is not listed is refused, and a listed one that
+has gone must be struck off. It cannot grow quietly and it cannot be stale.
 
 Both spellings count. `lib.xaccSplitGetAmount.restype = …` names its symbol in
 the attribute chain; the loop form — `f = getattr(lib, name); f.restype = …` —
@@ -47,88 +46,17 @@ LOADERS = (
 
 SEARCHED = ['cli', 'services', 'use_cases', 'infrastructure', 'repositories']
 
-# Declarations that predate the rule, by file and by the handle they are set on
+# Declarations outside the loaders, by file and by the handle they are set on
 # (`lib.xaccSplitGetAmount`, or `ctypes.CDLL` for a handle loaded outside the
 # shared loader — which skips its RTLD_GLOBAL promotion and on Ubuntu can bind
 # a different copy of the library than the one holding the book).
 #
 # `f` is the loop form: `f = getattr(lib, name); f.restype = ...`.
 #
-# Each entry is a line of work, tracked in docs/issues/T-009. Moving one is
-# mechanical: add the signature to `_setup_lib_restypes`, add the name to
-# `verify_ctypes_functions`, delete the local block, and strike the entry here.
-KNOWN = {
-    'infrastructure/gnucash/kvp.py': {
-        # A second engine loader with its own RTLD_GLOBAL promotion, plus a
-        # GObject handle the shared loader knows nothing about.
-        'ctypes.CDLL',
-        'gobj.g_value_get_string',
-        'gobj.g_value_init',
-        'gobj.g_value_set_string',
-        'gobj.g_value_unset',
-        'lib.qof_book_get_string_option',
-        'lib.qof_book_mark_session_dirty',
-        'lib.qof_book_set_string_option',
-        'lib.qof_instance_get_kvp',
-        'lib.qof_instance_set_dirty',
-        'lib.qof_instance_set_kvp',
-    },
-    'services/gnucash_importer.py': {
-        # Reading an invoice's guid, declared in two places on a bare
-        # `CDLL(None)`. Writing one no longer is: `_set_object_guid` and
-        # `_force_the_lot_guid` both take `qof_instance_set_guid` off the
-        # cached engine, which is where a call on the per-line path
-        # belongs.
-        'ctypes.CDLL',
-        'lib.guid_to_string_buff',
-        'lib.qof_instance_get_guid',
-    },
-    'services/transaction_matcher.py': {
-        'lib.gncOwnerGetID',
-        'lib.gncOwnerGetOwnerFromTxn',
-        'lib.gncOwnerGetType',
-    },
-    'use_cases/account_balance.py': {
-        'lib.gnc_price_get_value',
-    },
-    'use_cases/export_business_objects.py': {
-        'lib.guid_to_string_buff',
-        'lib.qof_instance_get_guid',
-    },
-    'use_cases/export_transactions.py': {
-        '_lib.gncInvoiceGetInvoiceFromLot',
-        '_lib.gncOwnerGetGUID',
-        '_lib.gncOwnerGetID',
-        '_lib.gncOwnerGetOwnerFromLot',
-        '_lib.gncOwnerGetOwnerFromTxn',
-        '_lib.gncOwnerGetType',
-        '_lib.guid_to_string_buff',
-        '_lib.xaccSplitGetLot',
-        '_lib.xaccTransGetTxnType',
-    },
-    # Both of these declare in the loop form, so until this test read the names
-    # out of the list they iterate, each was one `'f'` entry — a blanket
-    # exemption covering 14 and 24 symbols respectively, under which a new
-    # conflicting declaration would have passed silently.
-    'use_cases/unapply_payment.py': {
-        'gnc_commodity_get_mnemonic', 'gnc_lot_get_balance',
-        'gnc_lot_get_split_list', 'gnc_lot_remove_split', 'guid_to_string_buff',
-        'qof_instance_get_guid', 'xaccAccountGetType', 'xaccSplitGetAccount',
-        'xaccSplitGetAmount', 'xaccSplitGetParent', 'xaccSplitSetAccount',
-        'xaccTransBeginEdit', 'xaccTransCommitEdit', 'xaccTransGetCurrency',
-    },
-    'use_cases/unpost_business_objects.py': {
-        'gncInvoiceGetInvoiceFromLot', 'gncOwnerGetID', 'gncOwnerGetName',
-        'gncOwnerGetOwnerFromTxn', 'gncOwnerGetType', 'gnc_account_get_parent',
-        'gnc_commodity_get_fraction', 'gnc_commodity_get_mnemonic',
-        'gnc_lot_get_split_list', 'guid_to_string_buff',
-        'qof_instance_get_guid', 'xaccAccountGetName', 'xaccAccountGetType',
-        'xaccSplitGetAccount', 'xaccSplitGetAmount', 'xaccSplitGetLot',
-        'xaccSplitGetMemo', 'xaccSplitGetParent', 'xaccTransCountSplits',
-        'xaccTransGetCurrency', 'xaccTransGetDate', 'xaccTransGetDescription',
-        'xaccTransGetSplit', 'xaccTransGetTxnType',
-    },
-}
+# Empty (T-009): every signature is declared in `_setup_lib_restypes`, named in
+# `verify_ctypes_functions`, and set on the one handle `load_gnc_engine`
+# returns; libgobject's are set where `load_gobject` loads it.
+KNOWN: dict = {}
 
 
 def _dotted(node):

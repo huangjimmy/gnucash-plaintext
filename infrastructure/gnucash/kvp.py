@@ -26,8 +26,9 @@ import contextlib
 import ctypes
 import json
 import logging
-from functools import lru_cache
 from typing import Optional
+
+from infrastructure.gnucash.engine import G_TYPE_STRING, GValue, load_gnc_engine, load_gobject
 
 PT_DATA_SLOT = 'plaintext_metadata'
 
@@ -212,67 +213,18 @@ def held_value(obj, current: str, key: str, held: dict = None) -> str:
 # GLib GValue helper: every KVP read and write goes through one of these.
 # ---------------------------------------------------------------------------
 
-class _GValue(ctypes.Structure):
-    """
-    GLib GValue struct (64-bit layout):
-        GType g_type  (8 bytes = c_ulong on LP64)
-        union data[2] (2 × 8 bytes = two c_uint64)
-    """
-    _fields_ = [
-        ('g_type', ctypes.c_ulong),
-        ('data', ctypes.c_uint64 * 2),
-    ]
-
-
-_G_TYPE_STRING = 64  # G_TYPE_STRING on all platforms (GLib constant)
-
-
-@lru_cache(maxsize=1)
-def _load_gobject() -> Optional[ctypes.CDLL]:
-    """Load libgobject-2.0, which builds the GValue every KVP call passes.
-
-    Cached by `lru_cache` and by nothing else. A module-global holding the
-    same handle sat under a `if _gobj is not None: return _gobj` guard that
-    the cache above makes unreachable — the body runs once, and on that one
-    run the global is still None.
-
-    None where the library is absent, which is a broken install rather than a
-    version difference: every supported build has it. Both callers report and
-    carry on rather than raising, so an import meeting it does not abort
-    part-way through a book.
-
-    That None is the implicit one the suppressed `OSError` falls out to. An
-    explicit `return None` under the `with` says the same thing in a line no
-    supported build can execute.
-    """
-    with contextlib.suppress(OSError):
-        return ctypes.CDLL('libgobject-2.0.so.0')
-
-
-@lru_cache(maxsize=1)
-def _load_gnc_engine() -> ctypes.CDLL:
-    """
-    Load libgncmod-engine with RTLD_GLOBAL promotion.
-
-    On Ubuntu (RTLD_LOCAL extension loading), the library must be promoted
-    to RTLD_GLOBAL before CDLL(None) so ctypes and the Python bindings share
-    the same in-memory instance.
-
-    qof_instance_set_kvp / qof_instance_get_kvp live in
-    libgncmod-engine.so (not libgnc-engine.so).  Promote both paths.
-
-    Cached, as `_load_gobject` is: every KVP read and write asks for it, and
-    loaded afresh each time it opened three handles per read. On a book of
-    2,000 transactions an unchanged `--strategy update` spent 120 s of its
-    216 s here (`tests/research/how_long_an_unchanged_update_takes_as_a_book_grows_probe.py`).
-    """
-    for path in (
-        '/usr/lib/x86_64-linux-gnu/gnucash/gnucash/libgncmod-engine.so',
-        '/usr/lib/x86_64-linux-gnu/gnucash/libgnc-engine.so',
-    ):
-        with contextlib.suppress(OSError):
-            ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
-    return ctypes.CDLL(None)
+# The shared engine's handles, under the names this module has always called
+# them by. ctypes keeps a function's signature on the `CDLL` object it was
+# read from, so a handle of this module's own had to declare every signature
+# again; the shared ones carry them, declared once (T-009). Both are cached, as
+# they were here: every KVP read and write asks for them, and loaded afresh
+# each time the engine cost an unchanged `--strategy update` of a 2,000
+# transaction book 120 s of its 216 s
+# (`tests/research/how_long_an_unchanged_update_takes_as_a_book_grows_probe.py`).
+_GValue = GValue
+_G_TYPE_STRING = G_TYPE_STRING
+_load_gobject = load_gobject
+_load_gnc_engine = load_gnc_engine
 
 
 # ---------------------------------------------------------------------------
@@ -293,17 +245,7 @@ def _set_via_qof_instance(obj_ptr: int, slot_name: str, value: str) -> bool:
             return False
         lib = _load_gnc_engine()
 
-        gobj.g_value_init.argtypes = [ctypes.POINTER(_GValue), ctypes.c_ulong]
-        gobj.g_value_init.restype = ctypes.POINTER(_GValue)
-        gobj.g_value_set_string.argtypes = [ctypes.POINTER(_GValue), ctypes.c_char_p]
-        gobj.g_value_set_string.restype = None
-        gobj.g_value_unset.argtypes = [ctypes.POINTER(_GValue)]
-        gobj.g_value_unset.restype = None
-
-        lib.qof_instance_set_kvp.restype = None
-        # Note: no argtypes for variadic function — Python ctypes handles
-        # variadic calls with explicit c_void_p / c_uint / c_char_p casts.
-
+        # Variadic, so each argument is cast here, as ctypes needs.
         gval = _GValue()
         gobj.g_value_init(ctypes.byref(gval), _G_TYPE_STRING)
         gobj.g_value_set_string(ctypes.byref(gval), value.encode('utf-8'))
@@ -331,15 +273,6 @@ def _get_via_qof_instance(obj_ptr: int, slot_name: str) -> Optional[str]:
         if gobj is None:
             return None
         lib = _load_gnc_engine()
-
-        gobj.g_value_init.argtypes = [ctypes.POINTER(_GValue), ctypes.c_ulong]
-        gobj.g_value_init.restype = ctypes.POINTER(_GValue)
-        gobj.g_value_get_string.argtypes = [ctypes.POINTER(_GValue)]
-        gobj.g_value_get_string.restype = ctypes.c_char_p
-        gobj.g_value_unset.argtypes = [ctypes.POINTER(_GValue)]
-        gobj.g_value_unset.restype = None
-
-        lib.qof_instance_get_kvp.restype = None
 
         gval = _GValue()
         gobj.g_value_init(ctypes.byref(gval), _G_TYPE_STRING)
@@ -377,8 +310,6 @@ def _mark_instance_dirty(obj_ptr: int) -> None:
     """
     with contextlib.suppress(Exception):
         lib = _load_gnc_engine()
-        lib.qof_instance_set_dirty.restype = None
-        lib.qof_instance_set_dirty.argtypes = [ctypes.c_void_p]
         lib.qof_instance_set_dirty(ctypes.c_void_p(obj_ptr))
 
 
@@ -392,15 +323,7 @@ def _mark_session_dirty(book_ptr: int) -> None:
     book rather than on a lot.
     """
     with contextlib.suppress(Exception):
-        # Declared here and not only in `infrastructure/gnucash/engine.py`,
-        # for the reason `_mark_instance_dirty` above does the same: this
-        # module loads a handle of its own, and the shared loader's argtypes
-        # are set on a different `CDLL` object. The engine's declaration still
-        # earns its keep — `verify_ctypes_functions` is what checks the build
-        # has the symbol at all.
         lib = _load_gnc_engine()
-        lib.qof_book_mark_session_dirty.restype = None
-        lib.qof_book_mark_session_dirty.argtypes = [ctypes.c_void_p]
         lib.qof_book_mark_session_dirty(ctypes.c_void_p(book_ptr))
 
 
@@ -651,10 +574,6 @@ def write_book_string_option(book, section: str, name: str, value: str) -> None:
     """
     obj_ptr = int(book.instance)
     lib = _load_gnc_engine()
-    lib.qof_book_set_string_option.argtypes = [
-        ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p,
-    ]
-    lib.qof_book_set_string_option.restype = None
 
     opt_path = f'options/{section}/{name}'.encode()
     lib.qof_book_set_string_option(
@@ -712,13 +631,6 @@ def _write_book_option_slot_directly(book, obj_ptr: int, section: str,
         raise RuntimeError(
             'libgobject-2.0 is not loadable, so no book option can be written')
 
-    gobj.g_value_init.argtypes = [ctypes.POINTER(_GValue), ctypes.c_ulong]
-    gobj.g_value_init.restype = ctypes.POINTER(_GValue)
-    gobj.g_value_set_string.argtypes = [ctypes.POINTER(_GValue), ctypes.c_char_p]
-    gobj.g_value_set_string.restype = None
-    gobj.g_value_unset.argtypes = [ctypes.POINTER(_GValue)]
-    gobj.g_value_unset.restype = None
-    lib.qof_instance_set_kvp.restype = None
 
     segments = _option_path_segments(section, name)
 
@@ -759,8 +671,6 @@ def get_book_string_option(book, section: str, name: str) -> Optional[str]:
     try:
         obj_ptr = int(book.instance)
         lib = _load_gnc_engine()
-        lib.qof_book_get_string_option.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-        lib.qof_book_get_string_option.restype = ctypes.c_char_p
 
         opt_path = f'options/{section}/{name}'.encode()
         raw = lib.qof_book_get_string_option(ctypes.c_void_p(obj_ptr), opt_path)

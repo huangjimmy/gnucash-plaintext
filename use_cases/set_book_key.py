@@ -12,6 +12,7 @@ from infrastructure.gnucash.kvp import (
     get_book_custom_metadata,
     merge_book_custom_metadata,
 )
+from services.foreign_currency import COST_BASES_KEY
 from services.gnucash_importer import COMPANY_FIELD_TO_SLOT
 from services.plaintext_addresses import (
     is_address_key,
@@ -58,6 +59,16 @@ def execute_set_book_key(book, key, value):
     # exist: they mark the format's own numbering, and a book minting
     # `note[0]` today takes the name the next list-valued key would need.
     refuse_an_index_on_a_key_that_has_no_list(key)
+
+    # Whether the book keeps cost bases is the `company` block's to say: turning
+    # them off there clears the keys earlier imports wrote, so a book is never
+    # half on (Q-049). Written here, the book would keep them and say it kept
+    # none.
+    if key == COST_BASES_KEY:
+        raise ValueError(
+            f'{key!r} is set in the `company` block, which clears the cost '
+            f'basis keys a book holds when it turns cost bases off. Import a '
+            f'`company` block with `cost_bases: "off"` instead.')
 
     old = get_book_custom_metadata(book).get(key)
     if old == value:

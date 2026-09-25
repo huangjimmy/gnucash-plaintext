@@ -1,0 +1,11 @@
+# Q-053: a bank charge whose `guid:` nothing can parse. The block is wrong in
+# itself, so `--atomic` refuses it as any import does, and applying the file's
+# refused blocks again reaches it with the same guid.
+#
+# Verified by
+# tests/integration/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
+2026-08-30 * "Bank charge"
+	guid: "0"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 10.00 CAD
+	Assets:Chequing -10.00 CAD

@@ -1,0 +1,43 @@
+# Q-053: a_usd_deposit_on_a_holding_account_and_its_fee_as_its_own_transaction.txt
+# as the owner books it once they know the deposit was the customer paying
+# INV-USD-1.
+#
+# The holding-account amount is the receivable settling the invoice, at the
+# 3,791.14 it was posted at, and the deposit's `$residual$` split states what
+# the collection realizes, -24.75. The fee is its own transaction still: the
+# 1.01 is the bank charge, and the 0.72 comes out of the invoice's cost basis,
+# `{invoice_posting}` in this file, which the test fills in with that split's
+# guid, valued at what it costs, 1.00. Its `$residual$` split states -0.01.
+# Imported with `--strategy update`, beside INV-USD-1's `payment:` block
+# giving the deposit and its receivable split.
+#
+# The deposit's new version establishes no cost basis, since the dollars'
+# cost is the invoice's, so the fee's old version draws on a cost basis the
+# book will no longer have. Only the finished book, with the fee's new
+# version in it, has every draw on a cost basis that exists.
+#
+# Verified by
+# tests/integration/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "0e530000000000000000000000000c01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e530000000000000000000000000c02"
+		account.commodity.mnemonic: "USD"
+		value: "3815.89"
+	Assets:Accounts Receivable USD -2720.00 USD
+		guid: "0e530000000000000000000000000c03"
+		account.commodity.mnemonic: "USD"
+		value: "-3791.14"
+	Income:FX gain $residual$ CAD
+2026-08-13 * "Transfer fee"
+	guid: "0e530000000000000000000000000d01"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.01 CAD
+		guid: "0e530000000000000000000000000d02"
+	Assets:Wise USD -0.72 USD
+		guid: "0e530000000000000000000000000d03"
+		account.commodity.mnemonic: "USD"
+		value: "-1.00"
+		cost_basis_split_guid: "{invoice_posting}"
+	Income:FX gain $residual$ CAD
