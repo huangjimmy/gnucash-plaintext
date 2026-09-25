@@ -3241,17 +3241,9 @@ def _validate_pick(book, selling_split, basis_guid: str):
     # type (Q-047): an account below zero owes, so what goes into it pays off
     # a cost basis of dollars owed, and a card above zero holds a credit, so
     # what is charged to it spends a cost basis of dollars held.
-    spending_side = the_side_it_draws(selling_split)
-    basis_side = (None if split_moves(basis) is None
-                  else 'asset' if _fraction(basis.GetAmount()) > 0 else 'liability')
-    if None not in (spending_side, basis_side) and spending_side != basis_side:
-        spent = 'held' if spending_side == 'asset' else 'owed'
-        stands_for = 'held' if basis_side == 'asset' else 'owed'
-        raise Exception(
-            f'{COST_BASIS_SPLIT_KEY} {basis_guid!r} is a cost basis of '
-            f'{basis_currency} the book {stands_for}, but this split spends '
-            f'{selling_currency} the book {spent}. Give a cost basis of '
-            f'{basis_currency} the book {spent} — `fx-balances` lists them.')
+    wrong_side = a_sale_against_a_basis_on_the_other_side(selling_split, basis, basis_guid)
+    if wrong_side:
+        raise Exception(wrong_side)
 
     _require_basis_collected(selling_split, basis, basis_guid)
     _require_stated_cost(selling_split, basis, basis_guid)
@@ -3444,6 +3436,47 @@ def a_sale_against_another_currencys_basis(selling_split, basis,
         f'draw on nothing')
 
 
+def a_sale_against_a_basis_on_the_other_side(selling_split, basis,
+                                             basis_guid: str) -> Optional[str]:
+    """What is wrong where a split spends currency held and draws on a cost basis of currency owed, or the reverse.
+
+    `_validate_pick` refuses it of a sale in a file.
+
+    A cost basis on a receivable or a payable has no side, because an owner's
+    credit sits there as money owed back while the dollars it brought in are
+    in the bank. A record's posting is not a credit: a bill's is dollars the
+    book owes, and an invoice's dollars it is owed, which are held once
+    collected, so each is read as that side. Read as no
+    side, a bank's fee restated onto a bill's cost basis, linked in the same
+    `--atomic` file as the deposit it came out of, left the bank holding
+    2,719.28 USD while the invoice's cost basis offered 2,720.00, and the
+    bill owing 1,000.00 while its cost basis read 999.28, and nothing
+    reported it.
+    """
+    spending_side = the_side_it_draws(selling_split)
+    basis_side = (None if split_moves(basis) is None
+                  else 'asset' if _fraction(basis.GetAmount()) > 0 else 'liability')
+    # A record's posting in its normal direction, in a lot an invoice or a
+    # bill owns.
+    posted = {ACCT_TYPE_PAYABLE: 'liability', ACCT_TYPE_RECEIVABLE: 'asset'}.get(
+        basis.GetAccount().GetType())
+    normal = _fraction(basis.GetAmount()) * (1 if posted == 'asset' else -1) > 0
+    raw_lot = basis.GetLot()
+    in_a_records_lot = raw_lot is not None and bool(
+        _gc.gncInvoiceGetInvoiceFromLot(qof_instance(raw_lot)))
+    if basis_side is None and posted and normal and in_a_records_lot:
+        basis_side = posted
+    if None in (spending_side, basis_side) or spending_side == basis_side:
+        return None
+    spent = 'held' if spending_side == 'asset' else 'owed'
+    stands_for = 'held' if basis_side == 'asset' else 'owed'
+    currency = split_commodity(basis)
+    return (f'{COST_BASIS_SPLIT_KEY} {basis_guid!r} is a cost basis of '
+            f'{currency} the book {stands_for}, but this split spends '
+            f'{split_commodity(selling_split)} the book {spent}. Give a cost '
+            f'basis of {currency} the book {spent} — `fx-balances` lists them.')
+
+
 def a_sale_valued_against_another_cost(selling_split, basis, basis_guid: str,
                                        in_the_book=False) -> Optional[str]:
     """What is wrong where a sale's value is not what its cost basis cost, or None.
@@ -3455,8 +3488,14 @@ def a_sale_valued_against_another_cost(selling_split, basis, basis_guid: str,
     instead balances the transaction with nothing left over, and the gain
     silently disappears.
 
-    Only asked of a sale priced in the book's own currency; a transaction
-    between two foreign currencies states its values in neither.
+    A sale in a transaction stated in another currency is valued through its
+    base-currency splits, as `cost_of` prices a cost basis there
+    (`_base_per_unit_of`). A bank's 0.72 USD fee stated in US dollars, its
+    other side 1.01 CAD, re-pointed at an invoice whose dollars cost
+    189557/136000, is valued at 1.01 where they cost 1.00, and was accepted
+    with nothing reporting it. A transaction with no base-currency split
+    states no such figure, and is not asked, and nor is one where more than
+    one split draws on a cost basis.
 
     Written as a question rather than a refusal because it is asked twice, of
     two different things. `_require_stated_cost` asks it of a sale in the file
@@ -3465,18 +3504,44 @@ def a_sale_valued_against_another_cost(selling_split, basis, basis_guid: str,
     has been re-priced under the sales below it can be caught: those sales are
     in no file, so nothing else looks at them again.
     """
+    # Every split a book yields has a parent (CLAUDE.md §12).
     transaction = selling_split.GetParent()
-    if transaction is None or transaction_currency(transaction) != BASE_CURRENCY:
-        return None
-    if split_moves(selling_split) is not None and _stored_brought_in(selling_split):
-        return _a_crossing_valued_against_another_cost(selling_split, basis, basis_guid)
+    crossing = split_moves(selling_split) is not None and _stored_brought_in(selling_split)
+    if transaction_currency(transaction) == BASE_CURRENCY:
+        if crossing:
+            return _a_crossing_valued_against_another_cost(selling_split, basis, basis_guid)
+        in_base = Fraction(1)
+    else:
+        # A split crossing zero values what it repaid and what it brought in
+        # in one figure, and what it brought in came at a rate only a
+        # transaction stated in the book's own currency gives. Beside another
+        # split drawing on a cost basis the one rate is the average of both,
+        # and says nothing of either: 100.00 USD from a cost basis at 1.30 and
+        # 100.00 from one at 1.40 against 270.00 CAD read as 135.00 each.
+        # And only where the base-currency splits value the whole of what it
+        # sold, as a fee's other side does: beside a transfer of the rest to
+        # another account of the same currency, they value only the fee.
+        drawing = sum(1 for split in transaction.GetSplitList() if cost_basis_guid_of(split))
+        in_base_splits = sum((abs(_fraction(split.GetValue()))
+                              for split in transaction.GetSplitList()
+                              if split_commodity(split) == BASE_CURRENCY), Fraction(0))
+        whole = in_base_splits == abs(_fraction(selling_split.GetValue()))
+        in_base = (None if crossing or drawing > 1 or not whole
+                   else _base_per_unit_of(transaction))
+        if in_base is None:
+            return None
     # Priced: both callers ask this only of a split that establishes a cost
     # basis, and a split establishes one only once something says its cost.
     basis_cost = cost_of(basis)
     sold = drawn_by(selling_split)
-    stated = abs(_fraction(selling_split.GetValue()))
+    base_unit = selling_split.GetAccount().get_book().get_table().lookup(
+        'CURRENCY', BASE_CURRENCY).get_fraction()
+    # In the book's own currency the value is what GnuCash booked. Through
+    # the base-currency splits it is a rate times a value, and lands between
+    # cents where the rounding of those splits does, so it is rounded too.
+    stated = numeric_to_fraction(to_money(
+        abs(_fraction(selling_split.GetValue())) * in_base, base_unit))
     currency = split_commodity(selling_split)
-    base_unit = transaction.GetCurrency().get_fraction()
     # Rounded the way the engine rounds before comparing, and then compared
     # exactly. `basis_cost × sold` is a rate times a quantity and lands
     # between cents; the value on the split is what GnuCash booked, which is
@@ -3530,7 +3595,15 @@ def a_sale_valued_against_another_cost(selling_split, basis, basis_guid: str,
         f'{_format(expected, base_unit)} {BASE_CURRENCY} — value what is sold '
         f'at the cost basis it picks, so the {BASE_CURRENCY} the sale fetched '
         f'and the '
-        f'residual gain or loss stand apart')
+        f'residual gain or loss stand apart'
+        # Stated in another currency, a split can hold a gain in the book's
+        # own only at a value of nothing, which the rate this is read at
+        # leaves out: the transaction has to be stated in the book's.
+        + ('' if transaction_currency(transaction) == BASE_CURRENCY else
+           f'. It is stated in {transaction_currency(transaction)}: write it '
+           f'in {BASE_CURRENCY}, this split with share_price: '
+           f'"{exact_text(basis_cost)}" and no value:, and give the '
+           f'difference to a `$residual$` split'))
 
 
 def what_is_left_of_the_cost(selling_split, basis, basis_guid: str, drawn: Fraction,
@@ -3706,17 +3779,23 @@ def cost_basis_users(book, record) -> List[str]:
     return users
 
 
-def disposals_drawing_on(book, basis_split) -> List[str]:
+def disposals_drawing_on(book, basis_split, still_draws=lambda split: True) -> List[str]:
     """Descriptions of every disposal measured against this one cost basis.
 
     `transactions_measuring_against` asks the same question of a whole
     transaction, for the delete guard. Linking a payment discards the cost basis on
     a single split, so it has to ask about that split by itself.
+
+    `still_draws` leaves out a disposal that will not draw on it once the file
+    is applied: under `--atomic`, a fee the same file restates onto another
+    cost basis (Q-053).
+
+    Read from `splits_drawing_on`'s index of the book rather than a walk of
+    every split, once for each cost basis a link discards.
     """
-    guid = split_guid(basis_split)
     found = []
-    for split in iter_splits(book):
-        if cost_basis_guid_of(split) != guid:
+    for split in splits_drawing_on(book, split_guid(basis_split)):
+        if not still_draws(split):
             continue
         parent = split.GetParent()
         label = parent.GetDescription() or '(no description)'

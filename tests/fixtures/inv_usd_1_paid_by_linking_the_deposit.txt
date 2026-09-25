@@ -1,0 +1,29 @@
+# Q-053: INV-USD-1's block with a `payment:` block linking the deposit of
+# a_usd_deposit_and_its_fee_stated_in_usd_as_two_transactions.txt by its
+# transaction's guid and the bank account, the way an application links a
+# statement line to the invoice it collected.
+#
+# Verified by
+# tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
+invoice "INV-USD-1"
+	customer_id: "C-USD"
+	currency: USD
+	date_opened: 2026-07-31
+	entry:
+		date: 2026-07-31
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 2720
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-31
+		due: 2026-08-30
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-1"
+		accumulate: true
+	payment:
+		bank_account: "Assets:Wise USD"
+		txn_guid: "0e530000000000000000000000000b21"
