@@ -2,8 +2,8 @@
 #
 # 1,000.00 USD at 1.386465 is 1386.465 CAD — a figure whose last digit is a
 # five with nothing after it, which is the one case where two rounding rules
-# disagree. Half-up gives 1386.47; GnuCash converts with GNC-RND-ROUND, which
-# rounds a tie to the nearest even and gives 1386.46.
+# disagree. Half-up yields 1386.47; GnuCash converts with GNC-RND-ROUND, which
+# rounds a tie to the nearest even and yields 1386.46.
 #
 # The account line and `total_assets` are GnuCash's own conversion, and the
 # gain measured from the cost bases reaches `total_equity`. Worked out with a

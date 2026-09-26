@@ -1,0 +1,22 @@
+# Q-049: US dollars spent and sold with no `cost_basis_split_guid:` line, as a
+# book that keeps no cost bases writes them.
+#
+# The fee spends 0.72 USD, valued 1.01. The sale of 1,000.00 USD was recorded
+# at 1,350.00 and brought in 1,400.00 CAD, and its `$residual$` split states
+# the realized gain, 50.00. A book keeping cost bases refuses both: each spend
+# states no cost basis.
+#
+# Verified by tests/integration/test_a_book_can_keep_no_cost_bases.py.
+2026-08-20 * "Transfer fee"
+	currency.mnemonic: "CAD"
+	Expenses:Bank charges 1.01 CAD
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		value: "-1.01"
+2026-09-01 * "Dollars sold"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		value: "-1350.00"
+	Assets:Chequing 1400.00 CAD
+	Income:FX gain $residual$ CAD

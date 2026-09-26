@@ -1,4 +1,4 @@
-"""Rates and prices given in a file, added to a book's price database for one report run.
+"""Rates and prices listed in a file, added to a book's price database for one report run.
 
 Q-042: `--fx-rates` and `--prices` on `balance-sheet`, `income-statement` and
 `report` are not multiplied by anything here. Each rate or price becomes a price
@@ -10,7 +10,7 @@ the moment the report is for is the one GnuCash's Balance Sheet uses, whether
 the book has no price that day, a price the same day, or a price twelve hours
 away; and the book's prices read back unchanged after it is closed.
 
-A file gives each commodity a price:
+A file lists each commodity with its price:
 
     USD: 1.40            # USD in the report's currency, at the moment the report is for
     HKD: 2/11            # a fraction, as `value:` in a `price` block may be
@@ -21,7 +21,7 @@ A file gives each commodity a price:
 
 A security's price with no currency is in the currency of the book's own
 prices of that security, or, where the book has none, the currency of the
-transactions that hold it. Where either gives more than one currency, the file
+transactions that hold it. Where either has more than one currency, the file
 has to state it.
 """
 
@@ -44,7 +44,7 @@ from services.prices import (
     prices_in_book,
 )
 
-# The source GnuCash's price editor gives a price. Measured with the book's own
+# The source GnuCash's price editor sets on a price. Measured with the book's own
 # price on the same day, from the same source, at 1.40: the report used the
 # file's 1.50.
 _SOURCE = 'user:price-editor'
@@ -52,23 +52,23 @@ _TYPE = 'last'
 
 
 class RatesFileError(Exception):
-    """A rates or prices file that cannot price the report, carrying the sentence a reader is given."""
+    """A rates or prices file that cannot price the report, carrying the sentence the reader is shown."""
 
 
 @dataclass(frozen=True)
 class Quote:
-    """One price a file gives."""
+    """One price a file lists."""
 
     file: str
     key: str                        # as the file writes it: "USD", "USD/CAD", "AMZN"
     mnemonic: str
-    currency: Optional[str]         # the currency after the slash, when the key gives one
+    currency: Optional[str]         # the currency after the slash, when the key has one
     day: Optional[datetime.date]    # None for a price at the moment the report is for
     value: Tuple[int, int]
 
 
 def read_quotes(path) -> List[Quote]:
-    """Every price the file at `path` gives, or the reason it gives none."""
+    """Every price the file at `path` lists, or the reason it lists none."""
     try:
         with open(path, encoding='utf-8') as f:
             data = yaml.safe_load(f)
@@ -82,46 +82,46 @@ def read_quotes(path) -> List[Quote]:
         # accented character in a comment, is the ordinary way to meet it.
         raise RatesFileError(f'{path} is not UTF-8 text: {exc}') from exc
     if not isinstance(data, dict) or not data:
-        raise RatesFileError(f'{path} gives no prices; it gives each commodity its price, as "USD: 1.40"')
+        raise RatesFileError(f'{path} holds no prices; it lists each commodity with its price, as "USD: 1.40"')
     quotes = []
-    for key, given in data.items():
+    for key, listed in data.items():
         written = str(key).strip()
         mnemonic, slash, currency = (part.strip() for part in written.partition('/'))
         if not mnemonic or (slash and not currency):
             raise RatesFileError(f'{path}: "{written}" is neither a commodity, as "USD", nor a '
                                  f'commodity and a currency, as "USD/CAD"')
-        if isinstance(given, dict):
-            if not given:
-                raise RatesFileError(f'{path}: {written} gives no dated prices')
-            for day, value in given.items():
+        if isinstance(listed, dict):
+            if not listed:
+                raise RatesFileError(f'{path}: {written} lists no dated prices')
+            for day, value in listed.items():
                 quotes.append(Quote(str(path), written, mnemonic, currency or None,
                                     _day(path, written, day), _value(path, written, value)))
         else:
             quotes.append(Quote(str(path), written, mnemonic, currency or None, None,
-                                _value(path, written, given)))
+                                _value(path, written, listed)))
     return quotes
 
 
-def _day(path, key, given) -> datetime.date:
-    if isinstance(given, datetime.datetime):
-        return given.date()
-    if isinstance(given, datetime.date):
-        return given
+def _day(path, key, listed) -> datetime.date:
+    if isinstance(listed, datetime.datetime):
+        return listed.date()
+    if isinstance(listed, datetime.date):
+        return listed
     try:
-        return datetime.datetime.strptime(str(given), '%Y-%m-%d').date()
+        return datetime.datetime.strptime(str(listed), '%Y-%m-%d').date()
     except ValueError:
-        raise RatesFileError(f'{path}: {key}: "{given}" is not a date, "YYYY-MM-DD"') from None
+        raise RatesFileError(f'{path}: {key}: "{listed}" is not a date, "YYYY-MM-DD"') from None
 
 
-def _value(path, key, given) -> Tuple[int, int]:
-    if isinstance(given, bool) or not isinstance(given, (int, float, str)):
-        raise RatesFileError(f'{path}: {key}: "{given}" is not a price, as "1.40" or "2/11"')
+def _value(path, key, listed) -> Tuple[int, int]:
+    if isinstance(listed, bool) or not isinstance(listed, (int, float, str)):
+        raise RatesFileError(f'{path}: {key}: "{listed}" is not a price, as "1.40" or "2/11"')
     try:
-        num, denom = _exact_value(given)
+        num, denom = _exact_value(listed)
     except PriceRefusedError as reason:
         raise RatesFileError(f'{path}: {key}: {reason}') from None
     if num <= 0:
-        raise RatesFileError(f'{path}: {key}: a price is more than zero, and this one is {given}')
+        raise RatesFileError(f'{path}: {key}: a price is more than zero, and this one is {listed}')
     return num, denom
 
 
@@ -170,7 +170,7 @@ def add_for_the_run(book, rates: Sequence[Quote], prices: Sequence[Quote], repor
 
     # One price a day, per pair, whichever way round it is written (Q-041,
     # table 1). Adding a second displaces the first, and the source these are
-    # given — the price editor's — outranks every other, so the quote written
+    # added with — the price editor's — outranks every other, so the quote written
     # last would simply win and the other would be dropped with nothing said.
     # The `price` block importer refuses that shape out loud, and a file read
     # for one run gets the same answer rather than a page whose figures depend
@@ -190,7 +190,7 @@ def add_for_the_run(book, rates: Sequence[Quote], prices: Sequence[Quote], repor
                 f'{commodity.get_mnemonic()} in {currency.get_mnemonic()} on one day. '
                 f'GnuCash keeps one price a day for a commodity and a currency, whichever '
                 f'way round it is written, so which one the report used would depend on '
-                f'their order in the file. Give one of them.')
+                f'their order in the file. Keep one of them.')
 
     for quote, commodity, currency, moment in wanted:
         _create(lib, book_pointer, db, _Plan(
@@ -245,4 +245,4 @@ def _the_price_currency(book, table, held, commodity, quote: Quote):
         return table.lookup('CURRENCY', priced_in.pop())
     currencies = ', '.join(sorted(priced_in)) or 'none'
     raise RatesFileError(f'{quote.file}: {quote.key}: {where} {currencies}, so the price\'s currency '
-                         f'is not known; give it, as "{mnemonic}/USD"')
+                         f'is not known; write it in the key, as "{mnemonic}/USD"')

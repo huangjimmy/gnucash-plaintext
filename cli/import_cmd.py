@@ -218,13 +218,13 @@ def _what_the_book_gets_wrong(book):
             #
             # A guid is not a figure, and the two look alike to a digit
             # matcher: `00e9…` and `11e9…` both mask to `##e#…`, so two
-            # findings that name different splits would be one identity. The
+            # findings about different splits would be one identity. The
             # lookarounds leave a run of digits alone where a hex character
             # sits beside it, which is every guid a sentence quotes and no
             # figure any of them states.
             #
-            # What this gives up is a fault the file makes *worse in the same
-            # words*: a balance already above what its cost basis brought in, raised
+            # What this no longer catches is a fault the file makes *worse in
+            # the same words*: a balance already above what its cost basis brought in, raised
             # further, reads as the identity that was there before and commits.
             # The alternative is refusing a repair that improves a fault
             # without finishing it, which is the case this exemption exists
@@ -457,7 +457,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
     # Whether anything has reached the book yet, which decides whether a
     # failure below may take a `--new` file away with it.
     saved = False
-    # `(kind, id, orphans)` for each unpost the import reports, given once the
+    # `(kind, id, orphans)` for each unpost the import reports, printed once the
     # book is saved (`still_orphaned_by_an_unpost`).
     orphan_warnings = []
     # Whether the run reported anything it could not do. Read after the

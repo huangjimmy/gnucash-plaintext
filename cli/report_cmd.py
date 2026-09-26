@@ -89,7 +89,7 @@ def report(gnucash_file, statements, fiscal_year_end, start, end, as_of, currenc
         raise click.UsageError("--start must be on or before --end.")
     as_of_date = as_of or period_end
     quotes = read_price_files(fx_rates_file, prices_file)
-    # The day each statement asked for is for: a price given with no date is
+    # The day each statement asked for is for: a price stated with no date is
     # added at the end of each.
     report_days = [period_end if stmt == "income-statement" else as_of_date for stmt in statements]
 

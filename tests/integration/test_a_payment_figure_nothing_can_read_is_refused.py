@@ -2,13 +2,13 @@
 
 `amount:`, `prepayment:`, `settled_amount:` and `share_price:` are numbers
 written with a point. INV-001 is posted and paid 100.00 CAD, and its export is
-read back with one figure mistyped. A block that gives its transaction is
+read back with one figure mistyped. A block that states its transaction is
 matched by guid, so nothing read the figure: `1OO` for `100` was answered
 `unchanged` and the mistyped line stayed in the file with nothing said. A
 decimal comma is the same mistake (`docs/multi-currency.md`, `60,00` for
 `60.00`). On a new book `amount: 100,00` was refused with nothing but
 `[<class 'decimal.ConversionSyntax'>]`, and `prepayment: 50,00` on a block
-giving no transaction was read as 50.00.
+stating no transaction was read as 50.00.
 """
 
 import pytest

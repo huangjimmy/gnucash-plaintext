@@ -33,7 +33,7 @@ def _open_book(path):
 
 def _build_directive(date_str, tx_desc, splits, metadata=None):
     """
-    Construct a minimal PlaintextDirective for a TRANSACTION with the given splits.
+    Construct a minimal PlaintextDirective for a TRANSACTION holding *splits*.
 
     *splits* is a list of dicts: {'account': str, 'amount': str, ...optional metadata...}
     """
@@ -94,7 +94,7 @@ def _make_book():
 
 
 def _get_tx(book, guid):
-    """Return the Transaction with the given GUID from *book*."""
+    """Return the Transaction whose GUID is *guid* from *book*."""
     from gnucash import Query, Transaction
     q = Query()
     q.search_for('Trans')

@@ -1,4 +1,4 @@
-# 1,000.00 USD of income paid into A at −500.00, giving A's owed cost basis,
+# 1,000.00 USD of income paid into A at −500.00, stating A's owed cost basis,
 # and valued at the 1.40 of the day throughout: 1,400.00, the figure GnuCash's
 # own register writes.
 #
@@ -7,7 +7,7 @@
 # Valued at 1,400.00, the 25.00 the repayment lost would sit in the held cost
 # basis, costing the 500.00 at 1.45, and no `$residual$` split would state it.
 # So it is refused, as a sale valued at anything but what its cost basis cost
-# is, and the refusal gives the figure.
+# is, and the refusal states the figure.
 #
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes.
 #

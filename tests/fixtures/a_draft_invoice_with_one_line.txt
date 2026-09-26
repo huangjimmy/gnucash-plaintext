@@ -1,6 +1,6 @@
 # A draft invoice for customer C001, with one line.
 #
-# Read into a book once, and then again with its line giving a guid that is
+# Read into a book once, and then again with its line stating a guid that is
 # no guid, which the test writes in: the second read compares the invoice the
 # book holds against the file before it pairs any line.
 #

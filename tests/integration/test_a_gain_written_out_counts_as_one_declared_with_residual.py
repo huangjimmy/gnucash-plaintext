@@ -6,8 +6,8 @@ the whole of the difference between the two ways of writing a disposal: the
 accounts, the amounts and the values a file produces are the same either way.
 
 So a writer who computes the figure themselves states it, and states the key
-beside it. The key cannot be worked out afterwards, because a balanced
-transaction gives every one of its splits the same arithmetic — the gain is the
+beside it. The key cannot be worked out afterwards, because in a balanced
+transaction the same arithmetic holds for every split — the gain is the
 negation of the other two, and so is the bank line, and so is the currency line
 — and it cannot be read off the account either: 8.60 USD disposed of at a cost
 of 11.99 paid an 11.92 bank charge beside 0.07 of exchange difference, both on
@@ -82,7 +82,7 @@ def test_both_ways_draw_the_same_page(tmp_path):
     """Same accounts, same amounts, same values — so the same statement.
 
     The guids are masked: each book is imported on its own, so its cost basis
-    and its splits are minted fresh, and the page gives those guids. Everything
+    and its splits are minted fresh, and the page prints those guids. Everything
     a reader would call the statement has to match exactly.
     """
     declared, written_out = _both(tmp_path)

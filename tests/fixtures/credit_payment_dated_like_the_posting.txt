@@ -1,12 +1,12 @@
 # A credit block dated 2026-01-01, the day INV-001 was posted.
 #
-# The test gives it INV-001's own posting split, which is on the receivable
+# The test fills in INV-001's own posting split, which is on the receivable
 # and dated that day, so the only thing wrong with the block is that the split
 # is a debit of the receivable rather than a customer's credit.
 #
 # What this fixture produces: nothing. The import refuses the invoice.
 #
-# Verified by tests/integration/test_a_credit_block_giving_a_split_it_cannot_spend_is_refused.py.
+# Verified by tests/integration/test_a_credit_block_stating_a_split_it_cannot_spend_is_refused.py.
 invoice "INV-CREDIT-DEBIT"
 	customer_id: "C001"
 	currency: CAD

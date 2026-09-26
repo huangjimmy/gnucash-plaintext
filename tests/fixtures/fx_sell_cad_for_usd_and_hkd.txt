@@ -18,7 +18,7 @@
 #
 # The point of the three currencies is that neither cost can be had by dividing
 # the transaction's CAD by one split's amount: charging the whole 99.90 against
-# the USD gives 2.4975, and a rule that only understands the book's currency
+# the USD yields 2.4975, and a rule that only understands the book's currency
 # and the split's answers nothing at all for the HKD, since this transaction is
 # recorded in USD — a third currency. Both were real defects.
 #

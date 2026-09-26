@@ -65,7 +65,7 @@ The balance sheet classified accounts by matching only the bare `ACCT_TYPE_ASSET
 
 ### Fix
 
-`services/balance_sheet.py` now classifies against comprehensive `_ASSET_TYPES` / `_LIABILITY_TYPES` sets covering every asset-like and liability-like type, including A/Receivable and A/Payable. The deprecated codes are resolved with a defensive `getattr` lookup (`_type_set`) so the module loads on every binding (3.8–5.x) whether or not it exports a given legacy symbol.
+`services/balance_sheet.py` now classifies against comprehensive `_ASSET_TYPES` / `_LIABILITY_TYPES` sets covering every asset-like and liability-like type, including A/Receivable and A/Payable. The deprecated codes are resolved with a defensive `getattr` lookup (`_type_set`) so the module loads on every binding (3.8–5.x) whether or not it exports each legacy symbol.
 
 Account balances are bucketed by the currency each split's **value** is denominated in (the transaction currency, what `xaccSplitGetValue` returns), not by the account's own commodity. For a security (Stock / Mutual Fund) account that puts the cost in the report currency (e.g. CAD) instead of mislabelling it under the ticker, so a securities book balances.
 
@@ -82,6 +82,16 @@ A real review of a substantial diff reads the touched sources and takes ~4 minut
 - `tests/unit/services/test_balance_sheet_classification.py` — enumerates **every** `ACCT_TYPE_*` posting constant the running binding exposes and asserts each lands in exactly one balance-sheet bucket; a new GnuCash type would fail this loudly instead of being dropped. Spot-checks the asset family (Bank/Cash/Stock/Mutual/Receivable), the liability family (Credit Card/Payable), the A/Receivable↔A/Payable non-collision, and the legacy codes.
 - `tests/integration/test_balance_sheet_account_types.py` — the balance sheet's Asset/Liability totals equal the `account-balance` numbers and the accounting equation holds; Retained Earnings grow across two closed years by exactly each year's profit (600 → 1000); a book using every importable account type (incl. Stock & Mutual Fund at cost) balances with no account dropped; `--prices` marks securities to market with an Unrealized Gains line that still balances (on both `balance-sheet` and `report`); a USD-listed holding is priced in USD and converted to CAD via `--fx-rates`, while pricing it with no FX rate raises a clear error; the user's multi-currency repro now balances with its Bank accounts present.
 - Fixtures: `tests/fixtures/all_account_types_book.txt`, `tests/fixtures/balance_sheet_book.txt`, `tests/fixtures/balance_sheet_bug_repro.txt`, `tests/fixtures/foreign_security_book.txt`, `tests/fixtures/security_prices.yaml`, `tests/fixtures/foreign_security_prices.yaml`, `tests/fixtures/usd_cad_rates.yaml`. Passing on GnuCash 3.8 and 5.10.
+
+---
+
+## Superseded by Q-042
+
+The statements this issue built are no longer computed by this project. [Q-042](Q-042-print-the-balance-sheet-and-income-statement-as-plaintext-through-a-customized-gnucash-report.md) prints both through GnuCash's own Balance Sheet and Income Statement reports, in `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm`, driven by `services/gnucash_statements.py`. That change deleted `services/income_statement.py`, `services/balance_sheet.py`, `services/balance_sheet_renderer.py` and `tests/unit/services/test_balance_sheet_classification.py`.
+
+- **Closing entries**: the income statement leaves them out the way GnuCash's report does, by the closing flag and the report's closing-entries pattern. `close-books` still sets the flag, and the plaintext round trip still carries it (`tests/integration/test_closing_entries.py`).
+- **Every account type in its section**: GnuCash's report classifies the accounts. `tests/integration/test_balance_sheet_account_types.py::test_every_importable_account_type_is_in_its_section` checks that none is dropped.
+- `cli/balance_sheet_cmd.py`, `cli/report_cmd.py` and `tests/integration/test_reports.py` remain.
 
 ---
 

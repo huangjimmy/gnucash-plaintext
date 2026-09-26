@@ -170,7 +170,7 @@ def _create_duplicate_invoice(gnc, dup_id, customer_id, currency_code):
             f"Setup: customer {customer_id!r} must already exist in {gnc}")
         currency = book.get_table().lookup("CURRENCY", currency_code)
         # Invoice(book, id, currency, owner) creates a new gncInvoice
-        # under `book` with the given id. No uniqueness check is done
+        # under `book` with the id `dup_id`. No uniqueness check is done
         # at the C level — that's only enforced by our importer.
         Invoice(book, dup_id, currency, cust)
         repo.save()

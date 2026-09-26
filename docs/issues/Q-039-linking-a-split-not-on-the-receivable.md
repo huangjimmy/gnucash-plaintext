@@ -60,19 +60,19 @@ The money that moved is the bank split. What the parked split says is an artefac
 
 Rewriting which split is measured re-opens every guard that reads the old one.
 
-| Case | | Reason it must give |
+| Case | | Why |
 |---|---|---|
 | Invoice USD, bank **CAD** | refuse | It genuinely converts, and only the payer knows the rate: the existing `settled_amount:` / `share_price:` refusal. Decided by the bank account's commodity, not the parked split's. |
 | Bank moved **1200 USD**, invoice owes 1000 | refuse | A real overpayment — `prepayment: 200.00`, now quoting money that actually moved. |
 | Bank moved **600 USD**, invoice owes 1000 | allow | An ordinary part payment. |
-| Two or more non-bank splits, and the block gives no guid for any of them | refuse | Nothing can tell which settles the invoice, or whether several do. Ambiguity, pointing at the two ways to give a split's guid — which have to work for a parked split for that advice to be worth anything. |
+| Two or more non-bank splits, and the block states no guid for any of them | refuse | Nothing can tell which settles the invoice, or whether several do. Ambiguity, pointing at the two ways to state a split's guid — which have to work for a parked split for that advice to be worth anything. |
 | The transaction carries anything besides the bank split and the one being placed, **where the settlement is read off the bank** | refuse | What that split is worth is read from what the bank received, and that is the settlement only while those two are the whole entry. A third split makes the same numbers mean more than one thing, and which is a decision. Shipped with an exception this table did not foresee: a split in the record's own currency states its settlement outright, so nothing is inferred from the bank and a fee beside it is accepted. |
 | The block's `account:` matches no split of the transaction | refuse, saying so | New. Today every split then reads as "not the bank" and it surfaces as ambiguity; once the bank split is the thing measured, failing to find it must say so rather than measure something else. |
 | The transaction already settles another invoice | refuse to restate its currency | Restating would move that record's values too. |
 | The split applied is in a lot, is another owner's credit, or settles another record | refuse | Unchanged. Moving it robs that record. |
 | A restated amount is finer than the currency's unit | refuse | The same sub-unit rule as everywhere else. |
 
-**A fee split is a refusal, and not the one first supposed.** The bank credits 100.00 and keeps a 5.00 fee against a 105.00 receivable. Giving the settling split's guid says which split is the settlement, but not what it is *worth* — and that is the question, because a parked split's own figure means nothing. The customer paid 105 and the fee is borne here, or they paid 100 and the fee is theirs; the book records neither, so the file has to state the amounts. This holds whatever currency the *fee* is in: a foreign one raises a rate question too, but the question before it is how much settles the invoice, and refusing on the rate would answer the second while the first is still open.
+**A fee split is a refusal, and not the one first supposed.** The bank credits 100.00 and keeps a 5.00 fee against a 105.00 receivable. Stating the settling split's guid says which split is the settlement, but not what it is *worth* — and that is the question, because a parked split's own figure means nothing. The customer paid 105 and the fee is borne here, or they paid 100 and the fee is theirs; the book records neither, so the file has to state the amounts. This holds whatever currency the *fee* is in: a foreign one raises a rate question too, but the question before it is how much settles the invoice, and refusing on the rate would answer the second while the first is still open.
 
 **What shipped bounds it by the currency of the split being placed**, which this paragraph did not foresee. The ambiguity is there only because the settlement is *inferred* from what the bank received; a split saying −105.00 on an account in the record's own currency has said which reading is meant, so a fee beside that one is accepted. Every fee fixture written for this issue parks in CAD, where the figure means nothing and the ambiguity is real, so the accepting path needed a fixture of its own.
 
@@ -116,7 +116,7 @@ Four key-shaped spellings were considered and rejected. Each makes the one-split
 
 **The simple form stays.** `txn_guid:` and `txn_split_guid:` are what one settling split is written with, which is nearly every settlement and what every export so far emits.
 
-**Where a block carries both, the `Transaction` directive decides** and the `txn_guid:` / `txn_split_guid:` keys beside it are not read. A strict override rather than a refusal: someone correcting an exported block adds the advanced form to it, and having to remember to delete two keys first is a step that earns nothing. It also gives a file carrying both one defined reading rather than an error a writer has to resolve by hand.
+**Where a block carries both, the `Transaction` directive decides** and the `txn_guid:` / `txn_split_guid:` keys beside it are not read. A strict override rather than a refusal: someone correcting an exported block adds the advanced form to it, and having to remember to delete two keys first is a step that earns nothing. It also means a file carrying both has one defined reading rather than an error a writer has to resolve by hand.
 
 **And the run says so**, so precedence is never silent — the keys being read by nothing is exactly the state a reader cannot see in the book afterwards:
 
@@ -130,7 +130,7 @@ It matters most where the two disagree, `txn_guid:` naming one transaction and `
 
 In `tests/research/restating_a_split_that_moves_between_currencies_probe.py`, against the engine directly, on GnuCash 5.10. The all-version sweep is what decides whether this holds everywhere; nothing is relied on until it does.
 
-**`xaccTransSetCurrency` works on a committed transaction**, and the entry survives a save and a reload as restated. Moving the account, setting the moved split's amount and value, setting the bank split's value and setting the transaction's currency gives exactly the target:
+**`xaccTransSetCurrency` works on a committed transaction**, and the entry survives a save and a reload as restated. Moving the account, setting the moved split's amount and value, setting the bank split's value and setting the transaction's currency leaves exactly the target:
 
 ```
 Bank USD     amount  1000.00 USD   value  1000.00      currency USD
@@ -224,14 +224,14 @@ The code calls this "retarget" — in `_retarget_counter_split_to_lot`, `_retarg
 
 ## Undoing it: `unlink`
 
-A link had no way back. `unapply-payment` was the nearest thing and it set the account and nothing else, which is this issue's own defect running backwards: a 100.00 USD settlement given a CAD account kept the figure 100.00 and became 100 Canadian dollars, with nothing disagreeing because the split's *value* was never touched.
+A link had no way back. `unapply-payment` was the nearest thing and it set the account and nothing else, which is this issue's own defect running backwards: a 100.00 USD settlement moved to a CAD account kept the figure 100.00 and became 100 Canadian dollars, with nothing disagreeing because the split's *value* was never touched.
 
-`unlink` is the undo, and `unapply-payment` restates through the same function, so the two cannot differ. The split comes off the receivable, leaves the record's lot, and takes the account `--to` gives — restated for that account, since a split carries an amount in the commodity of the account it is on and a value in the currency the transaction is quoted in. The transaction itself survives whole.
+`unlink` is the undo, and `unapply-payment` restates through the same function, so the two cannot differ. The split comes off the receivable, leaves the record's lot, and moves to the account `--to` states — restated for that account, since a split carries an amount in the commodity of the account it is on and a value in the currency the transaction is quoted in. The transaction itself survives whole.
 
-Neither command can refuse the other's case, because the book does not record which it holds: measured on 5.10, a bank entry reads as no transaction type at all until a `payment:` block gives its guid and `'P'` afterwards, which is exactly what the engine stamps on a payment it creates. `tests/research/what_tells_a_linked_payment_from_an_applied_one_probe.py` is the measurement.
+Neither command can refuse the other's case, because the book does not record which it holds: measured on 5.10, a bank entry reads as no transaction type at all until a `payment:` block states its guid and `'P'` afterwards, which is exactly what the engine stamps on a payment it creates. `tests/research/what_tells_a_linked_payment_from_an_applied_one_probe.py` is the measurement.
 
 What both refuse: an account in a third foreign currency, whatever rates are passed — the converted amount would be currency in the book with no cost basis behind it — and an account kept too coarse to state the figure, which would round it in silence.
 
 And what a settlement drew out of a cost basis comes back when it is taken off. A converting settlement lowers the receivable's cost basis balance by the units it converted; leaving that spent made the record unsettleable, since re-applying the money hit "that USD has already been sold against it" about currency the book had just gone back to being owed.
 
-**The `Income:FX Gain` split is not deleted, and cannot be.** A settlement that converts at a rate other than the `share_price:` of the split that opened the cost basis realizes a difference, and the payment block is required to say where it belongs — the import refuses the block otherwise, naming `Income:FX Gain $residual$ CAD`. That split is the file's own, in the transaction the file wrote, and surviving the undo whole is what these commands promise. Measured on `fx_invoice_usd_paid_from_cad_bank.txt`: after the give-back the cost basis reads 100.00 USD undisposed while the income statement carries −3.00 CAD realized on disposing of it. Both describe what happened, and nothing here can decide whose line to rewrite. Applying the money to another record with another `$residual$` line records the difference twice; the first line is the reader's to remove. `test_a_settlements_cost_basis_comes_back.py` pins the measurement.
+**The `Income:FX Gain` split is not deleted, and cannot be.** A settlement that converts at a rate other than the `share_price:` of the split that opened the cost basis realizes a difference, and the payment block is required to say where it belongs — the import refuses the block otherwise, naming `Income:FX Gain $residual$ CAD`. That split is the file's own, in the transaction the file wrote, and surviving the undo whole is what these commands promise. Measured on `fx_invoice_usd_paid_from_cad_bank.txt`: after the undo the cost basis reads 100.00 USD undisposed while the income statement carries −3.00 CAD realized on disposing of it. Both describe what happened, and nothing here can decide whose line to rewrite. Applying the money to another record with another `$residual$` line records the difference twice; the first line is the reader's to remove. `test_a_settlements_cost_basis_comes_back.py` pins the measurement.

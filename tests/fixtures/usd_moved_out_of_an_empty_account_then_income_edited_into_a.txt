@@ -1,11 +1,11 @@
 # The consulting income of
 # usd_moved_out_of_an_empty_account_then_income_in_canadian_dollars.txt edited
 # with `--strategy update` into 1,000.00 USD paid into A, which owes 500.00,
-# giving no guid.
+# stating no guid.
 #
 # The first 500.00 repays what A owes, which draws down A's owed cost basis,
 # and an edit runs none of the checks a disposal meets. So it is refused and
-# sent to delete-and-import, as a new transaction giving no guid is refused.
+# sent to delete-and-import, as a new transaction stating no guid is refused.
 #
 # Verified by
 # tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.

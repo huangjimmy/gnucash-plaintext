@@ -1,5 +1,5 @@
 # One 300.00 deposit from Acme settling three invoices of 100.00, a receivable
-# split for each. Each invoice's payment block gives its own split by
+# split for each. Each invoice's payment block states its own split by
 # `txn_split_guid:`, and carries that split's memo.
 # Load after the accounts of `tests/integration/test_find_orphan_payments.py`.
 customer "C001"

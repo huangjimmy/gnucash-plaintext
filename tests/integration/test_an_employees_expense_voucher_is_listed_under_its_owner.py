@@ -38,7 +38,7 @@ def _a_voucher(tmp_path, paid_cents, unpost):
         root = book.get_root_account()
         employee = Employee(book, 'E001', cad, 'Pat Employee')
         # A `Bill`, because a voucher's lines are priced on the bill side and
-        # only `Bill.AddEntry` gives a line its bill pointer (CLAUDE.md finding 8).
+        # only `Bill.AddEntry` sets a line's bill pointer (CLAUDE.md finding 8).
         voucher = Bill(book, 'EXP-1', cad, employee)
         voucher.SetDateOpened(datetime(2026, 1, 5))
         line = Entry(book, voucher)
@@ -49,7 +49,7 @@ def _a_voucher(tmp_path, paid_cents, unpost):
         line.SetBillPrice(GncNumeric(10000, 100))
         voucher.PostToAccount(find_account(root, 'Liabilities:Accounts Payable'),
                               datetime(2026, 1, 5), datetime(2026, 1, 5), '', True, False)
-        # Negated, as a bill's payment is (CLAUDE.md finding 7), and given no memo.
+        # Negated, as a bill's payment is (CLAUDE.md finding 7), and with no memo.
         voucher.ApplyPayment(None, find_account(root, 'Assets:Bank'),
                              GncNumeric(-paid_cents, 100), GncNumeric(1, 1),
                              datetime(2026, 1, 10), '', '')

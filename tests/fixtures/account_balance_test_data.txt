@@ -194,7 +194,7 @@
 	Equity:Opening -500.00 CAD
 # Stated in Canadian dollars, which is the only way the 8,000.00 Hong Kong
 # dollars get a cost — 0.17 CAD each, 1,360.00 in all — and a cost is what the
-# MTR fare below draws on. The split gives its own guid so that fare can say
+# MTR fare below draws on. The split states its own guid so that fare can say
 # which cost basis it came out of; nothing else in the file could, since the
 # guid GnuCash would assign is not knowable when the file is written.
 2024-01-01 *
@@ -242,7 +242,7 @@
 	Assets:Bank:Checking -30.00 CAD
 # The one transaction here that spends a foreign currency, so it says which
 # cost basis those Hong Kong dollars came out of: the opening 8,000.00, whose
-# split the file gave a guid of its own above.
+# split the file assigned a guid of its own above.
 2024-06-15 * "MTR transport"
 	guid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbb0010"
 	currency.mnemonic: "HKD"

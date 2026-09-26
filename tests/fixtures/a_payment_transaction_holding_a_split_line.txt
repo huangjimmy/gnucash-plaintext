@@ -1,11 +1,11 @@
 # An invoice whose grouped payment holds a split line under its `Transaction`.
 #
-# A `Transaction "..."` line under a payment gives the transaction, and the
-# `PaymentSplit` lines under it give the splits of that transaction the
+# A `Transaction "..."` line under a payment states the transaction, and the
+# `PaymentSplit` lines under it state the splits of that transaction the
 # payment applies. A split line written there, `Assets:Bank 100.00 CAD`, is
 # neither: nothing reads it.
 #
-# What this fixture produces: a refusal when the file is read, giving the line.
+# What this fixture produces: a refusal when the file is read, printing the line.
 #
 # Verified by tests/integration/test_a_line_under_a_payments_transaction_is_refused.py.
 customer "C001"

@@ -4,7 +4,7 @@
 #
 # One customer settling two invoices with two payments that agree on every
 # field a block carries is ordinary: same size, same day, same account, and
-# whatever memo the bank line was given. Printed from the book they were made
+# whatever memo is on the bank line. Printed from the book they were made
 # in, each block names its own transaction, and read into any other book both
 # guids resolve to nothing.
 #

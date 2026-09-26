@@ -30,10 +30,10 @@ Potential failure modes that are currently invisible:
 - `services/beancount_converter.py`
 - `tests/integration/test_beancount_roundtrip.py`
 
-## Suggested fix
+## Resolution
 
-Add a `multi_currency_gnucash_file` fixture in `conftest.py` that creates a book
-with two commodities and at least one cross-currency transaction. Add a test in
-`test_beancount_roundtrip.py` (or a new `test_cli_export_beancount.py`) that
-exports it and validates the output with beancount's own parser if available,
-or at minimum checks the price directive format with a regex.
+`tests/integration/test_beancount_roundtrip.py` exports a book holding several
+currencies (the `temp_gnucash_comprehensive` fixture) and checks it in
+`test_multi_currency_export_contains_all_commodity_declarations`,
+`test_multi_currency_export_emits_total_cost_annotations` and
+`test_multi_currency_roundtrip_preserves_transaction_count`.

@@ -2,12 +2,12 @@
 
 INV-001 is posted and unpaid. The bank holds, on the payment's day, 100.00 of
 supplies paid out and then Acme's 100.00 deposit, entered on the receivable and
-applied to no invoice. A page printed from another book gives INV-001's payment
+applied to no invoice. A page printed from another book states INV-001's payment
 by a `txn_guid:` this book does not hold, and describes that deposit: the same
 day, figure, account and memo.
 
 The money is already here, so recording the block would enter it twice. The
-refusal gives the deposit, and says nothing of an invoice it settles, because
+refusal lists the deposit, and says nothing of an invoice it settles, because
 it settles none. The payment going out that day is the other way round, so it
 is not the movement the block describes. Measured on 5.10.
 """
@@ -31,7 +31,7 @@ def _run(*args):
 ], ids=['in-no-lot', 'in-a-credit-lot'])
 def test_it_is_refused_as_money_the_book_already_has(tmp_path, deposit):
     """Loose on the receivable or parked as Acme's credit, the deposit settles
-    no invoice, so the refusal gives none."""
+    no invoice, so the refusal lists none."""
     book = tmp_path / 'book.gnucash'
     assert _run('import', '--new', book, ACCOUNTS).exit_code == 0
     made = _run('import', book, deposit, '--include-business-objects')

@@ -14,7 +14,7 @@ export to be faithful to and nothing for a guard to catch.
 
 Which is why this is a measurement and not a guard. The amount is different —
 an account may legitimately be kept finer than its currency (`commodity_scu:`,
-a fund to thousandths), so GnuCash stores what it is given and the check has
+a fund to thousandths), so GnuCash stores what it is handed and the check has
 something to do.
 """
 

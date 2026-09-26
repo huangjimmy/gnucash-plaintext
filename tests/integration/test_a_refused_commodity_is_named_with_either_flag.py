@@ -6,10 +6,10 @@ left to the transaction pass, which attempts the same declarations and reports
 what fails. That works while the transaction pass is reached — and a tax table
 posting to an account in the failed commodity is imported before it.
 
-So the same file gave two answers. Without the flag: exit 1, the commodity's
+So the same file had two answers. Without the flag: exit 1, the commodity's
 own error in the summary, the book on disk. With it: the business-object
 import raised, the outer handler removed the `--new` book, and the reason the
-reader was given was an account's "cannot find commodity" — the symptom, one
+reader was shown was an account's "cannot find commodity" — the symptom, one
 step removed from the cause in their own file.
 
 The account arm of this was already carried through. The commodity arm is the

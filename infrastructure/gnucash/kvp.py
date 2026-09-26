@@ -319,7 +319,7 @@ def _mark_session_dirty(book_ptr: int) -> None:
     `qof_instance_set_dirty` marks the object; this marks the session that
     holds it. A book option written with only the first reads back for the
     rest of the run and is gone after a reload, because `qof_session_save`
-    was never given a reason to write anything — CLAUDE.md finding 18, on the
+    never had a reason to write anything — CLAUDE.md finding 18, on the
     book rather than on a lot.
     """
     with contextlib.suppress(Exception):
@@ -356,7 +356,7 @@ def _get_string_slot(obj, slot_name: str) -> Optional[str]:
     """Get a string KVP slot from a GnuCash object. Returns None if not found.
 
     Through `qof_instance` in ctypes, for the reason its writing counterpart
-    gives: `obj.GetSlots()` raises `AttributeError` on every supported build,
+    states: `obj.GetSlots()` raises `AttributeError` on every supported build,
     so the SWIG reader that stood above this could never return a value.
     """
     try:
@@ -430,7 +430,7 @@ def set_custom_metadata(obj, metadata: dict) -> None:
         _watched_key_writes += 1
     # And each change of a logged key's value, with the object it is on, for
     # a reader keeping an index of that key (`log_custom_key_changes`). Only
-    # an object with a guid to give: an invoice or a bill has no `GetGUID`
+    # an object whose guid can be read: an invoice or a bill has no `GetGUID`
     # (CLAUDE.md finding 13), and a person may write the key among an
     # invoice's own custom keys, which is no split's pick.
     for key, changes in _LOGGED_KEYS.items():
@@ -634,7 +634,7 @@ def _write_book_option_slot_directly(book, obj_ptr: int, section: str,
 
     segments = _option_path_segments(section, name)
 
-    # Always a value. A clear never comes here: given "", the engine call
+    # Always a value. A clear never comes here: with "" as the value, the engine call
     # removes the option, a slashed name included, on 3.4 as on 5.10
     # (`tests/research/whether_clearing_a_book_option_with_a_slash_in_its_name_lands_on_3_4_probe.py`),
     # so the read-back guard in `write_book_string_option` returns first.

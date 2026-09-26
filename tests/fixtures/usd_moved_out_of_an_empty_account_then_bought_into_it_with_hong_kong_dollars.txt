@@ -1,5 +1,5 @@
 # 1,000.00 USD bought into A at −500.00 with 7,800.00 HKD, in a transaction
-# stated in Canadian dollars, giving A's owed cost basis.
+# stated in Canadian dollars, stating A's owed cost basis.
 #
 # The split into A crosses zero: it repays the 500.00 owed, at the 1.35 that
 # cost, 675.00, and brings 500.00 in. With a second foreign currency in the

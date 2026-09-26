@@ -1,10 +1,10 @@
 """A price's source and type are exported and imported exactly as the book holds them.
 
 README, "`source:` and `type:` belong to the price": a book's prices were put
-there by GnuCash — Finance::Quote, the transfer dialog, a price nobody gave a
-type — and `export --include-prices` writes each source and type as the book
-holds it; the ledger imported into a fresh book gives the same prices back,
-guid included. gnucash-plaintext never gives a price a source: a block with
+there by GnuCash — Finance::Quote, the transfer dialog, a price nobody set a
+type on — and `export --include-prices` writes each source and type as the book
+holds it; the ledger imported into a fresh book holds the same prices again,
+guid included. gnucash-plaintext never sets a source on a price: a block with
 none leaves GnuCash's default, `invalid`. A source GnuCash does not define is
 refused, because GnuCash would silently store it as `invalid` (Q-041, table 5).
 """
@@ -69,7 +69,7 @@ class TestTheExport:
 
 
 class TestTheLedgerImportedIntoAFreshBook:
-    def test_it_gives_the_same_prices_back(self, tmp_path):
+    def test_it_holds_the_same_prices_again(self, tmp_path):
         book, ledger = _exported(tmp_path)
         fresh = tmp_path / 'fresh.gnucash'
 
@@ -79,8 +79,8 @@ class TestTheLedgerImportedIntoAFreshBook:
         assert prices_in(fresh) == prices_in(book)
 
 
-class TestAPriceGivenAnotherSourceAndType:
-    FIXTURE = 'a_price_given_another_source_and_type.txt'
+class TestAPriceEditedToAnotherSourceAndType:
+    FIXTURE = 'a_price_with_another_source_and_type.txt'
 
     def test_both_are_updated_and_nothing_else_moves(self, tmp_path):
         book, ledger = _exported(tmp_path)

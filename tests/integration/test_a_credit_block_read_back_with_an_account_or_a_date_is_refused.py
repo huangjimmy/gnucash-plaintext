@@ -1,6 +1,6 @@
 """A credit block read back with an account or a date is refused, as it is when applied.
 
-A `from_credit:` block spends a credit the book already holds, so it gives no
+A `from_credit:` block spends a credit the book already holds, so it states no
 account and no date of its own, and README says a block stating either is
 refused. That refusal was asked only where the credit was applied, and an
 unchanged record never gets there. Measured on 5.10: INV-002, settled out of

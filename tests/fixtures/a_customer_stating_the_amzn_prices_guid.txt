@@ -1,0 +1,14 @@
+# A customer stating the guid of the NASDAQ:AMZN price in
+# prices_of_a_currency_and_a_stock.txt.
+#
+# GnuCash keeps a guid unique across every kind of object in a book, and a
+# price is one of them.
+#
+# What this fixture produces: nothing; the customer is refused, and the refusal
+# says a price holds that guid.
+#
+# Verified by tests/integration/test_a_price_and_another_object_never_share_a_guid.py.
+customer "C-PRICE-GUID"
+  guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+  name: "A Customer Stating A Price's Guid"
+  currency: CAD

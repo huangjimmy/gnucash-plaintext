@@ -1,4 +1,4 @@
-"""Q-040: a transaction that stops being a borrowing gives up its cost basis.
+"""Q-040: a transaction that stops being a borrowing loses its cost basis.
 
 USD arriving in an asset account, against CAD going out of an asset or onto a
 liability, is the shape of buying or borrowing USD, so importing one opens a
@@ -70,7 +70,7 @@ def _stored_balance(book, guid):
 
 
 def _with_payment(text, header, payment_lines):
-    """Replace a record's `payment: none` with the payment block given."""
+    """Replace a record's `payment: none` with the lines of `payment_lines`."""
     lines = text.splitlines()
     start = next(i for i, line in enumerate(lines) if line.startswith(header))
     end = start + 1
@@ -107,7 +107,7 @@ def _invoices_and_a_parked_deposit(runner, book, with_fee):
 def _linked_to_the_invoice(runner, book, tmp_path, the_invoice_alone=False):
     """The book's export with INV-USD-001 paid by the deposit, imported as an update.
 
-    `the_invoice_alone` gives the invoice's block without the rest of the
+    `the_invoice_alone` writes the invoice's block without the rest of the
     ledger, for a book whose deposit a restated line of its own would refuse
     before the link is reached.
     """

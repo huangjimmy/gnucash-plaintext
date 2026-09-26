@@ -5,7 +5,7 @@
 # 1,380.00 it was posted at; the 1.01 is the bank charge; the dollars and the
 # fee draw on the dollars held as before. The `$residual$` split states what
 # the new version realizes, -30.04. Imported with `--strategy update`, beside
-# BILL-USD-1's `payment:` block giving this transaction and its payable split.
+# BILL-USD-1's `payment:` block stating this transaction and its payable split.
 #
 # Verified by
 # tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.

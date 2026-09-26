@@ -7,7 +7,7 @@
 # carries it, which says nothing about revenue.
 #
 # So the refusal must not offer the posting as a way out either: it would
-# give back the very account the file had just given it.
+# suggest the very account the file had just stated.
 #
 # What this fixture produces: a refusal stating the income account, with the
 # entry untouched.

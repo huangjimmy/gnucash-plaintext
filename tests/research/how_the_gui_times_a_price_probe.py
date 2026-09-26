@@ -1,4 +1,4 @@
-"""Probe: what time GnuCash's own GUI code gives a price, on this build.
+"""Probe: what time GnuCash's own GUI code stores on a price, on this build.
 
 Nothing here computes a time. Each case drives the function GnuCash's GUI
 runs, under Xvfb, and reads back what the price database holds; the book is

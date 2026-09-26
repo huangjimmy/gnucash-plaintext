@@ -10,7 +10,7 @@
 # debit-side types because a securities account "cannot" hold a currency —
 # leaves this book reporting no cost basis at all.
 #
-# Verified by tests/integration/test_securities_are_not_currency.py.
+# Verified by tests/integration/test_a_security_gets_a_cost_basis_in_the_books_own_currency.py.
 2026-01-01 open Assets
 	type: Asset
 	commodity.namespace: "CURRENCY"

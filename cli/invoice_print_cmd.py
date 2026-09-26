@@ -314,7 +314,7 @@ def print_invoice(gnucash_file, invoice_selectors, invoice_id,
                 criteria.append(f'customer={customer!r}')
             raise click.UsageError(
                 'no invoices matched the selection ('
-                + (', '.join(criteria) if criteria else 'no selectors given')
+                + (', '.join(criteria) if criteria else 'none: every invoice in the book')
                 + ')'
             )
 

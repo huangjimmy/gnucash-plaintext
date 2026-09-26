@@ -1,6 +1,6 @@
 # A Canadian book that buys four currencies and spends some of each: US,
 # Hong Kong, Korean and Japanese. Each purchase opens a cost basis, the split
-# that opens it gives its own guid, and every spend below says which of the
+# that opens it states its own guid, and every spend below says which of the
 # four it came out of. So each currency's cost bases hold exactly what the
 # wallet holds, which is what `fx-balances` prints and what a balance sheet
 # measures an unrealized gain against.

@@ -63,7 +63,7 @@ class TestExportAccountsCLI:
                 os.unlink(output_path)
 
     def test_as_of_date_applied(self, temp_gnucash_file):
-        """--as-of DATE stamps every open and commodity line with the given date."""
+        """--as-of DATE stamps every open and commodity line with DATE."""
         runner = CliRunner()
         as_of = "2019-03-01"
         with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as f:

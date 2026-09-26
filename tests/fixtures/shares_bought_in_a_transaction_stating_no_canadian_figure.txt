@@ -3,7 +3,7 @@
 #
 # This is the book the carrying exists for. Nothing in that purchase states a
 # Canadian figure: both holdings and the dollars that paid for them are in US
-# dollars, so no split's value over its amount gives the day's rate and a cost
+# dollars, so no split's value over its amount is the day's rate and a cost
 # can be derived from nothing. What says what the shares cost is the cost basis
 # the dollars came out of, at 1.30, and that rate travels onto what those
 # dollars bought — apportioned by each split's own share of them.

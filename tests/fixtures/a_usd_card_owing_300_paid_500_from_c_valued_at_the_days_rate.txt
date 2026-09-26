@@ -6,7 +6,7 @@
 # 405.00, and the 200.00 moved onto its credit came out of C at the 1.30 C's
 # cost basis cost, 260.00: 665.00. Valued at 700.00, `$residual$` would state
 # 50.00 realized where the repayment realized 15.00, so it is refused, and the
-# refusal gives the figure.
+# refusal states the figure.
 #
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes.
 #

@@ -1,5 +1,5 @@
 # Accounts in a currency with no minor unit. A yen is not divided into
-# hundredths, so GnuCash gives JPY a smallest unit of 1 and 103 yen is written
+# hundredths, so GnuCash sets JPY's smallest unit to 1 and 103 yen is written
 # 103, never 103.00.
 #
 # The amounts here are deliberately odd (103, 1030) rather than round hundreds:

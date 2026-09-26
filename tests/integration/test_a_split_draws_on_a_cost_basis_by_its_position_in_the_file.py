@@ -53,7 +53,7 @@ def _bases(book):
 
 
 def _picks(book):
-    """What each split drawing on a cost basis keeps as the guid it gives."""
+    """What each split drawing on a cost basis keeps as the guid it draws on."""
     repo = GnuCashRepository(str(book))
     repo.open(mode=SessionMode.READ_ONLY)
     try:
@@ -139,37 +139,37 @@ class TestAnotherTransaction:
         assert _bases(book) == [('Assets:Wise USD', 'USD', 'asset', Fraction('2719.28'))]
         _sound(book)
 
-    def test_a_transaction_the_import_refused_gives_no_guid(self, tmp_path):
-        """E18: the arrival's transaction is refused, and the fee giving its position is too."""
+    def test_a_transaction_the_import_refused_has_no_guid(self, tmp_path):
+        """E18: the arrival's transaction is refused, and the fee stating its position is too."""
         book, done = _import(
-            tmp_path, 'a_fee_giving_the_position_of_a_transaction_the_import_refused.txt')
+            tmp_path, 'a_fee_stating_the_position_of_a_transaction_the_import_refused.txt')
 
         assert done.exit_code != 0, done.output
         assert 'Errors:       2' in done.output, done.output
-        assert ('split 1 gives $transactions_to_import[0].splits[0].guid$, and '
-                'transaction 0 of the file was not imported, so no split of it has a '
-                'guid to give') in done.output, done.output
+        assert ('split 1 states $transactions_to_import[0].splits[0].guid$, and '
+                'transaction 0 of the file was not imported, so none of its splits '
+                'has a guid') in done.output, done.output
         assert _bases(book) == []
 
-    def test_a_transaction_refused_after_its_own_position_resolved_gives_no_guid(self, tmp_path):
+    def test_a_transaction_refused_after_its_own_position_resolved_has_no_guid(self, tmp_path):
         """E18: a transaction refused part way through resolving its positions keeps no guids."""
         book, done = _import(
             tmp_path,
-            'a_fee_giving_the_position_of_a_transaction_refused_after_its_positions_resolved.txt')
+            'a_fee_stating_the_position_of_a_transaction_refused_after_its_positions_resolved.txt')
 
         assert done.exit_code != 0, done.output
         assert 'Errors:       3' in done.output, done.output
-        assert ('split 1 gives $transactions_to_import[1].splits[0].guid$, and '
+        assert ('split 1 states $transactions_to_import[1].splits[0].guid$, and '
                 'transaction 1 of the file was not imported') in done.output, done.output
         assert 'matches no split in the book' not in done.output, done.output
         assert _bases(book) == []
 
-    def test_a_transaction_passed_over_whose_line_gives_no_guid(self, tmp_path):
+    def test_a_transaction_passed_over_whose_line_has_no_guid(self, tmp_path):
         """E19: the arrival is already in the book, and the file does not say which split it is.
 
         The book holds the arrival from an earlier import. The file writes it
         again with no `guid:`, so the import passes over it as a duplicate,
-        and the fee below giving its position is refused: nothing in the file
+        and the fee below stating its position is refused: nothing in the file
         says which split of the book that line is.
         """
         book, first = _import(tmp_path, 'a_usd_arrival_whose_fee_an_edit_adds_the_arrival_alone.txt')
@@ -180,16 +180,16 @@ class TestAnotherTransaction:
 
         assert done.exit_code != 0, done.output
         assert 'Skipped:      1' in done.output, done.output
-        assert ('split 1 gives $transactions_to_import[0].splits[0].guid$, and that '
-                'transaction was already in the book and its split 0 gives no '
+        assert ('split 1 states $transactions_to_import[0].splits[0].guid$, and that '
+                'transaction was already in the book, and its split 0 has no '
                 '`guid:`') in done.output, done.output
         assert _bases(book) == [('Assets:Wise USD', 'USD', 'asset', Fraction('2720.00'))]
 
     @pytest.mark.parametrize('name', [
-        'a_usd_arrival_passed_over_by_its_guid_giving_a_split_guid_the_book_does_not_hold.txt',
-        'a_usd_arrival_passed_over_as_a_duplicate_giving_a_split_guid_the_book_does_not_hold.txt',
+        'a_usd_arrival_passed_over_by_its_guid_stating_a_split_guid_the_book_does_not_hold.txt',
+        'a_usd_arrival_passed_over_as_a_duplicate_stating_a_split_guid_the_book_does_not_hold.txt',
     ], ids=['by-its-guid', 'as-a-duplicate'])
-    def test_a_transaction_passed_over_whose_line_gives_a_guid_it_does_not_hold(self, tmp_path, name):
+    def test_a_transaction_passed_over_whose_line_has_a_guid_it_does_not_hold(self, tmp_path, name):
         """E19: a `guid:` that is no split of the transaction the book holds says no more than none."""
         book, first = _import(tmp_path, 'a_usd_arrival_whose_fee_an_edit_adds_the_arrival_alone.txt')
         _imported(first)
@@ -198,15 +198,15 @@ class TestAnotherTransaction:
 
         assert done.exit_code != 0, done.output
         assert 'Skipped:      1' in done.output, done.output
-        assert ('split 1 gives $transactions_to_import[0].splits[0].guid$, and that '
-                'transaction was already in the book and its split 0 gives no '
+        assert ('split 1 states $transactions_to_import[0].splits[0].guid$, and that '
+                'transaction was already in the book, and its split 0 has no '
                 '`guid:` of a split the book holds for it') in done.output, done.output
         assert 'matches no split in the book' not in done.output, done.output
         assert _bases(book) == [('Assets:Wise USD', 'USD', 'asset', Fraction('2720.00'))]
 
     def test_a_transaction_below_refuses_the_whole_file(self, tmp_path):
         """E7: refused before any of it is applied; the arrival does not land on its own."""
-        book, done = _import(tmp_path, 'a_fee_giving_the_position_of_an_arrival_below_it.txt')
+        book, done = _import(tmp_path, 'a_fee_stating_the_position_of_an_arrival_below_it.txt')
 
         assert done.exit_code != 0, done.output
         assert ('points at transaction 1, below it, which has not been imported '
@@ -225,7 +225,7 @@ class TestCostBasesTheBookHolds:
                                 ('Assets:Wise USD', 'USD', 'asset', Fraction('2720.00'))]
         _sound(book)
 
-    def test_one_fee_from_each_draws_on_the_one_it_gives(self, tmp_path):
+    def test_one_fee_from_each_draws_on_the_one_it_states(self, tmp_path):
         """E12: a guid and a position in one transaction."""
         book, done = _import(tmp_path, HELD_BEFORE.replace(FIXTURES, ''),
                              'a_usd_arrival_with_one_fee_from_dollars_held_and_one_from_the_arrival.txt')
@@ -235,10 +235,10 @@ class TestCostBasesTheBookHolds:
                                 ('Assets:Wise USD', 'USD', 'asset', Fraction('2719.28'))]
         _sound(book)
 
-    def test_one_fee_giving_a_cost_basis_does_not_let_another_give_none(self, tmp_path):
-        """E21: E12 with the second fee giving nothing is refused as E10 is."""
+    def test_one_fee_stating_a_cost_basis_does_not_let_another_state_none(self, tmp_path):
+        """E21: E12 with the second fee stating nothing is refused as E10 is."""
         book, done = _import(tmp_path, HELD_BEFORE.replace(FIXTURES, ''),
-                             'a_usd_arrival_with_one_fee_from_dollars_held_and_one_giving_no_cost_basis.txt')
+                             'a_usd_arrival_with_one_fee_from_dollars_held_and_one_stating_no_cost_basis.txt')
 
         assert done.exit_code != 0, done.output
         assert ('this transaction is an expense of 0.72 USD the book held: Assets:Wise USD, '
@@ -247,14 +247,14 @@ class TestCostBasesTheBookHolds:
         assert _bases(book) == [('Assets:Wise USD', 'USD', 'asset', Fraction('500.00'))]
 
 
-class TestAFeeGivingNoCostBasis:
+class TestAFeeStatingNoCostBasis:
     def _refused(self, tmp_path):
-        book, done = _import(tmp_path, 'a_usd_arrival_and_a_fee_giving_no_cost_basis_in_one_transaction.txt')
+        book, done = _import(tmp_path, 'a_usd_arrival_and_a_fee_stating_no_cost_basis_in_one_transaction.txt')
         assert done.exit_code != 0, done.output
         return book, done.output
 
     def test_it_is_refused(self, tmp_path):
-        """E10: the fee spends dollars, and every spend gives its cost basis."""
+        """E10: the fee spends dollars, and every spend states its cost basis."""
         book, output = self._refused(tmp_path)
 
         assert ('this transaction is an expense of 0.72 USD the book held: Assets:Wise USD, '
@@ -264,7 +264,7 @@ class TestAFeeGivingNoCostBasis:
         assert 'Split 1 of this transaction, out of Assets:Wise USD, can be written' in output, output
         assert _bases(book) == []
 
-    def test_the_refusal_gives_the_arrival_net_of_the_fee(self, tmp_path):
+    def test_the_refusal_writes_the_arrival_net_of_the_fee(self, tmp_path):
         _, output = self._refused(tmp_path)
 
         assert ('as part of the exchange spread, not a fee' in output
@@ -281,7 +281,7 @@ class TestAFeeGivingNoCostBasis:
             ('Assets:Accounts Receivable USD', 'USD', 'asset', Fraction('500.00'))]
 
         done = _run(CliRunner(), 'import', str(book),
-                    FIXTURES + 'a_usd_arrival_and_a_fee_giving_no_cost_basis_in_one_transaction.txt',
+                    FIXTURES + 'a_usd_arrival_and_a_fee_stating_no_cost_basis_in_one_transaction.txt',
                     *rates)
 
         assert done.exit_code != 0, done.output
@@ -293,7 +293,7 @@ class TestAFeeGivingNoCostBasis:
     def test_a_repayment_is_offered_no_net_charge(self, tmp_path):
         """On the owed side a spend repays, with money that left the book, so only its cost basis is asked for."""
         book, done = _import(
-            tmp_path, 'usd_owed_on_a_card_and_part_of_it_repaid_giving_no_cost_basis.txt')
+            tmp_path, 'usd_owed_on_a_card_and_part_of_it_repaid_stating_no_cost_basis.txt')
 
         assert done.exit_code != 0, done.output
         assert ('this transaction is a repayment of 1.00 USD the book owed: Liabilities:USD '
@@ -306,7 +306,7 @@ class TestAFeeGivingNoCostBasis:
         assert _bases(book) == []
 
     def test_a_repayment_pending_its_cost_basis_is_taken_off_the_owed_side(self, tmp_path):
-        """The card charged 2.00 USD on the 13th and 1.00 repaid on the 14th giving `$pending$`: the owed side's cost bases are counted net of it."""
+        """The card charged 2.00 USD on the 13th and 1.00 repaid on the 14th stating `$pending$`: the owed side's cost bases are counted net of it."""
         charge_then_repay = tmp_path / 'card.txt'
         charge_then_repay.write_text(
             '2026-08-13 * "Supplies on the card"\n'
@@ -337,10 +337,10 @@ class TestAFeeGivingNoCostBasis:
             ('Liabilities:USD Card', 'USD', 'liability', Fraction('2.00')),
             ('pending their cost basis', 'USD', 'liability', Fraction('-1.00'))]
         listed = _run(CliRunner(), 'fx-balances', str(book))
-        assert ('1 disposal(s) pending their cost basis, drawing on none until an edit gives '
-                'it: 1.00 USD') in listed.output, listed.output
+        assert '1 disposal(s) pending their cost basis: 1.00 USD.' in listed.output, \
+            listed.output
         # The owed side is one line on the page. What it cost is 2.01 charged
-        # less the 1.01 the pending repayment recorded; no rate is given for
+        # less the 1.01 the pending repayment recorded; no rate is stated for
         # the 1.00 USD still owed, so it is valued at nothing.
         page = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-08-14',
                     '--output-format', 'text', '--itemize')
@@ -349,7 +349,7 @@ class TestAFeeGivingNoCostBasis:
 
     def test_fees_from_two_accounts_beside_an_arrival_are_refused_as_a_transfer(self, tmp_path):
         """E22: one US dollar account rising while another falls is refused first, as a transfer."""
-        book, done = _import(tmp_path, 'a_usd_arrival_and_fees_from_two_accounts_giving_no_cost_basis.txt')
+        book, done = _import(tmp_path, 'a_usd_arrival_and_fees_from_two_accounts_stating_no_cost_basis.txt')
 
         assert done.exit_code != 0, done.output
         assert 'exchange spread' not in done.output, done.output
@@ -373,7 +373,7 @@ class TestAFeeGivingNoCostBasis:
             self, tmp_path):
         """The arrival's value is its amount there, so the splits beside it change instead."""
         book, done = _import(
-            tmp_path, 'a_usd_arrival_stated_in_usd_and_a_fee_giving_no_cost_basis_in_one_transaction.txt')
+            tmp_path, 'a_usd_arrival_stated_in_usd_and_a_fee_stating_no_cost_basis_in_one_transaction.txt')
 
         assert done.exit_code != 0, done.output
         assert ('`Assets:Wise USD 2719.28 USD` with its `value: "2719.28"`, and the '
@@ -381,7 +381,7 @@ class TestAFeeGivingNoCostBasis:
                 in done.output), done.output
         assert _bases(book) == []
 
-    def test_the_refusal_gives_the_position_of_the_arrival(self, tmp_path):
+    def test_the_refusal_lists_the_position_of_the_arrival(self, tmp_path):
         _, output = self._refused(tmp_path)
 
         assert ('`cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$` — '
@@ -389,7 +389,7 @@ class TestAFeeGivingNoCostBasis:
 
     def test_the_refusal_lists_the_cost_bases_the_book_holds(self, tmp_path):
         book, done = _import(tmp_path, HELD_BEFORE.replace(FIXTURES, ''),
-                             'a_usd_arrival_and_a_fee_giving_no_cost_basis_in_one_transaction.txt')
+                             'a_usd_arrival_and_a_fee_stating_no_cost_basis_in_one_transaction.txt')
 
         assert done.exit_code != 0, done.output
         assert ('`cost_basis_split_guid: "0e5e00000000000000000000000000b1"` — 500.00 USD '
@@ -410,19 +410,19 @@ class TestAnEditInPlace:
         assert _picks(book) == ['0e5e0000000000000000000000000008']
         _sound(book)
 
-    def test_a_position_at_a_line_giving_no_guid_refuses_the_whole_file(self, tmp_path):
+    def test_a_position_at_a_line_with_no_guid_refuses_the_whole_file(self, tmp_path):
         """E20: found before any transaction is edited, so the first keeps its description."""
         book, first = _import(tmp_path, 'two_usd_arrivals_an_edit_goes_over.txt')
         _imported(first)
 
         done = _run(CliRunner(), 'import', str(book),
-                    FIXTURES + 'an_edit_giving_the_position_of_a_line_that_gives_no_guid.txt',
+                    FIXTURES + 'an_edit_stating_the_position_of_a_line_that_states_no_guid.txt',
                     '--strategy', 'update')
 
         message = done.output + str(done.exception)
         assert done.exit_code != 0, message
-        assert ('split 1 gives $transactions_to_import[1].splits[0].guid$, and that '
-                'transaction was already in the book and its split 0 gives no '
+        assert ('split 1 states $transactions_to_import[1].splits[0].guid$, and that '
+                'transaction was already in the book, and its split 0 has no '
                 '`guid:`') in message, message
         ledger = tmp_path / 'ledger.txt'
         assert _run(CliRunner(), 'export', str(book), str(ledger)).exit_code == 0
@@ -430,19 +430,19 @@ class TestAnEditInPlace:
 
 
 @pytest.mark.parametrize('name, refusal', [
-    pytest.param('a_fee_giving_its_own_position.txt',
-                 'points at the split that gives it', id='E13-itself'),
-    pytest.param('a_fee_giving_a_position_past_the_end.txt',
+    pytest.param('a_fee_stating_its_own_position.txt',
+                 'points at the split it is written on', id='E13-itself'),
+    pytest.param('a_fee_stating_a_position_past_the_end.txt',
                  'points past the end: transaction 0 has 4 split(s)', id='E14-past-the-end'),
-    pytest.param('a_fee_giving_the_position_of_a_canadian_dollar_split.txt',
+    pytest.param('a_fee_stating_the_position_of_a_canadian_dollar_split.txt',
                  'is a CAD split but this split sells USD', id='E15-no-cost-basis'),
-    pytest.param('a_fee_giving_a_position_in_quotes.txt',
+    pytest.param('a_fee_stating_a_position_in_quotes.txt',
                  "cost_basis_split_guid '$transactions_to_import[0].splits[0].guid$' "
                  'matches no split in the book', id='E16-in-quotes'),
-    pytest.param('a_fee_giving_a_position_past_the_last_transaction.txt',
+    pytest.param('a_fee_stating_a_position_past_the_last_transaction.txt',
                  'points past the end: the file has 1 transaction(s)',
                  id='E14-past-the-last-transaction'),
-    pytest.param('a_fee_giving_a_misspelt_position.txt',
+    pytest.param('a_fee_stating_a_misspelt_position.txt',
                  '`cost_basis_split_guid: $transaction_to_import[0].splits[0].guid$` '
                  'is no variable this format knows', id='E17-misspelt'),
 ])
@@ -455,10 +455,10 @@ def test_a_position_that_cannot_be_resolved_is_refused(tmp_path, name, refusal):
 
 
 @pytest.mark.parametrize('name, written_as', [
-    pytest.param('a_payment_giving_a_position_in_place_of_a_split_guid.txt',
+    pytest.param('a_payment_stating_a_position_in_place_of_a_split_guid.txt',
                  '`txn_split_guid: $transactions_to_import[0].splits[0].guid$`',
                  id='in-a-payment-block'),
-    pytest.param('a_transaction_giving_a_position_as_its_own_key.txt',
+    pytest.param('a_transaction_stating_a_position_as_its_own_key.txt',
                  '`cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$`',
                  id='on-a-transaction'),
 ])

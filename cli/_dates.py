@@ -16,7 +16,7 @@ import click
 def parse_date(ctx, param, value: Optional[str]) -> Optional[date]:
     """A `YYYY-MM-DD` option, as a date — or a refusal that quotes what came.
 
-    `None` for an option that was not given, which click hands over for every
+    `None` for an option that was not passed, which click hands over for every
     optional one; a required option is refused by click before this is asked.
     """
     if value is None:

@@ -48,7 +48,7 @@ class TestChoosingThePeriod:
         assert result.exit_code != 0
         assert 'cannot be combined' in result.output
 
-    def test_no_period_at_all_is_refused_with_both_spellings_given(self, tmp_path):
+    def test_no_period_at_all_is_refused_listing_both_spellings(self, tmp_path):
         gf = _book(tmp_path)
         result = CliRunner().invoke(cli, ['report', str(gf), 'income-statement'])
 

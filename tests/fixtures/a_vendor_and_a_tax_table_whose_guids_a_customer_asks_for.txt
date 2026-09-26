@@ -1,4 +1,4 @@
-# A vendor and a tax table, each with the guid GnuCash gives it.
+# A vendor and a tax table, each with the guid GnuCash assigns it.
 #
 # A guid is unique across everything a book holds, whatever kind of thing it
 # is. `a_customer_asking_for_a_guid.txt` then creates a customer with one of

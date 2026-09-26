@@ -33,7 +33,7 @@ CLOSING_DESCRIPTION_PREFIX = "Closing entry"
 class AccountWithoutCommodityError(Exception):
     """An income or expense account whose balance has no currency to close into.
 
-    Carries the sentence a reader is given. Raised rather than returned so the
+    Carries the sentence the reader is shown. Raised rather than returned so the
     run stops before any closing entry is written: a closing that left one
     account out would put a wrong figure in retained earnings and say nothing.
     """
@@ -139,9 +139,9 @@ class BookCloser:
             if commodity is None:
                 raise AccountWithoutCommodityError(
                     f"{account.GetName()!r} has no commodity, so its balance has no "
-                    f"currency to close into. Give the account a commodity in GnuCash, "
-                    f"or move its transactions to an account that has one, and close "
-                    f"the books again.")
+                    f"currency to close into. Set a commodity on the account in "
+                    f"GnuCash, or move its transactions to an account that has one, "
+                    f"and close the books again.")
             currency_code = commodity.get_mnemonic()
             balance = self.get_balance_as_of_date(account, closing_date, exclude_guids)
 
@@ -156,7 +156,7 @@ class BookCloser:
         self, root: Account, closing_date: date
     ) -> List[Transaction]:
         """
-        Find existing closing transactions on the given date.
+        Find existing closing transactions on `closing_date`.
 
         Identifies by: date == closing_date AND `is_closing_txn` (the closing
         flag, or the legacy description). The flag also catches closings created

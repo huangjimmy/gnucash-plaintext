@@ -1,7 +1,7 @@
 """A sale keeps its cost basis guid in the export when that cost basis cannot be read.
 
 The export leaves a sale's `cost_basis_split_guid:` out only where the cost
-basis it gives was an owner's credit this book has since spent. Where the cost
+basis it states was an owner's credit this book has since spent. Where the cost
 basis's own cost will not parse, whether it is a cost basis at all cannot be
 answered, so it is not taken for a spent credit: the guid is written, and the
 ledger carries both the disposal and the figure `--verify-costs` reports, where

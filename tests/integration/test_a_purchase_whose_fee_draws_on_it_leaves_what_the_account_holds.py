@@ -1,9 +1,9 @@
 """A purchase whose fee is taken off on the same account, the fee drawing on the purchase, leaves a cost basis holding what the account holds.
 
 100.00 USD bought and 1.00 kept back by the bank, both on one account: the
-purchase opens a cost basis for the 100.00 and the fee, giving the purchase's
+purchase opens a cost basis for the 100.00 and the fee, stating the purchase's
 position in the file, draws 1.00 of it, so 99.00 is left and the cost basis
-holds what the account holds. A fee giving no cost basis is refused, with the
+holds what the account holds. A fee stating no cost basis is refused, with the
 ways to write it (Q-050): netted with the purchase in silence, it spent
 dollars without saying from where.
 

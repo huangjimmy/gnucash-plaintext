@@ -2,7 +2,7 @@
 
 A settlement values itself against the cost basis it consumes, so the drawdown
 happens before the entry can be judged complete. What a refusal after that
-point would have to give back is not one drawdown but everything the invoice
+point would have to put back is not one drawdown but everything the invoice
 has done, so the import is abandoned rather than unwound: the book is left as
 it was found and nothing else from that file is written either.
 

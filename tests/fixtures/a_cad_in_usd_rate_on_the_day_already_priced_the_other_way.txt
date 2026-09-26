@@ -1,6 +1,6 @@
 # CAD in USD on 2026-01-02, a day the book already prices the other way round.
 #
-# `prices_of_a_currency_and_a_stock.txt` gives USD in CAD for that day. GnuCash
+# `prices_of_a_currency_and_a_stock.txt` states USD in CAD for that day. GnuCash
 # keeps one price a day for two currencies, whichever way round they are
 # written (Q-041, table 1), so adding this one would delete that one. The
 # source is that price's own, `user:price-editor`: a lower-ranked source would

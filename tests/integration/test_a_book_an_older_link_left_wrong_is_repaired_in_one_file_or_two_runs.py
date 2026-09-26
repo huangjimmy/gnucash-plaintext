@@ -8,7 +8,7 @@ Repairing it takes two changes:
 
 Re-pointing the fee first was refused until Q-051, because an edit in place
 could not change what a disposal draws on. It is now read as a new
-transaction would be — what it drew is given back and it draws afresh — so
+transaction would be — what it drew is put back and it draws afresh — so
 re-pointing it and then clearing the balance repairs the book in two runs.
 `--atomic` applies both in one, and reads the book it left before saving it.
 
@@ -108,7 +108,7 @@ def _stranded(runner, book):
 def _the_repair(runner, book, tmp_path):
     """The end state, stated: three blocks that only make sense together.
 
-    The deposit gives up its balance, the invoice's posting split takes on
+    The deposit loses its balance, the invoice's posting split takes on
     what the fee will have drawn from it, and the fee draws on that cost basis
     instead. Each balance is what it should be when the file has landed, which
     is what a stated balance means — net of the file's own disposals — and is
@@ -137,7 +137,7 @@ def _the_repair(runner, book, tmp_path):
 def test_re_pointing_the_fee_and_then_clearing_the_balance_repairs_it_in_two_runs(tmp_path):
     """Since Q-051 the fee's edit is read as a new transaction would be.
 
-    What it drew is given back to the deposit's cost basis, and its 0.72 USD
+    What it drew is put back on the deposit's cost basis, and its 0.72 USD
     comes off the receivable's, where the money it spent is. The deposit's
     balance, 2,720.00 on a split that is no cost basis, is what
     `--verify-costs` reports until it is cleared, and clearing it finishes the
@@ -214,7 +214,7 @@ def test_restating_the_balance_the_book_holds_beside_the_repair(tmp_path):
     """2,720.00 on the receivable, as the book already holds it: the fee draws its 0.72 from it.
 
     A figure an update restates as the book holds it states nothing new, so
-    it is not read as a balance the file gives net of its own disposals
+    it is not read as a balance the file states net of its own disposals
     (Q-051) — an export restates every balance, and an owner editing one
     transaction of it would otherwise have the rest of the export tell the
     edit's draws to leave those balances alone. The repair's fee is read as a

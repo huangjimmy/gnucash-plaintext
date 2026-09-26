@@ -7,7 +7,7 @@
 # fund units "not money this book can record" when they are not money at all.
 #
 # What this fixture produces: a refusal naming 0.001 and the account, and a
-# suggestion to give the account a `commodity_scu:` that can hold the figure.
+# suggestion to set a `commodity_scu:` on the account that can hold the figure.
 #
 # Verified by tests/integration/test_amount_must_fit_the_currency.py.
 2026-01-01 commodity CAD

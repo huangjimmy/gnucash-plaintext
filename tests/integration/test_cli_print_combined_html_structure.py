@@ -2,7 +2,7 @@
 
 When several pages are rendered into one HTML or PDF file, each is a whole
 page of GnuCash's own — its own `<!DOCTYPE>`, `<html>`, `<head>` and `<body>` —
-and concatenating them gives a file with three of each, which is malformed as
+and concatenating them produces a file with three of each, which is malformed as
 HTML and as XML both. `services/printed_pages.combine_pages` takes them apart
 and rebuilds one shell: one `<head>`, kept once so the pages stay styled, and
 each page's body inside a `<div>` that breaks the page after it.
@@ -209,7 +209,7 @@ def test_the_combined_page_keeps_the_reports_styling(tmp_path):
 
     GnuCash writes the report's whole stylesheet into each page's `<head>`, so
     dropping the head — which stripping tag by tag does, and which every
-    assertion above is silent about — gives a combined file that is
+    assertion above is silent about — produces a combined file that is
     structurally perfect and prints in a browser's defaults, where the same
     pages printed one at a time come out styled. So the rules that lay the
     page out are looked for, not merely the shell around them.

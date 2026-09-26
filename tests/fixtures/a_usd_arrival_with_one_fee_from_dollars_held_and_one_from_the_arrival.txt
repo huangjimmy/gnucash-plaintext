@@ -1,7 +1,7 @@
 # Q-050 E12, onto usd_bought_before_the_import_that_brings_more_in.txt:
 # 2,720.00 USD arriving, one 0.72 USD fee paid from the 500.00 the book held
-# — giving that cost basis's guid — and another from the arrival, giving its
-# position. Each draws on the cost basis it gives: 499.28 and 2,719.28 left.
+# — stating that cost basis's guid — and another from the arrival, stating its
+# position. Each draws on the cost basis it states: 499.28 and 2,719.28 left.
 #
 # Verified by
 # tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.

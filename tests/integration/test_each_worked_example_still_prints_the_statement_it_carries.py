@@ -14,7 +14,7 @@ longer exists — and a reader running the two commands in each file's own heade
 would be the one to find out.
 
 That is what this closes. The ledger is imported into a fresh book, the sheet
-is drawn at the date the file's own header gives, and the result is compared
+is drawn at the date the file's own header states, and the result is compared
 with the block the file carries.
 
 Two things are normalised before the comparison, and nothing else is.
@@ -27,7 +27,7 @@ two splits of one account on one day is not the same on every build — measured
 here, `a_us_customer_invoiced_and_the_dollars_still_held.txt` lists the
 receivable's +2,720.00 before its −2,720.00 on GnuCash 3.8 and after it on
 5.10, with every figure identical. That order is GnuCash's and this page only
-prints what it is given, so pinning it would fail three examples on Ubuntu
+prints what it is handed, so pinning it would fail three examples on Ubuntu
 20.04 over a difference that is not this tool's to have.
 
 Everything else — every figure, every key, every comment the report writes, and

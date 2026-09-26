@@ -194,7 +194,7 @@ class TestImportTransactions:
             assert len(result.conflicts) == 1
             assert result.imported_count == 0
 
-    def test_an_amount_given_as_a_number_is_rounded_to_the_cent(self, temp_gnucash_file):
+    def test_an_amount_written_as_a_number_is_rounded_to_the_cent(self, temp_gnucash_file):
         """A number rather than text, and a figure finer than the currency."""
         from fractions import Fraction
 
@@ -203,7 +203,7 @@ class TestImportTransactions:
 
         plaintext_tx = {
             'date': '2024-02-11',
-            'description': 'Given as numbers',
+            'description': 'Written as numbers',
             'splits': [
                 {'account': 'Expenses:Groceries', 'amount': 12.345},
                 {'account': 'Assets:Bank:Checking', 'amount': -12.345},

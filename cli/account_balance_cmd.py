@@ -1,5 +1,5 @@
 """
-CLI command for exporting account balances as of a given date.
+CLI command for exporting account balances as of a date.
 
 Output format (balance directive):
 
@@ -69,7 +69,7 @@ def _format_amount(amount, unit: int) -> str:
     "with_children",
     is_flag=True,
     default=False,
-    help="When ACCOUNT_PREFIX is given, also show all sub-accounts with their "
+    help="When ACCOUNT_PREFIX is passed, also show all sub-accounts with their "
          "individual recursive balances.",
 )
 @click.option(
@@ -89,7 +89,7 @@ def account_balance(
     output_file,
 ):
     """
-    Output account balances as of a given date in balance directive format.
+    Output account balances as of a date in balance directive format.
 
     Each account balance is the recursive cumulative sum of the account and
     all its sub-accounts.

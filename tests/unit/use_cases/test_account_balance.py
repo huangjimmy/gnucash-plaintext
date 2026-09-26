@@ -114,7 +114,7 @@ class TestAccountBalanceNoPrefix:
 # ---------------------------------------------------------------------------
 
 class TestAccountBalanceWithPrefix:
-    """account_prefix given, include_children=False (default): one account with recursive total."""
+    """account_prefix passed, include_children=False (default): one account with recursive total."""
 
     def test_single_cad_leaf(self, temp_gnucash_account_balance):
         """Single CAD leaf: balance equals its direct splits."""

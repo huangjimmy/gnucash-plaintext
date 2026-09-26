@@ -2,8 +2,8 @@
 # account, with no balance stated anywhere.
 #
 # The purchase opens a cost basis for 100.00 at the 1.35 it states, and the
-# fee, giving the purchase's position in this file, draws 1.00 of it: 99.00 is
-# left, what the account holds. A fee giving no cost basis is refused (Q-050).
+# fee, stating the purchase's position in this file, draws 1.00 of it: 99.00 is
+# left, what the account holds. A fee stating no cost basis is refused (Q-050).
 #
 # A second purchase brings 60.00 and 40.00 in two splits with the same 1.00
 # kept back, drawn on the 60.00: 99.00 again. A third brings 60.00 and 40.00

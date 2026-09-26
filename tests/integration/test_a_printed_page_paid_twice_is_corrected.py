@@ -6,7 +6,7 @@ loosened rather than paying twice.
 
 With two payments out of one account the rebuild marks *both* settlements with
 the same page guid, so "the settlement this record orphaned" has two
-answers and each block has to be given its own. Handed the wrong one, the
+answers and each block has to be paired with its own. Handed the wrong one, the
 retarget checks the block's figure against the split it would move and refuses
 a correct file:
 
@@ -155,7 +155,7 @@ class TestCorrectingIt:
         assert 'date: 2026-02-15' in block, block
         assert 'amount: 40.00' in block, block
 
-    def test_a_block_naming_no_orphan_of_its_own_is_not_given_one(
+    def test_a_block_stating_no_orphan_of_its_own_is_not_paired_with_one(
             self, elsewhere, tmp_path):
         """An edited figure describes a movement neither orphan is.
 

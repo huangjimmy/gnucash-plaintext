@@ -1,6 +1,6 @@
 """An `open` line whose account name has an empty part is refused.
 
-`open ""` gives no name, and `open Assets::Savings` gives an empty one between
+`open ""` states no name, and `open Assets::Savings` states an empty one between
 two colons. Each is refused with the line's name, the rest of the file is still
 imported, and the book gains no account without a name. The same holds with
 `--include-business-objects`, which also checks each account's

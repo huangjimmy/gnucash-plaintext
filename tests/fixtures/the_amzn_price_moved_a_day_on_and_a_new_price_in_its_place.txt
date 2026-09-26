@@ -1,5 +1,5 @@
 # One file that moves the book's AMZN price off 2026-01-06 through its guid,
-# and gives a new AMZN price for 2026-01-06.
+# and states a new AMZN price for 2026-01-06.
 #
 # The new price is written first. Where the blocks sit in the file makes no
 # difference: once the move is applied the day is free.

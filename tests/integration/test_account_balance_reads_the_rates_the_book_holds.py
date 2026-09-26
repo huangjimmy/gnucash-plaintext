@@ -1,7 +1,7 @@
 """`account-balance` reads the rates the book holds, and writes a rates file's rates once.
 
-Given no rates file, a balance in more than one currency is converted at the
-latest rate the book's price database holds for each. Given one, its rates are
+Without a rates file, a balance in more than one currency is converted at the
+latest rate the book's price database holds for each. With one, its rates are
 written to the book, each only where the book does not already hold that rate,
 and a currency GnuCash does not know is passed over.
 """
@@ -45,7 +45,7 @@ def test_a_rates_file_written_twice_leaves_one_price(tmp_path, temp_gnucash_acco
     assert len(held) == 1, held
 
 
-def test_a_rates_file_giving_another_rate_is_the_rate_the_balance_is_converted_at(
+def test_a_rates_file_stating_another_rate_is_the_rate_the_balance_is_converted_at(
         tmp_path, temp_gnucash_account_balance):
     """The book already holds 0.17 for HKD, and the file now says 0.18: the
     balance is converted at 0.18, and that is the latest rate the book holds."""

@@ -1,4 +1,4 @@
-# An invoice whose `posted:` block gives the transaction from
+# An invoice whose `posted:` block states the transaction from
 # a_bank_purchase_with_its_guid.txt as its posting.
 #
 # That transaction moves money from the bank to supplies and has no split on

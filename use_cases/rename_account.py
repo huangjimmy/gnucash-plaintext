@@ -1,6 +1,6 @@
 """Q-030: rename an account in place, identified by its GUID.
 
-One operation — rename — that gives an account a new name. The new name is a
+One operation — rename — that changes an account's name. The new name is a
 full account path, so a single rename can change the leaf, the parent, or both
 at once. There is no separate "move": placing the account under a different
 parent is just what happens when the new name names a different parent.

@@ -4,7 +4,7 @@ Q-039. `INV-USD-001` is 100.00 USD, its receivable is USD and the bank is USD,
 so 100 USD arrived against 100 USD owed: the settlement does not convert and no
 rate is involved. But the money was booked against `Assets:Due From Director`,
 which is CAD, before anyone had worked out what it was — so GnuCash quoted the
-entry in CAD and gave that split 139.00 of it at 1.39.
+entry in CAD and valued that split at 139.00 of it, at 1.39.
 
 Neither figure is a fact about the settlement. Both are an artefact of
 `Assets:Due From Director` being CAD, and both go when it is replaced. Linking
@@ -43,55 +43,55 @@ from repositories.gnucash_repository import GnuCashRepository, SessionMode
 FIXTURES = Path('tests/fixtures')
 BOOK = str(FIXTURES / 'fx_usd_invoice_cad_income.txt')
 MONEY_IN = str(FIXTURES / 'money_booked_to_a_cad_account.txt')
-LINKED = str(FIXTURES / 'a_payment_giving_the_parked_split.txt')
+LINKED = str(FIXTURES / 'a_payment_stating_the_parked_split.txt')
 NAMES_ONLY_THE_TX = str(
-    FIXTURES / 'a_payment_giving_only_the_parked_transaction.txt')
+    FIXTURES / 'a_payment_stating_only_the_parked_transaction.txt')
 NO_SUCH_ACCOUNT = str(FIXTURES / 'a_payment_naming_an_account_the_tx_has_not_got.txt')
 TWO_SPLITS = str(FIXTURES / 'money_arriving_as_two_receivable_splits.txt')
-NAMES_TWO_SPLITS = str(FIXTURES / 'a_payment_giving_two_settling_splits.txt')
-NAMES_ONE_SPLIT = str(FIXTURES / 'a_payment_giving_one_settling_split.txt')
+NAMES_TWO_SPLITS = str(FIXTURES / 'a_payment_stating_two_settling_splits.txt')
+NAMES_ONE_SPLIT = str(FIXTURES / 'a_payment_stating_one_settling_split.txt')
 PAYMENTSPLIT_ASTRAY = str(
     FIXTURES / 'a_paymentsplit_that_is_not_under_a_transaction.txt')
 NAMES_TWO_TRANSACTIONS = str(
-    FIXTURES / 'a_payment_giving_two_transactions.txt')
+    FIXTURES / 'a_payment_stating_two_transactions.txt')
 TRANSACTION_OUTSIDE_A_PAYMENT = str(
     FIXTURES / 'a_transaction_directive_outside_a_payment.txt')
 PAYMENTSPLIT_OUTSIDE_A_PAYMENT = str(
     FIXTURES / 'a_paymentsplit_outside_a_payment.txt')
 USD_PARKED = str(FIXTURES / 'money_booked_to_a_usd_account.txt')
 USD_LINKED = str(
-    FIXTURES / 'a_payment_giving_the_usd_split_that_settles_it.txt')
+    FIXTURES / 'a_payment_stating_the_usd_split_that_settles_it.txt')
 USD_OVERPAID = str(
     FIXTURES / 'more_money_booked_to_a_usd_account.txt')
 USD_OVERPAID_LINKED = str(
-    FIXTURES / 'a_payment_giving_the_usd_parked_split.txt')
+    FIXTURES / 'a_payment_stating_the_usd_parked_split.txt')
 SUSPENSE = 'Assets:Suspense USD'
 TWO_SPLITS_TWO_MEMOS = str(
     FIXTURES / 'money_arriving_as_two_splits_with_their_own_memos.txt')
 CREDIT_NAMING_A_TRANSACTION = str(
-    FIXTURES / 'a_credit_payment_giving_a_transaction_block.txt')
+    FIXTURES / 'a_credit_payment_stating_a_transaction_block.txt')
 GUID_THAT_WILL_NOT_PARSE = str(
     FIXTURES / 'a_payment_whose_transaction_guid_will_not_parse.txt')
 TWO_SPLITS_WORTH_MORE = str(
     FIXTURES / 'money_arriving_as_two_splits_worth_more.txt')
 NAMES_TWO_SPLITS_WORTH_MORE = str(
-    FIXTURES / 'a_payment_giving_two_splits_worth_more.txt')
+    FIXTURES / 'a_payment_stating_two_splits_worth_more.txt')
 BILL_TWO_SPLITS = str(FIXTURES / 'money_paid_out_as_two_payable_splits.txt')
 BILL_NAMES_TWO_SPLITS = str(
-    FIXTURES / 'a_bill_payment_giving_two_settling_splits.txt')
+    FIXTURES / 'a_bill_payment_stating_two_settling_splits.txt')
 SIDES_SWAPPED = str(
-    FIXTURES / 'a_payment_giving_the_bank_split_and_the_other_account.txt')
+    FIXTURES / 'a_payment_stating_the_bank_split_and_the_other_account.txt')
 SIDES_SWAPPED_NO_SPLIT = str(
     FIXTURES / 'a_payment_naming_only_the_other_account.txt')
 A_CREDIT_NOTE = str(FIXTURES / 'a_usd_credit_note.txt')
 A_REFUND = str(FIXTURES / 'money_refunded_to_the_customer.txt')
 REFUND_NAMING_THE_TX = str(
-    FIXTURES / 'a_refund_payment_giving_only_the_transaction.txt')
+    FIXTURES / 'a_refund_payment_stating_only_the_transaction.txt')
 A_CASH_SALE = str(FIXTURES / 'a_cash_sale_with_its_income_split.txt')
 NAMES_THE_INCOME_SPLIT = str(
-    FIXTURES / 'a_payment_giving_the_income_split.txt')
+    FIXTURES / 'a_payment_stating_the_income_split.txt')
 NAMES_ONLY_THE_CASH_SALE = str(
-    FIXTURES / 'a_payment_giving_only_the_cash_sale.txt')
+    FIXTURES / 'a_payment_stating_only_the_cash_sale.txt')
 A_CASH_SALE_WORTH_MORE = str(
     FIXTURES / 'a_cash_sale_worth_more_than_the_invoice.txt')
 OVERPAYS_FROM_THE_CASH_SALE = str(
@@ -101,9 +101,9 @@ USD_PARKED_WORTH_MORE = str(
 OVERPAYS_WITH_SIDES_SWAPPED = str(
     FIXTURES / 'a_payment_overpaying_with_the_sides_swapped.txt')
 ONE_SPLIT_TWICE_TWO_SPELLINGS = str(
-    FIXTURES / 'a_payment_giving_one_split_twice_in_two_spellings.txt')
+    FIXTURES / 'a_payment_stating_one_split_twice_in_two_spellings.txt')
 ONE_SPLIT_MISSTATED = str(
-    FIXTURES / 'a_payment_giving_one_split_and_misstating_it.txt')
+    FIXTURES / 'a_payment_stating_one_split_and_misstating_it.txt')
 TWO_INVOICES_SMALL_RESIDUE = str(
     FIXTURES / 'money_for_two_invoices_and_a_smaller_residue.txt')
 THE_FIFTY_INVOICE = str(
@@ -124,35 +124,35 @@ GROUPED_MISSTATING_A_PARKED_SPLIT = str(
 ONE_SPLIT_AS_CREDIT = str(
     FIXTURES / 'money_arriving_with_one_split_as_credit.txt')
 NAMES_A_SPLIT_IN_A_CREDIT_LOT = str(
-    FIXTURES / 'a_payment_giving_a_split_in_a_credit_lot.txt')
+    FIXTURES / 'a_payment_stating_a_split_in_a_credit_lot.txt')
 TWO_SPLITS_MISSTATED = str(
-    FIXTURES / 'a_payment_giving_two_splits_and_misstating_them.txt')
+    FIXTURES / 'a_payment_stating_two_splits_and_misstating_them.txt')
 KEY_SPELLING_MISSTATED = str(
     FIXTURES / 'a_key_spelled_payment_misstating_its_split.txt')
 INCOME_USD = 'Income:Sales USD'
 A_FUND_SALE = str(FIXTURES / 'money_from_selling_fund_units.txt')
-NAMES_THE_FUND_SPLIT = str(FIXTURES / 'a_payment_giving_the_fund_split.txt')
+NAMES_THE_FUND_SPLIT = str(FIXTURES / 'a_payment_stating_the_fund_split.txt')
 NAMES_ONLY_THE_FUND_SALE = str(
-    FIXTURES / 'a_payment_giving_only_the_fund_sale.txt')
+    FIXTURES / 'a_payment_stating_only_the_fund_sale.txt')
 FUND = 'Assets:Fund'
 UNITS_ON_AN_ASSET = str(
     FIXTURES / 'money_from_selling_units_held_on_an_asset.txt')
 NAMES_UNITS_ON_AN_ASSET = str(
-    FIXTURES / 'a_payment_giving_units_held_on_an_asset.txt')
+    FIXTURES / 'a_payment_stating_units_held_on_an_asset.txt')
 UNITS = 'Assets:Units'
 BILL_PAID_IN_UNITS = str(
     FIXTURES / 'a_bill_paid_by_handing_over_fund_units.txt')
 BILL_NAMES_THE_FUND_SPLIT = str(
-    FIXTURES / 'a_bill_payment_giving_the_fund_split.txt')
+    FIXTURES / 'a_bill_payment_stating_the_fund_split.txt')
 MONEY_OUT_IN_USD = str(FIXTURES / 'money_paid_out_of_a_usd_account.txt')
 BILL_SIDES_SWAPPED = str(
     FIXTURES / 'a_bill_payment_with_the_sides_swapped.txt')
 A_CASH_PURCHASE = str(FIXTURES / 'a_cash_purchase_with_its_expense_split.txt')
 BILL_NAMES_THE_EXPENSE_SPLIT = str(
-    FIXTURES / 'a_bill_payment_giving_the_expense_split.txt')
+    FIXTURES / 'a_bill_payment_stating_the_expense_split.txt')
 EXPENSES = 'Expenses:Supplies:USD'
 BILL_NAMES_THE_BANK_AS_A_PAYMENTSPLIT = str(
-    FIXTURES / 'a_bill_payment_giving_the_bank_split_as_a_paymentsplit.txt')
+    FIXTURES / 'a_bill_payment_stating_the_bank_split_as_a_paymentsplit.txt')
 BILL_MONEY_OUT_FELL_SHORT = str(
     FIXTURES / 'less_money_paid_out_than_the_bill_block_claims.txt')
 BILL_CLAIMS_MORE_THAN_THE_BANK_SENT = str(
@@ -160,11 +160,11 @@ BILL_CLAIMS_MORE_THAN_THE_BANK_SENT = str(
 BILL_ON_A_PLAIN_LIABILITY = str(
     FIXTURES / 'a_bill_posted_to_a_plain_liability.txt')
 PLAIN_LIABILITY_NAMES_THE_FUND_SPLIT = str(
-    FIXTURES / 'a_bill_on_a_plain_liability_giving_the_fund_split.txt')
+    FIXTURES / 'a_bill_on_a_plain_liability_stating_the_fund_split.txt')
 BILL_MONEY_OUT_TWO_CAD_SPLITS = str(
     FIXTURES / 'money_paid_out_as_two_parked_cad_splits.txt')
 BILL_NAMES_TWO_PARKED_CAD_SPLITS = str(
-    FIXTURES / 'a_bill_payment_giving_two_parked_cad_splits.txt')
+    FIXTURES / 'a_bill_payment_stating_two_parked_cad_splits.txt')
 BILL_MONEY_OUT_OF_A_CAD_BANK = str(
     FIXTURES / 'money_paid_out_of_a_cad_bank_for_a_usd_bill.txt')
 BILL_LINKED_FROM_A_CAD_BANK = str(
@@ -176,19 +176,19 @@ BILL_OVERPAYS_FROM_A_PARKED_SPLIT = str(
 CLAIMS_LESS_THAN_ITS_SPLITS = str(
     FIXTURES / 'a_grouped_payment_claiming_less_than_its_splits.txt')
 NAMES_ONE_SPLIT_TWICE = str(
-    FIXTURES / 'a_payment_giving_one_split_twice.txt')
+    FIXTURES / 'a_payment_stating_one_split_twice.txt')
 USD_PARKED_CAD_BANK = str(
     FIXTURES / 'money_parked_in_usd_that_reached_a_cad_bank.txt')
 NAMES_USD_SPLIT_CAD_BANK = str(
-    FIXTURES / 'a_payment_giving_the_usd_split_behind_a_cad_bank.txt')
+    FIXTURES / 'a_payment_stating_the_usd_split_behind_a_cad_bank.txt')
 CAD_BANK_ACCOUNT = 'Assets:Bank'
 TWO_SPLITS_AND_A_RESIDUE = str(
     FIXTURES / 'money_arriving_for_two_splits_and_a_residue.txt')
 NAMES_TWO_BESIDE_A_RESIDUE = str(
-    FIXTURES / 'a_payment_giving_two_splits_beside_a_residue.txt')
+    FIXTURES / 'a_payment_stating_two_splits_beside_a_residue.txt')
 FINER_THAN_THE_CENT = str(FIXTURES / 'money_parked_at_a_tenth_of_a_cent.txt')
 A_TRANSACTION_WITH_NO_SPLITS = str(
-    FIXTURES / 'a_payment_giving_a_transaction_with_no_splits.txt')
+    FIXTURES / 'a_payment_stating_a_transaction_with_no_splits.txt')
 GROUPED_WITH_A_PREPAYMENT = str(
     FIXTURES / 'a_grouped_payment_with_a_prepayment.txt')
 THE_OTHER_WIRE = str(FIXTURES / 'a_second_wire_the_directive_names.txt')
@@ -201,12 +201,12 @@ FOLLOWS_THE_REMEDY = str(
 USD_FEE_USD_PARKED = str(
     FIXTURES / 'money_parked_in_usd_beside_a_usd_fee.txt')
 NAMES_USD_SPLIT_BESIDE_A_USD_FEE = str(
-    FIXTURES / 'a_payment_giving_the_usd_split_beside_a_usd_fee.txt')
+    FIXTURES / 'a_payment_stating_the_usd_split_beside_a_usd_fee.txt')
 TWO_PARKED_CAD_SPLITS = str(
     FIXTURES / 'money_booked_to_two_cad_splits.txt')
 NAMES_TWO_PARKED_CAD_SPLITS = str(
-    FIXTURES / 'a_payment_giving_two_parked_cad_splits.txt')
-NAMES_THE_BANK_SPLIT = str(FIXTURES / 'a_payment_giving_the_bank_split.txt')
+    FIXTURES / 'a_payment_stating_two_parked_cad_splits.txt')
+NAMES_THE_BANK_SPLIT = str(FIXTURES / 'a_payment_stating_the_bank_split.txt')
 OVERPAID = str(FIXTURES / 'more_money_parked_than_the_invoice_owes.txt')
 LINKED_OVERPAID = str(
     FIXTURES / 'a_payment_overpaying_from_a_parked_split.txt')
@@ -214,9 +214,9 @@ FELL_SHORT = str(FIXTURES / 'less_money_parked_than_the_block_claims.txt')
 LINKED_FELL_SHORT = str(
     FIXTURES / 'a_payment_claiming_more_than_the_bank_got.txt')
 LINKED_OVERPAID_BY_SPLIT = str(
-    FIXTURES / 'a_payment_overpaying_and_giving_the_parked_split.txt')
+    FIXTURES / 'a_payment_overpaying_and_stating_the_parked_split.txt')
 LINKED_FELL_SHORT_BY_SPLIT = str(
-    FIXTURES / 'a_payment_claiming_more_and_giving_the_parked_split.txt')
+    FIXTURES / 'a_payment_claiming_more_and_stating_the_parked_split.txt')
 CAD_BANK = str(FIXTURES / 'money_parked_with_a_cad_bank.txt')
 LINKED_FROM_A_CAD_BANK = str(
     FIXTURES / 'a_payment_linking_a_cad_bank_to_a_usd_invoice.txt')
@@ -224,10 +224,10 @@ LINKED_FROM_A_CAD_BANK_BY_ITS_TRANSACTION = str(
     FIXTURES / 'a_payment_linking_a_cad_bank_to_a_usd_invoice_by_its_transaction.txt')
 USD_FEE = str(FIXTURES / 'money_parked_beside_a_usd_fee.txt')
 LINKED_WITH_A_USD_FEE = str(
-    FIXTURES / 'a_payment_giving_the_split_parked_beside_a_usd_fee.txt')
+    FIXTURES / 'a_payment_stating_the_split_parked_beside_a_usd_fee.txt')
 WITH_A_FEE = str(FIXTURES / 'money_parked_beside_a_cad_fee.txt')
 LINKED_WITH_A_FEE = str(
-    FIXTURES / 'a_payment_giving_the_split_parked_beside_a_fee.txt')
+    FIXTURES / 'a_payment_stating_the_split_parked_beside_a_fee.txt')
 RATES = str(FIXTURES / 'fx_rates_usd_dated.yaml')
 
 DIRECTOR_PAID_THE_SUPPLIER = str(
@@ -247,8 +247,8 @@ BILL_SETTLED_BY_THE_OWNER = str(
 OWNER_EQUITY = 'Equity:Owner Contributions USD'
 BILL_PAID_ON_THE_CARD = str(
     FIXTURES / 'a_bill_paid_on_the_card_with_no_transaction.txt')
-BILL_GIVING_ONLY_THE_DIRECTORS_TX = str(
-    FIXTURES / 'a_bill_giving_only_the_directors_transaction_guid.txt')
+BILL_STATING_ONLY_THE_DIRECTORS_TX = str(
+    FIXTURES / 'a_bill_stating_only_the_directors_transaction_guid.txt')
 US_VENDOR_PAID_IN_USD = str(
     FIXTURES / 'a_us_vendor_paid_in_usd_with_the_cost_in_cad.txt')
 USD_BILL_SETTLED_BY_THE_CAD_COST = str(
@@ -313,9 +313,9 @@ BILL_OVERPAID_FROM_THE_EXPENSE = str(
 
 BILL_BOOK = str(FIXTURES / 'fx_usd_bill_cad_expense.txt')
 MONEY_OUT = str(FIXTURES / 'money_paid_out_of_a_cad_account.txt')
-BILL_LINKED = str(FIXTURES / 'a_bill_payment_giving_the_parked_split.txt')
+BILL_LINKED = str(FIXTURES / 'a_bill_payment_stating_the_parked_split.txt')
 BILL_NAMES_ONLY_THE_TX = str(
-    FIXTURES / 'a_bill_payment_giving_only_the_transaction.txt')
+    FIXTURES / 'a_bill_payment_stating_only_the_transaction.txt')
 
 BANK = 'Assets:Bank:USD'
 AR = 'Assets:Accounts Receivable USD'
@@ -536,7 +536,7 @@ class TestTheSameForABill:
         assert splits[AP]['amount'] == 100, splits[AP]
         assert splits[AP]['in_a_lot'], 'the settlement belongs to the lot'
 
-    def test_giving_only_the_transaction_works_on_a_bill_too(
+    def test_stating_only_the_transaction_works_on_a_bill_too(
             self, book_with_a_bill):
         """The branch that carries the sign guard, on the side whose sign runs
         the other way.
@@ -552,7 +552,7 @@ class TestTheSameForABill:
 
         assert result.exit_code == 0, result.output
 
-    def test_that_lands_where_giving_the_split_lands(self, book_with_a_bill):
+    def test_that_lands_where_stating_the_split_lands(self, book_with_a_bill):
         CliRunner().invoke(cli, ['import', str(book_with_a_bill),
                                  BILL_NAMES_ONLY_THE_TX,
                                  '--include-business-objects'])
@@ -590,7 +590,7 @@ class TestAPaymentNamingOnlyTheTransaction:
         assert result.exit_code == 0, result.output
         assert 'prepayment' not in result.output, result.output
 
-    def test_it_lands_where_giving_the_split_lands(self, book):
+    def test_it_lands_where_stating_the_split_lands(self, book):
         """Both say the same thing, so both leave the same book."""
         CliRunner().invoke(cli, ['import', str(book), NAMES_ONLY_THE_TX,
                                  '--include-business-objects'])
@@ -658,7 +658,7 @@ class TestOnePaymentMadeOfSeveralSplits:
     def test_posting_it_again_takes_back_both_splits_the_unpost_left(self, paid_in_two):
         """The unpost leaves both splits in the lot it abandoned, each marked as
         orphaned. The same file posts the invoice again, and its `PaymentSplit`
-        lines give those two splits, so they are the invoice's to take back,
+        lines state those two splits, so they are the invoice's to take back,
         not somebody else's settlement."""
         linked = CliRunner().invoke(cli, ['import', str(paid_in_two), NAMES_TWO_SPLITS,
                                           '--include-business-objects'])
@@ -726,7 +726,7 @@ def test_a_split_guid_the_transaction_has_not_got_is_refused(book):
     transaction, or nothing says which split settles the invoice."""
     result = CliRunner().invoke(cli, [
         'import', str(book),
-        str(FIXTURES / 'a_payment_giving_a_split_the_transaction_has_not_got.txt'),
+        str(FIXTURES / 'a_payment_stating_a_split_the_transaction_has_not_got.txt'),
         '--include-business-objects'])
 
     assert result.exit_code != 0, result.output
@@ -736,7 +736,7 @@ def test_a_split_guid_the_transaction_has_not_got_is_refused(book):
 
 def test_a_split_on_a_receivable_the_invoice_does_not_post_to_is_refused(book):
     """A split already on a receivable is a settlement as it stands, so it is
-    not given another account. On the wrong receivable it cannot settle this
+    not moved to another account. On the wrong receivable it cannot settle this
     invoice at all."""
     booked = CliRunner().invoke(cli, [
         'import', str(book), str(FIXTURES / 'money_booked_to_another_receivable.txt')])
@@ -744,7 +744,7 @@ def test_a_split_on_a_receivable_the_invoice_does_not_post_to_is_refused(book):
 
     result = CliRunner().invoke(cli, [
         'import', str(book),
-        str(FIXTURES / 'a_payment_giving_a_split_on_another_receivable.txt'),
+        str(FIXTURES / 'a_payment_stating_a_split_on_another_receivable.txt'),
         '--include-business-objects'])
 
     assert result.exit_code != 0, result.output
@@ -938,11 +938,11 @@ class TestWhatItWillNotDo:
         assert 'USD' in result.output and 'CAD' in result.output, result.output
         assert 'only the payer knows' in result.output, result.output
 
-    def test_giving_the_transaction_alone_is_refused_the_same_way(self, book):
+    def test_stating_the_transaction_alone_is_refused_the_same_way(self, book):
         """Left to find the settling split itself, the run works out what the
         settlement is worth before it asks whether it can be read. Nothing in
         the entry is USD, so there is no figure, and the refusal is the one
-        giving the split earns."""
+        stating the split earns."""
         assert CliRunner().invoke(
             cli, ['import', str(book), CAD_BANK]).exit_code == 0
 
@@ -1017,7 +1017,7 @@ class TestWhatItWillNotDo:
         (OVERPAID, LINKED_OVERPAID_BY_SPLIT, 'stood in for the receivable'),
         (FELL_SHORT, LINKED_FELL_SHORT_BY_SPLIT, 'part-paid'),
     ])
-    def test_giving_the_split_earns_the_same_refusal(self, book, setup,
+    def test_stating_the_split_earns_the_same_refusal(self, book, setup,
                                                      linked, says):
         """Naming a split says *which* split settles the record. It says
         nothing about how much arrived, and this branch now writes the bank's
@@ -1039,7 +1039,7 @@ class TestWhatItWillNotDo:
         assert result.exit_code != 0, result.output
         assert says in result.output, result.output
 
-    def test_a_paymentsplit_giving_the_bank_side_is_refused(self, book):
+    def test_a_paymentsplit_stating_the_bank_side_is_refused(self, book):
         """The likeliest mistake once splits can be named, and the one nothing
         else catches: the bank split is in no lot, is nobody's, and settles
         nothing, so every other guard passes it into the invoice's lot."""
@@ -1098,7 +1098,7 @@ def _amounts_and_values_of(book, description):
 
 
 def _reword_two_settling_splits(book):
-    """Give the two lotted receivable splits different memos, in the book.
+    """Write different memos on the two lotted receivable splits, in the book.
 
     The format states a split's memo, but this shape has to be built by
     settling first and rewording after — the point is what the *export* does
@@ -1251,7 +1251,7 @@ class TestAParkedSplitThatStatesItsOwnSettlement:
             cli, ['import', str(book), USD_PARKED_CAD_BANK]).exit_code == 0
         return book
 
-    def test_giving_the_split_is_accepted(self, parked_behind_a_cad_bank):
+    def test_stating_the_split_is_accepted(self, parked_behind_a_cad_bank):
         result = CliRunner().invoke(cli, [
             'import', str(parked_behind_a_cad_bank), NAMES_USD_SPLIT_CAD_BANK,
             '--include-business-objects'])
@@ -1544,7 +1544,7 @@ class TestAPrepaymentBesideAGroupedBlock:
         ).exit_code == 0
         stated = book.parent / 'grouped_prepay.txt'
         stated.write_text(
-            (FIXTURES / 'a_payment_giving_two_splits_beside_a_residue.txt')
+            (FIXTURES / 'a_payment_stating_two_splits_beside_a_residue.txt')
             .read_text(encoding='utf-8')
             .replace('    account: "Assets:Bank:USD"',
                      '    account: "Assets:Bank:USD"\n    prepayment: 50'),
@@ -1631,7 +1631,7 @@ class TestFollowingTheOverpaymentRemedy:
     context is the account the money was parked on, and the reconciliation only
     counts loose splits on the record's own posted account — so a residue left
     there sums to 0.00 and earns a second refusal that says nothing about
-    where it should have gone. The message gives the account's name now.
+    where it should have gone. The message prints the account's name now.
     """
 
     @pytest.fixture
@@ -2205,7 +2205,7 @@ class TestAnAmountEditedAfterTheSettlementLanded:
         assert runner.invoke(
             cli, ['import', str(book), TWO_SPLITS_AND_A_RESIDUE]
         ).exit_code == 0
-        source = (FIXTURES / 'a_payment_giving_two_splits_beside_a_residue.txt'
+        source = (FIXTURES / 'a_payment_stating_two_splits_beside_a_residue.txt'
                   ).read_text(encoding='utf-8')
         stated = book.parent / 'with_residue.txt'
         stated.write_text(
@@ -2228,7 +2228,7 @@ class TestAnAmountEditedAfterTheSettlementLanded:
         assert 'unchanged' not in again.output, again.output
 
     def test_the_key_spelling_misstating_its_split_is_refused(self, book):
-        """`amount: 999` against the 60.00 split `txn_split_guid:` gives, with no `prepayment:`.
+        """`amount: 999` against the 60.00 split `txn_split_guid:` states, with no `prepayment:`.
 
         The split is attached whole, so the book holding the transaction
         would record 60.00 paid, and a book that never held it would enter
@@ -2242,8 +2242,8 @@ class TestAnAmountEditedAfterTheSettlementLanded:
             '--include-business-objects'])
 
         assert result.exit_code != 0, result.output
-        assert ('states amount: 999, and the split given in txn_split_guid '
-                '708192a3b4c5d6e7f809122334455667 carries 60.00') in result.output, result.output
+        assert ('states amount: 999, and the split txn_split_guid states, '
+                '708192a3b4c5d6e7f809122334455667, carries 60.00') in result.output, result.output
 
 
 class TestABlockNamingOneSplitAndMisstatingIt:
@@ -2381,7 +2381,7 @@ class TestACreditNotesRefund:
 
     Read from the type alone, "a settlement of a receivable is negative on it"
     is true of an invoice and the reverse of this, so the swapped-sides guard
-    refused a link that had always worked, telling the reader to give
+    refused a link that had always worked, telling the reader to write in
     `account:` the account the money moved through when `account:` was right.
 
     Only the `txn_guid:`-alone spelling reaches it: an exported refund carries
@@ -2505,7 +2505,7 @@ class TestASplitOnIncomeExpenseOrEquity:
         assert income[0]['amount'] == -100, income
         assert not [row for row in rows if row['account'] == AR], rows
 
-    def test_giving_only_the_transaction_is_refused_too(self, a_cash_sale):
+    def test_stating_only_the_transaction_is_refused_too(self, a_cash_sale):
         """The check belongs on the split about to move, not on the words that
         chose it — Q-039 says the two spellings reach the same place.
 
@@ -2580,7 +2580,7 @@ class TestASplitOfUnitsRatherThanMoney:
         assert units[0]['amount'] == Fraction(-1), units
         assert units[0]['commodity'] == 'FUNDX', units
 
-    def test_giving_the_fund_split_is_refused(self, a_fund_sale):
+    def test_stating_the_fund_split_is_refused(self, a_fund_sale):
         """Naming the commodity, which is what is wrong with it.
 
         A Mutual Fund account fails the type list as well, so the message has
@@ -2598,7 +2598,7 @@ class TestASplitOfUnitsRatherThanMoney:
         # would send this reader somewhere that cannot help.
         assert 'posts to ' not in result.output, result.output
 
-    def test_giving_only_the_transaction_is_refused_too(self, a_fund_sale):
+    def test_stating_only_the_transaction_is_refused_too(self, a_fund_sale):
         """`txn_guid:` alone finds the one side that is not the bank.
 
         Pinning the reason, not just the refusal: this branch reaches the
@@ -2615,7 +2615,7 @@ class TestASplitOfUnitsRatherThanMoney:
         assert FUND in result.output, result.output
         assert 'FUNDX, which is not a currency' in result.output, result.output
 
-    def test_the_units_survive_giving_the_split(self, a_fund_sale):
+    def test_the_units_survive_stating_the_split(self, a_fund_sale):
         CliRunner().invoke(cli, ['import', str(a_fund_sale),
                                  NAMES_THE_FUND_SPLIT,
                                  '--include-business-objects'])
@@ -2628,7 +2628,7 @@ class TestASplitOfUnitsRatherThanMoney:
         assert not units[0]['in_a_lot'], units
         assert not [row for row in rows if row['account'] == AR], rows
 
-    def test_the_units_survive_giving_only_the_transaction(self, a_fund_sale):
+    def test_the_units_survive_stating_only_the_transaction(self, a_fund_sale):
         CliRunner().invoke(cli, ['import', str(a_fund_sale),
                                  NAMES_ONLY_THE_FUND_SALE,
                                  '--include-business-objects'])
@@ -2682,7 +2682,7 @@ class TestUnitsHeldOnAnAccountOfAnOrdinaryType:
         finally:
             repo.close()
 
-    def test_giving_those_units_is_refused(self, units_on_an_asset):
+    def test_stating_those_units_is_refused(self, units_on_an_asset):
         """And refused for the commodity, which is the only true reason.
 
         The account-type wording would name `Assets:Units` too, so asserting
@@ -2789,7 +2789,7 @@ class TestEveryRefusalABillReachesSaysPayable:
       expense split of a cash purchase — dollars, so the commodity arm has
       nothing to say and only the account's type refuses it;
     - the commodity arm, in `TestUnitsOnTheBillSide` above;
-    - the swapped-sides refusal, reached by giving `account:` and
+    - the swapped-sides refusal, reached by writing in `account:` and
       `txn_split_guid:` each other's split. That one is caught by the sign,
       and the sign is precisely what a bill reverses, so it is a refusal
       bills reach *more* readily than invoices do.
@@ -2922,7 +2922,7 @@ class TestEveryRefusalABillReachesSaysPayable:
 
         Those usually agree, and where they do nothing distinguishes the two
         sources. GnuCash does not make them agree: `gncInvoicePostToAccount`
-        validates nothing about the account it is given and this tool's own
+        validates nothing about the account it is passed and this tool's own
         posting check compares currencies only, so `ap_account:` naming a
         plain `type: Liability` is a book that gets built.
 
@@ -3122,7 +3122,7 @@ class TestLinkingAnExpenseSplitToABillsPayable:
         self._assert_settled(path, before, 'Owner settled the supplier',
                              OWNER_EQUITY)
 
-    def test_giving_only_the_transaction_reaches_the_same_split(
+    def test_stating_only_the_transaction_reaches_the_same_split(
             self, tmp_path):
         """`txn_guid:` alone picks the side that is not the `account:`.
 
@@ -3133,7 +3133,7 @@ class TestLinkingAnExpenseSplitToABillsPayable:
         """
         path, before, result = self._linked(
             tmp_path, DIRECTOR_PAID_THE_SUPPLIER,
-            BILL_GIVING_ONLY_THE_DIRECTORS_TX)
+            BILL_STATING_ONLY_THE_DIRECTORS_TX)
 
         assert result.exit_code == 0, result.output
         self._assert_settled(path, before, 'Director paid the supplier',
@@ -3829,7 +3829,7 @@ class TestTheTwoSidesOfTheLinkSwapped:
     catching this.
 
     What it produced at exit 0: the settlement read as the negation of what the
-    *parked* split did, so the bank split was given the receivable at
+    *parked* split did, so the bank split was moved to the receivable at
     +100.00. The deposit left `Assets:Bank:USD` entirely, the lot held the
     posting's +100 and this +100 so the invoice read as owing 200, and the
     entry still balanced.
@@ -3873,7 +3873,7 @@ class TestTheTwoSidesOfTheLinkSwapped:
         assert len(suspense) == 1, rows
         assert suspense[0]['amount'] == -100
 
-    def test_the_same_swap_without_giving_the_split_is_refused(self,
+    def test_the_same_swap_without_stating_the_split_is_refused(self,
                                                               parked_in_usd):
         """One line shorter, and it took a different road.
 
@@ -4148,8 +4148,8 @@ class TestAParkedSplitInTheRecordsOwnCurrency:
 class TestABlockNamingOneSplit:
     """A `Transaction` naming exactly one `PaymentSplit`.
 
-    `payment_slots` gives it a slot carrying that guid, as it does every slot
-    of a block naming several, so it is paired by the split it names. Given a
+    `payment_slots` makes it a slot carrying that guid, as it does every slot
+    of a block stating several, so it is paired by the split it states. With a
     bare slot instead it was paired on date, amount and memo — and its
     `amount:` is the settlement's share while the figure it was weighed against
     is the bank side of the transaction, so it never matched its own payment.
@@ -4180,8 +4180,8 @@ class TestABlockNamingOneSplit:
     def test_reading_the_same_block_again_changes_nothing(self, part_paid):
         """The hand-written spelling, read twice — no export in between.
 
-        A one-split grouped block was given a `None` slot, so it was paired by
-        date/amount/memo instead of by the guid it names. Its `amount:` is the
+        A one-split grouped block had a `None` slot, so it was paired by
+        date/amount/memo instead of by the guid it states. Its `amount:` is the
         settlement's share, 60.00 of a wire that moved 100.00, and the figure
         it was weighed against is the bank side of the transaction — so the
         block never matched its own payment, and every re-import of an unedited
@@ -4251,7 +4251,7 @@ class TestASecondSettlingSplitOnATransactionAlreadySettlingIt:
             '--include-business-objects']).exit_code == 0
         return book
 
-    def test_giving_both_splits_is_accepted(self, part_paid):
+    def test_stating_both_splits_is_accepted(self, part_paid):
         result = CliRunner().invoke(cli, [
             'import', str(part_paid), NAMES_TWO_SPLITS,
             '--include-business-objects'])
@@ -4338,7 +4338,7 @@ class TestADirectiveWhereNothingWouldReadIt:
         receivables = [row for row in rows if row['account'] == AR]
         assert not any(row['in_a_lot'] for row in receivables), receivables
 
-    def test_a_transaction_giving_no_splits_is_refused(self, book):
+    def test_a_transaction_stating_no_splits_is_refused(self, book):
         """The directive's children are its splits — that is what it is for.
 
         Childless it says only what `txn_guid:` says, and is read by nobody:

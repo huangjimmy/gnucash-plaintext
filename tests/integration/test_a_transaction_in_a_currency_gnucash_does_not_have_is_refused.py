@@ -1,6 +1,6 @@
 """A transaction quoted in a currency GnuCash does not have is refused.
 
-`currency.mnemonic:` gives the currency a transaction is quoted in. Where
+`currency.mnemonic:` states the currency a transaction is quoted in. Where
 GnuCash has no such currency there is nothing to quote it in, so the import
 refuses the transaction, whether the file creates it or restates one the book
 already holds.

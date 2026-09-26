@@ -265,7 +265,7 @@ class TestSeveralLinesAndSeveralTaxAccounts:
     def test_each_account_holds_what_its_split_holds_across_lines(
             self, book, tmp_path):
         """Two lines of 1.10 taxed at 5% + 5%: each line owes 0.055 to each
-        account. Rounding a line's own breakdown gives one account 0.06 and
+        account. Rounding a line's own breakdown puts 0.06 on one account and
         the other 0.05 on both lines — 0.12 against 0.10 — while the book
         rounds each account once across the invoice and posts 0.11 each.
         The page has to state the book's figures, so the fit works per
@@ -539,7 +539,7 @@ class TestWhichRoundingAnInvoicesTaxIs:
     """An invoice's tax is the sum of its accounts', each rounded once.
 
     The alternative reading — one rounding of the whole invoice's tax —
-    gives the same answer for almost every invoice, which is why it has to
+    reaches the same answer for almost every invoice, which is why it has to
     be asked of a case that parts them. One line of 1.10 taxed at 5% + 5% owes
     0.055 to each account:
 

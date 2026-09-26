@@ -4,9 +4,9 @@ GnuCash stores no currency for a book. Measured on all eleven builds on a book
 kept only in HKD: the root account holds no commodity, the book-currency call
 answers nothing on 3.4 and 3.8 and does not exist from 4.4, and GnuCash's own
 Balance Sheet defaults its report currency to USD (Q-042). So the currency is
-found here, from the first of these that gives one:
+found here, from the first of these that states one:
 
-1. a currency given on the command (`--currency`);
+1. a currency passed on the command (`--currency`);
 2. the `company` block's `base_currency:`, one of the book-level custom keys
    `import` keeps in the book;
 3. the currency every top-level account held in a currency shares. An account
@@ -14,7 +14,7 @@ found here, from the first of these that gives one:
    are the top-level accounts GnuCash makes for itself — `Imbalance-<CUR>`,
    `Orphan-<CUR>` and `Trading`.
 
-Where none of them gives one, the book's currency is refused, and nothing is
+Where none of them states one, the book's currency is refused, and nothing is
 taken to be CAD.
 """
 
@@ -56,12 +56,12 @@ def book_currency(book, stated: Optional[str] = None) -> str:
                 f'--currency {code}: GnuCash knows no currency {code}.')
         return code
 
-    given = get_book_custom_metadata(book).get(BASE_CURRENCY_KEY)
-    if given is not None and str(given).strip():
-        code = str(given).strip()
+    in_the_company_block = get_book_custom_metadata(book).get(BASE_CURRENCY_KEY)
+    if in_the_company_block is not None and str(in_the_company_block).strip():
+        code = str(in_the_company_block).strip()
         if not known(code):
             raise BookCurrencyUnknownError(
-                f'The company block gives base_currency {code}, and GnuCash knows no '
+                f'The company block states base_currency {code}, and GnuCash knows no '
                 f'currency {code}. {_HOW_TO_STATE_IT}')
         return code
 
@@ -93,16 +93,16 @@ def book_currency(book, stated: Optional[str] = None) -> str:
         f'which of them the book is kept in. {_HOW_TO_STATE_IT}')
 
 
-def the_books_own_currency_or(book, given: str) -> str:
-    """The currency the book is kept in, or `given` where nothing says which.
+def the_books_own_currency_or(book, passed: str) -> str:
+    """The currency the book is kept in, or `passed` where nothing says which.
 
     What an income or expense account is asked to be kept in. A statement drawn
     in another currency does not change the currency the book is kept in, and
     an account kept in the book's own currency is not warned about because a
     page was asked for in US dollars. Where the book does not say, the currency
-    the reader gave is the only answer there is.
+    the reader passed is the only answer there is.
     """
     try:
         return book_currency(book)
     except BookCurrencyUnknownError:
-        return given
+        return passed

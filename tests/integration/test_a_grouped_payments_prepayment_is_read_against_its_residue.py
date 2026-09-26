@@ -2,7 +2,7 @@
 
 `money_arriving_for_two_splits_and_a_residue.txt` brings 150.00 USD in against
 three receivable splits: 60.00 and 40.00 that settle INV-USD-001, and 50.00
-left over. `a_payment_giving_two_splits_beside_a_residue.txt` applies the first
+left over. `a_payment_stating_two_splits_beside_a_residue.txt` applies the first
 two. A `prepayment:` on that block says how much is left over, so it has to be
 a number, and the number the third split holds.
 """

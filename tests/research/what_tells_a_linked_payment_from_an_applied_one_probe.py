@@ -90,7 +90,7 @@ def test_what_a_linked_payment_reads_as(tmp_path, capsys):
 
     assert runner.invoke(cli, [
         'import', str(path),
-        str(FIXTURES / 'a_payment_giving_the_usd_split_behind_a_cad_bank.txt'),
+        str(FIXTURES / 'a_payment_stating_the_usd_split_behind_a_cad_bank.txt'),
         '--include-business-objects',
         '--fx-rates', str(FIXTURES / 'fx_rates_usd_dated.yaml')]).exit_code == 0
 

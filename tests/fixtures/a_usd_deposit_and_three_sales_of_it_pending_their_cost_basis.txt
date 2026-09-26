@@ -1,8 +1,8 @@
 # Q-053: a bank statement's 2,720.00 USD deposit and three lines after it, as
 # an application writes them before anyone has decided which cost basis each
-# line draws on: each sale gives `cost_basis_split_guid: $pending$`. Each is
-# imported, draws on nothing, and is listed as pending until an edit gives it
-# its cost basis.
+# line draws on, so each sale has `cost_basis_split_guid: $pending$`. Each is
+# imported without drawing down a cost basis, and is listed as pending until
+# an edit states the cost basis it draws on.
 #
 # Verified by
 # tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.

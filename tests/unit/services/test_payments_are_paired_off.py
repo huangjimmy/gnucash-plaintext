@@ -46,12 +46,12 @@ def _match_by_the_fake(monkeypatch):
         lambda split, block: split in block.fits)
 
 
-def test_a_block_is_given_up_when_its_holder_can_be_paired_elsewhere():
+def test_a_block_is_released_when_its_holder_can_be_paired_elsewhere():
     """The described block fits both payments; the named one fits only its own.
 
     Read in order, the first payment takes the described block — the first it
     fits — and the second payment is left with a block naming a transaction
-    that is not its own. Taking the described block back and giving the first
+    that is not its own. Taking the described block back and pairing the first
     payment the named one pairs both, and that pairing exists, so it has to be
     found.
     """
@@ -111,7 +111,7 @@ def test_a_chain_of_displacements_is_followed_to_the_end():
 
     Reaching it takes two displacements, not one. C asks for block 1, which
     means moving A; A's next fit is block 2, which means moving B; B's next fit
-    is block 3, which is free. A search that gives a block up once but does not
+    is block 3, which is free. A search that releases a block once but does not
     follow where that leads stops at the first step and reports two of three
     paired.
     """

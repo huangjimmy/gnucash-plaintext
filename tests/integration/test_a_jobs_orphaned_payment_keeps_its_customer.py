@@ -73,8 +73,8 @@ def _a_jobs_invoice_paid_and_unposted(tmp_path, paid_cents=10000, unpost=True):
 
 def test_a_jobs_credit_is_listed_under_the_customer_the_job_is_for(tmp_path):
     """Paid 150.00 against 100.00, the invoice leaves 50.00 of credit.
-    `find-prepayments` gives it as the customer's, as `export` and
-    `find-orphan-payments` give the job's payment."""
+    `find-prepayments` lists it as the customer's, as `export` and
+    `find-orphan-payments` list the job's payment."""
     book = _a_jobs_invoice_paid_and_unposted(tmp_path, paid_cents=15000, unpost=False)
 
     listed = CliRunner().invoke(cli, ['find-prepayments', str(book)])
@@ -100,8 +100,8 @@ def test_the_export_writes_the_jobs_customer_as_the_owner(tmp_path):
     assert 'owner: customer:C-JOB' in _the_payment_block(out.read_text()), out.read_text()
 
 
-def test_the_listing_gives_the_jobs_customer_as_the_owner_too(tmp_path):
-    """The same answer the export writes, in the book the unpost left. Given
+def test_the_listing_lists_the_jobs_customer_as_the_owner_too(tmp_path):
+    """The same answer the export writes, in the book the unpost left. Listed
     as the job, the listing and the export disagreed about whose it is, and a
     listing narrowed to C-JOB passed the payment over."""
     book = _a_jobs_invoice_paid_and_unposted(tmp_path)

@@ -48,11 +48,11 @@ _NO_SUCH_BOOK = (
 
 _A_FILE_IS_ALREADY_THERE = (
     'There is already a file at that path, and a new book is not written over '
-    'it. Give a path where no file is.')
+    'it. Choose a path where no file is.')
 
 _NO_DIRECTORY_FOR_THE_BOOK = (
     'The directory the new book would go in does not exist. Create it first, '
-    'or give a path in a directory that does.')
+    'or choose a path in a directory that does.')
 
 _NOT_A_BOOK = (
     'That is not a GnuCash book this tool can read. It reads the XML '
@@ -81,7 +81,7 @@ def _what_gnucash_meant(error: Exception, creating: bool = False) -> str:
             'The book is somewhere this command cannot write. GnuCash locks a '
             'book by creating files beside it, so a read-only directory '
             'refuses even a command that only reads. Copy the book somewhere '
-            'writable, or give yourself write access to the directory it is '
+            'writable, or get write access to the directory it is '
             'in.')
     if 'ERR_BACKEND_NO_HANDLER' in text:
         return _NOT_A_BOOK
@@ -206,7 +206,7 @@ class GnuCashRepository:
         # book, and a new book where a file already is or in a directory that
         # does not exist. A book to read is opened for writing as a private
         # copy, whose backend takes a lock of its own and closes only that;
-        # the book itself gets no lock, as a read-only open gives it none, and
+        # the book itself gets no lock, as a read-only open takes none, and
         # nothing is saved from the copy.
         creating = mode == SessionMode.NEW
         if not creating:

@@ -63,7 +63,7 @@ def test_a_refused_sale_is_not_saved_while_the_rest_of_the_file_is(tmp_path):
 
 
 def test_a_sale_across_bases_lowers_none_of_them_when_it_is_refused(tmp_path):
-    """Two splits giving the same cost basis pass individually and fail together, so
+    """Two splits stating the same cost basis pass individually and fail together, so
     the total is what is checked — and nothing is written before it is."""
     runner = CliRunner()
     book, basis = _book(runner, tmp_path)

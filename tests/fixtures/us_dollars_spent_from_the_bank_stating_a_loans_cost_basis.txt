@@ -1,0 +1,89 @@
+# US dollars spent out of the bank, stating the cost basis of the loan rather
+# than one of the bank's.
+#
+# 500.00 USD are bought at 1.30 into the bank, which opens a cost basis on the
+# held side. 1,000.00 USD are borrowed at 1.30 into the same bank, stated in
+# Canadian dollars, which opens a cost basis on each side: the dollars held and
+# the dollars owed. The sale then takes 100.00 USD out of the bank and states
+# the loan's cost basis, which stands for dollars owed, not dollars held. It is
+# valued at the 1.30 both cost, so it realizes nothing and states no gain.
+#
+# Verified by
+# tests/integration/test_every_split_that_spends_draws_on_a_cost_basis_of_its_own_side.py.
+2033-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2033-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2033-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Liabilities:USD Loan
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2033-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2033-01-01 open Equity:Opening
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2033-01-02 * "Opening capital"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 5000.00 CAD
+	Equity:Opening -5000.00 CAD
+
+2033-01-05 * "Buy 500.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "650.00"
+		guid: "0f0f0000000000000000000000000011"
+	Assets:CAD Bank -650.00 CAD
+
+2033-01-06 * "Borrow 1,000.00 USD at 1.30"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "1300.00"
+		guid: "0f0f0000000000000000000000000012"
+	Liabilities:USD Loan -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-1300.00"
+		guid: "0f0f0000000000000000000000000013"
+
+2033-02-01 * "Sell 100.00 USD out of the bank, stating the loan's cost basis"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-130.00"
+		cost_basis_split_guid: "0f0f0000000000000000000000000013"
+	Assets:CAD Bank 130.00 CAD

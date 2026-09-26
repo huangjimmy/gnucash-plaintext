@@ -2,7 +2,7 @@
 # dollars the second draws on bought in a transaction written below it.
 #
 # The first fee draws on the dollars bought before the statement, which the
-# book holds. The second gives the guid of a split the file creates further
+# book holds. The second states the guid of a split the file creates further
 # down, so it is refused in the first pass and applied in the next, once that
 # purchase is in the book. The two fees share a date and their accounts,
 # which is all the check for a duplicate compares, and they are two fees.

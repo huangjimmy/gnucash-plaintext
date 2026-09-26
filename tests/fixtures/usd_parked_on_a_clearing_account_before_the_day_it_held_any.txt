@@ -10,7 +10,7 @@
 # What the account held is read at the parking's own date. Read from the whole
 # balance, the account stood at 500.00 when the parking arrived, the parking
 # took it to 400.00, and a fall of 100.00 read as a disposal of dollars the
-# account did not hold on that day — refused for giving no cost basis guid.
+# account did not hold on that day — refused for stating no cost basis guid.
 #
 # Verified by
 # tests/integration/test_what_an_account_held_is_read_at_the_transactions_date.py.

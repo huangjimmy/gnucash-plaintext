@@ -4,9 +4,9 @@ Spending part of an owner's credit divides the split it comes from. The part
 applied keeps the source split's guid and settles the record; the currency
 still unsold moves to the remainder, a new split with a guid of its own.
 
-A sale already measured against that credit gives the old guid, and the old
+A sale already measured against that credit states the old guid, and the old
 guid matches the settlement now. Nothing about the sale changed — it sold what
-it sold, at the cost it sold it at, out of the same pool — so it is given the
+it sold, at the cost it sold it at, out of the same pool — so it is moved to the
 remainder's guid, and the pool it draws on is the split that holds it.
 
 Left where it was, the sale draws on a split that is no cost basis:
@@ -14,7 +14,7 @@ Left where it was, the sale draws on a split that is no cost basis:
 `cost_basis_split_guid:`, so the book's own ledger is refused on the way back
 in with "matches a split that is no USD cost basis".
 
-Both ways a credit is divided are covered. A `txn_split_guid:` block giving the
+Both ways a credit is divided are covered. A `txn_split_guid:` block stating the
 credit's guid divides it here; `auto_apply_credit: true` leaves the division to
 GnuCash, which carves it differently — the applied part keeps the source's
 slots and the remainder comes out empty.
@@ -22,7 +22,7 @@ slots and the remainder comes out empty.
 Both are covered for a credit carrying no cost basis key at all, which is the shape
 that gets missed: a credit overpaid from a CAD bank stores no cost, spending it
 takes its balance, and an unpost hands it back with neither key and a sale
-still giving its guid. Read off the keys, such a credit is one nothing moves
+still stating its guid. Read off the keys, such a credit is one nothing moves
 for — and it is the division that says where the pool went, not the keys.
 
 Spending a credit in full is covered too, and is not refused. A credit is money
@@ -30,7 +30,7 @@ owed back to the owner rather than a particular pile of currency, so an
 overpayment settling their next invoice in full is the commonest thing an
 overpayment is for, and whether the company converted some of that currency in
 the meantime has no bearing on it. Nothing is left for the sale to move to, so
-it keeps giving the credit's guid — a cost basis the book consumed, which the import
+it still states the credit's guid — a cost basis the book consumed, which the import
 takes and neither lowers nor refuses. A guid that was never a cost basis still is
 refused.
 """
@@ -57,7 +57,7 @@ from tests.integration.test_applied_credit_carries_its_basis import (
 def _dashed(guid):
     """A guid in the 8-4-4-4-12 spelling GnuCash prints it in.
 
-    A file may give one either way — every reader of `cost_basis_split_guid:`
+    A file may write one either way — every reader of `cost_basis_split_guid:`
     takes the dashes out — so a book can hold the key in this spelling.
     """
     return '-'.join([guid[:8], guid[8:12], guid[12:16], guid[16:20],
@@ -82,11 +82,11 @@ def _a_credit_with_80_sold_from_it(runner, tmp_path, dashed=False):
 
 
 def _spend_30_of_it_through_a_block(runner, tmp_path, book):
-    """A 30.00 USD invoice giving the credit by guid — divided by this tool."""
+    """A 30.00 USD invoice stating the credit by guid — divided by this tool."""
     credit_txn, credit_split = _the_credit_split(book)
     second = tmp_path / 'second.txt'
     second.write_text(
-        Path('tests/fixtures/fx_invoice_giving_a_part_sold_credit.txt')
+        Path('tests/fixtures/fx_invoice_stating_a_part_sold_credit.txt')
         .read_text().replace('TXN_GUID', credit_txn)
         .replace('SPLIT_GUID', credit_split))
     assert _run(runner, 'import', str(book), str(second),
@@ -109,7 +109,7 @@ def _the_sale_block(text):
 
 
 def _the_sales_basis_guid(runner, tmp_path, book):
-    """The guid the 80.00 USD sale gives, read back out of the export.
+    """The guid the 80.00 USD sale states, read back out of the export.
 
     None where the export writes none, which is what it does once the pool the
     sale drew on has been spent: the line would rebuild nothing.
@@ -117,13 +117,13 @@ def _the_sales_basis_guid(runner, tmp_path, book):
     out = tmp_path / 'out.txt'
     assert _run(runner, 'export', str(book), str(out),
                 '--include-business-objects').exit_code == 0
-    given = re.search(r'cost_basis_split_guid: "([0-9a-f]{32})"',
-                      _the_sale_block(out.read_text()))
-    return (given.group(1) if given else None), out
+    stated = re.search(r'cost_basis_split_guid: "([0-9a-f]{32})"',
+                       _the_sale_block(out.read_text()))
+    return (stated.group(1) if stated else None), out
 
 
-def _the_sale_giving(text, guid, mark=''):
-    """The same ledger with the sale giving `guid`, and optionally that split
+def _the_sale_stating(text, guid, mark=''):
+    """The same ledger with the sale stating `guid`, and optionally that split
     marked as a credit this book spent."""
     block = _the_sale_block(text)
     written = re.sub(r'\t\tcost_basis_split_guid: "[0-9a-f]{32}"\n', '', block)
@@ -148,24 +148,24 @@ def _the_remainders_guid(text, size):
     return re.search(r'guid: "([0-9a-f]{32})"', block).group(1)
 
 
-def test_the_sale_gives_the_remainder_after_a_block_divides_the_credit(tmp_path):
+def test_the_sale_draws_on_the_remainder_after_a_block_divides_the_credit(tmp_path):
     runner = CliRunner()
     book, credit_guid = _a_credit_with_80_sold_from_it(runner, tmp_path)
     _spend_30_of_it_through_a_block(runner, tmp_path, book)
 
-    given, out = _the_sales_basis_guid(runner, tmp_path, book)
-    assert given != credit_guid, 'still gives the split that was spent'
-    assert given == _the_remainders_guid(out.read_text(), '70.00')
+    stated, out = _the_sales_basis_guid(runner, tmp_path, book)
+    assert stated != credit_guid, 'still draws on the split that was spent'
+    assert stated == _the_remainders_guid(out.read_text(), '70.00')
 
 
-def test_the_sale_gives_the_remainder_after_the_engine_divides_it(tmp_path):
+def test_the_sale_draws_on_the_remainder_after_the_engine_divides_it(tmp_path):
     runner = CliRunner()
     book, credit_guid = _a_credit_with_80_sold_from_it(runner, tmp_path)
     _spend_40_of_it_through_the_engine(runner, tmp_path, book)
 
-    given, out = _the_sales_basis_guid(runner, tmp_path, book)
-    assert given != credit_guid, 'still gives the split that was spent'
-    assert given == _the_remainders_guid(out.read_text(), '60.00')
+    stated, out = _the_sales_basis_guid(runner, tmp_path, book)
+    assert stated != credit_guid, 'still draws on the split that was spent'
+    assert stated == _the_remainders_guid(out.read_text(), '60.00')
 
 
 def test_verify_costs_reports_nothing_after_a_block_divides_the_credit(tmp_path):
@@ -203,7 +203,7 @@ def test_the_export_of_a_divided_credits_book_re_imports(tmp_path):
 
 
 def _spend_all_of_it_through_a_block(runner, tmp_path, book):
-    """A 100.00 USD invoice giving the whole credit by guid."""
+    """A 100.00 USD invoice stating the whole credit by guid."""
     credit_txn, credit_split = _the_credit_split(book)
     whole = tmp_path / 'whole.txt'
     whole.write_text(
@@ -325,8 +325,8 @@ def test_the_export_leaves_the_guid_out_once_the_pool_is_spent(tmp_path):
     assert _spend_all_of_it_through_a_block(
         runner, tmp_path, book).exit_code == 0
 
-    given, out = _the_sales_basis_guid(runner, tmp_path, book)
-    assert given is None, _the_sale_block(out.read_text())
+    stated, out = _the_sales_basis_guid(runner, tmp_path, book)
+    assert stated is None, _the_sale_block(out.read_text())
 
     fresh = tmp_path / 'fresh.gnucash'
     again = _run(runner, 'import', '--new', str(fresh), str(out),
@@ -360,7 +360,7 @@ def test_a_dashed_guid_is_read_the_same_way(tmp_path):
 def test_a_disposal_of_another_currency_on_it_is_still_reported(tmp_path):
     """Being a pool the book consumed excuses one question and not the rest.
 
-    A sale that drew on a credit before it was spent keeps giving its guid,
+    A sale that drew on a credit before it was spent still states its guid,
     and that is history rather than a fault — which is what `is_a_spent_credit`
     exempts it from. It does not make the split a pool of whatever currency
     somebody points at it: a CAD split drawing on a USD credit sold no US
@@ -454,7 +454,7 @@ def test_a_guid_that_was_never_a_basis_is_still_refused(tmp_path):
 
     fresh = tmp_path / 'fresh.gnucash'
     forged = tmp_path / 'forged.txt'
-    forged.write_text(_the_sale_giving(text, other))
+    forged.write_text(_the_sale_stating(text, other))
     again = _run(runner, 'import', '--new', str(fresh), str(forged),
                  '--include-business-objects', '--fx-rates', RATES)
     assert again.exit_code != 0, again.output
@@ -485,7 +485,7 @@ def test_a_file_cannot_buy_its_way_past_the_refusal_with_the_credit_mark(tmp_pat
     other = re.search(r'guid: "([0-9a-f]{32})"', settlement).group(1)
 
     forged = tmp_path / 'forged.txt'
-    forged.write_text(_the_sale_giving(
+    forged.write_text(_the_sale_stating(
         text, other, mark='applied_from_credit: "true"'))
     fresh = tmp_path / 'fresh.gnucash'
     again = _run(runner, 'import', '--new', str(fresh), str(forged),
@@ -560,7 +560,7 @@ def test_the_engine_moves_a_keyless_credits_sale_too(tmp_path):
 
     The walk that follows an engine-carved credit collected the splits that
     carry a cost basis key, so a credit carrying none was never looked at: the
-    engine halved it, the sale went on giving the applied part, and that part
+    engine halved it, the sale still drew on the applied part, and that part
     settles the invoice — no cost basis, and marked as a credit the book
     consumed, which is what stops `--verify-costs` reporting it and what makes
     the export drop the guid. The book's own ledger then rebuilt a remainder
@@ -578,10 +578,10 @@ def test_the_engine_moves_a_keyless_credits_sale_too(tmp_path):
         text).group(0)
     remainder_guid = re.search(r'guid: "([0-9a-f]{32})"', remainder).group(1)
 
-    given = re.search(r'cost_basis_split_guid: "([0-9a-f]{32})"',
-                      _the_sale_block(text))
-    assert given, _the_sale_block(text)
-    assert given.group(1) == remainder_guid, _the_sale_block(text)
+    stated = re.search(r'cost_basis_split_guid: "([0-9a-f]{32})"',
+                       _the_sale_block(text))
+    assert stated, _the_sale_block(text)
+    assert stated.group(1) == remainder_guid, _the_sale_block(text)
 
 
 def _a_keyless_credit_a_sale_draws_on(runner, tmp_path):
@@ -590,7 +590,7 @@ def _a_keyless_credit_a_sale_draws_on(runner, tmp_path):
     A credit overpaid from a CAD bank is priced by its own transaction, so it
     stores no cost of its own; spending it whole on an invoice takes its
     balance; and unposting that invoice hands it back carrying neither key.
-    The sale made while it still had a balance goes on giving its guid.
+    The sale made while it still had a balance still states its guid.
 
     Nothing is carried across a division of that credit, there being no keys
     to carry, and the sale has to follow the pool all the same.
@@ -619,7 +619,7 @@ def _a_keyless_credit_a_sale_draws_on(runner, tmp_path):
 
 
 def _spend_30_of_the_loosened_credit(runner, tmp_path, book, credit):
-    """A 30.00 USD invoice giving that credit by guid, leaving 70.00."""
+    """A 30.00 USD invoice stating that credit by guid, leaving 70.00."""
     part = tmp_path / 'part.txt'
     part.write_text(
         Path('tests/fixtures/fx_invoice_spending_part_of_a_cad_paid_credit.txt')
@@ -635,9 +635,9 @@ def test_the_sale_follows_a_credit_that_carries_no_basis_key(tmp_path):
     """The keys are not what says where the pool went; the division is.
 
     Read off the keys, a credit carrying none of them is a credit nothing
-    moves for, and the sale goes on giving the split that is the invoice's
+    moves for, and the sale still draws on the split that is the invoice's
     settlement now. Measured: the export then writes the sale no
-    `cost_basis_split_guid:` at all — the guid gives a pool the book consumed,
+    `cost_basis_split_guid:` at all — the guid matches a pool the book consumed,
     which is dropped rather than written out — so the ledger says nothing
     about where the 50.00 USD it sold came from, and a book rebuilt from it
     has a sale drawing on nothing.
@@ -657,9 +657,9 @@ def test_the_sale_follows_a_credit_that_carries_no_basis_key(tmp_path):
 
     sale = re.search(r'"Sell 50 USD of the credit"[^\n]*\n(?:\t[^\n]*\n)*',
                      text).group(0)
-    given = re.search(r'cost_basis_split_guid: "([0-9a-f]{32})"', sale)
-    assert given, sale
-    assert given.group(1) == remainder_guid, sale
+    stated = re.search(r'cost_basis_split_guid: "([0-9a-f]{32})"', sale)
+    assert stated, sale
+    assert stated.group(1) == remainder_guid, sale
 
 
 def test_the_rebuilt_book_measures_the_sale_against_the_remainder(tmp_path):

@@ -83,7 +83,7 @@ def _craft_ownerless_ar_credit(gf, amount=Fraction(-77)):
     GnuCash's View → Lots leaves, and what a buggy import path would leave.
 
     `amount` is an exact Fraction and is written at the unit its account is
-    kept to, so a book kept finer than the cent can hold what it is given:
+    kept to, so a book kept finer than the cent can hold what it is handed:
     through a float and `round`, −20.005 became −20.00 and the test asking
     about a tenth of a cent could not state one.
     """
@@ -248,7 +248,7 @@ def test_find_prepayments_warns_on_ownerless_credit_lot(tmp_path):
 
 
 def test_the_export_writes_no_open_prepayment_for_an_ownerless_credit_lot(tmp_path):
-    """`open_prepayment:` gives an owner, and this credit has none to give.
+    """`open_prepayment:` states an owner, and this credit has none to state.
 
     So the receivable's block carries no such line, and the export still
     writes the book.

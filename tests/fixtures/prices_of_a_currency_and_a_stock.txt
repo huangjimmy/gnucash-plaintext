@@ -1,7 +1,7 @@
 # A file holding nothing but two prices and the commodity one of them needs.
 #
-# The NASDAQ:AMZN price gives its guid and a full UTC time, as `export` writes
-# a price. The USD rate gives neither a guid nor a time of day: `time:` is a
+# The NASDAQ:AMZN price states its guid and a full UTC time, as `export` writes
+# a price. The USD rate states neither a guid nor a time of day: `time:` is a
 # bare date and `value:` a decimal, as a price is typed by hand.
 #
 # What this fixture produces: a book holding two prices, AMZN in USD at

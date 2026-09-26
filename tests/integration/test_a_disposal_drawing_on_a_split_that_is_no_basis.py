@@ -2,7 +2,7 @@
 
 The other half of the same fault. A link can leave a split holding a
 `cost_basis_balance` it can no longer justify — reported already — and clearing
-that balance leaves the disposal below it still giving that split's guid in
+that balance leaves the disposal below it still stating that split's guid in
 `cost_basis_split_guid:`. Nothing is stored where nothing reads it any more, so
 the balance check is silent, and the book reads clean while a disposal is
 measured against something that is not a cost basis.
@@ -100,7 +100,7 @@ def _a_fee_drawing_on_a_split_that_is_no_basis(runner, tmp_path):
     """That book, with the deposit's CAD side taken away and the stranded
     balance cleared.
 
-    What is left is a fee giving a guid that is no cost basis, and nothing
+    What is left is a fee stating a guid that is no cost basis, and nothing
     else wrong that any existing check can see.
     """
     book = a_deposit_and_a_fee_of_the_same_day(runner, tmp_path)

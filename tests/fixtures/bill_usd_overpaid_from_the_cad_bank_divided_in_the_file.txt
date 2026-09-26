@@ -1,7 +1,7 @@
 # 200.00 USD paid to V-US out of the CAD bank as 274.00 CAD, a rate of 1.37,
 # against BILL-USD-OVER for 100.00 USD. The entry already divides the payable
 # side: 100.00 settling the bill and 100.00 left over. The bill's payment block
-# gives the settling split with `txn_split_guid:` and declares the rest with
+# states the settling split with `txn_split_guid:` and declares the rest with
 # `prepayment: 100`.
 #
 # What this fixture produces: the 100.00 USD left over is the vendor's debt to

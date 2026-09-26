@@ -9,7 +9,7 @@ This asks the same question of every other way a transaction reaches that
 shape, because the answer should not depend on which command wrote it:
 
 1. created by an import — the path that calls it;
-2. edited into that shape by `import --strategy update`, a split given an
+2. edited into that shape by `import --strategy update`, a split moved to an
    account kept in another currency;
 3. restated into that shape by `unapply-payment`, which takes the payment off
    a wrongly linked deposit.
@@ -72,9 +72,9 @@ A_CAD_ENTRY = '''\
 \t\tguid: "99998888777766665555444433332222"
 '''
 
-# The same transaction, with the suspense split given the USD bank account:
+# The same transaction, with the suspense split moved to the USD bank account:
 # 100.00 USD in, 140.00 CAD out. A purchase of USD, written as an edit.
-GIVEN_A_USD_ACCOUNT = '''\
+MOVED_TO_A_USD_ACCOUNT = '''\
 2026-02-01 * "Money out"
 \tguid: "aa11bb22cc33dd44ee55ff6600112233"
 \tcurrency.mnemonic: "CAD"
@@ -117,7 +117,7 @@ def test_a_transaction_edited_into_a_purchase(tmp_path, capsys):
                          ).exit_code == 0
 
     edit = tmp_path / 'edit.txt'
-    edit.write_text(GIVEN_A_USD_ACCOUNT)
+    edit.write_text(MOVED_TO_A_USD_ACCOUNT)
     edited = _run(runner, 'import', str(book), str(edit),
                   '--strategy', 'update', '--fx-rates', RATES)
 
@@ -144,8 +144,8 @@ def test_an_overpayment_unapplied_into_the_book_currency(tmp_path, capsys):
     basis of its own. Every split is USD, so nothing in the transaction says
     what the USD cost and the bank split is no cost basis.
 
-    Unapplying the payment into a CAD account gives the transaction a
-    base-currency figure, and the bank split — all 200.00 of it, including the
+    Unapplying the payment into a CAD account puts a base-currency figure in
+    the transaction, and the bank split — all 200.00 of it, including the
     half that is still the customer's — can be priced from it.
     """
     runner = CliRunner()

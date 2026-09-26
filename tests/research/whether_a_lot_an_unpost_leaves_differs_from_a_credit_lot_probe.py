@@ -24,7 +24,7 @@ Run on one build:
          || python3 -m pip install -e ".[dev]" --user -q; \\
          python3 tests/research/whether_a_lot_an_unpost_leaves_differs_from_a_credit_lot_probe.py'
 
-Each line gives a payment split on the receivable: its amount, whether its lot is
+Each line prints a payment split on the receivable: its amount, whether its lot is
 linked to an invoice now, whether the lot holds a `gncInvoice` slot, and the
 lot's title.
 """

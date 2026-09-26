@@ -1,0 +1,16 @@
+# Q-053: supplies bought with 2.00 USD out of Wise USD on the day of the
+# 10.00 USD deposit in
+# a_usd_deposit_and_its_fee_pending_its_cost_basis_the_same_day.txt,
+# imported in a run of its own after that file. Like the fee's Wise USD split,
+# its Wise USD split has `cost_basis_split_guid: $pending$`.
+#
+# Verified by
+# tests/integration/test_an_import_enters_transactions_in_the_order_it_creates_them.py.
+2026-08-13 * "Supplies bought"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -2.00 USD
+		cost_basis_split_guid: $pending$
+	Expenses:Supplies 2.60 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "200/260"
+		value: "2.00"

@@ -1,5 +1,5 @@
 # The same 100.00 USD invoice, leaving the application to GnuCash instead of
-# giving the credit's guid. The engine spends the whole credit, so again
+# stating the credit's guid. The engine spends the whole credit, so again
 # nothing is left of it.
 invoice "INV-USD-AUTO"
 	customer_id: "C-US"

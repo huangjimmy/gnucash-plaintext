@@ -2,7 +2,7 @@
 
 Inside an `invoice` or `bill` the blocks come in one order: its `entry:`
 blocks, then `posted:`, then its `payment:` blocks. That is the order the
-export and a printed page write, and the order README gives.
+export and a printed page write, and the order README states.
 
 Read in any other order, the import did what the order said. Measured on 5.10:
 an invoice whose `posted:` block came before its `entry:` block imported

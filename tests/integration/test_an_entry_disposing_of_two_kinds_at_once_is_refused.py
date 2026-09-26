@@ -1,4 +1,4 @@
-"""One entry cannot give up currency and shares at once and state one difference.
+"""One entry cannot dispose of currency and shares at once and state one difference.
 
 A disposal realizes the difference between what the units cost and what they
 fetched, and the file says which split that difference is with `$residual$`. An
@@ -8,8 +8,8 @@ two differences, one of each kind, and the balance sheet keeps them apart —
 separately.
 
 One split cannot be both. Counting it as either states the other as nothing, and
-dividing it would be `import` writing a figure the file never gave, which is the
-same rule that refuses a disposal giving no cost basis guid. So the entry is
+dividing it would be `import` writing a figure the file never stated, which is the
+same rule that refuses a disposal stating no cost basis guid. So the entry is
 refused as it lands, and the reader is told to write it as the two entries it is.
 
 The book is otherwise whole: the transactions before the refused one are
@@ -55,7 +55,7 @@ def test_it_says_what_to_write_instead(tmp_path):
 def test_the_transactions_before_it_are_still_imported(tmp_path):
     """The refusal is about that entry, not about the file.
 
-    Four of them, and the fourth gives up both kinds as well — it is imported,
+    Four of them, and the fourth disposes of both kinds as well — it is imported,
     because every figure in it is stated outright and no split of it stands as
     the difference. What is refused is one split being asked to be two
     differences, not the two disposals sharing an entry.

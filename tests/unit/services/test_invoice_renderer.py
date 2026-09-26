@@ -52,7 +52,7 @@ def _frame_slot(key: str, children) -> ET.Element:
 
 def _build_gnucash_xml(company: dict) -> bytes:
     """
-    Build a minimal .gnucash XML file with the given company fields.
+    Build a minimal .gnucash XML file holding the company fields in *company*.
 
     company keys: name, id, phone, email, url, address (multi-line string)
     """

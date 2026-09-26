@@ -3,14 +3,14 @@
 `print-invoice … -o out/` and `print-bill … -o out/` write one file per
 page. A printed `payment:` block now states the amount at the unit its
 account is kept to, and refuses a figure the currency cannot hold — the same
-answer the export gives — so rendering can stop partway through a run.
+answer the export makes — so rendering can stop partway through a run.
 
 Writing inside the loop, what it stopped partway through was the directory: the
 pages before the offender were on disk, the ones after it were not, and the
 refusal said nothing about which. A reader who sends that directory on has a
 set of pages that looks complete.
 
-`export` was given the same treatment for the same reason and says so at
+`export` was changed the same way for the same reason and says so at
 `cli/export_cmd.py`: it renders in full before opening the target, because
 opening first meant a good ledger was truncated by an export that then refused.
 The combined form of these two commands already builds every page into a

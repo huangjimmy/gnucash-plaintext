@@ -2,7 +2,7 @@
 # transaction stated in US dollars, the director's account for 3,791.14 CAD —
 # and a 0.72 USD fee out of the arrival, charged as 1.00 CAD.
 #
-# The fee gives the arrival's position. Its value is in US dollars, the
+# The fee states the arrival's position. Its value is in US dollars, the
 # transaction's own currency, and the cost basis is left with 2,719.28.
 #
 # Verified by

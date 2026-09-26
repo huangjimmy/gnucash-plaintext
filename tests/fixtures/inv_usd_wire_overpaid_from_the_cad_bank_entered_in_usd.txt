@@ -1,6 +1,6 @@
 # 200.00 USD from C-US, arriving in the CAD bank as 274.00 CAD, against
 # INV-USD-WIRE for 100.00 USD, entered in USD as one -200.00 USD receivable
-# split. The invoice's payment block gives the entry with `txn_guid:`,
+# split. The invoice's payment block states the entry with `txn_guid:`,
 # `amount: 200` and `prepayment: 100`, so the import divides the split.
 #
 # What this fixture produces: a 100.00 USD credit valued at 100.00 USD. Its

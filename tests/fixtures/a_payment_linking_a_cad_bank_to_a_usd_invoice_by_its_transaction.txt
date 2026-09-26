@@ -1,5 +1,5 @@
 # INV-USD-001, a USD invoice, linked to money that arrived in the CAD bank,
-# giving the transaction alone.
+# stating the transaction alone.
 #
 # The same payment as `a_payment_linking_a_cad_bank_to_a_usd_invoice.txt`,
 # without `txn_split_guid:`. The block then leaves the run to find the split
@@ -7,7 +7,7 @@
 # worth before it asks whether it can: the parked split is CAD and so is the
 # bank, so nothing in the transaction is USD and there is no figure to read.
 #
-# What this fixture produces: the refusal the other spelling gives, stating
+# What this fixture produces: the refusal the other spelling meets, stating
 # both currencies and what to write instead.
 #
 # Verified by

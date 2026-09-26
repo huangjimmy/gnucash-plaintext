@@ -18,11 +18,11 @@ repairs.
 Five cases, each on a book of its own so one refusal cannot change what the
 next is asked:
 
-1. shares bought with US dollars, the dollar split giving the asset basis guid;
-2. the same purchase giving no guid — the ordinary transaction;
+1. shares bought with US dollars, the dollar split stating the asset basis guid;
+2. the same purchase stating no guid — the ordinary transaction;
 3. shares sold for US dollars — is a basis opened for what came in?
-4. the loan repaid, the loan split giving the liability basis guid;
-5. the same repayment giving no guid.
+4. the loan repaid, the loan split stating the liability basis guid;
+5. the same repayment stating no guid.
 
 Nothing is asserted. What it prints is the invariant per case, which is what
 the eventual tests have to assert.
@@ -252,7 +252,7 @@ TRANSFER_USD_TO_USD = '''\
 # trades on a US exchange actually writes them — the transaction's currency is
 # USD and no split carries a figure in the book's own. Q-044 measured that
 # shape: "every one of those in a transaction stated wholly in US dollars, so
-# not one of them gives that cost basis's guid and the basis is never drawn
+# not one of them states that cost basis's guid and the basis is never drawn
 # down."
 BUY_STATED_IN_USD = '''\
 2026-02-03 * "Buy 20 AMZN at 200.00 USD"
@@ -274,7 +274,7 @@ SELL_STATED_IN_USD = '''\
 '''
 
 # Currency leaving the book with nothing to argue about: 1,000 USD sold for
-# Canadian dollars, no guid given. If anything refuses a disposal that does not
+# Canadian dollars, no guid stated. If anything refuses a disposal that does not
 # say which basis it came out of, it refuses this.
 SELL_USD_FOR_CAD = '''\
 2026-02-03 * "Sell 1,000.00 USD for Canadian dollars at 1.30"
@@ -442,16 +442,16 @@ def test_what_trading_a_stock_in_foreign_currency_does(tmp_path):
     # from another book matches nothing here and the refusal would be about
     # that instead of about what is being asked.
     cases = (
-        ('1. shares bought with USD, the dollar split giving the asset basis guid',
+        ('1. shares bought with USD, the dollar split stating the asset basis guid',
          'buy_guid', lambda g: _with_guid(BUY_WITH_USD, 'Assets:USD Bank', g('asset'))),
-        ('2. the same purchase giving no guid',
+        ('2. the same purchase stating no guid',
          'buy_plain', lambda g: BUY_WITH_USD),
         ('3. shares sold for USD — is a basis opened for what came in?',
          'sell', lambda g: BUY_WITH_USD + '\n' + SELL_FOR_USD),
-        ('4. the loan repaid, the loan split giving the liability basis guid',
+        ('4. the loan repaid, the loan split stating the liability basis guid',
          'repay_guid',
          lambda g: _with_guid(REPAY_THE_LOAN, 'Liabilities:USD Loan', g('liability'))),
-        ('5. the same repayment giving no guid',
+        ('5. the same repayment stating no guid',
          'repay_plain', lambda g: REPAY_THE_LOAN),
         ('6. 4,000 USD moved between two USD accounts, no guid — nothing is spent',
          'transfer', lambda g: TRANSFER_USD_TO_USD),

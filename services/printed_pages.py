@@ -3,7 +3,7 @@
 
 Each is rendered as a whole HTML file — GnuCash's report writes a
 `<!DOCTYPE>`, an `<html>`, a `<head>` carrying the stylesheet, and a `<body>`.
-Concatenating those files gives a page with three DOCTYPEs and three
+Concatenating those files produces a page with three DOCTYPEs and three
 `<html>` elements, which is invalid as HTML and as XML, so the parts are taken
 apart and rebuilt into one shell.
 

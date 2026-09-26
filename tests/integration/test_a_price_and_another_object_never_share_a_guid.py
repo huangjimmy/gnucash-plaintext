@@ -2,8 +2,8 @@
 
 GnuCash keeps a guid unique across every kind of object in a book, and a book
 where two objects hold one guid is corrupt (`_guid_in_use_anywhere`). A price
-is one of those objects: a `price` block giving a guid another object holds is
-refused, and so is a block of another kind giving a price's guid.
+is one of those objects: a `price` block stating a guid another object holds is
+refused, and so is a block of another kind stating a price's guid.
 """
 
 import re
@@ -19,8 +19,8 @@ TRANSACTION_GUID = '8a8b8c8d8e8f40418243844586878889'
 AMZN_GUID = '4a1a4c0c7328491fbde9f8099ba280c8'
 
 
-class TestAPriceGivenATransactionsGuid:
-    FIXTURE = 'a_price_given_the_transactions_guid.txt'
+class TestAPriceStatingATransactionsGuid:
+    FIXTURE = 'a_price_stating_the_transactions_guid.txt'
 
     def _book(self, tmp_path):
         book = tmp_path / 'book.gnucash'
@@ -48,8 +48,8 @@ class TestAPriceGivenATransactionsGuid:
         assert prices_in(book) == []
 
 
-class TestACustomerGivenAPricesGuid:
-    FIXTURE = 'a_customer_given_the_amzn_prices_guid.txt'
+class TestACustomerStatingAPricesGuid:
+    FIXTURE = 'a_customer_stating_the_amzn_prices_guid.txt'
 
     def _book(self, tmp_path):
         book = tmp_path / 'book.gnucash'

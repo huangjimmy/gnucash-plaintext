@@ -264,7 +264,7 @@ def split_was_applied_from_credit(split) -> bool:
     same.
 
     Two things were tried before this and both misread ordinary books. Asking
-    the *transaction* whether it still touches a leftover credit lot gives one
+    the *transaction* whether it still touches a leftover credit lot has one
     answer for every invoice and bill that transaction settles — so the invoice
     a bank transfer paid claimed a credit had paid it — and says no for a credit
     consumed to the last cent, which leaves no residual behind. Asking whether
@@ -281,7 +281,7 @@ def split_was_applied_from_credit(split) -> bool:
 
     The mark alone, and not `foreign_currency.is_a_spent_credit`, which asks
     this and then asks the book whether the split still sits in a record's lot.
-    The two want different answers. That one decides whether a sale may give
+    The two want different answers. That one decides whether a sale may state
     this split's guid, so a mark a file wrote must not be enough on its own.
     This one records how the money was paid, which unposting the record does
     not undo: a payment made out of credit was made out of credit whatever

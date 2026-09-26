@@ -189,7 +189,7 @@ price
 # 				commodity.namespace: "NASDAQ"
 # 				commodity.mnemonic: "AMZN"
 # 				quantity: 12.0000
-# 				share_price: 397.6 # what price-fn gives for this commodity
+# 				share_price: 397.6 # what price-fn returns for this commodity
 # 				cost_bases:
 # 					cost_basis:
 # 						split_guid: b5aae44c0e124c4fb97f047d4581a6eb

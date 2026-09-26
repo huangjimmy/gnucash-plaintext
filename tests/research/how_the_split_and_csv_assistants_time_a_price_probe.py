@@ -1,4 +1,4 @@
-"""Probe: what time the stock split assistant and the CSV price import assistant give a price.
+"""Probe: what time the stock split assistant and the CSV price import assistant store on a price.
 
 Both are driven under Xvfb the way a person fills them in:
 

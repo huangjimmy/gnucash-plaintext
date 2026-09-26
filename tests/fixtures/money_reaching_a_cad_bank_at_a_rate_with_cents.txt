@@ -5,7 +5,7 @@
 # a figure an account kept to whole dollars cannot state.
 #
 # The account that cannot state it is `an_account_kept_to_whole_dollars.txt`,
-# opened on its own so the bill book can be given one too. An account kept
+# opened on its own so it can be added to the bill book too. An account kept
 # coarser than its own currency is a book GnuCash writes — see
 # `amount_finer_than_a_coarse_account.txt`, which is the import side of the
 # same question.

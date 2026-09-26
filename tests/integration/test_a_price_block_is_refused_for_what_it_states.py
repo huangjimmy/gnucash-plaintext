@@ -3,7 +3,7 @@
 Each block in the fixture states something GnuCash cannot record or this format
 does not allow: a value dividing by zero or too large to store, a day that does
 not exist, a time written neither as a date nor as a moment, a currency GnuCash
-does not know, a namespace without a mnemonic, an existing price given another
+does not know, a namespace without a mnemonic, an existing price moved to another
 commodity, a new price with no value, and a guid that is not one. Every one is
 refused, counted, and said, and the rest of the file is still read.
 """
@@ -47,12 +47,12 @@ def test_every_block_is_refused_and_counted(imported):
     'time: "2026-02-30" is not a date',
     'time: "yesterday" is neither a date',
     'XYZ is not a currency GnuCash knows',
-    'commodity.namespace and commodity.mnemonic are given together, or neither',
+    'commodity.namespace and commodity.mnemonic are stated together, or neither',
     "a price's commodity does not change",
     'a new price needs value',
     'not-a-guid',
 ])
-def test_each_reason_is_given(imported, reason):
+def test_each_reason_is_printed(imported, reason):
     _book, result = imported
 
     assert reason in result.output, result.output

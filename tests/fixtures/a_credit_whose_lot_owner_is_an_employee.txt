@@ -1,4 +1,4 @@
-# A receivable credit whose `lot_owner:` gives an employee.
+# A receivable credit whose `lot_owner:` states an employee.
 #
 # `lot_owner:` puts a split in a lot of a customer's or a vendor's, the two
 # owners the format writes. An employee is neither, so nothing can put the

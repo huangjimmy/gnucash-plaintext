@@ -42,7 +42,7 @@ WORKTREE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 # Snapshots are committed, and refreshing them is deliberate: every run stamps
 # a fresh date and fresh GUIDs, so writing on each one would leave `exports/`
 # permanently modified and make a dirty worktree mean nothing. An ordinary test
-# run writes to a scratch directory instead; the docstring above gives the
+# run writes to a scratch directory instead; the docstring above states the
 # command that updates what the repo holds.
 # `GNC_WRITE_EXPORTS=0` means don't, so the value is read rather than merely
 # tested for presence — `bool("0")` is True, and `scripts/test.sh` forwards
@@ -383,7 +383,7 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
     entry_guid_trace["F"] = _read_entry_guids(str(gnc), "INV-001")
     text_f = _snapshot(runner, gnc, tmp_path, snapshots, "invoice_repaid")
     # The crucial question: does the orphan bank split from step C survive,
-    # giving two bank-side -100 entries (Jan 15 and Feb 15)?
+    # leaving two bank-side -100 entries (Jan 15 and Feb 15)?
     assert "2026-01-15" in text_f or "2026-02-15" in text_f
 
     # Drop the entry-GUID trace into exports/ so the research doc can quote it.

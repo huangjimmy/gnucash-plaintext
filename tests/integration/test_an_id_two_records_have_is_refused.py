@@ -1,7 +1,7 @@
 """An ID two customers in the book have is refused, not guessed at.
 
 GnuCash does not keep a customer's ID unique, so a book made in GnuCash can
-hold two customers with one ID. A block that gives only that ID cannot say
+hold two customers with one ID. A block that states only that ID cannot say
 which of them it means: a customer block would update one of the two, and an
 invoice would be booked to one of the two. So the import refuses both and says
 how many records have the ID.

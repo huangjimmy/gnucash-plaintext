@@ -43,16 +43,16 @@ class StatementReconciler:
 | Test | Scenario | Expected |
 |---|---|---|
 | `test_clean_match` | bank +247.10 HKD + card -247.10 HKD, same day | 1 resolved, 0 unresolved |
-| `test_merged_card_wins` | clean match | description, date from card side |
-| `test_merged_source_pdfs` | clean match | `source_pdfs == [card_pdf, bank_pdf]` |
-| `test_date_plus_one` | bank day 14, card day 15 | resolved |
-| `test_date_minus_one` | bank day 15, card day 14 | resolved |
-| `test_date_plus_two` | bank day 13, card day 15 | both unresolved |
+| `test_merged_card_description_wins`, `test_merged_card_date_wins` | clean match | description, date from card side |
+| `test_merged_source_pdfs_card_first` | clean match | `source_pdfs == [card_pdf, bank_pdf]` |
+| `test_date_plus_one_matches` | bank day 14, card day 15 | resolved |
+| `test_date_minus_one_matches` | bank day 15, card day 14 | resolved |
+| `test_date_plus_two_no_match` | bank day 13, card day 15 | both unresolved |
 | `test_partial_run_bank_only` | bank entry, no card | unresolved |
 | `test_partial_run_card_only` | card entry, no bank | unresolved |
-| `test_same_side_collision` | two bank entries same amount ±1 day | both unresolved |
-| `test_cross_side_collision` | one bank + two card entries same amount | all three unresolved |
-| `test_currency_mismatch` | bank HKD + card CNY | both unresolved |
+| `test_same_side_collision_both_unresolved` | two bank entries same amount ±1 day | both unresolved |
+| `test_cross_side_collision_all_unresolved` | one bank + two card entries same amount | all three unresolved |
+| `test_currency_mismatch_no_match` | bank HKD + card CNY | both unresolved |
 | `test_normal_passthrough` | tx without `Reconcile:Autopay` | in normal list unchanged |
 | `test_mixed_batch` | 2 normal + 1 autopay pair + 1 unresolved | correct counts all 3 buckets |
 | `test_cny_match` | bank CNY 312.99 + card CNY 312.99 | resolved with CNY currency |

@@ -1,5 +1,5 @@
 # A 100.00 USD invoice settled by the customer's whole 100.00 USD credit, which
-# the block gives by guid so this tool carves it rather than GnuCash. Nothing is
+# the block states by guid so this tool carves it rather than GnuCash. Nothing is
 # left of the credit, so there is no remainder.
 #
 # The credit came in under a CAD transaction, so what it cost is readable from

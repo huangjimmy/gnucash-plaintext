@@ -3,7 +3,7 @@
 ; The account is kept at the cent and so is CAD, so this fails both halves of
 ; the rule at once — and which half the message speaks for matters. Written
 ; afresh for this path it had only the account branch, so `50.001 CAD` was
-; told to give the account a finer unit; the same file then failed the
+; told to set a finer unit on the account; the same file then failed the
 ; currency check, which is a dead end for money. It goes through the same
 ; judge the plaintext importer uses now, and that one branches.
 ;

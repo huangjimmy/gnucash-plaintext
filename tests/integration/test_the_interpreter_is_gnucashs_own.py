@@ -13,8 +13,8 @@ linked to guile-2.2 while every other build is on guile-3.0, so a newest-first
 search by name is one `apt install guile-3.0` away from being wrong there.
 
 What does answer the right question is GnuCash's own libraries: a linked
-library records the soname it needs, and reading it gives what the loader
-would give GnuCash. Each supported image carries a single guile, so no run of
+library records the soname it needs, and reading it tells what the loader
+would load for GnuCash. Each supported image carries a single guile, so no run of
 this suite can reach the two-guile machine; what it checks is that the choice
 comes from GnuCash rather than from a version-ordered guess, which is the part
 that would go wrong there.

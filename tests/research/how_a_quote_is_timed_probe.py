@@ -1,4 +1,4 @@
-"""Probe: what time GnuCash gives a Finance::Quote price, through its own quote path.
+"""Probe: what time GnuCash stores for a Finance::Quote price, through its own quote path.
 
 Only the network fetch is replaced. PERL5LIB puts a stand-in Finance::Quote
 module (tests/research/fake_finance_quote/Finance/Quote.pm) ahead of the real one, so GnuCash's own

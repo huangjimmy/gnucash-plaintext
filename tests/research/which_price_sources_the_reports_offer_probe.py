@@ -1,7 +1,7 @@
 """The choices GnuCash's Balance Sheet and Income Statement reports offer for "Price Source", on this build (Q-042).
 
 Loaded the way `services/gnucash_report.py` loads reports. Written to the
-output directory given as the first argument, one file per report.
+output directory passed as the first argument, one file per report.
 
 Run: ./scripts/run.sh <tag> env PYTHONPATH=/workspace python3 tests/research/which_price_sources_the_reports_offer_probe.py <out-dir>
 """

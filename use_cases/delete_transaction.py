@@ -15,7 +15,7 @@ from repositories.gnucash_repository import GnuCashRepository
 from services.foreign_currency import (
     amounts_by_cost_basis,
     cost_bases_changed,
-    give_back_to_cost_bases,
+    put_back_on_cost_bases,
     require_no_cost_basis_dependents,
 )
 from use_cases.export_transactions import (
@@ -29,7 +29,7 @@ class APreparedDelete:
     """One transaction read and written out, and not yet deleted.
 
     `plaintext` is the undo copy, and what it states about a cost basis is
-    true of the book as it stands. Deleting a sale gives its currency back to
+    true of the book as it stands. Deleting a sale puts its currency back on
     the cost basis it drew on, so a transaction written out after a sibling's
     deletion states a balance the book no longer had when the command began —
     and the undo copy, re-imported, then leaves the book offering currency its
@@ -69,10 +69,10 @@ class DeleteTransactionUseCase:
 
     def execute(self, guid: str) -> DeleteTransactionResult:
         """
-        Export then delete the transaction with the given GUID.
+        Export then delete the transaction whose GUID is `guid`.
 
         The plaintext export is produced before deletion so the caller can
-        write it to stdout or a file, giving the user a copy they can
+        write it to stdout or a file, so the user has a copy they can
         re-import to undo the deletion.
 
         Args:
@@ -82,7 +82,7 @@ class DeleteTransactionUseCase:
             DeleteTransactionResult including the pre-deletion plaintext export.
 
         Raises:
-            ValueError: If no transaction with the given GUID exists in the book.
+            ValueError: If the book holds no transaction whose GUID is `guid`.
         """
         return self.carry_out(self.prepare(guid))
 
@@ -94,7 +94,7 @@ class DeleteTransactionUseCase:
         already changed.
 
         Raises:
-            ValueError: If no transaction with the given GUID exists in the book.
+            ValueError: If the book holds no transaction whose GUID is `guid`.
         """
         target = self._the_one_the_book_holds(guid)
         description = target.GetDescription()
@@ -167,7 +167,7 @@ class DeleteTransactionUseCase:
             f'{prepared.date} {prepared.description!r}')
 
         # And read what this transaction takes from each cost basis before it
-        # goes, so those amounts can be given back — deleting a sale returns
+        # goes, so those amounts can be put back — deleting a sale returns
         # its currency to the cost basis it was measured against.
         taken = amounts_by_cost_basis(target)
 
@@ -176,7 +176,7 @@ class DeleteTransactionUseCase:
         # balance as it goes.
         cost_bases_changed()
 
-        give_back_to_cost_bases(self.repository.book, taken)
+        put_back_on_cost_bases(self.repository.book, taken)
 
         return DeleteTransactionResult(
             guid=prepared.guid,

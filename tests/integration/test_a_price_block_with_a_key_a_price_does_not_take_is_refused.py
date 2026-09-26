@@ -1,4 +1,4 @@
-"""A `price` block giving a key a price does not take is refused, and the key is listed.
+"""A `price` block stating a key a price does not take is refused, and the key is listed.
 
 A transaction, a split or a business object keeps a key it does not read as
 custom metadata, and the next export shows it. A price has no custom metadata,

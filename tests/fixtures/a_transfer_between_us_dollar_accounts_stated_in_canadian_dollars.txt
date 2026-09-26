@@ -7,7 +7,7 @@
 # arrival at 1.30 and stored a cost basis balance on it.
 #
 # Verified by
-# tests/integration/test_a_transfer_an_earlier_release_gave_a_balance_is_reported.py.
+# tests/integration/test_a_transfer_an_earlier_release_stored_a_balance_on_is_reported.py.
 2039-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"

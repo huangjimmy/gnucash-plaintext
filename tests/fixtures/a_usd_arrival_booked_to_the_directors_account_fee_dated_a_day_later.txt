@@ -4,7 +4,7 @@
 #
 # A disposal's date is when it drew the cost basis down. Nothing else draws
 # on the fee, so the edit is read as a new transaction would be (Q-051): what
-# it drew is given back, and it draws the same 0.72 on its new date.
+# it drew is put back, and it draws the same 0.72 on its new date.
 #
 # Verified by
 # tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.

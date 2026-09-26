@@ -8,7 +8,7 @@
 ; comment off first refused the entry, and the message quoted a line that is
 ; not wrong.
 ;
-; `txn` in place of the flag. Beancount's own documentation gives
+; `txn` in place of the flag. Beancount's own documentation shows
 ; `2014-05-05 txn "Cafe Mogador" "Lamb tagine"` as the alternative to `*`.
 ; Matched on the flag alone, such an entry matched nothing and was skipped in
 ; silence with its metadata and its postings — and because its accounts never

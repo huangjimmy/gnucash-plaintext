@@ -8,7 +8,7 @@
 #
 # Lowering it is a disposal, so the same split says which cost basis the 0.72
 # came out of: the 2,720.00 USD deposit, whose split
-# `fx_usd_deposit_against_due_from_director.txt` gives a guid of its own. The
+# `fx_usd_deposit_against_due_from_director.txt` assigns a guid of its own. The
 # two keys are about different things and both belong here — one says what this
 # split brought in, which is nothing, and the other says what it spent.
 2026-08-14 * "Charges for: TRANSFER-0000002"

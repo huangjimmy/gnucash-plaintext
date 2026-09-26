@@ -5,7 +5,7 @@ to in the book's own currency, and every cost this tool records is in that
 currency. A page asked for in another currency therefore has nothing to sum,
 and a book kept in another currency has no recorded cost to sum from.
 
-Printed anyway, that comes out as `realized_gains_fx: 0.00 USD` — a zero given
+Printed anyway, that comes out as `realized_gains_fx: 0.00 USD` — a zero stated
 as a fact. Measured on a book that bought 1,000.00 USD at 1.30 and sold every
 one at 1.40: its own page states `realized_gains_fx: 100.00 CAD`, and the same
 book asked for in US dollars stated `0.00 USD`, which says the book realized

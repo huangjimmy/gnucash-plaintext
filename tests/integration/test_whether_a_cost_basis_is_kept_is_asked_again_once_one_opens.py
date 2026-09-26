@@ -1,6 +1,6 @@
 """Whether the book keeps a cost basis is remembered through an import, and forgotten when one opens.
 
-A spend that gives no guid is refused only where the book keeps a cost basis
+A spend that states no guid is refused only where the book keeps a cost basis
 it could have drawn on, and answering that walks the accounts holding the
 currency. It is asked of every such spend, so the answer is kept for the rest
 of the import rather than walked for again each time — a book kept wholly in a
@@ -10,7 +10,7 @@ walk of every earlier one.
 What a kept answer must not do is outlive what it answered.
 `tests/fixtures/a_spend_before_and_after_a_cost_basis_opens_in_one_file.txt`
 spends dollars no cost basis stands for, then buys dollars that open one, then
-spends again giving no guid: the first spend is imported, the second refused.
+spends again stating no guid: the first spend is imported, the second refused.
 """
 
 from click.testing import CliRunner

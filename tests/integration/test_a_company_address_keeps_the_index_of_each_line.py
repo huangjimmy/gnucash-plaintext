@@ -3,7 +3,7 @@
 The book keeps a company's address as one string of lines, so a line a block
 left out is an empty line in the middle of it. The export writes each line that
 holds something under the index it has, and none for the empty one, so the
-ledger states the address the block gave.
+ledger states the address the block stated.
 """
 
 from click.testing import CliRunner

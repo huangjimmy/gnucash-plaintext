@@ -2,8 +2,8 @@
 
 README, "Prices" and "Importing prices": `import` applies every price block a
 file holds, with no flag and no other command; `time:` is a moment, and a bare
-date is stored at the time GnuCash's transfer dialog and CSV price import give
-a date; `value:` is exact; a block without a `guid:` that states exactly a
+date is stored at the time GnuCash's transfer dialog and CSV price import store
+for a date; `value:` is exact; a block without a `guid:` that states exactly a
 price the book holds is `unchanged`; an unchanged file imported again does not
 save the book.
 """
@@ -55,12 +55,12 @@ class TestTheImport:
 
 
 class TestTheStocksPrice:
-    def test_it_keeps_the_guid_its_block_gives(self, tmp_path):
+    def test_it_keeps_the_guid_its_block_states(self, tmp_path):
         book, _result = _imported(tmp_path)
 
         assert _the_one(book, 'NASDAQ:AMZN').guid == AMZN_GUID
 
-    def test_it_is_stored_at_the_moment_its_block_gives(self, tmp_path):
+    def test_it_is_stored_at_the_moment_its_block_states(self, tmp_path):
         book, _result = _imported(tmp_path)
 
         assert _the_one(book, 'NASDAQ:AMZN').time == utc(2026, 1, 6, 21)
@@ -78,7 +78,7 @@ class TestTheStocksPrice:
         assert (price.source, price.type) == ('Finance::Quote', 'last')
 
 
-class TestTheRateGivenOnlyADate:
+class TestTheRateStatingOnlyADate:
     def test_it_is_stored_at_gnucashs_time_for_that_date(self, tmp_path):
         book, _result = _imported(tmp_path)
 
@@ -89,7 +89,7 @@ class TestTheRateGivenOnlyADate:
 
         assert _the_one(book, 'CURRENCY:USD').value == Fraction('1.3642')
 
-    def test_gnucash_gives_it_a_guid(self, tmp_path):
+    def test_gnucash_assigns_it_a_guid(self, tmp_path):
         book, _result = _imported(tmp_path)
         guid = _the_one(book, 'CURRENCY:USD').guid
 

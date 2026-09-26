@@ -7,7 +7,7 @@ Reported by a user probing cost bases on a Canadian book that trades US-listed s
 **Buying a security with foreign currency spends that currency, and the cost basis it came from is drawn down like any other disposal.**
 
 - A Canadian book holding 10,000.00 USD against a cost basis, buying shares for 3,000.00 USD, has spent 3,000.00 US dollars. The cost basis those dollars came from falls to 7,000.00, and what they cost is what the shares cost — the gain or loss on the currency is realized at that moment, exactly as it is when the same dollars pay a supplier.
-- A purchase whose US dollar split gives `cost_basis_split_guid:` is accepted rather than refused. That line is asking for precisely this, and what it asks for is a disposal of currency whatever the money bought.
+- A purchase whose US dollar split states `cost_basis_split_guid:` is accepted rather than refused. That line is asking for precisely this, and what it asks for is a disposal of currency whatever the money bought.
 
 **Selling a security for foreign currency brings that currency in, and opens a cost basis for it.**
 
@@ -28,7 +28,7 @@ The file states it: `cost_basis_split_guid:` on the split that spent the currenc
 
 Two faults, on a CAD book that holds US dollars and trades US-listed shares.
 
-**Buying a stock with US dollars is not read as consuming a cost basis, and the import refuses it.** The reporter's purchase gives the guid of the US dollar cost basis the money comes out of, and the run ends with an error rather than drawing that basis down.
+**Buying a stock with US dollars is not read as consuming a cost basis, and the import refuses it.** The reporter's purchase states the guid of the US dollar cost basis the money comes out of, and the run ends with an error rather than drawing that basis down.
 
 **Selling a stock for US dollars opens no cost basis for the dollars received.** They arrive in the US dollar account and no cost basis is recorded against them.
 
@@ -38,9 +38,9 @@ The two faults are opposite halves of the same gap, and a book that does both en
 
 `tests/fixtures/a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt` was a book in exactly that state: it bought 10,000.00 USD, which opened a cost basis, then bought and sold shares in US dollars, and not one of those transactions drew the basis down. It read 10,000.00 where the bank held 7,480.00.
 
-**The balance sheet reported that honestly and could not repair it.** Q-044 gives such a currency GnuCash's own revaluation and says so on the page with `measured_from: gnucash_revaluation`. What no figure on the page can do is put missing currency back on a cost basis, because the disposal that should have drawn it down was never recorded as one.
+**The balance sheet reported that honestly and could not repair it.** Q-044 values such a currency at GnuCash's own revaluation and says so on the page with `measured_from: gnucash_revaluation`. What no figure on the page can do is put missing currency back on a cost basis, because the disposal that should have drawn it down was never recorded as one.
 
-**This issue is that book's cause**, and fixing it changes what the cost bases hold rather than how the page reports them. The fixture now gives the guid of the cost basis each disposal draws on, and states its share purchase and sale in Canadian dollars. Its cost bases hold 3,480.00 USD against the 7,480.00 the bank holds, and the 4,000.00 between them is a borrowing written wholly in US dollars, which states no cost to open a cost basis at.
+**This issue is that book's cause**, and fixing it changes what the cost bases hold rather than how the page reports them. The fixture now states the guid of the cost basis each disposal draws on, and states its share purchase and sale in Canadian dollars. Its cost bases hold 3,480.00 USD against the 7,480.00 the bank holds, and the 4,000.00 between them is a borrowing written wholly in US dollars, which states no cost to open a cost basis at.
 
 ## What was investigated
 
@@ -48,7 +48,7 @@ The two faults are opposite halves of the same gap, and a book that does both en
 
 The book: 10,000.00 USD bought at 1.30 and held, 5,000.00 USD borrowed at 1.30 and owed. Both sides start in agreement.
 
-| # | transaction | gives a guid | after |
+| # | transaction | states a guid | after |
 |---|---|---|---|
 | 1 | shares bought with USD | yes | ✓ USD asset bases 15,000 → 11,000, agrees |
 | 4 | the loan repaid | yes | ✓ USD liability bases 5,000 → 3,000, agrees |
@@ -68,7 +68,7 @@ The book: 10,000.00 USD bought at 1.30 and held, 5,000.00 USD borrowed at 1.30 a
 
 **A transfer is the case that makes "just pick a basis" wrong.** Case 6 moves dollars between two accounts of the same currency: the book still holds every one of them. Both halves are mishandled in opposite directions — the receiving split reads as an arrival and opens a 4,000 basis, the paying split draws nothing down — so the bases are *inflated* by 4,000. Drawing one down there would destroy basis the book still owns.
 
-**The rule that separates them is the net per side within the transaction**, and the guid-given path already computes exactly this, which is why cases 1 and 4 come out right:
+**The rule that separates them is the net per side within the transaction**, and the path for a stated guid already computes exactly this, which is why cases 1 and 4 come out right:
 
 | transaction | asset side | liability side | what has to happen |
 |---|---|---|---|
@@ -82,7 +82,7 @@ Summing the splits cannot do it: a transfer is +4,000/−4,000 and a loan repaym
 
 ## What the refusal asks, worked out against the whole suite
 
-Put in as "a side that lost units and gave no guid is refused", the check turned away 171 tests and 51 fixtures' worth of files that were not disposals at all. Three questions came out of reading them, each a case where nothing left:
+Put in as "a side that lost units and stated no guid is refused", the check turned away 171 tests and 51 fixtures' worth of files that were not disposals at all. Three questions came out of reading them, each a case where nothing left:
 
 **What the side holds has to fall, and an account below nothing holds nothing.** The sum of a transaction's amounts is not the fall in what a side holds, and the difference is every clearing account in the suite. `tests/fixtures/money_parked_in_usd_that_reached_a_cad_bank.txt` writes 139.00 CAD into a bank against −100.00 USD parked on a suspense account, for a `payment:` block to place on the receivable afterwards; the suspense account goes from 0.00 to −100.00, so read as a sum it spent a hundred dollars and read as a fall it spent none. It owes a hundred. The same rule answers `Imbalance-<CUR>`, which GnuCash makes for a transaction that does not add up and takes negative from nothing, and it needs no rule of its own: `tests/fixtures/account_balance_test_data.txt` left 6,640.00 HKD over in one and read as a disposal of 415.00 Hong Kong dollars nobody spent.
 
@@ -94,7 +94,7 @@ With those three, the suite passes, and the files that then had to change are th
 
 ## How a file refers to a cost basis it opens itself
 
-Nothing had to be added to the format. A split block may state its own `guid:`, which the import obeys on a split it is creating — Q-016 added it so a payment block could refer to a split by guid — so a file that opens a cost basis and consumes it in the same run writes the guid on the arriving split and gives the same guid to the disposal below. `tests/fixtures/fx_sell_usd_half_cent_residual.txt` buys 45.00 USD and sells it in one file that way, and `tests/fixtures/account_balance_test_data.txt` opens 8,000.00 HKD and spends 300.00 of it.
+Nothing had to be added to the format. A split block may state its own `guid:`, which the import obeys on a split it is creating — Q-016 added it so a payment block could refer to a split by guid — so a file that opens a cost basis and consumes it in the same run writes the guid on the arriving split and states the same guid in the disposal below. `tests/fixtures/fx_sell_usd_half_cent_residual.txt` buys 45.00 USD and sells it in one file that way, and `tests/fixtures/account_balance_test_data.txt` opens 8,000.00 HKD and spends 300.00 of it.
 
 The alternative, which every fixture layered on another book uses, is to read the guid out of `fx-balances` after the arrival is in the book and write it into the disposal's file.
 
@@ -116,7 +116,7 @@ A page balances when `total_unrealized_gains` is the difference the other three 
 
 **The 12.00 further down is the same fault on an expense.** `Expenses:Interest` is kept in US dollars: 100.00 USD of interest paid with dollars that cost 130.00 CAD, which the income statement converts at the report-date price to 142.00.
 
-So it is one defect in two places, and it is [Q-046](Q-046-give-a-security-a-cost-basis-in-the-books-own-currency-so-a-sale-realizes-a-gain-the-way-a-currency-disposal-does.md)'s: when foreign currency is spent, what it cost goes with it. This issue's own opening says the same thing — *what they cost is what the shares cost* — which is why the two are worked in one change.
+So it is one defect in two places, and it is [Q-046](Q-046-record-a-securitys-cost-basis-in-the-books-own-currency-so-a-sale-realizes-a-gain-the-way-a-currency-disposal-does.md)'s: when foreign currency is spent, what it cost goes with it. This issue's own opening says the same thing — *what they cost is what the shares cost* — which is why the two are worked in one change.
 
 **Both are settled by that change.** The shares now take the 5,200.00 CAD the dollars cost, so on the same variant, with the borrowing stated in Canadian dollars at 1.35, step 7 balances and the cost bases agree with the accounts:
 
@@ -132,12 +132,12 @@ The interest is the other place, and an expense account kept in US dollars is on
 
 ## Known, not yet investigated
 
-- **The reporter's refusal.** It does not reproduce: the purchase that gives the guid exits 0 and draws the basis down, stated in CAD and stated in USD, on the asset side and on the liability side. Either their ledger differs from anything built here or it was fixed between their run and this investigation. Their file settles it in one run.
+- **The reporter's refusal.** It does not reproduce: the purchase that states the guid exits 0 and draws the basis down, stated in CAD and stated in USD, on the asset side and on the liability side. Either their ledger differs from anything built here or it was fixed between their run and this investigation. Their file settles it in one run.
 
 Everything above was investigated on GnuCash 5.10. The integration tests written from it run on all eleven supported builds.
 
 ## Out of scope
 
-`realized_gains_other` — what a disposal of the *security* made — is [Q-046](Q-046-give-a-security-a-cost-basis-in-the-books-own-currency-so-a-sale-realizes-a-gain-the-way-a-currency-disposal-does.md). This issue is about the currency on both sides of those trades, not the shares.
+`realized_gains_other` — what a disposal of the *security* made — is [Q-046](Q-046-record-a-securitys-cost-basis-in-the-books-own-currency-so-a-sale-realizes-a-gain-the-way-a-currency-disposal-does.md). This issue is about the currency on both sides of those trades, not the shares.
 
 **The two share one mechanism**, which is why they are worked together: once a share's cost is held in the book's own currency, a security is a holding with a cost basis exactly as a foreign currency is, and both are drawn down by a disposal that says which basis it came out of. A book that buys shares with US dollars makes two disposals — the dollars leaving, and later the shares — and the change these two issues are worked in handles both.

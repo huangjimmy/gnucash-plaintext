@@ -6,7 +6,7 @@ customer something different from another — a segment's website, terms that
 customer alone gets — has nowhere to put it.
 
 Both are printed **as they stand**. Nothing is inferred from them and no rule
-is applied: what a given customer is told is written on that customer, which
+is applied: what each customer is told is written on that customer, which
 is why this needs no template of your own. That is the whole mechanism.
 
 Both are ordinary keys in the plaintext format — `extra_text:` on the `company`

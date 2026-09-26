@@ -2,11 +2,11 @@
 
 README, "Only the prices: `export-prices`": the file holds price blocks and the
 commodity declarations they use, and imports on its own. Each option works on
-its own, none requires another, and any of them can be given together:
+its own, none requires another, and any of them can be passed together:
 `--start-date` keeps no price before that day, `--end-date` none after it, and
 `--latest N` the N most recent prices of each commodity in each currency,
 counting back from `--end-date` or from today, where each direction counts
-separately and a pair with fewer than N prices since `--start-date` gives the
+separately and a pair with fewer than N prices since `--start-date` writes the
 ones it has. N is 1 or more.
 
 The book's prices are all at 12:00 UTC, so the day a price falls on is the
@@ -130,7 +130,7 @@ class TestOptionsTogether:
             ('CAD', 'USD', '2026-01-03'), ('AMZN', 'USD', '2026-01-06'),
         }
 
-    def test_latest_with_start_date_gives_fewer_where_fewer_are_left(self, tmp_path):
+    def test_latest_with_start_date_writes_fewer_where_fewer_are_left(self, tmp_path):
         assert _kept(tmp_path, '--latest', '5', '--start-date', '2026-01-05') == {
             ('USD', 'CAD', '2026-01-05'), ('USD', 'CAD', '2026-01-09'),
             ('AMZN', 'USD', '2026-01-06'), ('AMZN', 'USD', '2026-01-07'),

@@ -1,7 +1,7 @@
 """Q-040: getting a book that was linked by an earlier version back in order.
 
 A link used to move the split that priced a USD deposit and leave the
-deposit's cost basis balance written on it: unlisted, unreadable, and still given by
+deposit's cost basis balance written on it: unlisted, unreadable, and still stated by
 any disposal that had drawn on it. Books in that state exist, and this is how
 they come out of it.
 
@@ -179,8 +179,8 @@ def test_a_stranded_balance_nothing_drew_on_is_cleared_in_one_file(tmp_path):
 def test_the_disposal_is_re_pointed_in_place_and_the_balance_cleared(tmp_path):
     """Re-pointed at the receivable's cost basis in place, where the money it spent is.
 
-    The edit is read as a new transaction would be (Q-051): it gives the
-    stranded cost basis back what the disposal took, and draws the 0.72 from
+    The edit is read as a new transaction would be (Q-051): it puts back on
+    the stranded cost basis what the disposal took, and draws the 0.72 from
     the receivable's. The balance is then cleared, and the book is sound.
     """
     runner = CliRunner()

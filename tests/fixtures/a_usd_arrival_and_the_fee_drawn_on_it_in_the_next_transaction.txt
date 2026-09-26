@@ -1,5 +1,5 @@
-# Q-050 E8: the arrival in one transaction and the fee in the next, giving
-# the arrival's position. Neither gives a `guid:`. The same book as E1.
+# Q-050 E8: the arrival in one transaction and the fee in the next, stating
+# the arrival's position. Neither states a `guid:`. The same book as E1.
 #
 # Verified by
 # tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.

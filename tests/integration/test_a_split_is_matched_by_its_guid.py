@@ -243,7 +243,7 @@ def _exported(book, tmp_path, name='out.txt'):
     return out.read_text(encoding='utf-8')
 
 
-class TestABlockGivingItsSplitAnotherAccount:
+class TestABlockMovingItsSplitToAnotherAccount:
     def test_moves_the_split_and_keeps_its_guid(self, tmp_path):
         """Changing a split's account is the commonest edit to a ledger.
 
@@ -276,7 +276,7 @@ class TestABlockGivingItsSplitAnotherAccount:
         """A file that refuses moves nothing, which is what the update path
         says about itself: every refusal before `BeginEdit`.
 
-        Both live in the same pass — the block that gives a split another account
+        Both live in the same pass — the block that moves a split to another account
         and the block that names a guid this transaction has not got — so
         one could move a split and the next refuse the file. The run does
         not stop there: the error is collected and the import goes on to
@@ -311,7 +311,7 @@ class TestAFileThatChangesOneSplitsAccountAndLosesAnother:
     def test_moves_nothing_at_all(self, tmp_path):
         """The refusal comes first, so the account never changes.
 
-        Both live in the same rebuild: one block gives its split another
+        Both live in the same rebuild: one block moves its split to another
         account, and the file stops naming the account of a split that is
         in an invoice's lot. Carried out in the order they were read, the
         move landed and the refusal followed it — and the run does not stop
@@ -740,7 +740,7 @@ class TestAFileWhoseBlocksWereReordered:
         assert 'Updated:      1' in result.output, result.output
         return book, before
 
-    def test_each_split_keeps_what_its_guid_was_given(
+    def test_each_split_keeps_what_the_block_with_its_guid_states(
             self, tmp_path, label, first, second):
         """The whole point of writing a guid under a split: the block names
         which split it is, so where it sits in the file cannot decide."""

@@ -199,7 +199,7 @@ The transaction GUID lives only in the exporter output (`guid: "2e1da9a4…"`); 
 
 `ApplyPayment(amount=+100)` produces one new transaction dated by `payment.date`: `Assets:Bank` (+100) and the AR account (−100). The payment-side AR split is the *negative* of the posting AR split, so the two splits sum to zero in the same lot — that's how GnuCash marks the invoice paid.
 
-A `payment:` block does **not** cross-reference an existing transaction unless you give it a `txn_guid:` (the Q-004 retarget path). Without `txn_guid`, a brand-new transaction is created on every payment-side import. With `txn_guid`, the existing bank tx's counter-split is retargeted to the AR account in place — see `payment_roundtrip_invoice_txn_guid.txt` and the dedicated `test_payment_roundtrip.py` tests.
+A `payment:` block does **not** cross-reference an existing transaction unless it states a `txn_guid:` (the Q-004 retarget path). Without `txn_guid`, a brand-new transaction is created on every payment-side import. With `txn_guid`, the existing bank tx's counter-split is retargeted to the AR account in place — see `payment_roundtrip_invoice_txn_guid.txt` and the dedicated `test_payment_roundtrip.py` tests.
 
 A side effect of adding a payment block: the importer rebuilds the invoice, and the posting transaction's GUID changes (`2e1da9a4…` → `6fae2d73…`).
 
@@ -207,7 +207,7 @@ A side effect of adding a payment block: the importer rebuilds the invoice, and 
 
 - **AR/Income posting transaction:** destroyed. The transaction disappears from `transactions:` entirely; the GUID is gone.
 - **Bank payment transaction:** *not* destroyed. The transaction object with both its Bank and AR splits remains in place, same GUID (`63210942…`). It is "orphaned" in the GnuCash sense that it's no longer attached to a lot, but it is still a perfectly valid transaction from the book's perspective. Both splits — bank-side *and* AR-side — survive.
-- **`payment:` line in the invoice's plaintext:** **gone**. The exporter renders unposted invoices with `payment: none` and does not back-reference orphan payment transactions, even when they obviously came from this invoice. See `services/gnucash_exporter.py` — orphan bank txs are emitted in the `transactions:` section only, not in any business object.
+- **`payment:` line in the invoice's plaintext:** **gone**. The exporter renders unposted invoices with `payment: none` and does not back-reference orphan payment transactions, even when they obviously came from this invoice. See `use_cases/export_business_objects.py` — orphan bank txs are emitted in the `transactions:` section only, not in any business object.
 
 The book is therefore in an asymmetric state: the bank ledger and the AR ledger both still "see" the payment as money received, but the invoice has no idea any payment ever existed.
 
@@ -269,7 +269,7 @@ For consumers relying on entry GUIDs for stable references (e.g. a PDF render pi
 
 2. **Re-paying after unposting will silently duplicate your bank deposit if you don't clean up the orphan first.** The book will still balance, so reconciliation against a bank statement won't catch it — both halves of the duplicate are journal-internal. The user-visible symptoms are: AR balance goes negative on a "paid-in-full" customer, and total bank deposits exceed total recorded income.
 
-3. **Don't round-trip a book through plaintext after this kind of cycle and assume it's lossless.** The orphan bank tx survives an export but does **not** reattach to the invoice on re-import. Re-importing the exported `.txt` into a fresh book gives you the 2026-02-15 payment only; the 2026-01-15 orphan is reconstructed as a free-standing bank transaction, but it won't be associated with the invoice's lot. Plaintext is a reasonable backup format for a *clean* book, but not for a book that has unposted records with surviving payment splits.
+3. **Don't round-trip a book through plaintext after this kind of cycle and assume it's lossless.** The orphan bank tx survives an export but does **not** reattach to the invoice on re-import. Re-importing the exported `.txt` into a fresh book attaches only the 2026-02-15 payment to the invoice; the 2026-01-15 orphan is reconstructed as a free-standing bank transaction, but it won't be associated with the invoice's lot. Plaintext is a reasonable backup format for a *clean* book, but not for a book that has unposted records with surviving payment splits.
 
 4. **If you want a re-pay-after-unpost workflow that doesn't duplicate, use the `txn_guid:` retarget pattern** (Q-004, `payment_roundtrip_invoice_txn_guid.txt`): leave the orphan bank tx alone, set `txn_guid: "<that orphan's guid>"` inside the new `payment:` block, and `ApplyPayment` will retarget the orphan's AR-side split into the new posted lot instead of creating a second tx. This is the only currently-supported way to re-link the orphan without duplication.
 
@@ -437,13 +437,13 @@ Criteria ordered by strength + false-positive risk for the post-unpost path:
 | 3 | One split on AR/AP, one elsewhere | low — pure-shape filter | Excludes oddball user-edited txs but doesn't add identification. A user could in theory hand-craft a `'P'` tx with a different shape, but `ApplyPayment` always produces this layout |
 | 4 | AR-side split's lot has no invoice attached | low | After unpost, the lot detaches from the invoice. Excludes payments still attached to a *different* posted invoice |
 | 5 | Invoice ID substring in AR-split `memo` | high | User-controlled string. The fixture's memo `"Payment INV-001"` contains the ID, but a real user might write `"Q1 retainer"`. If criterion 5 fails, the orphan is still a candidate but cannot be pinned to a specific invoice |
-| 6 | Lot's `gncOwner.id` == customer_id (post-unpost) | redundant with #2 | Useful as a secondary check; gives the same answer as criterion 2 via a different code path |
+| 6 | Lot's `gncOwner.id` == customer_id (post-unpost) | redundant with #2 | Useful as a secondary check; it reaches the same answer as criterion 2 by a different code path |
 
 **The genuinely ambiguous case** is "customer C001 has two unposted-but-previously-paid invoices, both paid from the same bank account, both with default memos that don't reference the invoice ID". In that situation criteria 1–4 match both orphans for both invoice IDs; criterion 5 (memo substring) is the only disambiguator and it depends entirely on the user having followed the GnuCash convention.
 
 ### 4. CLI mockup
 
-What `unpost-invoices` would print if the orphan-listing was inlined. Pre-unpost is the path that gives the user the most actionable info (named tx, with its GUID, before the unpost commits), so the mockup uses that path.
+What `unpost-invoices` would print if the orphan-listing was inlined. Pre-unpost is the path that tells the user the most they can act on (named tx, with its GUID, before the unpost commits), so the mockup uses that path.
 
 **Happy path — one orphan found:**
 
@@ -536,7 +536,7 @@ Reasoning for the v1 surface: only print the warning when there *is* something t
 | False negatives | none for the invoice being unposted | none for orphans whose KVP owner backref is intact (i.e. all `ApplyPayment`-created txs) |
 | User experience | inline warning at unpost time — exactly when the user is about to lose context | retrospective — user must already know they want to inspect a particular customer/invoice |
 
-**Recommendation:** ship the pre-unpost listing as the v1 fix. It's a 5-line insert in `cli/unpost_cmd.py` (one helper call + one `click.echo` loop) and gives the user *named*, *GUID-bearing* tx info at the exact moment they need it. The post-unpost helper is a useful safety net for users who already lost the context, but the strong UX win is at the unpost moment itself.
+**Recommendation:** ship the pre-unpost listing as the v1 fix. It's a 5-line insert in `cli/unpost_cmd.py` (one helper call + one `click.echo` loop) and shows the user each transaction with its description and GUID at the exact moment they need it. The post-unpost helper is a useful safety net for users who already lost the context, but the strong UX win is at the unpost moment itself.
 
 The CLI should also probably emit the orphan list when `unpost-invoices` is invoked for *multiple* invoice IDs in one call — each invoice gets its own block of the warning. That falls out naturally from running the pre-unpost helper inside the same loop that calls `Unpost(False)`.
 
@@ -674,8 +674,8 @@ Bill-side wording differences worth noting:
 
 ### Updated v1 recommendation
 
-**Ship the pre-unpost orphan-listing in both `unpost-invoices` *and* `unpost-bills` — same helper, same warning template, two callsites.** Because the prototypes work unmodified for both, the implementation is a single `use_cases/orphan_payments.py` (or a free function in `cli/unpost_cmd.py`) invoked from both CLI commands. The output template is parameterised on three short variables — "invoice"/"bill", "AR"/"AP", "received"/"sent" — and otherwise byte-identical. No need to split the work into two tickets; whatever Q-014 scope captures `unpost-invoices` should explicitly cover `unpost-bills` in the same PR.
+**Ship the pre-unpost orphan-listing in both `unpost-invoices` *and* `unpost-bills` — same helper, same warning template, two callsites.** Because the prototypes work unmodified for both, the implementation is a single helper invoked from both CLI commands. As built it is `_format_orphan_warning` in `cli/unpost_cmd.py`, over the orphans `use_cases/unpost_business_objects.py` finds; no `use_cases/orphan_payments.py` was created. The output template is parameterised on three short variables — "invoice"/"bill", "AR"/"AP", "received"/"sent" — and otherwise byte-identical. No need to split the work into two tickets; whatever Q-014 scope captures `unpost-invoices` should explicitly cover `unpost-bills` in the same PR.
 
-The two probe outputs (`exports/orphan_backref_probe.txt` and `exports/bill/orphan_backref_probe.txt`) plus the four passing probe tests give the implementation a regression net: any future drift between the invoice and bill orphan-detection behaviour will surface as a test diff.
+The two probe outputs (`exports/orphan_backref_probe.txt` and `exports/bill/orphan_backref_probe.txt`) plus the four passing probe tests are the implementation's regression tests: any future drift between the invoice and bill orphan-detection behaviour will surface as a test diff.
 
 

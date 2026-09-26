@@ -381,9 +381,10 @@ class PlaintextParser:
                 # could not be exported afterwards (measured on 5.10).
                 if not split_account_name:
                     self.errors.append(
-                        f'Error processing line {line_number}: a split line gives '
-                        f'its account, then its amount and commodity, and this '
-                        f'one has no account: {line.strip()!r}.')
+                        f'Error processing line {line_number}: a split line '
+                        f'starts with its account, then its amount and '
+                        f'commodity, and this one has no account: '
+                        f'{line.strip()!r}.')
                     break
                 obj = PlaintextDirective(DirectiveType.SPLIT, line_level, line, parent_directive)
                 obj.props['amount'] = split_amount
@@ -398,7 +399,7 @@ class PlaintextParser:
                 # top level parsed into a directive nothing ever reads — a
                 # line the file states and the run ignores, which is what
                 # every other unread line here is refused for.
-                # `the_settlement_a_block_gives` refuses an astray
+                # `the_settlement_a_block_states` refuses an astray
                 # `PaymentSplit` one level in on exactly this reasoning; these
                 # are the same mistake one level out.
                 if parent_directive.type != DirectiveType.PAYMENT:
@@ -416,22 +417,22 @@ class PlaintextParser:
                 parent_directive.children.append(obj)
                 self.current_directive = obj
             elif payment_split_guid is not None:
-                # Under the `Transaction` block whose split it gives. A split
+                # Under the `Transaction` block that holds the split. A split
                 # is a child of its transaction everywhere else in this
-                # format, and one written anywhere else gives a split of
-                # nothing.
+                # format, and one written anywhere else belongs to no
+                # transaction.
                 if parent_directive.type != DirectiveType.PAYMENT_TRANSACTION:
                     self.errors.append(
                         f'Error processing line {line_number}: '
                         f'`PaymentSplit "{payment_split_guid}"` is not under a '
-                        f'`Transaction` block, so it gives a split of nothing '
-                        f'— it is under {parent_directive.type.name.lower()}, '
-                        f'where nothing would read it. A payment gives its '
-                        f'settling splits inside the transaction they belong '
-                        f'to:\n'
+                        f'`Transaction` block, so it is a split of no '
+                        f'transaction — it is under '
+                        f'{parent_directive.type.name.lower()}, where nothing '
+                        f'would read it. A payment lists its settling splits '
+                        f'inside the transaction they belong to:\n'
                         f'\t\tTransaction "<the transaction>"\n'
                         f'\t\t\tPaymentSplit "<a split of it>"\n'
-                        f'Indent it under one, or give a single split with '
+                        f'Indent it under one, or state a single split in '
                         f'`txn_split_guid:` instead.')
                     break
                 obj = PlaintextDirective(DirectiveType.PAYMENT_SPLIT,
@@ -566,7 +567,7 @@ class PlaintextParser:
                 break
 
     def find_parent_directive(self, line_level: int, ctx_obj):
-        """Find parent directive for given level"""
+        """Find the parent directive of a line at `line_level`"""
         if ctx_obj is None:
             return None
         if ctx_obj.level == line_level - 1:
@@ -595,7 +596,7 @@ split_pattern2 = r'^\s*([^"]*?)\s+(' + _amount_re + r')\s+("[^"]+")\s*$'
 # distinguishable from an ordinary key that happens to end in a digit. A book's
 # custom keys are the book owner's to name, and `abc1`/`abc2` are two unrelated
 # keys; without the brackets, taking `addr` + any number for the address would
-# have reserved a whole namespace of names nobody had agreed to give up, and
+# have reserved a whole namespace of names nobody had agreed to part with, and
 # made `addr7` mean something different depending on which block it was in.
 #
 # Only a trailing index parses, and only digits inside it, so a stray bracket

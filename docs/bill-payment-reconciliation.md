@@ -19,7 +19,7 @@ This page describes:
 
 A bill's `payment:` block has the same *shape* as an invoice's — provide `bank_account` and `txn_guid` — but the accounting is the mirror image, not a copy. A bill posts as a **credit to Accounts Payable** (a liability going up) where an invoice posts a **debit to Accounts Receivable** (an asset going up); a bill payment sends money **out** (debit AP, credit Bank) where an invoice payment brings money **in**. Every sign in the bill examples below is flipped from the AR case. The plaintext still carries positive `amount:` values — the importer records the outgoing direction for bills internally.
 
-Just like an invoice, a bill payment can **link an existing bank transaction** (e.g. one already loaded from a bank feed) instead of minting a new one: give the `payment:` block a `txn_guid:` (and optionally `txn_split_guid:`) naming that bank tx, and the importer links its AP-side split into the bill's posted lot rather than creating a duplicate:
+Just like an invoice, a bill payment can **link an existing bank transaction** (e.g. one already loaded from a bank feed) instead of minting a new one: write a `txn_guid:` (and optionally `txn_split_guid:`) in the `payment:` block, naming that bank tx, and the importer links its AP-side split into the bill's posted lot rather than creating a duplicate:
 
 ```
 vendor "VEND-001"

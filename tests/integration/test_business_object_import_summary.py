@@ -1,5 +1,5 @@
 """
-Q-009: business-object import gives clear feedback on every directive.
+Q-009: business-object import reports clearly on every directive.
 Q-010: extends the status set with 'unchanged' (no-diff re-import) and
 makes posted invoices/bills mutable via unpost-edit-repost. Tax tables
 remain the only kind that's immutable on hit.

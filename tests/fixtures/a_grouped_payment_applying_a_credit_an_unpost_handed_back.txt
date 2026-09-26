@@ -9,7 +9,7 @@
 # of TXN_GUID and the split's in place of SPLIT_GUID.
 #
 # What this fixture produces: INV-USD-GROUPED settled by that split, which
-# keeps `applied_from_credit` and its cost and gives up its cost basis balance.
+# keeps `applied_from_credit` and its cost and loses its cost basis balance.
 #
 # Verified by
 # tests/integration/test_a_grouped_payment_spending_a_handed_back_credit_takes_its_balance_off.py.

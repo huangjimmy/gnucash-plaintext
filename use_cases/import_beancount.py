@@ -274,7 +274,7 @@ class ImportBeancountUseCase:
             # CAD to ¥18,200 and lost the balance with it.
             #
             # A file with neither falls to what the first posting holds, which
-            # is how a currency the file gives a symbol of its own — the
+            # is how a currency the file writes with a symbol of its own — the
             # symbol is not the mnemonic — is still found.
             currency = None
             for posting in tx_data.postings:
@@ -430,7 +430,7 @@ class ImportBeancountUseCase:
                 # importer refuses the identical figure; which format the
                 # reader edited should not decide.
                 #
-                # Through the plaintext importer's own judge, so the two give
+                # Through the plaintext importer's own judge, so the two reach
                 # the same diagnosis for the same figure. Written afresh here
                 # it had only the account branch, so a sub-cent CAD posting
                 # was told to widen `gnucash-scu:` — and the same file then
@@ -453,7 +453,7 @@ class ImportBeancountUseCase:
                     # currency, and not of what a person writes. 15,000 yen
                     # quoted per USD in a CAD entry was valued at 100.00 CAD
                     # instead of the 135.00 it is worth, and an exchange ratio
-                    # (`-100 OLDCO @ 0.5 NEWCO`) valued the shares given up at
+                    # (`-100 OLDCO @ 0.5 NEWCO`) valued the shares disposed of at
                     # 50.00 CAD — a figure with no source in the file. Both
                     # measured; the first balanced its own error and reported
                     # success.

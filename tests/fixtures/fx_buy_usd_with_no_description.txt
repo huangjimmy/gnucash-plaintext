@@ -1,7 +1,7 @@
 # 100 USD bought with CAD at 1.35, by a transaction with no description.
 #
 # What this fixture produces: Assets:Bank:USD holding 100.00 USD whose cost
-# basis is 1.35 CAD, from a transaction whose header gives a date and nothing
+# basis is 1.35 CAD, from a transaction whose header states a date and nothing
 # else.
 #
 # Verified by tests/integration/test_fx_balances_lists_a_cost_basis_with_no_description.py.

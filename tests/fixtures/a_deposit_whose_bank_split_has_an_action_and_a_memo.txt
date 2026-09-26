@@ -1,6 +1,6 @@
 # A 100.00 CAD deposit whose bank split carries an action and a memo.
 #
-# The transaction and both splits give their guids, so a second file can edit
+# The transaction and both splits state their guids, so a second file can edit
 # them with `--strategy update`.
 #
 # What this fixture produces: one CAD transaction, "Consulting paid", its bank

@@ -4,7 +4,7 @@
 #
 # CLAUDE.md says no attribution lines, and an agent working here is told otherwise by the tool running it, which appends a `Co-Authored-By:` trailer and a session URL to commits. That instruction arrives with each run and is written nowhere a reader of this repo can see, so the rule is enforced here rather than trusted. The switch on the tool's side is the `attribution` object in Claude Code settings, which stops the line being offered at all; this is the floor under it.
 #
-# What it refuses is Claude's own marks and nothing else: a `Co-Authored-By:` line giving an anthropic.com address, a `Claude-Session:` trailer, either Claude URL, and the "Generated with Claude Code" footer. A person's trailer carries none of these and passes, which matters because three commits on `main` already have one, written by GitHub's squash-merge dialog. The trailer rules are anchored at the start of a line, so prose that mentions one passes; the URLs and the footer are matched anywhere.
+# What it refuses is Claude's own marks and nothing else: a `Co-Authored-By:` line carrying an anthropic.com address, a `Claude-Session:` trailer, either Claude URL, and the "Generated with Claude Code" footer. A person's trailer carries none of these and passes, which matters because three commits on `main` already have one, written by GitHub's squash-merge dialog. The trailer rules are anchored at the start of a line, so prose that mentions one passes; the URLs and the footer are matched anywhere.
 #
 # A diff is skipped from its own `diff --git` header down, because `git commit -v` puts one below the message and this repo's diff carries the lines this check refuses.
 #

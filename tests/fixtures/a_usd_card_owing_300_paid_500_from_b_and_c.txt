@@ -1,5 +1,5 @@
 # 300.00 USD charged to a US dollar card at 1.35, then 500.00 USD paid onto it
-# — 250.00 from B and 250.00 from C, each giving its own cost basis.
+# — 250.00 from B and 250.00 from C, each stating its own cost basis.
 #
 # 300.00 repays the card and 200.00 moves to its credit, but nothing in the
 # transaction says whether the 200.00 that only moved came out of B's cost

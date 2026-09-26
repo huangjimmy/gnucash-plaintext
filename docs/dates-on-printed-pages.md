@@ -18,7 +18,7 @@ company
 
 Every date on the printed page is then ISO, on any machine, and it stays that way through an export and re-import.
 
-**"The printed page" means what GnuCash's report drew** — `--format html` and `--format pdf`, the thing a customer receives. `--format plaintext` writes `YYYY-MM-DD` whatever the book says, because that output is this ledger format rather than a page for a reader: it has to be re-importable, and a date this tool cannot read back is not a ledger. Every example below prints HTML for that reason. So a book set to `%d.%m.%Y` gives you `09.03.2026` on the invoice and `2026-03-09` in the plaintext of the same invoice, and both are right.
+**"The printed page" means what GnuCash's report drew** — `--format html` and `--format pdf`, the thing a customer receives. `--format plaintext` writes `YYYY-MM-DD` whatever the book says, because that output is this ledger format rather than a page for a reader: it has to be re-importable, and a date this tool cannot read back is not a ledger. Every example below prints HTML for that reason. So a book set to `%d.%m.%Y` prints `09.03.2026` on the invoice and `2026-03-09` in the plaintext of the same invoice, and both are right.
 
 Four formats work like that. This table is the printed page for each, for the same invoice — dated 9 March 2026, printed on 15 August 2026 — with every column taken off a real page:
 
@@ -213,7 +213,7 @@ A page has dates in two groups, and GnuCash writes them from different places.
 The consequence is backwards from what people expect:
 
 * a book with **no** `date_format` prints a **uniform** page: both groups fall back to the same place, the machine's locale;
-* setting **only** the book option — which is all the GnuCash GUI does — gives a page with **two formats on it**, `09 March 2026` at the top and `03/09/26` in the line items.
+* setting **only** the book option — which is all the GnuCash GUI does — prints a page with **two formats on it**, `09 March 2026` at the top and `03/09/26` in the line items.
 
 So stating the format is what makes a page consistent. Avoiding it is not.
 

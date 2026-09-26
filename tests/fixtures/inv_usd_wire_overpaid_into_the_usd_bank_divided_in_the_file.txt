@@ -1,7 +1,7 @@
 # 200.00 USD from C-US into the USD bank against INV-USD-WIRE for 100.00 USD,
 # entered in USD, so nothing in the entry says what the USD cost. The entry
 # already divides the receivable side: 100.00 settling the invoice and 100.00
-# left over. The invoice's payment block gives the settling split with
+# left over. The invoice's payment block states the settling split with
 # `txn_split_guid:` and declares the rest with `prepayment: 100`.
 #
 # What this fixture produces: the 100.00 USD left over is the customer's

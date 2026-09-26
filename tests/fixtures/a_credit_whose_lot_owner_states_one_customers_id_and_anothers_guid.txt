@@ -1,0 +1,14 @@
+# A customer's prepayment whose `lot_owner:` states C001's ID and C002's guid.
+#
+# `lot_owner: customer:ID:guid` states the owner twice, and the guid is the one
+# that decides. Here the two are different customers, so the line says two
+# things about whose credit this is.
+#
+# What this fixture produces: nothing. The import refuses the transaction.
+#
+# Verified by tests/integration/test_a_lot_owner_stating_two_customers_is_refused.py.
+2026-01-05 * "Prepayment attributed to two customers at once"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
+		lot_owner: "customer:C001:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2"

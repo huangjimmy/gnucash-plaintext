@@ -10,7 +10,7 @@ moved:
 - into or out of the USD bank, where no CAD figure is in the entry: the credit
   is priced at 1.40, the rate the record was carried at, stored on the split.
 
-A file can give the payment already divided into the split that settles the
+A file can state the payment already divided into the split that settles the
 record and the rest, with `txn_split_guid:` and `prepayment:`, or as one split
 the import divides. Measured on 5.10, 4.13 and 3.8, the two disagreed: divided
 in the file, the credit got no cost basis balance at all — `fx-balances` read

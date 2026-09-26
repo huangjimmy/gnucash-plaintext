@@ -1,0 +1,39 @@
+# An invoice paid by a block stating `payment_split_guid:`, the key's old name.
+#
+# The key is `txn_split_guid:` now. Read as an unknown key, the old one would
+# be ignored, and the payment would be recorded from its date and amount
+# instead of on the split it states, so the import refuses it and says the new
+# name.
+#
+# What this fixture produces: nothing. The import refuses the invoice.
+#
+# Verified by tests/integration/test_the_old_payment_split_guid_key_is_refused.py.
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-OLD-KEY"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-OLD-KEY"
+		accumulate: true
+	payment:
+		date: 2026-01-15
+		amount: 100
+		account: "Assets:Bank"
+		memo: "Payment INV-OLD-KEY"
+		payment_split_guid: "0123456789abcdef0123456789abcdef"

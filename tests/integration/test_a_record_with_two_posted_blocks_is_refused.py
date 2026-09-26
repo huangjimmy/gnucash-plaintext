@@ -1,6 +1,6 @@
 """An invoice or a bill with two `posted:` blocks is refused.
 
-A record is posted once, to one account on one day. Two blocks give two
+A record is posted once, to one account on one day. Two blocks state two
 postings, and nothing says which is the record's, so the import refuses it
 rather than post it to the first and read the second as nothing.
 """

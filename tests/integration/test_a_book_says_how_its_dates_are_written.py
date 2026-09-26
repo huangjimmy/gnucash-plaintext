@@ -98,7 +98,7 @@ class TestThePrintedPage:
     def test_one_format_on_the_whole_page(self, tmp_path, fmt, posted, due):
         """The point of stating it: one page, one way of writing dates.
 
-        GnuCash's own GUI gives you this because it pushes its date setting
+        GnuCash's own GUI shows you this because it pushes its date setting
         into QOF at startup and every date then agrees. A process that only
         loaded the library sets nothing, so the invoice's own dates came off the
         book and the entry rows off whoever's machine was running the
@@ -190,7 +190,7 @@ class TestThePrintedPage:
         book, so it is not a property of the invoice either. Both sides are
         asserted all the same. "Not `09 March 2026`" alone is satisfied by a
         page with no dates on it, which would be a defect rather than a
-        fallback, and the run these containers give is `03/09/26`.
+        fallback, and what a run in these containers prints is `03/09/26`.
         """
         plain = tmp_path / 'plain.gnucash'
         ledger = Path(LEDGER).read_text(encoding='utf-8')

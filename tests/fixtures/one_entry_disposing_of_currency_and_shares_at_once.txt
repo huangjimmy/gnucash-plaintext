@@ -1,7 +1,7 @@
 # One entry that sells shares and spends the dollars they fetched, in a single
 # transaction, with one split standing as the difference.
 #
-# It is refused. The entry gives up two cost bases of two different kinds — the
+# It is refused. The entry disposes of two cost bases of two different kinds — the
 # shares, and the US dollars — so it realizes a difference on each, and the one
 # `$residual$` split between them cannot be both. A balance sheet states a gain
 # on currency apart from a gain on shares, as a filer's return does, so counting
@@ -109,7 +109,7 @@ price
 		value: "-2600.00"
 		cost_basis_split_guid: "c3c3c3c3c3c3c3c3c3c3c3c3c3c30001"
 
-# Both kinds given up in one entry again, and this one is imported. No split of
+# Both kinds disposed of in one entry again, and this one is imported. No split of
 # it stands as the difference — every figure is stated outright — so there is
 # nothing ambiguous to divide and nothing for the refusal to protect. What it
 # refuses is one split being asked to be two differences, not the two disposals
@@ -128,7 +128,7 @@ price
 		cost_basis_split_guid: "c3c3c3c3c3c3c3c3c3c3c3c3c3c30001"
 	Assets:CAD Bank 650.00 CAD
 
-# The refused entry: 20 shares given up and 500.00 US dollars given up, in one
+# The refused entry: 20 shares and 500.00 US dollars disposed of, in one
 # transaction, with a single split standing as the difference on both.
 2030-06-30 * "Sell 20 shares and spend 500.00 USD in one entry"
 	currency.mnemonic: "CAD"

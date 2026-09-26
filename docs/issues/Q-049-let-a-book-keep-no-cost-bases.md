@@ -15,22 +15,22 @@
 
 **Realized gains stay what the file states.** `realized_gains_fx` and `realized_gains_other` are read from the splits that took a `$residual$` (`took_the_residual`), which no cost basis decides, so a book with cost bases off reports the realized gains its own entries record.
 
-**Unrealized gains are measured from GnuCash's own revaluation.** The balance sheet already does this for a currency its cost bases do not account for (`measured_from: gnucash_revaluation`); with cost bases off it does it for every currency and security, and the page says it measured that way because the book keeps no cost bases, not because they disagree with the accounts. The unrealized figures are then GnuCash's, not what the book's own costs would give.
+**Unrealized gains are measured from GnuCash's own revaluation.** The balance sheet already does this for a currency its cost bases do not account for (`measured_from: gnucash_revaluation`); with cost bases off it does it for every currency and security, and the page says it measured that way because the book keeps no cost bases, not because they disagree with the accounts. The unrealized figures are then GnuCash's, not what the book's own costs would make them.
 
 **What else says so.**
 
 - `fx-balances` says the book keeps no cost bases, and lists what the accounts hold.
-- `--verify-integrity` lists the cost basis checks as not checked, giving the reason.
+- `--verify-integrity` lists the cost basis checks as not checked, with the reason.
 
-**Turning cost bases on later** is bringing the book forward through its export, as a book imported before a disposal had to give its cost basis is (README, "A book that keeps no cost bases"): every disposal then gives the cost basis it draws on.
+**Turning cost bases on later** is bringing the book forward through its export, as a book imported before a disposal had to state its cost basis is (README, "A book that keeps no cost bases"): every disposal then states the cost basis it draws on.
 
 ## What was built
 
 - **Turning cost bases off clears the keys earlier imports wrote**, in the same run, and the import says how many splits held one. A book keeping none holds none, so it is never half on: a key left behind would be exported, and the import refuses a file stating one into such a book.
-- **A book that keeps none is not turned on in place.** `cost_bases: "on"`, or the line cleared, imported into such a book is refused: every earlier disposal gave no cost basis, and no cost basis accounts for what it holds. It is turned on by bringing it forward through its export.
+- **A book that keeps none is not turned on in place.** `cost_bases: "on"`, or the line cleared, imported into such a book is refused: every earlier disposal stated no cost basis, and no cost basis accounts for what it holds. It is turned on by bringing it forward through its export.
 - **Whether a book keeps cost bases is read once per book**, keyed by the book's address, and read again once a `company` block sets it or a book is opened: every cost basis writer and the realized gain walk ask it, and a dry run or a rolled-back run of a `company` block leaves nothing behind for the next book opened in the same process.
 - **`set-book-key` refuses `cost_bases`.** Written there, the book would hold the keys earlier imports wrote and say it kept none.
-- **A `$residual$` beside a split in another currency or a security is the realized difference.** In a book keeping cost bases, a `$residual$` split is read as a realized difference where a split in the transaction gives the cost basis it draws on, because that makes the split a disposal. A book keeping none gives none. So there the realized difference is what the file states: a `$residual$` beside a split in anything other than the book's own currency, whichever way that split moves, since a realized gain needs no cost basis. The balance sheet reads `realized_gains_fx` or `realized_gains_other` from that split, by the kind of holding beside it. The gain is the balance of the account the file posted it to, and in `retained_earnings`, whatever the keys list: a `$residual$` beside both a currency and a security is on neither key, since one split cannot say how much of it is which, and it is not refused, since the user records the gain and nothing about it is lost. A book keeping cost bases refuses such a transaction as it always has, because there each kind draws on a cost basis of its own.
+- **A `$residual$` beside a split in another currency or a security is the realized difference.** In a book keeping cost bases, a `$residual$` split is read as a realized difference where a split in the transaction states the cost basis it draws on, because that makes the split a disposal. A book keeping none states none. So there the realized difference is what the file states: a `$residual$` beside a split in anything other than the book's own currency, whichever way that split moves, since a realized gain needs no cost basis. The balance sheet reads `realized_gains_fx` or `realized_gains_other` from that split, by the kind of holding beside it. The gain is the balance of the account the file posted it to, and in `retained_earnings`, whatever the keys list: a `$residual$` beside both a currency and a security is on neither key, since one split cannot say how much of it is which, and it is not refused, since the user records the gain and nothing about it is lost. A book keeping cost bases refuses such a transaction as it always has, because there each kind draws on a cost basis of its own.
 - **The writers ask the book.** `unapply-payment`, `unlink` and `delete-transactions` write cost basis keys too, not only `import`, so whether to write one is read from the book each time rather than set for a run.
 
 ## Known, not yet investigated
@@ -43,12 +43,12 @@
 
 | case | test |
 |---|---|
-| a USD fee and a sale giving no cost basis are accepted | `test_a_spend_that_gives_no_cost_basis_is_accepted` |
+| a USD fee and a sale stating no cost basis are accepted | `test_a_spend_that_states_no_cost_basis_is_accepted` |
 | a book keeping cost bases refuses the same spends | `test_a_book_keeping_cost_bases_refuses_the_same_spend` |
 | no `cost_basis_*` key is in the export, with the invoices and bills posted into the book after it was turned off | `test_nothing_is_recorded` |
 | a USD advance paid into a USD account records no cost | `test_dollars_paid_in_dollars_record_no_cost` |
 | a fee's value restated in place is edited | `test_a_disposal_restated_in_place_is_edited` |
-| a deposit and its fee in one transaction, an arrival and a spend giving no cost basis, edited in place | `test_a_deposit_and_its_fee_are_edited_as_they_were_created` |
+| a deposit and its fee in one transaction, an arrival and a spend stating no cost basis, edited in place | `test_a_deposit_and_its_fee_are_edited_as_they_were_created` |
 | the `company` block imported again reports `unchanged` | `test_the_company_block_imported_again_changes_nothing` |
 | `cost_bases: "on"` keeps the keys a book holds | `test_on_keeps_them` |
 | `cost_bases: "on"` into a book that keeps none is refused, and the book file is unchanged | `test_a_book_that_keeps_none_is_not_turned_on_in_place` |
@@ -56,7 +56,7 @@
 | a dry run turning cost bases off leaves the book keeping them, in the same process | `test_a_dry_run_turning_them_off_leaves_the_book_keeping_them` |
 | 4 SHOP sold at a gain of 200.00 is `realized_gains_other: 200.00` | `test_a_share_sale_s_realized_gain_is_what_the_transaction_records` |
 | `unlink` and `unapply-payment` write no `cost_basis_*` key | `test_unlink_writes_no_cost_basis_key`, `test_unapply_payment_writes_no_cost_basis_key` |
-| `delete-transactions` deletes dollars a fee and a sale spent giving no cost basis, where a book keeping cost bases refuses while a disposal draws on them; there is nothing to give back | `test_delete_transactions_deletes_what_spends_dollars_giving_no_cost_basis` |
+| `delete-transactions` deletes dollars a fee and a sale spent stating no cost basis, where a book keeping cost bases refuses while a disposal draws on them; there is nothing to put back | `test_delete_transactions_deletes_what_spends_dollars_stating_no_cost_basis` |
 | a file stating `cost_basis_split_guid:` is refused | `test_a_file_stating_a_cost_basis_key_is_refused` |
 | turning them off clears the keys a book held, and says so | `test_turning_them_off_clears_the_ones_the_book_held` |
 | `cost_bases: "sometimes"` is refused | `test_a_setting_that_is_neither_on_nor_off_is_refused` |
@@ -73,7 +73,7 @@ The user, on the refusals Q-048 relaxes: "we impose cost basis on behalf of gnuc
 
 ## Why it matters
 
-Since #110 every foreign-currency spend gives the cost basis it draws on, and Q-045 to Q-048 each added a refusal that keeps the cost bases consistent. For an owner who keeps foreign currency the way GnuCash does, every one of those is a refusal of a book GnuCash itself accepts, and there is no way to say that the book does not want them.
+Since #110 every foreign-currency spend states the cost basis it draws on, and Q-045 to Q-048 each added a refusal that keeps the cost bases consistent. For an owner who keeps foreign currency the way GnuCash does, every one of those is a refusal of a book GnuCash itself accepts, and there is no way to say that the book does not want them.
 
 ## A bug reported alongside: record the whole realized gain when disposals empty a cost basis, and state on the balance sheet a realized gain the book did not record
 
@@ -115,10 +115,10 @@ Invoice TERMINAL-001 is 2,720.00 USD, its sales split 3,815.89 CAD, so its cost 
 
 ### What changes
 
-- **The disposal that takes the last of a cost basis is valued at what is left of its cost**: 3,815.89 − 1.01 − 12.06 = 3,802.82, and 2.01 − 1.01 = 1.00. The exchange splits then add up to the realized gain or loss, 44.61 and 0.79. A last disposal valued at its own share rounded is refused, giving what is left.
+- **The disposal that takes the last of a cost basis is valued at what is left of its cost**: 3,815.89 − 1.01 − 12.06 = 3,802.82, and 2.01 − 1.01 = 1.00. The exchange splits then add up to the realized gain or loss, 44.61 and 0.79. A last disposal valued at its own share rounded is refused, and the refusal states what is left.
 - **The balance sheet states the realized gain not recorded**, `realized_gains_not_recorded`, and adds it into `total_equity`. Per cost basis it is, over the disposals drawn on it, what each drew at the cost less what it was valued at: the part of the cost the rounding of their values left. The reported page states `unrealized_gains_assets_fx: 23.97`, `realized_gains_not_recorded: -0.01` and 17,373.89 on both sides. The key is left off where it is zero, a note beside the others says it reaches `total_equity`, and the itemized page lists each cost basis it comes from. It is stated only for a cost basis whose disposals are each valued as the import requires: a disposal valued against another cost, or a cost stated wrong, is not a rounding, `--verify-costs` reports it, and the page does not balance.
 - **A book already holding such a last disposal is corrected in place.** A `--strategy update` block restating it at what is left, 3,802.82, with its exchange split at 44.46, goes through: it draws the same currency from the same cost basis on the same date, and only the value moves, to the one figure an import of it would require. A value moved to any other figure is refused as before.
-- **Where the book came from does not matter.** An earlier import wrote the reported book, and an owner writing a ledger by hand can write the same figures. A file stating them is refused, giving what is left; a book already holding them is drawn right and can be corrected in place.
+- **Where the book came from does not matter.** An earlier import wrote the reported book, and an owner writing a ledger by hand can write the same figures. A file stating them is refused, and the refusal states what is left; a book already holding them is drawn right and can be corrected in place.
 - **A book is rebuilt from its own export as it was.** An export states each cost basis's balance, 0.00 once it is spent, so from it every disposal would read as the last one, and a disposal in the middle valued at its own share was refused. Where the file states the balance, a disposal is taken at its own share or at what is left, as `--verify-costs` takes one in a book, and the rebuilt book states the realized gain it does not record.
 
 ### Cases the tests cover
@@ -126,7 +126,7 @@ Invoice TERMINAL-001 is 2,720.00 USD, its sales split 3,815.89 CAD, so its cost 
 `tests/integration/test_the_last_disposal_of_a_cost_basis_takes_what_is_left_of_its_cost.py`, on `a_usd_sale_spent_in_three_disposals_that_round_down.txt` (the reported figures) and `two_usd_bought_for_2_01_cad_and_sold_a_dollar_at_a_time.txt` (the reverse):
 
 1. The last disposal valued at what is left goes through, and the exchange account records a loss of 44.61 and a gain of 0.79.
-2. The last disposal valued at its own share rounded is refused, giving 3,802.82 and 1.00.
+2. The last disposal valued at its own share rounded is refused, and the refusal states 3,802.82 and 1.00.
 3. A book holding the last disposal at its own share is corrected with `--strategy update` to what is left, and then records 44.61 and 0.79.
 4. Moved in place to 3,802.80, neither figure, it is refused, and the book keeps 44.60.
 5. The 0.72 USD charge of the 13th restated in place at 1.02 is refused: it is not the last disposal, since two are dated after it. A book keeps no order within a day, so of two disposals dated the same last day, either may be taken as the last.

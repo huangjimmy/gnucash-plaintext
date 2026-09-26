@@ -23,7 +23,7 @@ Enforce owner-attachment on **every** path that creates a residual credit lot, v
 
 Because an export of an owner-attached residual now carries `lot_owner:` on that split, a fresh re-import attaches it during the standalone-tx pass; the `prepayment:` validation therefore counts residual siblings that are **already parked** (in their owner lot), not only loose ones, so the round-trip neither errors nor double-creates.
 
-**Guard so it can't silently regress:** `find-prepayments` warns about any open non-invoice AR/AP credit lot no owner can be read for (account + amount), from the `unowned` list `find_prepayments_in_book` fills. No import path leaves such a lot. GnuCash's View → Lots can make one ("New Lot" attaches no owner), so the warning says how to give it an owner: `lot_owner:` on its split and `import --strategy update`.
+**Guard so it can't silently regress:** `find-prepayments` warns about any open non-invoice AR/AP credit lot no owner can be read for (account + amount), from the `unowned` list `find_prepayments_in_book` fills. No import path leaves such a lot. GnuCash's View → Lots can make one ("New Lot" attaches no owner), so the warning says how to attach an owner to it: `lot_owner:` on its split and `import --strategy update`.
 
 ## Files touched
 

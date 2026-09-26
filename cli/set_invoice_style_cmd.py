@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Set the two free-text boxes carried by a printed page.
 
-GnuCash's report options give the pair as **Printable Invoice → Display →
+GnuCash's report options show the pair as **Printable Invoice → Display →
 Extra Notes** and **Printable Invoice → Layout → CSS**. `set-invoice-style`
 writes both from the command line and keeps both in the book, so a page
 printed from a script carries the footer and the styling with no GnuCash
@@ -61,7 +61,7 @@ def set_invoice_style(gnucash_file, note, css_file, clear_note, clear_css,
     """
     # Two ways to say what the CSS should be, and two things to do with the
     # book. Neither pair has an order that is more right than the other, so
-    # neither is given one: obeying half of what was typed and saying nothing
+    # neither is put in one: obeying half of what was typed and saying nothing
     # about the rest is how `--note "x" --show` printed the *old* footer and
     # set nothing, reading exactly like a write that had happened.
     if clear_css and css_file:
@@ -104,8 +104,8 @@ def set_invoice_style(gnucash_file, note, css_file, clear_note, clear_css,
         # `strip()`, because a file written by `echo >` or by a generator that
         # emitted only its trailing newline holds `"\n"`, which is not empty
         # and is not styling either: stored, it *replaces* the report's own
-        # CSS, so the page loses the styling `--clear-css` would have given
-        # back.
+        # CSS, so the page loses the styling `--clear-css` would have
+        # restored.
         if not css.strip():
             raise click.UsageError(
                 f'{css_file} holds no styling — pass --clear-css to take the '

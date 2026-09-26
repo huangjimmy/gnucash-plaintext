@@ -7,7 +7,7 @@
 # book holds no foreign currency, so no cost basis lives on it and nothing
 # will ever read the balance.
 #
-# Meanwhile the USD split, which is the basis, was never given one, so it
+# Meanwhile the USD split, which is the basis, states none, so it
 # opens at its full 100.00. The file asked for 60.00 available and the book
 # holds 100.00, with no error — the same 40 USD back from the dead that a
 # mistyped balance used to produce, reached by putting the line one row up.

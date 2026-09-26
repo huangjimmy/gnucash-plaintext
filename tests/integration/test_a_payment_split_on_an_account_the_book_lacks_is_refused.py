@@ -3,7 +3,7 @@
 `fx_invoice_usd_paid_from_cad_bank.txt` settles a USD invoice into a CAD bank
 and books the difference with a `$residual$` split under the payment block.
 Written to an account nobody opened, there is nowhere to book it, so the
-import refuses the invoice and gives the account.
+import refuses the invoice and states the account.
 """
 
 from click.testing import CliRunner

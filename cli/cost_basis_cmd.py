@@ -51,7 +51,7 @@ def _format_amount(value, unit: int) -> str:
     """An amount at its own currency's decimals — 1,200.00 USD, 103 JPY.
 
     The decimals come from the commodity's smallest unit, so a currency without
-    a minor unit is not given two invented ones.
+    a minor unit is not printed with two invented ones.
     """
     return _grouped(money_text(value, unit))
 
@@ -148,8 +148,9 @@ def _report_currency_totals(totals) -> None:
             f"{_format_amount(row['ledger'], unit)} {currency}.")
         click.echo(
             f"  {_format_amount(abs(row['difference']), unit)} {currency} is "
-            + ('accounted for by no cost basis. A balance was lowered without a '
-               'sale to lower it, or a sale gave back less than it took.'
+            + ('accounted for by no cost basis. A balance was lowered with no sale '
+               'to account for it, or a sale was undone and less was put back than '
+               'it had drawn down.'
                if short else
                'held by the cost bases beyond what arrived. A balance was raised '
                'without a sale being deleted, or one was stated too high.'))
@@ -271,17 +272,18 @@ def _report_disagreements(disagreements, checked: int, pending: int = 0) -> None
 
 
 def _report_pending(pending) -> None:
-    """The disposals giving `cost_basis_split_guid: $pending$`, per currency.
+    """The disposals with `cost_basis_split_guid: $pending$`, per currency.
 
     Each drew on no cost basis, so the cost bases above offer what they add up
-    to beyond what the accounts hold, until an edit gives each its cost basis.
+    to beyond what the accounts hold, until an edit states the cost basis each
+    draws on.
     """
     for code in sorted({row['currency'] for row in pending}):
         mine = [row for row in pending if row['currency'] == code]
         total = sum((row['amount'] for row in mine), Fraction(0))
-        click.echo(f'{len(mine)} disposal(s) pending their cost basis, drawing on '
-                   f'none until an edit gives it: '
-                   f"{_format_amount(total, mine[0]['unit'])} {code}")
+        click.echo(f'{len(mine)} disposal(s) pending their cost basis: '
+                   f"{_format_amount(total, mine[0]['unit'])} {code}. No cost basis "
+                   f'is drawn down for them until an edit states the one each draws on.')
         for row in mine:
             click.echo(f"{row['date']}   {row['account']}   "
                        f"{_format_amount(row['amount'], row['unit'])} {code}   "
@@ -307,7 +309,7 @@ def _report_account_balances(holdings, currency):
 
     **What compares with what**: the cost basis total above covers both sides,
     being a sum of magnitudes, so it is read against the side those bases are
-    on. Where they agree, every disposal gave the basis it drew on. Where the
+    on. Where they agree, every disposal stated the basis it drew on. Where the
     held total falls short of a basis on the asset side, currency left without
     saying which basis it came out of. A currency owed with no basis against it
     is a third thing again — a borrowing stated wholly in that currency opens
@@ -382,7 +384,7 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
             Assets:Bank:CAD 278.00 CAD
             Income:FX Gain $residual$ CAD
 
-    A sale measured against two cost bases carries two USD splits, one giving each,
+    A sale measured against two cost bases carries two USD splits, each stating one,
     and each split's amount is how much of that cost basis it uses.
 
     `--verify-costs` checks each cost against the ledger it is derived from and
@@ -488,8 +490,8 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
             f'{no_balance_recorded} cost basis(es) have no balance recorded '
             f'and are excluded from the total: this tool never wrote one for '
             f'them, so how much of their currency is still unsold is not '
-            f'known. State `{COST_BASIS_BALANCE_KEY}:` on the split in an '
-            f'import file to give it a balance.')
+            f'known. To record one, state `{COST_BASIS_BALANCE_KEY}:` on that '
+            f'split in an import file.')
     _report_pending(pending)
 
     _report_account_balances(holdings, currency)

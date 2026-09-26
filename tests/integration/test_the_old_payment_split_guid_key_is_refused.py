@@ -1,9 +1,9 @@
-"""`payment_split_guid:` is refused, and the refusal gives the key's new name.
+"""`payment_split_guid:` is refused, and the refusal states the key's new name.
 
-A payment block gives the split it settles with `txn_split_guid:`. A ledger
+A payment block states the split it settles with `txn_split_guid:`. A ledger
 written before the key was renamed still says `payment_split_guid:`, and read
 as an unknown key that line would be ignored: the payment would be recorded
-from its date and amount rather than on the split the file gives.
+from its date and amount rather than on the split the file states.
 """
 
 from click.testing import CliRunner
@@ -11,7 +11,7 @@ from click.testing import CliRunner
 from cli.main import cli
 
 ACCOUNTS = 'tests/fixtures/payment_roundtrip_accounts.txt'
-LEDGER = 'tests/fixtures/a_payment_giving_the_old_payment_split_guid_key.txt'
+LEDGER = 'tests/fixtures/a_payment_stating_the_old_payment_split_guid_key.txt'
 
 
 def test_the_invoice_is_refused_with_the_new_name(tmp_path):

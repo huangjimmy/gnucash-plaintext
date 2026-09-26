@@ -52,7 +52,7 @@ def test_the_settlement_difference_is_realized(tmp_path):
 def test_the_working_lists_the_settlement(tmp_path):
     """A gain counted without its working would be a gain taken on trust.
 
-    One `split:` under the key, giving the account the difference was booked to
+    One `split:` under the key, stating the account the difference was booked to
     and what it came to, and the key's own figure above them.
     """
     page = _page(tmp_path)

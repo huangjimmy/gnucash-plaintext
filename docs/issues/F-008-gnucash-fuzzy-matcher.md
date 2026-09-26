@@ -66,44 +66,50 @@ Uses `GnuCashRepository(path, SessionMode.READ_ONLY)` — no writes.
 
 ## Unit tests
 
-`tests/unit/services/test_gnucash_fuzzy_matcher.py` — mock `GnuCashRepository`:
+The plan below was a set of unit tests against a mocked `GnuCashRepository`.
+The project does not mock GnuCash types, so the tests were written differently:
+pure arithmetic and tie-breaking in the unit file, and everything that reads a
+book against a real one. The tables state the tests as built.
+
+`tests/unit/services/test_gnucash_fuzzy_matcher.py`:
 
 | Test | Scenario | Expected |
 |---|---|---|
-| `test_amount_normalization_2split` | `[+100, -100]` | normalized = 100 |
-| `test_amount_normalization_3split` | `[+300, -200, -100]` | normalized = 300 |
-| `test_amount_normalization_zero_guard` | all-negative splits (refund) | `MatchStatus.NEW`, no index lookup |
-| `test_three_key_probe` | verify index probed at date-1, date, date+1 | 3 calls to mock |
-| `test_new_no_candidates` | mock returns empty for all three keys | `MatchStatus.NEW` |
-| `test_likely_dup_account_sets_equal` | mock returns tx with identical accounts | `MatchStatus.LIKELY_DUP` |
-| `test_partial_match_expense_differs` | same bank account, different expense | `MatchStatus.PARTIAL_MATCH` |
-| `test_tiebreak_exact_date_beats_near` | two candidates: one exact date, one ±1 day | exact-date candidate chosen |
-| `test_tiebreak_most_matching_accounts` | two ±1-day candidates: one shares 2 accounts, one shares 1 | 2-account candidate chosen |
-| `test_tiebreak_earliest_date` | two ±1-day candidates with equal account matches | candidate with earlier post date chosen |
-| `test_merged_tx_guid` | PARTIAL_MATCH | `merged_tx.guid == existing_tx.GetGUID().to_string()` |
-| `test_merged_tx_category_gnucash_wins` | GnuCash has Dining, generated has Misc | `merged_tx` has Dining |
-| `test_merged_tx_doc_link_generated_wins` | GnuCash no doc_link, generated has one | `merged_tx` has generated doc_link |
-| `test_merged_tx_none_for_new` | NEW result | `merged_tx is None` |
-| `test_merged_tx_none_for_likely_dup` | LIKELY_DUP result | `merged_tx is None` |
-| `test_existing_tx_none_for_new` | NEW result | `existing_tx is None` |
+| `TestAmountNormalization::test_two_split_sum` | `[+100, -100]` | normalized = 100 |
+| `TestAmountNormalization::test_three_split_sum` | `[+300, -200, -100]` | normalized = 300 |
+| `TestAmountNormalization::test_symmetry_with_index_side` | a candidate and a book entry of the same splits | the same normalized amount on both sides |
+| `TestTieBreaking::test_exact_date_beats_near_date` | two candidates: one exact date, one ±1 day | exact-date candidate chosen |
+| `TestTieBreaking::test_most_matching_accounts_wins` | two ±1-day candidates: one shares 2 accounts, one shares 1 | 2-account candidate chosen |
+| `TestTieBreaking::test_earliest_date_tiebreak` | two ±1-day candidates with equal account matches | candidate with earlier post date chosen |
 
 ## Integration tests
 
-`tests/integration/services/test_gnucash_fuzzy_matcher.py` — real temp `.gnucash` book:
+`tests/integration/test_gnucash_fuzzy_matcher.py` — real temp `.gnucash` book:
 
 | Test | Fixture contains | Candidate | Expected |
 |---|---|---|---|
-| `test_new` | nothing matching | salary 18110 HKD | `NEW` |
+| `test_the_book_is_closed_once_indexed` | any book | — | the book is closed and freed once its index is read |
+| `test_new_no_match` | nothing matching | salary 18110 HKD | `NEW` |
 | `test_likely_dup_exact_date` | identical tx | same tx | `LIKELY_DUP` |
 | `test_likely_dup_plus_one_day` | tx at date-1 | same amount+accounts | `LIKELY_DUP` |
 | `test_likely_dup_minus_one_day` | tx at date+1 | same amount+accounts | `LIKELY_DUP` |
 | `test_two_days_away_is_new` | tx at date-2 | same amount+accounts | `NEW` |
-| `test_partial_match` | same bank account, Dining expense | generated has Misc | `PARTIAL_MATCH` |
-| `test_partial_match_guid` | PARTIAL_MATCH | — | `merged_tx.guid` matches book tx |
+| `test_partial_match_expense_differs` | same bank account, Dining expense | generated has Misc | `PARTIAL_MATCH` |
+| `test_partial_match_merged_guid` | PARTIAL_MATCH | — | `merged_tx.guid` matches book tx |
 | `test_partial_match_gnucash_category` | GnuCash has Dining | — | `merged_tx` splits include Dining |
 | `test_partial_match_generated_doc_link` | GnuCash tx has no doc_link | generated has one | `merged_tx` has generated doc_link |
-| `test_multi_split_normalization` | 3-split tx in book | same total | `LIKELY_DUP` |
-| `test_custom_account_type_detection` | custom account hierarchy | `GetType()` used | PARTIAL_MATCH correct |
+
+`tests/integration/test_fuzzy_matcher_calls_it_new_when_it_is_not_sure.py`
+holds the other side: money that came through a different account is `NEW`
+with nothing to merge, a transaction with no amount matches nothing, and a
+merge keeps the book's own doc link where the import has none. Its
+`TestATransactionWithNoAmount` drives the planned guard with a 0.00
+transaction: a candidate with no positive split, which is also what one whose
+splits are all negative sums to, is `NEW` and is matched by nothing.
+
+Planned and not written as such: a check that the index is probed at exactly
+date-1, date and date+1, and a check on account-type detection in a custom
+account hierarchy.
 
 ## Acceptance
 

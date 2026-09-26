@@ -1,13 +1,13 @@
 """Which currency a book is kept in, and so which currency its reports are in.
 
 Q-042: GnuCash stores no currency for a book, so gnucash-plaintext finds it. The
-first of these that gives one:
+first of these that states one:
 
-1. a currency given on the command;
+1. a currency passed on the command;
 2. the `company` block's `base_currency:`, kept in the book;
 3. the currency every top-level account held in a currency shares.
 
-Where none gives one, the book's currency is refused. Nothing is taken to be
+Where none states one, the book's currency is refused. Nothing is taken to be
 CAD.
 """
 
@@ -76,12 +76,12 @@ class TestWhereTheCurrencyComesFrom:
         assert _currency_of(book) == 'HKD'
 
     def test_the_company_blocks_base_currency_before_the_top_level_accounts(self, tmp_path):
-        book = _book(tmp_path, 'a_cad_book_whose_company_gives_hkd_as_its_base_currency.txt')
+        book = _book(tmp_path, 'a_cad_book_whose_company_states_hkd_as_its_base_currency.txt')
 
         assert _currency_of(book) == 'HKD'
 
-    def test_a_currency_given_on_the_command_before_both(self, tmp_path):
-        book = _book(tmp_path, 'a_cad_book_whose_company_gives_hkd_as_its_base_currency.txt')
+    def test_a_currency_passed_on_the_command_before_both(self, tmp_path):
+        book = _book(tmp_path, 'a_cad_book_whose_company_states_hkd_as_its_base_currency.txt')
 
         assert _currency_of(book, stated='USD') == 'USD'
 
@@ -91,7 +91,7 @@ class TestWhereTheCurrencyComesFrom:
         assert _currency_of(book) == 'HKD'
 
 
-class TestWhenNothingGivesTheCurrency:
+class TestWhenNothingStatesTheCurrency:
     def test_top_level_accounts_in_two_currencies_are_refused(self, tmp_path):
         book = _book(tmp_path, 'a_book_whose_top_level_accounts_are_in_two_currencies.txt')
 
@@ -111,14 +111,14 @@ class TestWhenNothingGivesTheCurrency:
         assert '--currency' in str(refusal.value) and 'base_currency' in str(refusal.value)
 
     def test_a_base_currency_gnucash_does_not_know_is_refused(self, tmp_path):
-        book = _book(tmp_path, 'a_company_giving_a_base_currency_gnucash_does_not_know.txt')
+        book = _book(tmp_path, 'a_company_stating_a_base_currency_gnucash_does_not_know.txt')
 
         with pytest.raises(BookCurrencyUnknownError) as refusal:
             _currency_of(book)
 
         assert 'XYZ' in str(refusal.value) and 'base_currency' in str(refusal.value)
 
-    def test_a_currency_given_on_the_command_that_gnucash_does_not_know_is_refused(self, tmp_path):
+    def test_a_currency_passed_on_the_command_that_gnucash_does_not_know_is_refused(self, tmp_path):
         book = _book(tmp_path, 'a_book_kept_in_hkd.txt')
 
         with pytest.raises(BookCurrencyUnknownError) as refusal:

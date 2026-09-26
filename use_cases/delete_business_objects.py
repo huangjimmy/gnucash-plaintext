@@ -107,7 +107,7 @@ class ArchiveResult:
 
 
 def _count_invoices_for_owner(book: Book, owner_id: str, owner_type_int: int) -> int:
-    """Count invoices/bills linked to a given owner ID and owner-type integer.
+    """Count invoices/bills linked to `owner_id` and `owner_type_int`.
 
     owner_type_int: 2 = Customer (GNC_OWNER_CUSTOMER), 4 = Vendor (GNC_OWNER_VENDOR)
     """

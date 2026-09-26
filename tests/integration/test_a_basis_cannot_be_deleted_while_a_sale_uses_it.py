@@ -6,14 +6,14 @@ its guid. So deleting the transaction that brought the currency in destroys
 the thing every sale of that currency points at, and the sales are left naming
 a guid the book no longer holds: `fx-balances` can no longer say what they
 cost, the export writes those guids out, and re-importing the file fails on
-them. Nothing gives that currency back either, because the cost basis it would go
+them. Nothing puts that currency back either, because the cost basis it would go
 back to is gone.
 
 The mirror of the unpost guard. Unposting an invoice destroys its A/R split
 the same way, and that has been refused all along while a sale measures
 against it; this is the other way the same split can be destroyed, and it is
 refused for the same reason and with the same remedy — remove the sales first,
-which gives their currency back, and then the cost basis is free to go.
+which puts their currency back, and then the cost basis is free to go.
 
 Deleting a *sale* is the ordinary direction and stays ordinary:
 `test_cost_basis_restored_on_delete.py` covers it.
@@ -92,7 +92,7 @@ class TestItIsRefused:
         assert 'cost basis' in result.output, result.output
 
     def test_the_sale_holding_it_is_named(self, book_with_a_sale):
-        """A book of hundreds gives the reader nothing to act on otherwise —
+        """A book of hundreds leaves the reader nothing to act on otherwise —
         the remedy is to delete those first, so they have to be findable."""
         book, purchase, _basis = book_with_a_sale
         runner = CliRunner()

@@ -21,7 +21,7 @@ ACCOUNTS = 'tests/fixtures/payment_roundtrip_accounts.txt'
 
 
 def _a_payment_on_an_account_with_no_commodity(tmp_path, unposted_by_gnucash=True):
-    """INV-BARE, 100.00 CAD, paid, with the payment's bank split then given
+    """INV-BARE, 100.00 CAD, paid, with the payment's bank split then moved to
     `Holding`, an account with no commodity. Unposted by GnuCash itself, or,
     where asked, by `unpost-invoices`, which marks the settlement it leaves."""
     from gnucash.gnucash_business import Customer, Entry, Invoice
@@ -89,7 +89,7 @@ def test_it_is_listed_in_its_transactions_currency(tmp_path):
 
 def test_one_unpost_invoices_marked_is_stated_against_its_receivable(tmp_path):
     """The figure is the settlement's own, on the receivable. `Holding` holds no
-    currency, so it is given as the account the money came through, and the
+    currency, so it is stated as the account the money came through, and the
     figure is stated against the receivable. Measured on 5.10."""
     book = _a_payment_on_an_account_with_no_commodity(tmp_path, unposted_by_gnucash=False)
 

@@ -4,7 +4,7 @@
 # than the cash. 100 USD at 7.80005 is 780.005 HKD — the same unrepresentable
 # figure, by the other documented spelling of the same fact.
 #
-# Checked only for "parses" and "positive", the rate gave a bank split rounded
+# Checked only for "parses" and "positive", the rate made a bank split rounded
 # to 780.00 while the residual was computed from that rounded figure, so the
 # entry balanced and the run reported `Errors: 0` about a payment the file did
 # not describe. Worse than its twin: nothing then matched it either, because

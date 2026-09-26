@@ -106,7 +106,7 @@ buster needs `libxslt1-dev` where every other base wants `libxslt-dev`.
 bullseye is the sharp one, because the mirror lies: `deb.debian.org` still
 publishes a *valid* security index — measured 2026-09-05, `Valid-Until: Mon,
 07 Sep 2026` — while deleting the package files that index lists, so apt reads
-the list, asks for a file and is given a 404. No date check catches that.
+the list, asks for a file and gets a 404. No date check catches that.
 
 **Debian 10 sets the Python floor at 3.7**, which is why `pyproject.toml` says
 `requires-python = ">=3.7"` and ruff `target-version = "py37"`. It had been
@@ -208,7 +208,7 @@ There is not one `xfail` or `skipif` in this suite, and that is deliberate. A te
 5. **Skipping lint before commit** - Run `./scripts/fix-lint.sh --unsafe` before staging, not after the pre-commit hook rejects you
 6. **Editing a file from the shell** - `sed -i`, `perl -i`, a `python3 - <<EOF … write_text()` heredoc, `cat > file`: every one of these applies substitutions nobody reviewed, usually across several files in one call. Read the file, then Edit it; create one with Write. `scripts/refuse-bash-file-edits.sh` blocks the shell forms outright (wired in `.claude/settings.json`), and reading — `sed -n`, `grep`, `awk` to stdout — is untouched
 
-7. **Writing "name" for something that has no name** - a guid is not a name and neither is a split, so "the message names the split" tells a reader something untrue and sends them looking for a name that is not there. What the message prints is a guid. Write what is actually there: a refusal **lists** the disposals, a report **prints** the split's guid, a block **gives** a guid, a payment **applies** a split, a guid **matches**. A real name is untouched — an account's, a customer's, `name:` in a block, `get_account_full_name`. `scripts/refuse-name-as-a-verb.sh` blocks the verb on Write and Edit, and it is a seatbelt rather than a sandbox: it catches the shapes that get typed, not every spelling. That script and this file are exempt from it, because both quote the shape they refuse and could not otherwise be edited at all — which does mean the prose here, where this rule was broken twice, is the one prose the guard does not check. Read it yourself when you change it. This was in this file, agreed to, and broken again in the same session — twice in prose that had just been corrected for it — which is why it is a hook
+7. **Writing "name" for something that has no name** - a guid is not a name and neither is a split, so "the message names the split" tells a reader something untrue and sends them looking for a name that is not there. What the message prints is a guid. Write what is actually there: a refusal **lists** the disposals, a report **prints** the split's guid, a block **states** a guid, a payment **applies** a split, a guid **matches**. A real name is untouched — an account's, a customer's, `name:` in a block, `get_account_full_name`. `scripts/refuse-name-as-a-verb.sh` blocks the verb on Write and Edit, and it is a seatbelt rather than a sandbox: it catches the shapes that get typed, not every spelling. That script and this file are exempt from it, because both quote the shape they refuse and could not otherwise be edited at all — which does mean the prose here, where this rule was broken twice, is the one prose the guard does not check. Read it yourself when you change it. This was in this file, agreed to, and broken again in the same session — twice in prose that had just been corrected for it — which is why it is a hook
 8. **Killing anything you did not name** - this machine runs containers and processes that are not this project's. `docker ps -q | xargs docker kill` killed the author's web server, up since May, along with the ten test containers it meant. `scripts/refuse-unscoped-kills.sh` allows **one id, named, one per command** — `docker kill gnucash-dev-debian13`, `kill 1757608`, a signal being fine (`kill -9`, `kill -s TERM`, and `kill -0` to ask whether a pid is alive) — and refuses every other shape: `$( )`, `xargs`, `pkill`/`killall`, a negative pid (a process *group*), two ids, two kills in one command, `prune`, `compose down`, `docker-compose down`, and a kill inside a string handed to `bash -c` or `eval`. A kill is read at a command position — the start, after `|`, `;`, `&`, `(`, `)`, `{`, `&&`, `||` or a `find`'s `-exec`, and behind a path, a shell keyword (`do`, `then`, `while`, `if`, …) or one of the words that run another command (`sudo`, `doas`, `env`, `time`, `timeout`, `nice`, `ionice`, `stdbuf`, `nohup`, `setsid`, `xargs`, `exec`) with whatever arguments of their own they carry. So `for p in $(pgrep -f pytest); do kill $p; done` is the incident written longhand and is refused as such, as are `sudo -u jimmy kill -- -PID`, `case x in *) kill …`, `{ pkill …; }` and `find … -exec kill {} \;`. An environment assignment is a position too (`VAR=v pkill …`), as is a backquote. A program handed to a shell as a string is refused whole, with `-c` wherever the words before it put it (`bash -lc`, `bash -x -c`, `bash -o pipefail -c`). Docker's flags are read past, so `docker compose -f x.yml down` is refused like `docker compose down`. What that costs is reading: after a runner word, `sudo cat /tmp/kill` and `… | xargs grep -n kill` are refused as kills — drop the runner word, `grep -rn kill scripts/` passes. **It is a seatbelt, not a sandbox: the goal is not to close every loophole.** A quoted command word (`'pkill' -f x`) defeats any guard that reads text, and exotic spellings nobody types are answered by saying so rather than by another alternation — each one is a chance to refuse something real, which widening this has twice done (`docker image rm gnucash-dev:debian13`, `docker rm -f a b`). A shape it wrongly refuses is a defect; a shape nobody would type getting past it is not. Reading is allowed for the asking — `docker stop --help` and `docker kill -h` name nothing to kill and pass, since the reader looking one up is usually the one who just met a refusal — and every `"command"` field of the payload is judged, so a decoy can add a refusal and cannot hide one. A sweep rarely needs stopping at all: `scripts/test.sh` runs every container with `--rm`, so an abandoned one clears itself within minutes. Kill the detached `git commit` by its own pid and let its children finish
 
 9. **Writing "out" as though it were a verb meaning wrong** - "the page is out by 19.86" asks a reader to know that "out" means wrong and that the amount is the size of the error, and it withholds the two figures, which are the whole of what they want. Write what is true: "the page does not balance: it states 3,771.28 of assets against 3,791.14 of liabilities and equity", or where only the size matters, "the totals differ by 0.01". **What separates the idiom from ordinary English is the word in front of "out".** In `laid out by WebKit` the word belongs to the verb "lay out" - it is a particle, and the sentence is correct, as in `worked out by hand`, `written back out by the exporter`, `filtered out by the export`. In the idiom nothing owns it: a copula is put in front - `is out by`, `are out by`, `was out by`, `were out by` - as though "out" were itself the verb. `totals out by` is the same fault with no copula at all, a noun set straight against it, and is the worst of them: it reads as though totalling were the act of being wrong. `scripts/refuse-out-by.sh` blocks both shapes on Write and Edit, wired in `.claude/settings.json`. `is worked out by` is untouched, and is the case that makes the rule grammatical rather than a word list: a copula is there, and the sentence is right, because what follows it is the verb. Measured before the guard was written, 34 lines held "out by" and 32 were the correct form, so a guard on the bare words would refuse thirty correct sentences and be turned off. Like the guards beside it, it judges only the lines an edit is adding, so a paragraph already written stays movable, and it exempts the two files that quote the rule in order to state it - the script and this one
@@ -453,7 +453,7 @@ either. Measured on 5.10, in `tests/research/a_legacy_bills_entry_owner_probe.py
 
 SWIG has no `Entry.SetBill` or `Entry.SetInvoice` on any supported build, so
 both are ctypes, declared in `infrastructure/gnucash/engine.py`.
-`_give_the_line_its_bill_pointer` does it inside the entry's own
+`_set_the_lines_bill_pointer` does it inside the entry's own
 `BeginEdit`/`CommitEdit`, which is what finally carries the flags to disk
 (finding 11).
 
@@ -513,7 +513,7 @@ lot agree on those three facts — live, linked to no invoice, owner-attached.
 
 **One fact differs, and it says only that a lot was an invoice's.** Posting
 writes a `gncInvoice` slot on the invoice's lot. Unposting empties that slot
-and leaves it there, and the lot keeps the title posting gave it (`Invoice
+and leaves it there, and the lot keeps the title posting set on it (`Invoice
 INV-001`). A lot GnuCash makes for a payment's credit has neither. Measured on
 all eleven builds, after a save and a reload, by
 `tests/research/whether_a_lot_an_unpost_leaves_differs_from_a_credit_lot_probe.py`:
@@ -568,7 +568,7 @@ is stripped from the remainder, because nothing arrives on it.
 
 All three matter, and the import half is the sharpest. A split carrying the key
 reads as *not* an owner's credit, so a settlement genuinely spent from a credit
-would skip taking the cost basis off; and because a mark giving an invoice's guid is
+would skip taking the cost basis off; and because a mark holding an invoice's guid is
 *preferred* over everything else placeable — which is how a rebuild finds its
 own orphan — a file stating one could choose which of an owner's two credits an
 invoice spends, past the guard that exists to stop split order deciding that.
@@ -688,11 +688,11 @@ A split whose `<split:account>` element is missing is not a book this tool can w
 | GnuCash | what `qof_session_load` does |
 |---|---|
 | 5.5, 5.10, 5.13, 5.14, 5.15, 5.16 | drops the whole transaction; the book that comes back is short an entry and every split in it has an account |
-| 4.13, 4.8, 4.4, 3.8 | **segfault**, inside `qof_session_load`, before any of this tool's code is given control |
+| 4.13, 4.8, 4.4, 3.8 | **segfault**, inside `qof_session_load`, before any of this tool's code runs |
 
 **What it settles**: a split with no account cannot be *loaded from a file* on any supported version, so a null-account check in the path that reads a book from disk is dead code on all ten. `cli/find_transactions_cmd.py` carried one in its ctypes walk and it is gone, on this evidence rather than on the 5.x half alone.
 
-**It settles nothing about a split GnuCash has just made** (measured 2026-09-16). Committing a multi-currency transaction on a book whose "Use Trading Accounts" option is on creates trading splits, and on GnuCash 4.8 one of them is in the transaction's split list *before its account is attached*. Anything walking the splits of a transaction it has just committed meets it. `record_cost_bases` did, and asked it what commodity it held: importing a US dollar purchase funded from a Canadian bank gave `'NoneType' object has no attribute 'GetCommodity'` twice and exited 1 having already written the book. The same ledger into the same book imports at exit 0 on 3.4, 3.8, 4.4, 4.13, 5.5, 5.10, 5.13, 5.14, 5.15 and 5.16.
+**It settles nothing about a split GnuCash has just made** (measured 2026-09-16). Committing a multi-currency transaction on a book whose "Use Trading Accounts" option is on creates trading splits, and on GnuCash 4.8 one of them is in the transaction's split list *before its account is attached*. Anything walking the splits of a transaction it has just committed meets it. `record_cost_bases` did, and asked it what commodity it held: importing a US dollar purchase funded from a Canadian bank raised `'NoneType' object has no attribute 'GetCommodity'` twice and exited 1 having already written the book. The same ledger into the same book imports at exit 0 on 3.4, 3.8, 4.4, 4.13, 5.5, 5.10, 5.13, 5.14, 5.15 and 5.16.
 
 So `services/foreign_currency.py`'s `split_commodity` answers the empty string for a split with no account, which every caller already reads as "not foreign currency", and the guard stays. Regression test: `tests/integration/test_a_foreign_purchase_imports_into_a_trading_accounts_book.py`.
 
@@ -746,7 +746,7 @@ A date on a printed page comes from one of two places, and which one depends on 
 
 Consequences worth knowing before touching any printed date:
 
-- setting only the book option gives a page with **two date formats on it** — measured, `09 March 2026` at the top and `03/09/26` in the entry rows;
+- setting only the book option prints a page with **two date formats on it** — measured, `09 March 2026` at the top and `03/09/26` in the entry rows;
 - setting *neither* is uniform, because both halves then fall back to the same locale — so adding the book option is what introduces the split, and `services/gnucash_report.py` sets the global from the same key to close it;
 - `qof_date_format_set` takes **a style, not a format string**: `US=0, UK=1, CE=2, ISO=3` from `gnc-date.h`, whose own comment says it "checks to make sure it's a legal value". `QOF_DATE_FORMAT_CUSTOM` is the check printer's and there is no public setter for a custom string, so a format like `%d %B %Y` cannot reach the entry rows at all — the run warns rather than pretending;
 - it is a **global**, so anything that sets it must put it back. One command printing one book must not leave the next book, or the next test in the same pytest process, reading the first book's format.
@@ -782,7 +782,7 @@ and in the saved XML the book's is one slot whose value spans lines.
 
 ### 17. `Account.GetLotList()` hands back two different things, and the version decides which
 
-Discovered 2026-08-20 while giving a credit lot an identity.
+Discovered 2026-08-20 while setting a credit lot's guid.
 
 The same call yields a raw `SwigPyObject` pointer on some builds and a wrapped `GncLot` on others. Measured on all ten, from a book holding one credit lot:
 
@@ -801,7 +801,7 @@ Discovered 2026-08-20, from a lot that kept its old guid across a save.
 
 `qof_instance_set_guid` moves the entity in its collection and changes the instance, and that is all: it does not mark the instance dirty, and nothing marks the book dirty either. `qof_session_save` then writes **nothing** — not the object, not the file — while the new guid reads back for the rest of the session, so the run looks as though it worked.
 
-Measured on 5.10, in one book: a lot given a guid inside `gnc_lot_begin_edit` / `gnc_lot_commit_edit` and nothing else came back from a save and a reload with its **original** guid; the same guid, in a session where something else had written to the book, came back as the forced one — the XML backend rewrites the whole file, so the change goes out with everything else.
+Measured on 5.10, in one book: a lot whose guid was set inside `gnc_lot_begin_edit` / `gnc_lot_commit_edit` and nothing else came back from a save and a reload with its **original** guid; the same guid, in a session where something else had written to the book, came back as the forced one — the XML backend rewrites the whole file, so the change goes out with everything else.
 
 The bracket is not what makes it persist, which is the trap: a real write somewhere in the session is. `_force_the_lot_guid` is safe because it only ever names a lot the import has just created and is about to put a split in. A command that meant to *rename* something and did nothing else would report success and change nothing on disk.
 
@@ -826,16 +826,16 @@ That is a 4.x/5.x boundary, the second this suite has measured, and it falls bet
 
 **Why it is not caught by a figure.** `cost_of` then reads that credit at 1 CAD/USD, honestly — value over amount is what a cost is. A cost of 1 is a legitimate figure, at parity or from an amount small enough to round there, so no check can refuse a 1 without refusing real books. Nothing distinguishes this from a correct par-valued credit.
 
-**What follows for the suite**: a test that needs a foreign credit spent in full gives it by guid, with `txn_guid:` and `txn_split_guid:` on a `from_credit:` payment block, so this tool carves it. `tests/fixtures/fx_invoice_spending_a_cad_paid_credit_whole.txt` says so where it is written.
+**What follows for the suite**: a test that needs a foreign credit spent in full states it by guid, with `txn_guid:` and `txn_split_guid:` on a `from_credit:` payment block, so this tool carves it. `tests/fixtures/fx_invoice_spending_a_cad_paid_credit_whole.txt` says so where it is written.
 
 **And `auto_apply_credit: true` no longer hands such a credit to the engine** (2026-09-15). Part of a credit was measured the same way on 4.13: 40.00 USD taken from a 100.00 USD credit received from a CAD bank at 1.37 left 97.00 USD of credit valued at 97.00 CAD, with no cost basis balance, and `find-prepayments` listed all 97.00, at exit 0. So a credit whose value is not its amount is spent by `_spend_the_owners_credit_valued_in_another_currency` before `AutoApplyPayments` runs, oldest first, through the division a `from_credit:` block uses: the value is divided with the amount, and what is left keeps its cost basis balance in a lot of its own. Every other credit, and a credit note, is still the engine's. `tests/integration/test_part_of_a_cad_paid_credit_applied_leaves_the_rest_at_its_cost.py` holds the 60.00 USD at its cost, and passes on all eleven builds.
 
-### 20. A date given as epoch seconds lands in the wrong millennium on 3.4
+### 20. A date passed as epoch seconds lands in the wrong millennium on 3.4
 
 Discovered 2026-09-05, restoring Debian 10.
 
 GnuCash's date setters take a `time64` from version 4 on. On 3.4 the same
-call, given the same integer, stores something else entirely — and stores it
+call, passed the same integer, stores something else entirely — and stores it
 without complaint:
 
 | call | 3.4 | 5.10 |
@@ -883,7 +883,7 @@ nested path on 3.4 as it does everywhere — measured against a slot written
 only by `qof_instance_set_kvp` — so the read side needs no fallback and the
 write side can tell whether the engine call landed simply by asking for the
 value back. Only the setter is two-faced, and only when the name has a slash
-in it: given a bare `Company Name` the same call stores and reads back fine on
+in it: passed a bare `Company Name` the same call stores and reads back fine on
 3.4, as one top-level slot.
 
 `services/gnucash_report.py` and the company blocks are unaffected on 4.x and
@@ -908,7 +908,7 @@ must get right, both learned the hard way:
 
 **Clearing does not go through it.** Writing an option empty is how the
 engine removes it, and `services/invoice_style.py` keeps a prefix on its text
-precisely so "set to nothing" stays distinguishable from "never set". Given
+precisely so "set to nothing" stays distinguishable from "never set". Passed
 `""`, the engine call removes the option even when its name holds a slash, on
 3.4 as on 5.10, and it stays removed after a save and a reload
 (`whether_clearing_a_book_option_with_a_slash_in_its_name_lands_on_3_4_probe.py`).
@@ -1003,7 +1003,7 @@ The customer's Japanese name came through the same page unharmed, so it is
 that one accessor rather than the page. The render sets `C.UTF-8` for its own
 length, caught, because a build without that locale must still draw its page.
 
-### 25. A price's time is a moment, and GnuCash gives it a different one on each path and each version
+### 25. A price's time is a moment, and GnuCash stores a different one on each path and each version
 
 Discovered 2026-09-13, recording past exchange rates and stock prices (Q-041). Every figure was measured by driving GnuCash's own dialogs, register, assistants and Finance::Quote on all eleven builds, under Xvfb; the probes are in `tests/research/` and the full tables are tables 2 and 3 of `docs/issues/Q-041-a-price-cannot-be-recorded-for-a-past-date-or-kept-through-export-and-import.md`.
 
@@ -1019,12 +1019,12 @@ The same date entered for a price is stored at a different second depending on w
 | Finance::Quote, a dated quote | 12:00:00 local, or the quote's own time | as 3.4 – 4.8 | 10:59:00 UTC |
 | Finance::Quote, an undated quote or a currency rate | the moment of the fetch | the moment of the fetch | the moment of the fetch |
 
-10:59 UTC is not a fixed hour. It is what `gdate_to_time64` gives a date, and it moves with the zone: 09:59 UTC in Kiritimati (UTC+14, and 07:59 UTC there on 3.4 and 3.8), 11:59 UTC in Pago Pago (UTC−11). The date field `gnc_date_edit_get_date` gives 00:00 local up to 4.8 and the same neutral time from 4.13. Opening a price in the Price Editor and pressing OK rewrites its time to that build's answer, with nothing changed.
+10:59 UTC is not a fixed hour. It is what `gdate_to_time64` returns for a date, and it moves with the zone: 09:59 UTC in Kiritimati (UTC+14, and 07:59 UTC there on 3.4 and 3.8), 11:59 UTC in Pago Pago (UTC−11). The date field `gnc_date_edit_get_date` returns 00:00 local up to 4.8 and the same neutral time from 4.13. Opening a price in the Price Editor and pressing OK rewrites its time to that build's answer, with nothing changed.
 
 **What follows for any code that reads or writes a price:**
 
 - **A price's time is written to the second, never as a date.** One book holds prices at 00:00 local, 10:59 UTC, 12:00 local, 16:00 local, 23:59:59 local and a fetch moment, side by side. A date alone cannot say which of those a price is, so a book rebuilt from it would differ from the book it came from. `services/prices.py` writes `time:` in UTC, so the ledger reads the same whichever machine exported it.
-- **Two prices are on the same day when `gnc_time64_get_day_start` gives both the same start**, the local day of the process. That is the day `gnc_pricedb_add_price` replaces on (Q-041 table 1). A comparison of UTC dates is wrong: a 23:59:59-local price from the stock transaction assistant is on the next UTC day, and in Tokyo a 3.4 Price Editor price is on the previous one. The same rule means a book can hold two prices of a pair on one local day of another machine: built in Toronto with prices at 04:59:59 and 10:59 UTC on one date, it holds both when opened in UTC. So only a block that puts a price on a day, a new price or a changed time, is checked against that day.
+- **Two prices are on the same day when `gnc_time64_get_day_start` returns the same start for both**, the local day of the process. That is the day `gnc_pricedb_add_price` replaces on (Q-041 table 1). A comparison of UTC dates is wrong: a 23:59:59-local price from the stock transaction assistant is on the next UTC day, and in Tokyo a 3.4 Price Editor price is on the previous one. The same rule means a book can hold two prices of a pair on one local day of another machine: built in Toronto with prices at 04:59:59 and 10:59 UTC on one date, it holds both when opened in UTC. So only a block that puts a price on a day, a new price or a changed time, is checked against that day.
 - **One price a day holds for a commodity and a currency whichever way round a price is written.** Measured on all eleven builds: adding HKD in USD on a day holding USD in HKD, with the same source, deletes USD in HKD, and a lower-ranked source is turned away instead. `gnc_price_set_time64` moving a price onto a day holding another price of the pair, in either direction, deletes the price already there. So a same-day check keyed on `(commodity, currency)` misses half the collisions, and `services/prices.py` keys it on the two whichever way round.
 - **A date with no time is stored with `gdate_to_time64`**, the call the transfer dialog and CSV import use on every build, and never at midnight or noon chosen by hand.
 - **A time is set with ctypes `gnc_price_set_time64`**, never SWIG `set_time64` with an integer, which 3.4 misreads (finding 20).
@@ -1065,9 +1065,9 @@ The full suite then peaks at these resident sizes:
 | 3.4, 3.8, 4.4 | the file is closed from under the process: `[Errno 9] Bad file descriptor` | lock file closed once, `.LCK` removed, the book opens again at once |
 | 4.8 and later | the file stays open | the same |
 
-Nothing in this code opens a file between the two calls, but GnuCash does run threads of its own: under `strace -f` on 3.8, one printed-page test file started 164 processes and threads, among them the thread that writes a book, which opens and closes files while the main thread carries on. Every book closed with `end()` then `destroy()` showed `close(lock) = 0` and then `close(lock) = -1 EBADF`. On Ubuntu 20.04 the suite failed once while that was so: a test opened the page it had just printed, and the read gave `OSError: [Errno 9] Bad file descriptor`. It failed once more after `close` called `destroy()` alone, in the same test, as Guile writing that page (`fport_write … Bad file descriptor`), and passed the other 13 full runs, 8 of them with every failed read and write logged together with the backtrace of the last close of that descriptor, which logged none. That failure had another cause: a session that took no lock closes a lock descriptor it never had (finding 27). `destroy()` alone frees the book as well: on 3.8, 100 opens closed by `destroy()` alone kept 0.3 MiB, where `end()` alone kept 50.9 MiB. `tests/unit/repositories/test_a_session_is_destroyed_without_being_ended_first.py` refuses `end()` on a session anywhere in the application or in any file pytest collects.
+Nothing in this code opens a file between the two calls, but GnuCash does run threads of its own: under `strace -f` on 3.8, one printed-page test file started 164 processes and threads, among them the thread that writes a book, which opens and closes files while the main thread carries on. Every book closed with `end()` then `destroy()` showed `close(lock) = 0` and then `close(lock) = -1 EBADF`. On Ubuntu 20.04 the suite failed once while that was so: a test opened the page it had just printed, and the read raised `OSError: [Errno 9] Bad file descriptor`. It failed once more after `close` called `destroy()` alone, in the same test, as Guile writing that page (`fport_write … Bad file descriptor`), and passed the other 13 full runs, 8 of them with every failed read and write logged together with the backtrace of the last close of that descriptor, which logged none. That failure had another cause: a session that took no lock closes a lock descriptor it never had (finding 27). `destroy()` alone frees the book as well: on 3.8, 100 opens closed by `destroy()` alone kept 0.3 MiB, where `end()` alone kept 50.9 MiB. `tests/unit/repositories/test_a_session_is_destroyed_without_being_ended_first.py` refuses `end()` on a session anywhere in the application or in any file pytest collects.
 
-**Tools kept for the next time:** `scripts/profile-test-memory.sh [tag] [path]` records memory before and after every test and counts sessions created, ended and destroyed. `scripts/test.sh` caps each container at 1 GB (`GNC_TEST_MEMORY` changes it), so a leak like this stops the run with exit 137 instead of using up the host. A capped run is killed wherever the running total crosses the cap, so the test it dies in is not the cause; the profile shows where the memory went. Regression test: `tests/integration/test_a_closed_book_gives_its_memory_back.py`.
+**Tools kept for the next time:** `scripts/profile-test-memory.sh [tag] [path]` records memory before and after every test and counts sessions created, ended and destroyed. `scripts/test.sh` caps each container at 1 GB (`GNC_TEST_MEMORY` changes it), so a leak like this stops the run with exit 137 instead of using up the host. A capped run is killed wherever the running total crosses the cap, so the test it dies in is not the cause; the profile shows where the memory went. Regression test: `tests/integration/test_a_closed_book_releases_its_memory.py`.
 
 ### 27. On 3.4, 3.8 and 4.4 a session that took no lock closes a file of the process's when it ends
 
@@ -1094,7 +1094,7 @@ The read-only case was measured on all eleven builds, and on 4.8 and every later
 
 **The fix is in `GnuCashRepository.open`, on a GnuCash below 4.8**, read from `gnc_version()`: it makes no session that takes no lock.
 
-- A book to read is copied into a private directory and opened for writing there. Its backend takes a lock of its own, on the copy, and closes only that. The book itself gets no lock, as a read-only open gives it none, `save()` refuses, and `close()` removes the copy.
+- A book to read is copied into a private directory and opened for writing there. Its backend takes a lock of its own, on the copy, and closes only that. The book itself gets no lock, as a read-only open takes none, `save()` refuses, and `close()` removes the copy.
 - A missing book, a locked book opened for writing, and a new book where a file already is or in a directory that does not exist are refused before GnuCash is asked, with the sentence GnuCash's own refusal is translated to on every build.
 
 Regression test: `tests/integration/test_closing_a_book_closes_no_file_but_its_own.py`, twelve tests through `GnuCashRepository`.
@@ -1103,7 +1103,7 @@ Regression test: `tests/integration/test_closing_a_book_closes_no_file_but_its_o
 
 Discovered 2026-09-14, printing the balance sheet and income statement as plaintext through a customized GnuCash report (Q-042).
 
-**A renderer's string is the page.** `gnc:report-render-html` applies a style sheet only to a document object. `((string? doc) doc)` hands back a string a renderer returns, unchanged, with no `<html>` round it. Read in `report.scm` on 3.4 and 3.8 and in `report-core.scm` on 4.4 and 5.10. So a report can write plain text and still be registered, given options and run as GnuCash's own reports are.
+**A renderer's string is the page.** `gnc:report-render-html` applies a style sheet only to a document object. `((string? doc) doc)` hands back a string a renderer returns, unchanged, with no `<html>` round it. Read in `report.scm` on 3.4 and 3.8 and in `report-core.scm` on 4.4 and 5.10. So a report can write plain text and still be registered, have its options set and run as GnuCash's own reports are.
 
 `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm` holds two such reports. They take GnuCash's own Balance Sheet and Income Statement options through `gnc:report-template-options-generator`. They read an option with `gnc-optiondb-lookup-value` where the build has it (5.x) and `gnc:lookup-option` where it does not. They add collectors with `'merge` and `'minusmerge`, because `gnc:collector+` is absent from 3.4's `report-utilities.scm` and present on 3.8, 4.4 and 5.10. The option names they read are the same on 3.4 and 5.10.
 
@@ -1130,7 +1130,7 @@ From 4.13 the type is not stored but worked out from the splits: a split on a re
 
 - **The unpost is refused on every build**, not only where GnuCash would delete: `refuse_an_unpost_that_would_delete_a_transaction` in `use_cases/unpost_business_objects.py`, asked by `unpost-invoices`, `unpost-bills` and every import that unposts. The rule is the transaction's shape: every split on a receivable or payable, and one of them in no posted record's lot. A link GnuCash made has every split in a record's lot and is left to GnuCash. Regression test: `tests/integration/test_an_unpost_leaves_a_journal_entry_whole.py`.
 - **Stating `txn_type: P` does not help.** From 4.13 the stored type does not survive a save, and on 3.4 it does, and the entry is then listed as an orphaned bank payment of 0.00 with no account.
-- **`unlink` or `unapply-payment` first keeps the entry**, because the settling split leaves the lot. It does not give the credit back: measured on 5.10, the split is then in no lot and `find-prepayments` lists no credit for C001.
+- **`unlink` or `unapply-payment` first keeps the entry**, because the settling split leaves the lot. It does not restore the credit: measured on 5.10, the split is then in no lot and `find-prepayments` lists no credit for C001.
 
 ---
 

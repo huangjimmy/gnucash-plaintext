@@ -5,7 +5,7 @@
 # in, so the transaction is refused for the account itself rather than for the
 # cost.
 #
-# What this fixture produces: a refusal giving `Assets:Bank:USD` as not found,
+# What this fixture produces: a refusal printing `Assets:Bank:USD` as not found,
 # and no transaction.
 #
 # Verified by tests/integration/test_a_stated_cost_is_refused_for_what_it_states.py.

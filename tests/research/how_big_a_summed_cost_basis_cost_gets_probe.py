@@ -13,8 +13,8 @@ bases.
 it looks as though it should.** A cost is a value over an amount — 3,771.28 CAD
 over 2,720.00 USD is 2773/2000 — an awkward fraction with a four-figure
 denominator. But an untouched basis has a balance equal to its own amount, so
-`balance * cost` cancels the division and gives back exactly the value it came
-from: money, at two places. Summing money gives money. Measured on the five
+`balance * cost` cancels the division and returns exactly the value it came
+from: money, at two places. A sum of money is money. Measured on the five
 earnings below, the running total never needed more than 21 bits.
 
 **A basis drawn part of the way is the case that grows.** Once some of the

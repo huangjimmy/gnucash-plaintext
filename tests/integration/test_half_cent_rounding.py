@@ -8,7 +8,7 @@ to the nearest *even* cent; a CRA filer's figures round away from zero.
 
 45.00 USD booked at 1.405 CAD/USD is 63.225 CAD exactly — half a cent — so it
 is 63.23, and settling it for 62.00 CAD realizes a 1.23 CAD loss. Banker's
-rounding gives 63.22 and 1.22, a cent adrift in the books and in the gain
+rounding yields 63.22 and 1.22, a cent adrift in the books and in the gain
 reported for the year.
 """
 

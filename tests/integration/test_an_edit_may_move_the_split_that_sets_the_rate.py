@@ -9,7 +9,7 @@ amount over the dollars' amount. The split's account plays no part in that, so
 moving it to income, every figure the same, is an ordinary correction and goes
 through. Restating its amount re-prices the cost basis and is refused, and the
 refusal says which split and which figure, and — because a fee draws on the
-cost basis — lists the fee and gives the command that deletes the two together.
+cost basis — lists the fee and prints the command that deletes the two together.
 Sent to delete the arrival alone, the reader met a second refusal: it cannot be
 deleted while something draws on its cost basis.
 """
@@ -38,8 +38,8 @@ REBOOKED_INTO_A_CAD_BANK = (
 REBOOKED_KEEPING_THE_SPLIT = (
     FIXTURES
     + 'a_usd_arrival_booked_to_the_directors_account_rebooked_into_a_cad_bank_keeping_the_split.txt')
-FEE_GIVEN_A_SECOND_SPLIT = (
-    FIXTURES + 'a_usd_arrival_booked_to_the_directors_account_fee_given_a_second_split.txt')
+FEE_WITH_A_SECOND_SPLIT = (
+    FIXTURES + 'a_usd_arrival_booked_to_the_directors_account_fee_with_a_second_split.txt')
 FEE_DRAWN_ON_NO_COST_BASIS = (
     FIXTURES + 'a_usd_arrival_booked_to_the_directors_account_fee_drawn_on_no_cost_basis.txt')
 ARRIVAL_A_DAY_LATER = FIXTURES + 'a_usd_arrival_booked_to_the_directors_account_dated_a_day_later.txt'
@@ -51,16 +51,16 @@ MOVED_TO_ANOTHER_USD_BANK = (
 CONVERTED_TO_EUROS = (
     FIXTURES + 'a_usd_arrival_booked_to_the_directors_account_then_converted_to_euros.txt')
 
-GIVEN_A_ZERO_AMOUNT_CAD_SPLIT = (
-    FIXTURES + 'a_usd_arrival_booked_to_the_directors_account_given_a_zero_amount_cad_split.txt')
-GIVEN_A_ZERO_AMOUNT_USD_SPLIT = (
-    FIXTURES + 'a_usd_arrival_booked_to_the_directors_account_given_a_zero_amount_usd_split.txt')
+WITH_A_ZERO_AMOUNT_CAD_SPLIT = (
+    FIXTURES + 'a_usd_arrival_booked_to_the_directors_account_with_a_zero_amount_cad_split.txt')
+WITH_A_ZERO_AMOUNT_USD_SPLIT = (
+    FIXTURES + 'a_usd_arrival_booked_to_the_directors_account_with_a_zero_amount_usd_split.txt')
 MOVED_KEEPING_THE_ZERO_AMOUNT_CAD_SPLIT = (
     FIXTURES + 'a_usd_arrival_booked_to_the_directors_account'
     '_moved_to_income_keeping_the_zero_amount_cad_split.txt')
 YEN_ARRIVAL = FIXTURES + 'a_jpy_arrival_booked_to_the_directors_account.txt'
-YEN_ARRIVAL_GIVEN_A_ZERO_AMOUNT_JPY_SPLIT = (
-    FIXTURES + 'a_jpy_arrival_booked_to_the_directors_account_given_a_zero_amount_jpy_split.txt')
+YEN_ARRIVAL_WITH_A_ZERO_AMOUNT_JPY_SPLIT = (
+    FIXTURES + 'a_jpy_arrival_booked_to_the_directors_account_with_a_zero_amount_jpy_split.txt')
 RESTATED_AND_A_DAY_LATER = (
     FIXTURES
     + 'a_usd_arrival_booked_to_the_directors_account_amount_changed_and_dated_a_day_later.txt')
@@ -128,9 +128,9 @@ class TestKeepingAZeroAmountCadSplit:
             self, tmp_path):
         """A 0.00 CAD split beside the one that sets the rate, kept as it is."""
         book = _book(tmp_path)
-        given = _run(CliRunner(), 'import', str(book), GIVEN_A_ZERO_AMOUNT_CAD_SPLIT,
+        added = _run(CliRunner(), 'import', str(book), WITH_A_ZERO_AMOUNT_CAD_SPLIT,
                      '--strategy', 'update')
-        assert given.exit_code == 0 and 'Updated:      1' in given.output, given.output
+        assert added.exit_code == 0 and 'Updated:      1' in added.output, added.output
         before = _read(book)[0]
 
         done = _run(CliRunner(), 'import', str(book), MOVED_KEEPING_THE_ZERO_AMOUNT_CAD_SPLIT,
@@ -147,7 +147,7 @@ class TestAddingAZeroAmountUsdSplitBesideTheCostBasis:
         book = _book(tmp_path)
         before = _read(book)[0]
 
-        done = _run(CliRunner(), 'import', str(book), GIVEN_A_ZERO_AMOUNT_USD_SPLIT,
+        done = _run(CliRunner(), 'import', str(book), WITH_A_ZERO_AMOUNT_USD_SPLIT,
                     '--strategy', 'update')
 
         assert done.exit_code == 0 and 'Updated:      1' in done.output, done.output
@@ -189,11 +189,11 @@ class TestRemovingOrAddingWhatACostBasisRestsOn:
 
         assert done.exit_code != 0, done.output
         assert ("cost basis 3cdacfb099e9c7fbe795b8aa317313bd on 'Assets:Wise USD' "
-                'would be gone — every split drawing on it would give a cost basis '
+                'would be gone — every split drawing on it would draw on a cost basis '
                 'the book no longer holds'
                 ) in done.output, done.output
 
-    def test_rebooking_it_keeping_the_split_still_gives_the_fee_to_delete_first(self, tmp_path):
+    def test_rebooking_it_keeping_the_split_still_lists_the_fee_to_delete_first(self, tmp_path):
         """The split no longer opens a cost basis as the edit leaves it; the fee still draws on it."""
         book = _book(tmp_path)
         done = _run(CliRunner(), 'import', str(book), REBOOKED_KEEPING_THE_SPLIT,
@@ -207,7 +207,7 @@ class TestRemovingOrAddingWhatACostBasisRestsOn:
     def test_a_second_split_drawing_on_the_cost_basis_is_drawn_on_it(self, tmp_path):
         """Read as a new transaction would be (Q-051), the fee draws both its splits: 1.00 USD in all."""
         book = _book(tmp_path)
-        done = _run(CliRunner(), 'import', str(book), FEE_GIVEN_A_SECOND_SPLIT,
+        done = _run(CliRunner(), 'import', str(book), FEE_WITH_A_SECOND_SPLIT,
                     '--strategy', 'update')
 
         assert done.exit_code == 0, done.output
@@ -239,7 +239,7 @@ class TestMovingTheDate:
         [(account, balance, _cost)] = _read(book)[0]
         assert (account, balance) == ('Assets:Wise USD', Fraction('2719.28'))
 
-    def test_under_atomic_the_refusal_gives_the_date_and_not_a_figure_it_defers(self, tmp_path):
+    def test_under_atomic_the_refusal_states_the_date_and_not_a_figure_it_defers(self, tmp_path):
         book = _book(tmp_path)
         done = _run(CliRunner(), 'import', str(book), RESTATED_AND_A_DAY_LATER,
                     '--strategy', 'update', '--atomic')
@@ -272,8 +272,8 @@ class TestRestatingWhatSetsTheRate:
         assert ('the file states -3800.00 CAD on '
                 "'Assets:Due from shareholder' valued at -2720.00") in output, output
 
-    def test_a_cleared_pick_is_refused_as_a_spend_giving_no_cost_basis(self, tmp_path):
-        """Every figure the same and the pick cleared: read as new, the fee spends dollars held giving no cost basis."""
+    def test_a_cleared_pick_is_refused_as_a_spend_stating_no_cost_basis(self, tmp_path):
+        """Every figure the same and the pick cleared: read as new, the fee spends dollars held stating no cost basis."""
         book = _book(tmp_path)
         before = _read(book)[0]
         done = _run(CliRunner(), 'import', str(book), FEE_DRAWN_ON_NO_COST_BASIS,
@@ -289,8 +289,8 @@ class TestRestatingWhatSetsTheRate:
 
         assert "2026-08-13 'Wise charges' (0.72 USD)" in output, output
 
-    def test_the_command_it_gives_deletes_them_together(self, tmp_path):
-        """The one command the refusal gives deletes the fee and the arrival, fee first."""
+    def test_the_command_it_prints_deletes_them_together(self, tmp_path):
+        """The one command the refusal prints deletes the fee and the arrival, fee first."""
         book, output = self._refused(tmp_path)
         command = f'delete-transactions --by-guid {THE_FEE} {THE_ARRIVAL}'
         assert command in output, output
@@ -325,7 +325,7 @@ class TestAddingAZeroAmountJpySplitOnTheYenBank:
         assert made.exit_code == 0 and 'Errors:       0' in made.output, made.output
         before = _yen_bases(book)
 
-        done = _run(CliRunner(), 'import', str(book), YEN_ARRIVAL_GIVEN_A_ZERO_AMOUNT_JPY_SPLIT,
+        done = _run(CliRunner(), 'import', str(book), YEN_ARRIVAL_WITH_A_ZERO_AMOUNT_JPY_SPLIT,
                     '--strategy', 'update')
 
         assert done.exit_code == 0 and 'Updated:      1' in done.output, done.output
@@ -376,7 +376,7 @@ class TestAFeeOfTwoSplits:
         book = _book(tmp_path)
         _run(CliRunner(), 'delete-transactions', str(book), '--by-guid', THE_FEE,
              '-o', str(tmp_path / 'undo.txt'))
-        fee = _run(CliRunner(), 'import', str(book), FEE_GIVEN_A_SECOND_SPLIT)
+        fee = _run(CliRunner(), 'import', str(book), FEE_WITH_A_SECOND_SPLIT)
         assert fee.exit_code == 0 and 'Errors:       0' in fee.output, fee.output
 
         done = _run(CliRunner(), 'import', str(book), AMOUNT_CHANGED, '--strategy', 'update')

@@ -279,7 +279,7 @@ class TestTheOtherOrder:
     this model keeps — an account that receives 60.00 USD and pays an 8.00 USD
     fee out of the same transaction holds 52.00 and offers 60.00, and that
     book is correct by every rule in `services/foreign_currency.py`. Making
-    the two agree means deciding what an outflow that gives no cost basis does to
+    the two agree means deciding what an outflow that states no cost basis does to
     the cost bases on its account, which is a change to the model.
 
     So this is pinned as what happens, not as what should: a test that fails

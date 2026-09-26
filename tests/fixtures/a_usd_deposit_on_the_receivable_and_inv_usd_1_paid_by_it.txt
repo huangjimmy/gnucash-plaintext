@@ -1,7 +1,7 @@
 # Q-049: 2,720.00 USD paid into Wise USD, its other side on the receivable,
 # and INV-USD-1's `payment:` block linking it by its guid. In a book keeping
 # cost bases, `unlink`, `unapply-payment` and `delete-transactions` on it
-# write or give back cost basis figures; in one keeping none they write none.
+# write or restore cost basis figures; in one keeping none they write none.
 #
 # Verified by tests/integration/test_a_book_can_keep_no_cost_bases.py.
 2026-08-13 * "Received money from Example Customer Inc"

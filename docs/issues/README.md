@@ -55,7 +55,7 @@ and in the **Status** column below.
 | [Q-006](Q-006-business-object-id-uniqueness-and-guid-export.md) | Business-object IDs are not unique on re-import; GUIDs are not exported | high | closed |
 | [Q-007](Q-007-delete-archive-by-guid.md) | delete/archive accept GUIDs; invoice/bill identity enforced on import | medium | closed |
 | [Q-008](Q-008-taxtable-identity.md) | Tax-table identity not enforced on import; re-import duplicates | medium | closed |
-| [Q-009](Q-009-import-summary-business-objects.md) | Business-object import is silent — re-import gives no signal of skip vs. create vs. update | medium | closed |
+| [Q-009](Q-009-import-summary-business-objects.md) | Business-object import is silent — re-import does not say whether it skipped, created or updated | medium | closed |
 | [Q-010](Q-010-strict-updated-status-on-no-change-reimport.md) | `'updated'` is liberal — reports updated for no-change re-imports; posted invoices/bills can't be edited via re-import | low | closed |
 | [Q-011](Q-011-invoice-action-optional-and-custom-template.md) | Invoice `action` field forces a hardcode; UNIT column shows nonsense; no template override | low | closed |
 | [Q-012](Q-012-print-invoice-on-unposted-invoice-crashes.md) | `print-invoice` on an unposted invoice crashes with NoneType error | medium | closed |

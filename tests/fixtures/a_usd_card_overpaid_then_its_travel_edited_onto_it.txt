@@ -1,7 +1,7 @@
 # The travel of
 # usd_moved_out_of_an_empty_account_then_income_in_canadian_dollars.txt edited
 # with `--strategy update` into 200.00 USD charged to the card, after 200.00
-# USD was paid onto the card owing nothing, giving no guid.
+# USD was paid onto the card owing nothing, stating no guid.
 #
 # The card holds a credit of 200.00, so the charge spends what it held, which
 # draws down a cost basis of dollars held, and an edit runs none of the checks

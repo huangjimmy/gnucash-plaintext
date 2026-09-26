@@ -3,7 +3,7 @@
 #
 # The sign is what catches it, and a bill is where the sign differs. A bill's
 # posting is negative on the payable, so its settlement is positive there;
-# reading the settlement off the wrong split gives −100.00 instead, which is
+# reading the settlement off the wrong split yields −100.00 instead, which is
 # the posting's own sign rather than its reverse.
 #
 # What the refusal has to get right is the word: a bill's own account is the

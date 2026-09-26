@@ -1,5 +1,5 @@
 # `inv_001_posted_and_unpaid.txt` with a payment whose account is `Holding`,
-# an asset account the test gives the book with no commodity.
+# an asset account the test adds to the book with no commodity.
 customer "C001"
 	name: "Acme"
 	currency: CAD

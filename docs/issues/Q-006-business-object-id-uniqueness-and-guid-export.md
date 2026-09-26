@@ -119,7 +119,7 @@ Anything else is a user mistake we surface, not a thing we paper over.
 
 | `guid:` provided? | GUID lookup | ID lookup | Action |
 |---|---|---|---|
-| no | — | not found | **create** new customer with given id |
+| no | — | not found | **create** new customer with the id the block states |
 | no | — | found (1 match) | **update** fields on the matched customer |
 | no | — | found (multiple matches) | **error**: book has pre-existing duplicates for this id; user must resolve in GnuCash GUI |
 | yes | not found | not found | **create** new (and use the supplied GUID — see §3) |

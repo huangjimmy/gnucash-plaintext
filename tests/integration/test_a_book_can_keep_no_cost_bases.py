@@ -20,7 +20,7 @@ BASE = FIXTURES + 'a_usd_invoice_and_bill_for_statement_lines_on_a_holding_accou
 RATES = FIXTURES + 'usd_at_the_rates_the_statement_lines_records_were_posted_at.yaml'
 OFF = FIXTURES + 'a_company_that_keeps_no_cost_bases.txt'
 DOLLARS = FIXTURES + 'usd_bought_into_wise_before_the_statement.txt'
-SPENT = FIXTURES + 'usd_spent_on_a_fee_and_sold_giving_no_cost_basis.txt'
+SPENT = FIXTURES + 'usd_spent_on_a_fee_and_sold_stating_no_cost_basis.txt'
 DEPOSIT = FIXTURES + 'a_usd_deposit_and_its_fee_on_a_holding_account.txt'
 
 
@@ -61,7 +61,7 @@ def _exported(book, tmp_path):
     return ledger.read_text()
 
 
-def test_a_spend_that_gives_no_cost_basis_is_accepted(tmp_path):
+def test_a_spend_that_states_no_cost_basis_is_accepted(tmp_path):
     book = _book(tmp_path, DOLLARS)
 
     _accepted(_imported(book, SPENT))
@@ -108,8 +108,8 @@ def test_a_disposal_restated_in_place_is_edited(tmp_path):
 
 
 def test_a_deposit_and_its_fee_are_edited_as_they_were_created(tmp_path):
-    """An arrival and a spend giving no cost basis in one transaction: created, and then edited, with nothing asked about cost bases either time."""
-    book = _book(tmp_path, FIXTURES + 'a_usd_deposit_and_its_fee_giving_no_cost_basis.txt')
+    """An arrival and a spend stating no cost basis in one transaction: created, and then edited, with nothing asked about cost bases either time."""
+    book = _book(tmp_path, FIXTURES + 'a_usd_deposit_and_its_fee_stating_no_cost_basis.txt')
     exported = _exported(book, tmp_path)
     edit = tmp_path / 'edit.txt'
     edit.write_text(exported.replace('"Received money from Example Customer Inc"',
@@ -180,7 +180,7 @@ def test_a_dry_run_turning_them_off_leaves_the_book_keeping_them(tmp_path):
 
 
 def test_a_share_sale_s_realized_gain_is_what_the_transaction_records(tmp_path):
-    book = _book(tmp_path, FIXTURES + 'shares_bought_and_sold_giving_no_cost_basis.txt')
+    book = _book(tmp_path, FIXTURES + 'shares_bought_and_sold_stating_no_cost_basis.txt')
 
     assert 'realized_gains_other: 200.00 CAD' in _sheet(book)
 
@@ -209,8 +209,8 @@ def test_unapply_payment_writes_no_cost_basis_key(tmp_path):
     assert 'cost_basis_' not in _exported(book, tmp_path)
 
 
-def test_delete_transactions_deletes_what_spends_dollars_giving_no_cost_basis(tmp_path):
-    """The dollars the fee and the sale spent are deleted, where a book keeping cost bases refuses while a disposal draws on them; the book holds nothing to give back."""
+def test_delete_transactions_deletes_what_spends_dollars_stating_no_cost_basis(tmp_path):
+    """The dollars the fee and the sale spent are deleted, where a book keeping cost bases refuses while a disposal draws on them; the book holds nothing to put back."""
     book = _book(tmp_path, DOLLARS, SPENT)
 
     done = _run(CliRunner(), 'delete-transactions', str(book), '--by-guid',
@@ -267,7 +267,7 @@ def _sheet(book):
 
 
 def test_the_export_rebuilds_the_book_in_a_new_one(tmp_path):
-    """With `--include-business-objects`, which imports the `company` block turning cost bases off before the spends that give none."""
+    """With `--include-business-objects`, which imports the `company` block turning cost bases off before the spends that state none."""
     book = _book(tmp_path, DOLLARS, SPENT)
     exported = tmp_path / 'whole.txt'
     written = _run(CliRunner(), 'export', str(book), str(exported), '--include-business-objects')

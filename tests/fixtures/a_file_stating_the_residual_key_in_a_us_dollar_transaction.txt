@@ -12,7 +12,7 @@
 #
 # The 20.00 leaves a US dollar bank the book keeps a cost basis for, so the
 # split spending it says which one — `a_cad_book_that_bought_a_thousand_usd.txt`
-# gives that split a guid of its own for files like this to point at. What is
+# assigns that split a guid of its own for files like this to point at. What is
 # being measured here is unaffected: the currency of the transaction is asked
 # about before the marked split is counted, and it is asked whether or not a
 # disposal accompanies it.

@@ -1,5 +1,5 @@
 # The bank fee of usd_moved_out_of_an_empty_account_then_shares_bought.txt
-# edited with `--strategy update` into a sale of 5 of the 10 shares, giving no
+# edited with `--strategy update` into a sale of 5 of the 10 shares, stating no
 # guid.
 #
 # A sale draws down the shares' cost basis, and an edit runs none of the

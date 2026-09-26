@@ -1,7 +1,7 @@
 # A 100.00 USD bill settled out of the claim prepaid to that supplier.
 #
 # `from_credit: true` says the money is the vendor's own claim rather than a
-# bank payment, and the two guids give the split it comes out of. Spending it
+# bank payment, and the two guids state the split it comes out of. Spending it
 # takes its `cost_basis_balance` off — because the currency was spent, which
 # says nothing about how much of it had been sold beforehand.
 #

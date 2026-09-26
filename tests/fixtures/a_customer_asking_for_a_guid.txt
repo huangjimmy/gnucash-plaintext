@@ -1,6 +1,6 @@
 # A new customer asking for the guid `{guid}`.
 #
-# The test fills in a guid the book already gives a vendor or a tax table.
+# The test fills in a guid the book already holds on a vendor or a tax table.
 # GnuCash keeps one guid to one thing, so the customer cannot have it.
 #
 # What this fixture produces: nothing. The import refuses the customer.

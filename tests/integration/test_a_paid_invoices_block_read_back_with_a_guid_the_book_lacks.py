@@ -4,11 +4,11 @@ INV-001 is imported paid and exported, and its block is read back into the
 same book with one guid changed to one the book does not hold. Measured on
 5.10.
 
-- **`txn_split_guid:`.** A page printed from another book gives that book's
+- **`txn_split_guid:`.** A page printed from another book states that book's
   split, so a split guid the transaction has not got is read as the split
-  settling this invoice, as if the block gave none. The payment the block
+  settling this invoice, as if the block stated none. The payment the block
   describes is the one the invoice has, so the invoice is unchanged.
-- **The line's `guid:`.** A block giving a line guid the invoice has not got
+- **The line's `guid:`.** A block stating a line guid the invoice has not got
   describes a line the invoice does not hold. That changes a posted invoice,
   and it is refused.
 """

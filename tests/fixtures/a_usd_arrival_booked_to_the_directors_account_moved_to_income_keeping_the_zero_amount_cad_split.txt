@@ -1,4 +1,4 @@
-# The arrival of ..._given_a_zero_amount_cad_split.txt with its 3,791.14 CAD
+# The arrival of ..._with_a_zero_amount_cad_split.txt with its 3,791.14 CAD
 # split moved to income, for `--strategy update`, and its 0.00 CAD split kept
 # as it is. A split whose amount is zero has no rate of its own, so it is
 # compared at the rate the book holds for it; no figure a cost basis rests on

@@ -29,7 +29,7 @@ from services.foreign_currency import (
     cost_basis_balance_of,
     cost_of,
     find_split_by_guid,
-    give_back_to_cost_bases,
+    put_back_on_cost_bases,
     split_guid,
 )
 
@@ -83,7 +83,7 @@ def _sale_picking(book, picks):
     return transaction
 
 
-def test_giving_back_restores_exactly_what_the_picks_took(tmp_path):
+def test_putting_back_restores_exactly_what_the_picks_took(tmp_path):
     """Two cost bases drawn down by one transaction, both restored in full."""
     runner = CliRunner()
     gnucash_file = tmp_path / 'book.gnucash'
@@ -110,7 +110,7 @@ def test_giving_back_restores_exactly_what_the_picks_took(tmp_path):
         during = _basis_balances(repo.book)
         assert sorted(during.values()) == [Fraction(60), Fraction(75)], during
 
-        give_back_to_cost_bases(repo.book, taken)
+        put_back_on_cost_bases(repo.book, taken)
         assert _basis_balances(repo.book) == before, (
             f'{before} became {_basis_balances(repo.book)}')
     finally:

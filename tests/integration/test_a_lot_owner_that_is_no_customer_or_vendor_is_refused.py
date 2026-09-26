@@ -1,8 +1,8 @@
-"""A `lot_owner:` that gives no customer or vendor is refused, not read as nothing.
+"""A `lot_owner:` that states no customer or vendor is refused, not read as nothing.
 
 `lot_owner:` says a split is an owner's credit, and puts it in a lot of
-theirs. The owner is given as `customer:ID` or `vendor:ID`. Given as an ID
-with no kind, or as an employee, it gives neither, so no lot could be found or
+theirs. The owner is written as `customer:ID` or `vendor:ID`. Written as an ID
+with no kind, or as an employee, it states neither, so no lot could be found or
 made, and the split would be imported loose while the file says it is somebody's
 credit.
 """
@@ -16,7 +16,7 @@ ACCOUNTS = 'tests/fixtures/payment_roundtrip_accounts.txt'
 
 
 @pytest.mark.parametrize('fixture, description', [
-    ('tests/fixtures/a_credit_whose_lot_owner_gives_no_kind.txt',
+    ('tests/fixtures/a_credit_whose_lot_owner_states_no_kind.txt',
      'Prepayment with an owner of no kind'),
     ('tests/fixtures/a_credit_whose_lot_owner_is_an_employee.txt',
      'Prepayment owned by an employee'),

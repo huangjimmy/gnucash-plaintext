@@ -2,7 +2,7 @@
 
 Three questions, in the order the export has to answer them:
 
-1. what the bindings give for a transaction's entered timestamp, and at what
+1. what the bindings return for a transaction's entered timestamp, and at what
    resolution — the deposit of the Q-040 fee book was created by one import
    and the fee by the next;
 2. what order `get_all_transactions` returns, which is `qof_query_run`, and
@@ -26,7 +26,7 @@ from tests.conftest import _run
 RATES = 'tests/fixtures/fx_rates_usd_two_invoice_dates.yaml'
 
 
-def test_what_the_bindings_give(tmp_path, capsys):
+def test_what_the_bindings_return(tmp_path, capsys):
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
     assert runner.invoke(cli, [
@@ -91,12 +91,12 @@ def test_what_the_query_returns_and_what_the_export_writes(tmp_path, capsys):
     repo = GnuCashRepository(str(book))
     repo.open(mode=SessionMode.READ_ONLY)
     try:
-        given = repo.get_all_transactions()
+        returned = repo.get_all_transactions()
         rows = [(t.GetDescription()[:34], str(t.GetDate())[:10],
-                 repr(t.GetDateEntered())) for t in given]
+                 repr(t.GetDateEntered())) for t in returned]
         pairs = []
-        for one in given:
-            for other in given:
+        for one in returned:
+            for other in returned:
                 if one.GetDate() == other.GetDate() and one is not other:
                     pairs.append((one.GetDescription()[:34],
                                   other.GetDescription()[:34],

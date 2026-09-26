@@ -1,4 +1,4 @@
-# 200.00 US dollars spent, giving no cost basis guid.
+# 200.00 US dollars spent, stating no cost basis guid.
 #
 # Imported into `a_currency_whose_cost_bases_cannot_be_drawn_on.txt`, this is
 # not refused: the only US dollar cost basis on the asset side there holds

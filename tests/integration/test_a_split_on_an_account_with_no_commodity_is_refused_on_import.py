@@ -1,4 +1,4 @@
-"""A transaction block giving a split on an account with no commodity is refused, as `export` refuses it.
+"""A transaction block stating a split on an account with no commodity is refused, as `export` refuses it.
 
 GnuCash keeps an account with no commodity through a save and a reload. A split
 is written as an amount of its account's commodity, so `export` refuses a book

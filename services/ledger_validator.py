@@ -239,11 +239,11 @@ class LedgerValidator:
         # book this can be asked about: handed one edited to remove a
         # `<split:account>`, GnuCash 5.x drops the whole transaction while
         # loading and 4.x and earlier segfault inside `qof_session_load`,
-        # before this tool is given control (CLAUDE.md §12). So the error it
+        # before this tool gets control (CLAUDE.md §12). So the error it
         # reported was one no book could earn, while the state it was named
         # for — a split whose account has gone missing — reaches a reader
         # through `IMBALANCE_SPLIT` above, because GnuCash's own scrub has by
-        # then given the split an `Orphan-` account to sit in.
+        # then moved the split to an `Orphan-` account.
         #
         # No currency check either: a transaction read from a book always has
         # one. Even a security set as a transaction's currency comes back from

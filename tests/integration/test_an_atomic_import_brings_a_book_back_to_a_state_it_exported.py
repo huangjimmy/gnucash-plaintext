@@ -8,7 +8,7 @@ history and cannot know the file is an undo; the test knows, because it holds
 the earlier export.
 
 Under `--atomic` every block of the file is applied, in the order the file
-gives, and the book is checked once, finished, before it is saved. A check
+lists them, and the book is checked once, finished, before it is saved. A check
 that depends on the order the blocks are applied in is not asked of a book
 half way through. The book the file describes is either the book saved, or
 nothing is saved.
@@ -60,7 +60,7 @@ def _without_comments(path):
 
 
 def _with_payment(text, record, payment):
-    """The record's `payment: none` replaced with the payment block given."""
+    """The record's `payment: none` replaced with the payment block `payment`."""
     lines = text.splitlines()
     start = next(i for i, line in enumerate(lines) if line.startswith(record))
     end = start + 1
@@ -194,7 +194,7 @@ class TestTheFeeAsATransactionOfItsOwn:
         assert _cost_bases(book) == bases_booked
 
     def test_a_rolled_back_undo_says_no_payment_was_taken_off(self, tmp_path):
-        """The fee in the undo gives a cost basis the book has not got, so the run rolls back after the payment was taken off in memory."""
+        """The fee in the undo states a cost basis the book has not got, so the run rolls back after the payment was taken off in memory."""
         book = _book(tmp_path, self.STATEMENT)
         before = _exported(book, tmp_path, 'before.txt')
         _accepted(_imported(book, tmp_path, self._booking(before), '--atomic'))
@@ -260,7 +260,7 @@ def test_the_export_keeps_its_order(tmp_path, case):
     the time each was posted at. INV-USD-1's posting block is edited by the
     undo, restating its cost basis balance, and on GnuCash 3.8, which posts an
     invoice at midnight, the edit moved the posting to 10:59 UTC on the same
-    day: it came out after INV-USD-2's. An edit giving the same day leaves the
+    day: it came out after INV-USD-2's. An edit stating the same day leaves the
     time as it was.
     """
     case = globals()[case]()
@@ -276,7 +276,7 @@ def test_the_export_keeps_its_order(tmp_path, case):
 class TestASplitInALotTheFileDoesNotTakeOff:
     """A split settling a record is taken off it only where the file states the record unpaid by its transaction.
 
-    Otherwise the edit giving the split another account is refused, as it is
+    Otherwise the edit moving the split to another account is refused, as it is
     without `--atomic`: moving a split in a lot is the record's business.
     """
 

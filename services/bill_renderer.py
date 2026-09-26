@@ -60,7 +60,7 @@ def compute_bill_entry_informational(lib, entry_ptr, is_credit_note=0):
     the flag is what turns them back into the figures its own totals state.
 
     A bill line has no discount — GnuCash's bill window has no such column —
-    so the figures are what quantity × price gave before, with one
+    so the figures are what quantity × price came to before, with one
     difference that matters: these are rounded to the currency's smallest
     unit per line, as the posting is. Summing exact fractions and rounding
     the total at print time can differ from the A/P split by a cent on a
@@ -181,7 +181,7 @@ def render_to_plaintext(bill, book, company_info=None) -> str:
         date_str = raw_entry.GetDate().strftime('%Y-%m-%d')
 
         bill_lines.append('\tentry:')
-        # And no `guid:`, for the reason the invoice side gives.
+        # And no `guid:`, for the reason the invoice side states.
         bill_lines.append(f'\t\tdate: {date_str}')
         bill_lines.append(f'\t\tdescription: {encode_value_as_string(desc)}')
         # One `GncEntry` action field, shown in the bill window's Action

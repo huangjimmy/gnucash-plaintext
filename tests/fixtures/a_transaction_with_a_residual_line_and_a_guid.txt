@@ -1,4 +1,4 @@
-# A transaction whose guid is given and whose second split takes `$residual$`.
+# A transaction whose guid is stated and whose second split takes `$residual$`.
 #
 # What this fixture produces: Assets and Expenses in CAD, and one transaction of
 # 50.00 CAD with the guid 0123456789abcdef0123456789abcdef, whose split on

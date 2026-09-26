@@ -95,7 +95,7 @@ def _without_comments(path):
 
 
 def _with_payment(text, record, payment):
-    """The record's `payment: none` replaced with the payment block given."""
+    """The record's `payment: none` replaced with the payment block `payment`."""
     lines = text.splitlines()
     start = next(i for i, line in enumerate(lines) if line.startswith(record))
     end = start + 1
@@ -143,7 +143,7 @@ def _sound(book):
 
 
 def _paid_by(book, tmp_path, record, guid):
-    """Whether the record's `payment:` block gives the transaction `guid`."""
+    """Whether the record's `payment:` block states the transaction `guid`."""
     return f'txn_guid: "{guid}"' in _block(_exported(book, tmp_path), record)
 
 
@@ -289,7 +289,7 @@ def test_a_balance_a_refused_edit_states_is_not_read_as_stated(tmp_path):
 
     The refused edit is put back with the balance the book held. Left marked
     as stated by the file, that balance took no draw: the sale restated from
-    500.00 to 400.00 gave nothing back and drew nothing, and the cost basis
+    500.00 to 400.00 put nothing back and drew nothing, and the cost basis
     stayed at 2,219.28.
     """
     book = _book(tmp_path, DEPOSIT, SALE)
@@ -380,10 +380,10 @@ def test_an_edit_refused_before_its_commit_leaves_what_draws_on_a_cost_basis_kno
     assert DEPOSIT_HEAD in _exported(book, tmp_path)
 
 
-def test_a_payment_block_stating_another_amount_than_the_split_it_gives_is_refused(tmp_path):
-    """INV-USD-2's block gives the 2,720.00 receivable split and states `amount: 1000`.
+def test_a_payment_block_stating_another_amount_than_the_split_it_states_is_refused(tmp_path):
+    """INV-USD-2's block states the 2,720.00 receivable split and `amount: 1000`.
 
-    A block giving `txn_split_guid:` attaches the whole split to its invoice,
+    A block stating `txn_split_guid:` attaches the whole split to its invoice,
     so the invoice is paid 2,720.00 whatever `amount:` the block states.
     Accepted, the book recorded a figure the file did not state and said
     nothing. The export writes the split's own amount, so a block that
@@ -398,17 +398,17 @@ def test_a_payment_block_stating_another_amount_than_the_split_it_gives_is_refus
                                'a_usd_deposit_booked_as_the_invoice_it_collected.txt',
                                'invoice "INV-USD-2"', payment, invoice_posting=posting))
 
-    assert ('states amount: 1000, and the split given in txn_split_guid '
-            '0e510000000000000000000000000a03 carries 2720.00') in message, message
+    assert ('states amount: 1000, and the split txn_split_guid states, '
+            '0e510000000000000000000000000a03, carries 2720.00') in message, message
     assert 'payment: none' in _block(_exported(book, tmp_path), 'invoice "INV-USD-2"')
     assert _bases(book) == before
 
 
-def test_a_payment_block_giving_a_split_with_an_amount_that_will_not_parse_is_refused_in_words(tmp_path):
-    """`amount: 27x0` beside the receivable split INV-USD-1's block gives.
+def test_a_payment_block_stating_a_split_with_an_amount_that_will_not_parse_is_refused_in_words(tmp_path):
+    """`amount: 27x0` beside the receivable split INV-USD-1's block states.
 
-    Refused before the amount is weighed against the split, giving the
-    invoice and the figure, so the weighing only ever reads a number.
+    Refused before the amount is weighed against the split, and the refusal
+    states the invoice and the figure, so the weighing only ever reads a number.
     """
     book = _book(tmp_path, DEPOSIT)
     before = _bases(book)
@@ -448,12 +448,12 @@ def test_an_invoice_stating_the_pick_key_as_its_own_is_imported(tmp_path):
 
 
 def test_a_prepayment_beside_the_split_does_not_divide_it(tmp_path):
-    """`prepayment: 720` beside the 2,720.00 split INV-USD-2's block gives, to leave 2,000.00 collected.
+    """`prepayment: 720` beside the 2,720.00 split INV-USD-2's block states, to leave 2,000.00 collected.
 
     On `txn_split_guid:`, `prepayment:` is weighed against the transaction's
     other receivable splits, the ones the block does not apply; it does not
-    divide the split the block gives. This transaction has none, so the block
-    is refused and the run saves nothing. The split a block gives is attached
+    divide the split the block states. This transaction has none, so the block
+    is refused and the run saves nothing. The split a block states is attached
     whole on every route that is accepted, which is why it is counted whole
     as collected while the transaction is read.
     """
@@ -548,10 +548,10 @@ class TestAWithdrawalBookedAsTheBillItPaid:
 
 
 class TestATransferBesideItsFee:
-    """E7: dollars moved between the owner's accounts, and a fee in the same transaction giving its cost basis.
+    """E7: dollars moved between the owner's accounts, and a fee in the same transaction stating its cost basis.
 
     The savings account's dollars are an opening balance against equity, as
-    in a book started part-way through its life. The fee gives the cost basis
+    in a book started part-way through its life. The fee states the cost basis
     it spends, so it is what left, and the rest moved.
     """
 
@@ -708,7 +708,7 @@ class TestTheSameCostBasis:
                                 'update', '--include-business-objects', '--fx-rates', RATES))
 
         assert ('would hold 2719.00 USD as this edit opens it. The book held 2719.28 less '
-                'than its figures give') in message, message
+                'than its figures add up to') in message, message
         assert 'would draw 0.28 more than it holds' in message, message
         assert _bases(book) == before
 
@@ -767,14 +767,14 @@ def test_booked_as_the_invoice_after_a_sale_drew_on_the_deposit_is_refused(tmp_p
 
 
 class TestAnOwedFeeBookedAsASpend:
-    """E7a and E7b: read again, the fee spends dollars held, and gives the cost basis they came out of."""
+    """E7a and E7b: read again, the fee spends dollars held, and states the cost basis they came out of."""
 
     def test_the_fee_establishes_a_cost_basis_on_the_owed_side_as_imported(self, tmp_path):
         book = _book(tmp_path, FEE_FIRST, DOLLARS)
 
         assert ('Assets:Wise USD', 'USD', 'liability', Fraction('1.00')) in _bases(book)
 
-    def test_booked_giving_the_dollars_held(self, tmp_path):
+    def test_booked_drawing_on_the_dollars_held(self, tmp_path):
         book = _book(tmp_path, FEE_FIRST, DOLLARS)
 
         done = _edited(book, tmp_path, FEE_HEAD,
@@ -785,12 +785,12 @@ class TestAnOwedFeeBookedAsASpend:
         assert wise == [('Assets:Wise USD', 'USD', 'asset', Fraction('1999.00'))]
         _sound(book)
 
-    def test_booked_giving_no_cost_basis_is_refused(self, tmp_path):
+    def test_booked_stating_no_cost_basis_is_refused(self, tmp_path):
         book = _book(tmp_path, FEE_FIRST, DOLLARS)
         before = _bases(book)
 
         message = _refused(_edited(book, tmp_path, FEE_HEAD,
-                                   'a_usd_fee_booked_as_the_bank_charge_giving_no_cost_basis.txt'))
+                                   'a_usd_fee_booked_as_the_bank_charge_stating_no_cost_basis.txt'))
 
         assert ('this transaction is an expense of 1.00 USD the book held: Assets:Wise USD, '
                 'a Bank account in USD, is credited 1.00 USD; ') in message, message
@@ -798,7 +798,7 @@ class TestAnOwedFeeBookedAsASpend:
 
 
 @pytest.mark.parametrize('booked, refusal', [
-    pytest.param('a_usd_deposit_booked_as_the_invoice_it_collected_with_the_fee_giving_no_cost_basis.txt',
+    pytest.param('a_usd_deposit_booked_as_the_invoice_it_collected_with_the_fee_stating_no_cost_basis.txt',
                  "cost_basis_split_guid '0e510000000000000000000000000a02' matches a split "
                  'that is no USD cost basis', id='the-pick-left-out-is-kept'),
     pytest.param('a_usd_deposit_booked_as_the_invoice_it_collected_with_the_fees_cost_basis_cleared.txt',
@@ -811,7 +811,7 @@ def test_a_new_version_that_is_not_a_correct_transaction_is_refused(tmp_path, bo
     A block leaving `cost_basis_split_guid:` out keeps the pick the split
     has, so the fee goes on drawing on the deposit, which the new version
     does not establish as a cost basis. Cleared with `""`, the fee spends the
-    dollars the transaction collects giving no cost basis.
+    dollars the transaction collects stating no cost basis.
     """
     book = _book(tmp_path, DEPOSIT)
     before = _bases(book)
@@ -857,7 +857,7 @@ def test_a_refused_edit_leaves_the_time_the_transaction_was_posted_at(tmp_path):
     Put back through the setter that moves a date to GnuCash's neutral time,
     the refused edit left the transaction at 10:59 UTC. The export writes the
     date alone, so the time is read from the book. The file corrects a bank
-    charge's description as well, and gives no `payment:` block, so the run
+    charge's description as well, and states no `payment:` block, so the run
     saves.
     """
     from datetime import datetime
@@ -899,13 +899,13 @@ def test_a_refused_edit_leaves_the_time_the_transaction_was_posted_at(tmp_path):
     assert posted(book) == datetime(2026, 8, 13)
 
 
-def test_a_give_back_failing_part_way_is_taken_again(tmp_path):
+def test_putting_back_what_was_drawn_failing_part_way_is_drawn_again(tmp_path):
     """The sale's second cost basis holds a `cost_basis_brought_in` that will not parse.
 
     Written through the bindings, as nothing this tool writes can be. The
-    sale is read as new, what it drew is given back, and giving back to the
+    sale is read as new, what it drew is put back, and putting it back on the
     second cost basis fails after the first has had its 5.00 back. The
-    refused edit is put back, and the first gives the 5.00 up again.
+    refused edit is put back, and the 5.00 is drawn from the first again.
     """
     book = _book(tmp_path, DOLLARS, DEPOSIT, 'usd_sold_from_the_deposit_and_the_dollars_bought.txt',
                  'a_cad_bank_charge_on_the_holding_account.txt')
@@ -992,7 +992,7 @@ def test_a_refused_edit_leaves_the_splits_it_removed_reconciled(tmp_path):
     assert reconciled(book) == before
 
 
-def test_the_fee_giving_an_invoice_the_transaction_does_not_collect_is_refused(tmp_path):
+def test_the_fee_stating_an_invoice_the_transaction_does_not_collect_is_refused(tmp_path):
     """E13b: the fee draws on INV-USD-2 while the deposit collects INV-USD-1.
 
     Nothing of INV-USD-2 has been collected, by its lot or by this
@@ -1012,12 +1012,12 @@ def test_the_fee_giving_an_invoice_the_transaction_does_not_collect_is_refused(t
     assert _bases(book) == before
 
 
-def test_a_payment_block_giving_a_transaction_the_import_refused_records_no_payment(tmp_path):
+def test_a_payment_block_stating_a_transaction_the_import_refused_records_no_payment(tmp_path):
     """E15: the transaction is refused, and the invoice's block with it."""
     book = _book(tmp_path)
     text = _exported(book, tmp_path) + '\n' + _without_comments(
         FIXTURES
-        + 'a_usd_deposit_booked_as_the_invoice_it_collected_with_the_fee_giving_no_cost_basis.txt')
+        + 'a_usd_deposit_booked_as_the_invoice_it_collected_with_the_fee_stating_no_cost_basis.txt')
     ledger = tmp_path / 'ledger.txt'
     ledger.write_text(_with_payment(text, 'invoice "INV-USD-1"', INVOICE_PAYMENT))
 

@@ -1,0 +1,36 @@
+# Q-050 E22: 100.00 USD bought into Assets:USD Savings, then 2,720.00 USD
+# arriving in Assets:Wise USD, a 0.72 USD fee out of Wise and a 5.00 USD fee
+# out of Savings, in one transaction, neither fee stating a cost basis.
+#
+# One US dollar account rising while another falls is refused as a transfer
+# sharing a transaction before anything asks which cost basis a spend states:
+# nothing in it says whether the 5.00 left the book or moved into Wise. So it
+# is written as separate transactions, and the refusal offers no arrival net of
+# a fee. (Out of an empty Savings the 5.00 would be a borrowing, not a spend.)
+#
+# Verified by
+# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+2026-08-01 * "Dollars bought into savings"
+	currency.mnemonic: "CAD"
+	Assets:USD Savings 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "140.00"
+	Assets:Chequing -140.00 CAD
+
+2026-08-13 * "Received money, less a fee from each of two accounts"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "380000/272000"
+		value: "3800.00"
+	Assets:Wise USD -0.72 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "101/72"
+		value: "-1.01"
+	Assets:USD Savings -5.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "-7.00"
+	Income:Sales -3800.00 CAD
+	Expenses:Bank charges 8.01 CAD

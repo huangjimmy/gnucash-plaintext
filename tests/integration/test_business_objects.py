@@ -35,7 +35,7 @@ def extract_business_objects(text: str) -> str:
 
 
 def get_invoice_block(exported_biz: str, invoice_id: str) -> str:
-    """Return the exported block for the given invoice ID, or empty string."""
+    """Return the exported block of invoice `invoice_id`, or empty string."""
     for block in exported_biz.split('\n\n'):
         if block.startswith(f'invoice "{invoice_id}"'):
             return block
@@ -43,7 +43,7 @@ def get_invoice_block(exported_biz: str, invoice_id: str) -> str:
 
 
 def get_bill_block(exported_biz: str, bill_id: str) -> str:
-    """Return the exported block for the given bill ID, or empty string."""
+    """Return the exported block of bill `bill_id`, or empty string."""
     for block in exported_biz.split('\n\n'):
         if block.startswith(f'bill "{bill_id}"'):
             return block

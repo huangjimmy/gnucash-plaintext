@@ -2,7 +2,7 @@
 
 Reading an invoice the book already holds, the import pairs the file's lines
 with the book's before it asks whether the file changes anything, and a line
-giving a guid that is no guid is refused there. So the invoice keeps its line.
+stating a guid that is no guid is refused there. So the invoice keeps its line.
 """
 
 from pathlib import Path

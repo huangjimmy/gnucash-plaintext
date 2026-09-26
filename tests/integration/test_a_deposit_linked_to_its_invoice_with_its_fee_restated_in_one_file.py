@@ -2,10 +2,10 @@
 
 The bank writes the deposit and its fee as two transactions stated in US
 dollars, the fee drawing on the deposit's cost basis. An application links
-the deposit to the invoice with the invoice's `payment:` block, giving the
+the deposit to the invoice with the invoice's `payment:` block, stating the
 deposit's transaction and the bank account. Once the deposit pays the
 invoice, its dollars are the invoice's collected dollars, and the fee has to
-draw on the invoice's cost basis: the file gives that, restating the fee.
+draw on the invoice's cost basis: the file states that, restating the fee.
 """
 
 import re
@@ -75,15 +75,15 @@ def test_the_link_alone_is_refused_saying_to_restate_the_fee_in_the_same_file(tm
     assert book.read_bytes() == on_disk
 
 
-def test_the_link_and_the_fee_restated_giving_no_cost_basis_are_refused(tmp_path):
-    """The fee keeps its US dollar split and gives no cost basis: it is a spend refused for that, and the whole file with it."""
+def test_the_link_and_the_fee_restated_stating_no_cost_basis_are_refused(tmp_path):
+    """The fee keeps its US dollar split and states no cost basis: it is a spend refused for that, and the whole file with it."""
     book = _book(tmp_path)
     fee = _block(_exported(book, tmp_path), FEE_HEAD)
-    giving_none = ''.join(line + '\n' for line in fee.splitlines()
-                          if 'cost_basis_split_guid' not in line)
+    stating_none = ''.join(line + '\n' for line in fee.splitlines()
+                           if 'cost_basis_split_guid' not in line)
     on_disk = book.read_bytes()
 
-    done = _import(book, tmp_path, _without_comments(LINK) + '\n' + giving_none)
+    done = _import(book, tmp_path, _without_comments(LINK) + '\n' + stating_none)
 
     assert done.exit_code != 0, done.output
     assert '✗ Rolled back' in done.output
@@ -108,7 +108,7 @@ def test_the_link_and_the_fee_restated_in_one_file_are_accepted(tmp_path):
     assert checked.exit_code == 0 and 'warning' not in checked.output, checked.output
 
 
-def test_three_sales_of_the_deposit_giving_no_cost_basis_are_refused_as_sales(tmp_path):
+def test_three_sales_of_the_deposit_stating_no_cost_basis_are_refused_as_sales(tmp_path):
     """US dollars out of Wise USD, Canadian dollars onto Assets:Due from director: each is a sale, and the refusal says so."""
     book = tmp_path / 'book.gnucash'
     made = _run(CliRunner(), 'import', '--new', str(book), BASE,
@@ -117,7 +117,7 @@ def test_three_sales_of_the_deposit_giving_no_cost_basis_are_refused_as_sales(tm
     on_disk = book.read_bytes()
 
     done = _run(CliRunner(), 'import', str(book),
-                FIXTURES + 'a_usd_deposit_and_three_sales_of_it_giving_no_cost_basis.txt',
+                FIXTURES + 'a_usd_deposit_and_three_sales_of_it_stating_no_cost_basis.txt',
                 '--fx-rates', RATES, '--atomic')
 
     assert done.exit_code != 0, done.output
@@ -131,8 +131,8 @@ def test_three_sales_of_the_deposit_giving_no_cost_basis_are_refused_as_sales(tm
     assert 'cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$' in done.output
 
 
-def test_three_sales_of_the_deposit_each_giving_its_cost_basis_are_imported(tmp_path):
-    """Sales stated in US dollars at the day's rate, each giving the deposit's cost basis, are imported.
+def test_three_sales_of_the_deposit_each_stating_its_cost_basis_are_imported(tmp_path):
+    """Sales stated in US dollars at the day's rate, each stating the deposit's cost basis, are imported.
 
     Each Canadian dollar figure is what the dollars fetched that day, not what
     they cost, and a transaction stated in US dollars has no split that can
@@ -146,7 +146,7 @@ def test_three_sales_of_the_deposit_each_giving_its_cost_basis_are_imported(tmp_
     assert made.exit_code == 0, made.output
 
     done = _run(CliRunner(), 'import', str(book),
-                FIXTURES + 'a_usd_deposit_and_three_sales_of_it_each_giving_its_cost_basis.txt',
+                FIXTURES + 'a_usd_deposit_and_three_sales_of_it_each_stating_its_cost_basis.txt',
                 '--fx-rates', RATES, '--atomic')
 
     assert done.exit_code == 0 and 'Errors:       0' in done.output, done.output
@@ -158,7 +158,7 @@ def test_three_sales_of_the_deposit_each_giving_its_cost_basis_are_imported(tmp_
     assert whole.exit_code == 0, whole.output
 
 
-def test_a_refund_giving_no_cost_basis_is_refused_as_a_refund(tmp_path):
+def test_a_refund_stating_no_cost_basis_is_refused_as_a_refund(tmp_path):
     """50.00 USD out of Wise to the customer, Income:Sales debited: a refund, not an expense."""
     book = _book(tmp_path)
     ledger = tmp_path / 'refund.txt'
@@ -184,7 +184,7 @@ def test_a_loss_a_sale_stated_in_usd_records_on_a_split_of_no_value_is_not_state
                 '--include-business-objects', '--fx-rates', RATES)
     assert made.exit_code == 0, made.output
     ledger = tmp_path / 'sales.txt'
-    ledger.write_text(Path(FIXTURES + 'a_usd_deposit_and_three_sales_of_it_each_giving_its_cost_basis.txt')
+    ledger.write_text(Path(FIXTURES + 'a_usd_deposit_and_three_sales_of_it_each_stating_its_cost_basis.txt')
                       .read_text().replace(
                           '\t\tshare_price: "215/298"\n\t\tvalue: "8.60"\n',
                           '\t\tshare_price: "215/298"\n\t\tvalue: "8.60"\n'
@@ -224,8 +224,9 @@ def test_sales_pending_their_cost_basis_are_imported_drawing_on_nothing(tmp_path
     assert listed.exit_code == 0, listed.output
     assert re.search(r'0e530000000000000000000000000c22\s+Assets:Wise USD\s+\S+ CAD/USD'
                      r'\s+2,720\.00 USD\s+2,720\.00 USD', listed.output), listed.output
-    assert ('3 disposal(s) pending their cost basis, drawing on none until an edit '
-            'gives it: 2,720.00 USD') in listed.output, listed.output
+    assert ('3 disposal(s) pending their cost basis: 2,720.00 USD. No cost basis is drawn '
+            'down for them until an edit states the one each draws on.') in listed.output, \
+        listed.output
     assert '2026-08-13   Assets:Wise USD   0.72 USD   Charges for the deposit' in listed.output
     exported = _exported(book, tmp_path)
     assert exported.count('\t\tcost_basis_split_guid: $pending$\n') == 3, exported
@@ -251,9 +252,9 @@ def test_verifying_the_book_counts_the_pending_sales_and_finds_nothing_wrong(tmp
     checked = _run(CliRunner(), '--verify-integrity', str(book))
 
     assert checked.exit_code == 0, checked.output
-    assert ('checked: no cost basis holds more of a currency than the accounts do, '
-            'beside 3 disposal(s) pending their cost basis: 2,720.00 USD, which drew '
-            'on none') in checked.output, checked.output
+    assert ('checked: no cost basis holds more of a currency than the accounts do. '
+            '3 disposal(s) pending their cost basis, 2,720.00 USD, are counted as already '
+            'disposed of') in checked.output, checked.output
     assert 'checked: the balance sheet as of 2026-08-17 balances' in checked.output
 
 
@@ -287,7 +288,7 @@ def test_a_balance_sheet_drawn_before_a_pending_sale_leaves_it_out(tmp_path):
             '\t\t\t\t\t\tcost_basis_balance: -0.72\n') in page.output, page.output
 
 
-def test_a_pending_sale_given_its_cost_basis_by_an_edit_draws_it_down(tmp_path):
+def test_a_pending_sale_edited_to_state_its_cost_basis_draws_it_down(tmp_path):
     book = _pending_book(tmp_path)
     fee = _block(_exported(book, tmp_path), FEE_HEAD).replace(
         'cost_basis_split_guid: $pending$',
@@ -299,16 +300,16 @@ def test_a_pending_sale_given_its_cost_basis_by_an_edit_draws_it_down(tmp_path):
     listed = _run(CliRunner(), 'fx-balances', str(book))
     assert re.search(r'Assets:Wise USD\s+\S+ CAD/USD\s+2,720\.00 USD\s+2,719\.28 USD',
                      listed.output), listed.output
-    assert ('2 disposal(s) pending their cost basis, drawing on none until an edit '
-            'gives it: 2,719.28 USD') in listed.output, listed.output
+    assert '2 disposal(s) pending their cost basis: 2,719.28 USD.' in listed.output, \
+        listed.output
 
 
 SALE_HEADS = (FEE_HEAD, '2026-08-17 * "Sent money"', '2026-08-17 * "Charges for the transfer"')
 DEPOSIT_S_COST_BASIS = 'cost_basis_split_guid: "0e530000000000000000000000000c22"'
 
 
-def test_every_pending_sale_given_its_cost_basis_leaves_the_book_consistent(tmp_path):
-    """Each sale given the deposit's cost basis by an edit: nothing pending, the cost basis spent to what Wise holds, and every check passes."""
+def test_every_pending_sale_edited_to_state_its_cost_basis_leaves_the_book_consistent(tmp_path):
+    """Each sale edited to draw on the deposit's cost basis: nothing pending, the cost basis spent to what Wise holds, and every check passes."""
     book = _pending_book(tmp_path)
     before = _exported(book, tmp_path)
     decided = '\n'.join(_block(before, head).replace('cost_basis_split_guid: $pending$',
@@ -339,7 +340,7 @@ def test_every_pending_sale_given_its_cost_basis_leaves_the_book_consistent(tmp_
             'realized_gains_not_recorded') in page.output, page.output
 
 
-def test_a_pending_sale_given_a_bill_s_cost_basis_is_refused_and_stays_pending(tmp_path):
+def test_a_pending_sale_edited_to_a_bill_s_cost_basis_is_refused_and_stays_pending(tmp_path):
     book = _pending_book(tmp_path)
     before = _exported(book, tmp_path)
     bill = _posting_of(before, 'Liabilities:Accounts Payable USD -1000.00 USD')
@@ -354,7 +355,7 @@ def test_a_pending_sale_given_a_bill_s_cost_basis_is_refused_and_stays_pending(t
             in _run(CliRunner(), 'fx-balances', str(book)).output)
 
 
-def test_a_pending_sale_given_a_cost_basis_holding_less_is_refused_and_stays_pending(tmp_path):
+def test_a_pending_sale_edited_to_a_cost_basis_holding_less_is_refused_and_stays_pending(tmp_path):
     """INV-USD-1 has not been collected in this book, so its cost basis holds nothing to sell."""
     book = _pending_book(tmp_path)
     before = _exported(book, tmp_path)
@@ -369,7 +370,7 @@ def test_a_pending_sale_given_a_cost_basis_holding_less_is_refused_and_stays_pen
             in _run(CliRunner(), 'fx-balances', str(book)).output)
 
 
-def test_pending_given_on_a_split_bringing_dollars_in_is_refused(tmp_path):
+def test_pending_on_a_split_bringing_dollars_in_is_refused(tmp_path):
     """`$pending$` stands for a disposal's cost basis; on the deposit's own arrival it would be a disposal that took nothing."""
     book = tmp_path / 'book.gnucash'
     made = _run(CliRunner(), 'import', '--new', str(book), BASE,
@@ -386,8 +387,9 @@ def test_pending_given_on_a_split_bringing_dollars_in_is_refused(tmp_path):
 
     assert done.exit_code != 0 and book.read_bytes() == on_disk, done.output
     refused = done.output
-    assert ('the split on Assets:Wise USD gives `cost_basis_split_guid: $pending$`, and '
-            'it is no disposition: it disposes of nothing the book holds or owes') \
+    assert ('the split on Assets:Wise USD has `cost_basis_split_guid: $pending$`, but it '
+            'disposes of nothing the book holds or owes. `$pending$` is only for a '
+            'disposition whose cost basis is not chosen yet. Remove it from this split.') \
         in refused, refused
 
 
@@ -408,9 +410,11 @@ def test_pending_on_a_sale_of_more_than_the_account_holds_is_refused(tmp_path):
     done = _run(CliRunner(), 'import', str(book), str(ledger), '--fx-rates', RATES, '--atomic')
 
     assert done.exit_code != 0 and book.read_bytes() == on_disk, done.output
-    assert ('error: Sent money: the split on Assets:Wise USD gives `cost_basis_split_guid: '
-            '$pending$`, and it disposes of 2710.68 of the 3000.00 USD on it: the rest is '
-            'a borrowing') in done.output, \
+    assert ('error: Sent money: the split on Assets:Wise USD has `cost_basis_split_guid: '
+            '$pending$`, but it disposes of only 2710.68 of its 3000.00 USD. The rest is '
+            'borrowed, taking the account below zero, or moved to another account on the '
+            'same side. `$pending$` is only for a split that disposes of its whole amount. '
+            'State the guid of the cost basis this split draws on instead.') in done.output, \
         done.output
 
 
@@ -431,8 +435,8 @@ def test_a_transfer_dated_before_the_pending_sales_leaves_them_as_they_were_impo
     assert done.exit_code == 0 and 'Errors:       0' in done.output, done.output
     checked = _run(CliRunner(), 'fx-balances', str(book), '--verify-costs')
     assert checked.exit_code == 0, checked.output
-    assert ('3 disposal(s) pending their cost basis, drawing on none until an edit '
-            'gives it: 2,720.00 USD') in checked.output, checked.output
+    assert '3 disposal(s) pending their cost basis: 2,720.00 USD.' in checked.output, \
+        checked.output
 
 
 def test_pending_added_by_an_edit_to_a_sale_s_canadian_dollar_split_is_refused(tmp_path):
@@ -442,7 +446,7 @@ def test_pending_added_by_an_edit_to_a_sale_s_canadian_dollar_split_is_refused(t
                 '--include-business-objects', '--fx-rates', RATES)
     assert made.exit_code == 0, made.output
     sales = _run(CliRunner(), 'import', str(book),
-                 FIXTURES + 'a_usd_deposit_and_three_sales_of_it_each_giving_its_cost_basis.txt',
+                 FIXTURES + 'a_usd_deposit_and_three_sales_of_it_each_stating_its_cost_basis.txt',
                  '--fx-rates', RATES)
     assert sales.exit_code == 0, sales.output
     sale = _block(_exported(book, tmp_path), '2026-08-17 * "Sent money"')
@@ -455,8 +459,9 @@ def test_pending_added_by_an_edit_to_a_sale_s_canadian_dollar_split_is_refused(t
     done = _import(book, tmp_path, edited)
 
     assert done.exit_code != 0 and book.read_bytes() == on_disk, done.output
-    assert ('the split on Assets:Due from director gives `cost_basis_split_guid: '
-            '$pending$`, and it is no disposition') in done.output, done.output
+    assert ('the split on Assets:Due from director has `cost_basis_split_guid: '
+            '$pending$`, but it disposes of nothing the book holds or owes.') in done.output, \
+        done.output
 
 
 def test_pending_added_by_an_edit_to_a_sale_dated_before_any_cost_basis_is_refused(tmp_path):
@@ -473,9 +478,9 @@ def test_pending_added_by_an_edit_to_a_sale_dated_before_any_cost_basis_is_refus
     done = _import(book, tmp_path, edited)
 
     assert done.exit_code != 0 and book.read_bytes() == on_disk, done.output
-    assert ('the split on Assets:USD Bank gives `cost_basis_split_guid: $pending$`, and '
-            'the book keeps no cost basis of the USD it holds opened by 2036-01-10') \
-        in done.output, done.output
+    assert ('the split on Assets:USD Bank has `cost_basis_split_guid: $pending$`, but on '
+            '2036-01-10 the book had no cost basis for the USD it held, so there is no cost '
+            'basis to choose. Remove `$pending$` from this split.') in done.output, done.output
 
 
 def test_pending_added_by_an_edit_to_the_deposit_s_arrival_is_refused(tmp_path):
@@ -490,8 +495,8 @@ def test_pending_added_by_an_edit_to_the_deposit_s_arrival_is_refused(tmp_path):
     done = _import(book, tmp_path, edited)
 
     assert done.exit_code != 0 and book.read_bytes() == on_disk, done.output
-    assert ('the split on Assets:Wise USD gives `cost_basis_split_guid: $pending$`, and it '
-            'is no disposition') in done.output, done.output
+    assert ('the split on Assets:Wise USD has `cost_basis_split_guid: $pending$`, but it '
+            'disposes of nothing the book holds or owes.') in done.output, done.output
 
 
 def test_pending_written_into_the_book_elsewhere_where_it_cannot_stand_is_reported(tmp_path):
@@ -514,8 +519,8 @@ def test_pending_written_into_the_book_elsewhere_where_it_cannot_stand_is_report
     costs = _run(CliRunner(), 'fx-balances', str(book), '--verify-costs')
     whole = _run(CliRunner(), '--verify-integrity', str(book))
 
-    reason = ('the split on Assets:Wise USD gives `cost_basis_split_guid: $pending$`, and it '
-              'is no disposition: it disposes of nothing the book holds or owes')
+    reason = ('the split on Assets:Wise USD has `cost_basis_split_guid: $pending$`, but it '
+              'disposes of nothing the book holds or owes.')
     assert costs.exit_code == 1 and reason in costs.output, costs.output
     assert '3 disposal(s) pending their cost basis' in costs.output, costs.output
     assert whole.exit_code == 1 and reason in whole.output, whole.output
@@ -538,8 +543,8 @@ def test_pending_on_a_split_beside_a_transfer_is_refused(tmp_path):
     done = _run(CliRunner(), 'import', str(book), str(ledger), '--fx-rates', RATES, '--atomic')
 
     assert done.exit_code != 0 and book.read_bytes() == on_disk, done.output
-    assert ('the split on Assets:Wise USD gives `cost_basis_split_guid: $pending$`, and it '
-            'disposes of 40.00 of the 100.00 USD on it') in done.output, done.output
+    assert ('the split on Assets:Wise USD has `cost_basis_split_guid: $pending$`, but it '
+            'disposes of only 40.00 of its 100.00 USD.') in done.output, done.output
 
 
 def test_pending_where_no_cost_basis_is_kept_is_refused(tmp_path):
@@ -564,8 +569,9 @@ def test_pending_where_no_cost_basis_is_kept_is_refused(tmp_path):
     done = _run(CliRunner(), 'import', '--new', str(tmp_path / 'book.gnucash'), str(ledger))
 
     assert ('error: Sell 10.00 USD before any cost basis is kept: the split on '
-            'Assets:USD Bank gives `cost_basis_split_guid: $pending$`, and the book keeps '
-            'no cost basis of the USD it holds') in done.output, done.output
+            'Assets:USD Bank has `cost_basis_split_guid: $pending$`, but on 2036-01-10 the '
+            'book had no cost basis for the USD it held, so there is no cost basis to '
+            'choose. Remove `$pending$` from this split.') in done.output, done.output
 
 
 def test_pending_in_a_book_keeping_no_cost_bases_is_refused(tmp_path):
@@ -615,9 +621,12 @@ def test_pending_in_a_transaction_stating_no_canadian_figure_is_refused(tmp_path
     done = _run(CliRunner(), 'import', '--new', str(tmp_path / 'book.gnucash'), str(ledger))
 
     assert ('error: Repay the second loan, written wholly in US dollars: the split on '
-            'Assets:USD Bank gives `cost_basis_split_guid: $pending$`, and its '
-            'transaction states no CAD figure for all it disposes of') in done.output, \
-        done.output
+            'Assets:USD Bank has `cost_basis_split_guid: $pending$`, but its transaction '
+            'does not record what it disposes of in CAD: either no CAD figure covers all '
+            'of it, or one figure covers it and another split that also draws on a cost '
+            'basis. A pending disposal is taken off the cost bases at its CAD figure. State '
+            'the guid of the cost basis it draws on, or write the transaction in CAD.') \
+        in done.output, done.output
 
 
 def test_pending_written_in_quotes_is_pending_too(tmp_path):
@@ -638,7 +647,7 @@ def test_pending_written_in_quotes_is_pending_too(tmp_path):
     assert _exported(book, tmp_path).count('\t\tcost_basis_split_guid: $pending$\n') == 3
 
 
-def test_a_sale_given_its_cost_basis_and_made_pending_again_gives_it_back(tmp_path):
+def test_a_sale_edited_to_its_cost_basis_and_made_pending_again_puts_the_draw_back(tmp_path):
     book = _pending_book(tmp_path)
     fee = _block(_exported(book, tmp_path), FEE_HEAD)
     decided = fee.replace('cost_basis_split_guid: $pending$', DEPOSIT_S_COST_BASIS)
@@ -775,7 +784,7 @@ def _the_fee_onto_the_invoice(before):
     return _the_fee_drawing_on(before, _the_invoice_s_posting_split(before))
 
 
-def test_the_link_giving_the_fee_s_transaction_is_refused(tmp_path):
+def test_the_link_stating_the_fee_s_transaction_is_refused(tmp_path):
     book = _book(tmp_path)
     before = _exported(book, tmp_path)
     link = _without_comments(LINK).replace(
@@ -785,7 +794,7 @@ def test_the_link_giving_the_fee_s_transaction_is_refused(tmp_path):
     _refused(book, tmp_path, link + '\n' + _the_fee_onto_the_invoice(before))
 
 
-def test_the_link_giving_another_bank_account_is_refused(tmp_path):
+def test_the_link_stating_another_bank_account_is_refused(tmp_path):
     book = _book(tmp_path)
     before = _exported(book, tmp_path)
     link = _without_comments(LINK).replace(
@@ -794,8 +803,8 @@ def test_the_link_giving_another_bank_account_is_refused(tmp_path):
     _refused(book, tmp_path, link + '\n' + _the_fee_onto_the_invoice(before))
 
 
-def test_the_link_giving_the_deposit_s_bank_split_is_refused(tmp_path):
-    """`txn_split_guid:` gives the split that settles the invoice; the bank split is what the payment brings in."""
+def test_the_link_stating_the_deposit_s_bank_split_is_refused(tmp_path):
+    """`txn_split_guid:` states the split that settles the invoice; the bank split is what the payment brings in."""
     book = _book(tmp_path)
     before = _exported(book, tmp_path)
     link = _without_comments(LINK).replace(

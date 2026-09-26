@@ -135,7 +135,7 @@ def test_splits_follow_the_renamed_account(tmp_path):
     assert 'Assets:Checking -50.00 CAD' in exported
 
 
-# ── Failure cases: each must give an explicit, detailed message and leave the
+# ── Failure cases: each must print an explicit, detailed message and leave the
 #    book untouched. ─────────────────────────────────────────────────────────
 
 def test_malformed_guid_is_rejected(tmp_path):

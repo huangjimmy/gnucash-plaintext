@@ -1,6 +1,6 @@
 # Q-042 — Print the balance sheet and income statement as plaintext through a customized GnuCash report, in the currency the book is kept in
 
-Every figure below was measured by running GnuCash itself. The report figures were measured on all eleven supported builds — 3.4, 3.8, 4.4, 4.8, 4.13, 5.5, 5.10, 5.13, 5.14, 5.15 and 5.16. Where a row gives fewer builds, those are the builds it was measured on.
+Every figure below was measured by running GnuCash itself. The report figures were measured on all eleven supported builds — 3.4, 3.8, 4.4, 4.8, 4.13, 5.5, 5.10, 5.13, 5.14, 5.15 and 5.16. Where a row lists fewer builds, those are the builds it was measured on.
 
 ## What it should do
 
@@ -8,8 +8,8 @@ A multi-currency book needs a balance sheet and an income statement a reader can
 
 - `balance-sheet`, `income-statement` and `report` print the statements as a plaintext block, through a customized GnuCash report: GnuCash's Balance Sheet and Income Statement reports, written to output this project's own format rather than a text rendering of their HTML page. GnuCash runs the report, adds up every figure, and converts it through the book's price database at the report's own price source. A user can be confident that no figure on the page is calculated by gnucash-plaintext.
 - The statements are in the currency the book is kept in: a book kept in HKD is printed in HK$, with its USD and CAD converted into HKD by GnuCash.
-- `--output-format html` and `pdf` give the page of GnuCash's Balance Sheet or Income Statement report as GnuCash ships it.
-- A rates file or a prices file gives prices for one run, and GnuCash's report prices from them. A rate may be exact, as a fraction.
+- `--output-format html` and `pdf` print the page of GnuCash's Balance Sheet or Income Statement report as GnuCash ships it.
+- A rates file or a prices file lists prices for one run, and GnuCash's report prices from them. A rate may be exact, as a fraction.
 
 ## The page it should print
 
@@ -42,7 +42,7 @@ The page is a plaintext block, the format this tool reads and writes everywhere 
 
 The comment lines are written by the report itself, so a reader meeting a block has the distinction in front of them; `#`, `;` and `;;` all open a comment, and anything reading the block passes over them.
 
-- **The directive** is the date the block is as of, then which statement it is: `balance-sheet` or `income-statement`. A balance sheet's date is the date it is drawn at; an income statement's is the day its period starts, and its `end:` key gives the day it ends, because a period needs both. ISO, always, because `qof-print-date` follows the locale of whoever ran the command (CLAUDE.md finding 15).
+- **The directive** is the date the block is as of, then which statement it is: `balance-sheet` or `income-statement`. A balance sheet's date is the date it is drawn at; an income statement's is the day its period starts, and its `end:` key states the day it ends, because a period needs both. ISO, always, because `qof-print-date` follows the locale of whoever ran the command (CLAUDE.md finding 15).
 - **An account is a line**: its full path, its amount, its commodity — and the line is what that account **itself** holds, which is what GnuCash's own page reports. Measured on 5.10, a brokerage holding 3,000.00 USD with a share account under it prints `Brokerage $3,000.00 C$4,200.00` and `AMZN 10 AMZN C$3,640.00`, with `Total Assets C$21,340.00` a row of its own. Reading a parent's *recursive* balance onto its line instead — which this page did first — printed `Assets:Brokerage 7840.00 CAD`, a figure on no row of GnuCash's page, and lost both the US dollars the account holds and the price they were valued at; where the book priced nothing, the same line read `0.00 CAD` for real money. There are no section headings, because the path on every line already says which section it is in.
 - **A section's total is a key**, since no account holds it: `total_assets`, `total_liabilities` and `total_equity` on the balance sheet, and `total_revenue` and `total_expenses` on the income statement. `total_equity` comes after the retained earnings, the trading gains and the gain figures, and includes the retained earnings, the trading gains and the unrealized total, as GnuCash's `Total Equity` row does. Q-043 divided the one gain figure into the realized and unrealized, FX and non-FX items, and the realized figures are stated beside the others and added into nothing — they are inside `retained_earnings` already. A section with no accounts still states its total, as GnuCash prints `Total Liabilities C$0.00`. There is no trading section on the income statement: GnuCash's own selects income and expense accounts and nothing else (`(list ACCT-TYPE-INCOME ACCT-TYPE-EXPENSE)` in `income-statement.scm` on 3.8 and 5.10), so a book's trading gains reach the reader through the balance sheet's `trading_gains` key.
 - **Every account in the book is listed**, however deep. GnuCash's statements default `Accounts / Levels of Subaccounts` to 3 and fold anything deeper into its parent: measured on 5.10, a book whose `Assets:Bank:Chequing` holds 300.00 CAD with 700.00 in `Assets:Bank:Chequing:Payroll` prints one row, `Chequing C$1,000.00`, and no `Payroll` row. On a column page that is a reading convenience; in a block it is an account that does not appear, beside a line stating its child's money as its own. The block sets the depth to the tree's own.
@@ -178,13 +178,13 @@ Both kinds of gain are on the balance sheet at once, by different routes. A gain
 
 **An account left holding nothing is left off**, which is this page's choice and not GnuCash's. That is the account the period never touched, and equally the account whose entries cancel each other out exactly — a receivable collected in full within the period is off the page as surely as one nobody billed. An account holding money the book cannot price stays on it, stating what it holds beside `value: "0.00"`, because it holds the money whatever the valuation comes to. With its shipped defaults — `Include accounts with zero total balances` on — GnuCash's own page prints such an account with a zero figure: measured on 5.10, its income statement for the year ending 2026-03-31 shows `Realized FX Gains`, `Realized Gains` and `Interest`, none of which that year touched. A line for one states nothing twice over: the figure is zero, and an empty balance knows no commodity, so a US dollar account would read `0.00 CAD` — a claim about the account that is false. A column page can carry such a row to line a heading up; a block is read by a program. So the block's year ending 2026-03-31 has no `Income:Realized FX Gains` and no `Expenses:Interest` line.
 
-`report <book> income-statement balance-sheet` writes both blocks to one page, in the order the statements are given, separated by a blank line.
+`report <book> income-statement balance-sheet` writes both blocks to one page, in the order the command lists the statements, separated by a blank line.
 
 ## What was measured
 
 ### GnuCash's reports run through the report engine `print-invoice` already uses
 
-`services/gnucash_report.py` renders GnuCash's invoice report through Guile. The same setup renders GnuCash's Balance Sheet and Income Statement reports (`what_gnucash_own_balance_sheet_and_income_statement_give_probe.py`).
+`services/gnucash_report.py` renders GnuCash's invoice report through Guile. The same setup renders GnuCash's Balance Sheet and Income Statement reports (`what_gnucash_own_balance_sheet_and_income_statement_print_probe.py`).
 
 | | GnuCash 3.4, 3.8 | GnuCash 4.4 and later |
 |---|---|---|
@@ -193,7 +193,7 @@ Both kinds of gain are on the balance sheet at once, by different routes. A gain
 | Income Statement template guid | `0b81a3bdfd504aff849ec2e8630524bc` | the same |
 | options the commands set | `General / Balance Sheet Date`; `General / Start Date` and `End Date`; `Commodities / Report's currency`; `Commodities / Price Source` | the same option names |
 
-On the book above, every build gives the same figures: as of 2026-12-31, USD Bank 10,621.60 CAD, AMZN 4,771.20 CAD and total assets 38,532.80 CAD, with net income 9,129.60 CAD for that calendar year and 5,150.00 CAD for the fiscal year ending 2026-03-31.
+On the book above, every build prints the same figures: as of 2026-12-31, USD Bank 10,621.60 CAD, AMZN 4,771.20 CAD and total assets 38,532.80 CAD, with net income 9,129.60 CAD for that calendar year and 5,150.00 CAD for the fiscal year ending 2026-03-31.
 
 ### A customized report may output plain text
 
@@ -203,7 +203,7 @@ What such a report can read from GnuCash:
 
 | | where it was measured |
 |---|---|
-| GnuCash's account table gives each row `account-bal`, `recursive-bal`, `display-depth`, `row-type` and `account-name` | 3.4, 3.8, 5.10 |
+| GnuCash's account table holds, for each row, `account-bal`, `recursive-bal`, `display-depth`, `row-type` and `account-name` | 3.4, 3.8, 5.10 |
 | commodity collectors take `'add`, `'merge`, `'minusmerge` and `'format` | 3.4, 5.10 |
 | `gnc:collector+` | absent on 3.4; present on 3.8, 4.4 and 5.10 |
 | the Balance Sheet's and Income Statement's option names | the same on 3.4, 3.8, 4.4 and 5.10 |
@@ -218,7 +218,7 @@ Both reports have an option `Commodities / Price Source`, and both default it to
 | 3.4, 3.8, 4.4 | `average-cost`, `weighted-average`, `pricedb-latest`, `pricedb-nearest` |
 | 4.8 and later | the same, and `pricedb-before` ("Last up through report date") |
 
-GnuCash 3.4 to 4.13 give each choice as a vector whose first element is its name, and 5.x lists them through the option itself.
+GnuCash 3.4 to 4.13 return each choice as a vector whose first element is its name, and 5.x lists them through the option itself.
 
 **A statement is printed from the choices that read the price database** — `pricedb-nearest`, `pricedb-latest` and, from 4.8, `pricedb-before` — so the `share_price:` on a line is a price the book records and a reader can find in it. A `--price-source` outside that list is refused, with the choices listed. What a purchase cost is on its own split, as `share_price:` and `value:`, and what the book still holds at cost is what `fx-balances` reports.
 
@@ -251,54 +251,54 @@ On a book kept in HKD that also holds USD and CAD — top-level Assets and Equit
 
 So GnuCash's report must always be told the currency, and gnucash-plaintext has to find the book's currency itself.
 
-### GnuCash's account conversion calls do not give its reports' figures
+### GnuCash's account conversion calls do not return its reports' figures
 
-`xaccAccountGetBalanceAsOfDateInCurrency` exists on every build, and does not give what GnuCash's own report gives: on 3.4, 3.8 and 4.4 it prices at the latest price whatever the date is asked for, and from 4.8 at the last price up to that date, where the report's default is the price nearest in time — which may be a later one. On a book holding several prices of a pair the three answers differ, and only the report's is what GnuCash shows a user, so a report is what the commands run (`which_calls_convert_a_balance_to_another_currency_probe.py`, `what_gnucash_currency_conversion_calls_give_probe.py`).
+`xaccAccountGetBalanceAsOfDateInCurrency` exists on every build, and does not return what GnuCash's own report prints: on 3.4, 3.8 and 4.4 it prices at the latest price whatever the date is asked for, and from 4.8 at the last price up to that date, where the report's default is the price nearest in time — which may be a later one. On a book holding several prices of a pair the three answers differ, and only the report's is what GnuCash shows a user, so a report is what the commands run (`which_calls_convert_a_balance_to_another_currency_probe.py`, `what_gnucash_currency_conversion_calls_return_probe.py`).
 
 ## Decisions
 
 ### The book's currency
 
-The first of these that gives one:
+The first of these that states one:
 
 1. `--currency HKD` on the command;
 2. the `company` block's custom key `base_currency: "HKD"`, kept in the book with the block's other custom keys;
 3. the currency of the book's top-level accounts, when every top-level account held in a currency is held in the same one. Accounts beneath them may hold any currency.
 
-Where none of them gives one — no key, and top-level accounts in more than one currency or in none — the command is refused, and the refusal says how to state the currency. A currency GnuCash does not know is refused as well.
+Where none of them states one — no key, and top-level accounts in more than one currency or in none — the command is refused, and the refusal says how to state the currency. A currency GnuCash does not know is refused as well.
 
 ### Every figure comes from a GnuCash report
 
-- `--output-format text`, the default, is printed by two customized GnuCash reports in `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm`, which the package ships as package data, "Balance Sheet (plain text)" and "Income Statement (plain text)". Each is written from GnuCash's `balance-sheet.scm` or `income-statement.scm`: registered with `gnc:define-report`, given GnuCash's own report's options, making the same GnuCash calls for every figure, and returning its page as plain text.
+- `--output-format text`, the default, is printed by two customized GnuCash reports in `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm`, which the package ships as package data, "Balance Sheet (plain text)" and "Income Statement (plain text)". Each is written from GnuCash's `balance-sheet.scm` or `income-statement.scm`: registered with `gnc:define-report`, with GnuCash's own report's options, making the same GnuCash calls for every figure, and returning its page as plain text.
 - The report file is package data of `infrastructure.gnucash`, so an installed package carries it. A wheel built from the tree and installed outside it printed the plaintext balance sheet on 5.10, with no source folder on the import path.
 - `--output-format html` writes the page of GnuCash's Balance Sheet or Income Statement report as GnuCash ships it, and `pdf` prints that page through WebKit, as `print-invoice` prints an invoice.
 - `Report's currency` is always set, to the book's currency.
-- `Price Source` is GnuCash's own default unless `--price-source` gives one of the choices the build offers. A choice the build does not offer is refused, and the refusal lists the ones it does.
+- `Price Source` is GnuCash's own default unless `--price-source` is one of the choices the build offers. A choice the build does not offer is refused, and the refusal lists the ones it does.
 
-### Rates and prices given in a file
+### Rates and prices listed in a file
 
 - `--fx-rates` and `--prices` are added to the book's price database for the run and never saved, and GnuCash's report prices from them.
 - A rate is a price of a currency in the report's currency. `USD: 1.40` is USD in the report's currency. `USD/HKD` states both currencies, and is refused where HKD is not the report's currency.
 - A rate or a price may be a fraction, `HKD: 2/11`, as `value:` in a `price` block may.
-- A price with no date is added at the end of each day a statement of the run is for. A dated price is added at the time GnuCash gives its date, as a `price` block with a date is.
-- A security's price with no currency is in the currency of the book's own prices of that security, or, where the book has none, the currency of the transactions that hold it. Where that is more than one currency, the file has to give it, as `AMZN/USD: 250`.
+- A price with no date is added at the end of each day a statement of the run is for. A dated price is added at the time GnuCash stores for its date, as a `price` block with a date is.
+- A security's price with no currency is in the currency of the book's own prices of that security, or, where the book has none, the currency of the transactions that hold it. Where that is more than one currency, the file has to state it, as `AMZN/USD: 250`.
 
 ## Tests
 
 - `tests/integration/test_the_currency_a_book_is_kept_in.py`: each source of the book's currency, the order they are tried in, and each refusal.
-- `tests/integration/test_the_statements_are_printed_by_customized_gnucash_reports.py`: the block a statement is written as — its directive, its account lines found by path, the split keys under an account held in another commodity, and the block's own keys; the CAD book of one fiscal year above, whose figures are those GnuCash's reports give; a book kept in HKD that holds USD and CAD, whose statements are printed in HK$ with the USD and CAD converted; the HTML page; the PDF page read back as text; `--currency`; a net loss and retained losses; a book that uses trading accounts; a book with no accounts; `report`, which writes a block per statement.
+- `tests/integration/test_the_statements_are_printed_by_customized_gnucash_reports.py`: the block a statement is written as — its directive, its account lines found by path, the split keys under an account held in another commodity, and the block's own keys; the CAD book of one fiscal year above, whose figures are those GnuCash's reports print; a book kept in HKD that holds USD and CAD, whose statements are printed in HK$ with the USD and CAD converted; the HTML page; the PDF page read back as text; `--currency`; a net loss and retained losses; a book that uses trading accounts; a book with no accounts; `report`, which writes a block per statement.
 - `tests/unit/test_every_file_in_a_shipped_package_is_shipped.py`: every file inside a package the wheel ships is matched by `package-data`, the report file included. The suite installs the project editable, which reads the source folder, so no other test can see a file the wheel leaves out.
-- `tests/integration/test_a_rates_file_prices_gnucash_reports_for_the_run_only.py`: a rates file and a prices file change the figures GnuCash's report gives and leave the book's prices unchanged; dated rates, fractions, a same-day rate, refusals; `--price-source`.
-- `tests/integration/test_reports.py`, `test_report_command_arguments.py`, `test_cli_income_statement.py`, `test_balance_sheet_account_types.py`: the commands' arguments and every account type, against the figures GnuCash's reports give.
+- `tests/integration/test_a_rates_file_prices_gnucash_reports_for_the_run_only.py`: a rates file and a prices file change the figures GnuCash's report prints and leave the book's prices unchanged; dated rates, fractions, a same-day rate, refusals; `--price-source`.
+- `tests/integration/test_reports.py`, `test_report_command_arguments.py`, `test_cli_income_statement.py`, `test_balance_sheet_account_types.py`: the commands' arguments and every account type, against the figures GnuCash's reports print.
 
 ## Probes
 
 | probe | what it measures |
 |---|---|
-| `tests/research/what_gnucash_own_balance_sheet_and_income_statement_give_probe.py` | GnuCash's Balance Sheet and Income Statement reports as GnuCash ships them, on the book above: their options, and the pages they render |
+| `tests/research/what_gnucash_own_balance_sheet_and_income_statement_print_probe.py` | GnuCash's Balance Sheet and Income Statement reports as GnuCash ships them, on the book above: their options, and the pages they render |
 | `tests/research/which_price_sources_the_reports_offer_probe.py` | the `Price Source` choices each report offers |
 | `tests/research/a_rates_file_as_prices_probe.py` | whether a price added for the run is the one GnuCash's Balance Sheet report uses, and whether the book keeps it |
 | `tests/research/what_the_balance_sheet_prints_for_a_book_using_trading_accounts_probe.py` | what GnuCash's Balance Sheet report and the plaintext page print for a book whose "Use Trading Accounts" option is on |
 | `tests/research/what_currency_gnucash_says_a_book_is_kept_in_probe.py` | what GnuCash says a book's currency is, for a book kept in HKD that holds USD and CAD |
 | `tests/research/which_calls_convert_a_balance_to_another_currency_probe.py` | which currency conversion calls each build has |
-| `tests/research/what_gnucash_currency_conversion_calls_give_probe.py` | what those calls give on the book above |
+| `tests/research/what_gnucash_currency_conversion_calls_return_probe.py` | what those calls return on the book above |

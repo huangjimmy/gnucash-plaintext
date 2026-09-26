@@ -1,4 +1,4 @@
-"""Probe: what time the register gives the price it records when a stock purchase is entered.
+"""Probe: what time the register stores on the price it records when a stock purchase is entered.
 
 Drives GnuCash's own register code, the part that runs under the ledger
 window: gnc_ledger_display_simple on a stock account, the cursor moved onto

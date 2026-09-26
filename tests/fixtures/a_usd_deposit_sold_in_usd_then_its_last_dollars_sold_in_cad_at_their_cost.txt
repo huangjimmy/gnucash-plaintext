@@ -1,5 +1,5 @@
 # Q-053: a bank statement's 2,720.00 USD deposit and three lines after it,
-# each giving the deposit's cost basis. The first two are stated in US
+# each stating the deposit's cost basis. The first two are stated in US
 # dollars as the bank writes them: 0.72 for 1.00 CAD, and 2,710.68 for
 # 3,758.36 CAD, dollars that cost 3,778.15, so the second loses 19.79 that
 # no split of it can record. The last, 8.60 USD, is written in CAD, the way

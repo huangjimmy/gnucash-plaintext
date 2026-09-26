@@ -1,7 +1,7 @@
 """Money on a receivable that belongs to no customer is listed by `find-prepayments`.
 
 GnuCash's register lets a split sit on Accounts Receivable in no lot, in a
-transaction that gives no owner either: a deposit entered against the
+transaction that has no owner either: a deposit entered against the
 receivable before anyone knows whose it is. Such money is no customer's
 credit and pays no invoice, and it is still on the receivable. Measured on
 5.10, nothing said so: `find-prepayments` answered "No pre-payment credits
@@ -9,9 +9,9 @@ found" and `find-orphan-payments` listed nothing.
 
 So `find-prepayments` lists it in a section of its own, for the whole book
 only, since it belongs to nobody a filter could select: the loose figure as
-the account holds it, and how to give it an owner.
+the account holds it, and how to attach an owner to it.
 
-A loose split on a transaction that does give an owner is not this. An
+A loose split on a transaction that does have an owner is not this. An
 unposted invoice's orphan read back from an export is exactly that shape
 (CLAUDE.md finding 10), and `find-orphan-payments` lists it under its owner.
 """
@@ -85,8 +85,8 @@ def test_a_split_of_nothing_is_not_listed(tmp_path):
 def _a_settlement_taken_out_of_the_lot_an_unpost_left(tmp_path):
     """An unposted invoice's settlement, taken out of its lot in View → Lots.
 
-    The unpost marked it. In no lot, neither the lot nor the transaction gives
-    an owner any more, and the invoice the mark gives is all that does.
+    The unpost marked it. In no lot, neither the lot nor the transaction has
+    an owner any more, and the invoice the mark holds is all that does.
     """
     import ctypes
 
@@ -133,7 +133,7 @@ def test_a_settlement_an_unpost_left_in_no_lot_is_its_invoices_customers(tmp_pat
 
 
 def test_one_whose_unposted_invoice_is_deleted_belongs_to_nobody(tmp_path):
-    """With the invoice gone, nothing gives an owner, so it is listed as nobody's."""
+    """With the invoice gone, nothing has an owner, so it is listed as nobody's."""
     book = _a_settlement_taken_out_of_the_lot_an_unpost_left(tmp_path)
     deleted = _run('delete-invoices', book, 'INV-001')
     assert deleted.exit_code == 0, deleted.output
@@ -146,7 +146,7 @@ def test_one_whose_unposted_invoice_is_deleted_belongs_to_nobody(tmp_path):
     assert NO_ORPHAN in orphans.output, orphans.output
 
 
-def test_giving_it_an_owner_makes_it_that_customers_credit(tmp_path):
+def test_attaching_an_owner_to_it_makes_it_that_customers_credit(tmp_path):
     book = _a_deposit_nobody_owns(tmp_path)
     _imported(book, CUSTOMER, '--include-business-objects')
     text = Path(DEPOSIT).read_text()

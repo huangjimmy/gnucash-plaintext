@@ -10,7 +10,7 @@ book has really lost money.
 
 A reader cannot tell those apart from the number, which is why the page prints
 what the number is made of rather than what it means. Beneath the key each
-commodity gives the splits GnuCash summed and the accounts holding it, so the
+commodity lists the splits GnuCash summed and the accounts holding it, so the
 subtraction can be followed; the page states no verdict on it. These hold what
 it prints, scenario by scenario.
 
@@ -19,7 +19,7 @@ balancing amount alone.** Where it is 0.00 GnuCash has counted nothing twice,
 and where it equals `unrealized_gains_fx` it agrees with the cost bases exactly
 — both of those are answered without asking what was disposed of. Past them, a
 book that has realized something is one whose gain GnuCash is counting a second
-time. Two books here give a balancing amount equal to their realized loss — the
+time. Two books here have a balancing amount equal to their realized loss — the
 one that spent every dollar and the one that kept a thousand back — and in each
 the two figures disagree, which is what says so.
 """
@@ -151,12 +151,12 @@ def test_every_dollar_spent_at_the_rate_they_left_at(tmp_path):
     The book holds no US dollars at all. Its holding is 0.00 USD worth 0.00
     CAD, so the figure is the 3,791.14 CAD the disposal was stated at, less
     2,720 dollars that have already left, valued at whatever year-end rate this
-    sheet carries — measured, the same book gives −152.86 at 1.45 and 527.14 at
+    sheet carries — measured, the same book states −152.86 at 1.45 and 527.14 at
     1.2, moving by exactly 2,720 times the change in that rate. The agreement at
     this one rate is arithmetic falling out, not a meaning.
 
     So the page states the subtraction rather than a verdict on it: the
-    commodity groups beneath the key give the splits GnuCash summed and the
+    commodity groups beneath the key list the splits GnuCash summed and the
     accounts holding each commodity, and a reader who wants to know whether
     this figure is a gain already taken reads it against `realized_gains_fx`
     printed above. Nothing here tells them what to conclude, because the same

@@ -36,7 +36,7 @@ def _hyphenate(guid32: str) -> str:
 
 
 def _list_money_nobody_owns(loose) -> None:
-    """The amounts on a receivable or payable in no lot, and how to give each an owner."""
+    """The amounts on a receivable or payable in no lot, and how to state each one's owner."""
     if not loose:
         return
     n = len(loose)
@@ -51,8 +51,8 @@ def _list_money_nobody_owns(loose) -> None:
         click.echo(f'      guid: {_hyphenate(each.tx_guid)}')
     click.echo('')
     click.echo('None of it is a credit: it is in no lot and has no owner, so no')
-    click.echo('invoice or bill can use it. Give it its owner with')
-    click.echo('`lot_owner: customer:<id>` (or `vendor:<id>`) on its split and')
+    click.echo('invoice or bill can use it. To make it a credit, state its owner')
+    click.echo('with `lot_owner: customer:<id>` (or `vendor:<id>`) on its split and')
     click.echo('`import --strategy update`, or move it to the account it belongs on.')
 
 
@@ -104,7 +104,7 @@ def find_prepayments(gnucash_file, customer_id, vendor_id):
     # A credit lot no owner can be read for — not from the lot, not through
     # GnuCash, not from the transaction's `owner:` line. GnuCash's View → Lots
     # makes one ("New Lot" attaches no owner), so it is a state of the book to
-    # say, with how to give it an owner. It is exactly what the listing passes
+    # say, with how to state its owner. It is exactly what the listing passes
     # over, so the warning and the listing cannot disagree about a credit.
     if ownerless:
         n = len(ownerless)
@@ -117,7 +117,7 @@ def find_prepayments(gnucash_file, customer_id, vendor_id):
             click.echo(f'   • {acct}  {mnem} {money_text(amount, unit)}', err=True)
         click.echo('   No invoice or bill can spend a credit nobody owns, and an export',
                    err=True)
-        click.echo('   writes no `open_prepayment:` for it. Give it its owner with',
+        click.echo('   writes no `open_prepayment:` for it. State its owner with',
                    err=True)
         click.echo('   `lot_owner: customer:<id>` (or `vendor:<id>`) on its split and',
                    err=True)

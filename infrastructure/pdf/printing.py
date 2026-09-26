@@ -43,7 +43,7 @@ _PROJECT = Path(__file__).resolve().parent.parent.parent
 #: **0.42–0.60 seconds**, and two hundred pages in one combined print
 #: take 2.1. So this is a ceiling for something being wrong rather than a
 #: limit any page meets.
-GIVE_UP_AFTER = 90
+STOP_WAITING_AFTER = 90
 
 #: And how long *arranging a display* may take, across every attempt rather
 #: than each: the server is started before the command above exists, so that
@@ -119,7 +119,7 @@ def _speaking_english(reader: dict) -> dict:
 
 
 def _ran(command: list, env: dict):
-    """The child, bounded by `GIVE_UP_AFTER` and answered for in a sentence.
+    """The child, bounded by `STOP_WAITING_AFTER` and answered for in a sentence.
 
     In a session of its own, so a timeout can take down what the child
     started as well as the child: killing `xvfb-run` alone leaves the `Xvfb`
@@ -132,7 +132,7 @@ def _ran(command: list, env: dict):
                                cwd=str(_PROJECT), env=env,
                                start_new_session=True)
     try:
-        out, err = started.communicate(timeout=GIVE_UP_AFTER)
+        out, err = started.communicate(timeout=STOP_WAITING_AFTER)
     except subprocess.TimeoutExpired:  # pragma: no cover - see below
         # Ninety seconds against a measured 0.42–0.60 per page, so nothing a
         # test can wait for. Reached by a display that answers and never
@@ -145,7 +145,7 @@ def _ran(command: list, env: dict):
             started.wait(timeout=WAIT_FOR_A_SERVER_TO_DIE)
         raise PdfEngineUnavailableError(
             f'laying the page out did not finish within '
-            f'{GIVE_UP_AFTER} seconds, so the print was given up on. WebKit '
+            f'{STOP_WAITING_AFTER} seconds, so the print was stopped. WebKit '
             f'needs a display, and a display that never comes up — a stale '
             f'DISPLAY naming a server that is gone, an X server that will '
             f'not start — is what takes this long') from None
@@ -280,11 +280,11 @@ def a_display():
     server = guarded = None
     try:
         tried = 0
-        give_up_at = time.monotonic() + STOP_LOOKING_FOR_A_DISPLAY_AFTER
+        stop_looking_at = time.monotonic() + STOP_LOOKING_FOR_A_DISPLAY_AFTER
         for number in range(99, 130):
             if Path(f'/tmp/.X{number}-lock').exists():
                 continue
-            if time.monotonic() > give_up_at:
+            if time.monotonic() > stop_looking_at:
                 break
             tried += 1
             server, guarded = started_on(number)
@@ -319,8 +319,8 @@ def a_display():
         yield [], env
     finally:
         server.terminate()
-        # Suppressed, and last: whatever the body raised is the answer to
-        # give the reader, and a server that will not die must not replace it
+        # Suppressed, and last: whatever the body raised is what the reader
+        # must be told, and a server that will not die must not replace it
         # — nor leave the cookie behind.
         with contextlib.suppress(subprocess.TimeoutExpired):
             server.wait(timeout=WAIT_FOR_A_SERVER_TO_DIE)
@@ -382,7 +382,7 @@ def laid_out_by_webkit(html: str, fmt: str = 'pdf', on=None) -> bytes:
         # of what a reader is told.
         raise PdfEngineUnavailableError(
             'WebKit could not lay the page out: '
-            + (done.stderr.strip() or 'no reason given')
+            + (done.stderr.strip() or 'WebKit printed no reason')
             + '. A printed page is laid out by WebKit, the engine GnuCash '
               'itself prints with. A DISPLAY naming a server that is gone '
               'fails here too, the bindings checking it as they are imported '

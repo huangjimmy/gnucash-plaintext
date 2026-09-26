@@ -1,0 +1,14 @@
+# A customer's prepayment whose `lot_owner:` states an ID and no kind.
+#
+# `lot_owner:` says the split is an owner's credit and whose, as
+# `customer:ID` or `vendor:ID`. `C001` alone says neither which kind of owner
+# nor, so, which owner, and nothing can put the split in a lot of theirs.
+#
+# What this fixture produces: nothing. The import refuses the transaction.
+#
+# Verified by tests/integration/test_a_lot_owner_that_is_no_customer_or_vendor_is_refused.py.
+2026-01-05 * "Prepayment with an owner of no kind"
+	currency.mnemonic: "CAD"
+	Assets:Bank 50.00 CAD
+	Assets:Accounts Receivable -50.00 CAD
+		lot_owner: C001

@@ -121,7 +121,7 @@ def test_a_display_xauth_makes_no_cookie_for_is_still_drawn_on(tmp_path, monkeyp
     assert (tmp_path / 'bill.pdf').read_bytes().startswith(b'%PDF')
 
 
-def test_a_server_that_never_makes_its_socket_is_given_up_on_and_said(tmp_path, monkeypatch):
+def test_a_server_that_never_makes_its_socket_is_abandoned_and_said(tmp_path, monkeypatch):
     """An `Xvfb` that runs and never listens is tried number after number, for
     as long as the search is allowed, and then the print says no server would
     start, and takes the cookies it made with it."""

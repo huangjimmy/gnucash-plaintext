@@ -38,7 +38,7 @@ def the_options_both_take(verb: str, to_help: str):
     reading "peel this payment" has been handed the other command's manual.
     `to_help` is the one option whose help genuinely differs: `unlink` says
     what the figure does, `unapply-payment` says what kind of account people
-    usually give it.
+    usually move it to.
     """
     options = [
         click.argument('gnucash_file', type=click.Path(exists=True)),
@@ -108,7 +108,7 @@ def take_the_payment_off(gnucash_file: str, record_id: str,
     try:
         to_account = find_account(repo.book.get_root_account(), to_account_name)
         # Not the root, which `find_account` answers for "" and for "Root
-        # Account": it holds the tree and no commodity, so a split given it
+        # Account": it holds the tree and no commodity, so a split moved to it
         # failed deep in the figures with a traceback.
         if to_account is None or to_account.is_root():
             raise click.ClickException(

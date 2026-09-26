@@ -182,7 +182,7 @@ def test_selling_against_one_basis_books_the_gain_and_lowers_that_basis(tmp_path
 
 def test_a_sale_can_spread_across_several_bases(tmp_path):
     """150 USD sold as 100 from one cost basis and 50 from another: two USD splits,
-    one giving each, and both balances fall by what that sale took."""
+    one stating each, and both balances fall by what that sale took."""
     runner = CliRunner()
     book, bought, borrowed = _buy_and_borrow_book(runner, tmp_path)
 
@@ -501,7 +501,7 @@ def test_a_settlement_arriving_as_base_currency_opens_no_second_basis(tmp_path):
 
 
 def test_a_refused_transaction_leaves_every_basis_where_it_was(tmp_path):
-    """A file that gives a cost basis and is then refused moves nothing.
+    """A file that states a cost basis and is then refused moves nothing.
 
     The transaction here picks a cost basis for 40.00 USD and states, on the split
     below, a cost that cannot be read. The whole thing is refused before it is
@@ -539,7 +539,7 @@ def test_prepaying_a_vendor_from_a_usd_bank_moves_the_basis_across(tmp_path):
     Sending a vendor 100 USD out of the USD the book holds leaves a claim on
     that vendor for the same 100 USD, and the claim is where the currency now
     is: the payable debit establishes a cost basis. The bank side is a spend like
-    any other, so it gives the guid of the cost basis it spends and that cost basis goes to zero —
+    any other, so it states the guid of the cost basis it spends and that cost basis goes to zero —
     the 100 USD stays counted once, on the account that now holds it.
 
     Written without the guid, the file is refused, as any other disposal that
@@ -596,7 +596,7 @@ def test_a_refund_naming_no_lot_reads_as_the_receivable_it_resembles(tmp_path):
 
     Written as this fixture does, the listing reports 100.00 USD on the
     receivable while the bank's USD has gone. That is right for the reading
-    the file gave it and wrong for the one it meant, which is why the refund
+    the file wrote and wrong for the one it meant, which is why the refund
     fixture beside it names its owner.
     """
     runner = CliRunner()
@@ -944,7 +944,7 @@ def test_naming_a_credits_split_by_guid_spends_it_like_any_other(tmp_path):
     assert 'from_credit: #True' in block, block
 
     # And spent, so the credit is no longer currency the book holds — the same
-    # answer the bare spelling gives on the same move.
+    # answer the bare spelling reaches on the same move.
     listing = _balances(runner, book)
     assert '2026-02-25' not in listing, listing
     assert 'Total USD cost basis balance: 200.00 USD' in listing, listing
@@ -1078,7 +1078,7 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
     assert 'C-US' in restored_orphans.output, restored_orphans.output
 
     # And it survives the next round-trip too. Exporting the restored book has
-    # to re-emit what it was given: the owner slot is `gncOwnerApplyPayment`'s
+    # to re-emit what it was imported from: the owner slot is `gncOwnerApplyPayment`'s
     # and cannot be set from Python, so on that book the `owner:` line the
     # file carried is the only copy of it, and dropping it as already-written
     # lost the orphan one workflow later rather than one.
@@ -1105,7 +1105,7 @@ def test_a_settlement_an_unpost_orphaned_is_not_read_as_credit_later(tmp_path):
     assert '100.00' in orphans.output, orphans.output
     assert txn_guid in orphans.output.replace('-', ''), orphans.output
 
-    # And the reasons given are the ones that applied — which differ by
+    # And the reasons printed are the ones that applied — which differ by
     # engine, so what is asserted is the invariant rather than either answer.
     # The mark is always there: it is why this row exists. The transaction's
     # type and owner slots are read where they answer (GnuCash 5.10 derives
@@ -1288,7 +1288,7 @@ def test_an_orphan_partly_spent_elsewhere_stops_being_that_invoices_own(tmp_path
     # The 60.00 left over is what the 100.00 was: money a bank paid, still
     # waiting to be put back. Spending part of it elsewhere does not turn the
     # rest into the customer's credit, so the mark goes forward onto it — the
-    # engine gives a carved remainder an empty slot frame on every supported
+    # engine leaves a carved remainder's slot frame empty on every supported
     # version, so nothing arrives on it by itself.
     #
     # Unmarked, that 60.00 passed every test a credit passes: listed by

@@ -1,6 +1,6 @@
 """A purchase with no Canadian figure costs its shares from what the spent dollars cost, whatever it is stated in.
 
-The cost is what the cost basis gave up: 2,000.00 USD that cost 1.30 is
+The cost is what is drawn from the cost basis: 2,000.00 USD that cost 1.30 is
 2,600.00 CAD. The transaction's own figures say how that divides across what
 was bought, as shares of what was paid — they are in whatever currency the
 transaction is stated in, which need not be the currency spent.

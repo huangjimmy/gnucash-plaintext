@@ -24,8 +24,7 @@ def _fx(name):
 
 
 def _bank_tx_handles(gnc, amount):
-    """Return (tx_guid, ar_side_split_guid) for the bank tx of the given
-    amount."""
+    """Return (tx_guid, ar_side_split_guid) for the bank tx of `amount`."""
     from repositories.gnucash_repository import GnuCashRepository
     repo = GnuCashRepository(str(gnc))
     repo.open()

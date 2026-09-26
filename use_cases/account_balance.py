@@ -1,5 +1,5 @@
 """
-Use case for computing account balances as of a given date.
+Use case for computing account balances as of a date.
 
 Output format (balance directive):
 
@@ -153,7 +153,7 @@ def _get_direct_balance(account, as_of: date) -> Fraction:
     mistake of adding split *values*, which are stated in each transaction's
     currency rather than the account's.
     """
-    # The engine's balance stops before the day it is given; `as_of` includes it.
+    # The engine's balance stops before the day it is passed; `as_of` includes it.
     return numeric_to_fraction(
         account.GetBalanceAsOfDate(as_of + timedelta(days=1)))
 
@@ -189,7 +189,7 @@ def _get_recursive_balance_native(account, as_of: date) -> Fraction:
 
 class AccountBalanceUseCase:
     """
-    Compute account balances as of a given date.
+    Compute account balances as of a date.
 
     No account_prefix:
         Shows all accounts in the book with recursive cumulative balances.
@@ -258,14 +258,14 @@ class AccountBalanceUseCase:
         include_children: bool = False,
     ) -> AccountBalanceResult:
         """
-        Compute balances as of the given date.
+        Compute balances as of `as_of`.
 
         Args:
             as_of:           Balance date (inclusive).
             account_prefix:  Exact account path to query (e.g. "Assets:Bank").
                              None = all accounts in the book.
             fx_rates:        When provided, convert all amounts to CAD.
-            include_children: Only relevant when account_prefix is given.
+            include_children: Only relevant when account_prefix is passed.
                              False (default) = show only the matched account.
                              True (--with-children) = show matched account + all sub-accounts.
 
@@ -293,8 +293,8 @@ class AccountBalanceUseCase:
                 if each.GetCommodity() is None:
                     raise ValueError(
                         f"{_get_account_path(each)!r} has no commodity, so its "
-                        f"balance has no currency to be stated in. Give the "
-                        f"account a commodity, and ask again.")
+                        f"balance has no currency to be stated in. Set a "
+                        f"commodity on the account, and ask again.")
 
         # Rate function from explicit yaml fx_rates
         explicit_rate_fn = None
@@ -428,7 +428,7 @@ class AccountBalanceUseCase:
         lib = load_gnc_engine()
 
         # Noon, so the day is the day whatever the reader's timezone does with
-        # midnight. Given to the wrapper as a `datetime` and never as seconds:
+        # midnight. Passed to the wrapper as a `datetime` and never as seconds:
         # `gnc_price_set_time64` takes a time64 that only GnuCash 4 and later
         # read as one, and handed epoch seconds 3.4 dates the price in the
         # wrong millennium (CLAUDE.md finding 20). A price dated ~4753 then

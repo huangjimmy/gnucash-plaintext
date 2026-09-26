@@ -1,4 +1,4 @@
-# 100.00 USD bought for 135.00 CAD, which gives the USD bank a cost basis.
+# 100.00 USD bought for 135.00 CAD, which opens a cost basis on the USD bank.
 #
 # What it is for: an account whose bases still have a balance. A payment block
 # cannot spend one, because its bank split is written by `ApplyPayment` and so

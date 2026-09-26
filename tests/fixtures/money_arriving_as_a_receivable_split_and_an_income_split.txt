@@ -10,7 +10,7 @@
 # on the receivable and one on income, neither in a lot.
 #
 # Verified by
-# tests/integration/test_a_grouped_payment_giving_a_split_on_income_is_refused.py.
+# tests/integration/test_a_grouped_payment_stating_a_split_on_income_is_refused.py.
 2026-01-01 open Income:Other USD
 	type: Income
 	commodity.namespace: "CURRENCY"

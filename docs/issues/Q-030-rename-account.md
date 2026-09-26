@@ -8,7 +8,7 @@ status: closed
 
 ## Problem
 
-GnuCash lets you rename an account — including giving it a new name under a different parent — keeping all its transactions. Our plaintext had no way to do this.
+GnuCash lets you rename an account — including moving it under a different parent with a new name — keeping all its transactions. Our plaintext had no way to do this.
 
 The full export/import round-trip can't express it cleanly. Every transaction split names its account by **full path** (`account: "Assets:Bank:Checking"`), so renaming an account through the text would require rewriting *every* transaction line that references it — miss one and the file is inconsistent (a "breaking" edit). Worse, editing only the `open` directive's path while leaving the `guid:` would make the importer try to create a new account with an in-use GUID, which errors; with no `guid:` it silently creates a duplicate. So account restructuring was effectively impossible via plaintext.
 
@@ -28,7 +28,7 @@ It is one operation — rename. The account is identified by **GUID** (stable si
 
 Mechanically: find by GUID → `SetName(leaf)` and, only if the parent differs, `new_parent.append_child(account)`.
 
-### Guards — each refusal gives an explicit, detailed message and leaves the book untouched
+### Guards — each refusal prints an explicit, detailed message and leaves the book untouched
 
 - `bad_guid` — `--guid` is not a valid GUID (names the value, points to `export-accounts`).
 - `not_found` — no account in the book has that GUID.

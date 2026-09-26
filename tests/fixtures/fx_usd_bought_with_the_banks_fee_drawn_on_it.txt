@@ -1,7 +1,7 @@
 # 100.00 USD bought at 1.35, and the bank keeps 1.00 USD of it as its fee.
 #
 # The fee is currency leaving the book, so it draws on a cost basis: the
-# purchase in the same transaction, given by the guid this file states for it.
+# purchase in the same transaction, stated by the guid this file assigns it.
 # The purchase states its balance as 99.00, already net of the fee, so nothing
 # is drawn down a second time.
 2026-01-01 open Assets

@@ -87,7 +87,7 @@ def test_a_stated_key_beside_the_token_is_refused(tmp_path):
     assert 'take the residual' in landed.output, landed.output
 
 
-def test_the_refusal_gives_both_accounts(tmp_path):
+def test_the_refusal_lists_both_accounts(tmp_path):
     """A reader has to be told which two splits claim it, to drop one."""
     landed = _import(tmp_path, TWO_MARKED)
 

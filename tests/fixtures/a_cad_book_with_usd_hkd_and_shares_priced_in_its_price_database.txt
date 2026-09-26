@@ -36,8 +36,8 @@
 # 12 AMZN and a 2,200.00 CAD receivable, against 2,500.00 USD still owed.
 #
 # Every transaction that spends US dollars the book keeps a cost basis for says
-# which one they came out of, and that cost basis is a split the file gave a
-# guid of its own — the guid GnuCash would assign is not knowable while the
+# which one they came out of, and that cost basis is a split the file assigned
+# a guid of its own — the guid GnuCash would assign is not knowable while the
 # file is being written, so a book that opens a cost basis and spends it in one
 # file has no other way to point at it.
 #
@@ -378,7 +378,7 @@ price
 # 1,600.00 US dollars leave the bank, so the bank split says which cost basis
 # they came out of. The 1,500.00 of debt that goes with them is a disposal on
 # the owed side and says nothing, because this book keeps no cost basis there:
-# the loan was drawn in a transaction stated wholly in US dollars, which gave
+# the loan was drawn in a transaction stated wholly in US dollars, which left
 # the debt no Canadian cost to be measured against.
 #
 # `Expenses:Interest` is kept in US dollars, which gnucash-plaintext does not

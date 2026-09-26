@@ -122,7 +122,7 @@ class TestABookItCannotWrite:
 
     So the condition is checked rather than assumed, and it is the condition
     and not the venue: any run of this suite that can write regardless of the
-    mode, which in practice means a container given no `--user`.
+    mode, which in practice means a container started without `--user`.
 
     Which of the two answers it gets is decided by whether the runner says it
     passed one. `scripts/test.sh` sets `GNC_UNPRIVILEGED_RUN`, so a run that
@@ -144,8 +144,8 @@ class TestABookItCannotWrite:
             if os.access(book.parent, os.W_OK):
                 if os.environ.get('GNC_UNPRIVILEGED_RUN'):
                     pytest.fail(
-                        'the runner says this container was given --user, and '
-                        'the process writes whatever the mode says anyway — so '
+                        'the runner says this container was started with --user, '
+                        'and the process writes whatever the mode says anyway — so '
                         'it is root, and every test needing a directory it '
                         'cannot write to is silently skipping')
                 pytest.skip('this process writes whatever the mode says, so '
@@ -188,8 +188,8 @@ class TestABookThatCannotBeCopiedToBeRead:
             if os.access(nowhere, os.W_OK):
                 if os.environ.get('GNC_UNPRIVILEGED_RUN'):
                     pytest.fail(
-                        'the runner says this container was given --user, and '
-                        'the process writes whatever the mode says anyway — so '
+                        'the runner says this container was started with --user, '
+                        'and the process writes whatever the mode says anyway — so '
                         'it is root, and every test needing a directory it '
                         'cannot write to is silently skipping')
                 pytest.skip('this process writes whatever the mode says, so '
@@ -217,8 +217,7 @@ class TestABookItCannotRead:
     one that stops partway through (`_why_the_file_is_not_a_whole_book`, which
     opens it with no guard of its own).
 
-    Measured on 5.10 with the book at mode 000
-    (`what_an_unreadable_book_gives_each_command_probe.py`): `export`,
+    Measured on 5.10 with the book at mode 000: `export`,
     `balance-sheet`, `income-statement`, `report` and `validate` each exit 2
     with `Error: Invalid value for 'GNUCASH_FILE': Path '…' is not readable.`
     and no traceback. That is worth holding: a command that took its path some
@@ -235,8 +234,8 @@ class TestABookItCannotRead:
         if os.access(book, os.R_OK):
             if os.environ.get('GNC_UNPRIVILEGED_RUN'):
                 pytest.fail(
-                    'the runner says this container was given --user, and the '
-                    'process reads whatever the mode says anyway — so it is '
+                    'the runner says this container was started with --user, and '
+                    'the process reads whatever the mode says anyway — so it is '
                     'root, and every test needing a file it cannot read is '
                     'silently skipping')
             pytest.skip('this process reads whatever the mode says, so the '

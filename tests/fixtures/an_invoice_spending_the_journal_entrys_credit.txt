@@ -1,7 +1,7 @@
 # INV-001 for 50.00 CAD, paid in full from C001's credit.
 #
 # The credit is the one `a_customers_credit_made_by_a_journal_entry.txt` makes,
-# given by its transaction's guid and its credit split's guid.
+# stated by its transaction's guid and its credit split's guid.
 #
 # What this fixture produces: INV-001 posted, its lot holding the credit split,
 # and the journal entry's other split in no lot.

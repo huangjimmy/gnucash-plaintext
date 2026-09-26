@@ -3,7 +3,7 @@
 INV-JOB is for job J-1 of customer C-JOB, paid 100.00 and unposted with
 `unpost-invoices`, which leaves the payment in a lot whose owner is the job
 (tests/research/what_an_unpost_leaves_on_a_jobs_invoice_probe.py). A file then
-gives that payment's transaction with `txn_guid:` on another invoice's block.
+states that payment's transaction with `txn_guid:` on another invoice's block.
 
 One customer's payment cannot settle another customer's invoice, and a job is
 for a customer, so the payment is C-JOB's money. The owner check read the lot's
@@ -20,7 +20,7 @@ from tests.integration.test_a_jobs_orphaned_payment_keeps_its_customer import (
     _a_jobs_invoice_paid_and_unposted,
 )
 
-FIXTURE = 'tests/fixtures/another_customers_invoice_giving_a_jobs_orphaned_payment.txt'
+FIXTURE = 'tests/fixtures/another_customers_invoice_stating_a_jobs_orphaned_payment.txt'
 
 
 def _bank_transactions(book):
@@ -44,7 +44,7 @@ def _run(*args):
     return CliRunner().invoke(cli, [str(arg) for arg in args])
 
 
-def test_another_customers_invoice_giving_it_is_refused(tmp_path):
+def test_another_customers_invoice_stating_it_is_refused(tmp_path):
     book = _a_jobs_invoice_paid_and_unposted(tmp_path)
     source = tmp_path / 'other.txt'
     with open(FIXTURE) as fixture:
@@ -59,7 +59,7 @@ def test_another_customers_invoice_giving_it_is_refused(tmp_path):
     assert 'Found 1 orphan bank-side payment transaction' in orphans.output, orphans.output
 
 
-def test_an_invoice_of_the_jobs_customer_giving_it_is_settled(tmp_path):
+def test_an_invoice_of_the_jobs_customer_stating_it_is_settled(tmp_path):
     book = _a_jobs_invoice_paid_and_unposted(tmp_path)
     source = tmp_path / 'same.txt'
     with open(FIXTURE) as fixture:
@@ -76,7 +76,7 @@ def test_an_invoice_of_the_jobs_customer_giving_it_is_settled(tmp_path):
 
 
 def test_another_customers_block_like_the_jobs_payment_records_its_own(tmp_path):
-    """INV-JOB is posted and still paid. C-OTHER's block gives a guid the book
+    """INV-JOB is posted and still paid. C-OTHER's block states a guid the book
     lacks, with the date, figure, account and memo of the job's payment. Two
     customers each paying 100.00 into one account on one day is ordinary, and
     money settling another customer's invoice is not the movement the block

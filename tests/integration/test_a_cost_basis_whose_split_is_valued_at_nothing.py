@@ -5,7 +5,7 @@ happened at and the rate into the book's currency, because the two multiplied
 out are the figure every gain is measured against and a reader cannot check it
 otherwise.
 
-There is nothing to divide where the transaction gives no price. This book moves
+There is nothing to divide where the transaction states no price. This book moves
 1,000.00 USD in an entry stated in Hong Kong dollars and valued at nothing, so
 the split's value over its amount is zero; what says the dollars cost 1.30 is
 the `cost_basis_cost:` on the split itself. The entry then states that cost as

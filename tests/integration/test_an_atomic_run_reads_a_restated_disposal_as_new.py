@@ -3,7 +3,7 @@
 `--atomic` defers `_require_no_cost_basis_edit` for a transaction whose cost
 basis another transaction draws on, because repairing one runs through states
 that refusal stops in either order. A disposal nothing draws on is not that
-case: its edit is read as a new transaction would be (Q-051), which gives
+case: its edit is read as a new transaction would be (Q-051), which puts
 back what it drew and draws again, meeting every check a new disposal meets.
 
 That is what answers the fault this file was written for. Before an edit
@@ -40,7 +40,7 @@ def _exported(runner, book, path):
 
 
 def _the_balance_on(text, line):
-    """The `cost_basis_balance:` the export writes under the split line given."""
+    """The `cost_basis_balance:` the export writes under the split line `line`."""
     return re.search(rf'{re.escape(line)}\n(?:\t\t[^\n]*\n)*?\t\tcost_basis_balance: "([^"]*)"',
                      text).group(1)
 
@@ -139,7 +139,7 @@ def test_leaving_the_pick_out_leaves_it_where_it_is(tmp_path):
 
 
 def test_dropping_the_pick_is_refused(tmp_path):
-    """Cleared, the fee spends dollars the book holds giving no cost basis, as a new spend may not."""
+    """Cleared, the fee spends dollars the book holds stating no cost basis, as a new spend may not."""
     runner = CliRunner()
     book = _a_basis_with_a_fee_drawn_on_it(runner, tmp_path)
 
@@ -165,7 +165,7 @@ def test_dropping_the_pick_is_refused(tmp_path):
 def test_re_pointing_it_at_another_currencys_basis_is_refused(tmp_path):
     """A pool of euros has no US dollars in it to take.
 
-    Read as a new transaction would be, the fee giving a cost basis of euros
+    Read as a new transaction would be, the fee stating a cost basis of euros
     for the US dollars it spends is refused as a new import of it is, and the
     run is rolled back.
     """

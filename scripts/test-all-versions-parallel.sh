@@ -81,8 +81,8 @@ echo ""
 #
 # By tag, which `build.sh` takes. A local table turning the tag into a base
 # image lived here too, with no arm for an unknown one — so a typo in VERSIONS
-# above produced an empty argument, `build.sh` read that as "no argument
-# given", and the sweep quietly rebuilt debian:13 over `gnucash-dev:latest`
+# above produced an empty argument, `build.sh` read that as no argument at
+# all, and the sweep quietly rebuilt debian:13 over `gnucash-dev:latest`
 # before failing later on the tag that does not exist.
 echo "Building Docker images..."
 for version in "${VERSIONS[@]}"; do

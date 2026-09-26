@@ -77,7 +77,7 @@ _ENGINE_MODULES = (
 
 
 def _answers(tmp_path: Path, scheme: str) -> str:
-    """Evaluate `scheme`, which writes its answer to the file it is given.
+    """Evaluate `scheme`, which writes its answer to the file it is passed.
 
     Asked with GnuCash's engine module imported, which is how its own reports
     reach these names. A bare interpreter has none of them, and asking one
@@ -127,7 +127,7 @@ def _rounded_to_cents(tmp_path: Path, numerator: int) -> str:
     """`numerator`/1000 rounded to cents by GnuCash, as an exact value.
 
     The answer is the value, not the pair it arrives in: `gnc-numeric-convert`
-    gives a fraction in lowest terms rather than one over the denominator it
+    returns a fraction in lowest terms rather than one over the denominator it
     was asked for, so 13.86 comes back as 693/50. Comparing the pair compares
     spellings and fails on an answer that is right.
     """
@@ -159,7 +159,7 @@ def test_a_figure_too_big_for_the_engines_arguments(tmp_path):
 
     The figure below is measured, not chosen to be large. It is the US dollar
     cost the report reaches by adding up the rows
-    `cost_basis_items_by_currency_and_side` gives it, for a book
+    `cost_basis_items_by_currency_and_side` returns, for a book
     of five consulting payments in US dollars, at the four-decimal rates a bank
     publishes, with part of each later spent:
     `tests/research/how_big_a_summed_cost_basis_cost_gets_probe.py` builds it

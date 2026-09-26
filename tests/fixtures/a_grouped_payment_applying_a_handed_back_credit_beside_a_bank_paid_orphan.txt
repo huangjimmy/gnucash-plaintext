@@ -12,7 +12,7 @@
 # CREDIT_GUID.
 #
 # What this fixture produces: INV-USD-G settled by both splits. The credit keeps
-# `applied_from_credit` and its cost and gives up its cost basis balance, and
+# `applied_from_credit` and its cost and loses its cost basis balance, and
 # the settlement is not recorded as credit.
 #
 # Verified by

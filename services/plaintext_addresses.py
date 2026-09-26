@@ -24,7 +24,7 @@ company address export as four with the rest gone in silence.
 
 **Why the number is in brackets.** The keys used to be `addr1`..`addr4`, and
 the obvious way to lift the limit of four was to keep counting: `addr5`,
-`addr6`. That reserves a namespace nobody agreed to give up. A block's custom
+`addr6`. That reserves a namespace the book owner never agreed to part with. A block's custom
 keys are the book owner's to name, and `abc1`/`abc2` are two unrelated keys —
 so `addr` plus a number would have meant an address line here and an ordinary
 key there, with a book that used `addr7` for something of its own silently
@@ -108,8 +108,8 @@ def refuse_an_index_on_a_key_that_has_no_list(key: str) -> None:
 
     The brackets exist to keep the format's own numbering out of the names a
     book owner may choose — `addr7` is theirs, `addr[7]` is ours. Letting
-    `note[0]` or `line[2]` become an ordinary custom key gives that away
-    again for the next list-valued key this format grows: the name would
+    `note[0]` or `line[2]` become an ordinary custom key loses that
+    separation again for the next list-valued key this format grows: the name would
     already be taken, in books written before it meant anything, which is
     exactly the position `addr5` left us in.
 

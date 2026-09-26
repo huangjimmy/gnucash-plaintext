@@ -53,7 +53,7 @@ class TestWhatItSays:
     def test_the_account_that_could_not_be_made_is_named(self, result):
         assert 'Liabilities:GST' in result.output, result.output
 
-    def test_the_reason_the_account_failed_is_given(self, result):
+    def test_the_reason_the_account_failed_is_stated(self, result):
         """Not just that something later could not find it.
 
         The account's own declaration is what is wrong, and its failure names
@@ -179,6 +179,6 @@ class TestTheSameAccountReachedByAnInvoice:
     def test_the_account_that_could_not_be_made_is_named(self, result):
         assert 'Income:Sales' in result.output, result.output
 
-    def test_the_reason_the_account_failed_is_given(self, result):
+    def test_the_reason_the_account_failed_is_stated(self, result):
         assert 'commodity_scu' in result.output or 'scu' in result.output.lower(), \
             result.output

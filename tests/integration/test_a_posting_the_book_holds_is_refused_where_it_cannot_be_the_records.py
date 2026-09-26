@@ -1,6 +1,6 @@
-"""A `posted_txn_guid:` giving a transaction that cannot be the invoice's posting is refused.
+"""A `posted_txn_guid:` stating a transaction that cannot be the invoice's posting is refused.
 
-A `posted:` block may give the guid of a posting the book already holds, and the
+A `posted:` block may state the guid of a posting the book already holds, and the
 import then attaches the invoice to that transaction rather than posting it
 again. A posting puts the invoice's total on the account it posts to as one
 split, and that split is what the invoice's lot holds. A transaction with no

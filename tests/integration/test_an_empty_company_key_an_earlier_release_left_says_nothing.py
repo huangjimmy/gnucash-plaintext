@@ -5,7 +5,7 @@ book key, so a book written then can hold `"name": ""` in its custom metadata.
 Measured on 5.10, with a `company` block that changes only the phone:
 
 - **beside a Company Name option,** the copy is dropped, because the option
-  is the book's answer once it has one. A note is given where a dropped copy
+  is the book's answer once it has one. A note is printed where a dropped copy
   held a value. This one held nothing, so nothing is said;
 - **with no Company Name option,** the copy has no value to carry to the
   option, so nothing is written to it and nothing is said.
@@ -22,7 +22,7 @@ from infrastructure.gnucash.kvp import (
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
 NAMED = 'tests/fixtures/a_company_named_acme_with_a_phone.txt'
-NEW_PHONE = 'tests/fixtures/a_company_giving_only_a_new_phone.txt'
+NEW_PHONE = 'tests/fixtures/a_company_stating_only_a_new_phone.txt'
 ONLY_A_PHONE = 'tests/fixtures/a_company_with_only_a_phone.txt'
 
 

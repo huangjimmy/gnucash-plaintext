@@ -8,7 +8,7 @@
 # Load after `payment_roundtrip_accounts.txt`.
 #
 # Verified by
-# tests/integration/test_a_payment_giving_a_guid_that_matches_nothing_is_refused_where_the_deposits_owner_cannot_be_read.py.
+# tests/integration/test_a_payment_stating_a_guid_that_matches_nothing_is_refused_where_the_deposits_owner_cannot_be_read.py.
 customer "C001"
 	name: "Acme"
 	currency: CAD

@@ -23,7 +23,7 @@ from use_cases.export_transactions import (
 
 
 def _the_day(option, value):
-    """A `YYYY-MM-DD` option as a date, or None when it was not given."""
+    """A `YYYY-MM-DD` option as a date, or None when it was not passed."""
     if not value:
         return None
     if re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
@@ -31,7 +31,7 @@ def _the_day(option, value):
             return datetime.date(int(value[0:4]), int(value[5:7]), int(value[8:10]))
         except ValueError:
             pass
-    raise click.UsageError(f'{option} {value} is not a date; give it as YYYY-MM-DD.')
+    raise click.UsageError(f'{option} {value} is not a date; write it as YYYY-MM-DD.')
 
 
 @click.command()
@@ -134,7 +134,7 @@ def export_transactions(gnucash_file, output_file, input_file, output_path, star
             count = len(result.transactions)
 
             # Prices (Q-041), only when asked, and only those inside the dates
-            # given: a price is dated like a transaction, so the same range
+            # passed: a price is dated like a transaction, so the same range
             # keeps it. A price belongs to no account, so `--account` keeps
             # them all. The commodities they are prices of are declared with
             # the others, so the ledger imports on its own even where no

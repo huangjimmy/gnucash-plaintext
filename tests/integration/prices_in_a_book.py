@@ -9,7 +9,7 @@ tested on prices it did not write.
 A price's time is set with ctypes `gnc_price_set_time64`, never SWIG
 `set_time64` with an integer, which GnuCash 3.4 misreads (CLAUDE.md finding
 20). A brand-new book holding nothing but prices writes no file when saved
-(Q-041, table 1), so `add_prices` gives a new book an account as well.
+(Q-041, table 1), so `add_prices` adds an account to a new book as well.
 """
 
 import calendar
@@ -139,8 +139,8 @@ def add_prices(book_path, prices: Sequence[Dict]) -> None:
 
     Each price is a dict: `commodity` ("NASDAQ:AMZN"), `currency` ("USD"),
     `time` (seconds since the epoch), `value` (a Fraction, or text a Fraction
-    reads), and optionally `source` and `type`, which are left unset when not
-    given. A commodity the book does not hold is created with a fraction of
+    reads), and optionally `source` and `type`, which are left unset when
+    absent. A commodity the book does not hold is created with a fraction of
     10000.
     """
     path = str(book_path)
@@ -191,7 +191,7 @@ def utc(year, month, day, hour=0, minute=0, second=0) -> int:
 
 
 def day_neutral(year, month, day) -> int:
-    """The time GnuCash's own `gdate_to_time64` gives a date, which a bare-date `time:` is stored at."""
+    """The time GnuCash's own `gdate_to_time64` returns for a date, which a bare-date `time:` is stored at."""
     lib = _lib()
     date = _GDate()
     lib.g_date_clear(ctypes.byref(date), 1)

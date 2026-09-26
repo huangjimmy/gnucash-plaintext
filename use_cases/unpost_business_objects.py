@@ -125,7 +125,7 @@ class OrphanPayment:
                             # on a round-tripped book), 'another_lot' (a
                             # sibling orphan's lot, when this row's cannot
                             # say), or 'unposted_record' (the invoice or bill
-                            # the split's `orphaned_by_unpost` KVP gives, for a
+                            # the split's `orphaned_by_unpost` KVP states, for a
                             # marked split in no lot). A boolean collapsed the
                             # three transaction readings, and the
                             # block claimed a backref "set at payment time"
@@ -184,7 +184,7 @@ def format_orphan_warning_block(kind: str, orphans: List['OrphanPayment'],
     never paid — silent success). For invoices: "AR", "received". For
     bills: "AP", "sent".
 
-    `ident` (e.g. "INV-001") is prepended to the lead-in when given so a
+    `ident` (e.g. "INV-001") is prepended to the lead-in when passed so a
     multi-record import distinguishes which record each warning belongs
     to. The unpost CLI sets it to '' because its per-record output line
     immediately precedes the warning.
@@ -455,8 +455,8 @@ def _the_customer_or_vendor(lib, owner_p):
     """(type, id, name) of the customer or vendor behind an owner, or (0, '', '').
 
     A job's lot or payment answers with the job. The customer the job is for is
-    who `export` writes as the owner, so it is who these listings give too. An
-    employee is neither, and is given as nobody.
+    who `export` writes as the owner, so it is who these listings show too. An
+    employee is neither, and is shown as nobody.
 
     The ID and the name are read off the owner, not looked up by ID: GnuCash
     does not keep an ID unique, and a lookup by one returns whichever of two
@@ -502,14 +502,14 @@ def _owner_from_an_orphans_lot(lib, transaction):
     return 0, '', ''
 
 
-def _owner_the_unpost_gives(lib, book, record_guid: str):
+def _owner_of_the_unposted_record(lib, book, record_guid: str):
     """(type, id, name) of the owner of the record an unpost marked a split with, or (0, '', '').
 
-    Asked of a marked split whose own lot gives no owner. GnuCash's View → Lots
+    Asked of a marked split whose own lot has no owner. GnuCash's View → Lots
     takes a split out of the lot the unpost left, and then neither a lot nor
-    the transaction gives one: the transaction's owner slot is read through the
+    the transaction has one: the transaction's owner slot is read through the
     receivable split's lot, which it no longer has. The unposted record still
-    has its owner, and the mark gives its guid. Where the record has since been
+    has its owner, and the mark states its guid. Where the record has since been
     deleted, nothing does.
     """
     from services.gnucash_importer import _entity_in_collection
@@ -612,7 +612,7 @@ def find_prepayments_in_book(book: Book,
       - `vendor_id` restricts to that vendor's credits.
       - Pass neither for the whole-book sweep.
 
-    `unowned`, where given, is filled with the credit lots no owner can be
+    `unowned`, where passed, is filled with the credit lots no owner can be
     read for — not from the lot, not through GnuCash, not from the
     transaction's `owner:` line — as `(account, amount, mnemonic, unit)`,
     whatever the filters. GnuCash's View → Lots makes such a lot, and these
@@ -723,7 +723,7 @@ def find_prepayments_in_book(book: Book,
                 tx_ptr = int(tx.instance)
 
                 # The lot first, because the lot is where an owner is recorded
-                # when a credit is given one — `lot_owner:` attaches the owner
+                # when a credit has one — `lot_owner:` attaches the owner
                 # to the lot, not to the transaction. Asking the transaction
                 # alone dropped such a credit from the listing entirely on
                 # GnuCash 4.13 and 3.8, where `gncOwnerGetOwnerFromTxn` wants
@@ -862,7 +862,7 @@ def find_loose_money_in_book(book: Book) -> List[LooseMoney]:
 
     GnuCash's register lets a split sit there: a deposit entered against the
     receivable before anyone knows whose it is. It is in no lot and its
-    transaction gives no owner, so it is no customer's or vendor's credit and
+    transaction has no owner, so it is no customer's or vendor's credit and
     pays no invoice or bill. Measured on 5.10, nothing listed it:
     `find-prepayments` walks lots, and `find-orphan-payments` looks for
     payments with an owner.
@@ -870,9 +870,9 @@ def find_loose_money_in_book(book: Book) -> List[LooseMoney]:
     Two loose splits are left out, because they do belong to somebody and
     `find-orphan-payments` lists them under that owner. One a bank paid and an
     unpost marked, where the book still holds the invoice or bill the mark
-    gives: View → Lots can take it out of the lot the unpost left, and that
-    record still has its owner. Once the record is deleted nothing gives one,
-    and it is listed here. And one whose transaction gives an owner, through
+    states: View → Lots can take it out of the lot the unpost left, and that
+    record still has its owner. Once the record is deleted nothing states one,
+    and it is listed here. And one whose transaction has an owner, through
     GnuCash or through its `owner:` line: an unposted invoice's orphan read
     back from an export sits in no lot, deliberately (CLAUDE.md finding 10),
     with its owner on the transaction. A split of nothing is left out too,
@@ -964,7 +964,7 @@ def find_orphan_payments_in_book(book: Book,
 
     def _acct_full_name(acct_ptr) -> str:
         """As `find_lot_payment_transactions` builds it, and for the reason
-        given there: the walk stops at the root, and "has a parent" is what
+        stated there: the walk stops at the root, and "has a parent" is what
         says an account is not it."""
         # Every segment, including an empty one. An account may have no name —
         # `beancount_account_name_ending_in_a_separator.beancount` measures a
@@ -1051,7 +1051,7 @@ def find_orphan_payments_in_book(book: Book,
                 tx_owner_source = 'txn'
                 # The customer or vendor behind the owner: a payment of a job's
                 # invoice answers with the job, and `export` writes the job's
-                # customer as the payment's owner. Given as the job here, the
+                # customer as the payment's owner. Shown as the job here, the
                 # two disagreed and a listing narrowed to that customer passed
                 # the payment over.
                 end_owner = lib.gncOwnerGetEndOwner(owner_ptr)
@@ -1171,7 +1171,7 @@ def find_orphan_payments_in_book(book: Book,
             # one unposted by an earlier version and one under this, lists
             # only the newer. Under-reporting a book that cannot be marked is
             # the lesser of the two, and unposting the older one again
-            # under this version gives it a mark.
+            # under this version writes a mark on it.
             reported_splits = [s for s in ar_candidates if int(s) in marked]
             if not reported_splits:
                 # The first that is *orphaned*, not simply the first. Criterion
@@ -1194,10 +1194,10 @@ def find_orphan_payments_in_book(book: Book,
                 # a split whose lot cannot say.
                 own_type, own_id, own_name = _owner_of_one_split(lib, ar_s)
                 owner_source = 'lot'
-                # Then the record the mark gives, which is this split's own
+                # Then the record the mark states, which is this split's own
                 # too, before the transaction's answer for all of them.
                 if not own_id and int(ar_s) in marked:
-                    own_type, own_id, own_name = _owner_the_unpost_gives(
+                    own_type, own_id, own_name = _owner_of_the_unposted_record(
                         lib, book, marked[int(ar_s)])
                     owner_source = 'unposted_record'
                 if not own_id:
@@ -1416,7 +1416,7 @@ def _execute_unpost(book: Book, ids: List[str], by_guid: bool,
         orphans = find_lot_payment_transactions(rec)
         # Q-035: a foreign-currency record's A/R or A/P split *is* a cost
         # basis. Unposting destroys it, so anything measured against it is
-        # refused loudly rather than left giving a split the book no longer
+        # refused loudly rather than left drawing on a split the book no longer
         # holds.
         require_cost_basis_unused(book, rec, kind, rid)
         # Q-035: the lot survives the unpost holding whatever settled the

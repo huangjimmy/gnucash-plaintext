@@ -180,7 +180,7 @@ def test_a_fault_already_in_the_book_does_not_block_an_unrelated_file(tmp_path):
 def test_the_exemption_is_only_for_what_was_already_there(tmp_path):
     """The pre-existing fault is exempt; the book must still hold it after.
 
-    A file is not being given a licence to leave new faults — that is
+    A file is not allowed to leave new faults — that is
     `test_a_rollback_does_not_sign_off_with_a_tick` below, which states a
     balance the finished book contradicts and is rolled back for it. What this
     pins is the other half: the exempted fault is still there afterwards, so

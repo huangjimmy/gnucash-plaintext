@@ -1,8 +1,8 @@
-"""`split_guid:` on a split is refused, and the refusal gives the key's new name.
+"""`split_guid:` on a split is refused, and the refusal states the key's new name.
 
-A split gives its guid with `guid:`. A ledger written before the key was
+A split states its guid with `guid:`. A ledger written before the key was
 renamed still says `split_guid:`, and read as a custom key it would be stored
-on the split while GnuCash gave the split a guid of its own.
+on the split while GnuCash assigned the split a guid of its own.
 """
 
 from click.testing import CliRunner
@@ -10,7 +10,7 @@ from click.testing import CliRunner
 from cli.main import cli
 
 ACCOUNTS = 'tests/fixtures/payment_roundtrip_accounts.txt'
-LEDGER = 'tests/fixtures/a_split_giving_the_old_split_guid_key.txt'
+LEDGER = 'tests/fixtures/a_split_stating_the_old_split_guid_key.txt'
 
 
 def test_the_transaction_is_refused_with_the_new_name(tmp_path):

@@ -27,10 +27,10 @@ def _find(account, name):
     return None
 
 
-def test_a_split_committed_without_an_account_is_given_one(tmp_path):
+def test_a_split_committed_without_an_account_is_assigned_one(tmp_path):
     """Built the only way one can be, and the engine will not keep it that way.
 
-    A `Split` is given a parent and never an account, and the transaction is
+    A `Split` is attached to a parent and never to an account, and the transaction is
     committed. GnuCash scrubs it on the way through, so by the time any reader
     can reach the split it has an account — the imbalance account, since the
     split holds nothing and the transaction has to balance.

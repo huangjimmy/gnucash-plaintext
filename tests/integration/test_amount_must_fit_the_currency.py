@@ -160,7 +160,7 @@ class TestAPaymentOnACoarseReceivable:
 class TestASettledAmountFinerThanTheBank:
     """`settled_amount:` is the cash that lands on the bank split.
 
-    Checked only for "parses" and "positive", 780.005 HKD gave a rate of
+    Checked only for "parses" and "positive", 780.005 HKD yielded a rate of
     780.005/100, the split rounded to 780.00, and the residual was computed
     from that rounded figure — so the entry balanced and the run reported
     `Errors: 0` about a payment the file did not describe.
@@ -229,7 +229,7 @@ class TestARateThatReachesTheSameFigure:
         README writes rates like `10000/14000`, so a rate need not have an
         exact decimal — and what it reaches then has none either. `100/7` is
         the right figure to quote; the sentence around it has to read, and a
-        label ending in a verb gave `the share_price on this invoice, which
+        label ending in a verb produced `the share_price on this invoice, which
         reaches states 100/7 HKD`.
         """
         gnc = tmp_path / 'seventh.gnucash'

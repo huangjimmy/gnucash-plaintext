@@ -1,0 +1,32 @@
+# Q-051 E13: a_usd_deposit_booked_as_the_invoice_it_collected.txt with no
+# `cost_basis_split_guid:` line on the fee. As an edit, a block leaving the
+# line out keeps the pick the split has, so the fee goes on drawing on the
+# deposit, which the new version does not establish as a cost basis: the edit
+# is refused for that, and the transaction is left as it was.
+#
+# E15: imported as a new transaction into a book that has not got it, the fee
+# states no cost basis, and is refused for spending dollars the transaction
+# collects without saying from where. Beside INV-USD-1's `payment:` block
+# stating its guid, the block is refused too, rather than recording a payment
+# of its own.
+#
+# Verified by
+# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+2026-08-13 * "Received money from Example Customer Inc"
+	guid: "0e510000000000000000000000000a01"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2720.00 USD
+		guid: "0e510000000000000000000000000a02"
+		account.commodity.mnemonic: "USD"
+		value: "3815.89"
+	Assets:Accounts Receivable USD -2720.00 USD
+		guid: "0e510000000000000000000000000a03"
+		account.commodity.mnemonic: "USD"
+		value: "-3791.14"
+	Expenses:Bank charges 1.01 CAD
+		guid: "0e510000000000000000000000000a04"
+	Assets:Wise USD -0.72 USD
+		guid: "0e510000000000000000000000000a05"
+		account.commodity.mnemonic: "USD"
+		value: "-1.00"
+	Income:FX gain $residual$ CAD

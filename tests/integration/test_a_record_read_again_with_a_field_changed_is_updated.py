@@ -54,7 +54,7 @@ def test_a_vendor_made_inactive_is_updated(tmp_path):
     assert 'active: #False' in vendor, vendor
 
 
-def test_an_invoice_given_a_billing_id_is_updated(tmp_path):
+def test_an_invoice_with_a_billing_id_added_is_updated(tmp_path):
     book = _book(tmp_path)
 
     result = _read_again_with(tmp_path, book, INVOICE, '\tcurrency: CAD\n\tdate_opened',

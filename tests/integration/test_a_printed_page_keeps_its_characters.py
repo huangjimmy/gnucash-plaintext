@@ -53,7 +53,7 @@ from cli.main import cli
 FIXTURES = Path('tests/fixtures')
 LEDGER = str(FIXTURES / 'an_invoice_in_more_than_ascii.txt')
 
-# What the coercion gives back with: no UTF-8 mode, no PEP 538, C locale, at
+# What the coercion is undone to: no UTF-8 mode, no PEP 538, C locale, at
 # which point `locale.getpreferredencoding()` and Guile's
 # `%default-port-encoding` both answer `ANSI_X3.4-1968` — measured.
 ASCII_LOCALE = {'LC_ALL': 'C', 'LANG': 'C',
@@ -264,7 +264,7 @@ class TestUnderALocaleThatCannotHoldThePage:
         """The expression itself is UTF-8, not just what it writes.
 
         `--report` is the first user-typed string this tool ever hands to a
-        Scheme evaluator, and `scm_c_eval_string` decodes what it is given
+        Scheme evaluator, and `scm_c_eval_string` decodes what it is passed
         with the *locale's* charset. Measured under this environment on 5.10
         and 3.8: a 17-character name went in and 19 characters came out, each
         UTF-8 byte read as its own character — no error, no exit code, an
@@ -402,7 +402,7 @@ class TestTheBillSideOfThePage:
         assert 'Référence fournisseur: №4501' in printed_bill, printed_bill
 
 
-class TestThePageGivesTheLocaleBack:
+class TestThePagePutsTheLocaleBack:
     """The render sets one, so it has to put it back.
 
     A UTF-8 locale is what stops GnuCash 3.4 turning a book option's
@@ -455,8 +455,8 @@ class TestThePageGivesTheLocaleBack:
 
         assert started_from_c.setlocale(started_from_c.LC_CTYPE) == before
 
-    def test_and_gives_it_back_when_the_page_is_refused(self, started_from_c,
-                                                        tmp_path):
+    def test_and_puts_it_back_when_the_page_is_refused(self, started_from_c,
+                                                       tmp_path):
         """The restore is not on the happy path only.
 
         A report no build registers is refused after the locale is set and

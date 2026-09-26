@@ -1,0 +1,13 @@
+# The NASDAQ:AMZN price of prices_of_a_currency_and_a_stock.txt, with its
+# currency changed to CAD through its guid.
+#
+# A price is of one commodity in one currency, and GnuCash's price database
+# files each price under that pair, so changing either on an existing price is
+# refused. A price in CAD is recorded as a price of its own.
+#
+# What this fixture produces: nothing; the refusal.
+#
+# Verified by tests/integration/test_a_price_is_changed_through_its_guid.py.
+price
+	guid: "4a1a4c0c7328491fbde9f8099ba280c8"
+	currency.mnemonic: "CAD"

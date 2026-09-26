@@ -26,7 +26,7 @@
 #
 # The buy and the sale are in one file, so the sale cannot be handed the guid
 # of the cost basis it draws on — GnuCash assigns that guid as this file is
-# read. The buying split states its own guid instead, and the sale gives it.
+# read. The buying split states its own guid instead, and the sale states it too.
 #
 # Verified by tests/integration/test_half_cent_rounding.py.
 2026-01-01 open Assets

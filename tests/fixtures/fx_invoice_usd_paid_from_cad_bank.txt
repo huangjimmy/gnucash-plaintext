@@ -1,5 +1,5 @@
-# A 100.00 USD invoice settled into a CAD bank at 1.37: the bank is credited
-# what it actually gave, 137.00 CAD.
+# A 100.00 USD invoice settled into a CAD bank at 1.37: the bank records what
+# it actually received, 137.00 CAD.
 2026-01-01 open Assets
 	type: Asset
 	commodity.namespace: "CURRENCY"

@@ -211,7 +211,7 @@ class AccountCategorizer:
         category: str
     ) -> List[Account]:
         """
-        Get all accounts under root that match the given category.
+        Get all accounts under root that match `category`.
 
         Args:
             root_account: Root account to start search

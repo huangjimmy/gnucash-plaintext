@@ -99,12 +99,12 @@ def test_the_undo_copy_a_delete_writes_states_them_in_that_order(tmp_path):
 
     The order the guids are typed in is not free: a cost basis cannot be
     deleted while a sale measures against it, so the fee is named first and
-    the copy came out fee first — a file whose opening block gives the guid of
+    the copy came out fee first — a file whose opening block states the guid of
     a split no block above it creates, and whose split is gone from the book
     as well. Re-importing it to undo the delete was refused outright.
 
     And the balance the copy states is the second half of the same fault.
-    Deleting the fee gives its 0.72 USD back to the deposit's cost basis, so
+    Deleting the fee puts its 0.72 USD back on the deposit's cost basis, so
     the deposit written out after that stated 2720.00 — the whole of what it
     brought in — and a re-import trusting the file left the book offering
     currency the bank does not hold. Both transactions are written out before
@@ -135,7 +135,7 @@ def test_the_undo_copy_a_delete_writes_states_them_in_that_order(tmp_path):
 def test_two_transactions_asked_for_by_guid_come_out_in_that_order(tmp_path):
     """`export-transaction` states them in the order it can read back.
 
-    The guids are given in whatever order the caller types, and typing the
+    The guids are passed in whatever order the caller types, and typing the
     fee first is the natural way to ask for it — it is the transaction the
     reader is looking at, and the deposit is what it draws on.
     """

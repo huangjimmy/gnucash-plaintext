@@ -1,6 +1,6 @@
 """Write the footer and the CSS a printed page carries onto the book.
 
-GnuCash's report options give the pair as **Layout → CSS** and **Display →
+GnuCash's report options show the pair as **Layout → CSS** and **Display →
 Extra Notes**, and until now setting either meant opening GnuCash, which is no
 use on a machine printing from a script. `set-invoice-style` writes both from
 the command line.

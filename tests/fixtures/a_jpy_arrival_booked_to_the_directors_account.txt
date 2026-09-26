@@ -3,7 +3,7 @@
 #
 # a_jpy_arrival_booked_to_the_directors_account_restated_in_cad.txt states it
 # in Canadian dollars at 910.00, which re-prices the cost basis and is refused.
-# The refusal gives the book's values in yen, which divides into 1, and the
+# The refusal states the book's values in yen, which divides into 1, and the
 # file's in Canadian dollars, which divide into 100.
 #
 # Verified by

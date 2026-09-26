@@ -1,4 +1,4 @@
-# Q-050 E10 stated in US dollars, written the first way its refusal gives: the
+# Q-050 E10 stated in US dollars, written the first way its refusal lists: the
 # fee's splits dropped, the arrival written net of it, `Assets:Wise USD
 # 2719.28 USD` with its `value: "2719.28"`, and the split beside it valued
 # 2,719.28 in place of 2,720.00. The 3,791.14 CAD then buys 2,719.28 USD, a

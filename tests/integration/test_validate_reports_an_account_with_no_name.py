@@ -2,7 +2,7 @@
 
 The import refuses an account with an empty name, and so does GnuCash's own
 account dialog, but a book written by another tool can hold one. It has no path
-of its own for anything to give, so `validate` reports it as an error.
+of its own for anything to state, so `validate` reports it as an error.
 """
 
 import gnucash

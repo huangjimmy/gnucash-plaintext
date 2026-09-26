@@ -54,9 +54,9 @@ from gi.repository import GLib, Gtk, WebKit2  # noqa: E402
 
 #: A page that never finishes loading must not hang a print run for ever, and
 #: this guard has to fire before the parent's — a sentence naming WebKit beats
-#: one naming a killed subprocess. The parent gives a page 90 seconds; a
+#: one about a killed subprocess. The parent allows a page 90 seconds; a
 #: page takes 0.42–0.60 of one, measured on 5.10 under a ten-version sweep.
-GIVE_UP_AFTER = 60
+STOP_WAITING_AFTER = 60
 
 
 def _print(source: str, target: str, fmt: str) -> int:
@@ -131,11 +131,11 @@ def _print(source: str, target: str, fmt: str) -> int:
 
     def out_of_time():
         failed.append(f'WebKit did not finish printing within '
-                      f'{GIVE_UP_AFTER} seconds')
+                      f'{STOP_WAITING_AFTER} seconds')
         loop.quit()
         return False
 
-    GLib.timeout_add_seconds(GIVE_UP_AFTER, out_of_time)
+    GLib.timeout_add_seconds(STOP_WAITING_AFTER, out_of_time)
     loop.run()
     if failed:
         print(failed[0], file=sys.stderr)

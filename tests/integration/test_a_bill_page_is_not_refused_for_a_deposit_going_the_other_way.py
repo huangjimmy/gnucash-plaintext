@@ -1,7 +1,7 @@
 """A bill's page is not refused for a same-day deposit of its size going the other way.
 
 BILL-001 is posted and unpaid, and the bank holds a customer's 50.00 deposit on
-the day the bill's page says it was paid, with the same memo. The page gives
+the day the bill's page says it was paid, with the same memo. The page states
 its payment by a `txn_guid:` this book does not hold. Before recording the
 payment from the block, the import asks whether the book already holds the
 movement the block describes. A bill's payment sends money out and the deposit
