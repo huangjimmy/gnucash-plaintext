@@ -1,7 +1,7 @@
 # The receipt from a_receipt_booked_to_the_receivable_with_its_guid.txt,
 # restated with `lot_owner: C001` on its receivable split.
 #
-# `C001` gives an ID and no kind, so it says neither which kind of owner nor,
+# `C001` states an ID and no kind, so it says neither which kind of owner nor,
 # so, which owner. Restating the receipt this way has to be refused as creating
 # it this way is, rather than leave the split loose and report it updated.
 #

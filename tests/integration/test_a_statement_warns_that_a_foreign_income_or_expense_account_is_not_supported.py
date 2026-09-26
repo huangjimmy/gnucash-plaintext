@@ -112,7 +112,7 @@ class TestTheWarningTheIncomeStatementCarries:
 
         assert '#   Expenses:Interest — USD' in page, page
 
-    def test_the_account_line_gives_the_holding_and_the_rate(self, tmp_path):
+    def test_the_account_line_states_the_holding_and_the_rate(self, tmp_path):
         """100.00 USD at the sheet's 1.42, which is the 142.00 the warning is about.
 
         The dollars that paid the interest cost 1.30, so the expense was 130.00

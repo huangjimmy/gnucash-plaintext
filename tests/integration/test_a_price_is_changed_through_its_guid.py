@@ -82,7 +82,7 @@ class TestAPriceMovedToAnotherDay:
 
 
 class TestADayAPriceIsMovedOffInTheSameFile:
-    """A file that moves a price off a day may give a new price for that day.
+    """A file that moves a price off a day may add a new price for that day.
 
     The new block is written first in the file; the move is what frees the day.
     """
@@ -139,10 +139,10 @@ class TestAPriceMovedOntoADayAnotherEditInTheFileFrees:
         ]
 
 
-class TestAnotherCurrencyGivenToAnExistingPrice:
+class TestAnExistingPriceMovedToAnotherCurrency:
     """A price is of one commodity in one currency, and GnuCash files it under that pair."""
 
-    FIXTURE = 'a_stocks_price_given_another_currency_through_its_guid.txt'
+    FIXTURE = 'a_stocks_price_moved_to_another_currency_through_its_guid.txt'
 
     def test_it_is_refused(self, tmp_path):
         _book, result = _book_then(tmp_path, self.FIXTURE)

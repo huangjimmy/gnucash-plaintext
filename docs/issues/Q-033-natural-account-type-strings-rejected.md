@@ -8,7 +8,7 @@ status: closed
 
 ## Problem
 
-A book that used the natural account-type spellings `type: "Receivable"` / `type: "Payable"` imported with those accounts **missing a type**, so they vanished from the balance sheet and it read **NOT BALANCED**. The symptom looked like the earlier Bank-type drop fixed in Q-032 (#82), but it was a different layer: the balance-sheet classification already covers RECEIVABLE/PAYABLE — the **importer** never gave the accounts those types.
+A book that used the natural account-type spellings `type: "Receivable"` / `type: "Payable"` imported with those accounts **missing a type**, so they vanished from the balance sheet and it read **NOT BALANCED**. The symptom looked like the earlier Bank-type drop fixed in Q-032 (#82), but it was a different layer: the balance-sheet classification already covers RECEIVABLE/PAYABLE — the **importer** never set those types on the accounts.
 
 Repro (`tests/fixtures/receivable_payable_natural_form_book.txt`): Cash 600 + Trade receivable 400 = 1000 assets, Trade payable 250, Equity 750. Before the fix, `import` reported a vague `'Receivable'` error, `balance-sheet` showed only Cash and Equity, and `Assets = Liabilities + Equity` failed (600 ≠ 750).
 

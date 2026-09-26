@@ -1,5 +1,5 @@
 # BILL-001's block as a page printed from another book writes it: its payment
-# gives that book's transaction by `txn_guid:`, which this book does not hold,
+# states that book's transaction by `txn_guid:`, which this book does not hold,
 # and describes the payment by day, figure, account and memo.
 vendor "V001"
 	name: "Supplier"

@@ -100,7 +100,7 @@ class TestExportTransactionCLI:
         assert f'guid: "{guid}"' in result.output
 
     def test_valid_guid_with_output_file(self, temp_gnucash_with_transactions, tmp_path):
-        """When -o is given, output is written to file and confirmation printed"""
+        """When -o is passed, output is written to file and confirmation printed"""
         import os
 
         from repositories.gnucash_repository import GnuCashRepository

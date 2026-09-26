@@ -1,7 +1,7 @@
 # Two `open` lines whose account names have an empty part.
 #
 # What this fixture produces: Assets and Assets:Bank, and two refusals. `open ""`
-# gives no name at all, and `open Assets::Savings` gives an empty name between
+# states no name at all, and `open Assets::Savings` has an empty name between
 # Assets and Savings. Neither is an account GnuCash can hold under a name, so
 # neither is created.
 #

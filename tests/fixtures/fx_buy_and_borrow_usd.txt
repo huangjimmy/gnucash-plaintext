@@ -4,7 +4,7 @@
 # Each arriving split states its own guid — `0d0d…0135` for the dollars bought
 # and `0d0d…0130` for the dollars borrowed — so a file layered on this book can
 # say which of the two a disposal came out of without being handed the guid at
-# run time. The two cost 135.00 and 130.00 CAD, so which one is given decides
+# run time. The two cost 135.00 and 130.00 CAD, so which one is stated decides
 # the gain, which is why nothing picks for the reader.
 2026-01-01 open Assets
 	type: Asset

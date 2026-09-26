@@ -119,7 +119,7 @@ def test_the_progress_column_is_hardened_too():
         'TerminalWriter.write is not hardened')
 
 
-def test_the_progress_column_still_writes_what_it_is_given():
+def test_the_progress_column_still_writes_what_it_is_passed():
     """Hardened, not silenced: only an OSError is swallowed.
 
     Checked on the wrapper rather than on pytest's own writer, whose output

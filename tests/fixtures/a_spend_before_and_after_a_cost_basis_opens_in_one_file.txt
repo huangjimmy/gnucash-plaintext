@@ -3,13 +3,13 @@
 #
 # The dollars first come in borrowed, in a transaction written wholly in US
 # dollars, which states no cost and opens no cost basis — so spending 10.00 of
-# them and then 5.00 more gives no guid and is not refused: there is none to
-# give, and the second spend is answered from what the first found. Then 100.00 USD
+# them and then 5.00 more states no guid and is not refused: there is none to
+# state, and the second spend is answered from what the first found. Then 100.00 USD
 # are bought at 1.30, which opens one. The same spend after that draws on a
-# cost basis the book now keeps, and giving no guid is refused.
+# cost basis the book now keeps, and stating no guid is refused.
 #
 # Whether the book keeps a cost basis is remembered through an import, because
-# it is asked of every spend that gives no guid. This file is what shows that
+# it is asked of every spend that states no guid. This file is what shows that
 # the answer is forgotten when a cost basis opens.
 #
 # Verified by

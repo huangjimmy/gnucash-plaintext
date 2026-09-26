@@ -211,7 +211,7 @@ def _tax_table_entries(lib, tt_ptr):
         rate_pct = numeric_to_fraction(amt_c) if amt_c.denom else Fraction(0)
         # GnuCash stores tax-table amounts as percentages (e.g. 13.0
         # for HST). Internally we want the decimal fraction (0.13) so
-        # `entry_amount × rate` gives the tax dollars directly. Kept as an
+        # `entry_amount × rate` is the tax in dollars directly. Kept as an
         # exact fraction: a rate like 1/3 % has no float that says it, and
         # the error rides straight into the tax dollars.
         rate = rate_pct / 100

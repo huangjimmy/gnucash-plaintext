@@ -1,4 +1,4 @@
-# The NASDAQ:AMZN price, given by its guid, with its value corrected under a
+# The NASDAQ:AMZN price, stated by its guid, with its value corrected under a
 # misspelled key: `valeu:` for `value:`.
 #
 # A price has no custom metadata to keep a key it does not read, so a key it

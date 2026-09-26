@@ -1,5 +1,5 @@
 # A book whose top-level accounts are held in two currencies, CAD and USD, and
-# that gives no `base_currency:`.
+# that states no `base_currency:`.
 #
 # Nothing says which currency the book is kept in, so a report on it is
 # refused rather than taken to be in CAD (Q-042).

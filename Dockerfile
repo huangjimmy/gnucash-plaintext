@@ -34,7 +34,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # bullseye is the sharp case, because the mirror lies. `deb.debian.org` still
 # publishes its security index, valid — measured 2026-09-05, `Valid-Until: Mon,
 # 07 Sep 2026` — while it deletes the package files that index lists, so apt
-# reads the list, asks for a file and is given a 404. A date check would not
+# reads the list, asks for a file and gets a 404. A date check would not
 # have caught that, and neither would a suite label. snapshot.debian.org holds
 # the archive as it stood at a moment in time, and 20260901T000000Z is just
 # after bullseye last changed (`Date: Mon, 31 Aug 2026 21:13:04 UTC`), so it

@@ -4,8 +4,8 @@ INV-USD-OVER is overpaid by 100.00 USD into the USD bank, and INV-USD-AUTO
 spends that credit whole. `unpost-invoices INV-USD-AUTO` hands it back: the
 split carries `applied_from_credit` and the unpost's orphan KVP, and is the
 customer's credit again, a cost basis at 1.40 with no balance recorded.
-`--strategy update` gives it `cost_basis_balance: "100.00"`, as `fx-balances`
-says to.
+`--strategy update` records `cost_basis_balance: "100.00"` on it, as
+`fx-balances` says to.
 
 INV-USD-GROUPED then applies that split with a `Transaction` block. Applying
 it spends the credit, so the balance comes off: left on, it would stay on a
@@ -13,10 +13,10 @@ split that now settles an invoice, which is no cost basis. Measured on 5.10:
 the split keeps `applied_from_credit` and its cost, the balance is gone, and
 `--verify-costs` agrees with every figure.
 
-A block giving two splits takes another path, and spends the credit the same
+A block stating two splits takes another path, and spends the credit the same
 way. `unpost-invoices INV-USD-OVER` loosens that invoice's own settlement,
 which a bank paid, beside the credit in the same transaction, and INV-USD-G
-applies both. Measured on 5.10: the credit gives up its balance and keeps
+applies both. Measured on 5.10: the credit loses its balance and keeps
 `applied_from_credit`, the settlement is not recorded as credit, and
 `--verify-costs` agrees.
 """
@@ -128,7 +128,7 @@ def _the_other_receivable_split(text, transaction, credit):
     return others[0]
 
 
-def test_a_block_giving_the_credit_beside_a_bank_paid_orphan_takes_its_balance_off(tmp_path):
+def test_a_block_stating_the_credit_beside_a_bank_paid_orphan_takes_its_balance_off(tmp_path):
     book = tmp_path / 'book.gnucash'
     _done('import', '--new', book, OVERPAID, '--include-business-objects', '--fx-rates', RATES)
     _done('import', book, AUTO, '--include-business-objects', '--fx-rates', RATES)

@@ -49,7 +49,7 @@ NOTHING_REALIZED = '\n'.join((
 def _book(tmp_path):
     """The January purchase, then August's sale and repurchase on top of it.
 
-    The sale gives the guid of the cost basis it draws on, and a guid is minted
+    The sale states the guid of the cost basis it draws on, and a guid is minted
     fresh on each import, so it is read from `fx-balances` and substituted —
     the way every other disposal fixture here is applied.
     """

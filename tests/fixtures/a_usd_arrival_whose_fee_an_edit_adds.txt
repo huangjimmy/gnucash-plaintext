@@ -1,6 +1,6 @@
 # Q-050 E9: the arrival as the book holds it, then with a fee added by
-# `--strategy update` giving the arrival's position, which resolves to the
-# `guid:` its line gives. The edit is read as a new transaction would be
+# `--strategy update` stating the arrival's position, which resolves to the
+# `guid:` its line states. The edit is read as a new transaction would be
 # (Q-051), so the fee draws 0.72 of the arrival's cost basis, leaving 2,719.28.
 #
 # The first block alone is imported first; the test then imports the whole

@@ -1,8 +1,8 @@
 """A book with no `took_the_residual` states its realized gain once its FX gain/loss account is specified.
 
 `took_the_residual` records which split of a disposal is the exchange
-difference. Nothing else in a book can answer that: a balanced transaction gives
-every one of its splits the same arithmetic, and the account type does not
+difference. Nothing else in a book can answer that: in a balanced transaction
+the same arithmetic holds for every split, and the account type does not
 separate them either — a bank charge is an expense and so is a loss.
 
 The key is new, and every book written before it has none. Those books were
@@ -14,14 +14,14 @@ which is a figure that is simply wrong about them.
 
 `--fx-gain-account` supplies the fact the book does not carry: the account a
 book's exchange differences are booked to. A split still counts only where the
-transaction is stated in the book's own currency and holds a disposal giving
+transaction is stated in the book's own currency and holds a disposal stating
 the guid of the cost basis it drew on, so a rent line cannot claim a gain and a
 foreign-stated transaction cannot add another currency's units into the total.
 
 **With an FX gain/loss account specified, `took_the_residual` is not consulted
 at all.** The two are not added together: a reader who states where their
 differences are booked has answered the question for the whole book, and a page
-that also counted whatever keys happened to be in it would give an answer
+that also counted whatever keys happened to be in it would answer differently
 depending on which release imported which transaction. So a split carrying the
 key on an account not specified is passed over, which is what
 `test_the_option_replaces_the_key` holds.
@@ -111,7 +111,7 @@ def test_a_book_with_no_took_the_residual_states_nothing_realized(tmp_path):
     """What the book says on its own, and why the option exists.
 
     Not an assertion that this is right for the book — it is the wrong answer
-    for a book that realized 100.00 — but the answer the page must give while
+    for a book that realized 100.00 — but the answer the page must state while
     nothing in the book says which split holds the exchange difference.
     """
     runner = CliRunner()
@@ -126,11 +126,11 @@ def test_specifying_the_account_states_the_gain(tmp_path):
     book_without_the_key = _sold(runner, tmp_path, WITHOUT_THE_KEY, 'without_the_key')
     book_with_the_key = _sold(runner, tmp_path, WITH_THE_KEY, 'with_the_key')
 
-    given = _page(runner, book_without_the_key, '--fx-gain-account', GAIN_ACCOUNT)
+    page = _page(runner, book_without_the_key, '--fx-gain-account', GAIN_ACCOUNT)
 
-    assert block_of(given, 'realized_gains_fx') == THE_GAIN
-    assert key_of(given, 'total_realized_gains') == '100.00 CAD'
-    assert block_of(given, 'realized_gains_fx') == block_of(
+    assert block_of(page, 'realized_gains_fx') == THE_GAIN
+    assert key_of(page, 'total_realized_gains') == '100.00 CAD'
+    assert block_of(page, 'realized_gains_fx') == block_of(
         _page(runner, book_with_the_key), 'realized_gains_fx')
 
 
@@ -145,9 +145,9 @@ def test_a_charge_beside_the_difference_is_left_out(tmp_path):
     runner = CliRunner()
     book = _sold(runner, tmp_path, WITH_A_CHARGE, 'with_a_charge')
 
-    given = _page(runner, book, '--fx-gain-account', GAIN_ACCOUNT)
+    page = _page(runner, book, '--fx-gain-account', GAIN_ACCOUNT)
 
-    assert block_of(given, 'realized_gains_fx') == THE_GAIN
+    assert block_of(page, 'realized_gains_fx') == THE_GAIN
 
 
 def test_a_page_in_another_currency_says_the_option_is_not_applied(tmp_path):
@@ -178,7 +178,7 @@ def test_an_account_that_cannot_hold_a_difference_is_warned_about(tmp_path):
     An exchange difference is booked to income or expense — a split on a bank
     or a receivable moved money rather than measuring anything — so a
     balance-sheet account here can never count. And because the option
-    replaces `took_the_residual` rather than adding to it, giving one turns a
+    replaces `took_the_residual` rather than adding to it, passing one turns a
     book that states 100.00 on its own into a book that states 0.00, at exit 0.
     That is the same silent wrong answer the unknown-account warning exists to
     prevent, reached by a different mistake, so it gets its own sentence.
@@ -192,7 +192,7 @@ def test_an_account_that_cannot_hold_a_difference_is_warned_about(tmp_path):
     assert drawn.exit_code == 0, drawn.output
     assert 'is not an income or expense account' in drawn.output, drawn.output
     # And the figure it leaves: the book's own key is not consulted once an
-    # account is given, so the page states nothing realized.
+    # account is passed, so the page states nothing realized.
     assert block_of(drawn.output, 'realized_gains_fx') == '\n'.join((
         '\t\trealized_gains_fx: 0.00',
         '\t\tsplits: # there is no split')), drawn.output
@@ -227,9 +227,9 @@ def test_the_account_specified_is_the_one_believed(tmp_path):
     runner = CliRunner()
     book = _sold(runner, tmp_path, WITH_A_CHARGE, 'with_a_charge')
 
-    given = _page(runner, book, '--fx-gain-account', CHARGE_ACCOUNT)
+    page = _page(runner, book, '--fx-gain-account', CHARGE_ACCOUNT)
 
-    assert block_of(given, 'realized_gains_fx') == THE_CHARGE
+    assert block_of(page, 'realized_gains_fx') == THE_CHARGE
 
 
 def test_two_accounts_may_be_specified(tmp_path):
@@ -237,11 +237,11 @@ def test_two_accounts_may_be_specified(tmp_path):
     runner = CliRunner()
     book = _sold(runner, tmp_path, WITH_A_CHARGE, 'with_a_charge')
 
-    given = _page(runner, book,
-                  '--fx-gain-account', GAIN_ACCOUNT,
-                  '--fx-gain-account', CHARGE_ACCOUNT)
+    page = _page(runner, book,
+                 '--fx-gain-account', GAIN_ACCOUNT,
+                 '--fx-gain-account', CHARGE_ACCOUNT)
 
-    assert block_of(given, 'realized_gains_fx') == BOTH_OF_THEM
+    assert block_of(page, 'realized_gains_fx') == BOTH_OF_THEM
 
 
 def test_the_working_states_the_gain_it_counted(tmp_path):
@@ -249,9 +249,9 @@ def test_the_working_states_the_gain_it_counted(tmp_path):
     runner = CliRunner()
     book = _sold(runner, tmp_path, WITHOUT_THE_KEY, 'without_the_key')
 
-    given = _page(runner, book, '--fx-gain-account', GAIN_ACCOUNT)
+    page = _page(runner, book, '--fx-gain-account', GAIN_ACCOUNT)
 
-    assert block_of(given, 'realized_gains_fx') == THE_GAIN, given
+    assert block_of(page, 'realized_gains_fx') == THE_GAIN, page
 
 
 def test_report_draws_the_same_sheet_as_balance_sheet(tmp_path):

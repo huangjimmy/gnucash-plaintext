@@ -4,6 +4,24 @@
 **Start Date**: 2026-02-14
 **Target Completion**: TBD
 
+> **A record of the rebuild, not a map of the code.** Many files named below
+> were renamed, merged, deleted or never created. As the code stands:
+>
+> - The `editor/` package, `editor/tests/` and `tests/plaintext_to_gnucash_test.py`
+>   were removed in #4. Export is `use_cases/export_transactions.py`, import is
+>   `use_cases/import_transactions.py`, parsing is `services/plaintext_parser.py`,
+>   writing into a book is `services/gnucash_importer.py`, and every book is
+>   opened through `repositories/gnucash_repository.py`.
+> - `cli/commands/` and `tests/parity/` were removed in 8755619. Each command is
+>   a `cli/*_cmd.py` module (`cli/export_cmd.py`, `cli/import_cmd.py`,
+>   `cli/validate_cmd.py`, …); `update` is `import --strategy update`, and the
+>   QFX command is gone.
+> - `infrastructure/gnucash/mapper.py`, `infrastructure/gnucash/repository.py`,
+>   `infrastructure/gnucash/session_manager.py`, `infrastructure/plaintext/parser.py`,
+>   `infrastructure/plaintext/ast_models.py`, `infrastructure/qfx/`,
+>   `scripts/create_empty_gnucash.py` and `scripts/dump_gnucash_accounts.py`
+>   were planned and never created.
+
 ---
 
 ## How to Use This Log

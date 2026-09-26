@@ -3,7 +3,7 @@
 # A bookkeeper who learns whose money a receipt was moves it onto that
 # customer: the receivable against itself, one split standing as C001's credit
 # and the other taking the amount off the receivable nobody's name was on.
-# Every split is on a receivable, and the transaction and both splits give
+# Every split is on a receivable, and the transaction and both splits state
 # their guids so an invoice can spend the credit by them.
 #
 # What this fixture produces: customer C001, and one CAD transaction whose

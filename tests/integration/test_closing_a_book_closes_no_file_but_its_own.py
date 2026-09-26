@@ -137,8 +137,8 @@ def test_refusing_to_create_a_book_in_a_directory_it_cannot_write(tmp_path):
     try:
         if os.access(shut, os.W_OK):
             if os.environ.get('GNC_UNPRIVILEGED_RUN'):
-                pytest.fail('the runner says this container was given --user, and the process '
-                            'writes whatever the mode says anyway')
+                pytest.fail('the runner says this container was started with --user, and the '
+                            'process writes whatever the mode says anyway')
             pytest.skip('this process writes whatever the mode says, so the directory is not '
                         'unwritable')
         mine = _a_file_on_the_lock_number_a_book_just_freed(book, tmp_path)
@@ -172,8 +172,8 @@ def test_refusing_a_book_in_a_directory_it_cannot_write(tmp_path):
     try:
         if os.access(shut, os.W_OK):
             if os.environ.get('GNC_UNPRIVILEGED_RUN'):
-                pytest.fail('the runner says this container was given --user, and the process '
-                            'writes whatever the mode says anyway')
+                pytest.fail('the runner says this container was started with --user, and the '
+                            'process writes whatever the mode says anyway')
             pytest.skip('this process writes whatever the mode says, so the directory is not '
                         'unwritable')
         mine = _a_file_on_the_lock_number_a_book_just_freed(book, tmp_path)

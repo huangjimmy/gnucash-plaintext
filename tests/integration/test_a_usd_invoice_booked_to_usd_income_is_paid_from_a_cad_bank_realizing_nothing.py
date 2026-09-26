@@ -3,7 +3,7 @@
 INV-USD-INC's line is on `Income:Sales USD`, so its posting is USD against USD
 and states no cost in CAD. Paid from the CAD bank with `settled_amount:
 137.00`, the payment is recorded and no realized difference is written, since
-there is no cost to measure one against. A block giving a `$residual$` line
+there is no cost to measure one against. A block stating a `$residual$` line
 beside it is refused for the same reason, which
 `test_payment_exchange_rate.py` covers. Measured on 5.10 and 3.8: the bank holds
 137.00 CAD, the receivable is settled by 100.00 USD, and `fx-balances` finds no

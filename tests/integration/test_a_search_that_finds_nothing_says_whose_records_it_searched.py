@@ -1,7 +1,7 @@
 """A search that finds nothing says whose records it searched.
 
 `find-orphan-payments` and `find-prepayments` both take `--customer` and
-`--vendor`, and an empty answer repeats the one given, so "none for vendor
+`--vendor`, and an empty answer repeats the one passed, so "none for vendor
 V001" is not read as "none in the book".
 """
 

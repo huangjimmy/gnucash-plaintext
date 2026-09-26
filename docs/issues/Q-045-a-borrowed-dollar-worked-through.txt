@@ -10,7 +10,7 @@ Why this case: it is the smallest book that touches both sides of the cost
 bases. A borrowing raises the owed side and the held side at once, interest
 raises the owed side on its own, and the repayment lowers both — so it says
 what a cost basis has to do at every point, and it is the case that showed the
-refusal in `refuse_a_disposal_that_gives_no_cost_basis` had to ask per side
+refusal in `refuse_a_disposal_that_states_no_cost_basis` had to ask per side
 rather than per currency.
 
 The rates, which are the whole of the arithmetic:
@@ -27,7 +27,7 @@ characters. It has two ways to get them. `fx-balances` prints the guid of every
 cost basis a book already holds, which is what a file written after the fact
 uses. A file that opens a cost basis and consumes it in one run cannot do that,
 because GnuCash assigns the guid as the file is read — so it writes `guid:` on
-the split itself, which the import obeys, and gives that same guid to the
+the split itself, which the import obeys, and states that same guid in the
 disposal below. `tests/fixtures/account_balance_test_data.txt` is the shortest
 example: one opening purchase of 8,000.00 HKD carrying its own guid, and one
 fare consuming 300.00 of it.
@@ -181,7 +181,7 @@ realizes a difference of its own, and one guid cannot say both.
 Note the liability side needs both of its bases, 1,000.00 and 10.00, to make up
 the 1,010.00 paid off. Which of them a repayment draws on is the file's to say
 exactly as it is on the held side; the two above happen to be taken in full, so
-the file could give either guid first, but a partial repayment could not.
+the file could state either guid first, but a partial repayment could not.
 
     asset      1,000.00 USD  at 1.30 CAD  =  1,300.00 CAD   Assets:USD Bank
     liability      0.00 USD                                 both spent to nothing
@@ -238,7 +238,7 @@ From the bases:
 From the cash, which must agree:
 
     borrowed  1,000.00 USD at 1.30  =  1,300.00 CAD of value received
-    repaid    1,010.00 USD at 1.40  =  1,414.00 CAD of value given up
+    repaid    1,010.00 USD at 1.40  =  1,414.00 CAD of value paid
     ------------
     the borrowing cost                   114.00 CAD
 
@@ -270,9 +270,9 @@ WHAT THIS CASE SETTLED
 2. **Interest opens a liability cost basis.** It raises the owed side, and
    every arrival on a side is costed.
 
-3. **A repayment consumes a basis on each side, so it gives a guid on each
-   side.** `refuse_a_disposal_that_gives_no_cost_basis` asked per currency
-   first, which let a repayment giving only the loan's guid through while the
+3. **A repayment consumes a basis on each side, so it states a guid on each
+   side.** `refuse_a_disposal_that_states_no_cost_basis` asked per currency
+   first, which let through a repayment stating only the loan's guid while the
    bank's dollars went unaccounted for — probe case 4 exactly: the liability
    agreed, the asset was 2,000.00 adrift, exit 0. It asks per side now.
 

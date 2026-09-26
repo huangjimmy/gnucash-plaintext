@@ -1,6 +1,6 @@
 """`--verify-integrity` draws the statements of a finished book and reads them against each other.
 
-Two spellings, one check. On its own it takes a book nobody is changing; given
+Two spellings, one check. On its own it takes a book nobody is changing; passed
 before a command that writes, it runs once that command has saved and reopens
 the book from disk — the book the next command will read, rather than a session
 a failed save never wrote.
@@ -128,7 +128,7 @@ class TestOnItsOwn:
         assert 'not kept in' not in checked.output, checked.output
         assert checked.exit_code == 0, checked.output
 
-    def test_a_book_stating_no_currency_of_its_own_takes_the_one_given(self, tmp_path):
+    def test_a_book_stating_no_currency_of_its_own_takes_the_one_passed(self, tmp_path):
         """Its top-level accounts are in two currencies, so `--currency` stands for its own."""
         checked = CliRunner().invoke(
             cli, ['--verify-integrity', str(book_from(tmp_path, NO_TRANSACTION)),
@@ -154,7 +154,7 @@ class TestWhatItCannotCheck:
     def test_a_book_whose_currency_nothing_states(self, tmp_path):
         """Its top-level accounts are in two currencies, so no report can be drawn.
 
-        Given a date of its own the check gets as far as asking which currency,
+        With a date of its own the check gets as far as asking which currency,
         and says what the balance sheet itself says. The cost bases are still
         read, because they need no currency — a balance is a count of units.
         """
@@ -472,7 +472,7 @@ def test_the_flag_with_no_book_is_a_usage_error(tmp_path):
 
     assert done.exit_code == 2, done.output
     assert ('--verify-integrity takes a book to check, or a command to run '
-            'before checking the book it was given') in done.output, done.output
+            'before checking the book that command works on') in done.output, done.output
 
 
 def test_a_mistyped_command_is_not_read_as_a_book(tmp_path):

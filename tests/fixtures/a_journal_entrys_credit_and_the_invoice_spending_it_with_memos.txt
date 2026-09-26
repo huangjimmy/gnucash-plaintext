@@ -8,7 +8,7 @@
 #
 # What this fixture produces, read into the book those two built: the credit
 # split takes the block's memo, "Spent on INV-001". A block whose memo is the
-# one the file gives the bank split is a ledger an earlier release wrote and
+# one the file writes on the bank split is a ledger an earlier release wrote and
 # changes nothing, but this entry has no split off the receivable, so there is
 # no bank split for the block to be stating.
 #

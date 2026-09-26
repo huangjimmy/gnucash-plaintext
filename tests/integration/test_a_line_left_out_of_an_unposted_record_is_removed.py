@@ -1,6 +1,6 @@
 """A line left out of an unposted invoice or bill's block is removed from it.
 
-The block is the record's whole list of lines: a line it gives no block for
+The block is the record's whole list of lines: a line it has no block for
 is gone from the record. The record here is unposted, so nothing is booked
 against the line, and the import edits the one line it keeps and removes the
 other.

@@ -2,8 +2,8 @@
 #
 # What this fixture produces: Assets:Nasdaq AMZN holding NASDAQ:AMZN, Assets:Neo
 # AMZN holding NEO:AMZN, and Assets:SHOP holding TSX:SHOP, with no transactions
-# and no prices. A prices file giving `AMZN:` cannot say which of the two AMZN
-# it means, and one giving `SHOP:` cannot say which currency the price is in.
+# and no prices. A prices file stating `AMZN:` cannot say which of the two AMZN
+# it means, and one stating `SHOP:` cannot say which currency the price is in.
 #
 # Verified by tests/integration/test_a_rates_file_prices_gnucash_reports_for_the_run_only.py.
 2026-01-01 commodity CAD

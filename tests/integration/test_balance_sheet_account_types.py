@@ -1,7 +1,7 @@
 """Q-032 (reopened): the balance sheet recognises every GnuCash asset and liability account type.
 
 A user reported a balance sheet that disagreed with the figures `account-balance`
-gave before the books were closed, and showed NOT BALANCED: Bank, Cash, Credit
+printed before the books were closed, and showed NOT BALANCED: Bank, Cash, Credit
 Card, A/Receivable and A/Payable balances had been left out. The balance sheet is
 GnuCash's own report now (Q-042), and these check it through the real import,
 balance-sheet and account-balance paths:
@@ -88,7 +88,7 @@ def test_balance_sheet_figures_match_account_balance_and_the_sheet_balances(tmp_
 
     assert _amount(page, 'Assets:Bank') == '1500.00 CAD'
     assert _amount(page, 'Liabilities:CreditCard') == '500.00 CAD'
-    # account-balance gives a liability its credit-negative sign; the sheet
+    # account-balance prints a liability with its credit-negative sign; the sheet
     # shows it positive.
     assert _account_balance(gf, 'Assets:Bank', as_of) == Fraction(1500)
     assert _account_balance(gf, 'Liabilities:CreditCard', as_of) == Fraction(-500)
@@ -168,7 +168,7 @@ def test_a_usd_bank_account_shows_beside_its_value_and_a_rates_file_prices_it(tm
 def test_a_foreign_security_is_valued_from_a_prices_file_and_a_rates_file(tmp_path):
     """USTECH: 60 is in USD, the currency it was bought in, and USD: 1.35 prices the USD in CAD.
 
-    The book's top-level accounts are in CAD and USD, so the command gives the
+    The book's top-level accounts are in CAD and USD, so the command states the
     currency.
     """
     runner = CliRunner()
@@ -200,7 +200,7 @@ def test_a_foreign_security_is_valued_from_a_prices_file_and_a_rates_file(tmp_pa
         '\t\t\t\tcommodity.namespace: "NASDAQ"',
         '\t\t\t\tcommodity.mnemonic: "USTECH"',
         '\t\t\t\tquantity: 10.0000',
-        '\t\t\t\tshare_price: 81 # what price-fn gives for this commodity',
+        '\t\t\t\tshare_price: 81 # what price-fn returns for this commodity',
         '\t\t\t\tmeasured_from: gnucash_revaluation # its cost bases do not'
         ' account for what the accounts hold',
         '\t\t\t\taccounts:',

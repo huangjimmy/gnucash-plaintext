@@ -1,9 +1,9 @@
 # Two NASDAQ:AMZN prices in USD on two days in Toronto and on one day in UTC.
 #
 # The first is at 2026-01-06 04:59:59 UTC, which is 23:59:59 on 2026-01-05 in
-# Toronto, the time GnuCash 5.x's stock transaction assistant gives a price.
+# Toronto, the time GnuCash 5.x's stock transaction assistant stores on a price.
 # The second is at 2026-01-06 10:59:00 UTC, the time GnuCash's Price Editor
-# gives a date (Q-041, table 2). In Toronto each is on a day of its own; in UTC
+# stores for a date (Q-041, table 2). In Toronto each is on a day of its own; in UTC
 # both are on 2026-01-06.
 #
 # What this fixture produces, imported under TZ=America/Toronto: a book holding

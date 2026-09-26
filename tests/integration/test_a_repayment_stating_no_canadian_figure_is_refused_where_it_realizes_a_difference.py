@@ -47,7 +47,7 @@ def test_it_says_how_to_write_it(tmp_path):
     _, done = _imported(tmp_path)
 
     assert ('Write it in CAD, each USD split valued at what its cost basis '
-            'cost, and give the difference to a `$residual$` split.') \
+            'cost, and put the difference on a `$residual$` split.') \
         in done.output, done.output
 
 

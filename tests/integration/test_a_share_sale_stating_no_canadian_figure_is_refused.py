@@ -27,8 +27,8 @@ def test_the_sale_is_refused_and_says_how_to_write_it(tmp_path):
             'dollars: this transaction sells 8.0000 USD_TECH, which cost 260 '
             'CAD/USD_TECH, and is written wholly in USD, so no split in it can '
             'state what the sale realized. Write it in CAD, the shares at what '
-            'they cost and the currency at what it fetched, and give the '
-            'difference to a `$residual$` split.') in done.output, done.output
+            'they cost and the currency at what it fetched, and put the '
+            'difference on a `$residual$` split.') in done.output, done.output
 
 
 def test_the_shares_keep_their_cost_basis(tmp_path):

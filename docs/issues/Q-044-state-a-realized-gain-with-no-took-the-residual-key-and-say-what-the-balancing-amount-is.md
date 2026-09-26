@@ -12,13 +12,13 @@ Reported from a real book and reproduced by the fixtures this issue adds, so not
 - On `balance-sheet` and on `report`, repeatable, for a book keeping its gains and its losses in two accounts.
 - The book is not written to: the option is read while the balance sheet is being produced.
 - With an FX gain/loss account specified, `took_the_residual` is not consulted at all.
-- The option says *which* split holds the difference, never *whether* a difference may exist. Three conditions the book answers for itself are unchanged: the split must be on an income or expense account, the transaction must be stated in the book's own currency, and one of its splits must give a cost basis guid. So the option counts nothing on a transaction that disposed of no currency. On a disposal it is believed — whatever sits on the stated account is taken for the difference, so a bank charge booked there is read as a loss, which is why the account has to come from someone who knows the book.
+- The option says *which* split holds the difference, never *whether* a difference may exist. Three conditions the book answers for itself are unchanged: the split must be on an income or expense account, the transaction must be stated in the book's own currency, and one of its splits must state a cost basis guid. So the option counts nothing on a transaction that disposed of no currency. On a disposal it is believed — whatever sits on the stated account is taken for the difference, so a bank charge booked there is read as a loss, which is why the account has to come from someone who knows the book.
 
 **The balance sheet says what `gnucash_balancing_amount` is on the book it was run against.**
 
-- `gnucash_balancing_amount` is what GnuCash thinks is the unrealized gain, and it turns out not to be. The balance sheet states the subtraction GnuCash made rather than a verdict on it, commodity by commodity — **the commodities GnuCash's own figure is summed from**, read out of the collector it sums rather than grouped by anything this report decided. GnuCash merges the account balances, keyed by each account's own commodity, and subtracts the splits' values, keyed by the transaction's currency, so its figure spans both sets. Each group gives that commodity's own amount and the amount converted, with the splits and the balances beside them so a reader can see what went into it.
+- `gnucash_balancing_amount` is what GnuCash thinks is the unrealized gain, and it turns out not to be. The balance sheet states the subtraction GnuCash made rather than a verdict on it, commodity by commodity — **the commodities GnuCash's own figure is summed from**, read out of the collector it sums rather than grouped by anything this report decided. GnuCash merges the account balances, keyed by each account's own commodity, and subtracts the splits' values, keyed by the transaction's currency, so its figure spans both sets. Each group states that commodity's own amount and the amount converted, with the splits and the balances beside them so a reader can see what went into it.
 - A reader works out which of them it is on their own book from those figures. Where the splits and the balances come to the same amount the difference is `0.00`, and the group says so rather than the key going quiet.
-- **The examples show the subtraction being made, on books a reader can run.** Every file under `examples/multi-currency/` carries a ledger and the balance sheet that ledger prints, the grouped block included, so the arithmetic can be followed on real figures rather than taken on trust. `a_us_supplier_paid_out_of_those_dollars.txt` states 19.86, `some_of_the_dollars_kept_back.txt` states 12.56, `us_dollars_borrowed_into_a_canadian_bank.txt` states -100.00, and `a_us_customer_invoiced_and_the_dollars_still_held.txt` states `0.00` with a group behind it. Each file's own header gives the two commands that rebuild it. `scripts/generate-multi-currency-examples.sh` writes all eleven from the fixtures and refuses to write one that does not import.
+- **The examples show the subtraction being made, on books a reader can run.** Every file under `examples/multi-currency/` carries a ledger and the balance sheet that ledger prints, the grouped block included, so the arithmetic can be followed on real figures rather than taken on trust. `a_us_supplier_paid_out_of_those_dollars.txt` states 19.86, `some_of_the_dollars_kept_back.txt` states 12.56, `us_dollars_borrowed_into_a_canadian_bank.txt` states -100.00, and `a_us_customer_invoiced_and_the_dollars_still_held.txt` states `0.00` with a group behind it. Each file's own header states the two commands that rebuild it. `scripts/generate-multi-currency-examples.sh` writes all eleven from the fixtures and refuses to write one that does not import.
 
 **`--itemize` lists the items a total is made of.**
 
@@ -32,7 +32,7 @@ The items go under the total they belong to, in the indentation the format alrea
 
 **Every entry is listed, however many there are, and `--max-items N` is how a reader asks for fewer.** A list with entries missing is one nobody can add up, so nothing is left out unless it is asked for. What that costs on a large book was measured by `tests/research/how_a_page_grows_with_the_splits_behind_it_probe.py`: 2,500 foreign purchases draw a page of 40,154 lines and 1.4 MB, of which 40,069 lines are the four itemized keys — about sixteen lines a transaction. `--max-items 5` draws the same book in 210 lines, and each shortened list says on its own line what it is not showing: `cost_bases: # 2500 cost bases, 5 listed and the rest under not_listed; --max-items -1 for all`.
 
-**A shortened list carries what it left out, as one more entry.** Each of these keys ends in totals whose own comments state that they are the sum of the entries above them — `cost_basis_balance: 4000.00 # sum of each cost_basis's cost_basis_balance` — so a list that simply stopped after two made its own comment untrue, and left a reader adding two figures that come to 2,000.00 beneath a total of 4,000.00. The list ends with `not_listed:` instead, giving the count and what the rest come to:
+**A shortened list carries what it left out, as one more entry.** Each of these keys ends in totals whose own comments state that they are the sum of the entries above them — `cost_basis_balance: 4000.00 # sum of each cost_basis's cost_basis_balance` — so a list that simply stopped after two made its own comment untrue, and left a reader adding two figures that come to 2,000.00 beneath a total of 4,000.00. The list ends with `not_listed:` instead, stating the count and what the rest come to:
 
 ```
 					cost_basis:
@@ -178,7 +178,7 @@ unrealized_gains_other: # sum of unrealized_gains_other of all securities and fu
 			commodity.namespace: "NASDAQ"
 			commodity.mnemonic: "ACME"
 			quantity: 10.0000
-			share_price: 60 # what price-fn gives for this commodity
+			share_price: 60 # what price-fn returns for this commodity
 			accounts:
 				account:
 					guid: 8a3f1c07d2b74e5fa91c6d4380be2f15
@@ -193,7 +193,7 @@ unrealized_gains_other: # sum of unrealized_gains_other of all securities and fu
 			commodity.namespace: "FUND"
 			commodity.mnemonic: "VGRO"
 			quantity: 20.0000
-			share_price: 30 # what price-fn gives for this commodity
+			share_price: 30 # what price-fn returns for this commodity
 			accounts:
 				account:
 					guid: 4d90e6b1385c42a7b0f27e5c1a836d94
@@ -275,17 +275,17 @@ A plaintext file using `$residual$` and one stating the amount outright produce 
 
 The exchange gain or loss is still recorded in the book. The import posted it to an income or expense account, so the income statement shows it there.
 
-`tests/fixtures/the_thousand_usd_sold_with_no_took_the_residual.txt` is that book: 1,000.00 USD bought at 1.30, sold for 1,400.00, the disposal valued at cost and giving the guid of the basis it draws on, and the 100.00 difference in `Income:FX Gain`, whose split carries no `took_the_residual`. As it stands `balance-sheet` states `0.00`; with `--fx-gain-account "Income:FX Gain"` it states `100.00`, which is what the identical sale states with no option at all when the book carries `took_the_residual`.
+`tests/fixtures/the_thousand_usd_sold_with_no_took_the_residual.txt` is that book: 1,000.00 USD bought at 1.30, sold for 1,400.00, the disposal valued at cost and stating the guid of the basis it draws on, and the 100.00 difference in `Income:FX Gain`, whose split carries no `took_the_residual`. As it stands `balance-sheet` states `0.00`; with `--fx-gain-account "Income:FX Gain"` it states `100.00`, which is what the identical sale states with no option at all when the book carries `took_the_residual`.
 
-**The book cannot know which of a disposal's splits gives the realized gain, unless `took_the_residual` or `--fx-gain-account` says so.** A disposal balances, so the arithmetic gives every split the same answer, and the account type settles nothing: `tests/fixtures/the_thousand_usd_sold_less_a_charge_with_no_took_the_residual.txt` pays a 10.00 bank charge and leaves a 100.00 difference in one disposal, one on an expense account and one on an income account. Counting every income and expense split would state 110.00.
+**The book cannot know which of a disposal's splits holds the realized gain, unless `took_the_residual` or `--fx-gain-account` says so.** A disposal balances, so the arithmetic answers the same for every split, and the account type settles nothing: `tests/fixtures/the_thousand_usd_sold_less_a_charge_with_no_took_the_residual.txt` pays a 10.00 bank charge and leaves a 100.00 difference in one disposal, one on an expense account and one on an income account. Counting every income and expense split would state 110.00.
 
-**`--fx-gain-account` overrides `took_the_residual` rather than adding to it.** A reader who states where their differences are booked has answered for the whole book; a balance sheet that also counted whatever keys happened to be in it would give an answer depending on which release imported which transaction.
+**`--fx-gain-account` overrides `took_the_residual` rather than adding to it.** A reader who states where their differences are booked has answered for the whole book; a balance sheet that also counted whatever keys happened to be in it would answer differently depending on which release imported which transaction.
 
 ## What GnuCash's balancing amount actually measures
 
 **GnuCash treats `gnucash_balancing_amount` as the unrealized gain** — the gain on foreign money the book still holds. GnuCash's own balance sheet prints it under the heading `Unrealized Gains`, and adds it to equity, which is where an unrealized gain belongs. The `balance-sheet` command does the same thing with its own figure. The disagreement is not about where such a gain goes; it is about how the figure is arrived at.
 
-GnuCash arrives at it by taking the summed values of the splits in a holding's own accounts away from what that holding is worth on the sheet's date. That gives the unrealized gain **only where every one of those splits carries a figure in the book's own currency.** Three scenarios, in round numbers: US dollars bought when the rate was 1.3, and a balance sheet produced later when the rate is 1.4. The measured figures from real books follow.
+GnuCash arrives at it by taking the summed values of the splits in a holding's own accounts away from what that holding is worth on the sheet's date. That is the unrealized gain **only where every one of those splits carries a figure in the book's own currency.** Three scenarios, in round numbers: US dollars bought when the rate was 1.3, and a balance sheet produced later when the rate is 1.4. The measured figures from real books follow.
 
 **Scenario 1 — A company buys US dollars with Canadian dollars and still holds them.** It pays 1,300.00 CAD out of its Canadian bank for 1,000.00 USD. At 1.4 they are worth 1,400.00, so the unrealized gain is 100.00 CAD. Both splits of that purchase carry Canadian figures, so GnuCash's subtraction has them to work on and it reports 100.00 CAD. It agrees with what the cost bases say, and it is correct.
 
@@ -383,7 +383,7 @@ GnuCash treats this amount as an unrealized gain. It is in fact the negative of 
 
 ## Why two books with the same balancing amount are not the same case
 
-Two books give a balancing amount equal to their own realized loss, and they are not the same case.
+Two books have a balancing amount equal to their own realized loss, and they are not the same case.
 
 `the_usd_bank_spent_out_against_its_basis.txt` spends all 2,720.00 USD: its balancing amount is 19.86 and its realized loss is 19.86. `the_usd_bank_partly_spent_leaving_a_thousand.txt` spends 1,720.00 and keeps 1,000.00: its balancing amount is 12.56 and its realized loss is 12.56. Both agree because both balance sheets use the same rate those dollars were spent at.
 
@@ -393,7 +393,7 @@ The difference is what each book still holds. The first holds 0.00 USD, so its u
 
 ## What this does not handle yet
 
-**A US dollar cost basis in a book that also trades a security in US dollars.** `tests/fixtures/a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt` buys 10,000.00 USD with Canadian dollars, which opens a cost basis, and then buys shares, sells shares, borrows and repays a loan — every one of those in a transaction stated wholly in US dollars, so not one of them gives that cost basis's guid and the basis is never drawn down. It still reads 10,000.00 against a bank holding 7,480.00.
+**A US dollar cost basis in a book that also trades a security in US dollars.** `tests/fixtures/a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt` buys 10,000.00 USD with Canadian dollars, which opens a cost basis, and then buys shares, sells shares, borrows and repays a loan — every one of those in a transaction stated wholly in US dollars, so not one of them states that cost basis's guid and the basis is never drawn down. It still reads 10,000.00 against a bank holding 7,480.00.
 
 **What the page does about it is settled; what the book records is not.** A currency whose cost bases do not account for what the accounts hold keeps GnuCash's own revaluation, and is listed under `measured_from: gnucash_revaluation` with the cost and the worth that revaluation used in place of cost bases it cannot speak for. So the page states 940.00 and its items come to 940.00 — it does not disagree with itself, and `tests/integration/test_an_itemized_total_is_the_figure_the_key_states.py` holds that on this fixture among seven.
 

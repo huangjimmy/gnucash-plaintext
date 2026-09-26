@@ -1,4 +1,4 @@
-"""Probe: the date a transaction reads back with, given the seconds it was set.
+"""Probe: the date a transaction reads back with, when its date is set in seconds.
 
 The fuzzy matcher files a transaction under `(post date, positive amount)`, and
 on GnuCash 3.4 every match test comes back `NEW` with no candidate — so one
@@ -82,7 +82,7 @@ def test_what_the_engine_reports(capsys):
     with capsys.disabled():
         print()
         print(f'asked for            {WANTED}')
-        print(f'seconds given        {seconds}')
+        print(f'seconds set          {seconds}')
         print(f'in session GetDate   {read_in_session!r}')
         print(f'in session .date()   {read_in_session.date()}')
         print(f'after reload         {[str(d) for d in reloaded]}')

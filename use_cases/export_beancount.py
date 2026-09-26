@@ -84,7 +84,7 @@ class ExportBeancountUseCase:
         # The order the book keeps them in, which is the plaintext export's
         # too: the posted date, then `num`, then when each was entered, then
         # the description. Sorted on the date alone, two transactions of one
-        # day came out in whichever order the query gave them, and the two
+        # day came out in whichever order the query returned them, and the two
         # exports of one book could disagree about which came first.
         #
         # No cost basis is stated here — beancount has no

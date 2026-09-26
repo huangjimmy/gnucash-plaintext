@@ -26,7 +26,7 @@ Neither is possible today:
 |---|---|
 | `export mybook.gnucash ledger.txt` | writes none — the default, as for business objects, because a book can hold a great many prices |
 | `export mybook.gnucash ledger.txt --include-prices` | writes the price blocks into the same ledger, after commodities and accounts, so one file holds the whole book |
-| `export-prices mybook.gnucash prices.txt` | writes only price blocks, plus the commodity declarations those prices use so the file imports on its own; takes `--start-date`, `--end-date` and `--latest N`; each works on its own and none requires another, and any of them may also be given together |
+| `export-prices mybook.gnucash prices.txt` | writes only price blocks, plus the commodity declarations those prices use so the file imports on its own; takes `--start-date`, `--end-date` and `--latest N`; each works on its own and none requires another, and any of them may be passed together |
 | `import mybook.gnucash any.txt` | applies every price block the file holds; no flag and no new command. A file holding only prices imports and saves |
 
 A full backup is one file. `export-prices` is for a list of prices on its own, not a second half of a backup.
@@ -38,13 +38,13 @@ A full backup is one file. `export-prices` is for a list of prices on its own, n
 - **The day a date option compares** is the day GnuCash shows for the price on the machine running the command, as `export --start-date`/`--end-date` compare a transaction's posted day. A price stored at 23:59:59 local on 2025-12-31 is kept by `--end-date 2025-12-31` although its UTC time is on 2026-01-01.
 - **`--latest N` without `--end-date`** counts back from today, so a price dated in the future is not among the latest.
 
-**`--latest N` keeps the N most recent prices of each commodity in each currency**, not N prices across the book: `--latest 1` is the current USD in CAD, the current HKD in CAD and the current NASDAQ:AMZN in USD, one price each. A book-wide count would give whichever pairs happened to be priced last.
+**`--latest N` keeps the N most recent prices of each commodity in each currency**, not N prices across the book: `--latest 1` is the current USD in CAD, the current HKD in CAD and the current NASDAQ:AMZN in USD, one price each. A book-wide count would keep only whichever pairs happened to be priced last.
 
 - `--latest N` counts back from today. With `--end-date`, it counts back from that date instead, as if it were today: `--end-date 2025-12-31 --latest 1` is each pair's last price of 2025.
-- With `--start-date`, no price from before that date is written, so a pair priced fewer than N times since then gives the prices it has: `--start-date 2026-01-01 --latest 5` is each pair's five most recent prices, or fewer where fewer fall on or after 2026-01-01.
+- With `--start-date`, no price from before that date is written, so a pair priced fewer than N times since then writes the prices it has: `--start-date 2026-01-01 --latest 5` is each pair's five most recent prices, or fewer where fewer fall on or after 2026-01-01.
 - All three together are the N most recent prices of each pair inside the range, counting back from `--end-date`.
 - GnuCash keeps one price per pair per local day (table 1), so the latest N are the N most recent days that pair has a price, and two prices of one pair never tie.
-- A pair is a stored direction. A book can hold both USD in CAD and CAD in USD — the transfer dialog stores USD/CAD on 3.4 and CAD/USD from 3.8 on (table 2) — and `--latest 1` then gives one price for each.
+- A pair is a stored direction. A book can hold both USD in CAD and CAD in USD — the transfer dialog stores USD/CAD on 3.4 and CAD/USD from 3.8 on (table 2) — and `--latest 1` then writes one price for each.
 - N is 1 or more; `--latest 0` and a negative N are refused.
 
 ### The block
@@ -74,15 +74,15 @@ price
 - **A block whose guid the book holds** edits that price in place. The guid stays, even when `time:` moves the price to another day. A key the block leaves out changes nothing. Status `updated` or `unchanged`.
 - **A block with no guid that states exactly a price the book holds** — the same commodity, currency, time, value, source and type — leaves it as it is. Status `unchanged`, so a hand-written file imported twice changes nothing.
 - **A block whose guid the book does not hold, or with no guid,** creates a price, with the stated guid when there is one. Status `created`.
-- **The book already holds another price for the same commodity and currency on the same local day.** The block is refused, and the refusal lists that price's guid, time and source; giving that guid edits it instead. `gnc_pricedb_add_price` is not called in that case, because it silently deletes the other price (table 1). Two times are on the same day when GnuCash's `gnc_time64_get_day_start` gives both the same start: the local day of the process running the import, which is the day `gnc_pricedb_add_price` was measured to replace on (table 1).
+- **The book already holds another price for the same commodity and currency on the same local day.** The block is refused, and the refusal lists that price's guid, time and source; stating that guid edits it instead. `gnc_pricedb_add_price` is not called in that case, because it silently deletes the other price (table 1). Two times are on the same day when GnuCash's `gnc_time64_get_day_start` returns the same start for both: the local day of the process running the import, which is the day `gnc_pricedb_add_price` was measured to replace on (table 1).
 - **The pair counts whichever way round it is written.** GnuCash keeps one price a day for USD in CAD and CAD in USD together: adding one on a day holding the other deletes the other, or is turned away when its source ranks lower (table 1). So a CAD in USD block on a day the book prices USD in CAD is refused the same way, and the refusal lists the USD in CAD price.
 - **Two blocks in one file for the same commodity and currency on the same local day**, either way round, are refused for the same reason.
-- **Two or more blocks in one file giving one guid** are all refused, before anything is applied. A guid is one price: applied in turn, two new prices would both take the guid, and of two edits the later would win (`test_one_guid_given_in_two_price_blocks_is_refused.py`).
+- **Two or more blocks in one file stating one guid** are all refused, before anything is applied. A guid is one price: applied in turn, two new prices would both take the guid, and of two edits the later would win (`test_one_guid_stated_in_two_price_blocks_is_refused.py`).
 - **An edit whose `time:` moves a price onto a day another price of that pair already holds**, either way round, is refused for the same reason. `gnc_price_set_time64` moving a price onto such a day deletes the price already there (table 1).
 - **Only a block that puts a price on a day is checked against it**: a new price, or an edit that changes `time:`. A block that changes nothing, or an edit to `value:`, `source:` or `type:`, moves no price. A book can hold two prices of a pair on one local day of the process importing: GnuCash replaces a price only on the local day of the process adding it, and a book built in Toronto with AMZN prices at 04:59:59 and 10:59 UTC on 2026-01-06, two days there, holds both when opened in UTC (`test_a_block_that_moves_no_price_is_not_checked_for_its_day.py`). Its own export imports back unchanged, and a corrected value is applied.
-- **Edits are applied before new prices.** A file may move a price off a day and give a new price for that day, in either order in the file. An edit moving a price onto a day another edit in the file frees waits, and is applied once that edit is, so the order of the blocks decides nothing. Edits left waiting on each other, such as two prices swapping days, are refused, and the refusal says so.
-- **A new price's guid must not be held by another kind of object.** GnuCash keeps a guid to one object across the book, and `_guid_in_use_anywhere` is asked before the guid is set, as it is for every other object `import` creates with a stated guid. It asks about prices too, so a customer, invoice or any other block giving a price's guid is refused.
-- **An edit giving an existing price another commodity or currency** is refused. GnuCash's price database files each price under its commodity and currency, so changing either in place would leave the price filed under the wrong pair; a price in another currency is a price of its own.
+- **Edits are applied before new prices.** A file may move a price off a day and add a new price for that day, in either order in the file. An edit moving a price onto a day another edit in the file frees waits, and is applied once that edit is, so the order of the blocks decides nothing. Edits left waiting on each other, such as two prices swapping days, are refused, and the refusal says so.
+- **A new price's guid must not be held by another kind of object.** GnuCash keeps a guid to one object across the book, and `_guid_in_use_anywhere` is asked before the guid is set, as it is for every other object `import` creates with a stated guid. It asks about prices too, so a customer, invoice or any other block stating a price's guid is refused.
+- **An edit changing an existing price's commodity or currency** is refused. GnuCash's price database files each price under its commodity and currency, so changing either in place would leave the price filed under the wrong pair; a price in another currency is a price of its own.
 - **`value:`** takes an exact fraction or a decimal, as `share_price:` does.
 - **A key a price does not take** is refused, and the refusal lists it. A transaction or a business object keeps a key it does not read as custom metadata; a price has none, so the key would be dropped, and a correction written under a misspelled key lost with the price reported `unchanged` (`test_a_price_block_with_a_key_a_price_does_not_take_is_refused.py`).
 - **Reporting.** Only refused blocks are listed one by one, each with its reason; everything else is counted in the summary. A book fetching quotes daily holds thousands of prices, and a line per price would bury the refusals.
@@ -126,7 +126,7 @@ Probes: `when_a_price_replaces_a_price_probe.py`, `what_a_price_time_holds_probe
 | a brand-new book holding nothing but prices | the book is not marked unsaved, and saving writes no file |
 | an existing book where a price is the only change | marked unsaved, saved, and the price is there after a reload |
 
-### 2. What time each GnuCash path gives a price
+### 2. What time each GnuCash path stores for a price
 
 Probes: `how_the_gui_times_a_price_probe.py`, `how_the_register_times_a_price_probe.py`, `how_the_stock_assistant_times_a_price_probe.py`, `how_the_split_and_csv_assistants_time_a_price_probe.py`, `how_a_quote_is_timed_probe.py`.
 
@@ -152,9 +152,9 @@ More from the same runs:
 - **A price's direction and precision depend on the build and the path.** The same transfer was stored as USD/CAD `13699/10000` on 3.4, CAD/USD `7300/10000` on 3.8 and CAD/USD `73/100` from 4.4 on. The register stores `218450000/1000000`. CSV import stores `2184500/10000` on 3.4 and `218450000/1000000` on 5.10 and 5.13. Finance::Quote values arrive as `4369/20` through 3.x and 4.x and `21845/100` through 5.x.
 - **`xaccTransRecordPrice`**, the call the register makes when saving from 4.8 on, is absent from 3.4, 3.8 and 4.4.
 
-### 3. The time a date-only field gives, in other timezones
+### 3. The time a date-only field stores, in other timezones
 
-Probe: `how_the_gui_times_a_price_probe.py` with `ONLY_DATES=1`, and `how_a_quote_is_timed_probe.py`. Inputs were 2026-01-01 at 00:30, 15:30:45 and 23:30 local; all three gave the same answers.
+Probe: `how_the_gui_times_a_price_probe.py` with `ONLY_DATES=1`, and `how_a_quote_is_timed_probe.py`. Inputs were 2026-01-01 at 00:30, 15:30:45 and 23:30 local; all three stored the same times.
 
 | zone | `gnc_date_edit_get_date` (Price Editor, stock split, invoice post date) | `gdate_to_time64` (transfer dialog, CSV import) |
 |---|---|---|
@@ -163,8 +163,8 @@ Probe: `how_the_gui_times_a_price_probe.py` with `ONLY_DATES=1`, and `how_a_quot
 | Kiritimati, UTC+14 | 00:00 local on 3.4 – 4.8; 09:59Z (23:59 local) from 4.13 | 07:59Z (21:59 local) on 3.4 and 3.8; 09:59Z from 4.4 |
 | Pago Pago, UTC−11 | 00:00 local (11:00Z) on 3.4 – 4.8; 11:59Z (00:59 local) from 4.13 | 11:59Z on every build |
 
-- `gnc_date_edit_get_date_end` (stock transaction assistant) gives 23:59:59 local on every build in every zone.
-- The register's date cell gives 00:00:00 local on every build in every zone.
+- `gnc_date_edit_get_date_end` (stock transaction assistant) returns 23:59:59 local on every build in every zone.
+- The register's date cell stores 00:00:00 local on every build in every zone.
 - Finance::Quote under UTC+14, measured on 3.4, 4.13 and 5.10: a dated quote is stored at 12:00 local on 3.4 and 4.13, which is 22:00 UTC on the previous UTC day, and at 23:59 local (09:59 UTC) on 5.10.
 
 ### 4. Whether a price can be matched by its guid
@@ -174,7 +174,7 @@ Probe: `how_a_price_keeps_its_guid_probe.py`. All eleven builds agree.
 | question | answer |
 |---|---|
 | does a price keep its guid through a save and reload | yes |
-| can a new price be given a stated guid (`qof_instance_set_guid`) before it is added | yes, and it reaches disk — in a new book, and in an existing book where that price is the only change |
+| can a stated guid be set on a new price (`qof_instance_set_guid`) before it is added | yes, and it reaches disk — in a new book, and in an existing book where that price is the only change |
 | does `gnc_price_lookup` find a price by guid after a reload | yes |
 | does editing a price in place persist | yes — the value, and the time moved to another day; the guid stays |
 | does `gnc_pricedb_remove_price` persist | yes |
@@ -263,7 +263,7 @@ The full suite was run on all eleven builds at once, to check the price work. Th
 | `end()` then `destroy()` | flat |
 | `destroy()` alone, GnuCash 3.8, where `end()` alone went from 59.9 MB to 110.8 MB | flat: 111.4 MB → 111.7 MB |
 
-**Why nothing destroyed a session.** Destroying one on close, in the test process only, crashed 42 of 296 test files. A gdb backtrace, from gdb installed in the container, gave the same frames each time: `qof_session_destroy` → `qof_book_destroy` → `xaccTransCommitEdit` → `xaccTransClearSplits` → `xaccSplitCommitEdit` → `gnc_lot_remove_split` → `g_list_remove`, SIGSEGV. The importer's `_attach_split_to_lot` put a split in a lot with `xaccSplitSetLot`, which does not add the split to the lot's own split list (CLAUDE.md finding 9).
+**Why nothing destroyed a session.** Destroying one on close, in the test process only, crashed 42 of 296 test files. A gdb backtrace, from gdb installed in the container, showed the same frames each time: `qof_session_destroy` → `qof_book_destroy` → `xaccTransCommitEdit` → `xaccTransClearSplits` → `xaccSplitCommitEdit` → `gnc_lot_remove_split` → `g_list_remove`, SIGSEGV. The importer's `_attach_split_to_lot` put a split in a lot with `xaccSplitSetLot`, which does not add the split to the lot's own split list (CLAUDE.md finding 9).
 
 | a split put in a lot, then the session ended and destroyed (`whether_a_split_put_in_a_lot_survives_destroying_the_book_probe.py`, GnuCash 5.10) | result |
 |---|---|
@@ -272,7 +272,7 @@ The full suite was run on all eleven builds at once, to check the price work. Th
 | with `gnc_lot_add_split` | destroyed cleanly |
 | with `gnc_lot_add_split`, the split from another account than the lot's | nothing attached and nothing said: the split is in no lot, and the lot lists no split |
 
-**Ending before destroying closes a file twice on 3.4, 3.8 and 4.4.** With `close` calling `end()` and then `destroy()`, the commit gate failed once on Ubuntu 20.04: a test opened the page it had just printed, and reading it gave `OSError: [Errno 9] Bad file descriptor`. `destroy()` ends the session itself, and on those three builds a second end closes the lock file again, by its number (`whether_ending_a_session_twice_closes_a_file_twice_probe.py`):
+**Ending before destroying closes a file twice on 3.4, 3.8 and 4.4.** With `close` calling `end()` and then `destroy()`, the commit gate failed once on Ubuntu 20.04: a test opened the page it had just printed, and reading it raised `OSError: [Errno 9] Bad file descriptor`. `destroy()` ends the session itself, and on those three builds a second end closes the lock file again, by its number (`whether_ending_a_session_twice_closes_a_file_twice_probe.py`):
 
 | GnuCash | `end()`, a file opened, then `destroy()` | `destroy()` alone |
 |---|---|---|
@@ -310,8 +310,8 @@ The read-only case was measured on all eleven builds and never closed the file o
 Tests, each seen to fail first:
 
 - `test_c_bindings_are_declared_once.py::test_no_split_is_put_in_a_lot_with_xaccSplitSetLot` — nothing calls `xaccSplitSetLot`; it failed on `services/gnucash_importer.py:2041`.
-- `test_a_closed_book_gives_its_memory_back.py::TestABookOpenedAndClosedAgainAndAgain` — 100 opens and closes keep under 10 MiB; it failed with 48.5 MiB kept.
-- `test_a_closed_book_gives_its_memory_back.py::TestABookAPaymentWasLinkedInto` — an import that links a deposit to an invoice, run in a child process, exits cleanly. It passed before `close` destroyed the session, failed with exit -11 once it did, and passed again with `gnc_lot_add_split`.
+- `test_a_closed_book_releases_its_memory.py::TestABookOpenedAndClosedAgainAndAgain` — 100 opens and closes keep under 10 MiB; it failed with 48.5 MiB kept.
+- `test_a_closed_book_releases_its_memory.py::TestABookAPaymentWasLinkedInto` — an import that links a deposit to an invoice, run in a child process, exits cleanly. It passed before `close` destroyed the session, failed with exit -11 once it did, and passed again with `gnc_lot_add_split`.
 - `test_a_book_is_opened_only_through_the_repository.py` — no `Session(...)` outside the repository, in the application or in any file pytest collects; it failed listing 210.
 - `test_gnucash_fuzzy_matcher.py::test_the_book_is_closed_once_indexed` — the repository handed to the matcher is closed once the index is built; it failed with the ended session still held.
 - `test_a_session_is_destroyed_without_being_ended_first.py` — no `end()` on a session, in the application or in any file pytest collects; it failed on `repositories/gnucash_repository.py:132`.

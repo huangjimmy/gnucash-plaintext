@@ -5,7 +5,7 @@ looks the same either way:
 
 * where any split of the transaction carries a figure in the book's own
   currency, the cost is read out of the transaction — value over amount,
-  through the rate that split gives;
+  through the rate that split states;
 * where none does, there is nothing to read, and the cost comes from the cost
   basis the currency left. That rate travels onto whatever those units bought.
 

@@ -10,7 +10,7 @@ set -e
 
 # Default to running all tests.
 #
-# Every path given, not just the first. `TEST_PATH="${1:-tests/}"` took one and
+# Every path passed, not just the first. `TEST_PATH="${1:-tests/}"` took one and
 # dropped the rest in silence, so a run of eight files tested whichever sorted
 # first and reported a pass for the lot — the count never moved with the list,
 # which is the only sign there was.

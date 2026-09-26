@@ -1,0 +1,28 @@
+# A book whose top-level accounts are all held in CAD, and whose `company`
+# block states `base_currency: "HKD"`.
+#
+# The `company` block's `base_currency:` comes before the currency the
+# top-level accounts share (Q-042), so this book is kept in HKD.
+#
+# What this fixture produces: Assets and Equity in CAD, and the book-level
+# custom key base_currency = HKD. Imported with --include-business-objects,
+# which is what imports a `company` block.
+#
+# Verified by tests/integration/test_the_currency_a_book_is_kept_in.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+company
+	name: "A Company Keeping Its Books In Hong Kong Dollars"
+	base_currency: "HKD"

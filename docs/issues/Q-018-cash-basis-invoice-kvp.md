@@ -124,9 +124,7 @@ Outcome: invoice posted + paid, AR lot closed at $0 same-day, single bank tx pre
 - `test_cash_basis_kvp_roundtrips` — `cash_basis: true` survives export → re-import unchanged, queryable via `get_custom_metadata(invoice)`.
 - `test_cash_basis_with_partial_payment_is_allowed` — partial payment + `cash_basis: true` produces no error, AR has the expected open balance, the flag still applies to the invoice.
 - `test_cash_basis_flag_does_not_appear_in_pdf_or_html` — for the **posted** path, rendered HTML for an invoice with the flag is byte-identical (after stripping non-deterministic IDs) to the same invoice without the flag, and the literal string `cash_basis` never appears in customer-facing HTML.
-- `test_unposted_cash_basis_with_due_date_renders_unpaid` — fixture with `cash_basis: true` and `due_date: 2026-05-30` on an unposted invoice; assert UNPAID badge present, DRAFT badge absent, the date appears in the meta row, and the literal "cash_basis" stays out of the HTML.
-- `test_unposted_cash_basis_without_due_date_renders_unpaid_no_due_row` — same flag, no `due_date` KVP; UNPAID badge present, and the `<strong>Due:</strong>` label omitted entirely.
-- `test_unposted_invoice_without_cash_basis_still_renders_draft` — Q-012 regression: an unposted invoice with no Q-018 flag still renders DRAFT.
+- An unposted invoice carrying `cash_basis: true`, with and without a `due_date:`, was drawn with an UNPAID badge and a due-date row, and one without the flag with DRAFT. Those three tests went when printing moved to GnuCash's own page (#93), which has no notion of the flag: `test_a_cash_basis_invoice_is_drawn_like_any_other_unposted_one` asserts the page is marked in progress, prints no due date, and never shows the literal `cash_basis`.
 
 ## Intentionally not supported: bank tx that already has the income/tax breakdown
 
@@ -142,7 +140,7 @@ We deliberately don't build a "linked payment" feature for this shape. The right
   Assets:Accounts Receivable  -113.00 CAD
 ```
 
-Then post the invoice through the standard Q-018 paid-on-receipt workflow. The GnuCash-generated posting tx will create the Income and Tax splits on the same date, the Q-016 retarget will close the AR lot, and the books end up with two same-day transactions (bank + posting) that net to a clean cash-basis P&L. The shape the user gave up is exactly the shape Q-018 doesn't need.
+Then post the invoice through the standard Q-018 paid-on-receipt workflow. The GnuCash-generated posting tx will create the Income and Tax splits on the same date, the Q-016 retarget will close the AR lot, and the books end up with two same-day transactions (bank + posting) that net to a clean cash-basis P&L. The shape the user abandoned is exactly the shape Q-018 doesn't need.
 
 For users who genuinely cannot restructure (e.g. the bank tx came from a QFX import that they need to preserve byte-identically for reconciliation), the fallback is the unposted path documented above: leave the invoice unposted with `cash_basis: true` (renders UNPAID until they manually post) and treat the link between the invoice and the bank tx as documentary only (via memo / notes), not via GnuCash's posting machinery.
 

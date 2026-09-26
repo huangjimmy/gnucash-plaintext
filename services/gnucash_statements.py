@@ -3,7 +3,7 @@
 `balance-sheet`, `income-statement` and `report` run GnuCash reports and
 calculate no figure of their own (Q-042). The balances are GnuCash's, converted
 by GnuCash's report through the book's price database, at the report's own
-price source, in the currency the command gives. The report is drawn the way
+price source, in the currency the command states. The report is drawn the way
 `print-invoice` draws GnuCash's invoice report (`services/gnucash_report.py`):
 the book's session made current, the book's date format set, the reader's own
 GnuCash settings read, and everything process-wide put back afterwards.
@@ -273,7 +273,7 @@ def _render(session, template: str, called: str, currency: str,
             # than measuring anything — so a bank account here counts nothing,
             # and since the option replaces `took_the_residual` rather than
             # adding to it, a book that states 100.00 on its own states 0.00
-            # once such an account is given, at exit 0. Unlike an account that
+            # once such an account is passed, at exit 0. Unlike an account that
             # exists and holds no qualifying split yet, which is the ordinary
             # case of a sheet dated before it was used, this one can never
             # count and saying so costs a reader nothing.

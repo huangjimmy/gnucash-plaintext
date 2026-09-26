@@ -50,7 +50,7 @@ def main():
         ['import', str(book),
          str(FIXTURES / 'money_arriving_as_two_receivable_splits.txt')],
         ['import', str(book),
-         str(FIXTURES / 'a_payment_giving_two_settling_splits.txt'),
+         str(FIXTURES / 'a_payment_stating_two_settling_splits.txt'),
          '--include-business-objects'],
     ):
         result = _run(runner, *args)

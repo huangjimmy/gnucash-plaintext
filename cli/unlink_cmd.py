@@ -4,19 +4,19 @@
 
 An invoice can be paid without entering any money. The bank feed arrived
 first, or a director paid a supplier out of pocket, so the transaction is
-already in the book; a `payment:` block giving its guid puts the receivable's
+already in the book; a `payment:` block stating its guid puts the receivable's
 account on one of its splits, and that split becomes the settlement.
 
 `unlink` undoes that, and what it leaves is a payment with nothing to do with
 the invoice any more: the split comes off the receivable, leaves the record's
-lot, and takes the account `--to` gives, carrying the figure that account is
+lot, and moves to the account `--to` states, carrying the figure that account is
 kept in. The invoice owes again.
 
 **Either command takes either kind of payment.** `unapply-payment` is the same
 operation under the name for a payment this tool created, and neither can
 refuse the other's case, because nothing in the book says which one it holds:
 measured on GnuCash 5.10, a bank entry reads as no transaction type at all
-until a `payment:` block gives its guid, and `'P'` afterwards, which is what
+until a `payment:` block states its guid, and `'P'` afterwards, which is what
 the engine stamps on a payment it creates itself. The names describe the
 situation the reader is in, not a difference the book records — see
 `tests/research/what_tells_a_linked_payment_from_an_applied_one_probe.py`.
@@ -33,7 +33,7 @@ this tool's to remake.
 **An account in another currency is restated, not renumbered.** A split
 carries two figures — an amount, in the commodity of the account the split is
 on, and a value, in the currency the transaction is quoted in — so the figure
-changes with the account. Giving a 100.00 USD settlement a CAD account writes
+changes with the account. Moving a 100.00 USD settlement to a CAD account writes
 the value the split already holds — −139.00 — rather than leaving 100.00 to be
 read as Canadian dollars. Where `--to` is kept in the book's own currency and
 the split carries no figure in it, that genuinely converts and the transaction

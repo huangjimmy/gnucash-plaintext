@@ -1,8 +1,8 @@
-"""Taking a converting settlement off a record gives its cost basis back.
+"""Taking a converting settlement off a record puts back what it drew from its cost basis.
 
 Settling a foreign-currency invoice into a bank kept in another currency
 converts money, so it draws the converted units out of the receivable's cost
-basis — that USD is gone, spent at the rate the bank gave. `unapply-payment`
+basis — that USD is gone, spent at the bank's rate. `unapply-payment`
 and `unlink` put the settlement back to being owed, and the cost basis has to come
 back with it: the currency was never sold, it went back to being a receivable.
 
@@ -49,7 +49,7 @@ class Record(NamedTuple):
     """A record, its ledger, and the flag that reaches it.
 
     Both sides, because a payable's signs run the other way and this path both
-    draws a cost basis down and gives it back — CLAUDE.md finding 7, and the
+    draws a cost basis down and puts it back — CLAUDE.md finding 7, and the
     place Q-035 records the suite having been caught customer-side already.
     """
     ledger: str
@@ -82,8 +82,8 @@ def book(tmp_path, record):
     """100.00 USD booked at 1.40, settled into a CAD bank at 1.37.
 
     An invoice on one pass and a bill on the other, the same figures either
-    way — the signs are what differ, and they are what a give-back gets wrong
-    silently.
+    way — the signs are what differ, and they are what putting the drawdown
+    back gets wrong silently.
     """
     path = tmp_path / 'book.gnucash'
     result = CliRunner().invoke(cli, [
@@ -130,7 +130,7 @@ def _splits_on(book, account_name):
 
 
 def _put_a_key_on_the_settlement(book, key, value):
-    """Give the settlement split a custom key of its own.
+    """Write a custom key of its own on the settlement split.
 
     Arranged through the same KVP writer the import path uses, rather than a
     ledger file: the split's guid is GnuCash's own, made when the payment was
@@ -291,14 +291,14 @@ def test_a_basis_this_command_creates_is_opened_by_it(command, book, record):
 
     `establishes_cost_basis` answers False for a settlement *because* it
     carries `cost_basis_split_guid`. Dropping that key on the way out clears
-    the last gate, so a split given an account kept in its own foreign
+    the last gate, so a split moved to an account kept in its own foreign
     currency becomes a cost basis — and one this command created, which it
     therefore has to open.
 
     Measured on the bill before it did: `fx-balances` grew a 100.00 USD cost basis
     on `Assets:Bank:USD` reading `none recorded`, left out of the total,
     under the sentence "this tool never wrote one for them". It had. A later
-    sale giving that cost basis was refused for the same untrue reason, offering a
+    sale stating that cost basis was refused for the same untrue reason, offering a
     hand-written `cost_basis_balance:` as the remedy.
 
     The invoice side never reached it — a credit on a debit-type account
@@ -314,7 +314,7 @@ def test_a_basis_this_command_creates_is_opened_by_it(command, book, record):
 def test_the_balance_comes_back_to_what_the_basis_brought_in(command, book, record):
     """The cost basis is whole again and no more, which `--verify-costs` is for.
 
-    Two things hold it there and only one is this code's: the units given back
+    Two things hold it there and only one is this code's: the units put back
     are the ones the settlement drew, and `raise_cost_basis_balance` caps at
     what the cost basis brought in whatever it is handed.
 
@@ -359,7 +359,7 @@ def _write_the_drawn_basis_balance_as(book, text):
 
 def test_a_basis_whose_balance_will_not_parse_keeps_the_key_saying_which_it_drew_on(
         command, book, record):
-    """Nothing can be given back to a balance nobody can read.
+    """Nothing can be put back on a balance nobody can read.
 
     The balance stays as it was, for `--verify-costs` to report, and the
     settlement keeps `cost_basis_split_guid`: dropped, nothing would say which
@@ -376,11 +376,11 @@ def test_a_basis_whose_balance_will_not_parse_keeps_the_key_saying_which_it_drew
 
 
 def test_a_second_run_finds_no_payment_to_take_off(command, book, record):
-    """And so cannot give anything back a second time.
+    """And so cannot put anything back a second time.
 
     The first run took the split out of the lot, which is what a payment is
     read off. This is why the dropped key is about what the export writes and
-    not about a double give-back.
+    not about putting the drawdown back twice.
     """
     first = _take_it_off(command, book, record)
     assert first.exit_code == 0, first.output

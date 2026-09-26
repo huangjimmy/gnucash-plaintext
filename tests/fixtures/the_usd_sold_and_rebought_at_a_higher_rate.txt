@@ -19,7 +19,7 @@
 # A sheet drawn as of 2026-06-30 therefore has a correct answer of 50.00 CAD:
 # on that date the book held the January dollars, worth 1,350.00 at the 06-30
 # price of 1.35 against 1,300.00 of cost. Reading the cost bases as they stand
-# at the end of the book instead gives 1,350.00 against 1,500.00 — a loss of
+# at the end of the book instead yields 1,350.00 against 1,500.00 — a loss of
 # 150.00 — because the quantities match while the costs do not, so nothing
 # refuses it and the sheet balances on a figure that is wrong by 200.00.
 2026-08-01 * "Sell 1,000.00 USD at 1.50"

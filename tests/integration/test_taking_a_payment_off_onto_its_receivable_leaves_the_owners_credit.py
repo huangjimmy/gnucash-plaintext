@@ -1,7 +1,7 @@
 """A payment taken off an invoice onto the receivable it sits on is the customer's credit.
 
-`unapply-payment` and `unlink` take a settlement off its invoice and give the
-split the account `--to` states. Where that is the receivable the split is
+`unapply-payment` and `unlink` take a settlement off its invoice and move the
+split to the account `--to` states. Where that is the receivable the split is
 already on, nothing moves it anywhere: the payment is no longer this invoice's
 and is still the customer's money. It was left on the receivable in no lot,
 owned by nobody. `find-prepayments` did not list it, and `find-orphan-payments`

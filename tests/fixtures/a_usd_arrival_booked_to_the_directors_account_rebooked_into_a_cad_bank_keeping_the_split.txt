@@ -1,10 +1,10 @@
 # The arrival of a_usd_arrival_booked_to_the_directors_account.txt rebooked as
 # 3,791.14 CAD into a Canadian dollar bank, for `--strategy update`, the split
-# that held the US dollars given by its guid and moved onto the Canadian dollar
+# that held the US dollars stated by its guid and moved onto the Canadian dollar
 # bank: the split stays, and opens no cost basis any more.
 #
 # The fee still draws 0.72 USD on that cost basis, so the edit is refused,
-# and the delete command it gives deletes the fee before the arrival: what
+# and the delete command it prints deletes the fee before the arrival: what
 # draws on a cost basis is read from the transaction as the book holds it, not
 # as the edit leaves it.
 #

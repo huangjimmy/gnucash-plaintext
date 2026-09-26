@@ -43,8 +43,9 @@ FX_GAIN_ACCOUNT_HELP = ("An account this book's realized exchange differences ar
                         "cannot do is widen where a difference may sit. Three conditions "
                         "the book answers for itself hold either way: the account must be "
                         "an income or expense account, the transaction must be stated in "
-                        "the book's own currency, and one of its splits must give the guid "
-                        "of the cost basis it draws on. So it counts nothing on a "
+                        "the book's own currency, and one of its splits must state the "
+                        "cost basis it draws on in cost_basis_split_guid. So it counts "
+                        "nothing on a "
                         "transaction that disposed of no currency, and nothing at all for "
                         "a bank or receivable account — which is warned about, since such "
                         "an account can never count. Applies to the "
@@ -58,9 +59,9 @@ MAX_ITEMS_HELP = ("How many entries each itemized list beneath a gain figure may
                   "themselves; 0 lists none of them. A book of 2,500 foreign purchases "
                   "draws a page of 40,154 lines and 1.4 MB uncapped, so a larger one can "
                   "be shortened with this. A shortened list says on its own line how many "
-                  "entries there are, and ends with a not_listed: entry giving the count "
-                  "and what those come to, so the entries still add up to the total "
-                  "printed beneath them.")
+                  "entries there are, and ends with a not_listed: entry stating how many "
+                  "were left out and what they come to, so the entries still add up to "
+                  "the total printed beneath them.")
 
 
 def page_for(output_format: str) -> str:
@@ -83,7 +84,7 @@ def the_currency(book, stated) -> str:
 
 
 def read_price_files(fx_rates_file, prices_file) -> tuple:
-    """The prices `--fx-rates` and `--prices` give, read before the book is opened."""
+    """The prices in the `--fx-rates` and `--prices` files, read before the book is opened."""
     try:
         return (read_quotes(fx_rates_file) if fx_rates_file else [],
                 read_quotes(prices_file) if prices_file else [])

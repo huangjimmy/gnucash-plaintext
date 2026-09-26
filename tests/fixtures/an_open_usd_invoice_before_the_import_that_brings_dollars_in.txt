@@ -3,8 +3,8 @@
 # usd_at_the_invoice_rate_then_lower_at_the_year_end.yaml.
 #
 # Its posting split on the receivable is a cost basis of 500.00 USD, and it is
-# drawn down only by settling the invoice: a disposal giving its guid is
-# refused. So when a_usd_arrival_and_a_fee_giving_no_cost_basis_in_one_transaction.txt
+# drawn down only by settling the invoice: a disposal stating its guid is
+# refused. So when a_usd_arrival_and_a_fee_stating_no_cost_basis_in_one_transaction.txt
 # is refused below it, the cost bases the refusal lists leave it out.
 #
 # Verified by

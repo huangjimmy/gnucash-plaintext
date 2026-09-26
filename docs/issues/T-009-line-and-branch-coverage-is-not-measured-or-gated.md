@@ -55,7 +55,7 @@ Combining the four moved the figure by ten lines against a single run, which set
 | `services/ledger_validator.py` | 15 | 16 | 88% |
 | `repositories/gnucash_repository.py` | 4 | 7 | 95% |
 
-The rest is a long tail of ten-or-fewer per file. `./scripts/coverage.sh --report-only --html` gives the line-by-line view.
+The rest is a long tail of ten-or-fewer per file. `./scripts/coverage.sh --report-only --html` writes the line-by-line view.
 
 The beancount subsystem stands out as a block rather than a tail: `import-beancount` at 15% and `export-beancount` at 28% are whole commands whose bodies never run, against one round-trip test that calls the use cases directly and skips the CLI entirely. Roughly 150 of the 1572 points are there, and a handful of command-level tests reach most of them.
 
@@ -162,7 +162,7 @@ Every signature listed above is declared in `_setup_lib_restypes` and named in `
 
 - **The two bare `CDLL(None)` handles in `services/gnucash_importer.py`**, which read an invoice's and a bill's guid, take the shared handle.
 - **`infrastructure/gnucash/kvp.py` loads nothing of its own.** Its KVP and book option calls are the shared engine's. libgobject, which builds the GValue each of those calls passes, is loaded by `load_gobject` in `infrastructure/gnucash/engine.py`, which declares its four signatures once. `kvp.py` keeps the names `_load_gnc_engine` and `_load_gobject` as the engine's, so what reads or replaces them still finds them.
-- **The loop forms in `use_cases/unapply_payment.py` and `use_cases/unpost_business_objects.py`** are gone. Twelve of their functions were not in the shared engine before: `gnc_lot_get_split_list`, `gnc_lot_remove_split`, `xaccSplitGetLot`, `xaccSplitGetMemo`, `xaccTransBeginEdit`, `xaccTransCommitEdit`, `xaccTransCountSplits`, `xaccTransGetSplit`, `xaccTransGetDescription`, `xaccTransGetCurrency`, `gnc_commodity_get_fraction` and `gncOwnerGetName`. They are declared there now, with the types their callers gave them.
+- **The loop forms in `use_cases/unapply_payment.py` and `use_cases/unpost_business_objects.py`** are gone. Twelve of their functions were not in the shared engine before: `gnc_lot_get_split_list`, `gnc_lot_remove_split`, `xaccSplitGetLot`, `xaccSplitGetMemo`, `xaccTransBeginEdit`, `xaccTransCommitEdit`, `xaccTransCountSplits`, `xaccTransGetSplit`, `xaccTransGetDescription`, `xaccTransGetCurrency`, `gnc_commodity_get_fraction` and `gncOwnerGetName`. They are declared there now, with the types their callers declared.
 
 `# pragma: no cover` stays rare and reasoned. A defensive `raise` for a SWIG symbol whose absence means a broken install is a fair use; "hard to test" is not.
 

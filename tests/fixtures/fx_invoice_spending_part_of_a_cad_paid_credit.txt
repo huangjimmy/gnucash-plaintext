@@ -1,5 +1,5 @@
 # A 30.00 USD invoice settled from part of the customer's 100.00 USD credit,
-# which the block gives by guid so this tool carves it rather than GnuCash.
+# which the block states by guid so this tool carves it rather than GnuCash.
 # 70.00 USD is left, in a remainder split of its own.
 #
 # `auto_apply_credit: true` must not be used here. On 3.8, 4.4 and 4.13 the

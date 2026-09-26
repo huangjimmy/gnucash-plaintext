@@ -1,6 +1,6 @@
 """A payment made of several splits is weighed by what its splits hold.
 
-`a_payment_giving_two_settling_splits.txt` pays INV-USD-001 with two receivable
+`a_payment_stating_two_settling_splits.txt` pays INV-USD-001 with two receivable
 splits of one transaction, 60.00 and 40.00 USD. Each split states its own
 figure, so the block needs no `amount:` to be applied, and where it states one
 the figure has to be a number the splits can be weighed against.

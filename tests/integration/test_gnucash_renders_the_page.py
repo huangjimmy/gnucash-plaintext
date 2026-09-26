@@ -209,7 +209,7 @@ class TestWhenItCannotDrawThePage:
         finally:
             repo.close()
 
-        assert 'no report named' in str(refused.value), str(refused.value)
+        assert "without the report's name" in str(refused.value), str(refused.value)
 
     def test_asking_without_a_session_says_so(self):
         """A guid names a page and says nothing about which book holds

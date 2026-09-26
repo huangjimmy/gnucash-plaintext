@@ -97,7 +97,7 @@ def file_names(records, ext: str, guid_of) -> list:
     for stem, record in zip(stems, records):
         name = f'{stem}_{guid_of(record)}.{ext}' if stem in shared \
             else f'{stem}.{ext}'
-        # Whatever the guid gave was not enough to tell these apart, so the
+        # The guid was not enough to tell these apart, so the
         # position in the run is used instead — and then checked, because a
         # position is only unique among positions: an id spelled exactly like
         # `<stem>_<n>` is a name too, and a fallback that is not re-checked

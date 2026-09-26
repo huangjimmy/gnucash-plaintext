@@ -6,7 +6,7 @@
 ;
 ; The account declaration *is* fully annotated, so the refusal has to come from
 ; the transaction rather than from the first line of the file: a parser that
-; gave up earlier would refuse this for the wrong reason and pass a test that
+; stopped earlier would refuse this for the wrong reason and pass a test that
 ; only asked whether it refused.
 ;
 ; Verified by tests/integration/test_cli_beancount.py.

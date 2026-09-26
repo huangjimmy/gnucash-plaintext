@@ -154,7 +154,7 @@ def _field_in_block(block_lines, key, *, strip_quotes=False):
 
 
 def _setup_book_with(runner, tmp_path, fixture_text):
-    """Create a fresh GnuCash file and import the given fixture text. Returns its path."""
+    """Create a fresh GnuCash file and import `fixture_text` into it. Returns its path."""
     gnc = tmp_path / "book.gnucash"
     fix = _write(tmp_path / "in.txt", ACCOUNTS + "\n" + fixture_text)
     r = _import_new(runner, gnc, fix)
@@ -1070,7 +1070,7 @@ class TestGuidCollisionAcrossObjectTypes:
 
     def _read_first_guid(self, gnc_path, qof_type: str) -> str:
         """Open the gnucash file with bindings and return the GUID of the
-        first entity of the given QOF type ('Trans' or 'Account').
+        first entity of QOF type `qof_type` ('Trans' or 'Account').
 
         Note: Account(instance=raw_ptr) wrapping is unsafe per CLAUDE.md
         ("SWIG may not wrap raw pointers safely"), so for accounts we walk

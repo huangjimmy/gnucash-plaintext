@@ -4,6 +4,13 @@
 **Purpose**: Comprehensive analysis of existing functionality to guide new architecture
 **Status**: Complete ✅
 
+> **The scripts analysed here are gone.** The `editor/` package was removed in
+> #4, when the rebuilt CLI replaced it: export is now
+> `use_cases/export_transactions.py`, import is `use_cases/import_transactions.py`,
+> parsing is `services/plaintext_parser.py`, and writing into a book is
+> `services/gnucash_importer.py`. The analysis is kept for what it records
+> about the behaviour the rebuild had to preserve.
+
 ---
 
 ## Table of Contents

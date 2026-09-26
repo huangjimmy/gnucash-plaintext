@@ -2,10 +2,10 @@
 #
 # Imported into a book whose transfer out of A was imported before a balance
 # past zero had a side of its own: A at −500.00 then opened no owed cost basis,
-# so the 500.00 this repays has none to draw down, and the book gives this the
-# 500.00 it brings in past zero. Brought forward through its export, the
+# so the 500.00 this repays has none to draw down, and the book credits this
+# deposit with the 500.00 it brings in past zero. Brought forward through its export, the
 # transfer opens A's owed cost basis, and this deposit, which repays it, is
-# refused for giving no guid until it gives that cost basis's.
+# refused for stating no guid until it states that cost basis's.
 #
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes, with the
 # transfer put back as an earlier import left it.

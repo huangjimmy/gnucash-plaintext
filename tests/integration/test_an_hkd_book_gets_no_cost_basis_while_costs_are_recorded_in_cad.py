@@ -5,8 +5,8 @@ in — `services/foreign_currency.py` reads every cost in `BASE_CURRENCY`. A boo
 kept in Hong Kong dollars that states no Canadian figure therefore opens no
 cost basis, and nothing that depends on one applies to it:
 
-* a spend that gives no guid is not refused, because there is no cost basis to
-  give;
+* a spend that states no guid is not refused, because there is no cost basis to
+  state;
 * the shares carry no cost;
 * the balance sheet leaves `realized_gains_fx` and `realized_gains_other` off
   rather than stating a gain it did not measure, and takes GnuCash's own

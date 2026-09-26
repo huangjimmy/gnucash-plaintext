@@ -5,7 +5,7 @@ cost basis, and says the export writes it back out. What that costs is worth
 stating exactly, because the two halves of this fault behave differently on the
 way out.
 
-The **guid** a sale gives is refused on re-import — `_validate_pick` has
+The **guid** a sale states is refused on re-import — `_validate_pick` has
 nothing to measure against — so a book holding that half cannot rebuild itself,
 which `test_a_disposal_drawing_on_a_split_that_is_no_basis` pins.
 

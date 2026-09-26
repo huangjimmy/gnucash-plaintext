@@ -2,10 +2,10 @@
 
 C001's credit is made by a journal entry whose two splits are both on the
 receivable, and INV-001 spends it with a `from_credit:` block. A file then
-gives the entry's credit split the memo "Attributed to Acme" and INV-001's
-block the memo "Spent on INV-001".
+writes the memo "Attributed to Acme" on the entry's credit split and the memo
+"Spent on INV-001" on INV-001's block.
 
-A block whose memo is the one its file gives the bank split is how a ledger an
+A block whose memo is the one its file writes on the bank split is how a ledger an
 earlier release wrote is recognised, and it changes nothing. This entry has no
 split off the receivable, so no bank split can be what the block states, and
 the block's memo is written. Measured on 5.10: the credit split reads "Spent on

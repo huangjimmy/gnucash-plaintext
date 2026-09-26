@@ -65,7 +65,7 @@ def _balance_on_the_basis(book):
 
 
 def test_editing_a_sale_beyond_its_basis_is_refused_on_reimport(tmp_path):
-    """The same refusal a fresh import gives, on the edit path.
+    """The same refusal a fresh import makes, on the edit path.
 
     Selling more of a cost basis than its balance is refused when the sale is
     written; re-importing an edited copy of that sale must be refused for the
@@ -139,7 +139,7 @@ def test_an_update_that_brings_in_currency_opens_its_basis(tmp_path):
     assert 'No foreign-currency cost bases found' in runner.invoke(
         cli, ['fx-balances', str(book)]).output
 
-    # The transaction had no foreign currency in it; the edit gives it some.
+    # The transaction had no foreign currency in it; the edit adds some.
     text = _exported(runner, book, tmp_path / 'out.txt')
     guid = re.search(r'To be corrected into a USD purchase"\n\tguid: "([0-9a-f]{32})"',
                      text).group(1)
@@ -257,7 +257,7 @@ def test_a_sign_error_is_corrected_by_an_edit_in_place(tmp_path):
     assert 'owed on accounts' not in listing, listing
 
 
-def test_the_same_export_gives_the_same_balance_either_way_in(tmp_path):
+def test_the_same_export_records_the_same_balance_either_way_in(tmp_path):
     """`--new` and `--strategy update` agree about the same file.
 
     Both paths note that a stated balance is already net of the file's own
@@ -284,7 +284,7 @@ def test_the_same_export_gives_the_same_balance_either_way_in(tmp_path):
     over_itself = _balance_on_the_basis(book)
 
     assert over_itself == into_fresh, (
-        f'the same file gives {into_fresh} USD into a fresh book and '
+        f'the same file records {into_fresh} USD into a fresh book and '
         f'{over_itself} USD re-imported over its own')
 
 
@@ -295,8 +295,8 @@ def test_an_update_that_writes_a_prepayment_puts_it_in_its_owner_s_lot(tmp_path)
     — when it sits in an owner lot no invoice owns, and `lot_owner:` is what
     puts it there. Only the create path acted on it, so an update that wrote
     such a split dropped the line silently: the split landed in no lot, read
-    as a settlement, and the currency the same file gives a cost basis through
-    `--new` got no balance with no error to say so.
+    as a settlement, and the currency the same file records a cost basis for
+    through `--new` got no balance with no error to say so.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -402,7 +402,7 @@ def test_deleting_a_sale_then_reimporting_under_update_is_refused(tmp_path):
     time, leaving the cost basis 40.00 short. It cannot happen by this route:
     `--strategy update` refuses a transaction the book no longer holds instead
     of creating it, so the file is rejected and the cost basis keeps what the
-    deletion gave back.
+    deletion put back.
     """
     runner, book = _book_with_a_partial_sale(tmp_path)
     text = _exported(runner, book, tmp_path / 'out.txt')
@@ -420,8 +420,8 @@ def test_deleting_a_sale_then_reimporting_under_update_is_refused(tmp_path):
     # The route is closed, and that is the finding: `--strategy update` refuses
     # a transaction whose guid the book no longer holds rather than creating
     # it, so the deleted sale cannot come back this way and cannot lower the
-    # stated balance a second time. The cost basis keeps what deleting the sale gave
-    # back to it.
+    # stated balance a second time. The cost basis keeps what deleting the sale put
+    # back on it.
     assert 'not found in book' in result.output, result.output
     assert _balance_on_the_basis(book) == Fraction(100), (
         f'the cost basis moved to {_balance_on_the_basis(book)} on an import that '

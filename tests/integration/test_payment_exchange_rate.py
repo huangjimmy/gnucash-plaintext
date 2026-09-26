@@ -1,4 +1,4 @@
-"""Q-035: a payment that crosses a currency boundary settles at the rate given.
+"""Q-035: a payment that crosses a currency boundary settles at the rate the file states.
 
 `share_price:` on a payment block carries the meaning it has on any split — one
 unit of the record's currency is worth this many units of the account the money
@@ -39,7 +39,7 @@ def _variant(tmp_path, fixture, old, new, name='variant.txt'):
     return str(path)
 
 
-def test_invoice_paid_into_a_cad_bank_credits_what_the_bank_gave(tmp_path):
+def test_invoice_paid_into_a_cad_bank_credits_what_the_bank_received(tmp_path):
     """The fixture states `settled_amount: 137.00` — what the bank statement
     shows — and the rate is derived from it."""
     runner = CliRunner()
@@ -111,7 +111,7 @@ def test_a_payment_into_a_third_currency_without_rates_says_which_rate_it_needs(
     """A USD invoice settled into an HKD bank values the cash in CAD, and only a rates file has HKD in CAD.
 
     The invoice is posted in one run, with its rates, and paid in a later one
-    given none: posting it already needed the USD rate, so this is the run
+    passed none: posting it already needed the USD rate, so this is the run
     that reaches the payment.
     """
     setup = Path('tests/fixtures/fx_hkd_spent_by_retarget_setup.txt').read_text()
@@ -166,7 +166,7 @@ def test_invoice_payment_in_the_same_currency_rejects_a_rate(tmp_path):
     assert 'share_price' in message, message
 
 
-def test_bill_paid_out_of_a_cad_bank_takes_what_the_bank_gave(tmp_path):
+def test_bill_paid_out_of_a_cad_bank_takes_what_the_bank_paid(tmp_path):
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
     result = _import(runner, book,
@@ -505,7 +505,7 @@ def test_a_record_with_no_cost_cannot_reach_the_overpayment_arithmetic(tmp_path)
     lot returns a step earlier still.
 
     Both of those returns are silent unless the block carries split lines that
-    nothing would then place, which is what this fixture gives it: with
+    nothing would then place, which is what this fixture writes in it: with
     `Income:FX Gain $residual$` on the payment, the return becomes a refusal
     that names the line and says where to write it instead.
     """

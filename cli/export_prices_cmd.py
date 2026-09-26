@@ -35,7 +35,7 @@ def export_prices(gnucash_file, output_file, start_date, end_date, latest):
     Export a book's prices to plaintext.
 
     Each option works on its own, none requires another, and any of them can
-    be given together.
+    be combined.
 
     \b
     Examples:

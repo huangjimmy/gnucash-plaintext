@@ -86,7 +86,7 @@ The Num/Description round-trip bug went unnoticed because every existing fixture
 
 This is the test shape the bug demands — a plaintext-only diff check would have passed even with the bug present.
 
-`tests/unit/services/test_transaction_matcher_signature.py` — matcher coverage for the new 5-tuple:
+`tests/unit/services/test_transaction_matcher_basic.py` — matcher coverage for the new 5-tuple (`test_signature_doc_link_matters`, `test_signature_tx_num_distinguishes`, `test_signature_tx_num_empty_equiv_none`, `test_signature_owner_distinguishes` and their neighbours):
 
 - Different `doc_link` → not duplicate (preserved from existing behaviour).
 - Different `tx_num` → not duplicate (new).
@@ -114,7 +114,7 @@ Fixtures (`tests/fixtures/q020_*.txt`) follow the project convention of plaintex
 | `services/transaction_matcher.py` | Extend signature from 3-tuple to 5-tuple `(date, accounts, doc_link, tx_num, owner)`. Add ctypes-based owner reader with KVP fallback. Normalise empty-equivalent values. Update module docstring. |
 | `use_cases/import_transactions.py` | `import_from_file`: delete the inline `(date, set-of-accounts)` loop; route through `self.matcher.has_duplicate_signature(..., doc_link, tx_num, owner)`. Drop the now-unused `get_account_full_name` import. |
 | `tests/integration/test_q020_num_only_roundtrip.py` | Regression: Num-only export → re-import → introspect `GetNum()`/`GetDescription()` directly. |
-| `tests/unit/services/test_transaction_matcher_signature.py` | Matcher coverage for the new 5-tuple. |
+| `tests/unit/services/test_transaction_matcher_basic.py` | Matcher coverage for the new 5-tuple. |
 | `tests/integration/test_q020_import_dedup.py` | CLI regression covering re-import (dup), different `doc_link`, different `tx_num`. |
 | `tests/fixtures/q020_*.txt` | Plaintext fixtures for the dedup regression. |
 | Existing `tests/unit/services/test_transaction_matcher*.py` | Updated for the new signature arity. |

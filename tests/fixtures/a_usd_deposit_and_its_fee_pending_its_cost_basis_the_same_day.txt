@@ -1,0 +1,26 @@
+# Q-053: a bank statement's 10.00 USD deposit and the transaction that has its
+# 1.00 USD fee, on the same day, as an application writes them before anyone
+# has explained the deposit. The deposit's other side is on Assets:Due from
+# director at 13.00 CAD, and the fee's Wise USD split has
+# `cost_basis_split_guid: $pending$`. The deposit is later explained as income
+# by an edit moving its other side to Income:Sales, which changes nothing
+# about the 10.00 USD it brought in.
+#
+# Verified by
+# tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
+2026-08-13 * "Received money from a customer"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 10.00 USD
+		guid: "0e530000000000000000000000000d22"
+	Assets:Due from director -13.00 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1000/1300"
+		value: "-10.00"
+2026-08-13 * "Charges for the deposit"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -1.00 USD
+		cost_basis_split_guid: $pending$
+	Assets:Due from director 1.40 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "100/140"
+		value: "1.00"

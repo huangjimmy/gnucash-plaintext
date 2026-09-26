@@ -1,6 +1,6 @@
 # Q-050 E2: 2,720.00 USD arriving, a 0.72 USD fee, and the other 2,719.28
 # sent on to a Canadian dollar account, all in one transaction and both
-# giving the arrival's position.
+# stating the arrival's position.
 #
 # The fee is valued at its share of the cost, 1.01, and the rest is the last
 # of the cost basis, valued at what is left of the 3,800.00, 3,798.99. The

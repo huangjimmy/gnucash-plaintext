@@ -50,7 +50,7 @@ class TestPrintBillErrors:
         balanced parentheses. The original pattern
         `'(' + ', '.join(c) if c else 'none' + ')'` parses as
         `('(' + ', '.join(c)) if c else ('none' + ')')` — when criteria
-        are present (always, given upfront validation) the closing
+        are present (always, since validation runs first) the closing
         paren is dropped from the message."""
         gnc = self._book_with_accounts(tmp_path)
         runner = CliRunner()

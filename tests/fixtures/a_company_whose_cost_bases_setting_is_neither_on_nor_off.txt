@@ -1,4 +1,4 @@
-# Q-049: `cost_bases:` takes "on" or "off", and this gives neither.
+# Q-049: `cost_bases:` takes "on" or "off", and this states neither.
 #
 # Verified by tests/integration/test_a_book_can_keep_no_cost_bases.py.
 company

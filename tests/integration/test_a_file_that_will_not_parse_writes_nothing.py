@@ -58,7 +58,7 @@ class TestEitherWay:
         """Asserted, not branched on.
 
         `--new` writes the book before the file is read, so the question is
-        whether the refusal takes it away again — and both arms have to give
+        whether the refusal takes it away again — and both arms have to reach
         the same answer, which is the point of the parametrisation. Written
         as `if not gnc.exists(): return` the only assertion never ran on the
         arm that removes it, which is the same thing as not testing it.

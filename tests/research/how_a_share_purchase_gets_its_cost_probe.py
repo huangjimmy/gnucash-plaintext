@@ -9,7 +9,7 @@ put a book-currency cost on a share split, and they look the same afterwards:
 * `carry_the_cost_to_what_it_bought` writes it from the cost basis the currency
   left, which runs only where the transaction states no such figure at all.
 
-This prints, for each split of the account given, which of the two the book is
+This prints, for each split of the account passed, which of the two the book is
 in — so a fixture meant to exercise the carrying can be checked rather than
 assumed.
 

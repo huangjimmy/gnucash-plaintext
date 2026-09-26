@@ -9,7 +9,7 @@
 # which of its splits the gain is.
 #
 # Read on its own the page states `realized_gains_fx: 0.00`, because a balanced
-# transaction gives every one of its splits the same arithmetic and no split
+# transaction applies the same arithmetic to every one of its splits and no split
 # claims the difference. Naming the account with `--fx-gain-account` is what
 # supplies the missing fact.
 #

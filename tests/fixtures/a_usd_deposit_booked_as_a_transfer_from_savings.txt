@@ -4,7 +4,7 @@
 # USD fee still in the same transaction, drawing on that opening balance's
 # cost basis and valued at what it cost, 0.97.
 #
-# The fee gives the cost basis it spends, so it is what left, and the rest
+# The fee states the cost basis it spends, so it is what left, and the rest
 # moved: 2,720.00 out of savings and into Wise draws down no cost basis and
 # opens none. The deposit's own cost basis is not established, and the
 # opening balance's falls by the fee alone, to 2,999.28, what the two

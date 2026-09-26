@@ -4,7 +4,7 @@
 # the receivable is simply a split someone wrote. The money itself went into
 # the USD bank, and that is the split that carries the cost basis — one lump
 # of currency, listed once, sellable from where it is held. The credit facing
-# it records the obligation to give it back.
+# it records the obligation to repay it.
 #
 # What this fixture produces: `fx-balances` lists 100.00 USD at 1.4 CAD/USD on
 # Assets:Bank:USD, and nothing on the receivable. The same answer the lotted

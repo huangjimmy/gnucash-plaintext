@@ -2,8 +2,8 @@
 
 CLAUDE.md finding 21 measured that on GnuCash 3.4 this call stores nothing when
 the name holds a slash, so a value is written through `qof_instance_set_kvp`
-instead. This asks the other half: given the empty string, which is how a value
-is cleared, does the call remove a nested option such as
+instead. This asks the other half: passed the empty string, which is how a
+value is cleared, does the call remove a nested option such as
 `options/Business/Fancy Date Format/custom` that is already there?
 
 The option is written first through `set_book_string_option`, which reaches the

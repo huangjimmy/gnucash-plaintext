@@ -1,0 +1,19 @@
+# A USD in CAD price stating the guid of the transaction in
+# a_transaction_with_its_guid.txt.
+#
+# GnuCash keeps a guid unique across every kind of object in a book, and a
+# price is one of them.
+#
+# What this fixture produces: nothing; the price is refused, and the refusal
+# says a transaction holds that guid.
+#
+# Verified by tests/integration/test_a_price_and_another_object_never_share_a_guid.py.
+price
+	guid: "8a8b8c8d8e8f40418243844586878889"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-01-15 12:00:00 +0000"
+	value: "1.3642"
+	source: "user:price-editor"
+	type: "last"

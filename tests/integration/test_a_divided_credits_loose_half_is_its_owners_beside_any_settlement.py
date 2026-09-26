@@ -6,7 +6,7 @@ C-JOB's job invoice INV-JOB is paid 150.00 against 100.00, and GnuCash puts the
 `unpost-invoices INV-C2`, then View → Lots, leave the 30.00 in no lot.
 
 The one payment then holds three receivable splits: INV-JOB's settlement, the
-loose 30.00 and the 20.00 credit. The credit gives the loose half its owner.
+loose 30.00 and the 20.00 credit. The credit's owner is the loose half's owner.
 The settlement says nothing either way, in each lot GnuCash lets it be in:
 INV-JOB's own lot; the lot `unpost-invoices INV-JOB` leaves, whose owner is the
 job, which is neither a customer nor a vendor; and a lot with no owner, which

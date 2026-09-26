@@ -12,8 +12,8 @@ Two ways a book gets there, and both are in
 * **a cost basis spent to the last cent.** It stays on the book as a row
   reading 0.00, and a row with no units left offers nothing;
 * **currency that arrived with no cost.** These dollars were borrowed in a
-  transaction stated wholly in US dollars, which gives neither side a Canadian
-  figure, so no cost basis was opened for them.
+  transaction stated wholly in US dollars, which states no Canadian figure for
+  either side, so no cost basis was opened for them.
 
 A third is currency whose stored cost cannot be read — a figure a hand edit or
 an older release can leave behind. It counts for nothing here, as it does

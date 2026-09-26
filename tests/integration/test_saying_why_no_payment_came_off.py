@@ -1,9 +1,9 @@
 """`unapply-payment` and `unlink` name the reason when nothing comes off.
 
 Both commands move money: a payment's receivable split leaves the invoice's lot
-and lands on the account `--to` gives. So when neither runs, the reader has to
+and lands on the account passed as `--to`. So when neither runs, the reader has to
 be able to tell which of several quite different situations they are in — the
-invoice was never posted, it was posted and never paid, `--txn` gives the guid
+invoice was never posted, it was posted and never paid, `--txn` passes the guid
 of a transaction that is no payment on the record, or the id matches more than
 one record. Each is a different next step, and "unapply failed" is none of them.
 
@@ -254,7 +254,7 @@ class TestAnIdTwoRecordsShare:
         """The remedy, not the status word.
 
         `ambiguous_id` carries no detail of its own, so this is the message a
-        command has to be given rather than one it can fall back into.
+        command has to be handed rather than one it can fall back into.
         """
         result = _run(command, shared, 'INV-PAID')
 

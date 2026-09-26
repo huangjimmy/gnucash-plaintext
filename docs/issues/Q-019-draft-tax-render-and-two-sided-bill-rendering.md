@@ -21,7 +21,7 @@ status: closed
 
 **3. Vendor bills had no renderer at all.** `cli/invoice_print_cmd.py:39` explicitly filters out vendor bills ("Customer invoices only — skip vendor bills"). There was no `print-bill` CLI command, no `bill.xslt`, no `bill_renderer.py`. Cash-basis bill audit-print — useful for reviewing what you've recorded against what the vendor sent — was simply not supported.
 
-The three gaps share a single underlying assumption: *the renderer treats GnuCash's post-time data shape as the source of truth*. GnuCash only materialises tax splits at posting; it only stores company info under Business book options that nothing in the plaintext path ever wires up; and bills are GnuCash's `GncInvoice` objects too but routed through different SWIG getters (the `gncEntryGetBill*` family). Q-019 closes all three by computing what we need from primary sources (entries' tax_table, book options, vendor-side getters) rather than waiting for GnuCash to give it to us.
+The three gaps share a single underlying assumption: *the renderer treats GnuCash's post-time data shape as the source of truth*. GnuCash only materialises tax splits at posting; it only stores company info under Business book options that nothing in the plaintext path ever wires up; and bills are GnuCash's `GncInvoice` objects too but routed through different SWIG getters (the `gncEntryGetBill*` family). Q-019 closes all three by computing what we need from primary sources (entries' tax_table, book options, vendor-side getters) rather than waiting for GnuCash to compute it at posting.
 
 ## Resolution
 

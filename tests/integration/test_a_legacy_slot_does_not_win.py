@@ -123,7 +123,7 @@ class TestDeletingTheLine:
 
     The fallback fills the field from the slot precisely when the block is
     silent — so on a book whose address still lives in the slot, deleting the
-    line a reader had just been given wrote the old address back. An absent
+    line a reader had just been shown wrote the old address back. An absent
     key causing a write is the inversion of the rule the rest of this follows.
     """
 

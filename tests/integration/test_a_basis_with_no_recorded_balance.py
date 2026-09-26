@@ -3,8 +3,8 @@
 A split written in the GnuCash GUI, or by an import that predates this feature,
 carries no `cost_basis_balance` KVP. Reading its amount as its balance would
 re-open currency that may already have been sold, so it reads as `none
-recorded`, is refused as a sale's cost basis, and is given a balance only when the
-user says so.
+recorded`, is refused as a sale's cost basis, and has a balance recorded only when
+the user says so.
 
 The split with no recorded balance is produced by clearing the KVP on a real
 book — the state a GUI-made book is in — rather than by mocking anything.
@@ -85,7 +85,7 @@ def test_selling_against_a_basis_with_no_recorded_balance_is_refused(tmp_path):
     assert 'cost_basis_balance' in message, message
 
 
-def test_stating_the_balance_in_a_file_gives_the_basis_one(tmp_path):
+def test_stating_the_balance_in_a_file_records_it_on_the_basis(tmp_path):
     """The mechanism that already exists: a balance written on the split in an
     import file is authoritative, and the cost basis is sellable from then on."""
     runner = CliRunner()
@@ -155,5 +155,5 @@ def test_an_update_does_not_quietly_write_a_balance(tmp_path):
 
     listing = _balances(runner, book)
     assert 'none recorded' in listing, (
-        'an edit that cannot change what a cost basis holds gave it a balance '
+        'an edit that cannot change what a cost basis holds recorded a balance on it '
         f'anyway:\n{listing}')

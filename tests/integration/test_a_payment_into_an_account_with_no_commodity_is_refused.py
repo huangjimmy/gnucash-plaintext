@@ -1,4 +1,4 @@
-"""A payment into an account with no commodity is refused, giving the account.
+"""A payment into an account with no commodity is refused, and the refusal states the account.
 
 GnuCash keeps an account with no commodity through a save and a reload, split
 and all (tests/research/whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py),
@@ -23,7 +23,7 @@ def _run(*args):
     return CliRunner().invoke(cli, [str(arg) for arg in args])
 
 
-def test_it_is_refused_giving_the_account(tmp_path):
+def test_it_is_refused_stating_the_account(tmp_path):
     book = tmp_path / 'book.gnucash'
     assert _run('import', '--new', book, ACCOUNTS).exit_code == 0
     made = _run('import', book, UNPAID, '--include-business-objects')

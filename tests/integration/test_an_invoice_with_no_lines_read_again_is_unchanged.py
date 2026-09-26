@@ -1,6 +1,6 @@
 """An invoice with no lines, read again, is `unchanged`.
 
-A block giving no line is refused where the book holds lines for that invoice,
+A block stating no line is refused where the book holds lines for that invoice,
 because rebuilding from it would destroy them. Where the book holds none either
 there is nothing to destroy, and the invoice is what the file says.
 """

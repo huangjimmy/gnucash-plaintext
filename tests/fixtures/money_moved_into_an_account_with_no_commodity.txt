@@ -1,4 +1,4 @@
-# 10.00 CAD moved from the bank to `Holding`, an account the test gives no commodity.
+# 10.00 CAD moved from the bank to `Holding`, an account the test opens with no commodity.
 #
 # The same guid as `money_spent_from_the_bank_on_supplies.txt`, so read with
 # `--strategy update` after it, this moves that transaction's second split onto

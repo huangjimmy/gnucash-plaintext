@@ -1,7 +1,7 @@
 """Whether a rate added to the price database in memory, never saved, is the rate GnuCash's Balance Sheet uses (Q-042).
 
 The book is `tests/fixtures/a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt`,
-imported to the path given as the first argument. It prices USD in CAD at 1.30
+imported to the path passed as the first argument. It prices USD in CAD at 1.30
 on 2025-05-05, 1.35 on 2026-03-31, 1.38 on 2026-07-15 and 1.42 on 2026-12-31,
 all at 12:00 UTC, and holds 7,480.00 USD in Assets:USD Bank from 2026-09-30 on.
 

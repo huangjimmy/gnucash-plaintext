@@ -1,4 +1,4 @@
-# A new USD in CAD price that also gives `currency.namespace:`, a key a price
+# A new USD in CAD price that also states `currency.namespace:`, a key a price
 # does not take: a price's currency is always a currency, named by its
 # mnemonic alone.
 #

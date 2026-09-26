@@ -33,7 +33,7 @@ company
 
 All custom (non-Business) keys are serialised together as one JSON blob in a single dedicated book option slot, `options/Plaintext/Custom Metadata`, via the existing `set_book_string_option`. One fixed slot (rather than one slot per key) means the exporter reads it back by a known path — avoiding cross-version KVP key-enumeration, which the bindings make unreliable. The section is private to this tool, so it never collides with GnuCash's own Business options. The object-level `set_custom_metadata` path was tried first and does **not** persist on the book object (verified empirically — it read back empty), which is why the book-option path is used.
 
-The directive is a partial **upsert** of custom keys (see the reopened section below): keys it names are set, keys it omits are preserved, and a key given the null value (`#None`) is removed.
+The directive is a partial **upsert** of custom keys (see the reopened section below): keys it names are set, keys it omits are preserved, and a key set to the null value (`#None`) is removed.
 
 ## Reopened (2026-06-28): partial import must not delete custom keys
 

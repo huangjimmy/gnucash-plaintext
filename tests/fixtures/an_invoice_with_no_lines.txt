@@ -2,7 +2,7 @@
 #
 # GnuCash saves an invoice nobody has added a line to yet, and so does
 # `import`: nothing is destroyed by creating one. Read again, the block still
-# gives no line and the book still holds none, so there is nothing to lose.
+# states no line and the book still holds none, so there is nothing to lose.
 #
 # What this fixture produces: customer C001 and an unposted invoice with no
 # lines.

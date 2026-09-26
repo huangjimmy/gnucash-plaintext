@@ -7,6 +7,7 @@ and transactions.
 """
 
 import logging
+from datetime import datetime, timedelta
 from typing import Dict, List
 
 from repositories.gnucash_repository import GnuCashRepository
@@ -23,7 +24,7 @@ from services.gnucash_importer import (
 from services.plaintext_parser import DirectiveType, PlaintextParser
 from services.positions_in_the_file import (
     number_the_transactions,
-    record_the_guids_it_gives,
+    record_the_guids_it_states,
     resolve_for_an_edit,
     the_variables_where_none_is_read,
     what_is_wrong_with_the_positions,
@@ -195,6 +196,25 @@ def _guid_match_content_differs(child, existing_tx) -> bool:
     return False
 
 
+def _a_guid_says_it_is_new(child) -> bool:
+    """Whether the block's own guid says it is a transaction the book does not have yet.
+
+    A transaction guid in the file decides whether a transaction is new,
+    however like a transaction in the book it is otherwise. The duplicate
+    check compares no amounts, so the transaction that has a 1.00 USD fee was
+    skipped as a copy of a 10.00 USD deposit on the same day and the same two
+    accounts, with `Errors: 0`, though its guid was one no transaction in the
+    book had. The duplicate check is for a block without a guid (README, "How
+    conflicts are detected").
+
+    Asked only after the book is found to have no transaction with the
+    block's guid, so a block with a guid is new. `guid: ""` states no guid,
+    as it does everywhere else in the format, so that block is matched by
+    signature like a block with no `guid:` line.
+    """
+    return the_guid_a_block_names(child.metadata) is not None
+
+
 class ImportTransactionsUseCase:
     """Use case for importing transactions from plaintext"""
 
@@ -312,10 +332,10 @@ class ImportTransactionsUseCase:
         currency_code = plaintext_tx.get('currency', 'USD')
         currency = self.repository.get_commodity('CURRENCY', currency_code)
 
-        # Both refused before the transaction exists. Given no splits, GnuCash
+        # Both refused before the transaction exists. With no splits, GnuCash
         # destroys the transaction as its edit is committed, and reading it
         # afterwards ended the process with a segfault in `get_signature`.
-        # Given a currency it does not know, the first split failed with
+        # With a currency it does not know, the first split failed with
         # "'NoneType' object has no attribute 'get_fraction'"
         # (`tests/research/what_execute_does_with_no_splits_or_an_unknown_currency_probe.py`).
         if not plaintext_tx['splits']:
@@ -426,13 +446,13 @@ class ImportTransactionsUseCase:
         parser.parse_file(input_path)
 
         # What only the whole file can say about a payment: the memo its
-        # transaction section gives each split, and how many invoices
+        # transaction section states for each split, and how many invoices
         # settle from each transaction. Read here because the book cannot
         # answer either while the run is still building it.
         note_what_the_file_states(parser.root_directive.children, applies_payments)
 
-        # Every transaction block given its position in the file, and every
-        # position a split gives checked before any of the file is applied: one
+        # Every transaction block numbered by its position in the file, and every
+        # position a split states checked before any of the file is applied: one
         # pointing below, past the end, or at itself can never be resolved, and
         # applying the file up to it would leave half of it in the book (Q-050).
         transactions = number_the_transactions(parser.root_directive.children)
@@ -540,6 +560,20 @@ class ImportTransactionsUseCase:
         # Which transactions the book held before the run, which is what a
         # block is matched against however many passes it takes.
         self._the_book_before = set(existing_guid_map)
+        # The order of the transactions in the file is kept in the book. GnuCash
+        # orders a day's transactions by the moment each was entered, to the
+        # second, and one run creates many in a second: entered at the clock's
+        # time, they tied, and GnuCash ordered them by description, so a fee
+        # imported after its deposit came first (Q-053). So each transaction
+        # this run creates is entered one second after the one before it, and
+        # the last it can create at the moment the import started: the first
+        # is one second earlier for each transaction block after it in the
+        # file. None is entered after the moment the import started, so the
+        # transactions of an import started a second or more later come after
+        # them. Runs within the same second order by `num`.
+        self._first_entered = (datetime.now().replace(microsecond=0)
+                               - timedelta(seconds=max(len(transactions) - 1, 0)))
+        self._created = 0
 
         # UPDATE strategy: validate ALL transactions before applying ANY update.
         # This ensures atomicity: either the whole file is valid and all updates
@@ -565,7 +599,7 @@ class ImportTransactionsUseCase:
                     raise ValueError(f"Transaction GUID {guid!r} not found in book")
                 # In file order, so a position is resolved against the
                 # transactions above it, each recorded as it is reached. A
-                # position at a line giving no `guid:` is found here, before
+                # position at a line without a `guid:` is found here, before
                 # any transaction is edited (Q-050).
                 try:
                     resolve_for_an_edit(child, existing_guid_map[guid])
@@ -657,7 +691,7 @@ class ImportTransactionsUseCase:
         result.refused_blocks.append({'directive': child, 'error': entry, 'apply': apply})
 
     def _apply_an_edit(self, importer, exporter, child, existing_tx, result) -> bool:
-        """Apply a `--strategy update` block to the transaction it gives; whether it was applied or already up to date."""
+        """Apply a `--strategy update` block to the transaction its guid matches; whether it was applied or already up to date."""
         try:
             # Inside the block's own error handling: whatever the export
             # meets in the book is that block's error, as anything else
@@ -687,7 +721,7 @@ class ImportTransactionsUseCase:
             # Check for match by GUID if present (non-UPDATE strategies)
             if 'guid' in child.metadata:
                 # As the book spells it, for the reason the update strategy
-                # gives above.
+                # states above.
                 guid = the_guid_a_block_names(child.metadata)
                 if guid in existing_guid_map:
                     _date = child.props.get('date', '?')
@@ -705,7 +739,7 @@ class ImportTransactionsUseCase:
                         child, existing_guid_map[guid])
                     if changed:
                         result.guid_changed_skips += 1
-                    record_the_guids_it_gives(child, [existing_guid_map[guid]])
+                    record_the_guids_it_states(child, [existing_guid_map[guid]])
                     logging.warning(
                         "Skipping %s (GUID match): %s \"%s\" [%s]\n"
                         "  matched existing transaction by GUID: %s",
@@ -732,7 +766,7 @@ class ImportTransactionsUseCase:
                 owner=incoming_owner,
             )
 
-            matched_existing = [
+            matched_existing = [] if _a_guid_says_it_is_new(child) else [
                 tx for tx in existing_transactions
                 if self.matcher.get_signature(tx) == incoming_sig
             ]
@@ -760,11 +794,17 @@ class ImportTransactionsUseCase:
                     matched_guids,
                 )
                 result.skipped_count += 1
-                record_the_guids_it_gives(child, matched_existing)
+                record_the_guids_it_states(child, matched_existing)
                 return True
 
-            # Create transaction
-            tx = importer.create_transaction(child, book)
+            # Entered one second after the transaction this run created before
+            # it, so GnuCash keeps the order they were created in. That is the
+            # order of the file, except for a block applied again in a later
+            # pass, which can draw on currency a block below it brought in, and
+            # so must come after that block.
+            tx = importer.create_transaction(
+                child, book, self._first_entered + timedelta(seconds=self._created))
+            self._created += 1
             result.imported_count += 1
             # Counted here, so a `payment:` block writing a memo onto a
             # transaction this run created is not counted again as one it
@@ -776,10 +816,10 @@ class ImportTransactionsUseCase:
 
         except Exception as e:
             # Its splits, if any were made, went with it, so a position below
-            # pointing at one is refused for that rather than given a guid the
-            # book does not hold (Q-050).
+            # pointing at one is refused for that rather than resolved to a guid
+            # the book does not hold (Q-050).
             child.split_guids = None
-            # And a `payment:` block giving it records no payment of its own
+            # And a `payment:` block stating it records no payment of its own
             # for money the file says moved here (Q-051).
             self._refused(result, child, e, f"Failed to import transaction: {e}", lambda: self._apply_a_block(
                 importer, child, *self._the_book_now, result))

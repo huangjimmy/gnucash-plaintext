@@ -5,7 +5,7 @@ Reading a file can unpost a paid invoice to rebuild it, and the import printed
 A refusal later in the same run saves nothing, so no payment was orphaned.
 
 Measured on 5.10: INV-USD-001, paid by two splits of one transaction, read
-back with one `PaymentSplit` giving a guid the book does not hold, printed the
+back with one `PaymentSplit` stating a guid the book does not hold, printed the
 warning and was then refused.
 """
 
@@ -19,7 +19,7 @@ FIXTURES = Path('tests/fixtures')
 BOOK = FIXTURES / 'fx_usd_invoice_cad_income.txt'
 RATES = FIXTURES / 'fx_rates_usd_dated.yaml'
 TWO_SPLITS = FIXTURES / 'money_arriving_as_two_receivable_splits.txt'
-NAMES_TWO_SPLITS = FIXTURES / 'a_payment_giving_two_settling_splits.txt'
+NAMES_TWO_SPLITS = FIXTURES / 'a_payment_stating_two_settling_splits.txt'
 SECOND_SPLIT = '8192a3b4c5d6e7f80912233445566778'
 UNKNOWN = 'feedfacefeedfacefeedfacefeedface'
 

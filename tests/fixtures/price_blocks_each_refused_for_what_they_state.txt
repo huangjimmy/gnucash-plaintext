@@ -9,8 +9,8 @@
 # - a USD rate dated a day that does not exist;
 # - a USD rate whose time is neither a date nor a moment;
 # - a rate in XYZ, which is no currency GnuCash knows;
-# - a price giving a namespace and no mnemonic;
-# - the NASDAQ:AMZN price, by its guid, given another commodity;
+# - a price stating a namespace and no mnemonic;
+# - the NASDAQ:AMZN price, by its guid, stating another commodity;
 # - a new USD rate with no value;
 # - a USD rate whose guid is not a guid.
 #

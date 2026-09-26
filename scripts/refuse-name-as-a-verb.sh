@@ -9,12 +9,12 @@
 # that a split has a name and that the message prints it, and neither is true —
 # what the message prints is a guid, and the reader who goes looking for a name
 # finds nothing. Write what is actually there: a refusal **lists** the
-# disposals, a report **prints** the split's guid, a block **gives** a guid, a
+# disposals, a report **prints** the split's guid, a block **states** a guid, a
 # payment **applies** a split, a guid **matches**.
 #
 # "name" as a noun is untouched — an account name, a file name, a customer's
 # name, `get_account_full_name`, `--by-name`. Those are names. So is naming a
-# thing that has one: "the error gives the account's name" is fine, and so is
+# thing that has one: "the error prints the account's name" is fine, and so is
 # `name: "US Customer"`.
 #
 # Asking for this in CLAUDE.md was not enough. It was written down, agreed to,
@@ -106,7 +106,7 @@ fresh = [re.sub(rf"\b({BEFORE})\s+names\b", r"\1 NOUNS", line, flags=re.I)
 # and has to stay writable — CLAUDE.md keeps the name of an account, of a
 # customer, and `name:` in a block, and a guard that refused "naming the
 # account" would leave the right sentence the one nobody can type. The nouns
-# are the ones this repo gives names to; a basis, a split, a guid, a
+# are the ones that have names in this repo; a basis, a split, a guid, a
 # transaction and a lot are not among them, so those are refused as before.
 #
 # No apostrophes anywhere in this program: it is a single-quoted argument to
@@ -136,7 +136,7 @@ sys.stdout.write("\n".join(fresh))
 # the error prints", "the file name a block states", "the name that GnuCash
 # keeps" are all noun-plus-determiner and all correct English. A shape this
 # wrongly refuses is a defect, and exit 2 leaves no way past it but editing
-# this file, so the rare imperative is the one to give up.
+# this file, so the rare imperative is the one to drop.
 VERB='\b(names|naming)[[:space:]]+(the|a|an|it|its|them|their|that|this|these|those|each|every|which|whichever|one|both|any|no)\b'
 
 OFFENDING=$(printf '%s\n' "$TEXT" | grep -inE "$VERB" | head -5)
@@ -153,8 +153,8 @@ OFFENDING=$(printf '%s\n' "$TEXT" | grep -inE "$VERB" | head -5)
     echo
     echo "  names the split          -> prints the split's guid"
     echo "  naming them              -> lists them, with their dates and amounts"
-    echo "  names the transaction    -> gives the transaction's guid"
-    echo "  the block names a guid   -> the block gives a guid"
+    echo "  names the transaction    -> states the transaction's guid"
+    echo "  the block names a guid   -> the block states a guid"
     echo "  a payment names a split  -> a payment applies a split"
     echo "  the guid names the basis -> the guid matches the basis"
     echo

@@ -105,7 +105,7 @@ def _split_was_applied_from_credit(split) -> bool:
     the dates are the same.
 
     Two things were tried before this and both misread ordinary books. Asking
-    the *transaction* whether it still touches a leftover credit lot gives one
+    the *transaction* whether it still touches a leftover credit lot has one
     answer for every invoice and bill that transaction settles — so the invoice
     a bank transfer paid claimed a credit had paid it — and says no for a credit
     consumed to the last cent, which leaves no residual behind. Asking whether
@@ -127,7 +127,7 @@ class ExportBusinessObjectsUseCase:
         self._lib = load_gnc_engine()
         # Whose figures are being written, for a refusal to name.
         # Without it the message had only the account, and a book with many
-        # payments gave the reader nothing to find the offender by.
+        # payments left the reader nothing to find the offender by.
         self._being_written = ''
         # Every invoice and bill the format cannot write, not just the first. The
         # transaction export and the beancount export both gather them and
@@ -181,7 +181,7 @@ class ExportBusinessObjectsUseCase:
 
         Refuses once, naming every invoice and bill the format cannot write, rather
         than on the first — the rule the transaction and beancount exports
-        already keep, and for the reason they give: a book of thousands should
+        already keep, and for the reason they state: a book of thousands should
         not be fixed one run at a time. Invoices and bills are gathered
         together, so a book with an offender on each side reports both.
         """
@@ -461,7 +461,7 @@ class ExportBusinessObjectsUseCase:
         for inv, cust in invoices:
             # Which invoice the figures below belong to, for the refusal to
             # name. The message otherwise had only the account, and a book
-            # with many payments gave the reader nothing to find it by.
+            # with many payments left the reader nothing to find it by.
             self._being_written = f'invoice "{inv.GetID()}"'
             try:
                 invoice_strings.append('\n'.join(
@@ -594,7 +594,7 @@ class ExportBusinessObjectsUseCase:
         `action:` is written here as it is for an invoice. A `GncEntry` has
         one action field, which GnuCash's bill window shows in its Action
         column like the invoice window does — measured on 5.10: an entry
-        given `Material`, saved and reopened, reads back `Material`. This
+        set to `Material`, saved and reopened, reads back `Material`. This
         used to be left out on the belief that the field was invoice-side
         only, so a bill's Action was dropped by every export and lost on the
         re-import that followed.

@@ -25,7 +25,7 @@
 # down), no second id, no second kill in the same command, no `prune`, no
 # `compose down`.
 #
-# A signal may be given: `kill -9 1757608`, `kill -TERM 1757608`, `kill -s TERM
+# A signal may be passed: `kill -9 1757608`, `kill -TERM 1757608`, `kill -s TERM
 # 1757608`. `kill -0 1757608` sends nothing and is how a script asks whether a
 # pid is still alive, which the same shape allows.
 #
@@ -45,7 +45,7 @@
 #
 # One consequence worth knowing rather than discovering: the shell-string check
 # is two scans of the whole command joined by "and", so a *compound* command
-# that both hands a shell a program and gives a docker verb is refused even
+# that both hands a shell a program and runs a docker verb is refused even
 # when neither half is a kill — `docker stop web && docker run … img bash -c
 # "pytest"` is. Splitting it in two runs it. That is bluntness rather than a
 # mistake, and it is the same bluntness as "one kill per command": a command
@@ -168,7 +168,7 @@ PRE_ID_FLAGS='((-s|--signal|-t|--time(out)?)[[:space:]]+[^[:space:];&|]+[[:space
 # The id itself stays *required*: making it optional so `docker stop
 # --help` would pass allowed `docker ps -q | xargs docker rm -f` too,
 # which is the incident — a verb fed its ids through a pipe looks exactly
-# like a verb given none. Asking for the manual is handled where the
+# like a verb passed none. Asking for the manual is handled where the
 # occurrence is judged, by the one thing that tells them apart, which is
 # the word `--help`.
 #
@@ -176,8 +176,7 @@ PRE_ID_FLAGS='((-s|--signal|-t|--time(out)?)[[:space:]]+[^[:space:];&|]+[[:space
 # docker takes its arguments on either side of the id: `docker stop web
 # -t 5` and `docker kill web -s TERM` left the value stranded and were
 # refused, so one command had two answers depending on which side of the
-# id its flag sat — the asymmetry `--flag=value` was given its own arm to
-# end.
+# id its flag sat — the asymmetry `--flag=value` has its own arm to end.
 TRAILING_FLAGS='([[:space:]]*((-s|--signal|-t|--time(out)?)[[:space:]]+[^[:space:];&|-][^[:space:];&|]*|--?[A-Za-z][A-Za-z0-9-]*(=[^[:space:];&|]*)?))*'
 
 # `:`, `/` and `@` are in it because an image is named with them, and
@@ -207,7 +206,7 @@ PROC_ONE_ID='^(kill)([[:space:]]+-(s[[:space:]]+)?[A-Za-z0-9]+)?[[:space:]]+[1-9
 # up to the space after it, so `timeout 60 kill -- -1757608` sat at no command
 # position at all and went through. `nice`, `ionice`, `stdbuf` and `doas` are
 # the same shape.
-# A word that runs another command, and whatever it is given before the
+# A word that runs another command, and whatever it is passed before the
 # command it runs: `sudo -u jimmy kill …` and `env VAR=v pkill …` put a
 # word between the two that is neither a flag nor a digit, and skipping
 # only flags left those kills at no command position at all. `command` and

@@ -46,8 +46,8 @@ def main():
     repo.open(SessionMode.NEW)
     write_book_string_option(repo.book, 'Accounts', 'Use Trading Accounts', 't')
     # A new book holding nothing but a book option writes no file when saved,
-    # as one holding nothing but prices does (Q-041), so it is given an
-    # account: a top-level CAD bank, which keeps the book kept in CAD.
+    # as one holding nothing but prices does (Q-041), so an account is added
+    # to it: a top-level CAD bank, which keeps the book kept in CAD.
     petty_cash = Account(repo.book)
     petty_cash.BeginEdit()
     petty_cash.SetName('Petty Cash')

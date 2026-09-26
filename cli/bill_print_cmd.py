@@ -284,7 +284,7 @@ def print_bill(gnucash_file, bill_selectors, bill_id,
                 criteria.append(f'vendor={vendor!r}')
             raise click.UsageError(
                 'no bills matched the selection ('
-                + (', '.join(criteria) if criteria else 'no selectors given')
+                + (', '.join(criteria) if criteria else 'none: every bill in the book')
                 + ')'
             )
 

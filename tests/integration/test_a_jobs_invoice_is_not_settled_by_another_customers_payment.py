@@ -3,7 +3,7 @@
 INV-JOB is for job J-1 of customer C-JOB, paid and unposted. C-OTHER's
 INV-OTHER is paid 100.00 and unposted as well, which leaves its payment loose
 for an invoice of C-OTHER's to take. A hand-written INV-JOB block, which keeps
-the invoice on the job, posts it and gives that payment's transaction with
+the invoice on the job, posts it and states that payment's transaction with
 `txn_guid:`.
 
 One customer's payment cannot settle another customer's invoice, and a job is
@@ -27,8 +27,8 @@ from tests.integration.test_a_jobs_orphaned_payment_settles_only_its_customers_i
 )
 
 FIXTURES = Path('tests/fixtures')
-OTHER = FIXTURES / 'another_customers_invoice_giving_a_jobs_orphaned_payment.txt'
-JOB = FIXTURES / 'a_jobs_invoice_giving_another_customers_orphaned_payment.txt'
+OTHER = FIXTURES / 'another_customers_invoice_stating_a_jobs_orphaned_payment.txt'
+JOB = FIXTURES / 'a_jobs_invoice_stating_another_customers_orphaned_payment.txt'
 
 
 def _run(*args):
@@ -60,7 +60,7 @@ def test_it_is_refused(tmp_path):
 
 def test_its_block_like_another_customers_payment_records_its_own(tmp_path):
     """INV-OTHER is paid 100.00 on 2026-01-11 and stays posted. INV-JOB's block
-    gives a guid the book lacks, with that payment's date, figure, account and
+    states a guid the book lacks, with that payment's date, figure, account and
     memo. Money settling another customer's invoice is not the movement the
     block describes, so the payment is recorded from the block."""
     book = _a_jobs_invoice_paid_and_unposted(tmp_path)

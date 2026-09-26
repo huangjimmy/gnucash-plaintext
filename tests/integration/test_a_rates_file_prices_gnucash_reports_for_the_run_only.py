@@ -105,7 +105,7 @@ class TestARatesFile:
         assert 'share_price: "1.5"' in result.output, result.output
 
     def test_a_rate_replaces_the_books_own_price_that_day_for_the_run(self, tmp_path):
-        """The HKD book prices USD at 7.80 HKD on 03-31; the file gives 7.70."""
+        """The HKD book prices USD at 7.80 HKD on 03-31; the file states 7.70."""
         book = book_from(tmp_path, 'a_book_kept_in_hkd.txt')
         before = prices_in(book)
 
@@ -154,7 +154,7 @@ class TestARatesFile:
 
 
 def _refused(tmp_path, book, text, flag='--fx-rates'):
-    """What `balance-sheet` says when given `text` as a rates or prices file it refuses."""
+    """What `balance-sheet` says when passed `text` as a rates or prices file it refuses."""
     written = tmp_path / 'file.yaml'
     written.write_text(text, encoding='utf-8')
     result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', YEAR_END,
@@ -197,10 +197,10 @@ class TestWhatARatesFileMayWrite:
 
 class TestWhatARatesFileIsRefusedFor:
 
-    def test_giving_no_prices(self, tmp_path):
+    def test_listing_no_prices(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
-        assert 'gives no prices' in _refused(tmp_path, book, '# nothing here\n')
+        assert 'holds no prices' in _refused(tmp_path, book, '# nothing here\n')
 
     def test_a_key_with_nothing_after_its_slash(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
@@ -210,7 +210,7 @@ class TestWhatARatesFileIsRefusedFor:
     def test_a_currency_with_no_dated_prices(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
-        assert 'gives no dated prices' in _refused(tmp_path, book, 'USD/CAD: {}\n')
+        assert 'lists no dated prices' in _refused(tmp_path, book, 'USD/CAD: {}\n')
 
     def test_a_date_that_is_not_a_date(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
@@ -251,7 +251,7 @@ class TestWhatARatesFileIsRefusedFor:
         """An undated rate lands on the day the report is for — where the dated one is.
 
         GnuCash keeps one price a day for a pair, and the source these are
-        given outranks the book's own, so the second to be added displaces the
+        added with outranks the book's own, so the second to be added displaces the
         first. Which survived would be decided by the order they were written
         in, and the page's figures with it.
         """
@@ -263,7 +263,7 @@ class TestWhatARatesFileIsRefusedFor:
         assert 'USD' in output and 'depend on' in output, output
 
     def test_two_rates_for_one_currency_on_different_days_are_fine(self, tmp_path):
-        """The refusal is about one day, not about giving a currency twice."""
+        """The refusal is about one day, not about listing a currency twice."""
         book = book_from(tmp_path, CAD_BOOK)
 
         page = _priced(tmp_path, book,
@@ -312,7 +312,7 @@ class TestAPricesFile:
             '\t\t\t\tcommodity.namespace: "NASDAQ"',
             '\t\t\t\tcommodity.mnemonic: "ACME"',
             '\t\t\t\tquantity: 10.0000',
-            '\t\t\t\tshare_price: 60 # what price-fn gives for this commodity',
+            '\t\t\t\tshare_price: 60 # what price-fn returns for this commodity',
             '\t\t\t\tcost_bases:',
             '\t\t\t\t\tcost_basis:',
             '\t\t\t\t\t\tsplit_guid: <guid>',
@@ -341,7 +341,7 @@ class TestAPricesFile:
             '\t\t\t\tcommodity.namespace: "FUND"',
             '\t\t\t\tcommodity.mnemonic: "VGRO"',
             '\t\t\t\tquantity: 20.0000',
-            '\t\t\t\tshare_price: 30 # what price-fn gives for this commodity',
+            '\t\t\t\tshare_price: 30 # what price-fn returns for this commodity',
             '\t\t\t\tcost_bases:',
             '\t\t\t\t\tcost_basis:',
             '\t\t\t\t\t\tsplit_guid: <guid>',
@@ -385,7 +385,7 @@ class TestAPricesFile:
 
 class TestWhatAPricesFileMayWriteAndIsRefusedFor:
 
-    def test_a_security_price_may_give_its_currency(self, tmp_path):
+    def test_a_security_price_may_state_its_currency(self, tmp_path):
         book = book_from(tmp_path, CAD_BOOK)
 
         page = _priced(tmp_path, book, 'AMZN/USD: 250\n', '--prices')
@@ -432,7 +432,7 @@ class TestThePriceSource:
             'share_price': '1.35',
             'value': '13500.00'}
 
-    def test_a_price_source_given_on_the_command_is_the_reports(self, tmp_path):
+    def test_a_price_source_passed_on_the_command_is_the_reports(self, tmp_path):
         """The most recent price is the 1.42 of 2026-12-31, a year after the report date."""
         book = book_from(tmp_path, CAD_BOOK)
 

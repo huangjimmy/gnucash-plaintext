@@ -192,9 +192,13 @@ identical to a no-change pass-through.
 | File | Change |
 |---|---|
 | `services/gnucash_importer.py` | `import_customer` / `import_vendor`: field-by-field compare before set; return `'skipped'` on no diff. New helpers `_invoice_matches_directive` and `_bill_matches_directive`. `import_invoice` / `import_bill`: short-circuit return when matcher says no change. |
-| `tests/integration/test_business_object_idempotent_reimport.py` | New `TestNoChangeReimportIsSkipped` class with 6 tests: customer/vendor no-change, customer-with-name-change, customer-with-KVP-added (should still be `updated`), unposted invoice/bill no-change. |
-| `tests/integration/test_business_object_import_summary.py` | Existing tests `test_reimport_shows_updated_for_customers_vendors` and `test_reimport_summary_counts` need updates — the new behaviour reports `'skipped'`, not `'updated'`, for the no-change re-import path. |
-| `README.md` | "Re-import semantics" section: clarify what `'updated'` means now (real change) vs `'skipped'` (no diff or immutable target). |
+| `tests/integration/test_business_object_idempotent_reimport.py` | New `TestNoChangeReimportIsUnchanged` class: customer/vendor no-change, customer-with-name-change, customer-with-KVP-added (should still be `updated`), unposted invoice/bill no-change. |
+| `tests/integration/test_business_object_import_summary.py` | `test_reimport_shows_unchanged_for_customers_vendors` and `test_reimport_summary_counts` — the no-change re-import path no longer reports `'updated'`. |
+| `README.md` | "Re-import semantics" section: clarify what `'updated'` means now (real change) vs a no-change pass. |
+
+As built, a no-change re-import reports `unchanged` rather than `skipped`,
+and `skipped` is kept for a record the import leaves alone, such as an
+existing tax table. The tests carry that word.
 
 ## Out of scope
 

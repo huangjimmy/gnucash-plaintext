@@ -223,7 +223,7 @@ def test_version_marker_is_set_and_round_trips(tmp_path):
 
 
 def test_a_book_key_already_holding_the_value_is_reported_unchanged(tmp_path):
-    """The second migration sets the key to the value the first gave it, and says so."""
+    """The second migration sets the key to the value the first set, and says so."""
     runner = CliRunner()
     gf = _new_book(runner, tmp_path)
     d = _migrations(tmp_path, {

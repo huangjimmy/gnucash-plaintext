@@ -7,7 +7,7 @@
 #
 # `the_thousand_usd_sold_at_a_higher_rate.txt` sells every dollar of it.
 #
-# The split that buys them gives its own guid, `0b0b0b0b0b0b0b0b0b0b0b0b0b0b1000`,
+# The split that buys them states its own guid, `0b0b0b0b0b0b0b0b0b0b0b0b0b0b1000`,
 # so a file layered on this book can say a disposal came out of that cost basis
 # without being handed the guid at run time.
 2026-01-01 commodity CAD

@@ -1,6 +1,6 @@
 # A book with a `company` block and no accounts at all.
 #
-# No `base_currency:` is given and there is no top-level account to share a
+# No `base_currency:` is stated and there is no top-level account to share a
 # currency, so the book's currency is refused (Q-042).
 #
 # What this fixture produces: the company's name, and nothing else.

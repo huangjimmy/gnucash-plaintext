@@ -117,22 +117,24 @@ The combined-pdf path uses WeasyPrint's "render multiple HTML strings → one PD
 - `services/invoice_renderer.py` — extract a per-entry tax-amount helper from the tax-table (currently only the label is read). Add `render_to_plaintext(invoice, book, company_info) → str` that emits the canonical plaintext-syntax representation populated with informational fields.
 - `services/gnucash_importer.py` — recognise `entry_tax`, `invoice_subtotal`, `invoice_tax_total`, `invoice_total` on invoice/entry directives (and the bill analogues). Recompute, cross-check, error on mismatch.
 - `infrastructure/gnucash/kvp.py` — add the new field names to the known-field sets so they don't fall into the custom-KVP path.
-- `use_cases/print_invoice.py` (new) — selection logic shared across formats; output-composition dispatcher.
+- selection logic shared across formats; output-composition dispatcher. As built this is `_filter_invoices` in `cli/invoice_print_cmd.py` and `_filter_bills` in `cli/bill_print_cmd.py`, not a `use_cases/print_invoice.py`.
 
-### Tests (`tests/integration/test_q017_*.py`)
+### Tests (`tests/integration/test_q017_print_invoice_plaintext_and_multi.py`)
+
+The list below is the plan. Where a test was built under another name, or checks something else, the entry says so.
 
 - `test_print_invoice_plaintext_format_emits_informational_fields` — a posted invoice with one HST 13% line; assert `entry_amount: 100.00`, `entry_tax: 13.00`, `invoice_subtotal: 100.00`, `invoice_tax_total: 13.00`, `invoice_total: 113.00` are present with correct values.
 - `test_print_invoice_plaintext_emits_tax_breakdown_combined_table` — invoice with one entry against a combined-HST tax table (5% GST + 8% PST); assert `entry_tax_breakdown:` lists both tax-account/rate/amount lines with the right per-account dollars.
 - `test_render_plaintext_roundtrips_via_import` — `print-invoice --format plaintext > out.txt`, then `import --new fresh.gnucash out.txt`, succeeds with no diff.
-- `test_tampered_informational_field_errors_loudly` — same as above but hand-edit `invoice_tax_total: 13.00 → 99.00`; re-import must fail with an error naming the field and both values.
-- `test_draft_invoice_plaintext_subtotal_only` — unposted invoice; `print-invoice --format plaintext` emits `invoice_subtotal:` and NO `entry_tax`/`invoice_tax_total`/`invoice_total`.
-- `test_multi_invoice_by_ids` — 3 invoices, print combined pdf, assert 3 page-groups (verify with pdfinfo or similar).
+- `test_tampered_invoice_total_errors_loudly` and `test_tampered_entry_tax_breakdown_errors_loudly` — same as above but with a hand-edited `invoice_total:` or breakdown amount; re-import must fail with an error that prints the field and both values.
+- `test_draft_invoice_plaintext_emits_provisional_totals` — unposted invoice. Planned as subtotal only; since Q-019 a draft prints the full stack of totals under a `# Tax figures are provisional` header.
+- `test_multi_invoice_by_positional_ids` — several invoice ids on the command line select exactly those invoices, checked in plaintext rather than as PDF page groups.
 - `test_multi_invoice_by_date_range` — 5 invoices, `--from`/`--to` selects 2; assert output has exactly 2.
 - `test_multi_invoice_by_customer` — 4 invoices across 2 customers; `--customer` filters to 2.
 - `test_multi_invoice_glob` — `INV-2026-*` selects only the matching ones.
-- `test_output_dir_emits_one_file_per_invoice` — `--output dir/`, assert `dir/INV-001.pdf`, `dir/INV-002.pdf` exist.
-- `test_plaintext_stdout` — `--format plaintext --output -` writes to stdout (capture and check).
-- `test_bill_plaintext_emits_informational_fields` — bill equivalent (if `print-bill` exists; otherwise scope to invoices only).
+- `test_multi_invoice_output_dir_one_file_per_invoice` — `--output dir/` writes one file per invoice.
+- `test_plaintext_to_stdout` — `--format plaintext --output -` writes to stdout (capture and check).
+- the bill equivalent — `print-bill` was built; its plaintext is tested in `tests/integration/test_q019_two_sided_render.py::test_bill_plaintext_emits_seller_and_vendor_headers` and `tests/integration/test_company_info_roundtrip.py::test_print_bill_plaintext_renders_gst_and_each_pst`.
 
 Each fixture in `tests/fixtures/q017_*.txt`, one scenario per file with distinct amounts.
 

@@ -3,7 +3,7 @@
 # dollar split is gone from the block, so the edit removes it.
 #
 # The cost basis sits on that split, and the fee still draws 0.72 USD on it,
-# so the edit would leave the fee giving a cost basis the book no longer
+# so the edit would leave the fee stating a cost basis the book no longer
 # holds. It is refused, saying the cost basis would be gone.
 #
 # Verified by

@@ -5,7 +5,7 @@
 # received, rather than the 100.00 the sale made.
 #
 # Only one split claims it, so the one-claim rule has nothing to refuse, and
-# the transaction is an ordinary disposal in the book's own currency giving the
+# the transaction is an ordinary disposal in the book's own currency stating the
 # guid of the cost basis it draws on. What turns it away is the account. A
 # realized difference is a gain or a loss and belongs in the profit and loss; a
 # split on a bank moved money rather than measuring anything. Counted, the page

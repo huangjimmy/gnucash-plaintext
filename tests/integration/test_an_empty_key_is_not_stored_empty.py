@@ -49,7 +49,7 @@ class TestOnABookThatDidNotHaveIt:
 
         assert 'project:' not in text, text
 
-    def test_the_key_that_was_given_a_value_is_kept(self, tmp_path):
+    def test_the_key_that_was_set_to_a_value_is_kept(self, tmp_path):
         """Clearing one key says nothing about the others."""
         text = _export(_import_new(tmp_path), tmp_path)
 
@@ -57,7 +57,7 @@ class TestOnABookThatDidNotHaveIt:
 
 
 class TestTheCycleSettles:
-    def test_exporting_and_re_importing_gives_the_same_file(self, tmp_path):
+    def test_exporting_and_re_importing_writes_the_same_file(self, tmp_path):
         """The export is a ledger; reading it back must produce the book it
         was written from, or the file and the book drift apart for good."""
         first = _export(_import_new(tmp_path), tmp_path, 'first.txt')

@@ -103,7 +103,7 @@ class TestAReportOfYourOwn:
 
     def test_it_is_handed_the_page_that_was_asked_for(self, book,
                                                           tmp_path):
-        """Not just any page: the one `print-invoice` was given."""
+        """Not just any page: the one `print-invoice` was asked for."""
         page = _printed(book, tmp_path, '--report-file', OWN_REPORT,
                         '--report', 'A Report Of Your Own')
 
@@ -769,7 +769,7 @@ class TestWhenTwoReportsAnswerToOneName:
             result.output
 
     def test_an_innocent_file_is_not_named(self, book, tmp_path):
-        """The file this run was given may have nothing to do with it.
+        """The file this run was passed may have nothing to do with it.
 
         A collision needs two entries equal once case and dashes are set
         aside, and GnuCash's own guids are distinct — so through either

@@ -1,7 +1,7 @@
 """The disposal that takes the last of a cost basis is valued at what is left of its cost, so the book records the whole realized gain or loss.
 
 Each disposal is valued at the cost of what it draws, rounded to the cent.
-Several such values add up to the cost basis's cost give or take the
+Several such values add up to the cost basis's cost to within the
 rounding, so the last disposal takes what is left of it: then the values of
 all of them are what the currency cost, and the exchange splits beside them
 add up to the realized gain or loss.
@@ -125,7 +125,7 @@ def test_a_value_moved_to_any_other_figure_in_place_is_refused(tmp_path):
     """3,802.80 is neither the share, 3,802.81, nor what is left, 3,802.82.
 
     Read as a new transaction would be (Q-051), the disposal takes the last of
-    the cost basis, and is refused as a new import of it would be, giving what
+    the cost basis, and is refused as a new import of it would be, stating what
     is left of the cost.
     """
     book = _book(tmp_path, LOSS)
@@ -147,7 +147,7 @@ def test_a_value_moved_to_any_other_figure_in_place_is_refused(tmp_path):
 def test_a_disposal_edited_in_place_takes_what_is_left_when_it_draws_the_last_of_it(tmp_path):
     """The 0.72 USD charge of 08-13 at 1.02, on a book whose last disposal an earlier import left a cent short.
 
-    Read as a new transaction would be (Q-051), what the charge drew is given
+    Read as a new transaction would be (Q-051), what the charge drew is put
     back and drawn again, and it is then what takes the last 0.72 of the cost
     basis: what is left of the cost is 1.02, because the disposal an earlier
     import valued at its own share, 3,802.81, left a cent of the cost behind.
@@ -168,7 +168,7 @@ def test_a_disposal_edited_in_place_takes_what_is_left_when_it_draws_the_last_of
 
 
 @pytest.mark.parametrize('base, what_is_left, realized', CASES)
-def test_valued_at_its_own_share_it_is_refused_giving_what_is_left(
+def test_valued_at_its_own_share_it_is_refused_stating_what_is_left(
         tmp_path, base, what_is_left, realized):
     book = _book(tmp_path, base)
 

@@ -53,7 +53,7 @@ def test_a_share_count_is_corrected_by_an_edit_in_place(tmp_path):
 
     A purchase whose cost basis nothing else draws on is read, edited, as a
     new transaction would be (Q-051): 12 shares for the money that bought 10
-    opens a cost basis of 12 at the price the two figures give, and the
+    opens a cost basis of 12 at the price the two figures make, and the
     balance says what the amounts say.
     """
     runner = CliRunner()

@@ -1,6 +1,6 @@
 # INV-TWO for 100.00 CAD, paid by one 100.00 deposit from Acme whose receivable
-# side is two splits, 60.00 and 40.00. The first payment block gives the 60.00
-# with `txn_split_guid:`. The second gives only the deposit's `txn_guid:`, and
+# side is two splits, 60.00 and 40.00. The first payment block states the 60.00
+# with `txn_split_guid:`. The second states only the deposit's `txn_guid:`, and
 # the import takes the 40.00 as the split still in no lot.
 #
 # What this fixture produces: both splits in INV-TWO's lot. Unposted and

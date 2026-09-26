@@ -1,0 +1,51 @@
+# A 150.00 CAD wire from Delta, divided on the receivable, and the invoice it pays.
+#
+# The wire's receivable side is two splits: 100.00 settling INV-RT-OVER-100 and
+# 50.00 left over. The invoice's payment block states the settling split with
+# `txn_split_guid:`, states no `amount:`, and declares `prepayment: 60.00`,
+# which is not what is left over. The test puts 50.00 in its place for the
+# block that is right.
+#
+# What this fixture produces: a refusal, and nothing imported.
+#
+# Verified by tests/integration/test_a_residue_stated_beside_a_split_is_weighed_when_applied.py.
+2026-01-10 * "Wire from Delta"
+	guid: "d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+	currency.mnemonic: "CAD"
+	Assets:Bank 150.00 CAD
+		guid: "e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4"
+	Assets:Accounts Receivable -100.00 CAD
+		guid: "f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4"
+	Assets:Accounts Receivable -50.00 CAD
+		guid: "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+
+customer "C004"
+	name: "Delta Co"
+	currency: CAD
+
+invoice "INV-RT-OVER-100"
+	customer_id: "C004"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "Service"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "Invoice INV-RT-OVER-100"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		bank_account: "Assets:Bank"
+		txn_guid: "d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+		txn_split_guid: "f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4"
+		prepayment: 60.00
+		memo: "External payment"

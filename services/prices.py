@@ -45,7 +45,7 @@ from infrastructure.gnucash.utils import encode_value_as_string, qof_pointer
 from services.gnucash_importer import _guid_in_use_anywhere, the_guid_a_block_names
 from services.plaintext_parser import DirectiveType
 
-# The source GnuCash gives a price nobody set one on, measured on every build.
+# The source GnuCash reports for a price nobody set one on, measured on every build.
 GNUCASH_DEFAULT_SOURCE = 'invalid'
 
 _RATIO = re.compile(r'([+-]?\d+)/(\d+)')
@@ -55,7 +55,7 @@ _INT64 = 2 ** 63
 
 
 class PriceRefusedError(Exception):
-    """A price block that cannot be applied, carrying the sentence a reader is given."""
+    """A price block that cannot be applied, carrying the sentence the reader is shown."""
 
 
 @dataclass(frozen=True)
@@ -293,7 +293,7 @@ def _exact_value(value) -> Tuple[int, int]:
 
 
 def _moment(lib, value) -> int:
-    """A `time:` as seconds since the epoch: a moment as written, or a date at the time GnuCash gives it."""
+    """A `time:` as seconds since the epoch: a moment as written, or a date at the time GnuCash stores a date at."""
     text = _stated(value).strip()
     if _DATE.fullmatch(text):
         try:
@@ -325,7 +325,7 @@ def _source_gnucash_stores(lib, book_ptr: int, source: str, known: Dict[str, boo
     return known[source]
 
 
-# Every key a `price` block may give. A price has no custom metadata, so a key
+# Every key a `price` block may state. A price has no custom metadata, so a key
 # outside these would be dropped, and a correction written under a misspelled
 # key lost with the price reported unchanged.
 _KEYS_A_PRICE_TAKES = ('guid', 'commodity.namespace', 'commodity.mnemonic', 'currency.mnemonic',
@@ -343,7 +343,7 @@ def _plan(lib, book, book_ptr, table, index, block, known_sources) -> _Plan:
     unknown = sorted(key for key in metadata if key not in _KEYS_A_PRICE_TAKES)
     if unknown:
         raise refused(f'a price takes only {", ".join(_KEYS_A_PRICE_TAKES)}, and this block also '
-                      f'gives {", ".join(unknown)}, which a price has nowhere to keep')
+                      f'states {", ".join(unknown)}, which a price has nowhere to keep')
 
     try:
         guid = the_guid_a_block_names(metadata)
@@ -353,7 +353,7 @@ def _plan(lib, book, book_ptr, table, index, block, known_sources) -> _Plan:
     namespace = metadata.get('commodity.namespace')
     mnemonic = metadata.get('commodity.mnemonic')
     if (namespace is None) != (mnemonic is None):
-        raise refused('commodity.namespace and commodity.mnemonic are given together, or neither')
+        raise refused('commodity.namespace and commodity.mnemonic are stated together, or neither')
     commodity = None
     if mnemonic is not None:
         found = table.lookup(_stated(namespace), _stated(mnemonic))
@@ -388,8 +388,8 @@ def _plan(lib, book, book_ptr, table, index, block, known_sources) -> _Plan:
             in_use = _guid_in_use_anywhere(book, guid)
             if in_use is not None:
                 raise refused(f'guid {guid} is already used by an existing {in_use} in this book, '
-                              f'and GnuCash keeps a guid to one object; give the price another '
-                              f'guid, or leave guid: out to let GnuCash assign one')
+                              f'and GnuCash keeps a guid to one object; state another guid for '
+                              f'the price, or leave guid: out to let GnuCash assign one')
 
     if existing is not None:
         if commodity is not None and commodity != existing.commodity:
@@ -414,12 +414,12 @@ def _plan(lib, book, book_ptr, table, index, block, known_sources) -> _Plan:
                      time=changes.get('time', existing.time), guid=guid, existing=existing,
                      changes=changes)
 
-    missing = [key for key, given in (('commodity.namespace', namespace),
+    missing = [key for key, stated in (('commodity.namespace', namespace),
                                       ('commodity.mnemonic', mnemonic),
                                       ('currency.mnemonic', metadata.get('currency.mnemonic')),
                                       ('time', metadata.get('time')),
                                       ('value', metadata.get('value')))
-               if given is None]
+               if stated is None]
     if missing:
         held = f'; the book holds no price with guid {guid}' if guid is not None else ''
         raise refused(f'a new price needs {", ".join(missing)}{held}')
@@ -508,7 +508,7 @@ def apply_price_blocks(directives, book) -> PriceImportResult:
         except PriceRefusedError as refusal:
             result.refusals.append(str(refusal))
 
-    # One guid is one price. Two blocks of one file giving the same guid would
+    # One guid is one price. Two blocks of one file stating the same guid would
     # both be applied: two new prices would both take it, and of two edits the
     # later would win.
     crowded = set()
@@ -521,7 +521,7 @@ def apply_price_blocks(directives, book) -> PriceImportResult:
             for plan in group:
                 crowded.add(id(plan))
                 result.refusals.append(
-                    f'{plan.label}: refused — this file gives guid {guid} in {len(group)} price '
+                    f'{plan.label}: refused — this file states guid {guid} in {len(group)} price '
                     f'blocks, and a guid is one price, so what the book kept would depend on '
                     f'their order in the file')
 
@@ -547,7 +547,7 @@ def apply_price_blocks(directives, book) -> PriceImportResult:
             for plan in group:
                 crowded.add(id(plan))
                 result.refusals.append(
-                    f'{plan.label}: refused — this file gives {len(group)} prices of {pairs} '
+                    f'{plan.label}: refused — this file states {len(group)} prices of {pairs} '
                     f'on {_day_text(lib, plan.time)}, and GnuCash keeps one price a day for a '
                     f'commodity and a currency, whichever way round it is written, so which one '
                     f'it kept would depend on their order in the file')
@@ -605,7 +605,7 @@ def apply_price_blocks(directives, book) -> PriceImportResult:
                 f'{plan.label}: refused — the book already holds a price of {other.pair} on '
                 f'{_day_text(lib, plan.time)}: {held(other)}. GnuCash keeps one price a day for a '
                 f'commodity and a currency, whichever way round it is written; to change that '
-                f'price, give its guid')
+                f'price, state its guid')
             continue
         price = _create(lib, book_ptr, db, plan)
         index[_either_way(plan.commodity, plan.currency)].append(_read(lib, price))

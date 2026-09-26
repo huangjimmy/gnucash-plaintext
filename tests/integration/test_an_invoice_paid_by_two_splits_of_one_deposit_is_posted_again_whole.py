@@ -1,7 +1,7 @@
 """An invoice paid by two splits of one deposit is posted again with both, after an unpost.
 
 INV-TWO is paid 60.00 and 40.00 out of one 100.00 deposit, by two payment
-blocks: one gives the 60.00 by `txn_split_guid:`, the other gives only the
+blocks: one states the 60.00 by `txn_split_guid:`, the other states only the
 deposit's `txn_guid:`. `unpost-invoices INV-TWO` leaves both splits marked as
 its orphans. The same file with the line's description changed then posts it
 again. The first block puts the 60.00 back by guid. The second finds the 40.00

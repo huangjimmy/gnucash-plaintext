@@ -65,8 +65,8 @@ class _Cli(click.Group):
     **`--verify-integrity` is answered here too**, and for the same reason: it
     applies to every command that writes a book, and adding an option to each
     of the twenty that do would be twenty chances to spell it differently or
-    leave it off. Given before the command, it runs the check once the command
-    has finished and saved. Given with no command at all, the token after it is
+    leave it off. Passed before the command, it runs the check once the command
+    has finished and saved. Passed with no command at all, the token after it is
     a book to check rather than a command to run, and `resolve_command` says so
     — a `click.Group` otherwise refuses an unknown command before the callback
     is ever reached.
@@ -84,7 +84,7 @@ class _Cli(click.Group):
         name, command, rest = super().resolve_command(ctx, args)
         # Kept because Click hands the command its own context and does not
         # keep it: a group sees only its own parameters afterwards, and the
-        # book the command was given is in the command's. A copy of the
+        # book passed to the command is in the command's. A copy of the
         # arguments, because Click parses that very list by taking items off
         # it, so the list itself is empty by the time the command returns.
         ctx.meta['dispatched'] = (name, command, list(rest))
@@ -129,16 +129,16 @@ def _the_parsed_command(ctx):
                                                resilient_parsing=True)
 
 
-def _the_book_the_command_was_given(command, parsed):
-    """The book a subcommand was handed, read out of its own arguments.
+def _the_book_passed_to_the_command(command, parsed):
+    """The book passed to a subcommand, read out of its own arguments.
 
     **There is always one to answer with.** Every command takes a book under
     one of the three names below — every registered command was listed and
-    read — and a run that gives none is refused by Click or by the command
+    read — and a run that passes none is refused by Click or by the command
     itself before anything happens, a `UsageError` that ends the run without
     reaching the check. A command added with its book under another name
     would hand the check the string `'None'`, which then reports that no book
-    is at that path; give it one of these three names.
+    is at that path; use one of these three names.
 
     `gnucash_file` is the positional book on every command. The same book is
     `gnucash_path` behind `-i/--input` on `import` and behind `-o/--output` on
@@ -156,7 +156,7 @@ def _the_book_the_command_was_given(command, parsed):
 
 
 def _check_what_the_command_wrote(ctx) -> None:
-    """Reopen the book the command was given and check it, where asked.
+    """Reopen the book passed to the command and check it, where asked.
 
     Reopened rather than asked of the session the command used, because what is
     worth checking is the book on disk — the one the next command will read.
@@ -180,7 +180,7 @@ def _check_what_the_command_wrote(ctx) -> None:
                    'nothing to check.')
         return
     try:
-        report = verify_the_book(_the_book_the_command_was_given(command, parsed))
+        report = verify_the_book(_the_book_passed_to_the_command(command, parsed))
     except (BookUnavailableError, PageNotRenderedError,
             GuileUnavailableError) as e:
         raise click.ClickException(f'the book could not be checked: {e}') from e
@@ -223,7 +223,7 @@ def cli(ctx, verify_integrity):
     if ctx.invoked_subcommand is None and verify_integrity:
         raise click.UsageError(
             '--verify-integrity takes a book to check, or a command to run '
-            'before checking the book it was given', ctx=ctx)
+            'before checking the book that command works on', ctx=ctx)
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
         ctx.exit()

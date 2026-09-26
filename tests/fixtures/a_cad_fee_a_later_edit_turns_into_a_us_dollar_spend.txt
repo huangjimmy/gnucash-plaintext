@@ -1,5 +1,5 @@
 # A book keeping a US dollar cost basis, and a Canadian dollar bank fee that
-# `tests/fixtures/the_fee_edited_into_a_us_dollar_spend_giving_no_cost_basis.txt`
+# `tests/fixtures/the_fee_edited_into_a_us_dollar_spend_stating_no_cost_basis.txt`
 # edits, with `--strategy update`, into 100.00 US dollars spent.
 #
 # Verified by

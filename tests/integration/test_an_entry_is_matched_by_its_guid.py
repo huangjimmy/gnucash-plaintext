@@ -1,14 +1,14 @@
 """A line's `guid:` says which line a block edits, and a line keeps its own.
 
 An entry now carries `guid:` through the export, so an invoice can be edited
-without its lines losing the identity the book gave them. Two things follow,
+without its lines losing the identity the book assigned them. Two things follow,
 and neither was true while an edit destroyed every line and built them again:
 
 - a block naming **no** guid still edits a line rather than replacing it, so
   a hand-written file — which names none — leaves the guids alone instead of
   renumbering every line of every invoice it touches;
 - a guid naming a line that is somebody else's, or the same line twice, is
-  refused. Forcing a guid GnuCash already gave to another object is how a
+  refused. Forcing a guid GnuCash already assigned to another object is how a
   book gets two of them, and the collection is a hash: the loser is gone.
 """
 
@@ -477,10 +477,10 @@ class TestALineEditedInPlace:
         assert _entry_guids(again)[described] == _entry_guids(exported)[described]
 
 
-class TestAGuidTheBookGaveSomethingElse:
+class TestAGuidTheBookAssignedToSomethingElse:
     def test_naming_the_same_line_twice_is_refused(self, tmp_path):
         """One guid, two lines. GnuCash's collection is a hash of them, so
-        the second line to be given it takes the first's place in the book
+        the second line to be assigned it takes the first's place in the book
         and the first is unreachable — an invoice quietly one line short."""
         book = _book(tmp_path)
         exported = _exported(book, tmp_path)
@@ -494,7 +494,7 @@ class TestAGuidTheBookGaveSomethingElse:
         assert guids['Design'] in str(result.output) + str(result.exception)
 
     def test_naming_another_invoice_s_line_is_refused(self, tmp_path):
-        """The bill's line, given to an invoice's. The bill keeps its line
+        """The bill's line's guid, written on an invoice's line. The bill keeps its line
         and the invoice must not be handed it."""
         book = _book(tmp_path)
         exported = _exported(book, tmp_path)

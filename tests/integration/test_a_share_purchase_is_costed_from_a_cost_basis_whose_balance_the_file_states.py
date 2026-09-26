@@ -10,7 +10,7 @@ onto the shares.
 Before, the cost went with the dollars only when the purchase lowered their
 balance, so a book exported and imported again, or written with its balances,
 held its shares at no cost: the sheet converted their US dollar figure at its
-own rate, and a sale that gave the shares' guid was refused as drawing on a
+own rate, and a sale that stated the shares' guid was refused as drawing on a
 split that is no cost basis.
 """
 

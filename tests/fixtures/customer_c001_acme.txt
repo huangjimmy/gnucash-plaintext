@@ -1,6 +1,6 @@
 # Customer C001, Acme, invoiced in CAD, and nothing else.
 #
-# Read into a book before a transaction whose split gives
+# Read into a book before a transaction whose split states
 # `lot_owner: customer:C001`, which needs the customer to exist already.
 #
 # What this fixture produces: customer C001.

@@ -48,5 +48,5 @@ def test_a_cost_on_an_account_never_opened_is_refused_for_the_account(tmp_path):
     "cost_basis_cost on split 'Assets:USD Cash' must be positive, got 0",
     "cost_basis_cost on split 'Assets:USD Cash' must be positive, got -1.35",
 ])
-def test_each_reason_is_given(imported, reason):
+def test_each_reason_is_printed(imported, reason):
     assert reason in imported.output, imported.output

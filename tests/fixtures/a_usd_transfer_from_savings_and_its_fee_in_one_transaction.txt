@@ -3,7 +3,7 @@
 # opening balance of usd_held_in_savings_as_an_opening_balance.txt. Imported
 # as a new transaction.
 #
-# The fee gives the cost basis it spends, so it is what left, and the 500.00
+# The fee states the cost basis it spends, so it is what left, and the 500.00
 # moved: the opening balance's cost basis falls by the fee alone, to
 # 2,999.28, and nothing else opens or falls.
 #

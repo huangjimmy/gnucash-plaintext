@@ -387,7 +387,7 @@ class TestALotGuidNamingALotOfAnotherKind:
         assert 'already' in message and 'spent' in message, message
 
 
-class TestGivingASplitInALotAnotherAccount:
+class TestMovingASplitInALotToAnotherAccount:
     def test_is_refused(self, tmp_path):
         """A block's account line changes that split's account — but not one
         sitting in a lot.

@@ -87,8 +87,8 @@ def refuse_a_figure_the_currency_cannot_hold(amount, account, what,
     two would have refused.
     """
     # Never handed an account with no commodity, though a book can hold one.
-    # Four callers pass a record's receivable or payable, which posting gives
-    # the record's currency, and the two exports ask
+    # Four callers pass a record's receivable or payable, which posting keeps
+    # in the record's currency, and the two exports ask
     # `the_commodity_a_split_is_written_in` of a split before its figures.
     commodity = account.GetCommodity()
     if (commodity.get_namespace() or '').upper() != 'CURRENCY':
@@ -125,7 +125,7 @@ def the_commodity_a_split_is_written_in(split, transaction):
             f'transaction {transaction.GetDescription()!r} on '
             f'{transaction.GetDate().strftime("%Y-%m-%d")} has a split on it. '
             f'A split is written as an amount of its account\'s commodity, so '
-            f'this one cannot be written. Give the account a commodity, and '
+            f'this one cannot be written. Set a commodity on the account, and '
             f'export again.')
     return commodity
 
@@ -275,21 +275,21 @@ def the_order_the_book_keeps_them_in(one, other) -> int:
 def _the_basis_a_sale_draws_on(split) -> Optional[str]:
     """The guid this split will state in `cost_basis_split_guid:`, or None.
 
-    None where the split gives no guid, and where it gives one the export
+    None where the split states no guid, and where it states one the export
     drops — so this asks exactly what the writer asks, and a line the file
     will not carry moves nothing.
     """
-    given = get_custom_metadata(split).get(COST_BASIS_SPLIT_KEY)
-    if not given or _the_basis_it_gives_was_spent(split, given):
+    stated = get_custom_metadata(split).get(COST_BASIS_SPLIT_KEY)
+    if not stated or _the_basis_it_states_was_spent(split, stated):
         return None
-    return str(given).replace('-', '').lower()
+    return str(stated).replace('-', '').lower()
 
 
 def each_basis_above_what_draws_on_it(transactions: list) -> list:
     """The book's order, with one exception: a transaction holding a cost
     basis is written above any transaction that draws on it.
 
-    Given the transactions the file will carry, after any date or account
+    Passed the transactions the file will carry, after any date or account
     filter, so that only an order the file can be read back in is asked
     about — and so that the running balances, which are added up over every
     transaction in the book's own order, are not asked to follow this one.
@@ -312,7 +312,7 @@ def each_basis_above_what_draws_on_it(transactions: list) -> list:
     One walk of the splits, and one read of each split's slot: most books hold
     no cost basis at all, and this runs on every export. `GetSplitList` is a
     fresh wrapper per call and the slot is a ctypes read and a `json.loads`,
-    so both are taken once and the guid a sale gives is collected on the way
+    so both are taken once and the guid a sale states is collected on the way
     past.
     """
     held_by = {}
@@ -366,7 +366,7 @@ def where_each_undo_block_goes(book, guids: Sequence[str]) -> dict:
     order the guids were typed — and that order is not the writer's to choose.
     A cost basis cannot be deleted while a sale measures against it, so the
     sale is named first, and the copy stated the sale above the cost basis it draws
-    on: a file whose opening block gives the guid of a split no block above it
+    on: a file whose opening block states the guid of a split no block above it
     creates, refused on the way back in, with the transactions it was the only
     copy of already gone from the book.
 
@@ -389,8 +389,8 @@ def where_each_undo_block_goes(book, guids: Sequence[str]) -> dict:
                 list(found.values())))}
 
 
-def _the_basis_it_gives_was_spent(split, basis_guid) -> bool:
-    """True iff this sale's `cost_basis_split_guid` gives a pool this book has
+def _the_basis_it_states_was_spent(split, basis_guid) -> bool:
+    """True iff this sale's `cost_basis_split_guid` matches a pool this book has
     consumed — an owner's credit that has since settled a record.
 
     That happens with nothing wrong: spending the credit ends the pool, and the
@@ -407,20 +407,20 @@ def _the_basis_it_gives_was_spent(split, basis_guid) -> bool:
     here as well, the fault would export clean and the report would be the only
     thing that had ever seen it.
 
-    A guid that gives no split at all is left alone for the same reason.
+    A guid that matches no split at all is left alone for the same reason.
     """
     book = split.GetAccount().get_book()
     # Looked up rather than searched for: this is asked once per sale that
-    # gives a guid, and a walk of the book would make an export cost the sales
+    # states a guid, and a walk of the book would make an export cost the sales
     # times the splits.
     # Normalised the way `cost_basis_guid_of` and `find_split_by_guid`
     # normalise, because the key is stored exactly as a file spelled it and a
-    # file may give a guid dashed. Measured on 5.10 in
+    # file may write a guid with dashes. Measured on 5.10 in
     # `tests/research/how_a_dashed_guid_is_stored_probe.py`: the dashed
     # spelling is stored dashed, and `string_to_guid` reads it — so this is
     # GnuCash's parser answering rather than anything of ours, and the ten
-    # supported builds do not have to agree about it. Unnormalised and given a
-    # stricter parser, the lookup finds nothing, the answer is "no pool was
+    # supported builds do not have to agree about it. Unnormalised and handed to
+    # a stricter parser, the lookup finds nothing, the answer is "no pool was
     # consumed", and the export writes a guid its own import refuses.
     other = _the_split_this_book_holds(
         book, str(basis_guid).replace('-', '').lower())
@@ -700,7 +700,7 @@ class ExportTransactionsUseCase:
         {account_guid -> Fraction} holding the account balance *after* that
         transaction has been applied.
 
-        Only accounts that appear in a given transaction are stored for that
+        Only accounts that appear in a transaction are stored for that
         transaction; the caller looks up the balance for (tx_guid, account_guid)
         at format time.
 
@@ -1290,7 +1290,7 @@ class ExportTransactionsUseCase:
         #
         # An amount is different, which is why it needs the guard: an account
         # may legitimately be kept finer than its currency (`commodity_scu:`),
-        # so GnuCash stores what it is given and the check has something to
+        # so GnuCash stores what it is handed and the check has something to
         # catch. Pinned by `test_a_value_the_currency_cannot_hold.py`.
         value_scu = (account_scu
                      if split_currency.get_mnemonic() == transaction_currency.get_mnemonic()
@@ -1435,7 +1435,7 @@ class ExportTransactionsUseCase:
             # figure in it, and that one keeps it.
             if key == COST_BASIS_COST_KEY and _stored_cost_is_ignorable(split):
                 continue
-            # And the same rule for the guid a sale gives, for the same
+            # And the same rule for the guid a sale states, for the same
             # reason. Spending an owner's credit on their next invoice ends
             # the pool a sale drew on, and the split that was the credit is
             # that record's settlement afterwards — no cost basis. The guid
@@ -1445,7 +1445,7 @@ class ExportTransactionsUseCase:
             # against a split that is no cost basis. So the sale exports the way a
             # sale that draws on nothing exports, which is what it now is.
             if (key == COST_BASIS_SPLIT_KEY
-                    and _the_basis_it_gives_was_spent(split, value)):
+                    and _the_basis_it_states_was_spent(split, value)):
                 continue
             # Unquoted, as the file wrote it: in quotes it is a string, and
             # read back as the guid of a split the book does not hold.
@@ -1498,9 +1498,9 @@ class ExportTransactionsUseCase:
             self._collect_transaction_data(Transaction(instance=raw), result)
 
         # A cost basis above whatever draws on it, as the whole-book export
-        # states them. The guids are given in whatever order the caller typed,
+        # states them. The guids are passed in whatever order the caller typed,
         # so `export-transaction --guid <sale> --guid <basis>` wrote a ledger
-        # whose opening block gives the guid of a split no block above it
+        # whose opening block states the guid of a split no block above it
         # creates — refused on the way into a fresh book.
         result.transactions = each_basis_above_what_draws_on_it(
             result.transactions)

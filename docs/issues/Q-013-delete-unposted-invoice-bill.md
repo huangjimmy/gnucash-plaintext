@@ -17,7 +17,7 @@ the .gnucash XML by hand or opening GnuCash's UI. Real-world drivers:
   re-import a corrected version.
 - A user previews an unposted invoice as a PDF (Q-012), decides it's
   not needed, and wants to delete it cleanly without having to first
-  give it a posted block.
+  write a posted block for it.
 
 For posted invoices, `unpost-invoices` (Q-010) is half the workflow.
 Q-013 is the other half: after unposting, drop the record entirely.
@@ -50,7 +50,7 @@ A `delete-invoices` that silently unposted-then-deleted would:
 
 1. Destroy the posting transaction and orphan any payment splits
    (matching `unpost-invoices` behaviour) **as a side effect of a
-   delete command**. The user gave one instruction; we'd be doing
+   delete command**. The user asked for one thing; we'd be doing
    two destructive operations.
 2. Make it impossible to ever delete a "did I really mean this?"
    record without first running `unpost-invoices` and being able to

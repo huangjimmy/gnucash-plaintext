@@ -56,7 +56,7 @@ def test_the_price_it_writes_is_dated_today_and_not_the_year_4753(tmp_path):
     """`account-balance --fx-rates` adds prices to the book, dated.
 
     Read back because nothing else does, and the date is the half a raw
-    `gnc_price_set_time64` gets wrong: given epoch seconds, GnuCash 3.4 stores
+    `gnc_price_set_time64` gets wrong: passed epoch seconds, GnuCash 3.4 stores
     a date two thousand years out (CLAUDE.md finding 20). Nothing would have
     reported it — the duplicate check compares values, not dates, and a price
     dated 4753 wins `gnc_pricedb_lookup_latest` for good, so every later

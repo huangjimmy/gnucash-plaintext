@@ -4,7 +4,7 @@
 #
 # A cost basis's date is part of it: it is when the currency arrived, and the
 # day every reading of it as of a date turns on. So moving it is a change to
-# the cost basis, and is refused as one, the refusal giving both dates.
+# the cost basis, and is refused as one, the refusal stating both dates.
 #
 # Verified by
 # tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.

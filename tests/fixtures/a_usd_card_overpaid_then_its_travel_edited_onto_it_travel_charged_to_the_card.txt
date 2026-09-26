@@ -1,5 +1,5 @@
 # The edit a_usd_card_overpaid_then_its_travel_edited_onto_it.txt describes:
-# the travel charged to the card holding a credit of 200.00 USD, giving no
+# the travel charged to the card holding a credit of 200.00 USD, stating no
 # guid, with `--strategy update`.
 #
 # Verified by

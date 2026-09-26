@@ -1,6 +1,6 @@
 """The two boxes a reader fills in on a printed page, set from here.
 
-GnuCash's report options give them as **Printable Invoice → Display → Extra
+GnuCash's report options list them as **Printable Invoice → Display → Extra
 Notes** and **Printable Invoice → Layout → CSS**: the sentence under a
 page, and the styling of the page. Until now the only way to set either
 was to open GnuCash, which is no use on a machine that prints from a script.
@@ -82,7 +82,7 @@ class TestTheFooter:
         assert 'patronage' not in page.lower(), page[-2000:]
 
     def test_and_an_empty_one_is_no_footer(self, tmp_path):
-        """Which is what emptying the box in GnuCash's dialog gives."""
+        """Which is what emptying the box in GnuCash's dialog does."""
         book = _book(tmp_path)
         _styled(book, tmp_path, '--note', '')
 
@@ -166,7 +166,7 @@ class TestTheCss:
         for line in A_STYLESHEET_SOMEBODY_WROTE.splitlines():
             assert line in page, (line, page[:3000])
 
-    def test_and_clearing_it_gives_the_report_its_own_back(self, tmp_path):
+    def test_and_clearing_it_restores_the_report_s_own(self, tmp_path):
         book = _book(tmp_path)
         style = tmp_path / 'invoice.css'
         style.write_text(A_STYLE, encoding='utf-8')
@@ -417,7 +417,7 @@ class TestTwoWaysToSayOneThing:
     def test_a_css_file_of_whitespace_is_refused_too(self, tmp_path):
         """`echo > invoice.css` holds a newline, which is not empty and is
         not styling: stored, the newline *replaces* the report's own CSS, so
-        the page loses the styling `--clear-css` would have given back."""
+        the page loses the styling `--clear-css` would have restored."""
         book = _book(tmp_path)
         style = tmp_path / 'invoice.css'
         style.write_text('\n', encoding='utf-8')

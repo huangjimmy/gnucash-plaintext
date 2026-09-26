@@ -28,7 +28,7 @@ On x86_64 a 64-bit pointer like 0x7f1234567890 is silently truncated to
 0x34567890 — a garbage address — and the C function segfaults.
 Setting argtypes = [ctypes.c_void_p] tells ctypes to pass the full 64-bit
 value.  This is mandatory; omitting it will crash on Ubuntu (and silently
-give wrong results on any 64-bit platform if the pointer happens to be >4 GB).
+return wrong results on any 64-bit platform if the pointer happens to be >4 GB).
 """
 import contextlib
 import ctypes
@@ -259,7 +259,7 @@ def verify_ctypes_functions(lib, required_functions=None):
             'gncOwnerGetGUID',
             'gncOwnerGetEndOwner',
             # And whose a settlement is once it is in no lot: the unposted
-            # invoice or bill its `orphaned_by_unpost` KVP gives still has one.
+            # invoice or bill its `orphaned_by_unpost` KVP states still has one.
             'gncInvoiceGetOwner',
             'guid_to_string_buff',
             'qof_instance_get_guid',
@@ -293,7 +293,7 @@ def verify_ctypes_functions(lib, required_functions=None):
             # an account and no about the line the file is naming.
             'qof_book_get_collection',
             'qof_collection_lookup_entity',
-            # And giving one to a lot the import creates, so a split can say
+            # And setting one on a lot the import creates, so a split can say
             # which of an owner's credits it settles.
             'qof_instance_set_guid',
             'gnc_lot_begin_edit',
@@ -429,7 +429,7 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.guid_to_string_buff.restype            = ctypes.c_char_p
     lib.guid_to_string_buff.argtypes           = [ctypes.c_void_p, ctypes.c_char_p]
     # And whose guid to write into that buffer. Read for a line, a lot and
-    # an invoice, none of which the bindings give a `GetGUID` (CLAUDE.md
+    # an invoice, none of which has a `GetGUID` in the bindings (CLAUDE.md
     # §13) — often enough per import that opening the library per call was
     # worth ending.
     lib.qof_instance_get_guid.restype          = ctypes.c_void_p
@@ -566,7 +566,7 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.xaccSplitGetAmount.restype             = GncNumericC
     lib.xaccSplitGetAmount.argtypes            = [ctypes.c_void_p]
     # A split's other figure, and the setter for the one that changes with the
-    # account. Undoing a link gives a split an account in another currency,
+    # account. Undoing a link moves a split to an account in another currency,
     # and what it takes there is its value — read off the split, not converted.
     lib.xaccSplitGetValue.restype              = GncNumericC
     lib.xaccSplitGetValue.argtypes             = [ctypes.c_void_p]
@@ -574,7 +574,7 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.xaccSplitSetAmount.argtypes            = [ctypes.c_void_p, GncNumericC]
     lib.xaccTransGetDate.restype               = ctypes.c_int64
     lib.xaccTransGetDate.argtypes              = [ctypes.c_void_p]
-    # One byte, NUL on GnuCash 3.4 to 4.8 for a transaction never given one.
+    # One byte, NUL on GnuCash 3.4 to 4.8 for a transaction on which none was set.
     lib.xaccTransGetTxnType.restype            = ctypes.c_char
     lib.xaccTransGetTxnType.argtypes           = [ctypes.c_void_p]
     lib.gnc_lot_new.restype                    = ctypes.c_void_p
@@ -659,7 +659,7 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     # GnuCash's headers, so no library exports one and ctypes cannot call
     # them. What each expands to is this pair, taking the QOF type as a
     # string — so one declaration answers for every collection. Forcing a
-    # guid GnuCash already gave to another object is how a book gets two
+    # guid GnuCash already assigned to another object is how a book gets two
     # objects with one guid, and a collection is a hash of them: the loser
     # is unreachable.
     lib.qof_book_get_collection.restype        = ctypes.c_void_p
@@ -779,7 +779,7 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.gnc_commodity_get_mnemonic.restype     = ctypes.c_char_p
     lib.gnc_commodity_get_mnemonic.argtypes    = [ctypes.c_void_p]
     # Days, as GnuCash reckons them where the command runs: a date to the time
-    # GnuCash gives a date (`gdate_to_time64`, through a GLib GDate), a moment
+    # GnuCash stores a date at (`gdate_to_time64`, through a GLib GDate), a moment
     # to the start of its day, and a date to the start and end of that day.
     lib.g_date_clear.restype                   = None
     lib.g_date_clear.argtypes                  = [ctypes.c_void_p, ctypes.c_uint]

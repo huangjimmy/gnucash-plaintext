@@ -4,7 +4,7 @@
 # Read in the file's order, the refund would take the card owing nothing to a
 # credit of 100.00, and the charge then across zero to owing 50.00: 100.00
 # held brought in, then 100.00 of it spent and 50.00 owed. What each split
-# brought in is read the same whichever order the file gives.
+# brought in is read the same whichever order the file writes them in.
 #
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes.
 #

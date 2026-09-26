@@ -2,7 +2,7 @@
 # that ID.
 #
 # GnuCash does not keep a customer's ID unique, so a book can hold two. The
-# block gives no guid, so its ID is all that says which customer it is.
+# block states no guid, so its ID is all that says which customer it is.
 #
 # What this fixture produces: nothing. The import refuses the block.
 #

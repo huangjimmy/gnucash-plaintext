@@ -8,7 +8,7 @@ the book is kept in (`test_the_currency_a_book_is_kept_in.py`), which is not
 taken to be CAD. `--output-format html` is GnuCash's report as GnuCash ships it.
 
 Every expected figure below is the one GnuCash's Balance Sheet and Income
-Statement reports give for the same book.
+Statement reports print for the same book.
 """
 
 from fractions import Fraction
@@ -258,7 +258,7 @@ class TestACadBookOverOneFiscalYear:
             '\t\t\t\tcommodity.namespace: "NASDAQ"',
             '\t\t\t\tcommodity.mnemonic: "AMZN"',
             '\t\t\t\tquantity: 12.0000',
-            '\t\t\t\tshare_price: 397.6 # what price-fn gives for this commodity',
+            '\t\t\t\tshare_price: 397.6 # what price-fn returns for this commodity',
             '\t\t\t\tcost_bases:',
             '\t\t\t\t\tcost_basis:',
             '\t\t\t\t\t\tsplit_guid: <guid>',
@@ -375,7 +375,7 @@ class TestACadBookOverOneFiscalYear:
         assert _amount(result.output, 'Expenses:Interest') == '100.00 USD'
         assert _under(result.output, 'Expenses:Interest')['value'] == '142.00'
 
-    def test_a_currency_given_on_the_command_is_the_report_currency(self, tmp_path):
+    def test_a_currency_passed_on_the_command_is_the_report_currency(self, tmp_path):
         """`--currency USD` on the CAD book: the statement is printed in USD.
 
         The prices are the book's own read the other way round: it holds USD in
@@ -499,7 +499,7 @@ class TestABookWhoseCurrencyIsNotKnown:
         assert result.exit_code != 0, result.output
         assert '--currency' in result.output, result.output
 
-    def test_a_currency_given_on_the_command_lets_it_run(self, tmp_path):
+    def test_a_currency_passed_on_the_command_lets_it_run(self, tmp_path):
         book = _book(tmp_path, self.FIXTURE)
 
         result = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-03-31',
@@ -550,7 +550,7 @@ class TestABookUsingTradingAccounts:
 class TestAWarningWhileTheReportIsDrawn:
     """The book's `date_format` is `%d %B %Y`, which GnuCash has no date style for."""
 
-    def test_the_warning_is_given_and_the_page_is_still_printed(self, tmp_path):
+    def test_the_warning_is_printed_and_so_is_the_page(self, tmp_path):
         book = _book(tmp_path, 'a_cad_book_whose_company_writes_dates_as_day_month_year.txt',
                      '--include-business-objects')
 
@@ -560,7 +560,7 @@ class TestAWarningWhileTheReportIsDrawn:
         assert '⚠' in result.output and '%d %B %Y' in result.output, result.output
         assert _key(result.output, 'total_assets') == '500.00 CAD'
 
-    def test_it_is_given_once_however_many_statements_one_run_draws(self, tmp_path):
+    def test_it_is_printed_once_however_many_statements_one_run_draws(self, tmp_path):
         """`report` renders each statement in the one process, and the book's
         date format is a property of the book rather than of a page."""
         book = _book(tmp_path, 'a_cad_book_whose_company_writes_dates_as_day_month_year.txt',
@@ -603,7 +603,7 @@ class TestABookRunningALoss:
 
 
 class TestABookWithNoAccounts:
-    """A `company` block and nothing else, reported in a currency given on the command."""
+    """A `company` block and nothing else, reported in a currency passed on the command."""
 
     FIXTURE = 'a_company_with_no_accounts.txt'
 

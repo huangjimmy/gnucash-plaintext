@@ -30,7 +30,7 @@ def _export(runner, book, path):
     return path.read_text()
 
 
-def test_deleting_a_sale_gives_the_currency_back(tmp_path):
+def test_deleting_a_sale_puts_the_currency_back(tmp_path):
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
     assert _run(runner, 'import', '--new', str(book),
@@ -141,8 +141,8 @@ def _stored_balance(book, guid):
 def test_a_sale_whose_cost_basis_is_gone_is_deleted_all_the_same(tmp_path):
     """GnuCash's own register deletes a purchase without asking what draws on it.
 
-    The sale is left giving a guid the book no longer holds, so deleting it has
-    nothing to give its currency back to. It is deleted all the same.
+    The sale is left stating a guid the book no longer holds, so deleting it has
+    nothing to put its currency back on. It is deleted all the same.
     """
     runner = CliRunner()
     book, bought, sale_guid = _a_book_with_a_sale(runner, tmp_path)
@@ -165,7 +165,7 @@ def test_a_sale_whose_cost_basis_is_gone_is_deleted_all_the_same(tmp_path):
 
 
 def test_a_balance_that_will_not_parse_is_left_as_it_was(tmp_path):
-    """Nothing is given back to a balance nobody can read.
+    """Nothing is put back on a balance nobody can read.
 
     Opening the cost basis at its whole amount instead would put back currency
     that may have been sold, and overwrite the text `--verify-costs` reports.
@@ -182,7 +182,7 @@ def test_a_balance_that_will_not_parse_is_left_as_it_was(tmp_path):
 
 
 def test_a_cost_basis_with_no_balance_recorded_opens_with_all_it_brought_in(tmp_path):
-    """A sale given back to a cost basis with no balance opens one.
+    """A sale put back on a cost basis with no balance opens one.
 
     A book can hold a sale against a cost basis with no balance written on it,
     from a hand edit or an older tool. Deleting the sale opens the cost basis
@@ -204,7 +204,7 @@ def test_a_purchase_whose_own_fee_draws_on_it_is_deleted_whole(tmp_path):
 
     Deleting a cost basis is refused while another transaction measures
     against it. The bank's fee here draws on the purchase it is part of, so it
-    goes in the same step and nothing is left giving that guid.
+    goes in the same step and nothing is left stating that guid.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'

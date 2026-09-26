@@ -4,7 +4,7 @@
 # opens no such account. The balance cannot be judged against an account that
 # is not there, so the transaction is refused for the account itself.
 #
-# What this fixture produces: a refusal giving `Assets:Bank:USD` as not found,
+# What this fixture produces: a refusal printing `Assets:Bank:USD` as not found,
 # and no transaction.
 #
 # Verified by tests/integration/test_stated_balance_is_checked.py.

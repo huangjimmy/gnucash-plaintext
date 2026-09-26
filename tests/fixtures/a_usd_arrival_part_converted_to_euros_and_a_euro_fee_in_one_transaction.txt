@@ -1,7 +1,7 @@
 # Q-050 E5: 2,720.00 USD arriving for 3,800.00 CAD, 1,000.00 of them
 # converted into 900.00 EUR, and a 1.00 EUR fee out of the euros, in one
-# transaction. The conversion gives the dollars' position and opens a euro
-# cost basis; the fee gives the euros' position.
+# transaction. The conversion states the dollars' position and opens a euro
+# cost basis; the fee states the euros' position.
 #
 # The conversion draws 1,000.00 USD, valued at 1,397.06, and the euros cost
 # the same; the fee draws 1.00 EUR, valued at 1,397.06 / 900.00 = 1.5522…,

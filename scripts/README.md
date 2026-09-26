@@ -8,8 +8,7 @@ Cross-platform helper scripts for GnuCash development with Docker.
 - **Windows**: run from **WSL2**. Native PowerShell / CMD wrappers were
   removed because (a) Docker-in-Docker depends on the host's Unix
   socket and (b) the wrappers had drifted out of sync with the bash
-  scripts. WSL2 also gives meaningfully better Docker performance on
-  Windows.
+  scripts. WSL2 also runs Docker meaningfully faster on Windows.
 
 **Using Podman instead of Docker?** Most scripts work with Podman out of the box. See [PODMAN.md](../PODMAN.md) for detailed compatibility notes and setup instructions.
 
@@ -270,7 +269,7 @@ The project includes a `docker-compose.yml` that provides:
 
 **Requirements:**
 - Docker with Docker Compose V2 (uses `docker compose` command)
-- **Windows users**: run from WSL2. The Docker socket path `/var/run/docker.sock` is Unix-only, and WSL2 also gives better Docker performance than Docker Desktop's named-pipe path.
+- **Windows users**: run from WSL2. The Docker socket path `/var/run/docker.sock` is Unix-only, and WSL2 also runs Docker faster than Docker Desktop's named-pipe path.
 
 ## Examples
 

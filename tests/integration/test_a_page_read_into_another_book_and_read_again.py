@@ -1,13 +1,13 @@
 """A paid invoice's block read into another book, and then read into it again edited.
 
 INV-001 is imported paid into book A and exported. Its block, with the
-customer, is read into a fresh book B, where its `txn_guid:` gives a
+customer, is read into a fresh book B, where its `txn_guid:` states a
 transaction of A's that B does not hold, so the payment is recorded from the
 block. The same block is then read into B again, edited. Measured on 5.10:
 
 - **with `amount: ""`,** the block no longer describes a payment, so its
-  `txn_guid:` is only a reference, and it gives nothing B holds. It is refused.
-- **with `bank_account:` given another bank,** the block describes another
+  `txn_guid:` is only a reference, and it matches nothing B holds. It is refused.
+- **with `bank_account:` set to another bank,** the block describes another
   movement: it is recorded, and the payment B held is left orphaned, which the
   import warns of once the book is saved.
 """

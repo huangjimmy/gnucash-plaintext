@@ -1,4 +1,4 @@
-# The NASDAQ:AMZN price of prices_of_a_currency_and_a_stock.txt given a new
+# The NASDAQ:AMZN price of prices_of_a_currency_and_a_stock.txt set to a new
 # value through its guid, and nothing else.
 #
 # A key a block leaves out changes nothing, so the price keeps its time, its

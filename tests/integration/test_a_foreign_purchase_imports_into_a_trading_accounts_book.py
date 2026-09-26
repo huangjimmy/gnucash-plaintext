@@ -9,7 +9,7 @@ committed meets a split with no account.
 
 `record_cost_bases` does exactly that, to open a cost basis for currency the
 book has just bought. Measured on 4.8 before `split_commodity` answered for
-such a split: importing 10,000.00 USD bought for 13,000.00 CAD gave
+such a split: importing 10,000.00 USD bought for 13,000.00 CAD raised
 `'NoneType' object has no attribute 'GetCommodity'`, the import exited 1, and
 the book was saved anyway — two transactions of the ledger missing, with the
 rest imported.
@@ -102,8 +102,8 @@ class TestAForeignPurchaseFundedFromTheBooksOwnCurrency:
         """10,000.00 USD bought at 1.30 and 5,500.00 HKD bought at 5.5 per CAD.
 
         Both are funded from the CAD bank, which is what makes them
-        multi-currency transactions in a CAD book and gives GnuCash trading
-        splits to create.
+        multi-currency transactions in a CAD book, for which GnuCash creates
+        trading splits.
         """
         book = a_book_using_trading_accounts(tmp_path, LEDGER)
 

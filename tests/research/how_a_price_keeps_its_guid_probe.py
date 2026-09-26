@@ -3,7 +3,7 @@
 Asks the book, on this build:
 
 1. Does a price keep its guid through a save and reload?
-2. Can a new price be given a stated guid (qof_instance_set_guid) before it is
+2. Can a stated guid be set on a new price (qof_instance_set_guid) before it is
    added, and does that guid reach disk -- in a new book, and in an existing
    book where the price is the only change (finding 18: forcing a guid marks
    nothing dirty)?

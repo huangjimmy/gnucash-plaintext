@@ -3,7 +3,7 @@
 An asset account below zero owes the currency, and a liability account above
 zero holds it. A movement that crosses zero is two movements: the part up to
 zero moves the side the balance is leaving, and the part past zero moves the
-other side. Q-047 gives the cases and the figures they were worked out from.
+other side. Q-047 lists the cases and the figures they were worked out from.
 
 `tests/fixtures/usd_moved_out_of_an_empty_account.txt` is the book every case
 starts from: C holds 1,000.00 USD bought at 1.30, and 500.00 USD moved from an
@@ -36,14 +36,14 @@ THE_BOOK = FIXTURES + 'usd_moved_out_of_an_empty_account.txt'
 SOLD = FIXTURES + 'usd_moved_out_of_an_empty_account_then_sold.txt'
 REFILLED = FIXTURES + 'usd_moved_out_of_an_empty_account_then_refilled.txt'
 INCOME = FIXTURES + 'usd_moved_out_of_an_empty_account_then_income_into_it.txt'
-INCOME_GIVING_NO_COST_BASIS = (
-    FIXTURES + 'usd_moved_out_of_an_empty_account_then_income_into_it_giving_no_cost_basis.txt')
+INCOME_STATING_NO_COST_BASIS = (
+    FIXTURES + 'usd_moved_out_of_an_empty_account_then_income_into_it_stating_no_cost_basis.txt')
 MORE_THAN_C_HOLDS = (
     FIXTURES + 'usd_moved_out_of_an_empty_account_then_more_moved_out_of_c_than_it_holds.txt')
 THE_CARD = FIXTURES + 'a_usd_card_overpaid_then_its_credit_spent.txt'
-INCOME_GIVING_A_GUID_THE_BOOK_DOES_NOT_HOLD = (
+INCOME_STATING_A_GUID_THE_BOOK_DOES_NOT_HOLD = (
     FIXTURES
-    + 'usd_moved_out_of_an_empty_account_then_income_into_it_giving_a_guid_the_book_does_not_hold.txt')
+    + 'usd_moved_out_of_an_empty_account_then_income_into_it_stating_a_guid_the_book_does_not_hold.txt')
 BOUGHT_STATING_WHAT_IT_BROUGHT_IN = (
     FIXTURES + 'usd_moved_out_of_an_empty_account_then_bought_stating_what_it_brought_in.txt')
 A_FEE_WITH_NO_COST_BASIS = FIXTURES + 'usd_moved_with_a_fee_in_a_book_keeping_no_usd_cost_basis.txt'
@@ -56,8 +56,8 @@ REFILLED_STATING_NO_CANADIAN_FIGURE = (
     + 'usd_moved_out_of_an_empty_account_then_refilled_in_a_transaction_stating_no_canadian_figure.txt')
 SHARES_SOLD_BEFORE_ANY_WERE_BOUGHT = (
     FIXTURES + 'usd_moved_out_of_an_empty_account_then_shares_sold_before_any_were_bought.txt')
-INCOME_GIVING_ITS_OWN_GUID = (
-    FIXTURES + 'usd_moved_out_of_an_empty_account_then_income_into_it_giving_its_own_guid.txt')
+INCOME_STATING_ITS_OWN_GUID = (
+    FIXTURES + 'usd_moved_out_of_an_empty_account_then_income_into_it_stating_its_own_guid.txt')
 SHARES_BOUGHT = FIXTURES +'usd_moved_out_of_an_empty_account_then_shares_bought.txt'
 FEE_EDITED_INTO_A_SALE = (
     FIXTURES + 'usd_moved_out_of_an_empty_account_then_shares_bought_fee_edited_into_a_sale.txt')
@@ -151,7 +151,7 @@ def _consistent(book):
 
 
 def _sheet(book, as_of='2034-02-01'):
-    """The balance sheet's figures, by key, for the keys a line gives once."""
+    """The balance sheet's figures, by key, for the keys a line states once."""
     page = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', as_of).output
     figures = {}
     for line in page.splitlines():
@@ -303,11 +303,11 @@ class TestIncomePaidIntoTheEmptyAccountAcrossZero:
         _run(runner, 'import', '--new', str(book), THE_BOOK)
         return _run(runner, 'import', str(book), layer)
 
-    def test_giving_no_cost_basis_is_refused(self, tmp_path):
+    def test_stating_no_cost_basis_is_refused(self, tmp_path):
         runner = CliRunner()
         book = tmp_path / 'book.gnucash'
         _run(runner, 'import', '--new', str(book), THE_BOOK)
-        done = _run(runner, 'import', str(book), INCOME_GIVING_NO_COST_BASIS)
+        done = _run(runner, 'import', str(book), INCOME_STATING_NO_COST_BASIS)
 
         assert 'Errors:       1' in done.output, done.output
         assert ('this transaction is a repayment of 500.00 USD the book owed: Assets:USD A, '
@@ -318,20 +318,20 @@ class TestIncomePaidIntoTheEmptyAccountAcrossZero:
 
 class TestWhatASplitBroughtInIsTheImportsToRead:
     def test_a_guid_the_book_does_not_hold_is_refused_for_the_guid(self, tmp_path):
-        """Income across zero giving an unknown guid: nothing prices what it brought in."""
+        """Income across zero stating an unknown guid: nothing prices what it brought in."""
         runner = CliRunner()
         book = tmp_path / 'book.gnucash'
         _run(runner, 'import', '--new', str(book), THE_BOOK)
-        done = _run(runner, 'import', str(book), INCOME_GIVING_A_GUID_THE_BOOK_DOES_NOT_HOLD)
+        done = _run(runner, 'import', str(book), INCOME_STATING_A_GUID_THE_BOOK_DOES_NOT_HOLD)
 
         assert 'Errors:       1' in done.output, done.output
         assert ("cost_basis_split_guid '0a0a0000000000000000000000000099' "
                 'matches no split in the book') in done.output, done.output
 
-    def test_a_split_giving_its_own_guid_is_refused_for_the_guid(self, tmp_path):
+    def test_a_split_stating_its_own_guid_is_refused_for_the_guid(self, tmp_path):
         """What it brought in is costed from what it repays, which is itself."""
         done = TestIncomePaidIntoTheEmptyAccountAcrossZero._imported_onto_the_book(
-            tmp_path, INCOME_GIVING_ITS_OWN_GUID)
+            tmp_path, INCOME_STATING_ITS_OWN_GUID)
 
         assert 'Errors:       1' in done.output, done.output
         assert ("cost_basis_split_guid '0a0a0000000000000000000000000009' matches a "
@@ -356,7 +356,7 @@ class TestWhatASplitBroughtInIsTheImportsToRead:
         assert ("the split on 'Assets:Accounts Receivable USD': "
                 '`cost_basis_brought_in:` is not a key') in done.output, done.output
 
-    def test_it_is_read_the_same_whatever_order_the_file_gives_the_splits(self, tmp_path):
+    def test_it_is_read_the_same_whatever_order_the_file_lists_the_splits(self, tmp_path):
         """A charge and a refund on one card, in either order: neither crosses zero."""
         read = []
         for order, ledger in enumerate((CHARGED_AND_REFUNDED, REFUNDED_AND_CHARGED)):
@@ -386,7 +386,7 @@ def test_a_repaid_cost_basis_deleted_in_gnucash_leaves_the_book_readable(tmp_pat
     """The transfer that opened A's owed cost basis deleted in GnuCash itself.
 
     Nothing in GnuCash checks what draws on a split before deleting its
-    transaction, so the income that crossed zero then gives a guid matching
+    transaction, so the income that crossed zero then states a guid matching
     nothing. What it brought in is costed from the cost basis it repaid, so
     it has no cost and is no cost basis, and `fx-balances` lists what is left.
     """
@@ -473,9 +473,9 @@ class TestABookImportedBeforeABalancePastZeroHadASide:
         assert _bases(book) == sorted([
             C_BOUGHT, ('Assets:USD A', 'asset', Fraction(500), Fraction(7, 5))])
 
-    def test_brought_forward_through_its_export_the_deposit_gives_the_owed_cost_basis(
+    def test_brought_forward_through_its_export_the_deposit_states_the_owed_cost_basis(
             self, tmp_path):
-        """Rebuilt, the transfer opens A's owed cost basis, and the deposit repaying it must give it."""
+        """Rebuilt, the transfer opens A's owed cost basis, and the deposit repaying it must state it."""
         book = self._as_an_earlier_import_left_it(tmp_path)
         runner = CliRunner()
         _run(runner, 'import', str(book), A_DEPOSIT_INTO_IT)
@@ -580,7 +580,7 @@ class TestPayingOffMoreThanIsOwed:
 
         assert 'Errors:       1' in done.output, done.output
         assert ('this transaction pays off 300.00 USD owed and moves 200.00 USD '
-                'within the held side, and 2 splits give a cost basis on the held '
+                'within the held side, and 2 splits state a cost basis on the held '
                 'side') in done.output, done.output
 
     def test_a_transfer_beside_a_borrowing_on_another_account_is_refused(self, tmp_path):

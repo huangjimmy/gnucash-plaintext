@@ -1,4 +1,4 @@
-# An invoice whose `posted:` block gives the transaction from
+# An invoice whose `posted:` block states the transaction from
 # a_sale_booked_to_the_receivable_in_two_splits.txt as its posting.
 #
 # That transaction has two splits on `Assets:Accounts Receivable`. A posting

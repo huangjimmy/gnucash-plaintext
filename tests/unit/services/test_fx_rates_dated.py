@@ -1,7 +1,7 @@
 """Q-035: `--fx-rates` takes dated rates, and keeps taking flat ones.
 
 One file serves every command: the flat `USD: 1.36` the reporting commands have
-always accepted still means CAD per unit, and a dated block gives a rate per
+always accepted still means CAD per unit, and a dated block states a rate per
 day. Lookups take the most recent quote on or before the date asked for; a date
 earlier than every quote is an error rather than an extrapolation.
 """

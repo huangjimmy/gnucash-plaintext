@@ -1,9 +1,9 @@
 """A new customer asking for a guid a vendor or a tax table already has is refused.
 
-A block may give the guid a new object is to have, which is how a ledger
+A block may state the guid a new object is to have, which is how a ledger
 rebuilds a book with the guids it came from. GnuCash keeps one guid to one
-object whatever kind it is, so forcing a guid the book already gives a vendor
-or a tax table would leave two objects answering to it. The import refuses the
+object whatever kind it is, so forcing a guid a vendor or a tax table in the
+book already has would leave two objects answering to it. The import refuses the
 customer and says which kind of object has the guid.
 """
 

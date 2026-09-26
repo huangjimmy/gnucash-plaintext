@@ -8,7 +8,7 @@ asked directly.
 
 The book is built to hold the cases that differ:
 
-- a hundred million, where Guile's float printer gave `1.0e8`;
+- a hundred million, where Guile's float printer wrote `1.0e8`;
 - a holding whose value has cents, and one whose value has none;
 - a gain that lands on a whole number;
 - a share quantity, which is counted rather than valued;

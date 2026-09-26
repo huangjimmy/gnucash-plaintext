@@ -1,4 +1,4 @@
-# A CAD sale of 100.00 into the bank, with the guid of its transaction given.
+# A CAD sale of 100.00 into the bank, with the guid of its transaction stated.
 #
 # What this fixture produces: the accounts, and one transaction with guid
 # 8a8b8c8d8e8f40418243844586878889.

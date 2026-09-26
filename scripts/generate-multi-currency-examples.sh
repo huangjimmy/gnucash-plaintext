@@ -19,7 +19,7 @@
 #     gnucash-plaintext balance-sheet /tmp/check.gnucash --as-of <the date>
 #
 # An export states `share_price:` as the value over the amount, which is the
-# rate the two figures actually give. A ledger written by hand may state it to
+# rate the two figures actually make. A ledger written by hand may state it to
 # more places than the rounded value supports, and the import then says so and
 # uses the amounts' — which is why these carry the export's form.
 #
@@ -80,7 +80,7 @@ year_end_price() {
 # account, transaction, split and price, and a fresh import mints new ones, so
 # building from the fixtures every time rewrote every file on every run and
 # no reader could tell a real change from the noise. Measured: importing an
-# example as it stands and exporting it again gives back the identical ledger.
+# example as it stands and exporting it again writes the identical ledger.
 #
 # REGENERATE=fixtures rebuilds from tests/fixtures/ instead, which is what to
 # use when a fixture or a figure has actually changed.
@@ -120,7 +120,7 @@ write_example() {
     # Business objects as well as prices: the invoice scenarios are about a
     # customer being invoiced, and a file holding the posting transaction while
     # omitting the invoice and the customer is a poor example of that. It is
-    # also what made those three churn — a ledger that gives an `owner:` no
+    # also what made those three churn — a ledger that states an `owner:` no
     # block in it declares does not re-import, so they were rebuilt from the
     # fixtures on every run and took fresh guids each time.
     gp export "$book" -o "$BOOKS/led.txt" \
@@ -319,7 +319,7 @@ write_example "$B" 2026-12-31 \
     "bought 10,000.00 USD with Canadian dollars, and sold shares for" \
     "2,080.00 USD in a transaction stated in Canadian dollars, so both say" \
     "what they cost. It also borrowed 4,000.00 USD in a transaction written" \
-    "wholly in US dollars, which says nothing. Every disposal here gives the" \
+    "wholly in US dollars, which says nothing. Every disposal here states the" \
     "cost basis it came out of, so the cost bases are drawn down as the" \
     "dollars go, and they end holding 3,480.00 USD against the 7,480.00 the" \
     "accounts hold. The 4,000.00 between them is the borrowing." \
@@ -383,7 +383,7 @@ write_example "$B" 2026-12-31 \
     "dollars did not have to be bought: a company invoicing US customers" \
     "earns them, and what it earns carries a cost basis like anything else." \
     "Disposed of at what they cost — 140.00 CAD — against a debt carried at" \
-    "130.00, they realize a loss of 10.00, and the working gives the entry" \
+    "130.00, they realize a loss of 10.00, and the working shows the entry" \
     "it came from."
 
 echo

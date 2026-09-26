@@ -1,0 +1,15 @@
+# Q-053: a second deposit into Wise USD on the day of the 10.00 USD deposit in
+# a_usd_deposit_and_its_fee_pending_its_cost_basis_the_same_day.txt, 5.00 USD
+# booked straight to Income:Sales, imported in a run of its own after that
+# file and
+# supplies_bought_with_usd_the_day_of_the_deposit_pending_its_cost_basis.txt.
+#
+# Verified by
+# tests/integration/test_an_import_enters_transactions_in_the_order_it_creates_them.py.
+2026-08-13 * "Received money from another customer"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 5.00 USD
+	Income:Sales -6.50 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "500/650"
+		value: "-5.00"

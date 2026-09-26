@@ -1,7 +1,7 @@
 """A split's position in the file being imported, standing where its guid would (Q-050).
 
-`cost_basis_split_guid:` gives the split a cost basis sits on. A file that brings
-currency in and spends it in one import has no guid to give, since GnuCash
+`cost_basis_split_guid:` states the split a cost basis sits on. A file that brings
+currency in and spends it in one import has no guid to state, since GnuCash
 assigns the arriving split's as the file is read, and a file need not assign
 one. So the pick may be written as the arriving split's position instead:
 
@@ -54,7 +54,7 @@ def written(position: Tuple[int, int]) -> str:
 
 
 def number_the_transactions(directives) -> List:
-    """Give each transaction block its position in the file, and every one the list.
+    """Number each transaction block by its position in the file, and attach the list to every one.
 
     Each keeps the list so a split of it can find the transaction a position
     points at, and `split_guids`, the guids of its splits in the order the
@@ -90,8 +90,8 @@ def what_is_wrong_with_the_positions(transactions) -> List[str]:
                 if key != COST_BASIS_SPLIT_KEY or position is None:
                     wrong.append(
                         f'{where}, split {line}: `{key}: {value}` is no variable '
-                        f'this format knows. A split gives the cost basis it draws '
-                        f'on by position as `{COST_BASIS_SPLIT_KEY}: {THE_FORM}`, '
+                        f'this format knows. A split states the cost basis it draws '
+                        f'on by its position as `{COST_BASIS_SPLIT_KEY}: {THE_FORM}`, '
                         f'unquoted; written in quotes it is a string')
                     continue
                 n, m = position
@@ -112,8 +112,8 @@ def what_is_wrong_with_the_positions(transactions) -> List[str]:
                         f'transaction {n} has {len(transactions[n].children)} split(s)')
                 elif (n, m) == (here, line):
                     wrong.append(
-                        f'{where}, split {line}: {value} points at the split that '
-                        f'gives it. A split does not draw on the currency it brings in')
+                        f'{where}, split {line}: {value} points at the split it is '
+                        f'written on. A split does not draw on the currency it brings in')
     return wrong
 
 
@@ -144,8 +144,8 @@ def the_variables_where_none_is_read(root) -> List[str]:
     return wrong
 
 
-def give_the_positions_their_guids(directive, splits) -> None:
-    """Replace each position this transaction's splits give with the guid it points at.
+def replace_the_positions_with_their_guids(directive, splits) -> None:
+    """Replace each position this transaction's splits state with the guid it points at.
 
     `splits` are the transaction's splits in the order its block writes them,
     so a position in the same transaction is the guid GnuCash has just
@@ -168,24 +168,24 @@ def the_guid_at(directive, position: Tuple[int, int], line: int) -> str:
     guids = directive.transactions_in_the_file[n].split_guids
     if guids is None:
         raise Exception(
-            f'split {line} gives {written(position)}, and transaction {n} of the '
-            f'file was not imported, so no split of it has a guid to give')
+            f'split {line} states {written(position)}, and transaction {n} of the '
+            f'file was not imported, so none of its splits has a guid')
     guid = guids[m]
     if guid is None:
         raise Exception(
-            f'split {line} gives {written(position)}, and that transaction was '
-            f'already in the book and its split {m} gives no `guid:` of a split '
+            f'split {line} states {written(position)}, and that transaction was '
+            f'already in the book, and its split {m} has no `guid:` of a split '
             f'the book holds for it, so which split of the book it is cannot be '
             f'read from the file')
     return guid
 
 
-def record_the_guids_it_gives(directive, matched) -> None:
+def record_the_guids_it_states(directive, matched) -> None:
     """What a transaction the import passed over, or edits, offers a position below it.
 
     It is in the book already, as the transactions `matched`, so its splits
-    have guids; where a line gives the `guid:` of one of their splits, that is
-    the one. Where it gives none, or one that is no split of theirs, the book
+    have guids; where a line has the `guid:` of one of their splits, that is
+    the one. Where it has none, or one that is no split of theirs, the book
     is not asked to choose, and a position pointing at that line is refused.
     """
     held = {split_guid(split) for transaction in matched
@@ -197,12 +197,12 @@ def record_the_guids_it_gives(directive, matched) -> None:
 
 
 def the_ways_to_write_it(refused, directive, splits, book) -> str:
-    """The refusal of a spend giving no cost basis, with the ways to write what the owner means.
+    """The refusal of a spend stating no cost basis, with the ways to write what the owner means.
 
     Only the owner knows which, so the refusal chooses none. Beside an arrival
     on the account the currency left, the spend may be no fee but part of the
     exchange spread: the arrival written net of it, so the currency cost what
-    the book paid for what it kept. Or it is kept, giving the cost basis it
+    the book paid for what it kept. Or it is kept, stating the cost basis it
     came out of — an arrival in its own transaction or one above it, by its
     position, or a cost basis the book holds, by its guid.
     """
@@ -228,7 +228,7 @@ def the_ways_to_write_it(refused, directive, splits, book) -> str:
         arrival = beside[0]
         # What left that account: another account falling beside an arrival
         # is refused as a transfer before this is reached, but what is taken
-        # off an arrival is what its own account gave up.
+        # off an arrival is what left its own account.
         net = _fraction(arrival.GetAmount()) - sum(
             (abs(_fraction(split.GetAmount())) for split in refused.spending
              if get_account_full_name(split.GetAccount()) == account), Fraction(0))
@@ -261,7 +261,7 @@ def the_ways_to_write_it(refused, directive, splits, book) -> str:
     # Every cost basis of the currency with something left, from one walk of
     # the accounts holding it: the arrivals above are listed by position, the
     # rest by guid. Not on a receivable or a payable: that cost basis is drawn
-    # down by settling its record, and giving its guid is refused.
+    # down by settling its record, and stating its guid is refused.
     held = {split_guid(split): split
             for held_in in _accounts_holding(book, commodity)
             if held_in.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE)
@@ -286,8 +286,8 @@ def the_ways_to_write_it(refused, directive, splits, book) -> str:
             f'{split.GetParent().GetDate().strftime("%Y-%m-%d")} '
             f'{split.GetParent().GetDescription() or "(no description)"!r}')
     ways.append(
-        f'- keeping it, giving on split {", ".join(str(line) for line in spent_at)} the '
-        f'cost basis it came out of, one of:\n'
+        f'- keeping it, and stating on split {", ".join(str(line) for line in spent_at)} '
+        f'the cost basis it came out of, one of:\n'
         + '\n'.join(f'    {choice}' for choice in choices))
     return (f'{refused} Split {", ".join(str(line) for line in spent_at)} of this '
             f'transaction, out of {account}, can be written one of these ways:\n'
@@ -300,14 +300,14 @@ def transaction_currency_unit(split) -> int:
 
 
 def resolve_for_an_edit(directive, existing) -> None:
-    """Replace this block's positions with the guids its lines give, before an edit.
+    """Replace this block's positions with the guids on its lines, before an edit.
 
     Under `--strategy update` every transaction of the file is one the book
     holds, `existing` for this block, and an edit compares what each split
     picks with what the book holds before any split is written. So a position
-    is resolved first, to the `guid:` the line it points at gives.
+    is resolved first, to the `guid:` on the line it points at.
     """
-    record_the_guids_it_gives(directive, [existing])
+    record_the_guids_it_states(directive, [existing])
     for line, child in enumerate(directive.children):
         position = the_position(child.metadata.get(COST_BASIS_SPLIT_KEY))
         if position is not None:

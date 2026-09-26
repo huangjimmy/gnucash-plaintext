@@ -1,4 +1,4 @@
-# An `open` claiming a guid the book has given to another account.
+# An `open` claiming a guid the book has assigned to another account.
 #
 # The exporter writes `guid:` on every `open` so an account keeps its identity
 # across a round trip, and the importer refuses a guid another object already

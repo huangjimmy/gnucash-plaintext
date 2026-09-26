@@ -52,7 +52,7 @@ def a_book_using_trading_accounts(tmp_path, fixture=None):
     imported after.
 
     A new book holding nothing but a book option writes no file when saved, so
-    it is given a top-level CAD account, which is also what keeps the book in
+    a top-level CAD account is added to it, which is also what keeps the book in
     CAD.
     """
     from gnucash import ACCT_TYPE_BANK, Account

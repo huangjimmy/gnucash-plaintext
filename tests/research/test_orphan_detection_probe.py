@@ -456,7 +456,7 @@ def find_orphan_payments_post_unpost(book, invoice_id=None, customer_id=None):
          other on a Bank/Asset acct
       4. AR-side split's lot has no (strong; invoice lots have it set)
          invoice attached
-      5. invoice_id given AND memo  (medium; user-controlled)
+      5. invoice_id stated AND memo  (medium; user-controlled)
          contains "<invoice_id>"
       6. lot.gnc_owner.id == customer_id  (medium; survives unpost)
     """

@@ -6,7 +6,7 @@
 
 **A refused edit says what it would change**: which splits the book holds and the file states differently, and what that does to a cost basis or a disposal.
 
-**And it gives a route that can be taken.** Where other transactions draw on the transaction's cost basis, it cannot be deleted before them, so the refusal lists them and gives one `delete-transactions --by-guid` command deleting them first and then it. It follows the chain: a conversion drawn on the transaction's dollars opens a euro cost basis, and a fee drawn on that keeps the conversion from being deleted in turn, so the fee is listed and deleted before the conversion. Each transaction is listed once, after everything drawing on it, with what it draws on any cost basis added up by currency.
+**And it says what can be done instead.** Where other transactions draw on the transaction's cost basis, it cannot be deleted before them, so the refusal lists them and prints one `delete-transactions --by-guid` command deleting them first and then it. It follows the chain: a conversion drawn on the transaction's dollars opens a euro cost basis, and a fee drawn on that keeps the conversion from being deleted in turn, so the fee is listed and deleted before the conversion. Each transaction is listed once, after everything drawing on it, with what it draws on any cost basis added up by currency.
 
 ## What was reported
 
@@ -51,20 +51,20 @@ On main at `40ec5dd`, GnuCash 5.10, with a probe importing `tests/fixtures/a_usd
 The guard's list still decides when no figure it reads has moved. Where something has, the edit is applied inside GnuCash's open edit, the cost bases are read again, and the two readings are compared before the edit is committed. Different, and `RollbackEdit` undoes it all (checked on 5.10 with a probe: a split's account and a custom key written during the edit both come back as they were). The facts compared are `cost_basis_facts`:
 
 - a cost basis: its split, its account, its currency and side, what it brought in, what it cost, and its date;
-- a disposal: its split, its account, the cost basis it gives, the side it draws on, what it draws down, its value, and its date.
+- a disposal: its split, its account, the cost basis it states, the side it draws on, what it draws down, its value, and its date.
 
 A date moving is reason enough to compare, on a transaction touching a cost basis; one touching none may still be edited into one that opens a cost basis, as before.
 
-**A refusal says why.** Each change it lists carries its reason: a date, that a cost basis is dated when its currency arrived and a disposal when it drew one down, so what the cost bases held on every day between would change; a cost, that every disposal already drawn on it was valued at what it cost; an account, that a split spending from the first account would draw on a cost basis kept on the second; a disposal restated, that what it took stays off the cost basis balance and the new amount is taken off none. And it says why the route is to delete and import again: an edit in place runs none of the checks a new transaction meets, and gives a cost basis balance no amount back that a disposal took.
+**A refusal says why.** Each change it lists carries its reason: a date, that a cost basis is dated when its currency arrived and a disposal when it drew one down, so what the cost bases held on every day between would change; a cost, that every disposal already drawn on it was valued at what it cost; an account, that a split spending from the first account would draw on a cost basis kept on the second; a disposal restated, that what it took stays off the cost basis balance and the new amount is taken off none. And it says why the route is to delete and import again: an edit in place runs none of the checks a new transaction meets, and puts back on a cost basis balance none of the amount a disposal took.
 
 What a split brought in past zero (Q-047) is read again from what its account held without the transaction before the edit was opened — inside the open edit GnuCash still counts each split where it was. It is read again for every split on an account where the edit changed, added or removed one, because the others then start from a different place. Where the edit leaves every split on an account as it was — the same splits, amounts and date — they keep what they recorded: read again, a fee of 0.72 USD dated the same day and imported after the arrival made the arrival read as bringing in 2,719.28 USD, and moving only its other split then read as changing the cost basis.
 
 Two things follow from that rule, and both leave every cost basis as it was:
 
 - A split imported before Q-047 has no record of what it brought in, and is read as having brought in its whole amount. An edit that leaves its account's splits as they were does not write the record, so it goes on reading as before. Writing it would change the cost basis on an edit that left every figure of it as it was.
-- A split on a foreign currency account that neither opens a cost basis nor gives one — a spend from a book older than #110, before a pick was required — is not among the facts compared, so re-amounting it is accepted where the cost bases stay as they were. Every split on its account is read again with it, so where a split beside it opens a cost basis and now brings in something else, that is a change, and the edit is refused.
+- A split on a foreign currency account that neither opens a cost basis nor states one — a spend from a book older than #110, before a pick was required — is not among the facts compared, so re-amounting it is accepted where the cost bases stay as they were. Every split on its account is read again with it, so where a split beside it opens a cost basis and now brings in something else, that is a change, and the edit is refused.
 
-A figure the edit cannot apply — a `value:` of `eight`, an amount of `--10.00`, a `$residual$` amount, a `share_price:` of `abc` — is refused for itself, giving the split and the field, where it was refused as an edit to a cost basis.
+A figure the edit cannot apply — a `value:` of `eight`, an amount of `--10.00`, a `$residual$` amount, a `share_price:` of `abc` — is refused for itself, and the refusal states the split and the field, where it was refused as an edit to a cost basis.
 
 ## Cases the tests cover
 
@@ -73,8 +73,8 @@ A figure the edit cannot apply — a `value:` of `eight`, an amount of `--10.00`
 1. The Canadian dollar split moved to income: the edit goes through, and the cost basis is priced as it was.
 2. That split divided between income and the director's account: the edit goes through, and the cost basis is priced as it was.
 3. The US dollar split moved to another bank: refused, saying cost basis `3cdacfb099e9c7fbe795b8aa317313bd` on the first bank would be on the second.
-4. The arrival moved from 2026-08-13 to 2026-08-14, and the fee moved the same way: each refused, saying it is dated 2026-08-13 and would be dated 2026-08-14, and giving the delete that works.
-5. The Canadian dollar split restated at 3,800.00: refused, saying the book holds −3,791.14 CAD on the director's account valued at −2,720.00 and the file states −3,800.00; listing the fee drawn on the cost basis; and giving `delete-transactions --by-guid <fee> <arrival>`, which deletes both. With 1,000.00 of the dollars converted into euros and a fee of 1.00 EUR and 0.10 USD drawn on both cost bases, the command gives the arrival's fee, the euro fee, the conversion and the arrival, in that order, and deletes all four.
+4. The arrival moved from 2026-08-13 to 2026-08-14, and the fee moved the same way: each refused, saying it is dated 2026-08-13 and would be dated 2026-08-14, and printing the delete that works.
+5. The Canadian dollar split restated at 3,800.00: refused, saying the book holds −3,791.14 CAD on the director's account valued at −2,720.00 and the file states −3,800.00; listing the fee drawn on the cost basis; and printing `delete-transactions --by-guid <fee> <arrival>`, which deletes both. With 1,000.00 of the dollars converted into euros and a fee of 1.00 EUR and 0.10 USD drawn on both cost bases, the command lists the arrival's fee, the euro fee, the conversion and the arrival, in that order, and deletes all four.
 
 Existing tests whose refusals changed: `test_an_update_restating_what_prices_a_cost_basis_is_read_as_new.py` — two added 0.00 CAD splits under `--atomic` leave the cost basis as it was and go through, and unreadable figures are refused for themselves; `test_an_atomic_run_reads_a_restated_disposal_as_new.py` — a block that leaves a disposal's `cost_basis_split_guid:` line out goes through with the pick kept, and one clearing it with `cost_basis_split_guid: ""` is refused.
 

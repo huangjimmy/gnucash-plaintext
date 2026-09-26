@@ -1,5 +1,5 @@
 # The first price of two_amzn_prices_a_day_apart_in_toronto_on_one_utc_day.txt,
-# given by its guid with a corrected value and nothing else.
+# stated by its guid with a corrected value and nothing else.
 #
 # The block leaves `time:` out, so the price stays where it is: correcting a
 # value moves nothing onto any day.

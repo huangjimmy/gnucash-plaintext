@@ -13,7 +13,7 @@
 # nothing in the rounded amounts separates the two cases. Rates run forward
 # into figures; the figures do not run back into rates.
 #
-# The 8.00 USD fee is taken out of the 100.00 that arrived, so it gives the
+# The 8.00 USD fee is taken out of the 100.00 that arrived, so it states the
 # arrival's position as the cost basis it draws on (Q-050).
 #
 # Verified by tests/integration/test_verify_costs.py.

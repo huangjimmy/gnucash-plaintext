@@ -4,7 +4,7 @@
 # The cost basis is priced at that split's amount over the 2,720.00 USD, so
 # this re-prices it, and a cost basis a fee already draws on cannot be
 # re-priced in place. The refusal says which split and which figure changed,
-# and, since a transaction draws on the cost basis, lists it and gives the one
+# and, since a transaction draws on the cost basis, lists it and prints the one
 # command that deletes the two together.
 #
 # Verified by

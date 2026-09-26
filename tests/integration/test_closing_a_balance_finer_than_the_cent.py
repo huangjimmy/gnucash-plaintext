@@ -89,7 +89,7 @@ def _book_holding(*numerators):
 def book_with_thousandths():
     """18.191 and 27.245 — where the two roundings disagree by a cent.
 
-    Truncating each side toward zero gives -18.19, -27.24 and +45.43, which
+    Truncating each side toward zero yields -18.19, -27.24 and +45.43, which
     happens to sum to zero: the entry balances while stating a figure for Oil
     that is a cent short of what it holds.
     """

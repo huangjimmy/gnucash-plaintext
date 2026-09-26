@@ -1,10 +1,10 @@
 """An edit that turns a transaction into a foreign-currency disposal is refused.
 
 A new transaction that spends currency the book keeps a cost basis for is
-refused unless it gives the guid of the one it came out of, and a transfer,
+refused unless it states the guid of the one it came out of, and a transfer,
 a share sale and a purchase written wholly in a foreign currency meet checks of
 their own. An in-place edit (`--strategy update`) ran none of them: a Canadian
-dollar bank fee edited into 100.00 US dollars spent, giving no guid, was
+dollar bank fee edited into 100.00 US dollars spent, stating no guid, was
 accepted, and the cost basis went on holding every dollar it held before.
 
 So an edit that adds a split spending foreign currency on a side the book keeps
@@ -14,7 +14,7 @@ had, with the same figure, is not added by the edit, so correcting the memo of
 an old spend still goes through.
 
 `tests/fixtures/a_cad_fee_a_later_edit_turns_into_a_us_dollar_spend.txt` and
-`tests/fixtures/the_fee_edited_into_a_us_dollar_spend_giving_no_cost_basis.txt`.
+`tests/fixtures/the_fee_edited_into_a_us_dollar_spend_stating_no_cost_basis.txt`.
 """
 
 from pathlib import Path
@@ -25,7 +25,7 @@ from click.testing import CliRunner
 from cli.main import cli
 
 BOOK = 'tests/fixtures/a_cad_fee_a_later_edit_turns_into_a_us_dollar_spend.txt'
-EDIT = 'tests/fixtures/the_fee_edited_into_a_us_dollar_spend_giving_no_cost_basis.txt'
+EDIT = 'tests/fixtures/the_fee_edited_into_a_us_dollar_spend_stating_no_cost_basis.txt'
 
 
 def _edited(tmp_path):
@@ -45,7 +45,7 @@ def test_the_edit_is_refused_and_sent_to_delete_and_import(tmp_path):
             'Assets:CAD Bank, a Bank account in CAD, is debited 140.00 CAD. A sale requires '
             'a consumption of one or more cost bases, but no split says which. An edit '
             'runs none of the checks a disposal meets. Delete the transaction and '
-            'import it afresh, giving `cost_basis_split_guid:` on the split that '
+            'import it afresh, with `cost_basis_split_guid:` on the split that '
             'disposes of it.') in done.output, done.output
 
 

@@ -101,7 +101,7 @@ def test_a_balance_on_a_split_that_holds_no_foreign_currency_is_refused(tmp_path
     A balance on the CAD side of a purchase passes every test that reads the
     figure by itself, and means nothing: no cost basis lives on a split in the
     book's own currency, so nothing ever reads it. The USD split it was meant
-    for is then given no balance at all and opens at its full amount — the
+    for then has no balance recorded at all and opens at its full amount — the
     file asked for 60.00 available and the book holds 100.00, silently.
 
     `cost_basis_cost:` has refused this since it was added, for the same

@@ -1,0 +1,17 @@
+# A transaction whose split states its guid with `split_guid:`, the key's old
+# name.
+#
+# A split states its guid with `guid:`, as every other block does. Read as a
+# custom key, `split_guid:` would be stored on the split while GnuCash assigned
+# the split a new guid, so the import refuses it and says the new name.
+#
+# What this fixture produces: nothing. The import refuses the transaction.
+#
+# Verified by tests/integration/test_the_old_split_guid_key_is_refused.py.
+2026-01-15 * "Cash sale"
+	currency.mnemonic: "CAD"
+	Assets:Bank 100.00 CAD
+		split_guid: "0123456789abcdef0123456789abcdef"
+		account.commodity.mnemonic: "CAD"
+	Income:Sales -100.00 CAD
+		account.commodity.mnemonic: "CAD"

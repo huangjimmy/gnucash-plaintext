@@ -3,7 +3,7 @@
 Vendors had no address setters in earlier releases, so a vendor block's
 `addr1` was stored as custom metadata: a slot named `addr1` rather than the
 address. A book written then still holds that slot. Read again with a block
-giving `addr1`, the vendor is out of date whatever the file says, because the
+stating `addr1`, the vendor is out of date whatever the file says, because the
 slot holds a key that has since become a field: the run says `updated`, and the
 next one `unchanged`, with the key gone from the slot.
 """

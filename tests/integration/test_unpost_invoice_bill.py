@@ -201,7 +201,7 @@ class TestAnEntryChangeUnderAPostingIsRefused:
     """The destroy-and-rebuild path this class used to document is gone.
 
     It ran whenever a directive modified a line of a posted invoice, and
-    gave every line a new GUID on the way — the old assertion here was that
+    assigned every line a new GUID on the way — the old assertion here was that
     the GUIDs *changed*, with a note saying that if it ever stopped firing,
     the rebuild had been removed. It has been: a posted invoice's
     transaction is derived from its lines, so changing one is refused and

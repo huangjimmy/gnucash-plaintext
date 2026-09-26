@@ -16,7 +16,7 @@ Run on one build:
          || python3 -m pip install -e ".[dev]" --user -q; \\
          python3 tests/research/what_gnucash_says_to_an_empty_file_or_a_book_cut_short_probe.py'
 
-Each line gives the file, the mode, how the child ended (a negative number is
+Each line prints the file, the mode, how the child ended (a negative number is
 the signal that killed it) and what it printed last.
 """
 

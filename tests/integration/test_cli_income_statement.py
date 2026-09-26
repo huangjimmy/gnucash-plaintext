@@ -123,7 +123,7 @@ class TestTextOutput:
             "value": "0.00"}
 
     def test_the_block_opens_with_the_day_the_period_starts(self, temp_gnucash_for_close_books):
-        """A period needs both ends: the directive gives the first, `end:` the last."""
+        """A period needs both ends: the directive states the first, `end:` the last."""
         result = run_cli(temp_gnucash_for_close_books, *FULL_YEAR_ARGS)
         assert result.output.splitlines()[0] == "2024-01-01 income-statement"
         assert _key(result.output, "end") == "2024-12-31"

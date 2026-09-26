@@ -10,7 +10,7 @@ transaction is stated in.
 after, and reads the accounts to compare from the transaction the book holds
 and from the block, so an added split is compared too. Where anything a cost
 basis rests on moves, the edit is read as a new transaction would be (Q-051):
-the cost basis is priced at what the new version's figures give, where no
+the cost basis is priced at what the new version's figures come to, where no
 other transaction draws on it, and a new version that does not balance, or
 whose figures cannot be read, is refused as a new import of it would be.
 Where another transaction draws on the cost basis, the edit is refused, as
@@ -88,7 +88,7 @@ def test_adding_a_cad_split_re_prices_a_cost_basis_nothing_else_draws_on(tmp_pat
     """Every existing split is left alone; two new CAD splits are added.
 
     They balance each other, so the transaction is still sound, and neither
-    gives a `cost_basis_split_guid:`. What they change is the cost: 190.00 CAD
+    states a `cost_basis_split_guid:`. What they change is the cost: 190.00 CAD
     over 140.00 USD is 19/14, against the 25/18 the book held. No other
     transaction draws on the cost basis, so the new figures are its figures.
     """
@@ -140,7 +140,7 @@ def test_under_atomic_a_re_price_the_file_states_in_full_is_allowed(tmp_path):
     `--atomic` defers the refusal to edit a transaction a cost basis rests on,
     because a repair passes through states it stops in either order. What it
     reads before granting that is the figures the file states. Each added
-    split states both its amounts, so its price is the one they give, and the
+    split states both its amounts, so its price is the one they make, and the
     file says what the transaction is to become: the refusal is deferred to
     the finished book. A re-priced cost basis is caught there by the sales
     measured against it — this one has none, so nothing contradicts the
@@ -220,8 +220,8 @@ def test_a_fee_split_whose_figures_cannot_be_weighed_is_refused(tmp_path, edits,
     """The fee split edited so what the cost basis would rest on cannot be read.
 
     A value that is not a number and an amount with two signs are figures the
-    edit cannot apply, and each is refused for itself, the split and the field
-    given. `$residual$` on a Canadian dollar split of a transaction stated in
+    edit cannot apply, and each is refused for itself, the refusal stating the
+    split and the field. `$residual$` on a Canadian dollar split of a transaction stated in
     US dollars is refused as the create path refuses it: the residual is a US
     dollar figure. A new amount with no value to go with it is valued at the
     amount, 12.00 where the book holds 8.00, so the new version's values come
@@ -251,7 +251,7 @@ def test_a_fee_split_whose_figures_cannot_be_weighed_is_refused(tmp_path, edits,
 def test_under_atomic_two_added_zero_amount_cad_splits_leave_the_cost_basis_as_it_was(tmp_path):
     """Two 0.00 CAD splits, each stating a value of 0.00 and no price.
 
-    A split of no amount has no price its two amounts give, and GnuCash's own
+    A split of no amount has no price its two amounts make, and GnuCash's own
     answer for one differs by version (0 on 5.10 and 1 on 3.4, for a value of
     0.00), so the figures the edit changes could not be weighed one by one, and
     the edit was refused. What decides it is the cost basis itself, read once
@@ -278,11 +278,11 @@ def test_under_atomic_two_added_zero_amount_cad_splits_leave_the_cost_basis_as_i
     assert _cost_of_the_basis(runner, book) == before
 
 
-def test_under_atomic_a_price_beside_both_amounts_changes_nothing_they_give(tmp_path):
+def test_under_atomic_a_price_beside_both_amounts_changes_nothing_they_make(tmp_path):
     """The same two splits with `share_price: "1"` beside their values.
 
     Each states both its amounts, 20.00 CAD valued 16.00, so the price is the
-    one those two give. The stated 1 would value them at 20.00 and the cost
+    one those two make. The stated 1 would value them at 20.00 and the cost
     basis at 190.00 over 148.00, 95/74. It is warned about and the two amounts
     decide, so the cost basis is 19/14, as without the line.
     """
@@ -297,7 +297,7 @@ def test_under_atomic_a_price_beside_both_amounts_changes_nothing_they_give(tmp_
     result = _run(runner, 'import', str(book), str(edited), '--atomic',
                   '--strategy', 'update')
     assert result.exit_code == 0, result.output
-    assert 'the price is the one the two amounts give' in result.output, result.output
+    assert 'the price is that division' in result.output, result.output
     assert _cost_of_the_basis(runner, book) == '19/14'
 
     verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
@@ -375,7 +375,7 @@ class TestWhereASaleDrawsOnTheCostBasis:
         return message
 
     def test_adding_a_cad_split_is_refused(self, tmp_path):
-        """Nothing the book holds is changed, only added: the refusal gives what the file states."""
+        """Nothing the book holds is changed, only added: the refusal quotes what the file states."""
         runner = CliRunner()
         book, transaction = self._book(runner, tmp_path)
 
@@ -394,7 +394,7 @@ class TestWhereASaleDrawsOnTheCostBasis:
         the transaction, the cost came out as it was and the edit went through,
         re-pricing the cost basis under the sale.
 
-        Nothing is added, only taken off, so the refusal gives what the book
+        Nothing is added, only taken off, so the refusal quotes what the book
         holds and nothing the file states.
         """
         runner = CliRunner()

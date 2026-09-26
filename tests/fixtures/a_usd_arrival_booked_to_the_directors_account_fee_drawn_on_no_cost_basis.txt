@@ -1,9 +1,9 @@
 # The fee of a_usd_arrival_booked_to_the_directors_account.txt with its pick
 # cleared, for `--strategy update`: every figure the same, and
-# `cost_basis_split_guid: ""` where it gave the arrival's cost basis.
+# `cost_basis_split_guid: ""` where it stated the arrival's cost basis.
 #
 # Read as a new transaction would be (Q-051), the fee spends 0.72 USD the book
-# holds giving no cost basis, and is refused as a new spend giving none is.
+# holds stating no cost basis, and is refused as a new spend stating none is.
 #
 # Verified by
 # tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.

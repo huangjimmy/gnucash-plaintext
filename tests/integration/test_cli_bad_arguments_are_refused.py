@@ -58,7 +58,7 @@ class TestUnapplyPayment:
 
         assert result.exit_code != 0
         # The value is quoted back, which is the whole of what makes this
-        # message useful when several `--txn` flags were given.
+        # message useful when several `--txn` flags were passed.
         assert 'Invalid GUID format' in result.output
         assert 'not-a-guid' in result.output
 
@@ -124,7 +124,7 @@ class TestExport:
             'export', _book(tmp_path), str(output), '--start-date', '2026-02-30'])
 
         assert result.exit_code != 0
-        assert '2026-02-30 is not a date; give it as YYYY-MM-DD' in result.output
+        assert '2026-02-30 is not a date; write it as YYYY-MM-DD' in result.output
         assert not output.exists()
 
 
@@ -213,7 +213,7 @@ class TestUnlink:
 
     @pytest.mark.parametrize('command', ['unlink', 'unapply-payment'])
     @pytest.mark.parametrize('to', ['', 'Root Account'])
-    def test_the_root_is_not_an_account_a_payment_can_be_given(self, tmp_path, command, to):
+    def test_the_root_is_not_an_account_a_payment_can_be_moved_to(self, tmp_path, command, to):
         """The root holds the tree and no commodity, so no split can sit on it."""
         result = CliRunner().invoke(cli, [
             command, _book(tmp_path), 'INV-1', '--to', to])

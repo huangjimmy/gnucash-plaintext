@@ -3,7 +3,7 @@
 This is the non-destructive inverse of applying a payment. It detaches a
 payment's AR/AP split from the record's posted lot, so the lot reopens — the
 invoice returns to **Outstanding** (or partially-paid if other payments remain)
-— and gives that payment split the account `--to` states. The invoice or
+— and moves that payment split to the account `--to` states. The invoice or
 bill itself is untouched and stays **posted**; the bank/income transaction is
 never deleted. Only the payment split's *account* changes, and its amount with
 it where the two accounts are kept in different currencies — the split's value
@@ -54,10 +54,10 @@ from services.foreign_currency import (
     cost_basis_guid_of,
     derived_cost_of,
     establishes_cost_basis,
-    give_back_to_cost_bases,
     iter_splits,
     open_cost_basis_balance_if_none_is_stored,
     open_what_an_edit_made_a_basis,
+    put_back_on_cost_bases,
     record_borrowed_basis,
     split_guid,
     the_bases_a_transaction_has,
@@ -115,7 +115,7 @@ class UnapplyResult:
     #   'ambiguous_id'   — legacy duplicate ids; rerun --by-guid
     #   'not_posted'     — record has no posted lot
     #   'no_payments'    — posted but nothing applied to peel
-    #   'need_selector'  — >1 payment and neither --txn nor --all given
+    #   'need_selector'  — >1 payment and neither --txn nor --all passed
     #   'txn_not_found'  — --txn names a tx that is not a payment on this record
 
 
@@ -266,11 +266,11 @@ def _open_what_the_restatement_made_a_basis(
     made the edit. Asked here the same way the importer's update path asks it,
     with what was a cost basis before the restatement.
 
-    Given what the walk above already read, so a run costs one scan of the
+    Passed what the walk above already read, so a run costs one scan of the
     book's splits rather than two: for each transaction a settlement being
     taken off belongs to, the transaction and the guids of the splits that
     were cost bases on it before anything was restated. Read here after those
-    splits have been given their accounts back.
+    splits have been moved to their new accounts.
 
     **Only where the whole of what the transaction brought in is this
     record's.** A cost basis opens at everything its split brought in, and
@@ -280,8 +280,8 @@ def _open_what_the_restatement_made_a_basis(
 
     - the transaction already carried a cost basis of its own. Measured on a
       100.00 USD invoice paid with 200.00 USD from a USD bank: the other
-      100.00 is the customer's credit and a cost basis already, and giving the
-      settlement a CAD account priced the bank's whole 200.00 as well — the
+      100.00 is the customer's credit and a cost basis already, and moving the
+      settlement to a CAD account priced the bank's whole 200.00 as well — the
       book offering 300.00 USD against the 200.00 its bank holds;
     - it still holds a split on a receivable or a payable. That is somebody's
       money — a share of the deposit that settles another record, a credit
@@ -297,7 +297,7 @@ def _open_what_the_restatement_made_a_basis(
 
     A receivable or a payable is asked for, rather than each of those four in
     turn, because asking them one at a time missed a shape each time it was
-    written. The settlements this run takes off are given the account `--to`
+    written. The settlements this run takes off are moved to the account `--to`
     states, so they are not on a receivable any more when this is read.
     Measured, all on one 100.00 USD invoice overpaid with 200.00 USD or on one
     3,740.00 USD deposit settling two invoices, and all reported by nothing —
@@ -328,13 +328,13 @@ def _open_what_the_restatement_made_a_basis(
         transaction.CommitEdit()
 
 
-def _give_the_basis_back_what_the_settlement_took(book, drawn) -> None:
+def _put_back_on_the_basis_what_the_settlement_drew(book, drawn) -> None:
     """Raise each cost basis by the units the settlement taken off drew down.
 
     A settlement that converted currency lowered a cost basis balance by what
     it converted, and `_book_payment_fx_difference` wrote the cost basis's guid onto
     the settlement split so this could find it again. Taking that settlement
-    off the record without giving the balance back leaves the book offering
+    off the record without putting the balance back leaves the book offering
     less currency than it holds.
 
     What that cost: a 100.00 USD invoice booked at 1.40 and settled into a CAD
@@ -354,7 +354,7 @@ def _give_the_basis_back_what_the_settlement_took(book, drawn) -> None:
     is the fault `--verify-costs` reports — the key is the only thing left
     saying which cost basis was drawn down, and dropping it would leave the cost basis
     short with nothing able to say by how much.
-    Not to stop a second give-back: `raise_cost_basis_balance` caps at what
+    Not to stop the balance being put back twice: `raise_cost_basis_balance` caps at what
     the cost basis brought in, and a second run finds no payment on the lot to take
     off in any case. The cost is what the file says, and that is enough.
 
@@ -368,7 +368,7 @@ def _give_the_basis_back_what_the_settlement_took(book, drawn) -> None:
     said. `_forget_orphaned_by_unpost` is the spelling this follows.
 
     Summed per basis, because two settlements of one record can name the same
-    one, and `give_back_to_cost_bases` takes one amount per guid.
+    one, and `put_back_on_cost_bases` takes one amount per guid.
 
     **The `Income:FX Gain` split is not deleted and its figure is not
     reversed**, and that is not an omission. A settlement that converts at a
@@ -386,8 +386,8 @@ def _give_the_basis_back_what_the_settlement_took(book, drawn) -> None:
     only figure that leaves the entry balancing while the file's own line
     holds the 3.00 between them.
 
-    Measured on `fx_invoice_usd_paid_from_cad_bank.txt`: after the give-back
-    the cost basis reads 100.00 USD undisposed while the income statement still
+    Measured on `fx_invoice_usd_paid_from_cad_bank.txt`: after the balance is
+    put back the cost basis reads 100.00 USD undisposed while the income statement still
     carries −3.00 CAD realized on disposing of it. Both describe what
     happened — the money converted, and it no longer settles this invoice —
     and nothing here can decide whose line to rewrite. README and Q-039 say so,
@@ -400,7 +400,7 @@ def _give_the_basis_back_what_the_settlement_took(book, drawn) -> None:
     totals: Dict[str, Fraction] = {}
     for _split, basis_guid, units in drawn:
         totals[basis_guid] = totals.get(basis_guid, Fraction(0)) + units
-    restored = give_back_to_cost_bases(book, totals)
+    restored = put_back_on_cost_bases(book, totals)
     for split, basis_guid, _units in drawn:
         # Only where the balance came back. A cost basis whose split the book no
         # longer holds, or whose `cost_basis_balance` will not parse, is left
@@ -420,7 +420,7 @@ def _give_the_basis_back_what_the_settlement_took(book, drawn) -> None:
         set_custom_metadata(split, remaining)
         # Dropping the key can make the split a cost basis of its own, and one
         # created here has to be opened here. `establishes_cost_basis` returns
-        # False for a settlement *because* of that key, so a split given an
+        # False for a settlement *because* of that key, so a split moved to an
         # account kept in its own foreign currency clears every other gate the
         # moment the key goes: currency, non-base commodity, a debit that
         # raises a foreign balance, and a cost the requoted entry now supplies.
@@ -459,7 +459,7 @@ def _amount(numc: GncNumericC) -> Decimal:
 def _keep_them_as_the_owners_credit(book, record, splits) -> None:
     """Put each settlement `--to` left on its own receivable or payable in a lot of the owner's.
 
-    Taken off the record and given the account it is already on, a settlement
+    Taken off the record and left on the account it is already on, a settlement
     is no longer that record's and is still the owner's money. Left in no lot
     it was owned by nobody: `find-prepayments` did not list it, and a book
     rebuilt from the export made it a credit the book itself did not hold.
@@ -469,7 +469,7 @@ def _keep_them_as_the_owners_credit(book, record, splits) -> None:
     On a foreign record the credit is currency the book holds and owes back,
     so it is a cost basis, as an overpayment's credit is (`record_borrowed_basis`).
     A spent credit still carries the cost it was received at and gets back the
-    balance spending it took; a bank payment is given the cost the record
+    balance spending it took; a bank payment takes the cost the record
     carries. Measured on 5.10: without it the book held 200.00 USD of cost
     basis and a book rebuilt from its export 300.00.
     """
@@ -611,7 +611,7 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
     def _rate_for_on(day):
         """The rates file's answer for a currency, on the transaction's day.
 
-        `None` where no rates were given, which is what turns the third
+        `None` where no rates were passed, which is what turns the third
         currency into a refusal rather than a guess. Dated, so a settlement
         converts at the rate that held when it happened.
         """
@@ -699,7 +699,7 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
         lib.xaccSplitSetAmount(sp, _numeric(takes))
         lib.xaccTransCommitEdit(tx)
 
-    _give_the_basis_back_what_the_settlement_took(book, drawn)
+    _put_back_on_the_basis_what_the_settlement_drew(book, drawn)
     _drop_a_cost_the_transaction_states_itself(book, wanted)
     _open_what_the_restatement_made_a_basis(
         each_transaction_and_the_cost_bases_it_had)

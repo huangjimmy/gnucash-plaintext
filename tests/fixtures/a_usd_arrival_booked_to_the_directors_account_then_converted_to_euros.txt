@@ -5,7 +5,7 @@
 #
 # The euro fee draws on the conversion, and the conversion on the arrival. So
 # the arrival can be deleted only once both are gone, the euro fee first: a
-# refused edit of the arrival gives one `delete-transactions --by-guid`
+# refused edit of the arrival prints one `delete-transactions --by-guid`
 # command deleting the arrival's own fee, the euro fee, the conversion and the
 # arrival, in that order, listing the euro fee once though it draws on both.
 #

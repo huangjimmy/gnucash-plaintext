@@ -47,10 +47,10 @@ def test_residual_books_the_difference(tmp_path):
     """100 USD that cost 135.00 CAD, sold for 139.00: a 4.00 CAD gain lands on
     the account the file states rather than in GnuCash's own Imbalance account.
 
-    The dollars sold are the ones bought at 1.35, so the sale gives that cost
+    The dollars sold are the ones bought at 1.35, so the sale states that cost
     basis's guid — `fx_buy_and_borrow_usd.txt` writes it on the split itself.
     The book holds a second cost basis of the same currency at 1.30, and which
-    of the two is given is what decides whether the gain is 4.00 or 9.00.
+    of the two is stated is what decides whether the gain is 4.00 or 9.00.
     """
     runner = CliRunner()
     book = _book_with_usd(runner, tmp_path)

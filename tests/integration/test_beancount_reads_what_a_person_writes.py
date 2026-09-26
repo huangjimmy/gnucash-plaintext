@@ -493,7 +493,7 @@ class TestACurrencyAmountFinerThanTheCent:
     """The other branch of the same judge, and the one that must not advise.
 
     Written afresh for this path the check had only the account branch, so
-    `50.001 CAD` on a cent account was told to give the account a finer unit
+    `50.001 CAD` on a cent account was told to set a finer unit on the account
     — and the same file then failed the currency check, which is a dead end
     for money. Both importers go through one judge now, and it branches.
     """
@@ -711,7 +711,7 @@ class TestMetadataWrittenUnquoted:
             ('Assets.Fund', '12345/1000', '123450/100'),
         ], entries
 
-    def test_the_account_keeps_the_unit_it_was_given(self, tmp_path):
+    def test_the_account_keeps_the_unit_it_was_opened_with(self, tmp_path):
         book = self._imported(tmp_path)
 
         repo = GnuCashRepository(str(book))
@@ -754,7 +754,7 @@ class TestTheHeadersAPersonWrites:
 
     A trailing comment is read off every other line before anything is asked
     of it, and the header is where a person is likeliest to write one — which
-    statement the entry came off. Beancount's own documentation gives `txn` as
+    statement the entry came off. Beancount's own documentation lists `txn` as
     the alternative to `*`; matched on the flag alone, such an entry was
     skipped in silence with its metadata and its postings, and because its
     accounts never reached the used-account set nothing downstream noticed.

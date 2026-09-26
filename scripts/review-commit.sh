@@ -19,7 +19,7 @@
 # `main` (override with REVIEW_BASE) and counts untracked files, so a review
 # can be had before there is anything to commit. It stages nothing.
 #
-# The commit's own message is given to the reviewer; -m is for the staged case,
+# The commit's own message is passed to the reviewer; -m is for the staged case,
 # where no message exists yet, and doubles as the place to tell the reviewer
 # what the change is trying to do — what to look at, what was already decided,
 # what not to re-litigate.
@@ -396,6 +396,6 @@ if [ -n "$UNAVAILABLE" ]; then
     exit 0
 fi
 
-echo "❌ The reviewer answered but gave no verdict — treating as unreviewed"
+echo "❌ The reviewer answered without a verdict — treating as unreviewed"
 echo "   Expected a line starting with APPROVED: or CONCERNS:."
 exit 1

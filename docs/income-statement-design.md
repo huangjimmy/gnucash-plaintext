@@ -2,9 +2,17 @@
 
 **Feature branch**: `feature/income-statement`
 **Created**: 2026-03-18
-**Status**: Approved, implementation pending
+**Status**: Implemented, then replaced — see below
 
 ---
+
+> **The computation this note designs is gone.** The command was built as
+> described, and [Q-042](issues/Q-042-print-the-balance-sheet-and-income-statement-as-plaintext-through-a-customized-gnucash-report.md)
+> then moved it onto GnuCash's own Income Statement report: `income-statement`
+> prints through `infrastructure/gnucash/reports/balance-sheet-and-income-statement-as-text.scm`,
+> driven by `services/gnucash_statements.py`, and no figure on the page is
+> calculated by this project. `services/income_statement.py` and its unit tests
+> were deleted with that change. The note is kept for the decisions it records.
 
 ## Overview
 
@@ -37,7 +45,7 @@ gnucash-plaintext income-statement ledger.gnucash \
 The shorthand works for any fiscal year, not just calendar year (Jan–Dec).
 CRA allows fiscal year ending on any date.
 
-If both `--start/--end` and `--fiscal-year-end` are given, raise an error.
+If both `--start/--end` and `--fiscal-year-end` are passed, raise an error.
 
 ### 2. Multi-Currency and FX Rates
 
@@ -150,6 +158,12 @@ manually when filing.
 | `templates/income_statement.html` | Jinja2 HTML template (also used for PDF via WeasyPrint) |
 | `tests/unit/services/test_income_statement.py` | Unit tests for service |
 | `tests/integration/test_cli_income_statement.py` | Integration tests |
+
+Of these, `cli/income_statement_cmd.py`, `services/fx_rates.py` and
+`tests/integration/test_cli_income_statement.py` exist today.
+`use_cases/generate_income_statement.py` and `templates/income_statement.html`
+were not created in this form, and `services/income_statement.py` and
+`tests/unit/services/test_income_statement.py` were deleted by Q-042.
 
 ### Register in `cli/main.py`
 

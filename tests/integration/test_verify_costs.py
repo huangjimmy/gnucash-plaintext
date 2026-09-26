@@ -231,7 +231,7 @@ def test_a_foreign_invoice_with_tax_is_not_read_as_two_rates(tmp_path):
 def test_a_balance_above_what_arrived_or_below_zero_is_reported(tmp_path):
     """Two exact comparisons, against two figures the book already holds.
 
-    A balance falls only by what a sale takes and rises only by what one gives
+    A balance falls only by what a sale takes and rises only by what one puts
     back, so a balance above the amount its split brought in is currency
     offered that never arrived, and one below zero is a sale no ledger
     records. Nothing is inferred and nothing is tolerated: the bounds are the
@@ -815,7 +815,7 @@ def test_a_cad_line_holding_no_cad_says_nothing_about_the_rate(tmp_path):
 
 
 def test_a_sale_whose_force_flag_cannot_be_read_is_reported_in_that_flags_words(tmp_path):
-    """What failed while a sale was measured is what the report gives.
+    """What failed while a sale was measured is what the report says.
 
     `cost_basis_force:` on a sale is read as a yes or a no, and a book can hold
     one that is neither, from a hand edit or an older tool. The disposal check

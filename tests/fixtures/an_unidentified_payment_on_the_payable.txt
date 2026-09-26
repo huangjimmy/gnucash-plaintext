@@ -7,7 +7,7 @@
 # What this fixture produces: one CAD transaction, Assets:Bank -50.00 against
 # Liabilities:Accounts Payable +50.00, the payable split in no lot.
 #
-# Verified by tests/integration/test_a_lot_with_no_owner_is_given_one_or_listed.py.
+# Verified by tests/integration/test_a_lot_with_no_owner_has_one_attached_or_is_listed.py.
 2026-01-01 open Assets
 	type: Asset
 	commodity.namespace: "CURRENCY"

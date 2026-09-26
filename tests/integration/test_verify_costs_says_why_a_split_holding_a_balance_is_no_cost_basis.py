@@ -1,13 +1,13 @@
 """`--verify-costs` says why a split holding a balance is no cost basis.
 
 A `cost_basis_balance` on a split that is no cost basis is read by nothing, and
-the report gives the reason the split is not one, as the thing to go and look
+the report prints the reason the split is not one, as the thing to go and look
 at. Each case here is a split a book can be left holding a balance on, by a hand
 edit or by an older tool, and each has a reason of its own: a sale, a line of
 nothing, a refund of an owner's credit, and a settlement.
 
 A share is not among them. It was, while a security was counted and priced
-rather than converted and so had no cost basis at all; Q-046 gives it one in
+rather than converted and so had no cost basis at all; Q-046 records one for it in
 the book's own currency, and a balance on a share purchase is now read like any
 other.
 """

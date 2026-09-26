@@ -9,7 +9,7 @@
 # `{invoice_posting}` in this file, which the test fills in with that split's
 # guid, valued at what it costs, 1.00. Its `$residual$` split states -0.01.
 # Imported with `--strategy update`, beside INV-USD-1's `payment:` block
-# giving the deposit and its receivable split.
+# stating the deposit and its receivable split.
 #
 # The deposit's new version establishes no cost basis, since the dollars'
 # cost is the invoice's, so the fee's old version draws on a cost basis the

@@ -10,7 +10,7 @@ account in the same currency. Asked:
 - the currency GnuCash's own Balance Sheet report puts in its "Report's
   currency" option when nothing sets it.
 
-Output goes to the directory given as the first argument.
+Output goes to the directory passed as the first argument.
 
 Run: ./scripts/run.sh <tag> env PYTHONPATH=/workspace python3 tests/research/what_currency_gnucash_says_a_book_is_kept_in_probe.py <out-dir>
 """

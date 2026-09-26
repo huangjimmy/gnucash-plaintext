@@ -606,7 +606,7 @@ def test_retargeting_onto_a_invoice_that_owes_nothing_says_so(tmp_path):
 
     The refusal has to name the cause. Zero applied is also what a residue
     smaller than the account's smallest unit produces — 0.05 owed on an
-    account kept to the tenth — and that one is answered by giving the account
+    account kept to the tenth — and that one is answered by setting on the account
     a finer `commodity_scu:`. Told to do that here, the reader would change
     their account for a reason that has nothing to do with what is wrong: the
     invoice owes nothing at all.
@@ -652,11 +652,11 @@ def test_two_payments_of_the_same_shape_are_paired_the_only_way_that_works(tmp_p
     assert runner.invoke(cli, ['import', '--new', str(gf), ACCOUNTS]).exit_code == 0
 
     bank_path = tmp_path / 'bank.txt'
-    bank_path.write_text(_fx('two_payments_one_given_one_described_bank.txt'))
+    bank_path.write_text(_fx('two_payments_one_stated_one_described_bank.txt'))
     assert runner.invoke(cli, ['import', str(gf), str(bank_path)]).exit_code == 0
     retarget_txn_guid = _bank_tx_guid(gf, 50.0)
 
-    text = _fx('two_payments_one_given_one_described.txt').format(
+    text = _fx('two_payments_one_stated_one_described.txt').format(
         retarget_txn_guid=retarget_txn_guid)
     inv_path = tmp_path / 'invoice.txt'
     inv_path.write_text(text)

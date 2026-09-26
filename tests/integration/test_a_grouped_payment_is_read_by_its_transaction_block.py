@@ -1,8 +1,8 @@
 """A payment written as a `Transaction` block is read by that block and nothing beside it.
 
-`a_payment_giving_two_settling_splits.txt` pays INV-USD-001 with two splits of
-one transaction, given as `PaymentSplit` lines under a `Transaction` block. A
-split given there has to be one of that transaction's. And where the block
+`a_payment_stating_two_settling_splits.txt` pays INV-USD-001 with two splits of
+one transaction, written as `PaymentSplit` lines under a `Transaction` block. A
+split stated there has to be one of that transaction's. And where the block
 also carries `txn_split_guid:`, the key is not read, and the run says so.
 """
 

@@ -1,6 +1,6 @@
 # Q-050 E4, the owed side: supplies of 2.01 CAD charged to a US dollar card
 # as 2.00 USD, and 1.00 USD of it paid back for 1.40 CAD, in one transaction.
-# The repayment gives the charge's position.
+# The repayment states the charge's position.
 #
 # The charge opens a cost basis of 2.00 USD owed, costing 2.01; the
 # repayment draws 1.00 of it, valued at its share, 1.005, half up, 1.01, and

@@ -1,5 +1,5 @@
 # The same 100.00 USD invoice as fx_invoice_spending_a_cad_paid_credit_whole,
-# leaving the application to GnuCash instead of giving the credit by guid.
+# leaving the application to GnuCash instead of stating the credit by guid.
 # Used by the probe that measures what each build's engine does to a foreign
 # credit it applies — see CLAUDE.md finding 19.
 invoice "INV-FX-SPENDS-CREDIT"

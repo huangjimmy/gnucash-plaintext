@@ -78,7 +78,7 @@ def test_one_transaction_changed_is_the_one_updated(tmp_path):
 
 
 def test_a_transaction_the_export_cannot_write_is_edited(tmp_path):
-    """1.819 CAD, finer than the currency, is corrected to 1.82 by a block giving its guid.
+    """1.819 CAD, finer than the currency, is corrected to 1.82 by a block stating its guid.
 
     The export refuses such a transaction, so there is no export to compare
     the block with, and the block is read as the edit it is. Built through

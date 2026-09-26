@@ -2,7 +2,7 @@
 # `txn_split_guid:` naming a 60.00 split while stating `amount: 999`.
 #
 # **Refused**, as the directive form of it is. With no `prepayment:` beside
-# it, the split `txn_split_guid:` gives is attached whole, so the book holding
+# it, the split `txn_split_guid:` states is attached whole, so the book holding
 # the transaction would record 60.00 paid and a book that never held it would
 # enter 999 from the block. A block with `prepayment:` is not weighed this
 # way: there `_bank_side_figure_of` reads `amount:` as what moved through the

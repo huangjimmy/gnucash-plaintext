@@ -31,8 +31,8 @@ def swallow_oserror(func, fallback=None):
             return func(self, *args, **kwargs)
         except OSError:
             return fallback
-    # Readable from outside, so a test can check which fallback a method was
-    # given without reaching into pytest's internals to provoke the failure.
+    # Readable from outside, so a test can check which fallback a method
+    # carries without reaching into pytest's internals to provoke the failure.
     _safe._gnc_fallback = fallback
     return _safe
 
@@ -280,6 +280,34 @@ def _run(runner, *args):
     from cli.main import cli
 
     return runner.invoke(cli, list(args))
+
+
+@pytest.fixture
+def import_clock(monkeypatch):
+    """The clock an import reads the moment it started from, set by the test.
+
+    An import enters the transactions it creates by the moment it started
+    (Q-053), so a test of separate runs needs each to start in a later second.
+    `import_clock.tick()` moves the clock one second on, where waiting for the
+    wall clock cost a second a run.
+    """
+    import datetime as _datetime
+
+    import use_cases.import_transactions as importing
+
+    class Clock(_datetime.datetime):
+        moment = _datetime.datetime.now().replace(microsecond=0)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.moment
+
+        @classmethod
+        def tick(cls):
+            cls.moment += timedelta(seconds=1)
+
+    monkeypatch.setattr(importing, 'datetime', Clock)
+    return Clock
 
 
 def find_account(root_account, account_path):

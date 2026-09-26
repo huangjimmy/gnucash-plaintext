@@ -43,7 +43,7 @@ def _to_fraction(value) -> Fraction:
 
 
 def _to_date(value) -> _date:
-    """A date from a YAML key, which PyYAML gives as a date for `2026-01-05`
+    """A date from a YAML key, which PyYAML reads as a date for `2026-01-05`
     and as a string when quoted."""
     if isinstance(value, datetime):
         return value.date()
@@ -176,7 +176,7 @@ class FxRates:
     def to_cad(self, amount: Fraction, currency: str,
                as_of: Optional[_date] = None) -> Fraction:
         """
-        Convert an amount in the given currency to CAD.
+        Convert an amount in `currency` to CAD.
 
         Args:
             amount: Amount in foreign currency
@@ -252,7 +252,7 @@ class FxRates:
         return max(usable) if usable else None
 
     def has_rate(self, currency: str) -> bool:
-        """Check if a rate exists for the given currency."""
+        """Check if a rate exists for `currency`."""
         return currency.upper() in self._rates
 
     def is_dated(self, currency: str) -> bool:
@@ -261,7 +261,7 @@ class FxRates:
 
     def missing_currencies(self, currencies: Set[str]) -> Set[str]:
         """
-        Return currencies from the given set that have no rate.
+        Return the currencies in `currencies` that have no rate.
 
         Args:
             currencies: Set of currency codes to check

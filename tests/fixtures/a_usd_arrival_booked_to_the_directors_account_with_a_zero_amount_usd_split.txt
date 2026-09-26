@@ -1,0 +1,23 @@
+# The arrival of a_usd_arrival_booked_to_the_directors_account.txt with a
+# third split, 0.00 USD on the US dollar bank with no value stated, for
+# `--strategy update`.
+#
+# A split added on the bank makes every split on it read again, from what the
+# bank held without the arrival: 0.00 USD. The fee of 0.72 USD dated the same
+# day draws on the arrival's cost basis, so it came after the arrival and is
+# not counted in what the bank held before it. So the arrival still brings in
+# its 2,720.00, the cost basis is what it was, and the edit goes through.
+#
+# Verified by
+# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+2026-08-13 * "Received money"
+	guid: "e1d60fe6bc104e018c50c67dd61665ec"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2720.00 USD
+		guid: "3cdacfb099e9c7fbe795b8aa317313bd"
+	Assets:Wise USD 0.00 USD
+	Assets:Due from shareholder -3791.14 CAD
+		guid: "6e1edce56a2f4ac8b84f15a96bd3ca56"
+		account.commodity.mnemonic: "CAD"
+		share_price: "272000/379114"
+		value: "-2720.00"

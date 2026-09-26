@@ -1,7 +1,7 @@
 # BILL-OTHER for 100.00 USD, posted to `Liabilities:Other Payables`, a plain
 # `type: Liability` account rather than a payable, and a wire that already
 # took 100.00 USD out of `Assets:Bank:USD` against that liability. Both of the
-# wire's splits read "Wire out", and the bill's payment block gives the wire
+# wire's splits read "Wire out", and the bill's payment block states the wire
 # and its liability split with the same memo.
 #
 # What this fixture produces: BILL-OTHER settled by the liability split, both

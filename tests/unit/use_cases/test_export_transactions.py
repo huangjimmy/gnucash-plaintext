@@ -375,7 +375,7 @@ class TestExportByGuid:
     """Test execute_by_guid — single-transaction export"""
 
     def test_export_known_guid_returns_one_transaction(self, temp_gnucash_with_transactions):
-        """execute_by_guid returns exactly one transaction matching the given GUID"""
+        """execute_by_guid returns exactly one transaction matching the GUID it is passed"""
         from repositories.gnucash_repository import GnuCashRepository
         from use_cases.export_transactions import ExportTransactionsUseCase
 
@@ -436,7 +436,7 @@ class TestExportByGuid:
                 use_case.execute_by_guid("not-a-valid-guid")
 
     def test_export_by_guid_nonexistent_guid_raises_value_error(self, temp_gnucash_with_transactions):
-        """execute_by_guid raises ValueError when no transaction has the given GUID"""
+        """execute_by_guid raises ValueError when no transaction has the GUID it is passed"""
         from repositories.gnucash_repository import GnuCashRepository
         from use_cases.export_transactions import ExportTransactionsUseCase
 

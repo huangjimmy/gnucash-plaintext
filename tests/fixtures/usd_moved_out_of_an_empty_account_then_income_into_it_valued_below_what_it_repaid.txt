@@ -1,8 +1,8 @@
-# 1,000.00 USD of income paid into A at −500.00, giving A's owed cost basis,
+# 1,000.00 USD of income paid into A at −500.00, stating A's owed cost basis,
 # and valued at 600.00 — less than the 675.00 the 500.00 it repays cost.
 #
 # What is left for the 500.00 it brings in would be −75.00, a cost below
-# nothing, so it is refused, and the refusal gives the 1,375.00 the split is
+# nothing, so it is refused, and the refusal states the 1,375.00 the split is
 # worth.
 #
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes.

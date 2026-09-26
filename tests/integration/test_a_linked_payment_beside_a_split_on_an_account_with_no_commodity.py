@@ -4,7 +4,7 @@ The book of `test_linking_a_split_not_on_the_receivable.py`: the posted USD
 invoice, then 100.00 USD received beside a 21.00 CAD fee, with the settlement
 parked on `Assets:Due From Director`. The fee split is then put on `Holding`,
 an asset account with no commodity, which GnuCash keeps through a save and a
-reload. INV-USD-001's block gives the parked split.
+reload. INV-USD-001's block states the parked split.
 
 With a third split in the transaction, the bank's 100.00 no longer says how much
 settles the invoice, so the link is refused, listing that split with its
@@ -28,7 +28,7 @@ BOOK = FIXTURES / 'fx_usd_invoice_cad_income.txt'
 RATES = FIXTURES / 'fx_rates_usd_dated.yaml'
 MONEY_IN = FIXTURES / 'money_booked_to_a_cad_account.txt'
 WITH_A_FEE = FIXTURES / 'money_parked_beside_a_cad_fee.txt'
-LINKED_WITH_A_FEE = FIXTURES / 'a_payment_giving_the_split_parked_beside_a_fee.txt'
+LINKED_WITH_A_FEE = FIXTURES / 'a_payment_stating_the_split_parked_beside_a_fee.txt'
 FEE_SPLIT = '3c4d5e6f708192a3b4c5d6e7f8091223'
 
 

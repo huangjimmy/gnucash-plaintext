@@ -181,7 +181,7 @@ def check_a_book(session, book, as_of: Optional[date] = None,
 
 def _check_the_statements(session, book, report: IntegrityReport,
                           currency: Optional[str]) -> None:
-    # A currency given with `--currency` is looked up as `balance-sheet` looks
+    # A currency passed with `--currency` is looked up as `balance-sheet` looks
     # it up. Handed to GnuCash unchecked, 5.x refuses to render and 4.13 and
     # older draw both pages in it and report the book balanced.
     try:
@@ -339,8 +339,9 @@ def _check_the_cost_bases(book, report: IntegrityReport) -> None:
         pending = [row for row in pending_disposals(book) if row['when'] <= report.as_of]
         report.checked.append(
             'no cost basis holds more of a currency than the accounts do'
-            + (f', beside {len(pending)} disposal(s) pending their cost basis: '
-               f'{_pending_totals(pending)}, which drew on none' if pending else ''))
+            + (f'. {len(pending)} disposal(s) pending their cost basis, '
+               f'{_pending_totals(pending)}, are counted as already disposed of'
+               if pending else ''))
         units: Dict[str, int] = {}
         held = _holdings(book, report.as_of, units)
         for at, balance in sorted(_cost_bases(book, report.as_of, units).items()):

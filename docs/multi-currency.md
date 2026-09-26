@@ -49,7 +49,7 @@ Where the payment *did* convert — 200 USD arriving as 274.00 CAD — nothing i
 
 The transaction always outranks the stored cost, which is consulted only where the transaction states none. A copy can be stale, hand-edited, or left behind by a correction, and the ledger is what the book is: read first, a KVP saying 9.99 made a split that paid 135.00 CAD for 100.00 USD report 9.99, and `fx-balances`, every realized gain and the cost each later sale had to be valued at all followed it. Stating a cost on a split the transaction already prices is refused for the same reason.
 
-**A cost basis balance is what the book still holds of that currency**, on that side of the sheet: what came in, less what each disposal that gave its guid drew down. Sum the balances of one currency's cost bases **on one side** and you have what the accounts on that side hold of it, on a book whose disposals each say which cost basis they came out of. The two sides are not added together: a liability's balance is stored as a positive number — a 1,000.00 USD loan carries `cost_basis_balance: "1000.00"` against the −1,000.00 USD its account owes — so adding held to owed gives what the book has passed through that currency rather than what it is left carrying, which is why the balance sheet states the two sides as separate keys. `fx-balances` prints each cost basis with its balance and what it cost; what the accounts themselves hold is on the balance sheet's own lines, and comparing the two is what `fx-balances --verify-costs` does not do.
+**A cost basis balance is what the book still holds of that currency**, on that side of the sheet: what came in, less what each disposal that stated its guid drew down. Sum the balances of one currency's cost bases **on one side** and you have what the accounts on that side hold of it, on a book whose disposals each say which cost basis they came out of. The two sides are not added together: a liability's balance is stored as a positive number — a 1,000.00 USD loan carries `cost_basis_balance: "1000.00"` against the −1,000.00 USD its account owes — so adding held to owed yields what the book has passed through that currency rather than what it is left carrying, which is why the balance sheet states the two sides as separate keys. `fx-balances` prints each cost basis with its balance and what it cost; what the accounts themselves hold is on the balance sheet's own lines, and comparing the two is what `fx-balances --verify-costs` does not do.
 
 **A disposal that does not say which cost basis it came out of is refused**, on a side the book keeps a cost basis for. Which basis a disposal drew on decides the gain it realized, and no rule picks one for you — not the oldest, not the largest, not the one that makes the figures come out flattest. The message says what to write and where `fx-balances` lists the guids:
 
@@ -59,11 +59,11 @@ the book held for 4140.00 CAD: Assets:USD Bank, a Bank account in USD, is
 credited 3000.00 USD; Assets:CAD Bank, a Bank account in CAD, is debited
 4140.00 CAD. A sale requires a consumption of one or more cost bases, but no
 split says which. State `cost_basis_split_guid:` on the split that disposes of
-it, giving the guid of the cost basis the USD came out of — `fx-balances` lists
+it, with the guid of the cost basis the USD came out of — `fx-balances` lists
 them.
 ```
 
-The message goes on to list each cost basis that split could give, as the line to add: the book's by guid, and an arrival in the same transaction or one above it in the file by its position, `cost_basis_split_guid: $transactions_to_import[n].splits[m].guid$` (Q-050). Beside an arrival on the account the currency left, it also gives the arrival written net of the spend, so the spend is part of what the currency cost and nothing is recorded as spent.
+The message goes on to list each cost basis that split could draw on, as the line to add: the book's by guid, and an arrival in the same transaction or one above it in the file by its position, `cost_basis_split_guid: $transactions_to_import[n].splits[m].guid$` (Q-050). Beside an arrival on the account the currency left, it also writes the arrival net of the spend, so the spend is part of what the currency cost and nothing is recorded as spent.
 
 What counts as spending is the fall in what a side holds, netted across the transaction, so US dollars moved between two US dollar accounts are not a disposal at all, and a clearing account taken from nothing to −100.00 has spent nothing either — it owes a hundred dollars rather than having sent any, and that opens a cost basis on the owed side as a loan does. The part of any balance past zero is on the other side of the book: an asset account below zero owes, and a liability account above zero holds (Q-047). A side the book keeps no cost basis for is left alone: there is nothing there to draw down and nothing to state, which is why a book whose accounts are all in one currency that is not the book's own goes on paying its bills without being asked anything.
 
@@ -121,7 +121,7 @@ USD/CAD:
 
 100.00 USD invoiced on a day quoted at 1.40 recognises **140.00 CAD** of revenue — the figure a CRA filing needs — and leaves an open A/R lot of 100.00 USD. The A/R split is now a cost basis: 100 USD at 1.40 CAD/USD.
 
-**Which way round the rates read.** A `share_price:` is always *transaction currency per unit of the split's account commodity*, so on this CAD income split inside a USD transaction it is `10000/14000` = **0.714 USD/CAD** — the inverse of the 1.40 CAD/USD you gave in the rates file. That is GnuCash's own convention, not a restatement of your rate. `fx-balances` never shows it that way round: a cost there is always the book's currency per unit of the currency held, and is printed with its direction attached (`1.35 CAD/USD`), so nothing has to be inferred. A rate below 1 is not a sign of an inverted quote — `0.172 CAD/HKD` is simply what a Hong Kong dollar costs.
+**Which way round the rates read.** A `share_price:` is always *transaction currency per unit of the split's account commodity*, so on this CAD income split inside a USD transaction it is `10000/14000` = **0.714 USD/CAD** — the inverse of the 1.40 CAD/USD you wrote in the rates file. That is GnuCash's own convention, not a restatement of your rate. `fx-balances` never shows it that way round: a cost there is always the book's currency per unit of the currency held, and is printed with its direction attached (`1.35 CAD/USD`), so nothing has to be inferred. A rate below 1 is not a sign of an inverted quote — `0.172 CAD/HKD` is simply what a Hong Kong dollar costs.
 
 Importing that invoice without a rate is an error, naming the flag and the date, rather than a posting the engine silently abandons:
 
@@ -161,14 +161,14 @@ The same payment may instead state the rate directly, with `share_price:` meanin
 		share_price: "1.37"
 ```
 
-Either one is required when the currencies differ; both are rejected when they match; and giving both is accepted only if they agree:
+Either one is required when the currencies differ; both are rejected when they match; and stating both is accepted only if they agree:
 
 ```
 Error: invoice "INV-USD-PAY": payment declares settled_amount: 137.00 and
 share_price: 1.39, but 100 USD at 1.39 is 139.00 CAD, not 137.00 — they must agree
 ```
 
-The bank is credited what it actually gave — `Assets:Bank 137.00 CAD` — and the invoice reads as paid rather than orphaning the payment.
+The bank is credited what it actually received — `Assets:Bank 137.00 CAD` — and the invoice reads as paid rather than orphaning the payment.
 
 ### What a settlement at another rate realizes
 
@@ -189,7 +189,7 @@ The revenue was recognised at 1.40; 137.00 CAD arrived. The 3.00 CAD difference 
 
 The A/R side is valued at the **cost basis it settles** (140.00 CAD), not at the rate the money came in at, so the entry balances only once the difference is placed — here a 3.00 CAD loss, a debit on the FX account. The cost basis it names drops to `0.00` available: that USD has been converted and cannot be sold again.
 
-Where it goes is said with a **split line** in the payment block — the same syntax a transaction uses, with `$residual$` taking whatever the rest of the entry leaves over. No key gives an account and nothing is configured anywhere:
+Where it goes is said with a **split line** in the payment block — the same syntax a transaction uses, with `$residual$` taking whatever the rest of the entry leaves over. No key states an account and nothing is configured anywhere:
 
 ```
 	payment:
@@ -319,7 +319,7 @@ and books its expense in CAD at the posting-date rate, against a USD payable:
 
 The A/P split is a cost basis in exactly the way the invoice's A/R split is: 100 USD, at the 1.40 the expense was booked at. It is what you owe, at what it was recorded to cost you.
 
-Paying it out of a CAD bank takes what the bank actually gave — `settled_amount: 137.00` writes `Assets:Bank -137.00 CAD` — and the same rules apply: one of `settled_amount:` / `share_price:` is required across currencies and refused within one. `settled_amount:` is always a positive figure; which way the money moves comes from the record, not from a sign.
+Paying it out of a CAD bank takes what the bank actually paid — `settled_amount: 137.00` writes `Assets:Bank -137.00 CAD` — and the same rules apply: one of `settled_amount:` / `share_price:` is required across currencies and refused within one. `settled_amount:` is always a positive figure; which way the money moves comes from the record, not from a sign.
 
 ### Settling a USD bill with USD cash
 
@@ -378,9 +378,9 @@ A USD deposit whose other side is booked to a CAD account needs a `share_price:`
 	Assets:Due from director -3815.89 CAD
 ```
 
-That is correct for what it says. A USD asset is debited and a CAD asset is credited, which is buying USD; credit a CAD liability instead and it is borrowing USD. Either way the book gave up 3,815.89 CAD of value and holds 2,720.00 USD at a cost the transaction states. It is also a price you may not have meant to give, and the CAD account on the other side is what obliged you to give it.
+That is correct for what it says. A USD asset is debited and a CAD asset is credited, which is buying USD; credit a CAD liability instead and it is borrowing USD. Either way the book paid 3,815.89 CAD of value and holds 2,720.00 USD at a cost the transaction states. It is also a price you may not have meant to state, and the CAD account on the other side is what obliged you to state it.
 
-**Nothing here reads what the other account is for.** `establishes_cost_basis` is given the split that received the USD and asks three things: is its commodity a currency other than CAD; is the split in the direction that increases that account's own balance (a debit on a bank, cash, asset, stock or receivable, a credit on a liability, payable or credit card); and can a cost be read. That last one has two branches, because a split's `value:` is stated in the transaction's own currency: where the transaction is denominated in CAD, `value:` over `amount:` is the cost; where it is denominated in a foreign currency, the same division gives a rate in that currency and it is converted using the splits on CAD accounts in that transaction — their CAD amounts added up, divided by what those amounts are worth added up, so the order the splits are in cannot change the answer. The other splits are read for the rate and for nothing else.
+**Nothing here reads what the other account is for.** `establishes_cost_basis` is passed the split that received the USD and asks three things: is its commodity a currency other than CAD; is the split in the direction that increases that account's own balance (a debit on a bank, cash, asset, stock or receivable, a credit on a liability, payable or credit card); and can a cost be read. That last one has two branches, because a split's `value:` is stated in the transaction's own currency: where the transaction is denominated in CAD, `value:` over `amount:` is the cost; where it is denominated in a foreign currency, the same division yields a rate in that currency and it is converted using the splits on CAD accounts in that transaction — their CAD amounts added up, divided by what those amounts are worth added up, so the order the splits are in cannot change the answer. The other splits are read for the rate and for nothing else.
 
 It could not read more. An account called "Due from director" is free text on an account of type Asset in CAD. GnuCash has no suspense or clearing account type, and `placeholder:` means an account that takes no transactions of its own. Nothing in the book marks such an account as a holding place. And nothing could: a director who really owes you 3,815.89 CAD and settles it by wiring 2,720.00 USD writes exactly these two lines, and there the cost basis is right. Guessing from account names is the only alternative, and it would refuse a cost basis to everyone who books real director loans there.
 
@@ -400,13 +400,13 @@ Link such a deposit to an invoice with `txn_guid:` and the invoice is paid in fu
 
 Refused while a disposal already draws on the cost basis being discarded, and the refusal lists those disposals with their dates and amounts. The `share_price:` on the USD split and the rate the invoice was posted at need not agree — the invoice was posted on one day and the deposit entered at whatever rate the person entering it used — so a disposal valued against the first cannot be pointed at the second without silently re-pricing it. Delete those disposals, link the payment, and import them again measured against the invoice's cost basis.
 
-**Refused too where the balance being discarded is below what the split brought in.** A balance a file states is authoritative, and it is how a book carrying sales this tool never saw gets one — so a deposit that brought in 2,720.00 USD and reads 2,000.00 has had 720.00 sold somewhere the book does not record. Discarding that balance destroys the only statement of the 720.00 there is: the split becomes a settlement, which is no cost basis, and taking the payment off later opens it at the whole 2,720.00, offering currency that is gone. The refusal gives both figures and their difference, and says to write `cost_basis_balance: ""` on that split first if the difference is not currency this book should account for.
+**Refused too where the balance being discarded is below what the split brought in.** A balance a file states is authoritative, and it is how a book carrying sales this tool never saw gets one — so a deposit that brought in 2,720.00 USD and reads 2,000.00 has had 720.00 sold somewhere the book does not record. Discarding that balance destroys the only statement of the 720.00 there is: the split becomes a settlement, which is no cost basis, and taking the payment off later opens it at the whole 2,720.00, offering currency that is gone. The refusal states both figures and their difference, and says to write `cost_basis_balance: ""` on that split first if the difference is not currency this book should account for.
 
 A **bill** is the other way round, because that transaction is still a borrowing. Linking an expense transaction to a bill moves its expense split onto the payable, and the account the payment was funded from — a USD credit line, say — is a different obligation from the payable: the payable is paid and the credit line is still owed. So its cost basis is kept rather than discarded, by writing the price onto the split, and that USD goes on being sellable. The paid payable keeps its own balance too, exactly as a paid invoice's receivable does.
 
 ### Recovering a book linked by an earlier version
 
-An earlier version replaced the split and left the balance behind: unlisted, unreadable, and still given by any disposal that had drawn on it. Such books exist. `--verify-costs` is what finds them, and it prints the split's guid:
+An earlier version replaced the split and left the balance behind: unlisted, unreadable, and still stated by any disposal that had drawn on it. Such books exist. `--verify-costs` is what finds them, and it prints the split's guid:
 
 ```
     split guid         00e958a8d56547d484d7629000292dc3
@@ -431,13 +431,13 @@ Which repair a book needs depends on whether anything drew on that cost basis be
 
 `import --strategy update`. The receivable's posting split is then the single cost basis for that money, which is where the link should have left the book. Export the transaction and edit that one line rather than writing the block by hand, so the figures are the ones the book holds.
 
-**Something drew on it** — a transfer fee spent out of the deposit, say. Re-point it at the receivable's cost basis in place, with `--strategy update`: nothing else draws on the fee, so its edit is read as a new transaction would be (Q-051). What it drew is given back to the deposit's cost basis, it draws its 0.72 USD from the receivable's — where the money it spent actually is — and its value is checked against what that cost basis cost, as any new disposal's is. The deposit then holds its whole 2,720.00 again on a split that is no cost basis, which `--verify-costs` reports until the balance is cleared as above. Two runs, and `--verify-costs` is clean and the account totals level, which is how you know the book is out of it.
+**Something drew on it** — a transfer fee spent out of the deposit, say. Re-point it at the receivable's cost basis in place, with `--strategy update`: nothing else draws on the fee, so its edit is read as a new transaction would be (Q-051). What it drew is put back on the deposit's cost basis, it draws its 0.72 USD from the receivable's — where the money it spent actually is — and its value is checked against what that cost basis cost, as any new disposal's is. The deposit then holds its whole 2,720.00 again on a split that is no cost basis, which `--verify-costs` reports until the balance is cleared as above. Two runs, and `--verify-costs` is clean and the account totals level, which is how you know the book is out of it.
 
 The fee's value has to be what the receivable's cost basis costs times what it takes, as any disposal's does, so check it after the change rather than assuming: the deposit was entered at whatever rate its author used, and the invoice at its posting-date rate. Where the two differ the fee's `value:` changes with the cost basis it draws on.
 
-An edit to a transaction whose cost basis another transaction draws on is still refused where it would change that cost basis: the refusal says which splits the book and the file hold differently and what that would change, and gives one `delete-transactions` command deleting the transactions drawing on it first and then it, which is the order a delete accepts. It follows the chain, so a transaction drawing on a cost basis one of them opened is listed and deleted before that one.
+An edit to a transaction whose cost basis another transaction draws on is still refused where it would change that cost basis: the refusal says which splits the book and the file hold differently and what that would change, and prints one `delete-transactions` command deleting the transactions drawing on it first and then it, which is the order a delete accepts. It follows the chain, so a transaction drawing on a cost basis one of them opened is listed and deleted before that one.
 
-**Or commit it as one transaction.** `import --atomic` applies the file and then reads the book it left. It all commits or it all rolls back, and the book is checked once the whole file is applied, the way a database with every constraint deferred checks them at commit: a transaction whose cost basis the fee draws on is asked what the file's version of the fee draws on, and the edits no order can apply are applied in place and checked at the end (README, `--atomic`). An edit nothing else rests on is read as a new transaction would be, as without the flag: a disposal restated or re-pointed gives back what it drew and draws what it states, and one whose `cost_basis_split_guid:` line is cleared with `""` is refused as a spend giving no cost basis (a block that leaves the line out keeps the pick). A block moving the date of a transaction whose cost basis another draws on is refused as it lands: the finished book is asked what each cost basis holds and what it cost, and no question there reads what it held on each day in between, which is what a date moves. What a rollback answers for is what the file introduces: the same questions are asked of the book before it is read, and a fault already there is not this file's to answer for. The repair is then three blocks stating one end state:
+**Or commit it as one transaction.** `import --atomic` applies the file and then reads the book it left. It all commits or it all rolls back, and the book is checked once the whole file is applied, the way a database with every constraint deferred checks them at commit: a transaction whose cost basis the fee draws on is asked what the file's version of the fee draws on, and the edits no order can apply are applied in place and checked at the end (README, `--atomic`). An edit nothing else rests on is read as a new transaction would be, as without the flag: a disposal restated or re-pointed puts back what it drew and draws what it states, and one whose `cost_basis_split_guid:` line is cleared with `""` is refused as a spend stating no cost basis (a block that leaves the line out keeps the pick). A block moving the date of a transaction whose cost basis another draws on is refused as it lands: the finished book is asked what each cost basis holds and what it cost, and no question there reads what it held on each day in between, which is what a date moves. What a rollback answers for is what the file introduces: the same questions are asked of the book before it is read, and a fault already there is not this file's to answer for. The repair is then three blocks stating one end state:
 
 ```
 2026-07-31 * "INV-USD-001" …          the receivable's cost basis, at 2719.28
@@ -471,7 +471,7 @@ A payment written as a `payment:` block gets that lot from the engine. A prepaym
 |---|---|---|
 | into a CAD bank (arrives converted) | the A/R credit, `−100.00 USD` | nothing else in the book holds that USD; the credit is the only record of it |
 | into a USD bank, written by hand with CAD values | the bank split, `+100.00 USD` | the bank holds it and it is sellable from there; the credit facing it records the obligation |
-| into a USD bank, paid on a USD invoice (`payment:` block) | the A/R credit, `−100.00 USD` | every split is USD, so none carries a base-currency figure to derive a cost from — the credit is the only one that can be given one, as `cost_basis_cost` |
+| into a USD bank, paid on a USD invoice (`payment:` block) | the A/R credit, `−100.00 USD` | every split is USD, so none carries a base-currency figure to derive a cost from — the credit is the only one that can carry one, as `cost_basis_cost` |
 
 `lot_owner:` says which side of a receivable a split is, not how much currency the book holds: adding it to a prepayment paid into a USD bank does not make the money two lumps. Counting both listed the same 100.00 USD twice and offered 200.00 for sale from a bank holding 100.
 
@@ -490,11 +490,11 @@ That receivable's cost basis was opened when the invoice was posted, so counting
 
 **A refund is the mirror, and it needs `lot_owner:` for the same reason.** It is a debit on the receivable — the direction that normally establishes a cost basis — but it sends the customer's own money back rather than bringing any in. Naming the owner puts it in the lot no invoice owns, which is what marks it a refund, and it then establishes nothing; counting it because debits are the normal direction offered a third 100.00 USD that had already left the book.
 
-Naming no owner, it is read as a receivable written by hand and does establish one — because that is the other thing those three lines are, exactly as a lot-less credit is read as a settlement. Neither side guesses: the file says which it is, or it gets the reading its shape gives it.
+Naming no owner, it is read as a receivable written by hand and does establish one — because that is the other thing those three lines are, exactly as a lot-less credit is read as a settlement. Neither side guesses: the file says which it is, or it is read by its shape.
 
 The payable side works the same way in reverse. What is owed to a vendor sits on the credit side and always establishes a cost basis; a **debit** on a payable is either money sent to settle a bill (establishes nothing — that currency has gone) or a prepayment to a vendor (a claim on them, which does). Again the lot decides, not the direction.
 
-Prepaying a vendor out of USD the book already holds moves the cost basis across rather than adding one: the claim on the vendor is where that currency now is, and the bank split that sent it is a spend like any other, so it gives the guid of the cost basis it spends and that cost basis goes to zero. Written without giving one, nothing is drawn down and the listing keeps offering the bank's cost basis — 200.00 USD against 100.00 held — which is the same rule as any sale that gives no cost basis rather than an exception to it.
+Prepaying a vendor out of USD the book already holds moves the cost basis across rather than adding one: the claim on the vendor is where that currency now is, and the bank split that sent it is a spend like any other, so it states the guid of the cost basis it spends and that cost basis goes to zero. Written without stating one, nothing is drawn down and the listing keeps offering the bank's cost basis — 200.00 USD against 100.00 held — which is the same rule as any sale that states no cost basis rather than an exception to it.
 
 An update writes prepayments on the same terms: `lot_owner:` on a split an edit creates puts it in the owner's lot exactly as a fresh import would, and a split already in a lot keeps the one it has, so re-importing an exported prepayment over itself opens no second lot.
 
@@ -527,7 +527,7 @@ Applying a credit is asked for with `auto_apply_credit: true` and nothing else. 
 		txn_split_guid: "…"
 ```
 
-A credit bigger than the invoice is divided the way a bank transfer bigger than the invoice it pays has always been: the split the block gives settles what is owed, and the rest is parked as the owner's credit in a lot of its own, carrying what is left of the cost the credit was acquired at. Two shapes are refused rather than divided: a credit in no lot, since nothing records whose the leftover would be and every listing of credits reads lots (`lot_owner:` gives it an owner first), and a block on an invoice that owes nothing, since there is nothing left for the credit to settle.
+A credit bigger than the invoice is divided the way a bank transfer bigger than the invoice it pays has always been: the split the block states settles what is owed, and the rest is parked as the owner's credit in a lot of its own, carrying what is left of the cost the credit was acquired at. Two shapes are refused rather than divided: a credit in no lot, since nothing records whose the leftover would be and every listing of credits reads lots (`lot_owner:` attaches an owner to it first), and a block on an invoice that owes nothing, since there is nothing left for the credit to settle.
 
 `credit_dated:` is the day the currency arrived, not a day anything was paid — applying a credit writes no transaction, so the book has no date for it to state. That the split settled an invoice out of credit at all is recorded on it when the credit is applied (`applied_from_credit`), because nothing about the split afterwards distinguishes it from a bank payment's, and where a deposit is taken and an invoice posted against it the same day, not even the dates do. Re-importing that block attaches the same split to the same lot, which keeps the cost basis where the book put it; asking for the application again instead would let the engine choose a different credit, and re-applying one already applied leaves invoices whose lots GnuCash drops on load, taking their cost basis with them.
 
@@ -555,7 +555,7 @@ DATE         SPLIT GUID                         ACCOUNT                       CO
 Total USD cost basis balance: 200.00 USD
 ```
 
-`--currency USD` narrows it; `--with-balance-only` hides exhausted cost bases. The listing is read-only and in no imposed order: a sale gives the guid of the cost basis it measures against, so no cost basis is ahead of another and sorting by date would suggest an order of consumption that does not exist. The split guid is the handle a sale uses, and the cost carries its own direction — CAD per unit of the currency held — so it is never a bare number to be interpreted.
+`--currency USD` narrows it; `--with-balance-only` hides exhausted cost bases. The listing is read-only and in no imposed order: a sale states the guid of the cost basis it measures against, so no cost basis is ahead of another and sorting by date would suggest an order of consumption that does not exist. The split guid is the handle a sale uses, and the cost carries its own direction — CAD per unit of the currency held — so it is never a bare number to be interpreted.
 
 **`none recorded`** in the cost basis balance column means this tool never wrote a balance for that cost basis — the split was made in the GnuCash GUI, or predates this feature. It is not read as "all of it left": how much has already been sold is not known, and assuming the full amount would re-open currency that may be long gone. Selling against such a cost basis is refused and it is left out of the totals.
 
@@ -563,12 +563,12 @@ Total USD cost basis balance: 200.00 USD
 
 | checked | what a failure means |
 |---|---|
-| a cost basis balance is not above what its cost basis brought in, and not below zero, and reads as a number at all | a balance moves only by what a sale takes and what one gives back — so a balance above what arrived is currency offered that never did, and one below zero is a sale no ledger records. Two exact comparisons against figures the book holds, with no tolerance in them. A balance that will not parse lists as `none recorded`, because nothing can be sold against it either way — but it is not the same as never having had one, so `--verify-costs` reports it with the text it actually holds rather than passing over it |
+| a cost basis balance is not above what its cost basis brought in, and not below zero, and reads as a number at all | a balance falls only by what a sale draws down, and rises only by what an undone sale puts back — so a balance above what arrived is currency offered that never did, and one below zero is a sale no ledger records. Two exact comparisons against figures the book holds, with no tolerance in them. A balance that will not parse lists as `none recorded`, because nothing can be sold against it either way — but it is not the same as never having had one, so `--verify-costs` reports it with the text it actually holds rather than passing over it |
 | a stored `cost_basis_cost` parses, and agrees with the transaction | nothing writes one where the transaction states a cost, so both means a copy has drifted — and the transaction is what is used |
 | no split stores a `cost_basis_balance:` while being no cost basis | the fault hardest to notice. The listing walks the cost bases, so a figure on a split that is not one never appears there; the two checks above walk the same cost bases, so they call the book sound; and the export writes the key back out, so a book rebuilt from this one's ledger holds the same figure in the same place — the fault travels rather than being cleared, and only `cost_basis_balance: ""` on that split takes it off. The finding says *why* the split is not a cost basis — its currency is the book's own, it spends rather than brings in, it picks another cost basis, or nothing in its transaction says what its currency cost. A stored `cost_basis_cost` in the same place is **not** reported: the export drops it, so it neither travels nor round-trips |
-| no disposal gives a `cost_basis_split_guid:` that matches a split which is no cost basis, or no split at all | the other half of the one above, and what survives it being fixed. Clearing a stranded balance leaves the sale below it still giving that guid, and then no figure is stored anywhere wrong, so every check above passes while a sale is measured against something that is not a cost basis. The export writes the guid, and re-importing that ledger is refused — so a book whose own export cannot rebuild it would otherwise read as sound. A cost basis the book **consumed** is not reported: an owner's credit spent on their next invoice or bill ends the pool it was, and the sale that drew on it beforehand goes on giving its guid, which is the book's record of where that currency came from. The file does not carry it — the export leaves it out, the way it leaves out a `cost_basis_cost` on a split that is no cost basis — so the ledger rebuilds the book without a line the import would refuse |
-| every disposal that *does* give a cost basis draws on one holding the currency it sells | a cost basis is a pool of one currency and a sale takes units out of it, so the two have to agree or the subtraction means nothing — 10.00 USD taken out of a pool of euros. `_validate_pick` refuses this of a sale in a file, and an `--atomic` run may re-point a disposal in place: the figures do not move, so the deferred guard passes it, and nothing on the update path draws a cost basis down and looks. Where the two cost bases cost the same figure, the valuation row below has nothing to say about it either |
-| every disposal that *does* give a cost basis is still valued at what that cost basis cost, and the receivable it draws on has been collected | the two questions `_validate_pick` asks of a sale in a file, asked of the sales already in the book — which is the only way either is asked of a sale nobody is importing. `import --atomic` defers the guard that otherwise stops a block restating a cost basis transaction's `value:`, and on the update path that guard was standing in for both: `update_transaction` never draws down a cost basis, so `_validate_pick` runs on the create path alone. A cost basis moved from 1.40 to 1.50 under a 10.00 USD fee valued at 14.00 CAD passes every other check, and so does 40.00 USD sold against an invoice the customer has not paid. `cost_basis_force: true` on the sale is the deliberate override of the collected question — the valuation one does not read it and never has — and a sale carrying it is not reported for selling against an uncollected receivable |
+| no disposal states a `cost_basis_split_guid:` that matches a split which is no cost basis, or no split at all | the other half of the one above, and what survives it being fixed. Clearing a stranded balance leaves the sale below it still stating that guid, and then no figure is stored anywhere wrong, so every check above passes while a sale is measured against something that is not a cost basis. The export writes the guid, and re-importing that ledger is refused — so a book whose own export cannot rebuild it would otherwise read as sound. A cost basis the book **consumed** is not reported: an owner's credit spent on their next invoice or bill ends the pool it was, and the sale that drew on it beforehand still states its guid, which is the book's record of where that currency came from. The file does not carry it — the export leaves it out, the way it leaves out a `cost_basis_cost` on a split that is no cost basis — so the ledger rebuilds the book without a line the import would refuse |
+| every disposal that *does* state a cost basis draws on one holding the currency it sells | a cost basis is a pool of one currency and a sale takes units out of it, so the two have to agree or the subtraction means nothing — 10.00 USD taken out of a pool of euros. `_validate_pick` refuses this of a sale in a file, and an `--atomic` run may re-point a disposal in place: the figures do not move, so the deferred guard passes it, and nothing on the update path draws a cost basis down and looks. Where the two cost bases cost the same figure, the valuation row below has nothing to say about it either |
+| every disposal that *does* state a cost basis is still valued at what that cost basis cost, and the receivable it draws on has been collected | the two questions `_validate_pick` asks of a sale in a file, asked of the sales already in the book — which is the only way either is asked of a sale nobody is importing. `import --atomic` defers the guard that otherwise stops a block restating a cost basis transaction's `value:`, and on the update path that guard was standing in for both: `update_transaction` never draws down a cost basis, so `_validate_pick` runs on the create path alone. A cost basis moved from 1.40 to 1.50 under a 10.00 USD fee valued at 14.00 CAD passes every other check, and so does 40.00 USD sold against an invoice the customer has not paid. `cost_basis_force: true` on the sale is the deliberate override of the collected question — the valuation one does not read it and never has — and a sale carrying it is not reported for selling against an uncollected receivable |
 
 All six are questions about one split. A book can pass every one of them and still not add up, so the run also asks a book-wide one.
 
@@ -579,15 +579,15 @@ The two sides are written by different mechanisms — a KVP on each split, and t
 ```
 warning: the USD cost bases hold 120.00 USD between them, and the ledger says
 200.00 USD arrived and 0.00 USD was sold against a cost basis — leaving 200.00 USD.
-  80.00 USD is accounted for by no cost basis. A balance was lowered without a sale
-  to lower it, or a sale gave back less than it took.
+  80.00 USD is accounted for by no cost basis. A balance was lowered with no sale to
+  account for it, or a sale was undone and less was put back than it had drawn down.
   Nothing is refused: every cost basis is within its own bounds, and which side is
   right is not something the book records.
 ```
 
 **A warning, and it does not set the exit code.** The book is readable and its figures are the ones it holds; what put the two sides out of step is not recorded anywhere, so the reader is the one who can say which is right. Both totals are printed rather than the difference alone, because the difference does not say where to look: short means a cost basis lost its balance, over means one gained currency that never arrived.
 
-**What is not compared is the cost bases against the account balances.** It is the obvious next check and it does not work: an account may hold less than its cost bases offer and be perfectly correct, because a cost basis is lowered only by a disposal that gives its guid. An account that received 60.00 USD and paid an 8.00 USD fee out of the same transaction holds 52.00 and offers 60.00. A check on that reports ordinary books, so there is none.
+**What is not compared is the cost bases against the account balances.** It is the obvious next check and it does not work: an account may hold less than its cost bases offer and be perfectly correct, because a cost basis is lowered only by a disposal that states its guid. An account that received 60.00 USD and paid an 8.00 USD fee out of the same transaction holds 52.00 and offers 60.00. A check on that reports ordinary books, so there is none.
 
 A cost basis with **no balance recorded** is left out of both sides. How much of it is unsold is not known — that is what `none recorded` means — so counting what it brought in would report every such book as holding exactly that much less than arrived; nothing can be sold against one either, so no sale goes missing with it.
 
@@ -595,7 +595,7 @@ Both per-basis checks are exact questions about figures the ledger states. Two i
 
 A split's `share_price` against its value. GnuCash stores no rate — `xaccSplitGetSharePrice` divides value by amount on demand — so the two are one number and comparing them always agrees. A check that cannot fail is worse than none: it reports agreement it never tested.
 
-Whether a transaction's base-currency splits agree about its rate. **Rates run forward only.** A file states 1.405, 45.00 USD becomes 63.23 CAD, and the effective rate the ledger carries is then 6323/4500 — 1.405 plus 1/9000. That is the rounding working as it must, and reading the figure back to ask which rate produced it has no answer: many rates give 63.23, and the one the file stated is not among the things a book keeps. Every criterion tried in that direction reported correct books, so the rate the base-currency splits add up to is used to derive a cost, and nothing is inferred from it.
+Whether a transaction's base-currency splits agree about its rate. **Rates run forward only.** A file states 1.405, 45.00 USD becomes 63.23 CAD, and the effective rate the ledger carries is then 6323/4500 — 1.405 plus 1/9000. That is the rounding working as it must, and reading the figure back to ask which rate produced it has no answer: many rates round to 63.23, and the one the file stated is not among the things a book keeps. Every criterion tried in that direction reported correct books, so the rate the base-currency splits add up to is used to derive a cost, and nothing is inferred from it.
 
 The run covers the whole book and exits 1 at the end if anything disagreed, rather than stopping at the first, and a cost basis whose own figures do not parse is reported with its traceback instead of ending the pass:
 
@@ -621,13 +621,13 @@ Checked 2 cost basis(es), and found 1 thing(s) that do not hold:
 
 The factors listed are the ones the derivation multiplied, and only those: a transaction already in CAD has one, `value / amount`, while a USD-denominated one has that and the `CAD per USD` rate its CAD splits imply. Nothing is printed for a step that was not taken.
 
-That rate is every base-currency split taken together — the CAD they carry over the foreign currency they are worth — not whichever split is read first. Each is rounded to the cent on its own, so an invoice's income and tax lines give slightly different ratios though both were converted at one rate: 33.33 USD at 10% tax, posted at 1.4, books 46.66 CAD over 33.33 and 4.66 over 3.33, which are 1.40006 and 1.39940. Reading one split priced the whole cost basis at whichever it happened to reach; summing cancels most of the rounding and cannot depend on order.
+That rate is every base-currency split taken together — the CAD they carry over the foreign currency they are worth — not whichever split is read first. Each is rounded to the cent on its own, so an invoice's income and tax lines have slightly different ratios though both were converted at one rate: 33.33 USD at 10% tax, posted at 1.4, books 46.66 CAD over 33.33 and 4.66 over 3.33, which are 1.40006 and 1.39940. Reading one split priced the whole cost basis at whichever it happened to reach; summing cancels most of the rounding and cannot depend on order.
 
 Nothing is inferred back out of those figures. A rate runs forward — the file states it, the foreign amount is multiplied by it, and the result is rounded to the unit the receiving account is held to. The effective rate the ledger then carries is that rounding's doing: 45.00 USD at a stated 1.405 books 63.23 CAD, whose ratio is 6323/4500, and that is correct rather than a discrepancy to be detected.
 
 Where a cost basis is reported for something else, the splits its cost was added up from are printed with it, at the unit each is held to — a fund account kept to thousandths carries 12.345 units, and the report says which unit that is, since three decimals otherwise read as a mistake.
 
-Giving a cost basis a balance uses the mechanism that already exists — state it on the split in an import file, where a stated balance is authoritative:
+Stating a cost basis's balance uses the mechanism that already exists — state it on the split in an import file, where a stated balance is authoritative:
 
 ```
 	Assets:Bank:USD 100.00 USD
@@ -641,7 +641,7 @@ Authoritative, and therefore checked before it lands: it must be on a split that
 
 ## Selling foreign currency
 
-A sale gives the guid of the cost basis it is measured against and values what it sells at that cost basis's cost. What the sale fetched is on the other splits, and `$residual$` takes the difference:
+A sale states the guid of the cost basis it is measured against and values what it sells at that cost basis's cost. What the sale fetched is on the other splits, and `$residual$` takes the difference:
 
 ```
 2026-02-01 * "Sell 40 USD"
@@ -658,7 +658,7 @@ A sale gives the guid of the cost basis it is measured against and values what i
 
 ### Spreading a sale across several cost bases
 
-The user decides which cost bases a sale draws on and in what amounts. Selling 200 USD can take all 200 from one cost basis, 100 from each of two, or 50 and 150 — one foreign-currency split per cost basis, each giving its own:
+The user decides which cost bases a sale draws on and in what amounts. Selling 200 USD can take all 200 from one cost basis, 100 from each of two, or 50 and 150 — one foreign-currency split per cost basis, each stating its own:
 
 ```
 2026-03-01 * "Sell 150 USD"
@@ -714,10 +714,10 @@ A refusal that can only come later is caught by one of two different mechanisms,
 
 | what is refused | what happens to what it drew |
 |---|---|
-| a **transaction** | it is destroyed and what it drew is given back with it, and the rest of the file lands as normal |
+| a **transaction** | it is destroyed and what it drew is put back with it, and the rest of the file lands as normal |
 | a **payment inside an invoice or bill** | the whole import is abandoned: the book is left exactly as it was found, and nothing else from that file is written either |
 
-Both leave every cost basis where it was, which is the guarantee that matters, but they are not the same behaviour and a file half-lands in neither case. The second is the blunter of the two — a settlement values itself against the cost basis it consumes, so what a refusal after that point would have to give back is not one drawdown but everything the invoice has done, and abandoning the book is the only answer that cannot leave the two disagreeing.
+Both leave every cost basis where it was, which is the guarantee that matters, but they are not the same behaviour and a file half-lands in neither case. The second is the blunter of the two — a settlement values itself against the cost basis it consumes, so what a refusal after that point would have to put back is not one drawdown but everything the invoice has done, and abandoning the book is the only answer that cannot leave the two disagreeing.
 
 Measured on a book holding 200.00 USD across two cost bases: a file carrying an invoice whose converting payment realizes 3.00 CAD with no split to take it, and an ordinary CAD transaction beside it, is refused with `settling this USD invoice into CAD realizes 3.00 CAD … add a split to the payment block`. Afterwards `fx-balances` reports the same 200.00 USD across the same two cost bases, and the ordinary transaction is not in the book either — the file landed in full or not at all.
 
@@ -822,7 +822,7 @@ It is not specific to currency: any transaction may use it.
 
 **The book records which split took it**, in a `took_the_residual` KVP on that split. Nothing in a saved transaction could be asked afterwards. A disposal balances — what it fetched plus the difference it realized is what those units cost — so the arithmetic alone cannot say which of its splits is which, and neither can the account: 8.60 USD disposed of at a cost of 11.99 paid an 11.92 bank charge beside 0.07 of exchange difference, both on expense accounts, and an account is not one or the other because of its name. The file said which, and the key is what keeps that.
 
-**So there are two ways to write a disposal, and they produce the same book.** `$residual$` has the import work the figure out and record the key. Working it out yourself gives the same transaction — the same accounts, the same amounts, the same values — because the token resolves to nothing more than the negation of what the other splits come to. What a written-out figure has to state as well is which split is the difference, since the numbers cannot say: a balanced transaction gives every one of its splits that same arithmetic. So state `took_the_residual: "true"` on it, and the page states the same gain:
+**So there are two ways to write a disposal, and they produce the same book.** `$residual$` has the import work the figure out and record the key. Working it out yourself produces the same transaction — the same accounts, the same amounts, the same values — because the token resolves to nothing more than the negation of what the other splits come to. What a written-out figure has to state as well is which split is the difference, since the numbers cannot say: in a balanced transaction the same arithmetic holds for every split. So state `took_the_residual: "true"` on it, and the page states the same gain:
 
 ```
 	Income:FX Gain $residual$ CAD          # the import works it out and marks the split
@@ -832,7 +832,7 @@ It is not specific to currency: any transaction may use it.
 		took_the_residual: "true"          # and say which split it is
 ```
 
-The key is honoured where the ledger bears it out, exactly as the import requires before writing one itself: the transaction must be stated in the book's own currency, it must hold a split giving the guid of the cost basis it draws on, and the marked split must be on an **income or expense** account. A realized difference is a gain or a loss, so it belongs in the profit and loss; one balancing onto a bank or a receivable moved money rather than measuring a difference, and counted as one it put the whole receipt into the figure — a disposal writing `Assets:CAD Bank $residual$ CAD` beside a stated gain stated the 1,400.00 the bank took as a 1,400.00 loss. `$residual$` itself is unchanged and still writes on any account whose commodity is the transaction's, on any transaction; what is restricted is which split is read as the difference.
+The key is honoured where the ledger bears it out, exactly as the import requires before writing one itself: the transaction must be stated in the book's own currency, it must hold a split stating the guid of the cost basis it draws on, and the marked split must be on an **income or expense** account. A realized difference is a gain or a loss, so it belongs in the profit and loss; one balancing onto a bank or a receivable moved money rather than measuring a difference, and counted as one it put the whole receipt into the figure — a disposal writing `Assets:CAD Bank $residual$ CAD` beside a stated gain stated the 1,400.00 the bank took as a 1,400.00 loss. `$residual$` itself is unchanged and still writes on any account whose commodity is the transaction's, on any transaction; what is restricted is which split is read as the difference.
 
 **What none of that can do is tell one income or expense from another in the same disposal.** A bank charge is an expense too — 8.60 USD disposed of at a cost of 11.99 paid an 11.92 charge beside 0.07 of exchange difference, both on expense accounts. Where a disposal carries both, the `$residual$` token or a stated `took_the_residual` is the only thing that says which is which, and a file that puts either on the wrong line is believed.
 
@@ -851,9 +851,9 @@ gnucash-plaintext balance-sheet book.gnucash --as-of 2026-12-31 \
 
 It is repeatable, for a book that keeps its gains and its losses in two accounts, and `report` takes it too. On `tests/fixtures/the_thousand_usd_sold_less_a_charge_with_no_took_the_residual.txt` it turns `realized_gains_fx: 0.00` into `100.00` — the exchange difference alone — while the 10.00 bank charge on that same disposal stays out.
 
-**Given any account, the key is not consulted at all.** The two are not added together. A reader who states where their differences are booked has answered the question for the whole book, and a page that also counted whatever keys happened to be in it would give an answer depending on which release imported which transaction — a difference the reader cannot see and did not ask about. So a marked split on an account you did not state is passed over, and a book that wants both counts states both accounts.
+**Where the option states an account, the key is not consulted at all.** The two are not added together. A reader who states where their differences are booked has answered the question for the whole book, and a page that also counted whatever keys happened to be in it would answer differently depending on which release imported which transaction — a difference the reader cannot see and did not ask about. So a marked split on an account you did not state is passed over, and a book that wants both counts states both accounts.
 
-What the option cannot do is widen where a difference may sit. The three conditions the book answers for itself hold either way — the transaction stated in the book's own currency, a split giving the guid of the cost basis it draws on, and the split itself on an income or expense account — so an account specified by mistake counts nothing on a transaction that disposed of no currency.
+What the option cannot do is widen where a difference may sit. The three conditions the book answers for itself hold either way — the transaction stated in the book's own currency, a split stating the guid of the cost basis it draws on, and the split itself on an income or expense account — so an account specified by mistake counts nothing on a transaction that disposed of no currency.
 
 What mends the book itself is the second way of writing a disposal, above. Export the book, add `took_the_residual: "true"` to the gain split of each disposal, and import that back with `--strategy update`. The key is honoured on the same terms as any other, so what you are doing is stating by hand what a `$residual$` would have recorded at the time.
 
@@ -885,11 +885,11 @@ An **account** can be denominated more finely than its commodity, and this tool 
 
 What the finer account is for is everything that is *not* a booked amount — a unit price, a quantity, a rate. Fuel at 1.819 a litre is a price, and it is stated at that precision; what the split books is 10 litres at 18.19, and that is the figure the currency has to be able to hold.
 
-**A split that states both amounts has the price they give.** GnuCash's transfer dialog takes one amount and then either the rate or the other amount. A block may state all three, and every export does: it writes `share_price:` beside `value:` as the price those two give, `6323/4500` for 45.00 USD valued at 63.23 CAD. Where a file's `share_price:` is not that price, the two amounts decide, on a new transaction and under `--strategy update` alike, and the import warns:
+**A split that states both amounts has the price they make.** GnuCash's transfer dialog takes one amount and then either the rate or the other amount. A block may state all three, and every export does: it writes `share_price:` beside `value:` as the price those two make, `6323/4500` for 45.00 USD valued at 63.23 CAD. Where a file's `share_price:` is not that price, the two amounts decide, on a new transaction and under `--strategy update` alike, and the import warns:
 
 ```
 warning: the share_price on split 'Expenses:Travel USD' states 1.5, and its
-amount and value give 6323/4500: the price is the one the two amounts give
+value divided by its amount is 6323/4500: the price is that division
 ```
 
 A split that states an amount and a `share_price:` and no `value:` is valued at the amount times the price, rounded by GnuCash to the smallest unit of the transaction's currency.
@@ -900,7 +900,7 @@ The coarser of the two, in both directions. An account kept to whole dollars ref
 
 ## Correcting things
 
-**Deleting a sale gives the currency back.** The delete reads what the transaction took from each cost basis it named, then raises those balances by exactly that much — capped at what the cost basis brought in, so a balance can never exceed the currency the split carried:
+**Deleting a sale puts the currency back.** The delete reads what the transaction took from each cost basis it named, then raises those balances by exactly that much — capped at what the cost basis brought in, so a balance can never exceed the currency the split carried:
 
 ```bash
 gnucash-plaintext delete-transactions book.gnucash --by-guid <the sale>
@@ -925,7 +925,7 @@ first.
 
 Without that guard, unposting and re-posting silently reset a cost basis to its full amount — a book that had sold 40 of 100 USD would claim 100 USD available, currency it no longer has. Delete the sales first (they come back as plaintext), then unpost; the order is: undo the sales, undo the payment, unpost. A cost basis nothing measures against unposts freely, and single-currency records are unaffected.
 
-**Deleting the transaction that establishes a cost basis in use is refused** for the same reason: the sales measuring against it would be left giving a guid the book no longer holds.
+**Deleting the transaction that establishes a cost basis in use is refused** for the same reason: the sales measuring against it would be left stating a guid the book no longer holds.
 
 ### Editing with `--strategy update`
 
@@ -934,7 +934,7 @@ Without that guard, unposting and re-posting silently reset a cost basis to its 
 | the edit | what happens |
 |---|---|
 | a memo, description, action, date or doc_link | goes through — none of them can change what a cost basis holds or what it cost |
-| the amount, value, rate, account, or cost basis pick of a split a cost basis rests on | refused, giving the transaction's guid and the way through that works |
+| the amount, value, rate, account, or cost basis pick of a split a cost basis rests on | refused, and the refusal states the transaction's guid and the way through that works |
 | the account of a split no cost basis rests on | goes through |
 | a transaction that touches no cost basis at all | ordinary; the update path is unrestricted |
 
@@ -946,8 +946,8 @@ State the rate the book holds, not the one you first typed. A value that reached
 Error: transaction <guid> touches a cost basis, so its amounts, values,
 accounts, cost basis picks and the currency it is stated in cannot be edited
 in place — a memo or description can. Delete it and import the new version
-instead: `delete-transactions --by-guid <guid>` gives the cost basis back
-exactly what this transaction took, and the fresh import checks the new
+instead: `delete-transactions --by-guid <guid>` puts back on the cost basis
+exactly what this transaction drew from it, and the fresh import checks the new
 figures against it.
 ```
 
@@ -961,7 +961,7 @@ An update can also *bring currency into the book* — a CAD placeholder correcte
 
 A realized settlement round-trips without restating anything: the export writes the payment as a link to the transaction it already emitted (`txn_guid:` + `txn_split_guid:`), so the fresh book inherits the FX split, the A/R value at cost, and the cost basis at zero available — and needs no rates file to rebuild them.
 
-`cost_basis_split_guid:` and `cost_basis_balance:` are ordinary KVP slots, so they survive export → fresh-book re-import like any other custom metadata. **A balance stated in a file is authoritative and already net of that file's own sales** — an export carries `cost_basis_balance: "60.00"` on a cost basis alongside the 40 USD sale that lowered it — so re-importing an export leaves it at 60.00 rather than taking the 40 again. A sale imported against a cost basis the book already held is a new sale and does lower it. A stated balance only counts once its transaction is actually in the book: a transaction that fails and rolls back takes its splits' guids with it, so a sale further down the same file giving that cost basis is refused for a cost basis the book does not have.
+`cost_basis_split_guid:` and `cost_basis_balance:` are ordinary KVP slots, so they survive export → fresh-book re-import like any other custom metadata. **A balance stated in a file is authoritative and already net of that file's own sales** — an export carries `cost_basis_balance: "60.00"` on a cost basis alongside the 40 USD sale that lowered it — so re-importing an export leaves it at 60.00 rather than taking the 40 again. A sale imported against a cost basis the book already held is a new sale and does lower it. A stated balance only counts once its transaction is actually in the book: a transaction that fails and rolls back takes its splits' guids with it, so a sale further down the same file stating that cost basis is refused for a cost basis the book does not have.
 
 `txn_type: P` round-trips on every supported version, which matters because a re-imported payment that is not a payment to the engine is invisible to `find-orphan-payments`. The importer writes it onto the transaction with `xaccTransSetTxnType`, which stores it in a KVP slot; GnuCash 3.8 and 4.4 read that slot back, while from 4.13 `xaccTransGetTxnType` derives the type from the transaction's splits and lots and never consults it. So the export takes the C field when it is set and falls back to the slot when it is not, and a type GnuCash does not know (`txn_type: Z`) is refused rather than written into engine state, where a typo would export straight back out.
 
@@ -1039,7 +1039,7 @@ The debt was drawn at 1.30 and is worth 1.40 a dollar now, so it has cost the bo
 - **`unrealized_gains_assets_fx`** and **`unrealized_gains_liabilities_fx`** are what the currency still held, and still owed, are worth at the price nearest the sheet's date, less what the cost bases say they cost. They add to `unrealized_gains_fx`, and only that total reaches `total_equity`.
 - **`realized_gains_other`** is what the book took when a security left it, measured the same way: the units are valued at what they cost, and the difference between that and what they fetched is the gain. A security has a cost basis of its own, in the book's own currency, so the subtraction is the one `realized_gains_fx` makes (Q-046).
 - **`unrealized_gains_other`** is everything that is not a currency — a stock, a mutual fund — worth what its price says at the sheet's date, less what its own cost bases say it cost. A security the cost bases cannot speak for keeps GnuCash's own revaluation, and the page says so with `measured_from: gnucash_revaluation`.
-- **`gnucash_balancing_amount` is an amount GnuCash adds to equity as the unrealized gain, and it is not always the unrealized gain** — which is why it is stated here under a name saying whose figure it is rather than under a name of its own. GnuCash reaches it by taking the summed values of the splits in a holding's own accounts from what that holding is worth at the sheet's date. That is the unrealized gain only where every one of those splits carries a figure in the book's own currency. Where foreign currency arrived carrying no figure in the book's own currency and was later spent, GnuCash's amount comes out as the negative of the realized gain: the realized gain is in the income and expense accounts, so `retained_earnings` carries it already, and adding an amount of the opposite sign cancels it rather than leaving it, so GnuCash's own page then states more liabilities and equity than it has assets. Currency bought with the book's own money and sold again does not do this — both splits carry the book's own figures, so GnuCash's subtraction cancels exactly and states `0.00`. This page adds the gain measured from the cost bases instead, and balances. The amount is carried across so a reader with GnuCash's page beside them can find the same number, and nothing adds it in. Beneath it the page states the subtraction GnuCash made rather than a verdict on it, commodity by commodity — the commodities its own figure is summed from, read out of the collector GnuCash sums rather than grouped by anything this page decided. Each group gives that commodity's amount and the amount converted, with the splits valued in it and the accounts holding it beside them, so a reader can see what went into the figure. Which of the cases above a book is in is worked out from those figures, and every example under `examples/multi-currency/` carries the block for its own book, so the arithmetic can be followed rather than taken on trust. [Q-044](issues/Q-044-state-a-realized-gain-with-no-took-the-residual-key-and-say-what-the-balancing-amount-is.md) has the measurements.
+- **`gnucash_balancing_amount` is an amount GnuCash adds to equity as the unrealized gain, and it is not always the unrealized gain** — which is why it is stated here under a name saying whose figure it is rather than under a name of its own. GnuCash reaches it by taking the summed values of the splits in a holding's own accounts from what that holding is worth at the sheet's date. That is the unrealized gain only where every one of those splits carries a figure in the book's own currency. Where foreign currency arrived carrying no figure in the book's own currency and was later spent, GnuCash's amount comes out as the negative of the realized gain: the realized gain is in the income and expense accounts, so `retained_earnings` carries it already, and adding an amount of the opposite sign cancels it rather than leaving it, so GnuCash's own page then states more liabilities and equity than it has assets. Currency bought with the book's own money and sold again does not do this — both splits carry the book's own figures, so GnuCash's subtraction cancels exactly and states `0.00`. This page adds the gain measured from the cost bases instead, and balances. The amount is carried across so a reader with GnuCash's page beside them can find the same number, and nothing adds it in. Beneath it the page states the subtraction GnuCash made rather than a verdict on it, commodity by commodity — the commodities its own figure is summed from, read out of the collector GnuCash sums rather than grouped by anything this page decided. Each group states that commodity's amount and the amount converted, with the splits valued in it and the accounts holding it beside them, so a reader can see what went into the figure. Which of the cases above a book is in is worked out from those figures, and every example under `examples/multi-currency/` carries the block for its own book, so the arithmetic can be followed rather than taken on trust. [Q-044](issues/Q-044-state-a-realized-gain-with-no-took-the-residual-key-and-say-what-the-balancing-amount-is.md) has the measurements.
 
 **A currency the cost bases cannot speak for keeps GnuCash's own revaluation**, and is still stated under `_fx`, because it is currency however it was measured.
 
@@ -1173,7 +1173,7 @@ The simplest case there is, and a good one to run first: 1,000.00 USD bought at 
 	total_assets: 5100.00 CAD
 ```
 
-It is also the case that shows what GnuCash's own Advanced Portfolio report makes of a book this tool writes. That report gives **Money In C$1,300.00 and Money Out C$1,300.00** — because the disposal is valued at what the dollars cost — so it sees nothing made on the disposal, reads **Realized Gain C$0.00**, and counts the 100.00 under **Income** instead.
+It is also the case that shows what GnuCash's own Advanced Portfolio report makes of a book this tool writes. That report prints **Money In C$1,300.00 and Money Out C$1,300.00** — because the disposal is valued at what the dollars cost — so it sees nothing made on the disposal, reads **Realized Gain C$0.00**, and counts the 100.00 under **Income** instead.
 
 #### A company paid in US dollars several times, paying several US bills
 
@@ -1358,7 +1358,7 @@ The exposure has not gone anywhere. It arrives in a single entry, on the day the
 	total_realized_gains: -10.00 CAD # realized_gains_fx + realized_gains_other
 ```
 
-140.00 CAD of dollars extinguished a debt carried at 130.00, so the 10.00 is a loss, and the working gives the entry it came from. Drawn a day earlier, before the repayment, `realized_gains_fx` is 0.00. That one entry is the only place this book ever says the loan was foreign.
+140.00 CAD of dollars extinguished a debt carried at 130.00, so the 10.00 is a loss, and the working lists the entry it came from. Drawn a day earlier, before the repayment, `realized_gains_fx` is 0.00. That one entry is the only place this book ever says the loan was foreign.
 
 #### A company whose US dollars arrived with no Canadian figure to cost them
 
@@ -1368,7 +1368,7 @@ A cost basis records what a currency cost, and only a transaction stating a figu
 
 **An arrival opens a cost basis only where the transaction says what it cost.** The 10,000.00 USD bought with Canadian dollars opens one at 1.30, and the 2,080.00 USD the share sale brings in opens one at 1.35, because that sale is stated in Canadian dollars. The 4,000.00 USD this company borrows is stated wholly in US dollars, with no Canadian figure anywhere in it and no cost written on either split, so it opens none.
 
-**Every disposal says which cost basis it came out of**, because a ledger that does not is refused. Buying shares, selling 3,000.00 USD and repaying the loan take 8,600.00 dollars back out of the dollars bought, each of them giving its guid, so that cost basis ends holding 1,400.00 and the two together hold 3,480.00, against the 7,480.00 the accounts hold. The 4,000.00 between them is the borrowing, which no cost basis speaks for.
+**Every disposal says which cost basis it came out of**, because a ledger that does not is refused. Buying shares, selling 3,000.00 USD and repaying the loan take 8,600.00 dollars back out of the dollars bought, each of them stating its guid, so that cost basis ends holding 1,400.00 and the two together hold 3,480.00, against the 7,480.00 the accounts hold. The 4,000.00 between them is the borrowing, which no cost basis speaks for.
 
 The way out is in the ledger: state the borrowing in Canadian dollars, at the rate of the day. Then every dollar in the book has a cost behind it.
 
@@ -1406,11 +1406,11 @@ The sheet does not price what is not there. That currency keeps GnuCash's own re
 
 The Hong Kong dollars agree with their cost basis, so they are measured from it. The US dollars do not, so they are not.
 
-**The items are what tell you which happened**, and they are on the page by default. A currency measured from its own cost bases states what they still account for as `cost_basis_balance` beside what the accounts hold as `balance_value`, and lists each basis and each account — the Hong Kong dollars above, agreeing at 5,500.00. A currency the bases cannot speak for states **`measured_from: gnucash_revaluation`** and none of those: no cost bases, no accounts, no `cost_basis_balance` and no `balance_value`, because a group with no basis behind it has nothing to put in them. It gives the cost and the worth GnuCash's own subtraction used instead, so the items still come to the 605.60 the key states.
+**The items are what tell you which happened**, and they are on the page by default. A currency measured from its own cost bases states what they still account for as `cost_basis_balance` beside what the accounts hold as `balance_value`, and lists each basis and each account — the Hong Kong dollars above, agreeing at 5,500.00. A currency the bases cannot speak for states **`measured_from: gnucash_revaluation`** and none of those: no cost bases, no accounts, no `cost_basis_balance` and no `balance_value`, because a group with no basis behind it has nothing to put in them. It states the cost and the worth GnuCash's own subtraction used instead, so the items still come to the 605.60 the key states.
 
 So the line that identifies the case is `measured_from:`, not a disagreement a reader has to spot between two figures — those two figures are not on this page at all. Where you want them, `fx-balances` prints them: on this book its cost bases hold 3,480.00 USD while the accounts hold 7,480.00. [Q-044](issues/Q-044-state-a-realized-gain-with-no-took-the-residual-key-and-say-what-the-balancing-amount-is.md) says what that measurement can and cannot answer for.
 
-**`fx-balances --verify-costs` finds nothing here, and there is nothing for it to find.** No cost basis in this book has moved without a sale: every disposal gave the guid of the one it drew on, and the dollars the bases cannot speak for never had a cost to be misstated. Run on the book above it reports no finding and exits 0. What it cannot tell a reader is that a currency arrived uncosted, which is what `measured_from:` on the balance sheet is for.
+**`fx-balances --verify-costs` finds nothing here, and there is nothing for it to find.** No cost basis in this book has moved without a sale: every disposal stated the guid of the one it drew on, and the dollars the bases cannot speak for never had a cost to be misstated. Run on the book above it reports no finding and exits 0. What it cannot tell a reader is that a currency arrived uncosted, which is what `measured_from:` on the balance sheet is for.
 
 **This book's page also opens with the warning**, because it keeps `Expenses:Interest` in US dollars — a second thing gnucash-plaintext does not support, and one the example carries so that a reader meets it somewhere. The two are separate: `measured_from: gnucash_revaluation` is about dollars that arrived with no cost, and the warning is about an income or expense balance no one rate converts.
 
@@ -1437,7 +1437,7 @@ Sell some of them and the same cost basis answers the other half: the units leav
 
 ## What is not covered
 
-- **An income or expense account kept in another currency.** An expense is what it cost on the day it was incurred, and the account's balance is a sum of amounts from many days, each of those days having had a rate of its own. No one rate turns that sum into the book's own currency, so a statement converts it at the report date's rate and states the expense at a rate it was never incurred at — differently again on a page drawn a month later. `balance-sheet`, `income-statement` and `report` still draw the page, with a warning at the top listing each such account and saying that every figure those accounts reach can be wrong, and `--verify-integrity` reports the same accounts and exits 1. What the page gives a reader is the material to work the figure out: the account line states what the account holds in its own currency and the rate the page converted it at. Keep the account in the book's own currency, and record a payment made in another currency at what that currency cost on the day it was spent — which is the figure the cost basis it came out of gives up.
+- **An income or expense account kept in another currency.** An expense is what it cost on the day it was incurred, and the account's balance is a sum of amounts from many days, each of those days having had a rate of its own. No one rate turns that sum into the book's own currency, so a statement converts it at the report date's rate and states the expense at a rate it was never incurred at — differently again on a page drawn a month later. `balance-sheet`, `income-statement` and `report` still draw the page, with a warning at the top listing each such account and saying that every figure those accounts reach can be wrong, and `--verify-integrity` reports the same accounts and exits 1. What the page offers a reader is the material to work the figure out: the account line states what the account holds in its own currency and the rate the page converted it at. Keep the account in the book's own currency, and record a payment made in another currency at what that currency cost on the day it was spent — which is the cost drawn down from the cost basis it came out of.
 - **Booking a year-end retranslation into the accounts.** `balance-sheet` states what currency still held is worth against what it cost — that is `unrealized_gains_fx`, above — but it only states it. Nothing is written to the book, no transaction is made, and the income and expense accounts are untouched. Under IAS 21 and ASPE 1651 an exchange difference on a monetary item belongs in profit or loss, so a filer who wants it booked writes that entry themselves; until they do it is a figure on the sheet and no account holds it, which is what the key exists to say.
 - **A borrowing stated wholly in the foreign currency.** US dollars borrowed straight into a US dollar account carry no figure in the book's own currency for either side, so neither side opens a cost basis and neither the cost bases nor GnuCash can say what the debt has cost. Borrowing with Canadian dollars does open one, and is measured normally.
 - **A repayment written wholly in the foreign currency that realizes a difference.** Repaying a US dollar loan out of US dollars the book holds draws a cost basis down on each side, and where the debt cost 1.35 a dollar and the dollars paying it cost 1.30, the difference is realized. `$residual$` states it in the book's own currency, and a transaction with no split in that currency cannot, so `import` refuses it and says what the difference is. Write it in Canadian dollars, each US dollar split valued at what its cost basis cost, with a `$residual$` split. Where both sides cost the same a dollar nothing is realized, and the repayment is imported as written. `tests/fixtures/a_us_loan_repaid_in_a_transaction_stating_no_canadian_figure.txt` writes all three.

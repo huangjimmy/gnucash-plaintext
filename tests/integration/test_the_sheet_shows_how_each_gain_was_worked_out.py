@@ -94,7 +94,7 @@ def _partly_spent(runner, tmp_path):
 
     What those 1,000.00 cost is 189557/136 = 1393.8014…, a figure with a
     remainder — which is what the sub-cent case needs, and what a book whose
-    cost basis is untouched cannot give: an untouched basis cost exactly the
+    cost basis is untouched cannot produce: an untouched basis cost exactly the
     money it was bought for, and money has no remainder.
     """
     book = tmp_path / 'book.gnucash'
@@ -139,7 +139,7 @@ class TestTheWorkingAddsUpToTheKey:
         what lets one subtraction cover the whole block. A group measured from
         cost bases reaches `value` and `cost_value` by adding up the bases it
         lists; a group that cannot reach them that way says
-        `measured_from: gnucash_revaluation` and gives the cost and the worth
+        `measured_from: gnucash_revaluation` and states the cost and the worth
         GnuCash's own subtraction used. Either way the block's total is
         `value - cost_value` over every group — there is no separate fallback
         term added on the end, and a reader adds one column down the page.
@@ -250,8 +250,8 @@ class TestTheWorkingAddsUpToTheKey:
         working went unnoticed until a review read the two expressions.
 
         1,000.00 USD costing 189557/136 = 1393.8014… is worth 1386.466 at
-        1.386466. Rounding the terms gives 1386.47 − 1393.80 = −7.33; taking
-        the difference first gives −7.3354…, which rounds to −7.34. Both are
+        1.386466. Rounding the terms yields 1386.47 − 1393.80 = −7.33; taking
+        the difference first yields −7.3354…, which rounds to −7.34. Both are
         −7.33 now, one computation standing behind the key and the line.
         """
         runner = CliRunner()

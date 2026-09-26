@@ -1,7 +1,7 @@
 # The first disposal of a_usd_sale_spent_in_three_disposals_that_round_down.txt,
 # the 0.72 USD bank charge of 2026-08-13, restated at 1.02 for
 # `--strategy update`: 1.01 is its share of the cost rounded. Read as a new
-# transaction would be (Q-051), what it drew is given back and drawn again, so
+# transaction would be (Q-051), what it drew is put back and drawn again, so
 # on a book an earlier import left with its last disposal at its own share,
 # 3,802.81, it takes the last 0.72 of the cost basis, and what is left of the
 # cost is 1.02. The edit is accepted, and the book records the whole loss.

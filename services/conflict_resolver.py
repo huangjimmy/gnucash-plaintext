@@ -149,7 +149,7 @@ class ConflictResolver:
         strategy: ResolutionStrategy = ResolutionStrategy.SKIP
     ) -> Tuple[List[Transaction], List[ConflictInfo]]:
         """
-        Resolve a list of conflicts using the given strategy.
+        Resolve a list of conflicts using `strategy`.
 
         Args:
             conflicts: List of (existing, incoming) transaction pairs

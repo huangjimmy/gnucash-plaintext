@@ -12,7 +12,7 @@ and the transaction pass finds the account already there, so it has nothing to
 report. `Errors: 0`, exit 0, and a book holding an account that was refused.
 
 The same file without the flag says `Failed to create account …` and exits 1,
-which is the one file, two answers this tool is not supposed to give.
+which is one file with two answers, and this tool must never answer that way.
 """
 
 from pathlib import Path

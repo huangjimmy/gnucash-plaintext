@@ -3,11 +3,11 @@
 `export` without `--include-business-objects` writes the transactions alone,
 and an orphaned payment keeps `txn_type: P` and `owner: customer:C001` so a
 book read from the file can still say it is one and whose. Read into a fresh
-book, C001 is not there: the owner line gives an ID the book has no customer
+book, C001 is not there: the owner line states an ID the book has no customer
 for. Dropped for that, the payment was listed by no command, at exit 0, in the
 book whose whole purpose was to carry it.
 
-So it is listed under the ID the file gives.
+So it is listed under the ID the file states.
 """
 
 from click.testing import CliRunner
@@ -16,7 +16,7 @@ from cli.main import cli
 from tests.integration.test_find_orphan_payments import _make_orphan_invoice
 
 
-def test_it_is_listed_under_the_id_its_owner_line_gives(tmp_path):
+def test_it_is_listed_under_the_id_its_owner_line_states(tmp_path):
     runner = CliRunner()
     book = _make_orphan_invoice(runner, tmp_path, 'q014_invoice_posted_paid',
                                 'INV-001', 'unpost-invoices')

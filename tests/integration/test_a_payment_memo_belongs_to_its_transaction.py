@@ -620,7 +620,7 @@ class TestTheRunThatAddsThePayment:
 
         Written to the bank split instead, this run's stated memo sat where
         nothing reads it and the next export printed the wording the feed
-        had given the transaction, contradicting the file just imported.
+        had written on the transaction, contradicting the file just imported.
         """
         book, _edited, _first = self._added(tmp_path)
 
@@ -788,9 +788,9 @@ class TestALedgerAnEarlierReleaseWrote:
 
     def test_and_says_so_rather_than_dropping_the_line_in_silence(self,
                                                                   tmp_path):
-        """The one wording a person cannot give a settling split.
+        """The one wording a person cannot write on a settling split.
 
-        A block whose memo is what the file already gives the bank split is
+        A block whose memo is what the file already writes on the bank split is
         read as a ledger an earlier release wrote, so nothing is written —
         and a reader who meant it got `unchanged` with no word said, which
         is the failure the rest of this reading exists to end. The remedy
@@ -1068,7 +1068,7 @@ class TestASplitTheFileDoesNotState:
         """
         book = _book(tmp_path)
         # The posting's own split, and the payment's — which `ApplyPayment`
-        # gave the same memo as the bank side.
+        # wrote with the same memo as the bank side.
         assert _receivable_memos(book) == ['INV-MEMO-001', 'Original memo'], \
             _receivable_memos(book)
 

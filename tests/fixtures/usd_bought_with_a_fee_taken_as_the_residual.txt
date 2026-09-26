@@ -2,7 +2,7 @@
 # out of Chequing, the 3.00 between them on a `$residual$` split. In a book
 # that keeps no cost bases a realized difference is what the file states, so
 # the 3.00 is stated as realized, whichever way the USD split moves; a file
-# meaning a bank charge gives it an amount of its own.
+# meaning a bank charge states it as an amount of its own.
 #
 # Verified by tests/integration/test_a_book_can_keep_no_cost_bases.py.
 2026-08-25 * "Dollars bought"

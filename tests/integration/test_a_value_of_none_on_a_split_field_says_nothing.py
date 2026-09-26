@@ -51,7 +51,7 @@ def test_an_update_keeps_what_the_book_holds(tmp_path):
     assert 'memo:"first"' in exported, exported
 
 
-def test_a_new_transaction_is_given_none(tmp_path):
+def test_a_new_transaction_is_stored_with_none(tmp_path):
     book = tmp_path / 'book.gnucash'
 
     result = CliRunner().invoke(cli, ['import', '--new', str(book),

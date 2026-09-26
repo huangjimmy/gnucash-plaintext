@@ -1,9 +1,9 @@
 """A note the importer cannot write does not stop the import.
 
 The importer writes a note to stderr where it does something a reader should
-know about and nothing is wrong: a printed page read into another book gives a
+know about and nothing is wrong: a printed page read into another book states a
 `posted_txn_guid:` that matches no transaction there, so the posting is made
-with a guid GnuCash gives it. Where stderr is a pipe nobody reads any more —
+with a guid GnuCash assigns it. Where stderr is a pipe nobody reads any more —
 `gnucash-plaintext import … 2>&1 | head -1` after `head` has exited — writing
 the note raises `BrokenPipeError`. Nothing else on a successful import goes to
 stderr, so the note is the only write that can fail, and losing it must not

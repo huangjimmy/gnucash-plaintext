@@ -1,14 +1,14 @@
 # A hotel bill of 45.00 USD paid out of the CAD bank for 63.23 CAD.
 #
 # The USD split states both amounts, 45.00 USD and a value of 63.23 CAD, and
-# `share_price: "6323/4500"`, the price those two give. The tests replace that
-# price with one the two amounts do not give. An expense holds no cost basis,
+# `share_price: "6323/4500"`, the value divided by the amount. The tests replace
+# that price with one other than the value divided by the amount. An expense holds no cost basis,
 # so the transaction can be read again with `--strategy update`.
 #
 # What this fixture produces: one CAD transaction, Expenses:Travel USD
 # +45.00 USD valued 63.23 CAD against Assets:Bank -63.23 CAD.
 #
-# Verified by tests/integration/test_a_price_beside_two_amounts_is_the_one_they_give.py.
+# Verified by tests/integration/test_a_price_beside_two_amounts_is_the_one_they_make.py.
 2026-01-01 open Assets
 	type: Asset
 	commodity.namespace: "CURRENCY"

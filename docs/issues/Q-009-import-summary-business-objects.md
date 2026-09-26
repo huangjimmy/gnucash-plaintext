@@ -1,6 +1,6 @@
 ---
 id: Q-009
-title: Business-object import is silent — re-import gives no signal of skip vs. create vs. update
+title: Business-object import is silent — re-import does not say whether it skipped, created or updated
 category: quality
 severity: medium
 status: closed
@@ -16,7 +16,7 @@ thing on re-import:
 | customer / vendor | update mutable fields in place |
 | taxtable / invoice / bill | skip (no mutation) |
 
-…but the CLI gives **zero signal** about which path was taken. A user
+…but the CLI says **nothing** about which path was taken. A user
 running `gnucash-plaintext import …` against an already-populated book
 sees:
 
@@ -32,7 +32,7 @@ Reported by another user via private review:
 > stdout: byte-identical
 > stderr: byte-identical
 >
-> The CLI gives zero signal in stdout/stderr. The size delta is the
+> The CLI says nothing about it on stdout or stderr. The size delta is the
 > only reliable post-hoc signal we have without making an extra query.
 
 That's a UX bug. A user shouldn't have to diff file sizes to know
@@ -57,7 +57,7 @@ invoice "INV-002": created
 bill "BILL-001": skipped (already exists)
 ```
 
-Per-directive lines give exact detail without the user having to
+A line per directive states exactly what happened without the user having to
 guess. They're noisier on large imports but match the format users
 already know from delete/archive.
 

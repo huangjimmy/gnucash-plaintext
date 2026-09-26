@@ -1,6 +1,6 @@
 # INV-USD-001 of `fx_usd_invoice_cad_income.txt`, paid 100.00 USD from the CAD bank.
 #
-# The invoice is booked at 1.40 CAD/USD, and the bank gives 137.00 CAD for the
+# The invoice is booked at 1.40 CAD/USD, and the bank credits 137.00 CAD for the
 # 100.00 USD, so the settlement converts the whole receivable and draws 100.00
 # USD out of the posting split's cost basis. The 3.00 CAD between the two is
 # the `$residual$` line.

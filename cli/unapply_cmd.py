@@ -4,7 +4,7 @@
 
 Peels a payment off a still-**posted** invoice/bill: the payment's AR/AP split
 is detached from the record's lot (so the invoice returns to Outstanding, or
-partially-paid if other payments remain) and given the account `--to` states. The
+partially-paid if other payments remain) and moved to the account `--to` states. The
 invoice or bill itself is untouched and stays posted; the bank/income
 transaction is never deleted — only the payment split's account changes, and its
 amount with it where `--to` is kept in another currency. Pass `--fx-rates` for

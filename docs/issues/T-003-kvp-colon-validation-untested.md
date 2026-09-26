@@ -25,8 +25,17 @@ so a future refactor could silently break either invariant.
 - `infrastructure/gnucash/kvp.py`
 - `tests/unit/services/test_kvp_metadata.py`
 
-## Suggested fix
+## Resolution
 
-Extend `tests/unit/services/test_kvp_metadata.py` with a `TestColonValidation`
-class covering the four cases above. The existing mock-based test infrastructure
-in that file should be sufficient without a real GnuCash session.
+The cases are tested against real GnuCash books rather than in a
+`TestColonValidation` class of `tests/unit/services/test_kvp_metadata.py`:
+
+- writing a key containing `:` raises `ValueError`:
+  `tests/integration/test_kvp_all_objects.py::TestCustomerKvp::test_colon_key_raises`;
+- a key containing `:` that another tool wrote into a book is dropped on export
+  rather than written:
+  `tests/integration/test_metadata_written_by_another_tool.py::…::test_a_key_with_a_colon_is_dropped_on_the_way_out`;
+- a valid key reads back unchanged: the `test_roundtrip` tests of
+  `tests/integration/test_kvp_all_objects.py`;
+- `set-book-key` refuses a key containing `:`:
+  `tests/integration/test_cli_bad_arguments_are_refused.py::TestSetBookKey::test_a_key_with_a_colon_is_refused`.

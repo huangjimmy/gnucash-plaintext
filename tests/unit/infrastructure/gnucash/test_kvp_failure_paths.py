@@ -53,7 +53,7 @@ class TestWithoutLibgobject:
 
     def test_writing_a_book_option_directly_says_what_is_missing(self, monkeypatch):
         """The 3.4 route for a book option, which `write_book_string_option`
-        lets out as the reason a command gives."""
+        lets out as the reason a command prints."""
         monkeypatch.setattr(kvp, '_load_gobject', lambda: None)
 
         with pytest.raises(RuntimeError, match='libgobject-2.0 is not loadable'):

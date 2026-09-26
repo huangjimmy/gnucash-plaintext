@@ -7,7 +7,7 @@
 # test fills in with that split's guid, valued at what it costs, 1.00. The one
 # `$residual$` split states what the collection and the fee realize, -24.76.
 # Imported with `--strategy update`, beside INV-USD-1's `payment:` block
-# giving this transaction and its receivable split.
+# stating this transaction and its receivable split.
 #
 # The new shape is the invoice's collection, which establishes no cost basis:
 # the dollars' cost is the invoice's.

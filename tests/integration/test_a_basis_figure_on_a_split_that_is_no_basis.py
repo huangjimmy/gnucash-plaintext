@@ -192,7 +192,7 @@ class TestABalanceAFileStatesOnASplitThatSpends:
     rolls the same file back.
 
     The split also says which cost basis its 0.72 came out of, because Q-045
-    refuses a disposal that does not, and that is the reason the report gives
+    refuses a disposal that does not, and that is the reason the report prints
     for the figure being unreadable: a split that picks another's cost basis is
     the disposal, not the source. The other reason — a split that lowers this
     account's currency rather than raising it — is what a split spending on a

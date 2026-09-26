@@ -4,8 +4,8 @@
 # `$residual$` resolves to the negation of what the other splits come to, so a
 # file that works the figure out itself writes the same transaction: the same
 # accounts, the same amounts, the same values. What it must state as well is
-# which split is the difference, because a balanced transaction gives every one
-# of its splits that same arithmetic — the gain is the negation of the other
+# which split is the difference, because a balanced transaction applies that
+# same arithmetic to every one of its splits — the gain is the negation of the other
 # two, and so is the bank line, and so is the currency line. Nothing in the
 # numbers says which the author meant.
 #

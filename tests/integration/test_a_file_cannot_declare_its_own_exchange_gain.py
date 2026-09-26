@@ -48,7 +48,7 @@ AS_OF = '2026-12-31'
 def _filled(runner, book, fixture):
     """The fixture's text, with the cost basis guid filled in where it asks.
 
-    A guid is minted fresh on each import, so a fixture that gives one carries
+    A guid is minted fresh on each import, so a fixture that states one carries
     a placeholder, and the guid is read from `fx-balances` here — the way every
     other disposal fixture in this suite is applied.
     """
@@ -114,7 +114,7 @@ class TestASplitNoDifferenceCanLandOn:
 
     The sale made 100.00 and the bank received 1,400.00. One split claims the
     residual, so the one-claim rule has nothing to refuse, and the transaction
-    is a disposal in the book's own currency giving its cost basis. Only the
+    is a disposal in the book's own currency stating its cost basis. Only the
     account turns it away — counted, the page would state the money the bank
     received as the gain.
     """

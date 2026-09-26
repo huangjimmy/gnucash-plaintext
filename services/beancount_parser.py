@@ -183,7 +183,7 @@ def _figure(raw: str, what: str, posting_line: str, date_str: str) -> Fraction:
 
 
 # What stands where a transaction's flag goes. `*` is settled and `!` is
-# flagged-for-review, and beancount's own documentation gives `txn` as the
+# flagged-for-review, and beancount's own documentation lists `txn` as the
 # third spelling — `2014-05-05 txn "Cafe Mogador" "Lamb tagine"`. Recognised on
 # `[*!]` alone, a `txn` entry matched nothing and was skipped in silence with
 # its metadata and its postings; its accounts never reached the used-account

@@ -4,7 +4,7 @@
 # cost, used at 1.40, realizes 50.00. A's 500.00 owed leaves the owed side,
 # drawn from A's cost basis at 1.35: a debt of 675.00 paid off with dollars
 # worth 700.00, which realizes −25.00. Each split is valued at the cost of the
-# cost basis it gives, and `$residual$` takes the 25.00 between them.
+# cost basis it states, and `$residual$` takes the 25.00 between them.
 #
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes.
 #

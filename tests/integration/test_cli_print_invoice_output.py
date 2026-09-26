@@ -171,7 +171,7 @@ class TestSelection:
 
     def test_a_date_range_alone_matching_nothing_reports_only_the_dates(
             self, book, tmp_path):
-        """No selector was given, so none is named — the criteria list is built
+        """No selector was passed, so none is named — the criteria list is built
         from what the reader actually passed."""
         result = CliRunner().invoke(cli, [
             'print-invoice', book, '--from', '2020-01-01', '--to', '2020-12-31',

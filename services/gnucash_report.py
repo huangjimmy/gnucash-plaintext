@@ -482,7 +482,7 @@ def _the_report_this_book_prints_with(book):
     The name is the reader's own label for it — what the chooser in File →
     Properties showed them — and it is what anything said about this choice
     quotes, the guid being exact and telling them nothing. GnuCash writes
-    both; a book carrying only the guid gives `None` for the name.
+    both; a book carrying only the guid returns `None` for the name.
 
     GnuCash keeps this in File → Properties → Business and reads it when its
     own Print Invoice button draws a page — including a configuration the
@@ -490,7 +490,7 @@ def _the_report_this_book_prints_with(book):
     prints with. Asking the book is why nothing here has to be told a report
     on the command line.
 
-    `None` for a book that has never been given one; GnuCash then draws with
+    `None` for a book that has never had one set; GnuCash then draws with
     its own built-in default, and so does this.
 
     A guid the build has no report for is **not** an error here — see
@@ -569,7 +569,7 @@ def render_page_html(session, guid: str, company_extra='',
     """
     if session is None:
         raise PageNotRenderedError(
-            'no open session was given, so GnuCash cannot be told which book '
+            'no open session was passed, so GnuCash cannot be told which book '
             'to draw from')
     # An empty string is nothing named, not a report called "". `--report
     # "$REPORT"` with the variable unset is how a shell script arrives here,
@@ -588,7 +588,7 @@ def render_page_html(session, guid: str, company_extra='',
     # Printable Invoice with both of its guards switched off.
     if report_file and not report:
         raise PageNotRenderedError(
-            'a report file was given with no report named, so nothing would '
+            'a report file was passed without the report\'s name, so nothing would '
             'have drawn the page but GnuCash\'s default — name the report the '
             'file defines')
     # Which report, when the caller has not said: the book's own answer, from
@@ -616,7 +616,7 @@ def render_page_html(session, guid: str, company_extra='',
     was = None
     try:
         # Inside the `try`, for the reason the comment above `_make_current`
-        # gives: anything that raises between setting the current session and
+        # states: anything that raises between setting the current session and
         # entering this block leaves the global naming a session the caller is
         # about to end, and skips the restore below. Every date on the page is
         # written the book's way where GnuCash has a style for it, and a
@@ -910,11 +910,11 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     # loaded. The two are the same through either command — one `--report-file`
     # per invocation, one invocation per process — and differ only for a
     # library caller that loads file A, then names A's report while passing
-    # file B: A's report then reads as GnuCash's and is given its treatment.
+    # file B: A's report then reads as GnuCash's and is treated as GnuCash's.
     # Keyed per call rather than accumulated because the question each guard
-    # asks is "did the file this run was given register this?", and a union
+    # asks is "did the file passed to this run register this?", and a union
     # over the process would answer a different one as the session went on.
-    # `from_this_file` answers "did the file this run was given register
+    # `from_this_file` answers "did the file passed to this run register
     # anything?", which is what the refusal below leans on. `readers_own`
     # answers "is this page one a reader wrote?", which is a wider question —
     # see the union below.
@@ -957,7 +957,7 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     # path's. The same report reached by a second path — a copy, a symlink, a
     # relative spelling — registers nothing the second time, because GnuCash
     # refuses the duplicate guid; the difference across *that* load is empty,
-    # and the reader's own page would then read as GnuCash's and be given its
+    # and the reader's own page would then read as GnuCash's and get GnuCash's
     # treatment, warned about by name for lacking a block nobody asked its
     # author for. One `--report-file` per process makes that unreachable from
     # either command, and a library caller or a test can do it in one line.
@@ -1211,7 +1211,7 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
         # README says to start from GnuCash's `invoice.scm`, which carries the
         # Printable Invoice's guid, and GnuCash declines a definition that
         # duplicates one already registered — so the reader's report is absent
-        # and the name they gave it matches nothing. Left to the Scheme's own
+        # and the name they chose for it matches nothing. Left to the Scheme's own
         # sentence they were told their English name might be a translation,
         # which sends them to look at their locale for a problem that is in
         # their `.scm`.
@@ -1539,7 +1539,7 @@ def _report_id_expression(report, from_this_file) -> str:
         # a raw `wrong-type-arg` naming none of what the reader typed.
         #
         # Every match collected and more than one refused, exactly as the name
-        # branch does, and for the reason the two comments above give: two
+        # branch does, and for the reason the two comments above state: two
         # registry entries can differ only in the case of their guid, because
         # the registry compares with `equal?` and this lookup does not. Kept
         # to the first the hash yielded, `--report 5123a759…` beside a `.scm`
@@ -1549,14 +1549,14 @@ def _report_id_expression(report, from_this_file) -> str:
         # saying which.
         # Both sides, not just the one that was typed. The registry keeps an
         # id exactly as the report registered it — dashes as much as case,
-        # for the same `equal?` reason `_registered_ids` gives — so a `.scm`
+        # for the same `equal?` reason `_registered_ids` states — so a `.scm`
         # saying `'report-guid "7cd07cd0-7cd0-…"` was unnameable by *either*
         # spelling: dashed, the comparison saw a stripped argument against a
         # dashed key; undashed, a stripped key was never made. Both refused,
         # and with the sentence about translated names, for a string plainly
         # a guid.
         # Compared stripped, quoted as typed. Every other refusal on this path
-        # names what the reader wrote, and a message about the guid they gave
+        # quotes what the reader wrote, and a message about the guid they wrote
         # should not show them a spelling they did not use.
         return _one_matching_template(
             f'(and (string? id)'
@@ -1639,9 +1639,9 @@ def _guid_collision_remedy(from_this_file, undashed: str) -> str:
     And the *fix* is named beside the two escapes, because neither is one. A
     name gets today's page printed and leaves the guid ambiguous for
     every run after it; not loading the file throws the report away. What
-    ends it is the reader giving their own report a guid of its own — always
+    ends it is the reader setting a guid of its own in their report — always
     possible here by construction, since every guid named is one their `.scm`
-    chose. `_render` gives the same advice on the sibling refusal, where a
+    chose. `_render` offers the same advice on the sibling refusal, where a
     duplicate guid registered nothing at all.
 
     The sentence built when nothing of the file's collides is not reachable
@@ -1678,7 +1678,7 @@ def _one_matching_template(test: str, what: str, wanted, remedy: str) -> str:
     which drew.
 
     `remedy` is what to do about it, and the two branches do not share one.
-    A name that two reports answer to is escaped by giving a guid instead.
+    A name that two reports answer to is escaped by stating a guid instead.
     A *guid* that two answer to is not escaped that way: they collided
     because they are equal once case and dashes are set aside, so every
     spelling the reader could type — including either id quoted back at them
@@ -1865,7 +1865,7 @@ def _registered_ids(run, work: Path) -> set:
 
     Taken either side of a `(load …)` so the guids that file registered are
     the difference — known rather than guessed. Through a file for the reason
-    `_registered` gives, one id per line because a guid contains no newline.
+    `_registered` states, one id per line because a guid contains no newline.
 
     Not lowercased, unlike everything that *compares* a guid here: the
     registry is keyed by `equal?`, so `5123A759…` and `5123a759…` are two

@@ -12,7 +12,7 @@ find which — if any — the totals follow:
 * **cash** — asset and liability accounts only, excluding receivable/payable
 * **owed-in** — cash, plus receivable/payable counted in their normal
   direction only (what an invoice owes the book, not what the book owes back)
-* **in-less-sold** — what every cost basis brought in, less every split giving one
+* **in-less-sold** — what every cost basis brought in, less every split that draws on one
 
 Measured:
 

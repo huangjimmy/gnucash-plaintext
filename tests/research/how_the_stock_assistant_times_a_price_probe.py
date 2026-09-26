@@ -1,4 +1,4 @@
-"""Probe: what time the stock transaction assistant gives the price it records.
+"""Probe: what time the stock transaction assistant stores on the price it records.
 
 Drives gnc_stock_transaction_assistant under Xvfb, page by page, the way a
 person fills it in: the first transaction type offered, 2026-02-09 typed into

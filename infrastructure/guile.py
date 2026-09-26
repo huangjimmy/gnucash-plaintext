@@ -68,7 +68,7 @@ def mapped_libguile():
 
     Read from `/proc/self/maps`. It answers None before the first render —
     importing the GnuCash bindings maps no libguile, measured — and afterwards
-    gives the file the soname below resolved to, which is how a test sees that
+    reports the file the soname below resolved to, which is how a test sees that
     the library loaded is the one GnuCash is linked against.
     """
     lines = Path('/proc/self/maps').read_text().splitlines()
@@ -105,7 +105,7 @@ def load_guile():
     """The interpreter, initialised, with its signatures declared.
 
     Cached: `scm_init_guile` is idempotent per thread, but the handle is
-    process-wide and a second `CDLL` would give a second set of signatures.
+    process-wide and a second `CDLL` would create a second set of signatures.
     """
     global _loaded
     if _loaded is not None:

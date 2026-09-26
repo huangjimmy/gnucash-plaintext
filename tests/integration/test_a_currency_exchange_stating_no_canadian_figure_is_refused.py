@@ -27,7 +27,7 @@ def test_the_exchange_is_refused_and_says_how_to_write_it(tmp_path):
             '7800.00 HKD, and is written wholly in HKD, so no split in it can '
             'state what the exchange realized, and the HKD arrive with no cost '
             'to open a cost basis at. Write it in CAD, each split valued at '
-            'what it is worth in CAD, and give the difference to a '
+            'what it is worth in CAD, and put the difference on a '
             '`$residual$` split.') in done.output, done.output
 
 

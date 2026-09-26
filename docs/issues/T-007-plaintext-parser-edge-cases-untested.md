@@ -28,8 +28,11 @@ following edge cases are absent:
 - `services/plaintext_parser.py`
 - `tests/unit/services/test_plaintext_parser.py`
 
-## Suggested fix
+## Resolution
 
-Add a parametrised `test_parser_edge_cases` class in `test_plaintext_parser.py`.
-Each case passes a crafted input string and asserts either the correct parsed
-output or a specific `ParseError` with a helpful message.
+`TestParserEdgeCases` in `tests/unit/services/test_plaintext_parser.py` covers
+the cases, one test each: `test_cjk_account_name_parses_correctly`,
+`test_transaction_with_no_splits_creates_directive`,
+`test_duplicate_commodity_last_one_wins`,
+`test_metadata_with_empty_value_parses_as_empty_string` and
+`test_metadata_unclosed_quote_treated_as_literal`.

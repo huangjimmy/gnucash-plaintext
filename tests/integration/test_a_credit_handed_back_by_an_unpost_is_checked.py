@@ -103,7 +103,7 @@ def _a_credit_handed_back(runner, tmp_path):
     """
     book, credit = _a_cad_paid_credit(runner, tmp_path)
 
-    # The credit is given by guid, so this tool spends it. Left to
+    # The credit is stated by guid, so this tool spends it. Left to
     # `auto_apply_credit`, GnuCash 3.8, 4.4 and 4.13 rewrite the credit split's
     # value at par and add a balancing split — CLAUDE.md finding 19 — and the
     # book under test would then be a different book on those builds.

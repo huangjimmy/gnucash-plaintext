@@ -167,7 +167,7 @@ class TestEveryDollarStillHeld:
     This is the book GnuCash cannot report on at all. Its balancing amount is
     0.00 at every price, because the invoice and its collection are both stated
     in US dollars and their split values sum to exactly what the account holds.
-    What makes this sheet balance is the figure the book's own cost basis gives.
+    What makes this sheet balance is the figure the book's own cost basis holds.
     """
 
     def _pages(self, tmp_path):
@@ -205,7 +205,7 @@ class TestEveryDollarStillHeld:
         assert block_total_of(higher, 'gnucash_balancing_amount') == 0
         assert block_total_of(below, 'gnucash_balancing_amount') == 0
 
-    def test_the_sheet_balances_on_what_the_cost_basis_gives(self, tmp_path):
+    def test_the_sheet_balances_on_what_the_cost_basis_holds(self, tmp_path):
         page, _higher, _below = self._pages(tmp_path)
 
         assert key_of(page, 'retained_earnings') == '3791.14 CAD'
@@ -245,7 +245,7 @@ class TestEveryDollarSpent:
         assert key_of(page, 'unrealized_gains_fx') == '0.00 CAD'
         assert key_of(page, 'total_unrealized_gains') == '0.00 CAD'
 
-    def test_gnucash_balancing_amount_is_stated_as_gnucash_gives_it(self, tmp_path):
+    def test_gnucash_balancing_amount_is_stated_as_gnucash_computes_it(self, tmp_path):
         """The dollars left at the rate the sheet is drawn at, so it comes to the realized figure.
 
         Carried across at GnuCash's own sign, so it can be found on GnuCash's
@@ -288,13 +288,13 @@ class TestAThousandDollarsKeptBack:
         assert key_of(page, 'total_unrealized_gains') == '-7.30 CAD'
 
     def test_the_unrealized_loss_is_money_not_a_rate(self, tmp_path):
-        """7.30 at the cent, never the 993/136 the revaluation gives before it is an amount."""
+        """7.30 at the cent, never the 993/136 the revaluation yields before it is an amount."""
         page = self._page(tmp_path)
 
         assert '/' not in key_of(page, 'unrealized_gains_fx')
         assert '/' not in key_of(page, 'total_liabilities_and_equity')
 
-    def test_gnucash_balancing_amount_is_stated_as_gnucash_gives_it(self, tmp_path):
+    def test_gnucash_balancing_amount_is_stated_as_gnucash_computes_it(self, tmp_path):
         page = self._page(tmp_path)
 
         assert block_total_of(page, 'gnucash_balancing_amount') == Fraction('12.56')
@@ -400,7 +400,7 @@ class TestEveryDollarSpentPricedFarBelowWhatTheyCost:
         assert key_of(page, 'unrealized_gains_fx') == '0.00 CAD'
 
     def test_the_balancing_amount_changes_sign_with_the_price(self, tmp_path):
-        """3,791.14 of recorded cost against 2,720.00 USD at 1.2, where 1.45 gave −152.86."""
+        """3,791.14 of recorded cost against 2,720.00 USD at 1.2, where 1.45 made it −152.86."""
         page = self._page(tmp_path)
 
         assert block_total_of(page, 'gnucash_balancing_amount') == Fraction('527.14')
@@ -432,7 +432,7 @@ class TestAThousandKeptBackPricedFarBelowWhatTheyCost:
         assert key_of(page, 'unrealized_gains_fx') == '-193.80 CAD'
 
     def test_the_balancing_amount_changes_sign_with_the_price(self, tmp_path):
-        """2,397.34 of recorded cost against 1,720.00 USD at 1.2, where 1.45 gave −96.66."""
+        """2,397.34 of recorded cost against 1,720.00 USD at 1.2, where 1.45 made it −96.66."""
         page = self._page(tmp_path)
 
         assert block_total_of(page, 'gnucash_balancing_amount') == Fraction('333.34')
@@ -454,7 +454,7 @@ class TestTwoForeignCurrenciesAtOnce:
     pass all of them. This one cannot be passed that way.
 
     The Hong Kong dollar is pegged to the US dollar between 7.75 and 7.85, and
-    with the US dollar at 1.30 the peg gives exact rationals:
+    with the US dollar at 1.30 the peg yields exact rationals:
 
         peg 7.80   1.30/7.80 = 1/6      what the 146,010.00 HKD was earned at
         peg 7.75   1.30/7.75 = 26/155

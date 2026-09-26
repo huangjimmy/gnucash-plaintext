@@ -71,7 +71,7 @@ def test_the_custom_key_is_no_difference_to_the_page(tmp_path):
     """The key is the reader's own note; the statement must not turn on it.
 
     Compared with the guids masked, because the two books are imported
-    separately and a guid is minted fresh each time. The page gives the guid of
+    separately and a guid is minted fresh each time. The page prints the guid of
     every cost basis and of every split behind GnuCash's own amount, so two
     books built from the same ledger differ there and nowhere else — which is
     the whole of what this has to hold.

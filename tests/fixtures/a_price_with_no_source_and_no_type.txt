@@ -1,6 +1,6 @@
 # A EUR rate in CAD with no `source:` and no `type:` line.
 #
-# gnucash-plaintext gives a price no source of its own, so the price keeps
+# gnucash-plaintext sets no source of its own on a price, so the price keeps
 # GnuCash's default: source `invalid`, and no type.
 #
 # What this fixture produces: that price, created.

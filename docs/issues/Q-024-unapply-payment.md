@@ -26,7 +26,7 @@ A new `unapply-payment` CLI command, sibling to `unpost-invoices`:
 gnucash-plaintext unapply-payment <book> <id> --to <account> [--txn <guid> | --all] [--bill] [--by-guid]
 ```
 
-It detaches a payment's AR/AP split from the record's posted lot (`gnc_lot_remove_split`, probed safe on all 10 GnuCash builds) so the lot reopens — invoice returns to Outstanding, or partially-paid if other payments remain — and gives the payment split the account `--to` states (`xaccSplitSetAccount`; the amount is restated for that account where it is kept in another currency, and the split's *value* is untouched, so the transaction stays balanced). The record stays posted; the bank/income transaction is never deleted.
+It detaches a payment's AR/AP split from the record's posted lot (`gnc_lot_remove_split`, probed safe on all 10 GnuCash builds) so the lot reopens — invoice returns to Outstanding, or partially-paid if other payments remain — and moves the payment split to the account `--to` states (`xaccSplitSetAccount`; the amount is restated for that account where it is kept in another currency, and the split's *value* is untouched, so the transaction stays balanced). The record stays posted; the bank/income transaction is never deleted.
 
 Key decisions:
 

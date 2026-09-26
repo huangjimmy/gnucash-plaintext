@@ -6,7 +6,7 @@ posting split, the cost basis that prices the receivable. Measured on 5.10:
 
 - **with 40.00 USD already sold against it**, by a sale forced past the rule
   that an uncollected receivable holds no currency, 60.00 is left, and the
-  payment is refused, giving both figures;
+  payment is refused, and the refusal states both figures;
 - **with no balance recorded**, as on an invoice GnuCash posted itself, the
   payment is refused, and stating `cost_basis_balance:` on the posting split
   with `--strategy update`, as the refusal says to, lets the same payment
@@ -60,7 +60,7 @@ def _pay(book):
     return _run('import', book, PAID, '--include-business-objects', '--fx-rates', RATES)
 
 
-def test_too_little_left_is_refused_giving_both_figures(tmp_path):
+def test_too_little_left_is_refused_stating_both_figures(tmp_path):
     book = _a_book(tmp_path)
     _, basis = _the_posting_block(book, tmp_path)
     sold = tmp_path / 'sold.txt'

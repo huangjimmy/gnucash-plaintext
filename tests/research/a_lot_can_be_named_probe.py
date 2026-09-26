@@ -1,4 +1,4 @@
-"""Can a lot be found by its guid, and can a lot be given one?
+"""Can a lot be found by its guid, and can a guid of our choosing be set on a lot?
 
 A split says whose credit it is with `lot_owner:`, and an owner may hold more
 than one credit — so which lot a split joins is decided by the import, not by

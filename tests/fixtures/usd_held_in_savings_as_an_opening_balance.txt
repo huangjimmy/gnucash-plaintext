@@ -4,7 +4,7 @@
 # a_usd_invoice_and_bill_for_statement_lines_on_a_holding_account.txt.
 #
 # The value is what says what the dollars cost, so the opening balance opens a
-# cost basis of 3,000.00 USD at 1.35, and whatever later spends them gives it,
+# cost basis of 3,000.00 USD at 1.35, and whatever later spends them states it,
 # as a spend of dollars bought would. A book need not be imported from the
 # day its currency arrived.
 #

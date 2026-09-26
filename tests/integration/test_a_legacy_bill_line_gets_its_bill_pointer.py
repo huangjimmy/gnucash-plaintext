@@ -158,7 +158,7 @@ class TestABookWrittenBeforeVendorsWereWrappedAsBills:
         assert included is False, included
         assert len(lines) == 1, lines
 
-    def test_importing_its_ledger_gives_the_line_its_pointer(
+    def test_importing_its_ledger_sets_the_lines_pointer(
             self, a_book_written_the_old_way, tmp_path):
         ledger = tmp_path / 'bill.txt'
         ledger.write_text(LEDGER, encoding='utf-8')

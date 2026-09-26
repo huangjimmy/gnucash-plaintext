@@ -277,7 +277,7 @@ class TestImportBeancountCommand:
 
         A failed run now removes the book it created, so that a retry is not
         blocked by a file the reader never made. A dry run creates nothing —
-        the path it is given may be somebody's ledger, and the refusal must
+        the path it is passed may be somebody's ledger, and the refusal must
         not go looking for it. Pointed at a book that does not exist, the
         removal is indistinguishable from a no-op; this points it at one that
         does.

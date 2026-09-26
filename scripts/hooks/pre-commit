@@ -14,7 +14,7 @@
 # The independent AI review runs in the commit-msg hook, not here. Git runs this
 # hook before it reads the commit message, so a review started from here was
 # handed none — every review this hook ran saw "[No commit message provided]"
-# in place of the message. The commit-msg hook is given the message file, and
+# in place of the message. The commit-msg hook is passed the message file, and
 # for a `git commit` git runs it only once this hook has passed, so the review
 # still costs nothing on a commit the checks above refuse. A merge runs that
 # hook without this one, and is not reviewed there.
@@ -75,7 +75,7 @@ else
         # The directory is emptied first because what is in it outlives a run:
         # data from a tree that has since changed reports a figure for code that
         # no longer exists, and a `.partial-sweep` file left by a failed
-        # ./scripts/coverage.sh would make the gate below refuse to give a
+        # ./scripts/coverage.sh would make the gate below refuse to reach a
         # verdict at all.
         rm -rf .coverage-data
         if ! TEST_OUTPUT=$(GNC_COVERAGE=1 GNC_COVERAGE_DIR="$(pwd)/.coverage-data" \

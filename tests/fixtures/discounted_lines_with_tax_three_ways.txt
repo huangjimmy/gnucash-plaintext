@@ -148,8 +148,8 @@ invoice "INV-ONE-ACCOUNT-TWICE"
 
 # Two lines whose tax splits evenly between two accounts and lands on a half
 # cent each way. Per line, 1.10 at 5% + 5% is 0.055 to each account — so a
-# page that rounds each line's own breakdown gives one account 0.06 and the
-# other 0.05, twice over, and shows 0.12 against 0.10. The book rounds each
+# page that rounds each line's own breakdown puts 0.06 on one account and 0.05
+# on the other, twice over, and shows 0.12 against 0.10. The book rounds each
 # account once across the invoice: 0.11 and 0.11, which is what its splits
 # hold and what the page has to state.
 taxtable "TWO EVEN RATES"

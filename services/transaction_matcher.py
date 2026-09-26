@@ -304,7 +304,7 @@ class TransactionMatcher:
         owner: Optional[str] = None,
     ) -> bool:
         """
-        Check if any transaction in the list has the given signature.
+        Check if any transaction in the list has the signature these arguments make.
 
         Convenience method for quick duplicate checks without creating GnuCash
         objects.

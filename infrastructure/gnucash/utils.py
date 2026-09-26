@@ -480,7 +480,7 @@ def unescape_string(s: str) -> str:
 
     One pass rather than a chain of `replace` calls, because a chain stops
     being right as soon as there is more than one escape: `C:\\name`
-    unescaped by `\\`→`\` and then `\n`→newline gives `C:` and a newline,
+    unescaped by `\\`→`\` and then `\n`→newline becomes `C:` and a newline,
     having read as an escape a backslash that was already part of the value.
     Scanning left to right, a backslash consumes exactly the character after
     it and no character can be read twice.
@@ -537,7 +537,7 @@ class DecimalAsWritten(float):
     has to reach the reader.
 
     So the digits stay on the value, as they do on `NumberAsWritten`: this is a
-    `float` to anything that asks for one, and `str()` and `repr()` give back
+    `float` to anything that asks for one, and `str()` and `repr()` return
     the text, which `Fraction` reads exactly.
     """
 

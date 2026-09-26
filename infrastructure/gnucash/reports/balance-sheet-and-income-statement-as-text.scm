@@ -5,7 +5,7 @@
 ;; of these two reports for `--output-format text` (Q-042), so every figure on
 ;; the page is added up and converted by GnuCash, not by gnucash-plaintext.
 ;; Each is a GnuCash report like any other: registered with
-;; `gnc:define-report`, run by GnuCash's report code, and given GnuCash's own
+;; `gnc:define-report`, run by GnuCash's report code, and handed GnuCash's own
 ;; options, because its options generator is the Balance Sheet's or the Income
 ;; Statement's, found by guid.
 ;;
@@ -129,7 +129,7 @@
 
 ;; A figure as the format writes one, exactly: never rounded, because what is
 ;; written here is GnuCash's own figure and rounding it would state a number
-;; GnuCash did not give. Padded to the commodity's own places, and written as
+;; GnuCash did not state. Padded to the commodity's own places, and written as
 ;; a fraction where no decimal states it exactly — as `value:` and
 ;; `share_price:` are written on a split.
 (define (plaintext:figure value least)
@@ -154,7 +154,7 @@
   (let ((fraction (gnc-commodity-get-fraction commodity)))
     (or (plaintext:decimals (if (and fraction (> fraction 0)) fraction 1)) 0)))
 
-;; The same, where the book's commodity table gave nothing back for a currency
+;; The same, where the book's commodity table returned nothing for a currency
 ;; the cost bases name. The report's own commodity answers instead, which is
 ;; the fallback those figures already take.
 (define (plaintext:places-or report commodity)
@@ -325,7 +325,7 @@
 (define (plaintext:set-max-items! count)
   (set! plaintext:max-items count))
 
-;; Whether one more entry is listed, given how many have been listed already.
+;; Whether one more entry is listed, counting how many have been listed already.
 (define (plaintext:room-for? shown)
   (or (negative? plaintext:max-items) (< shown plaintext:max-items)))
 
@@ -441,7 +441,7 @@
 
 ;; Every cost basis as its own row, `(guid account currency side namespace
 ;; balance cost cost-in-pair cost-rate pair-currency)`. This is the one list the
-;; page is given, and `plaintext:cost-bases` is derived from it below: whatever
+;; page receives, and `plaintext:cost-bases` is derived from it below: whatever
 ;; reads either groups by currency and side rather than receiving them grouped.
 ;;
 ;; The last three say what the cost is made of: the price a unit was traded at
@@ -492,7 +492,7 @@
 
 ;; `realized_gains_fx` with the differences it is made of under it: whether the
 ;; figure was worked out at all, the figure, then one `split:` per difference
-;; giving the day it was taken, the account it was booked to and what it came
+;; stating the day it was taken, the account it was booked to and what it came
 ;; to. Q-044 fixes the shape.
 ;;
 ;; No `realized-available:` key. It could only ever say `yes`: the one caller
@@ -547,7 +547,7 @@
                                   (+ total (car (cdr (cdr (car items))))))))
                        (plaintext:places-of report-commodity)))))))))
 
-;; How much of `commodity` the accounts given hold at `moment`.
+;; How much of `commodity` the accounts passed hold at `moment`.
 ;;
 ;; One side's accounts, never both: the balance sheet states a gain for the
 ;; currency it holds and for the currency it owes separately, and each side's
@@ -730,12 +730,12 @@
        ;; The first row of this currency and side answers for the whole group,
        ;; and the loop stops there whichever way it answers.
        ;; `plaintext:basis-matches-holdings?` sums every row of the group before
-       ;; comparing, so it gives the same answer for each of them; carrying on
+       ;; comparing, so it returns the same answer for each of them; carrying on
        ;; to the next row after a #f asked the identical question again, and
        ;; each asking walks every account on the side with
        ;; `xaccAccountGetBalanceAsOfDate` and rebuilds the whole
        ;; `(plaintext:cost-bases)` list. On a group that does not match — which
-       ;; is a currency spent without giving its basis's guid, the ordinary case
+       ;; is a currency spent without stating its basis's guid, the ordinary case
        ;; this fallback exists for — that was the work repeated once per basis,
        ;; with this procedure itself called once per foreign account and once
        ;; per currency and side above.
@@ -795,7 +795,7 @@
 ;; Printed beside the cost bases because those are the two figures the report
 ;; chooses between: what the bases say is still against this currency, and what
 ;; the book's own accounts hold of it. They are one figure where every disposal
-;; gave the cost basis it drew on. Where they differ, currency left without
+;; stated the cost basis it drew on. Where they differ, currency left without
 ;; saying which basis it came out of, and a reader could previously only find
 ;; that out by adding up another key's split list.
 ;; The accounts of `accounts` that are held in `commodity`, in order. Separate
@@ -949,7 +949,7 @@
                     (plaintext:figure (- vl cv) places)
                     " # value - cost_value"))))
 
-;; The cost bases of one commodity on one side, in the order they were given.
+;; The cost bases of one commodity on one side, in the order they were passed.
 (define (plaintext:bases-of commodity side)
   (let loop ((rest plaintext:cost-basis-items) (found '()))
     (if (null? rest)
@@ -1030,7 +1030,7 @@
            ;; Every commodity left to GnuCash's revaluation, one group each,
            ;; stating what GnuCash makes of it. It carries no cost basis lines
            ;; because it has no cost basis the book can stand behind — that is
-           ;; the whole reason it is here — so it gives the figure and says
+           ;; the whole reason it is here — so it states the figure and says
            ;; where the figure came from.
            (let each ((rest fallen-back) (out '()) (n drawn)
                       (rc rest-cost) (rw rest-worth))
@@ -1472,7 +1472,7 @@
                       (string-append
                        (plaintext:indent 4) "share_price: "
                        (if price (plaintext:figure (plaintext:exact price) 0) "0")
-                       " # what price-fn gives for this commodity"))
+                       " # what price-fn returns for this commodity"))
                 (if measured
                     ;; Where the cost comes from this security's own cost
                     ;; bases, each of them is listed, so `cost_value` below can
@@ -1800,7 +1800,7 @@
 ;; the money says nothing here — a balance is money, and only a cost basis
 ;; knows what it was bought for.
 ;; `want` is `"CURRENCY"` for the two `_fx` keys and the security's own
-;; namespace question for `unrealized_gains_other`, given as the symbol
+;; namespace question for `unrealized_gains_other`, passed as the symbol
 ;; `'security`. The two keys say different things and a commodity belongs to
 ;; one of them, so each asks for its own and neither counts the other's.
 (define (plaintext:revaluation price-fn side accounts moment report-commodity
@@ -2048,7 +2048,7 @@
 ;; itself, not assumed from the order the pair was asked for. These lookups
 ;; answer a price of the pair in either direction — asked for HKD in CAD, a
 ;; book holding `CAD/HKD 5.0` answers that very price — so taking its value as
-;; given stated 5 where a Hong Kong dollar is 0.2 of a Canadian one, beside a
+;; it stood stated 5 where a Hong Kong dollar is 0.2 of a Canadian one, beside a
 ;; `value:` GnuCash had converted at 0.2.
 ;; Each price the pricedb hands back is referenced, and `gnc-price-invert`
 ;; makes another, so both are released once their figure has been read. A
@@ -2082,7 +2082,7 @@
 ;; of a US one, so 10/71 — which is what `gnc:case-price-fn` answers from 4.4
 ;; on, and what 3.4 and 3.8 stated nothing for until they chained it too.
 ;;
-;; Both halves are prices GnuCash gives, and they are multiplied as exact
+;; Both halves are prices GnuCash returns, and they are multiplied as exact
 ;; rationals — Scheme's own, not `gnc-numeric-mul`, whose denominator and
 ;; rounding arguments are bound as procedures rather than integers on 3.4 and
 ;; 3.8, which are the builds this function runs on: `logior` is handed
@@ -2244,7 +2244,7 @@
         ;; A parent that holds nothing itself is left off by the zero check
         ;; above, as `Assets` and `Equity` are: GnuCash prints `Assets C$0.00`
         ;; for a placeholder, and a block that states a total under its own path
-        ;; would be stating a figure the accounts beneath it already give.
+        ;; would be stating a figure the accounts beneath it already carry.
         (if (not (gnc:uniform-commodity? signed report-commodity))
             ;; Held in something other than the report's currency: the line
             ;; states what the account holds, and under it the commodity, the
@@ -2462,7 +2462,7 @@
   (plaintext:page directive
                   (list (plaintext:key 1 "accounts" "none selected"))))
 
-;; The options every account table is given, as GnuCash's renderers give them.
+;; The options every account table takes, as GnuCash's renderers pass them.
 (define (plaintext:table-env option start end report-commodity exchange-fn)
   (let ((depth-limit (option "Accounts" "Levels of Subaccounts")))
     (list (list 'start-date start)
@@ -2499,7 +2499,7 @@
   ;; a brokerage holding 3,000.00 USD with a share account under it shows
   ;; `Brokerage $3,000.00 C$4,200.00`, its own money in its own commodity, and
   ;; the sum of the section is a `Total …` row rather than anything written on
-  ;; the parent. Given the recursive balance instead, that line read
+  ;; the parent. With the recursive balance instead, that line read
   ;; `Assets:Brokerage 7840.00 CAD`, a figure on no row of GnuCash's page, with
   ;; the currency it holds and the price it was valued at both gone.
   (list (list 'parent-account-balance-mode 'immediate-bal)
@@ -2577,7 +2577,7 @@
                ;; bases are preferred, and a currency they cannot speak for
                ;; keeps GnuCash's own revaluation — GnuCash's own report
                ;; chooser leaves the list empty, a borrowing opens a cost basis
-               ;; on neither side, and a disposal that gives no cost basis guid
+               ;; on neither side, and a disposal that states no cost basis guid
                ;; leaves a balance that is not what the book owns. Sorting
                ;; those into `_other` would state an exchange loss on the key
                ;; that says it is not one: a US dollar loan borrowed with
@@ -2699,7 +2699,7 @@
                ;; Measured from the security's own cost bases where they
                ;; account for what the accounts hold, and from GnuCash's
                ;; revaluation for the rest — the same two-part answer the two
-               ;; `_fx` keys above give, because a share is a holding with a
+               ;; `_fx` keys above state, because a share is a holding with a
                ;; cost like any other (Q-046).
                ;;
                ;; What the two differ over is which day's rate the cost is
@@ -2748,7 +2748,7 @@
                       total
                       (sum (cdr xs) (+ total (car (cdr (cdr (cdr (car xs))))))))))
                ;; The amount GnuCash calculates just to balance the book,
-               ;; carried across as GnuCash gives it so a reader can find the
+               ;; carried across as GnuCash states it so a reader can find the
                ;; same number on GnuCash's own page. Never added into anything.
                ;; The collector GnuCash's balancing amount is summed from, kept
                ;; rather than thrown away once summed, because the items

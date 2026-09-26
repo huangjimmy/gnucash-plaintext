@@ -5,6 +5,13 @@
 **Revised:** 2026-03-01
 **Status:** Planning Phase
 
+> **The plan as written, not the code as built.** Its file names and test
+> names describe the rebuild before it happened, and many were renamed,
+> merged or never created: `tests/parity/`, the `test_*_parity` and
+> `test_close_books_*` tests named below, and the `cli/commands/` package do
+> not exist. [migration_log.md](migration_log.md) says where each part of the
+> tool lives now.
+
 ---
 
 ## Table of Contents
@@ -1593,7 +1600,7 @@ class BookCloser:
         equity_account_prefix: str
     ) -> Tuple[bool, List[str]]:
         """
-        Check if books are already closed for given date.
+        Check if books are already closed for `closing_date`.
 
         Returns:
             (is_closed, messages) where messages explain the status

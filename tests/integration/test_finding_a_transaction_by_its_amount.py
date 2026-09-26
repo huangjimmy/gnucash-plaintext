@@ -19,10 +19,10 @@ Every question this command asks of a split is a question about the split's
 account — which one is it, and to what unit is it kept — so a split with no
 account is worth knowing about rather than guessing at. It is not asserted
 here, because the answer is GnuCash's and it is not the same one on every
-supported version: given a book edited to take a `<split:account>` away, 5.x
+supported version: loading a book edited to take a `<split:account>` away, 5.x
 drops the whole transaction rather than hand over a split with a null account,
-and 4.x and earlier segfault inside `qof_session_load` before this tool is
-given control at all. Either way no such split reaches the loop below, which
+and 4.x and earlier segfault inside `qof_session_load` before any of this tool's
+code runs at all. Either way no such split reaches the loop below, which
 is why the null check the ctypes version carried was removed rather than
 rewritten. Recorded in CLAUDE.md; a test cannot hold it, since the half that
 is demonstrable takes the interpreter down on the other four builds.

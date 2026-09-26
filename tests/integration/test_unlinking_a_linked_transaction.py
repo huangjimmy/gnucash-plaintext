@@ -2,15 +2,15 @@
 
 An invoice can be paid without entering any money. The bank feed came in
 first, or a director paid out of pocket, so the transaction is already in the
-book; a `payment:` block giving its guid puts the receivable's account on one
+book; a `payment:` block stating its guid puts the receivable's account on one
 of its splits, and that split becomes the settlement. Q-039 is that path.
 
 Undoing it leaves a payment with nothing to do with the invoice: the split
-comes off the receivable, leaves the lot, and takes the account `--to` gives.
+comes off the receivable, leaves the lot, and moves to the account `--to` states.
 
 There was no way back. `unapply-payment` detaches a payment and puts `--to` on
 the payment split, which is the right shape, but it set the account and nothing
-else: a 100.00 USD split given a CAD account kept the figure 100.00 and now
+else: a 100.00 USD split moved to a CAD account kept the figure 100.00 and now
 means 100.00 CAD. That is the defect Q-039 was reported for, in reverse.
 
 A split never moves — it belongs to one transaction, and what changes is the
@@ -104,7 +104,7 @@ def _splits_on_account(book, account_name):
 
 
 MONEY = str(FIXTURES / 'money_parked_in_usd_that_reached_a_cad_bank.txt')
-LINKED = str(FIXTURES / 'a_payment_giving_the_usd_split_behind_a_cad_bank.txt')
+LINKED = str(FIXTURES / 'a_payment_stating_the_usd_split_behind_a_cad_bank.txt')
 DESCRIPTION = 'Money in, USD parked, CAD bank'
 
 
@@ -138,7 +138,7 @@ def _linked_book(tmp_path):
 
 
 CENTS_MONEY = str(FIXTURES / 'money_reaching_a_cad_bank_at_a_rate_with_cents.txt')
-CENTS_LINK = str(FIXTURES / 'a_payment_giving_the_split_valued_at_a_rate_with_cents.txt')
+CENTS_LINK = str(FIXTURES / 'a_payment_stating_the_split_valued_at_a_rate_with_cents.txt')
 CENTS_DESCRIPTION = 'Money in at a rate with cents'
 DIRECTOR_WHOLE = 'Assets:Due From Director Whole'
 COARSE_ACCOUNT = str(FIXTURES / 'an_account_kept_to_whole_dollars.txt')
@@ -176,7 +176,7 @@ def _book_valued_with_cents(tmp_path):
 
 
 HKD_MONEY = str(FIXTURES / 'money_parked_in_usd_that_reached_an_hkd_bank.txt')
-HKD_LINK = str(FIXTURES / 'a_payment_giving_the_usd_split_behind_an_hkd_bank.txt')
+HKD_LINK = str(FIXTURES / 'a_payment_stating_the_usd_split_behind_an_hkd_bank.txt')
 HKD_DESCRIPTION = 'Money in, USD parked, HKD bank'
 RATES_HKD = str(FIXTURES / 'fx_rates_usd_and_hkd.yaml')
 
@@ -221,7 +221,7 @@ RATES_WITH_CENTS = str(FIXTURES / 'fx_rates_usd_at_a_rate_with_cents.yaml')
 SEVERAL = str(FIXTURES / 'invoices_in_each_state_to_unapply.txt')
 OWED_BACK = 'Liabilities:Owed Back'
 CAD_IN_A_USD_ENTRY = str(FIXTURES / 'a_cad_split_of_a_usd_quoted_entry.txt')
-CAD_SPLIT_LINK = str(FIXTURES / 'a_payment_giving_the_cad_split_of_a_usd_entry.txt')
+CAD_SPLIT_LINK = str(FIXTURES / 'a_payment_stating_the_cad_split_of_a_usd_entry.txt')
 
 
 class TestChoosingAmongSeveralPayments:
@@ -569,7 +569,7 @@ class TestUnlinkingALinkedTransaction:
         `Assets:Suspense USD` is the account this split carried before the
         link, and it is kept in USD, so the split's amount is already the
         figure that account takes. Nothing is restated and nothing has to be —
-        which is the answer the link gave on the way in, where a split already
+        which is the answer the link reached on the way in, where a split already
         in the record's currency had nothing but its account changed.
         """
         path = _linked_book(tmp_path)
@@ -608,7 +608,7 @@ class TestUnlinkingALinkedTransaction:
             self, tmp_path):
         """A `--to` it cannot convert into is a message, not a traceback.
 
-        Giving `unapply-payment` the restatement gave it this refusal too, and
+        Adding the restatement to `unapply-payment` added this refusal too, and
         the refusal asks for `--fx-rates`. Click's standalone mode does not catch
         a plain `Exception`, so without the wrapper the reader met a stack
         trace quoting a flag the command did not have.

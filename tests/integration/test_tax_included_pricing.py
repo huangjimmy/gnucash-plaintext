@@ -43,7 +43,7 @@ def _fx(name):
 
 
 def _import_into_fresh_book(runner, tmp_path, fixture_name):
-    """Fresh book → accounts → the given tax_included fixture (business
+    """Fresh book → accounts → the tax_included fixture `fixture_name` (business
     objects). Drives the real import pipeline; no GnuCash-type mocking."""
     gnc = tmp_path / 'book.gnucash'
     r = runner.invoke(cli, ['import', '--new', str(gnc), ACCOUNTS])
@@ -73,7 +73,7 @@ def _find_business_object(repo, business_id):
 
 def _posting_tx_splits(gnc_path, business_id):
     """Return {account_full_name: rounded signed amount} for the posting
-    transaction of the given invoice/bill id — the real materialised
+    transaction of invoice or bill `business_id` — the real materialised
     posting splits, so the tax back-out done by GnuCash at post time is
     observed, not assumed."""
     repo = GnuCashRepository(str(gnc_path))

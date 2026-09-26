@@ -1,6 +1,6 @@
 """A tax table is not created without a name.
 
-A tax table is found by its name, and an invoice or bill line gives the one it
+A tax table is found by its name, and an invoice or bill line states the one it
 uses as `tax_table: "<name>"`. `taxtable ""` was created, and an export then
 wrote no `tax_table:` on a line using it, so re-importing the export changed the
 line. GnuCash's own tax table dialog will not save one without a name either.

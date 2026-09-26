@@ -64,7 +64,7 @@ def _export(runner, gf, tmp_path, name):
 
 def _bank_tx_state(gf, account_name='Assets.Bank'):
     """Return [{guid, date, amount, memo}] for every transaction touching
-    the given bank account."""
+    the bank account `account_name`."""
     from repositories.gnucash_repository import GnuCashRepository
     repo = GnuCashRepository(str(gf))
     repo.open()

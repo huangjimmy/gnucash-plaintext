@@ -3,7 +3,7 @@
 A cost basis balance and an account balance answer different questions. A cost
 basis balance is how much of *one split's* currency has not been sold; an
 account balance is what an account holds. They are one figure where every
-disposal gave the cost basis it drew on, and they part company where currency
+disposal stated the cost basis it drew on, and they part company where currency
 left without saying which basis it came out of.
 
 Reading the listing alone, a reader could not see that. The cost basis rows say
