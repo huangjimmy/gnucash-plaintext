@@ -1,5 +1,5 @@
-# INV-001 for 100.00 CAD, part paid: 60.00 on 2026-01-15, from a hand-written
-# payment block. Load after `payment_roundtrip_accounts.txt`.
+# INV-001 for 100.00 CAD, part paid: 60.00 on 2026-01-15, from a payment
+# block stating no guid. Load after `payment_roundtrip_accounts.txt`.
 customer "C001"
 	name: "Acme"
 	currency: CAD

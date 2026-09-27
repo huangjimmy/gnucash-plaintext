@@ -9,7 +9,7 @@
 # the fee draws 0.72 of it, valued 1.01: 2,719.28 left.
 #
 # Verified by
-# tests/integration/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
+# tests/scenario/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
 2026-08-13 * "Received money from Example Customer Inc"
 	guid: "0e530000000000000000000000000c01"
 	currency.mnemonic: "CAD"

@@ -295,7 +295,7 @@ class TestASettlement:
         assert balances[named['-50.00']] == '-50.00', balances
 
     def test_still_takes_the_oldest_where_the_block_names_none(self, tmp_path):
-        """A hand-written file names no lot, and goes on working as it did."""
+        """A file stating no lot goes on working as it did."""
         book = _book(tmp_path)
         exported = _exported(book, tmp_path)
         named = _lot_guids_by_value(exported)

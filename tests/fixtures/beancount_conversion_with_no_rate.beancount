@@ -1,6 +1,6 @@
 ; A cross-currency posting that says nothing about what it is worth.
 ;
-; The plainest hand-edit there is: the rate left off. A posting in a commodity
+; The plainest edit there is: the rate left off. A posting in a commodity
 ; that is not its transaction's has two figures and nothing here can work the
 ; second one out — valued at its own amount it was silently wrong in exactly
 ; the way `{}` is refused for, 100.00 USD entered as 100.00 CAD against 135.00

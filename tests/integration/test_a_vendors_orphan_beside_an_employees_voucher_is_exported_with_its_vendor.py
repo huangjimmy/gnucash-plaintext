@@ -3,7 +3,7 @@
 One payment of 150.00 settles two records on the payable: employee E001's
 expense voucher for 100.00 and vendor V001's BILL-001 for 50.00. GnuCash's
 Process Payment makes one transaction per owner, so this is the register and
-View → Lots: the transaction is entered by hand, and each payable split is
+View → Lots: the transaction is entered in the register, and each payable split is
 added to a lot with `gnc_lot_add_split`, as the lot viewer adds it. The test
 builds it with those calls. Then `unpost-bills BILL-001` leaves the 50.00 as
 an orphan.

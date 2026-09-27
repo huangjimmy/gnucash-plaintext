@@ -169,7 +169,7 @@ class TestTheCharactersReachThePdf:
     def test_an_accented_name_is_selectable(self, tmp_path):
         """Through the whole pipeline, not a page written here: GnuCash draws
         it, `combine_pages` rebuilds the shell around it, the parent writes
-        the file, WebKit reads it back. A hand-written page proves only that
+        the file, WebKit reads it back. A page typed into the test proves only that
         WebKit honours a `<meta charset>` somebody typed, and would pass with
         the head dropped or the file written in the locale's encoding."""
         book = tmp_path / 'accented.gnucash'

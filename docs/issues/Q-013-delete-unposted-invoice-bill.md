@@ -10,7 +10,7 @@ status: closed
 
 Users can create unposted invoices/bills (via re-import with
 `posted: none`) but have no way to remove them again short of editing
-the .gnucash XML by hand or opening GnuCash's UI. Real-world drivers:
+the .gnucash XML directly or opening GnuCash's UI. Real-world drivers:
 
 - A user imports a batch invoice .txt, notices a row was a typo
   (wrong customer, wrong amount), wants to drop the invoice and

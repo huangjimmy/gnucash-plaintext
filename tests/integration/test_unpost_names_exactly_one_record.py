@@ -9,7 +9,7 @@ assumed:
   book — a record deleted since the guid was copied, or a guid from another
   book;
 - an id that two records share. The importer has enforced id uniqueness since
-  Q-008, so this is legacy data or a hand-edited file, and there is no rule
+  Q-008, so this is legacy data or an edited file, and there is no rule
   that picks between them: the answer is to say so and name `--by-guid` as the
   way to be specific.
 
@@ -67,7 +67,7 @@ class TestAnIdTwoRecordsShare:
         """The same book with a second invoice created under the same id.
 
         Bypassing the importer, which refuses it — the state exists in books
-        written before Q-008 and in hand-edited files, and this is how it is
+        written before Q-008 and in edited files, and this is how it is
         reproduced. Documented on `_create_duplicate_invoice`.
         """
         _create_duplicate_invoice(book, dup_id='INV-001', customer_id='C001',

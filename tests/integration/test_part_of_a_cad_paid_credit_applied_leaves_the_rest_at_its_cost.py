@@ -39,7 +39,12 @@ def test_sixty_usd_is_left_the_customers_at_its_cost(tmp_path):
     assert result.exit_code == 0, result.output
     credit = _run('find-prepayments', book)
     assert 'Total credit available: USD 60.00' in credit.output, credit.output
+    # The customer's 60.00 is owed back. No US dollar is held: INV-USD-OVERCAD
+    # was collected into Canadian dollars, and the 40.00 of credit spent on
+    # INV-USD-SMALL spent that invoice's cost basis.
     balances = _run('fx-balances', book, '--verify-costs')
-    assert 'Total USD cost basis balance: 100.00 USD' in balances.output, balances.output
+    assert ('Total USD cost basis balance: 0.00 USD held, 60.00 USD owed'
+            in balances.output), balances.output
+    assert _run('--verify-integrity', book).exit_code == 0
     assert 'none recorded' not in balances.output, balances.output
     assert 'every cost agrees' in balances.output, balances.output

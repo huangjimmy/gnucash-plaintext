@@ -878,7 +878,7 @@ class TestCrossReferenceFailureModes:
         )
 
     def test_invoice_with_only_customer_guid_imports_ok(self, tmp_path):
-        """Hand-written invoice using customer_guid (no customer_id) is allowed.
+        """An invoice using customer_guid (no customer_id) is allowed.
 
         Note: this only applies to the invoice→customer cross-reference field.
         A `customer "..."` block itself always carries the customer number in
@@ -933,7 +933,7 @@ class TestObjectBlockGuidValidation:
     def test_unquoted_mixed_hex_guid_works(self, tmp_path):
         """Unquoted mixed-hex guids (e.g. b2b3...b4) must still parse as strings.
 
-        This is the friction-free hand-written form — users shouldn't be
+        This is the form a person types — users shouldn't be
         forced to add quotes when the value is unambiguously hex.
         """
         runner = CliRunner()

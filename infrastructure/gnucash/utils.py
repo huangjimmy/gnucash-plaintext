@@ -414,7 +414,7 @@ def to_string_with_decimal_point_placed(number: GncNumeric) -> str:
 #: its reader written too, and belongs here so the check covers it.
 #:
 #: Reading is looser than writing on purpose: `_a_yes_or_no` also takes the
-#: words a person writes by hand — `true`/`1`/`yes` and `false`/`0`/`no`, in
+#: words a person writes — `true`/`1`/`yes` and `false`/`0`/`no`, in
 #: any case — so no ledger ever written stops importing.
 FLAG_KEYS = frozenset({
     'placeholder', 'tax_related',           # an `open` block
@@ -486,7 +486,7 @@ def unescape_string(s: str) -> str:
     it and no character can be read twice.
 
     A backslash before anything else — `\q`, or one ending the string —
-    keeps both characters, so text a hand-written file never meant as an
+    keeps both characters, so text a file never meant as an
     escape survives instead of being dropped.
     """
     known = {'"': '"', '\\': '\\', 'n': '\n', 'r': '\r'}

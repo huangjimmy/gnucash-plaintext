@@ -3,7 +3,7 @@
 # this format knows, so the file is refused before any of it is applied.
 #
 # Verified by
-# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+# tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
 2026-08-13 * "Received money, less the transfer fee"
 	currency.mnemonic: "CAD"
 	Assets:Wise USD 2720.00 USD

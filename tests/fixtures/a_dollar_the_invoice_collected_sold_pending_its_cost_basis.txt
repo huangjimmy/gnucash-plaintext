@@ -1,0 +1,16 @@
+# One of the dollars usd_collected_off_an_invoice_and_still_held.txt collected,
+# sold for 1.40 CAD on 2026-09-01, the cost basis it drew on not chosen yet.
+#
+# The only US dollar cost basis the book keeps is INV-USD-1's, so the sale is
+# a disposal pending that choice: the book counts 1.00 USD pending against the
+# dollars that cost basis stands for, until an edit states the cost basis.
+#
+# Verified by
+# tests/scenario/test_pending_counts_the_cost_basis_an_invoice_or_a_bill_opened.py.
+2026-09-01 * "Sell one dollar"
+	currency.mnemonic: "USD"
+	Assets:Wise USD -1.00 USD
+		cost_basis_split_guid: $pending$
+	Assets:Chequing 1.40 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "1.00"

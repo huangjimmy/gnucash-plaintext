@@ -95,7 +95,7 @@ def test_re_pointing_it_at_another_basis_moves_what_it_drew(tmp_path):
     """The 10.00 USD goes back to the first purchase and comes off the second.
 
     Deferred, a re-pointed disposal left the cost basis it came from 10.00
-    short and the one it joined undrawn, for the file to state by hand.
+    short and the one it joined undrawn, for the file to state as figures.
     """
     runner = CliRunner()
     book = _a_basis_with_a_fee_drawn_on_it(runner, tmp_path)

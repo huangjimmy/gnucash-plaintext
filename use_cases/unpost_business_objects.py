@@ -45,7 +45,11 @@ from infrastructure.gnucash.utils import (
     qof_instance,
     qof_pointer,
 )
-from services.foreign_currency import require_cost_basis_unused
+from services.foreign_currency import (
+    TOOK_THE_RESIDUAL_KEY,
+    make_pending_what_draws_on_the_records_cost_basis,
+    states_the_residual_mark,
+)
 from services.gnucash_importer import (
     _find_bill_by_guid,
     _find_bills_by_id,
@@ -152,6 +156,9 @@ class UnpostResult:
     status: UnpostStatus = None
     kind: str = 'invoice'                                  # 'invoice' or 'bill'
     orphans: List[OrphanPayment] = field(default_factory=list)
+    # The disposals that drew on the record's cost basis, which the unpost
+    # destroyed, and which are pending their cost basis now.
+    made_pending: List[str] = field(default_factory=list)
 
     def message(self) -> str:
         if self.status == UnpostStatus.UNPOSTED:
@@ -1126,6 +1133,14 @@ def find_orphan_payments_in_book(book: Book,
             # by no command" hole, one split further in. It is why the mark
             # stores an invoice's guid rather than `true`.
             marked = _marked_orphan_split_ptrs(tx)
+            # The split that took a settlement's realized difference is on an
+            # income account, beside the bank's, and the money did not come
+            # through it (Q-054). Read off the mark alone: `took_the_residual`
+            # also wants the settlement to state its cost basis, and the unpost
+            # that orphaned it took that off.
+            residual = {int(split.instance) for split in tx.GetSplitList()
+                        if states_the_residual_mark(
+                            get_custom_metadata(split).get(TOOK_THE_RESIDUAL_KEY, ''))}
             ar_candidates = []
             bank_s = None
             nsplits = lib.xaccTransCountSplits(tx_ptr)
@@ -1135,7 +1150,7 @@ def find_orphan_payments_in_book(book: Book,
                 a_type = lib.xaccAccountGetType(a_ptr)
                 if a_type in (11, 12):
                     ar_candidates.append(s_ptr)
-                else:
+                elif s_ptr not in residual:
                     bank_s = s_ptr
             if not (ar_candidates and bank_s):
                 continue
@@ -1415,10 +1430,10 @@ def _execute_unpost(book: Book, ids: List[str], by_guid: bool,
         refuse_an_unpost_that_would_delete_a_transaction(rec, kind, rid)
         orphans = find_lot_payment_transactions(rec)
         # Q-035: a foreign-currency record's A/R or A/P split *is* a cost
-        # basis. Unposting destroys it, so anything measured against it is
-        # refused loudly rather than left drawing on a split the book no longer
-        # holds.
-        require_cost_basis_unused(book, rec, kind, rid)
+        # basis. Unposting destroys it, so what was measured against it is made
+        # pending its cost basis rather than left drawing on a split the book
+        # no longer holds, and the unpost goes through.
+        made_pending = make_pending_what_draws_on_the_records_cost_basis(book, rec)
         # Q-035: the lot survives the unpost holding whatever settled the
         # record, and a lot naming nothing is what an owner's credit
         # looks like. Written down here, or a later import re-attaching the
@@ -1428,7 +1443,7 @@ def _execute_unpost(book: Book, ids: List[str], by_guid: bool,
         rec.Unpost(False)
         results.append(UnpostResult(
             id=rid, guid=rguid, status=UnpostStatus.UNPOSTED,
-            kind=kind, orphans=orphans))
+            kind=kind, orphans=orphans, made_pending=made_pending))
     return results
 
 

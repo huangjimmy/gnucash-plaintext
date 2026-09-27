@@ -7,7 +7,7 @@ any of its disposals, so `realized_gains_fx` reads 0.00 with a working of
 
 Re-exporting does not mend it: the export writes the figure the residual
 resolved to rather than the token, and a figure says nothing about which split
-it is. What mends it is stating the key by hand and importing that back with
+it is. What mends it is stating the key in the file and importing that back with
 `--strategy update` — the second of the two ways to write a disposal.
 
 A book of that shape is made here the only way a test can make one: by taking
@@ -151,7 +151,7 @@ def test_the_export_of_such_a_book_carries_no_mark_to_restore(tmp_path):
     assert not MARK.search(text), text
 
 
-def test_stating_the_key_by_hand_restores_the_gain(tmp_path):
+def test_stating_the_key_in_the_file_restores_the_gain(tmp_path):
     """The remedy the format documents, on the book it is written for."""
     runner = CliRunner()
     book = _with_the_mark_cleared(runner, _sold(runner, tmp_path), tmp_path)

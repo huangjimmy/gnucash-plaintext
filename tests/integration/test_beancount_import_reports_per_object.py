@@ -7,7 +7,7 @@ written, so the per-object handlers, and the two "not found in GnuCash"
 refusals a failed account leaves behind, were never run.
 
 The file is reached the way it is reached in life: exported from GnuCash and
-then edited by hand, which is the entire purpose of exporting to beancount.
+then edited, which is the entire purpose of exporting to beancount.
 Its account carries a type GnuCash has no such thing as — the kind of thing a
 search-and-replace across a ledger leaves behind — and a transaction posts to
 that account.
@@ -20,7 +20,7 @@ from click.testing import CliRunner
 from cli.main import cli
 
 FIXTURES = Path('tests/fixtures')
-EDITED = str(FIXTURES / 'beancount_edited_by_hand.beancount')
+EDITED = str(FIXTURES / 'beancount_export_edited.beancount')
 
 
 class TestAnEditedFile:

@@ -1,6 +1,17 @@
-# Sell 80.00 USD of the customer's 100.00 credit, leaving 20.00 of that basis
-# available. What the credit split still is — 100.00 USD owed back — does not
-# change; what is left to sell does.
+# Sell 80.00 USD out of Assets:Bank:USD stating the customer's credit as the
+# cost basis it draws on. `{basis}` is the credit's split.
+#
+# Refused. The credit is a liability cost basis, 100.00 USD owed back to the
+# customer, and a sale out of the bank spends dollars the book holds; a
+# disposal of dollars held draws on an asset cost basis (Q-054). The dollars
+# that arrived with the overpayment are the bank's own asset cost basis, and a
+# sale of them states that one
+# (`fx_sell_80_usd_the_overpayment_brought_into_the_bank.txt`).
+#
+# Load after `fx_invoice_usd_overpaid_into_usd_bank.txt`.
+#
+# Verified by
+# tests/integration/test_an_overpaid_invoices_dollars_are_sold_against_a_cost_basis_of_their_side.py.
 2026-02-28 * "Sell 80 USD of the credit"
 	currency.mnemonic: "CAD"
 	Assets:Bank:USD -80.00 USD

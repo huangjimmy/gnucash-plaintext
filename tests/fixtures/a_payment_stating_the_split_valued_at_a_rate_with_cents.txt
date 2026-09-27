@@ -1,10 +1,12 @@
 # Settling INV-USD-001 with the split whose CAD value is −139.37.
 #
 # The link itself is the ordinary one: the invoice is USD, the split holds
-# 100.00 USD, and the settlement is what the split already says. The rate with
-# cents matters only on the way back out — unlinking onto a CAD account writes
-# the split's value, and −139.37 is a figure an account kept to whole dollars
-# cannot state.
+# 100.00 USD, and the settlement is what the split already says. Imported with
+# `fx_rates_usd_at_1_3937_from_the_invoice_s_date.yaml`, the invoice is carried
+# at the same 139.37 CAD, so the settlement consumes its cost basis at the
+# split's own figure and realizes nothing (Q-054). The rate with cents matters
+# only on the way back out — unlinking onto a CAD account writes the split's
+# value, and −139.37 is a figure an account kept to whole dollars cannot state.
 #
 # What this fixture produces: the split on `Assets:Accounts Receivable USD` at
 # −100.00 USD, valued −139.37 CAD, in the invoice's lot.

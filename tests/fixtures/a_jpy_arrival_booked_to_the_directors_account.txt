@@ -7,7 +7,7 @@
 # file's in Canadian dollars, which divide into 100.
 #
 # Verified by
-# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+# tests/scenario/test_an_edit_may_move_the_split_that_sets_the_rate.py.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"

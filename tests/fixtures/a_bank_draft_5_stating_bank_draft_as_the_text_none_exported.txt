@@ -1,0 +1,8 @@
+2026-01-10 * "A draft from bank account b"
+	guid: "5ce0a4100000000000000000000000d1"
+	Asset:BankA 500.00 CAD
+		guid: "5ce0a4100000000000000000000000a1"
+	Asset:BankB -500.00 CAD
+		guid: "5ce0a4100000000000000000000000b1"
+		bank_draft: "#None"
+		over_draft: "interest APR 24.99%, I should repay early"

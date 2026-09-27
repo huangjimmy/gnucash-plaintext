@@ -100,9 +100,10 @@ def delete_transactions(gnucash_file, guids, by_guid, output_file):
                 results.append((guid, None, str(e)))
                 all_ok = False
 
+        going = frozenset(each.guid for each in prepared)
         for each in prepared:
             try:
-                result = use_case.carry_out(each)
+                result = use_case.carry_out(each, going=going)
                 backups.append((each.guid, result.plaintext))
                 results.append((each.guid, result, None))
             except ValueError as e:
@@ -156,6 +157,16 @@ def delete_transactions(gnucash_file, guids, by_guid, output_file):
                         f'{result.undo_copy_error}',
                         err=True,
                     )
+                if result.made_pending:
+                    click.echo(
+                        f'  {len(result.made_pending)} disposal(s) drew on its cost basis '
+                        f'and are now pending their cost basis, '
+                        f'`cost_basis_split_guid: $pending$`, until an edit states the '
+                        f'one each draws on:',
+                        err=True,
+                    )
+                    for each in result.made_pending:
+                        click.echo(f'    {each}', err=True)
             else:
                 click.echo(f'{guid}: {err}', err=True)
 

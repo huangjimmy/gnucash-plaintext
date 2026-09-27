@@ -2,7 +2,7 @@
 
 This project models plaintext as the source of truth, with `import` and `export` as the only sanctioned ways to move data between the two. In practice the two can drift apart for several reasons:
 
-- the user opens the `.gnucash` file in the GnuCash UI and hand-edits a payment transaction or split,
+- the user opens the `.gnucash` file in the GnuCash UI and edits a payment transaction or split,
 - another tool (a QFX importer, a third-party reporting utility, a script using `gnucash_core_c` directly) modifies the `.gnucash` file behind our back,
 - the user opens the `.txt` plaintext file in a text editor and deletes / changes a `payment:` or `entry:` block before re-importing.
 
@@ -48,7 +48,7 @@ If you must edit a payment in the GnuCash UI, prefer deleting and re-creating th
 
 ## Q-016 — what changes for re-imports after Q-016
 
-Q-016 made every bank-tx and per-split GUID round-trip natively. The scenarios above (book-side hand-edits in the GnuCash UI) still produce the same recovery shape — the matcher still detects the divergence, the Q-014/Q-015 orphan warning still fires, and the destructive rebuild path still re-applies the payment cleanly. What changes is what survives across a clean `import → export → import-into-fresh-book` cycle when no manual edits happen between exports:
+Q-016 made every bank-tx and per-split GUID round-trip natively. The scenarios above (edits made to the book in the GnuCash UI) still produce the same recovery shape — the matcher still detects the divergence, the Q-014/Q-015 orphan warning still fires, and the destructive rebuild path still re-applies the payment cleanly. What changes is what survives across a clean `import → export → import-into-fresh-book` cycle when no manual edits happen between exports:
 
 - Standalone bank transactions carry their `guid:` and every split carries its own `guid:` in exported plaintext, so a fresh re-import reconstructs the same transaction objects (same GUIDs) rather than auto-assigning new ones.
 - Every `payment:` block carries `txn_guid:` (the bank tx) and `txn_split_guid:` (the specific AR/AP-side split that belongs to this invoice/bill). The fresh-book importer attaches that exact split to the invoice's posted lot — no inference, no order-dependence, no destructive rebuild needed.

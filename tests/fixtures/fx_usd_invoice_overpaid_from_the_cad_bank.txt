@@ -7,6 +7,16 @@
 # fall-short check compares like with like. (The mixed-currency case, where it
 # declines to compare at all, needs a transaction whose other side is in
 # neither currency — pinned directly in `test_what_a_payment_can_take.py`.)
+#
+# The 100.00 USD settling the invoice is converted at the payment's 1.37,
+# against the 1.40 the invoice was posted at, so it consumes the invoice's
+# cost basis and realizes 3.00 CAD, which `Income:FX Gain $residual$ CAD`
+# takes (Q-054).
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
 invoice "INV-FX-CAD-BANK"
 	customer_id: "C-FX"
 	currency: USD
@@ -33,3 +43,4 @@ invoice "INV-FX-CAD-BANK"
 		txn_guid: "TXN_GUID"
 		prepayment: 100
 		memo: "Payment for INV-FX-CAD-BANK"
+		Income:FX Gain $residual$ CAD

@@ -1,7 +1,7 @@
 """A report asked for something it cannot produce has to say which part.
 
 `balance-sheet` and `income-statement` take a date and two side files of rates,
-and each of those is a thing a person types or edits by hand. What comes back
+and each of those is a thing a person types or edits. What comes back
 when one of them is wrong is the whole of the command's usefulness at that
 moment: a stack trace names a line of this tool, and the reader needs the name
 of their own file, or their own date.

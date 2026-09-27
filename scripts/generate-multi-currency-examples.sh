@@ -19,7 +19,7 @@
 #     gnucash-plaintext balance-sheet /tmp/check.gnucash --as-of <the date>
 #
 # An export states `share_price:` as the value over the amount, which is the
-# rate the two figures actually make. A ledger written by hand may state it to
+# rate the two figures actually make. A ledger `export` did not write may state it to
 # more places than the rounded value supports, and the import then says so and
 # uses the amounts' — which is why these carry the export's form.
 #

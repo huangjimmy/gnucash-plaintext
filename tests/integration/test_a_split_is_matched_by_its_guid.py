@@ -24,7 +24,7 @@ the guid the file already carries.
 
 Nothing caught either because a round trip cannot: the export writes the
 splits in the book's order, so position and identity agree for every file
-this tool produces. It takes a file whose blocks were reordered — by hand,
+this tool produces. It takes a file whose blocks were reordered — by an edit,
 by a merge, by anything that rewrites a ledger — to tell the two apart.
 """
 
@@ -424,7 +424,7 @@ class TestAGuidWrittenWithoutQuotes:
     """All-digit hex names its split like any other guid.
 
     The format has always taken an unquoted guid — `guid: b2b3…b4` is the
-    friction-free hand-written form. All-digit hex is exactly as
+    form a person types. All-digit hex is exactly as
     unambiguous, and what stood in its way was the parser: an unquoted
     number goes through `int`, and `int('0000…0022')` is 22, so the digits
     that made it a guid were gone before any reader saw them. The value

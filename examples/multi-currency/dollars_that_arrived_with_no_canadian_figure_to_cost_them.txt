@@ -514,8 +514,9 @@ price
 # 	#
 # 	#   Expenses:Interest — USD
 # 	#
-# 	# gnucash-plaintext does not support that, and every figure on this
-# 	# page those accounts reach can be wrong.
+# 	# A book may keep one, but no cost basis records what its amounts
+# 	# cost, so this book's cost bases are not expected to be correct,
+# 	# and every figure on this page those accounts reach can be wrong.
 # 	#
 # 	# An expense is what it cost on the day it was incurred, and a rate
 # 	# that moves afterwards does not change it. The balance of one of
@@ -529,9 +530,10 @@ price
 # 	# knows what each amount cost on its own day can work the right
 # 	# figure out for themselves.
 # 	#
-# 	# Keep an income or expense account in CAD. Record a payment
-# 	# made in another currency at what that currency cost on the day it
-# 	# was spent.
+# 	# Keep an income or expense account in CAD, or turn cost
+# 	# bases off with `cost_bases: "off"` in the company block. Record a
+# 	# payment made in another currency at what that currency cost on the
+# 	# day it was spent.
 # 	# #################################################################
 # 	#
 # 	# An account line is that account's own balance — never its children's.

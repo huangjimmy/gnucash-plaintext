@@ -5,7 +5,7 @@
 # its Wise USD split has `cost_basis_split_guid: $pending$`.
 #
 # Verified by
-# tests/integration/test_an_import_enters_transactions_in_the_order_it_creates_them.py.
+# tests/scenario/test_an_import_enters_transactions_in_the_order_it_creates_them.py.
 2026-08-13 * "Supplies bought"
 	currency.mnemonic: "USD"
 	Assets:Wise USD -2.00 USD

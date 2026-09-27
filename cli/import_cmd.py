@@ -260,7 +260,7 @@ def _warn_open_prepayment_mismatches(directives, book):
     when a declared `open_prepayment:` block disagrees with reality.
 
     The summary is informational and derived, so the book's lots are
-    authoritative; a mismatch means the file is stale (e.g. hand-edited), and
+    authoritative; a mismatch means the file is stale (e.g. edited since export), and
     the next export rewrites the correct value. We only check accounts whose
     directive actually declares `open_prepayment:` blocks — a file that omits
     the summary is not nagged.

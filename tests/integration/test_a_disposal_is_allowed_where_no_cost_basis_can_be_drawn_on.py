@@ -15,7 +15,7 @@ Two ways a book gets there, and both are in
   transaction stated wholly in US dollars, which states no Canadian figure for
   either side, so no cost basis was opened for them.
 
-A third is currency whose stored cost cannot be read — a figure a hand edit or
+A third is currency whose stored cost cannot be read — a figure a GUI edit or
 an older release can leave behind. It counts for nothing here, as it does
 everywhere else that adds these up; `fx-balances --verify-costs` is what reports
 it.

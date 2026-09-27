@@ -145,7 +145,7 @@ class TestTheSameCurrencyCaseIsAskedToo:
         # The bank's own row, not the `Total USD cost basis balance:` line — the
         # bill's payable is a USD cost basis too, so the total reads 200.00 and
         # would have matched whatever the bank held.
-        assert self._bank_row(runner, book).endswith('100.00 USD')
+        assert self._bank_row(runner, book).endswith('100.00 USD asset')
         return book
 
     @staticmethod
@@ -178,11 +178,11 @@ class TestTheSameCurrencyCaseIsAskedToo:
             'import', str(book), self.PAY, '--include-business-objects',
             '--fx-rates', self.USD_RATES])
 
-        assert self._bank_row(runner, book).endswith('100.00 USD')
+        assert self._bank_row(runner, book).endswith('100.00 USD asset')
 
     @staticmethod
     def _change_the_bank_basis(book, change):
-        """Rewrite the KVP of the bank's cost basis, as a hand edit or an older
+        """Rewrite the KVP of the bank's cost basis, as a GUI edit or an older
         tool leaves it."""
         repo = GnuCashRepository(str(book))
         repo.open(mode=SessionMode.NORMAL)
@@ -237,7 +237,7 @@ class TestTheSameCurrencyCaseIsAskedToo:
             '--include-business-objects', '--fx-rates', self.USD_RATES]).exit_code == 0
         result = runner.invoke(cli, ['import', str(book), self.BORROW])
         assert 'Errors:       0' in result.output, result.output
-        assert self._bank_row(runner, book).endswith('100.00 USD')
+        assert self._bank_row(runner, book).endswith('100.00 USD asset')
         self._change_the_bank_basis(book, lambda kvp: {**kvp, 'cost_basis_cost': 'oops'})
 
         result = self._pay(runner, book)

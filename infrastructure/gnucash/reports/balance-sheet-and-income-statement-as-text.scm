@@ -262,7 +262,7 @@
 ;; that are gone.
 ;;
 ;; Zero where nothing set it — GnuCash's own report chooser, or a build of this
-;; file run by hand — which is also the right figure for a book that has
+;; file run on its own — which is also the right figure for a book that has
 ;; disposed of no foreign currency at all.
 (define plaintext:realized-fx 0)
 
@@ -564,47 +564,115 @@
 ;; holds, neither side matched its cost bases, and both fell back to GnuCash's
 ;; revaluation.
 ;;
-;; A receivable or a payable stays on its type's side: its lots keep a posting
-;; apart from a credit, and its balance is the two added together. So does an
-;; account holding shares: a share account below zero is not shares owed, and
-;; the import reads currency alone past zero.
+;; A receivable or a payable is read lot by lot: each of its lots is a holding
+;; of its own, an invoice not collected held and a customer's credit owed back,
+;; so the account can be on both sides at once. Read by its balance, INV-USD-OVER
+;; open again at +100.00 beside its customer's credit at −100.00 came to 0.00,
+;; the held side came to 200.00 against 300.00 of cost bases and the owed side
+;; to nothing against the credit's 100.00, and the sheet fell back to GnuCash's
+;; revaluation.
+;;
+;; An account holding shares stays on its type's side: a share account below
+;; zero is not shares owed, and the import reads currency alone past zero.
+(define (plaintext:read-by-its-lots? account)
+  (memv (xaccAccountGetType account) (list ACCT-TYPE-RECEIVABLE ACCT-TYPE-PAYABLE)))
+
+;; For each split of `account` dated by `moment`, its share of its lot's balance
+;; then: the lot's balance divided among the lot's splits dated by then, so a
+;; lot's shares add to its balance and each carries the lot's sign. No lot is
+;; compared with another, so nothing rests on the same lot being `equal?` to
+;; itself when handed back twice. The splits in no lot are one holding, as the
+;; account's own balance: an invoice imported without its business objects
+;; leaves its posting and its settlement in no lot, and read one by one they
+;; were 2,720.00 held and 2,720.00 owed on an account holding nothing.
+(define (plaintext:lot-balances account moment)
+  (define (dated? split)
+    (<= (xaccTransGetDate (xaccSplitGetParent split)) moment))
+  (let loop ((splits (xaccAccountGetSplitList account)) (shares '()) (loose 0))
+    (cond ((null? splits) (cons loose shares))
+          ((not (dated? (car splits))) (loop (cdr splits) shares loose))
+          (else
+           (let* ((split (car splits))
+                  (lot (xaccSplitGetLot split)))
+             (if (null? lot)
+                 (loop (cdr splits) shares
+                       (+ loose (plaintext:exact (xaccSplitGetAmount split))))
+                 (let sum ((rest (gnc-lot-get-split-list lot)) (total 0) (count 0))
+                   (cond ((null? rest)
+                          (loop (cdr splits)
+                                (cons (if (= count 0) 0 (/ total count)) shares)
+                                loose))
+                         ((dated? (car rest))
+                          (sum (cdr rest)
+                               (+ total (plaintext:exact (xaccSplitGetAmount (car rest))))
+                               (+ count 1)))
+                         (else (sum (cdr rest) total count))))))))))
+
+;; What `account` holds on `side` at `moment`, signed as GnuCash signs a
+;; balance: its balance for any other account, and for a receivable or a
+;; payable the lots above zero on the held side and those below it on the
+;; owed side.
+(define (plaintext:side-balance account side moment)
+  (if (plaintext:read-by-its-lots? account)
+      (let sum ((rest (plaintext:lot-balances account moment)) (total 0))
+        (cond ((null? rest) total)
+              ((if (string=? side "asset") (> (car rest) 0) (< (car rest) 0))
+               (sum (cdr rest) (+ total (car rest))))
+              (else (sum (cdr rest) total))))
+      (plaintext:exact (xaccAccountGetBalanceAsOfDate account moment))))
+
 (define (plaintext:on-the-side-of-its-balance side asset-accounts
                                               liability-accounts moment)
   (define (stays-on-its-types-side? account)
     (let ((commodity (xaccAccountGetCommodity account)))
-      (or (memv (xaccAccountGetType account)
-                (list ACCT-TYPE-RECEIVABLE ACCT-TYPE-PAYABLE))
-          (not commodity)
+      (or (not commodity)
           (not (string=? (gnc-commodity-get-namespace commodity) "CURRENCY")))))
   (define (balance account)
     (plaintext:exact (xaccAccountGetBalanceAsOfDate account moment)))
+  (define (holds-on-this-side? account)
+    (not (= (plaintext:side-balance account side moment) 0)))
   (if (string=? side "asset")
       (append (filter (lambda (account)
                         (or (stays-on-its-types-side? account)
-                            (>= (balance account) 0)))
+                            (if (plaintext:read-by-its-lots? account)
+                                (or (holds-on-this-side? account)
+                                    (= (balance account) 0))
+                                (>= (balance account) 0))))
                       asset-accounts)
               (filter (lambda (account)
                         (and (not (stays-on-its-types-side? account))
-                             (> (balance account) 0)))
+                             (if (plaintext:read-by-its-lots? account)
+                                 (holds-on-this-side? account)
+                                 (> (balance account) 0))))
                       liability-accounts))
       (append (filter (lambda (account)
                         (or (stays-on-its-types-side? account)
-                            (<= (balance account) 0)))
+                            (if (plaintext:read-by-its-lots? account)
+                                (or (holds-on-this-side? account)
+                                    (= (balance account) 0))
+                                (<= (balance account) 0))))
                       liability-accounts)
               (filter (lambda (account)
                         (and (not (stays-on-its-types-side? account))
-                             (< (balance account) 0)))
+                             (if (plaintext:read-by-its-lots? account)
+                                 (holds-on-this-side? account)
+                                 (< (balance account) 0))))
                       asset-accounts))))
 
-(define (plaintext:held-in accounts commodity moment)
-  (let loop ((rest accounts) (total 0))
-    (if (null? rest)
-        total
-        (loop (cdr rest)
-              (if (gnc-commodity-equiv (xaccAccountGetCommodity (car rest)) commodity)
-                  (+ total (plaintext:exact
-                            (xaccAccountGetBalanceAsOfDate (car rest) moment)))
-                  total)))))
+;; What `accounts` hold of `commodity` on `side` at `moment`, a receivable's
+;; and a payable's lots read on their own side.
+(define (plaintext:held-in accounts commodity moment . on)
+  (let ((side (if (null? on) #f (car on))))
+    (let loop ((rest accounts) (total 0))
+      (if (null? rest)
+          total
+          (loop (cdr rest)
+                (if (gnc-commodity-equiv (xaccAccountGetCommodity (car rest)) commodity)
+                    (+ total (if side
+                                 (plaintext:side-balance (car rest) side moment)
+                                 (plaintext:exact
+                                  (xaccAccountGetBalanceAsOfDate (car rest) moment))))
+                    total))))))
 
 ;; A cost basis as gnucash-plaintext hands it over: the currency's mnemonic,
 ;; the balance still against it, what that balance cost, and which side of the
@@ -685,7 +753,7 @@
                     (plaintext:basis-namespace basis)
                     (plaintext:basis-mnemonic basis))))
     (and commodity
-         (= (plaintext:held-in accounts commodity moment)
+         (= (plaintext:held-in accounts commodity moment (plaintext:basis-side basis))
             (let loop ((rest (plaintext:cost-bases)) (total 0))
               (if (null? rest)
                   total
@@ -759,6 +827,13 @@
   (filter (lambda (account)
             (let ((commodity (xaccAccountGetCommodity account)))
               (and (plaintext:foreign-currency? commodity report-commodity)
+                   ;; A receivable or a payable can be on both sides' lists,
+                   ;; lot by lot, and GnuCash revalues it whole: once, on the
+                   ;; side its balance is on.
+                   (or (not (plaintext:read-by-its-lots? account))
+                       (let ((balance (plaintext:exact
+                                       (xaccAccountGetBalanceAsOfDate account moment))))
+                         (if (string=? side "asset") (>= balance 0) (< balance 0))))
                    (not (plaintext:measured-from-cost-bases?
                          commodity side accounts moment)))))
           accounts))
@@ -2130,7 +2205,7 @@
 ;; line with no price states none, where a zero would read as "worth nothing",
 ;; which is a different claim and a false one beside a value GnuCash converted.
 ;;
-;; `gnc:case-price-fn` from 4.4 on, and the same lookup built by hand where the
+;; `gnc:case-price-fn` from 4.4 on, and the same lookup built in this file where the
 ;; build has no such helper.
 ;;
 ;; Every source a statement is printed from reads the book's price database, so
@@ -2354,7 +2429,7 @@
 
 ;; The currency the book is kept in, as gnucash-plaintext works it out, set
 ;; before the report runs. #f where nothing set it — GnuCash's own report
-;; chooser, or this file run by hand — and the report's currency then stands
+;; chooser, or this file run on its own — and the report's currency then stands
 ;; for it.
 (define plaintext:book-currency #f)
 
@@ -2422,8 +2497,9 @@
               wrong)
          (list
           "#"
-          "# gnucash-plaintext does not support that, and every figure on this"
-          "# page those accounts reach can be wrong."
+          "# A book may keep one, but no cost basis records what its amounts"
+          "# cost, so this book's cost bases are not expected to be correct,"
+          "# and every figure on this page those accounts reach can be wrong."
           "#"
           "# An expense is what it cost on the day it was incurred, and a rate"
           "# that moves afterwards does not change it. The balance of one of"
@@ -2437,9 +2513,10 @@
           "# knows what each amount cost on its own day can work the right"
           "# figure out for themselves."
           "#"
-          (string-append "# Keep an income or expense account in " base ". Record a payment")
-          "# made in another currency at what that currency cost on the day it"
-          "# was spent."
+          (string-append "# Keep an income or expense account in " base ", or turn cost")
+          "# bases off with `cost_bases: \"off\"` in the company block. Record a"
+          "# payment made in another currency at what that currency cost on the"
+          "# day it was spent."
           "# #################################################################"
           "#")))))
 

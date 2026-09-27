@@ -79,11 +79,11 @@ def test_it_is_stated_beside_the_cost_basis_totals_and_they_differ(tmp_path):
     """
     lines = [line.rstrip() for line in _listing(tmp_path).splitlines()]
 
-    assert 'Total USD cost basis balance: 3,480.00 USD' in lines, lines
+    assert 'Total USD cost basis balance: 3,480.00 USD held' in lines, lines
     assert 'Total USD held in accounts: 7,480.00 USD' in lines, lines
     # The cost bases come first: the listing is about them, and what the
     # accounts hold is stated against it.
-    assert (lines.index('Total USD cost basis balance: 3,480.00 USD')
+    assert (lines.index('Total USD cost basis balance: 3,480.00 USD held')
             < lines.index('Total USD held in accounts: 7,480.00 USD')), lines
 
 

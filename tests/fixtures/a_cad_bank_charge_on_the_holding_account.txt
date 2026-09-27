@@ -4,7 +4,7 @@
 # what the refused edit left behind.
 #
 # Verified by
-# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+# tests/scenario/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
 2026-09-01 * "Bank charge"
 	guid: "0e510000000000000000000000000c11"
 	currency.mnemonic: "CAD"

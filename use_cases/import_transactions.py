@@ -10,28 +10,63 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List
 
+from infrastructure.gnucash.kvp import (
+    KNOWN_ACCOUNT_METADATA_KEYS,
+    KNOWN_BILL_METADATA_KEYS,
+    KNOWN_CUSTOMER_METADATA_KEYS,
+    KNOWN_INVOICE_METADATA_KEYS,
+    KNOWN_SPLIT_METADATA_KEYS,
+    KNOWN_TX_METADATA_KEYS,
+    KNOWN_VENDOR_METADATA_KEYS,
+)
 from repositories.gnucash_repository import GnuCashRepository
 from services.conflict_resolver import ConflictResolver, ResolutionStrategy
 from services.foreign_currency import begin_import_run, running_atomic
 from services.gnucash_importer import (
+    COMPANY_FIELD_TO_SLOT,
     GnuCashImporter,
+    _echo_note,
     begin_lot_attachments,
     forget_a_transaction_the_run_refused,
     note_a_transaction_the_run_refused,
     note_what_the_file_states,
     the_guid_a_block_names,
 )
+from services.plaintext_addresses import is_address_key
 from services.plaintext_parser import DirectiveType, PlaintextParser
 from services.positions_in_the_file import (
     number_the_transactions,
     record_the_guids_it_states,
     resolve_for_an_edit,
+    the_fields_that_cannot_be_removed,
     the_variables_where_none_is_read,
     what_is_wrong_with_the_positions,
 )
 from services.prices import apply_price_blocks
 from services.transaction_matcher import TransactionMatcher
 from use_cases.export_transactions import ExportTransactionsUseCase, UnwritableFigureError
+
+# Each block that keeps custom keys, and which of its keys are fields instead:
+# `$None$` removes a custom key, and sets a field to none, with a warning.
+_IS_A_FIELD = {
+    DirectiveType.TRANSACTION: KNOWN_TX_METADATA_KEYS.__contains__,
+    DirectiveType.SPLIT: KNOWN_SPLIT_METADATA_KEYS.__contains__,
+    DirectiveType.OPEN_ACCOUNT: KNOWN_ACCOUNT_METADATA_KEYS.__contains__,
+    DirectiveType.CUSTOMER: KNOWN_CUSTOMER_METADATA_KEYS.__contains__,
+    DirectiveType.VENDOR: KNOWN_VENDOR_METADATA_KEYS.__contains__,
+    DirectiveType.INVOICE: KNOWN_INVOICE_METADATA_KEYS.__contains__,
+    DirectiveType.BILL: KNOWN_BILL_METADATA_KEYS.__contains__,
+    DirectiveType.COMPANY: lambda key: key in COMPANY_FIELD_TO_SLOT or is_address_key(key),
+}
+
+# A split's memo and a transaction's notes, which `#None` cannot set to null:
+# GnuCash's setters ignore one (`SetMemo(None)`, `SetNotes(None)` change
+# nothing), so `#None` and `$None$` on them are read as `""`, with a warning.
+# Every other field is set as stated and read back (`_set_a_field`).
+_KEPT_AS_TEXT = {
+    DirectiveType.TRANSACTION: ('notes',),
+    DirectiveType.SPLIT: ('memo',),
+}
 
 
 def _the_book_would_write(exporter, transaction, directive) -> bool:
@@ -459,6 +494,9 @@ class ImportTransactionsUseCase:
         if not parser.errors:
             parser.errors.extend(the_variables_where_none_is_read(parser.root_directive))
             parser.errors.extend(what_is_wrong_with_the_positions(transactions))
+            for warning in the_fields_that_cannot_be_removed(parser.root_directive,
+                                                             _IS_A_FIELD, _KEPT_AS_TEXT):
+                _echo_note(f'⚠ {warning}')
 
         if parser.errors:
             # Normalise parser (syntax) errors into the same {'error': ...} shape

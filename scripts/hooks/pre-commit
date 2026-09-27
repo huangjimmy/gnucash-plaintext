@@ -7,7 +7,8 @@
 #   2. Run tests via test-all-versions-parallel.sh with coverage on — skipped for
 #      documentation-only commits (only *.md / docs/ staged), since docs cannot
 #      affect the test suite
-#   2b. Gate the eleven runs added together at 100% line and branch coverage
+#   2b. Gate the eleven runs added together at 100% line and branch coverage,
+#       and what tests/scenario/ alone reaches at the floor in scripts/coverage.sh
 #   2c. Build the wheel, install it and draw a page with it
 #   3. If any of those failed → block immediately
 #
@@ -92,12 +93,14 @@ else
             # the way a lint failure is: either a test reaches it, or it cannot
             # be reached and the line is the defect.
             echo "2b. Combining coverage (all versions)..."
+            # The same run gates what `tests/scenario/` alone reaches, against
+            # the floor in scripts/coverage.sh.
             if ! COVERAGE_OUTPUT=$(./scripts/coverage.sh --report-only --threshold 100 2>&1); then
                 COVERAGE_FAILED=1
-                echo "❌ Coverage is short of 100% on the union"
+                echo "❌ Coverage is short of 100% on the union, or the scenarios reach less than their floor"
                 echo ""
             else
-                echo "✓ Coverage is at 100% on the union"
+                echo "✓ Coverage is at 100% on the union, and the scenarios reach their floor"
                 echo ""
             fi
 

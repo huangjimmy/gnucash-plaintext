@@ -7,7 +7,7 @@
 # leaving 2,719.00.
 #
 # Verified by
-# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+# tests/scenario/test_an_edit_may_move_the_split_that_sets_the_rate.py.
 2026-08-13 * "Wise charges"
 	guid: "0d0d0000000000000000000000000001"
 	currency.mnemonic: "CAD"

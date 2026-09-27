@@ -2,7 +2,7 @@
 #
 # The transaction has one side that is not the bank, so there is nothing to
 # choose between and naming the split adds nothing. This is what a person
-# writes by hand.
+# writes.
 #
 # It is the way that failed worst. The importer measured the parked
 # split's 139.00 CAD against the invoice's 100.00 USD, called the difference an

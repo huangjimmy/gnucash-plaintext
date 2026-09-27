@@ -367,11 +367,12 @@ class TestOnACommandThatWrites:
             done.output.index('Integrity check'), done.output
 
     def test_a_book_the_check_catches_ends_the_run(self, tmp_path):
-        """`Expenses:Interest` in US dollars is a book gnucash-plaintext does not support.
+        """`Expenses:Interest` in US dollars: a book whose cost bases cannot be vouched for.
 
         The import itself is clean — the ledger says nothing wrong — and the
-        check is what refuses, so the run exits 1 with the finding printed and
-        a closing line saying how many things are wrong.
+        check is what reports it, so the run exits 1 with the finding printed
+        and a closing line saying how many things are wrong. The finding says
+        the cost bases are not expected to be correct, and how to turn them off.
         """
         book = tmp_path / 'book.gnucash'
 
@@ -382,8 +383,23 @@ class TestOnACommandThatWrites:
         assert done.exit_code == 1, done.output
         assert 'Errors:       0' in done.output, done.output
         assert 'Expenses:Interest (USD)' in done.output, done.output
+        assert "this book's cost bases are not expected to be correct" in done.output, \
+            done.output
+        assert 'Turn cost bases off with `cost_bases: "off"`' in done.output, done.output
         assert ('this command left the book with 1 thing(s) wrong with it, '
                 'each printed above') in done.output, done.output
+
+    def test_verify_costs_warns_of_it_the_same_way(self, tmp_path):
+        """`fx-balances --verify-costs` says it too, as a warning beside its own findings."""
+        book = tmp_path / 'book.gnucash'
+        CliRunner().invoke(cli, ['import', '--new', str(book),
+                                 str(FIXTURES / AN_EXPENSE_IN_US_DOLLARS)])
+
+        done = CliRunner().invoke(cli, ['fx-balances', str(book), '--verify-costs'])
+
+        assert ('warning: these income and expense accounts are not kept in CAD: '
+                'Expenses:Interest (USD)') in done.output, done.output
+        assert 'Turn cost bases off with `cost_bases: "off"`' in done.output, done.output
 
     def test_such_a_book_has_its_net_income_left_unchecked_and_says_so(self, tmp_path):
         """A US dollar expense has no one rate, so there is no figure to compare."""
@@ -415,7 +431,7 @@ class TestOnACommandThatWrites:
 
         done = CliRunner().invoke(
             cli, ['--verify-integrity', 'import-beancount', '-o', str(book),
-                  '-i', str(FIXTURES / 'beancount_postings_written_by_hand.beancount'),
+                  '-i', str(FIXTURES / 'beancount_postings_a_person_writes.beancount'),
                   '--dry-run'])
 
         assert done.exit_code == 0, done.output

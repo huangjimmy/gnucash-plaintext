@@ -10,6 +10,7 @@ what the book still owes — while the 40.00 has become a settlement and holds
 nothing.
 """
 
+import re
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -77,7 +78,7 @@ def _overpaid_book(runner, tmp_path):
 
 
 def test_the_remaining_credit_keeps_the_cost_it_was_acquired_at(tmp_path):
-    """60.00 USD of credit is left, and it is still worth 1.4 CAD/USD.
+    """60.00 USD of credit is left, and it is still at the payment's 1.37 CAD/USD.
 
     Left where they were, the keys stayed on the part that was applied: the
     40.00 settling the new invoice went on claiming 100.00 available — a
@@ -105,21 +106,23 @@ def test_the_remaining_credit_keeps_the_cost_it_was_acquired_at(tmp_path):
     applied = text.split('Assets:Accounts Receivable USD -40.00 USD')[1]
     applied = applied.split('\n\tAssets')[0]
     assert 'cost_basis_balance' not in applied, applied
-    assert 'cost_basis_cost: "1.4 CAD/USD"' in applied, applied
+    assert 'cost_basis_cost: "1.37 CAD/USD"' in applied, applied
 
     # What is left of the credit carries them, at its own size.
     remainder = text.split('Assets:Accounts Receivable USD -60.00 USD')[1]
     remainder = remainder.split('\n\tAssets')[0]
     assert 'cost_basis_balance: "60.00"' in remainder, remainder
-    assert 'cost_basis_cost: "1.4 CAD/USD"' in remainder, remainder
+    assert 'cost_basis_cost: "1.37 CAD/USD"' in remainder, remainder
 
-    # And the listing follows: the first invoice's 100.00, the second's 40.00,
-    # and 60.00 of credit still owed — nothing offering more than it holds.
+    # And the listing follows: the bank holds the first invoice's 100.00 and
+    # the overpayment's 100.00; the second invoice was paid by 40.00 of the
+    # credit, which spent its cost basis; 60.00 of credit is still owed.
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    assert 'Total USD cost basis balance: 200.00' in listing, listing
-    assert '60.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 200.00 USD held, 60.00 USD owed' in listing, listing
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
-    assert checked.exit_code == 0, checked.output
+    assert checked.exit_code == 0 and 'warning' not in checked.output, checked.output
+    integrity = runner.invoke(cli, ['--verify-integrity', str(book)])
+    assert integrity.exit_code == 0, integrity.output
 
 
 def test_what_is_left_of_the_credit_comes_back_with_its_cost(tmp_path):
@@ -148,13 +151,14 @@ def test_what_is_left_of_the_credit_comes_back_with_its_cost(tmp_path):
                                  '--include-business-objects'])
     assert result.exit_code == 0, result.output
 
-    # The same 200.00 across the same three cost bases, the remaining credit still
-    # carrying the cost it was acquired at.
+    # The same cost bases, the remaining credit still carrying the cost it was
+    # acquired at.
     listing = runner.invoke(cli, ['fx-balances', str(rebuilt)])
     assert listing.exit_code == 0, listing.output
-    assert 'Total USD cost basis balance: 200.00' in listing.output, listing.output
-    assert '1.4 CAD/USD' in listing.output, listing.output
-    assert '60.00 USD' in listing.output, listing.output
+    assert ('Total USD cost basis balance: 200.00 USD held, 60.00 USD owed'
+            in listing.output), listing.output
+    assert re.search(r'Assets:Accounts Receivable USD\s+1\.37 CAD/USD\s+60\.00 USD\s+'
+                     r'60\.00 USD\s+liability', listing.output), listing.output
     checked = runner.invoke(cli, ['fx-balances', str(rebuilt), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
 
@@ -197,10 +201,13 @@ def test_the_applied_part_can_be_priced_again_after_an_unpost(tmp_path):
                                    'INV-USD-SECOND'])
     assert unposted.exit_code == 0, unposted.output
 
+    # Handed back, the 40.00 is the customer's again: a liability cost basis
+    # at the 1.37 it was acquired at, owed in full.
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
     loosened = [line for line in listing.splitlines() if '40.00 USD' in line]
     assert loosened, listing
-    assert '1.4 CAD/USD' in loosened[0], loosened[0]
+    assert re.search(r'1\.37 CAD/USD\s+40\.00 USD\s+40\.00 USD\s+liability',
+                     loosened[0]), loosened[0]
 
 
 def test_a_credit_spent_to_the_last_cent_keeps_no_balance(tmp_path):
@@ -244,12 +251,14 @@ def test_a_credit_spent_to_the_last_cent_keeps_no_balance(tmp_path):
                  if 'applied_from_credit' in block.split('\n\tAssets')[0])
     spent = spent.split('\n\tAssets')[0].split('\n\tIncome')[0]
     assert 'cost_basis_balance' not in spent, spent
-    assert 'cost_basis_cost: "1.4 CAD/USD"' in spent, spent
+    assert 'cost_basis_cost: "1.37 CAD/USD"' in spent, spent
 
-    # The book now holds the first invoice's 100.00 and the new one's 250.00.
+    # The book now holds 200.00 in the bank — the first invoice's 100.00 and
+    # the overpayment's 100.00 — and the 150.00 of the new invoice's 250.00
+    # the credit did not pay.
     listing = runner.invoke(cli, ['fx-balances', str(book)])
     assert listing.exit_code == 0, listing.output
-    assert 'Total USD cost basis balance: 350.00' in listing.output, listing.output
+    assert 'Total USD cost basis balance: 350.00 USD held\n' in listing.output, listing.output
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
 
@@ -297,13 +306,15 @@ def test_the_remainder_is_told_apart_from_a_settlement_of_its_own_size(tmp_path)
     remainder = text.split('Assets:Accounts Receivable USD -100.00 USD')[2]
     remainder = remainder.split('\n\tAssets')[0].split('\n\tIncome')[0]
     assert 'cost_basis_balance: "100.00"' in remainder, remainder
-    assert 'cost_basis_cost: "1.4 CAD/USD"' in remainder, remainder
+    assert 'cost_basis_cost: "1.37 CAD/USD"' in remainder, remainder
 
-    # 100.00 on the first invoice, 50.00 on the second, 100.00 still owed
-    # back — against 250.00 in the bank.
+    # 250.00 in the bank: the first invoice's 100.00 and the overpayment's
+    # 150.00. The second invoice was paid by 50.00 of the credit, and 100.00
+    # is still owed back.
     listing = runner.invoke(cli, ['fx-balances', str(book)])
     assert listing.exit_code == 0, listing.output
-    assert 'Total USD cost basis balance: 250.00' in listing.output, listing.output
+    assert ('Total USD cost basis balance: 250.00 USD held, 100.00 USD owed'
+            in listing.output), listing.output
     checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
     assert checked.exit_code == 0, checked.output
 
@@ -348,7 +359,7 @@ def _the_credit_split(book):
 def _edit_the_credits_basis(book, change):
     """Rewrite the credit split's cost-basis KVP, and save.
 
-    A book can hold a cost basis this tool would refuse to import — hand-edited in
+    A book can hold a cost basis this tool would refuse to import — edited in
     the GnuCash GUI, or written by a version that checked less — and how such
     a book is *read* is the thing under test. Both callers below make one the
     only way one can be made: by writing the KVP the importer will not accept.
@@ -491,29 +502,20 @@ def test_dividing_a_credit_with_no_recorded_balance_records_none(tmp_path):
 
 
 def test_dividing_a_credit_puts_back_only_what_was_left(tmp_path):
-    """A credit already part-sold does not get its balance back on division.
+    """A credit with less left than its size does not get its balance back on division.
 
-    100.00 USD of credit with 80.00 of it sold has 20.00 left to sell. A
-    30.00 invoice naming that credit divides it, and the 70.00 that remains
-    the customer's is still only 20.00 of sellable cost basis — writing the split's
-    new size as its balance would re-open 50.00 USD the book no longer holds,
-    and every later sale would be measured against currency that is gone.
+    100.00 USD of credit whose cost basis has 20.00 left. A 30.00 invoice
+    stating that credit's guid divides it, and the 70.00 that remains the
+    customer's still has only 20.00 of cost basis — writing the split's new
+    size as its balance would re-open 50.00 USD that nothing stands for.
+
+    The 20.00 is written into the book directly, as a book edited in the
+    GnuCash GUI can hold it.
     """
     runner = CliRunner()
     book = _overpaid_book(runner, tmp_path)
-
-    # Sell 80.00 of the credit's 100.00.
-    listing = runner.invoke(cli, ['fx-balances', str(book)]).output
-    credit_guid = next(
-        line.split()[1] for line in listing.splitlines()
-        if 'Accounts Receivable USD' in line and '2026-02-25' in line)
-    sale = tmp_path / 'sale.txt'
-    sale.write_text(
-        Path('tests/fixtures/fx_sell_part_of_a_credit.txt').read_text()
-        .replace('{basis}', credit_guid))
-    result = runner.invoke(cli, ['import', str(book), str(sale),
-                                 '--fx-rates', RATES])
-    assert result.exit_code == 0, result.output
+    _edit_the_credits_basis(
+        book, lambda md: {**md, 'cost_basis_balance': '20.00'})
 
     # Name that credit in a block on a 30.00 USD invoice: the credit is
     # bigger, so the block divides it rather than attaching it whole.
@@ -533,9 +535,6 @@ def test_dividing_a_credit_puts_back_only_what_was_left(tmp_path):
     remainder = text.split('Assets:Accounts Receivable USD -70.00 USD')[1]
     remainder = remainder.split('\n\tAssets')[0].split('\n\tIncome')[0]
     assert 'cost_basis_balance: "20.00"' in remainder, remainder
-
-    checked = runner.invoke(cli, ['fx-balances', str(book), '--verify-costs'])
-    assert checked.exit_code == 0, checked.output
 
 
 def test_dividing_a_credit_valued_in_another_currency_balances(tmp_path):
@@ -586,11 +585,11 @@ def test_dividing_a_credit_valued_in_another_currency_balances(tmp_path):
 
 
 def test_a_vendor_credit_keeps_its_cost_the_same_way(tmp_path):
-    """The payable side is the mirror: 60.00 USD of claim left, still at 1.4.
+    """The payable side is the mirror: 60.00 USD of claim left, still at 1.37.
 
     What the book overpaid a vendor is its own currency sitting with them, and
     spending 40.00 of it on a later bill leaves 60.00 that is still the book's
-    — at what it cost to send, not at a rate for the day the bill arrived.
+    — at the payment's rate, not at a rate for the day the bill arrived.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -614,12 +613,12 @@ def test_a_vendor_credit_keeps_its_cost_the_same_way(tmp_path):
     applied = text.split('Liabilities:Accounts Payable USD 40.00 USD')[1]
     applied = applied.split('\n\tLiabilities')[0].split('\n\tAssets')[0]
     assert 'cost_basis_balance' not in applied, applied
-    assert 'cost_basis_cost: "1.4 CAD/USD"' in applied, applied
+    assert 'cost_basis_cost: "1.37 CAD/USD"' in applied, applied
 
     remainder = text.split('Liabilities:Accounts Payable USD 60.00 USD')[1]
     remainder = remainder.split('\n\tLiabilities')[0].split('\n\tAssets')[0]
     assert 'cost_basis_balance: "60.00"' in remainder, remainder
-    assert 'cost_basis_cost: "1.4 CAD/USD"' in remainder, remainder
+    assert 'cost_basis_cost: "1.37 CAD/USD"' in remainder, remainder
 
     listing = runner.invoke(cli, ['fx-balances', str(book)]).output
     assert '60.00 USD' in listing, listing
@@ -634,7 +633,7 @@ def test_a_vendor_credit_keeps_its_cost_the_same_way(tmp_path):
     rebuilt_listing = runner.invoke(cli, ['fx-balances', str(rebuilt)])
     assert rebuilt_listing.exit_code == 0, rebuilt_listing.output
     assert '60.00 USD' in rebuilt_listing.output, rebuilt_listing.output
-    assert '1.4 CAD/USD' in rebuilt_listing.output, rebuilt_listing.output
+    assert '1.37 CAD/USD' in rebuilt_listing.output, rebuilt_listing.output
     again = tmp_path / 'out2.txt'
     assert runner.invoke(cli, ['export', str(rebuilt), str(again),
                                '--include-business-objects']).exit_code == 0

@@ -120,7 +120,7 @@ def test_a_residual_balanced_onto_the_bank_is_accepted(tmp_path):
     """The token on a bank is no claim, so this file claims once.
 
     Counted as a claim it was refused as two, and the gain could then be had
-    no other way than by working the bank's figure out by hand.
+    no other way than by computing the bank's figure and stating it.
     """
     landed = _import(tmp_path, ONTO_THE_BANK)
 

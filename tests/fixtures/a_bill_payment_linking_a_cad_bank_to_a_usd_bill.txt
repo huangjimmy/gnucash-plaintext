@@ -35,3 +35,4 @@ bill "BILL-USD-001"
     account: "Assets:Bank:CAD"
     txn_guid: "9d0e1f2a3b4c5d6e7f8a9b0c5f6a7b8c"
     txn_split_guid: "1f2a3b4c5d6e7f8a9b0c5f6a7b8c9d0e"
+    Income:FX Gain $residual$ CAD

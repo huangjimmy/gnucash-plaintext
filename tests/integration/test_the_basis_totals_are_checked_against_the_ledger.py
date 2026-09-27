@@ -37,7 +37,7 @@ def _book(tmp_path):
 def _quietly_lower_one_balance(book, to='20.00'):
     """Take currency off a cost basis without recording a sale.
 
-    Which is what a hand-edit, a half-finished script, or a bug in this tool
+    Which is what a GUI edit, a half-finished script, or a bug in this tool
     leaves behind — and what no per-basis check can see: 20.00 is between zero
     and the 100.00 that arrived, so the cost basis passes every question asked of
     it on its own.

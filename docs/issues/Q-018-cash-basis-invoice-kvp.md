@@ -82,7 +82,7 @@ So the format and importer already support everything; this issue is the convent
 ## Canonical workflow
 
 ```
-# Step 1 — bank tx already exists in the book (QFX import or hand-written)
+# Step 1 — bank tx already exists in the book (QFX import or a transaction the file states)
 2026-04-15 * "Acme deposit, paid on receipt"
   Assets:Bank  113.00 CAD
   Assets:Accounts Receivable  -113.00 CAD

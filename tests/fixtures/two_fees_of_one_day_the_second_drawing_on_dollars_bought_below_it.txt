@@ -8,7 +8,7 @@
 # which is all the check for a duplicate compares, and they are two fees.
 #
 # Verified by
-# tests/integration/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
+# tests/scenario/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
 2026-08-20 * "Transfer fee"
 	currency.mnemonic: "CAD"
 	Expenses:Bank charges 0.97 CAD

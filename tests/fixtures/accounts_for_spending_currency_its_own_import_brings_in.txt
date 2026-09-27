@@ -2,7 +2,7 @@
 # spent in one import, each fixture a file of transactions imported onto these.
 #
 # Verified by
-# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+# tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"

@@ -9,7 +9,7 @@
 # moved money rather than measuring anything, and neither the import's mark nor
 # the page's reading counts it, so counting it as a *claim* refused this file
 # as claiming twice what it claims once — and left no way to have the gain
-# counted at all short of working the bank figure out by hand.
+# counted at all short of computing the bank figure and stating it.
 #
 # So it imports, and the page states the 100.00 the sale made.
 #

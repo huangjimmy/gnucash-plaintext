@@ -6,7 +6,7 @@
 ; booked 50.00 CAD: the figure kept, its currency thrown away, the entry
 ; balancing against the other side, and the run reporting success.
 ;
-; Which is the plainest hand-edit there is — change the account on a posting
+; Which is the plainest edit there is — change the account on a posting
 ; and leave the commodity behind.
 ;
 ; What this fixture produces: a refusal naming the posting, the commodity it

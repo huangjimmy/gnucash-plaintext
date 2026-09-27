@@ -1,0 +1,118 @@
+# A Canadian book whose US dollar bank and US dollar card each cross zero.
+#
+# Assets:USD Bank pays 500.00 USD of travel at 1.30 while it holds nothing, so
+# it goes from 0 to -500.00, acting as a liability: the payment's split opens a
+# liability cost basis of 500.00 USD owed at 1.30. Then 1,000.00 USD is bought
+# for 1,350.00 CAD at 1.35 and deposited into it, and the bank is at +500.00.
+# The deposit's first 500.00 takes the bank from -500.00 to 0, which draws the
+# liability cost basis to nothing and realizes a loss of 25.00: 500.00 owed at
+# 1.30, covered at 1.35. Its other 500.00 takes the bank from 0 to +500.00, so
+# the deposit's split opens an asset cost basis of 500.00 USD held at 1.35.
+#
+# Liabilities:USD Card is paid 500.00 USD from the Canadian bank at 1.30 while
+# it owes nothing, so it goes from 0 to 500.00 in credit, acting as an asset:
+# the payment's split opens an asset cost basis of 500.00 USD held at 1.30.
+# Then 1,000.00 USD of travel is spent on it at 1.35, and the card owes 500.00.
+# The charge's first 500.00 takes the card from 500.00 in credit to 0, which
+# draws the asset cost basis to nothing and realizes a gain of 25.00: 500.00
+# held at 1.30, spent at 1.35. Its other 500.00 takes the card from 0 to owing
+# 500.00, so the charge's split opens a liability cost basis of 500.00 USD owed
+# at 1.35.
+#
+# What this fixture produces: Assets:USD Bank at +500.00 USD with an asset cost
+# basis of 500.00 and a liability cost basis at nothing; Liabilities:USD Card
+# owing 500.00 USD with a liability cost basis of 500.00 and an asset cost
+# basis at nothing.
+#
+# Verified by
+# tests/scenario/test_every_cost_basis_is_consumable_on_its_own_side_and_never_below_nothing.py.
+2034-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Liabilities:USD Card
+	type: "Credit Card"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses:Travel
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2034-01-05 * "Travel paid from the empty USD bank"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 650.00 CAD
+	Assets:USD Bank -500.00 USD
+		guid: "0e0e0000000000000000000000000001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-650.00"
+
+2034-01-10 * "1,000.00 USD bought and deposited into the USD bank"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank -1350.00 CAD
+	Assets:USD Bank 1000.00 USD
+		guid: "0e0e0000000000000000000000000002"
+		account.commodity.mnemonic: "USD"
+		share_price: "53/40"
+		value: "1325.00"
+		cost_basis_split_guid: "0e0e0000000000000000000000000001"
+	Income:FX Gain $residual$ CAD
+
+2034-01-05 * "500.00 USD paid onto the empty card"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank -650.00 CAD
+	Liabilities:USD Card 500.00 USD
+		guid: "0e0e0000000000000000000000000003"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "650.00"
+
+2034-01-10 * "1,000.00 USD of travel charged to the card"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 1350.00 CAD
+	Liabilities:USD Card -1000.00 USD
+		guid: "0e0e0000000000000000000000000004"
+		account.commodity.mnemonic: "USD"
+		share_price: "53/40"
+		value: "-1325.00"
+		cost_basis_split_guid: "0e0e0000000000000000000000000003"
+	Income:FX Gain $residual$ CAD

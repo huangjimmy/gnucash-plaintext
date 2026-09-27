@@ -73,7 +73,7 @@ def _write_migrations_slot(gf, text):
 
 
 class TestASidecarThatWillNotParse:
-    """Truncated, half-written, or edited by hand."""
+    """Truncated, half-written, or edited."""
 
     def test_the_book_is_opened_instead(self, applied):
         gf, d = applied

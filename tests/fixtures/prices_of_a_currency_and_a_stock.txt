@@ -2,7 +2,7 @@
 #
 # The NASDAQ:AMZN price states its guid and a full UTC time, as `export` writes
 # a price. The USD rate states neither a guid nor a time of day: `time:` is a
-# bare date and `value:` a decimal, as a price is typed by hand.
+# bare date and `value:` a decimal, as a person types a price.
 #
 # What this fixture produces: a book holding two prices, AMZN in USD at
 # 2026-01-06 21:00:00 UTC and USD in CAD on 2026-01-02 at GnuCash's time for a

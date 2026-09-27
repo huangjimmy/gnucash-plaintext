@@ -78,7 +78,7 @@ def test_a_stored_cost_that_drifted_from_the_transaction_is_reported(tmp_path):
     copy from being believed also stopped it from being visible.
 
     The KVP is written directly here because the importer refuses a file that
-    states one; a book can still carry one from a hand edit or an older tool.
+    states one; a book can still carry one from a GUI edit or an older tool.
     """
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
@@ -377,10 +377,12 @@ def test_the_one_stored_cost_survives_a_round_trip(tmp_path):
     """Export, import into a fresh book, and the borrowed cost is still there.
 
     `cost_basis_cost` is written for exactly one shape — a USD invoice
-    overpaid from a USD bank, where no split carries a CAD figure — and it is
-    the only cost that would be lost if the KVP did not survive. The refusal
-    that now guards a stated cost sits close enough to this path that a change
-    could stop it round-tripping without any other test noticing.
+    overpaid from a USD bank, where no split carries a CAD figure — on the
+    two cost bases the overpayment opens, the customer's credit and the
+    bank's dollars, each at the payment day's 1.37. It is the only cost that
+    would be lost if the KVP did not survive. The refusal that now guards a
+    stated cost sits close enough to this path that a change could stop it
+    round-tripping without any other test noticing.
     """
     runner = CliRunner()
     first = tmp_path / 'first.gnucash'
@@ -394,7 +396,8 @@ def test_the_one_stored_cost_survives_a_round_trip(tmp_path):
     exported = tmp_path / 'out.txt'
     assert runner.invoke(cli, ['export', str(first), str(exported),
                                '--include-business-objects']).exit_code == 0
-    assert 'cost_basis_cost: "1.4 CAD/USD"' in exported.read_text(), exported.read_text()
+    assert exported.read_text().count('cost_basis_cost: "1.37 CAD/USD"') == 2, \
+        exported.read_text()
 
     second = tmp_path / 'second.gnucash'
     result = runner.invoke(cli, ['import', '--new', str(second), str(exported),
@@ -402,8 +405,8 @@ def test_the_one_stored_cost_survives_a_round_trip(tmp_path):
     assert result.exit_code == 0, result.output
 
     listing = runner.invoke(cli, ['fx-balances', str(second)]).output
-    assert 'Total USD cost basis balance: 200.00' in listing, listing
-    assert '1.4 CAD/USD' in listing, listing
+    assert 'Total USD cost basis balance: 200.00 USD held, 100.00 USD owed' in listing, listing
+    assert '1.37 CAD/USD' in listing, listing
     assert _verify(runner, second).exit_code == 0, _verify(runner, second).output
 
 
@@ -452,8 +455,8 @@ def test_a_spending_split_is_not_a_basis_however_its_cost_reads(tmp_path):
               'tests/fixtures/usd_moved_between_two_usd_accounts.txt'])
     assert result.exit_code == 0, result.output
 
-    # Written by hand, because the importer refuses such a line: a book can
-    # still carry one from a GUI edit or an older tool.
+    # Written to the book directly, because the importer refuses such a
+    # line: a book can still carry one from a GUI edit or an older tool.
     repo = GnuCashRepository(str(book))
     repo.open(mode=SessionMode.NORMAL)
     try:
@@ -818,7 +821,7 @@ def test_a_sale_whose_force_flag_cannot_be_read_is_reported_in_that_flags_words(
     """What failed while a sale was measured is what the report says.
 
     `cost_basis_force:` on a sale is read as a yes or a no, and a book can hold
-    one that is neither, from a hand edit or an older tool. The disposal check
+    one that is neither, from a GUI edit or an older tool. The disposal check
     reads it while asking whether the cost basis the sale draws on was
     collected. Reported as a cost basis that could not be read, it would send
     the reader to the purchase, which is sound; the words are about the flag.

@@ -11,7 +11,7 @@
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes.
 #
 # Verified by
-# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+# tests/scenario/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
 2034-01-10 * "Pay 200.00 USD onto the card from C"
 	currency.mnemonic: "CAD"
 	Assets:USD C -200.00 USD

@@ -994,7 +994,7 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
         # Caught as well as `or`ed, because the lookup has two ways to decline
         # and only one of them answers `#f`. Two templates matching one guid —
         # the registry compares case-sensitively while this lookup does not,
-        # so a hand-edited saved-reports file can hold `7C7D…` beside `7c7d…`
+        # so a saved-reports file edited outside GnuCash can hold `7C7D…` beside `7c7d…`
         # — calls Scheme `error` instead, which would refuse the page over
         # a setting made in File → Properties, quoting a guid nobody typed.
         # That is the outcome the fallback exists to prevent, so both ways
@@ -1104,7 +1104,7 @@ def _render(lib, work: Path, guid: str, company_extra, owner_extra,
     # typed on this command line. GnuCash's own chooser cannot offer such a
     # report (`gnc:report-is-invoice-report?` follows `'parent-type` to the
     # parent's `'invoice` hook, and every one of those carries the option), so
-    # a book reaching here was written by hand or by something else.
+    # a book reaching here was edited in the GnuCash GUI or by another program.
     #
     # The swap is written down as it happens, because afterwards it cannot be
     # told from the other two ways a book's report fails to draw: all three

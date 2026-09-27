@@ -46,3 +46,4 @@ invoice "INV-USD-001"
     account: "Assets:Bank"
     txn_guid: "11223344556677889900aabbccddeeff"
     txn_split_guid: "3344556677889900aabbccddeeff1122"
+    Income:FX Gain $residual$ CAD

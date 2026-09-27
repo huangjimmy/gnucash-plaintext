@@ -7,12 +7,13 @@ comparison that decides whether a bill matches its file reads the field.
 For a book written before this change that answers "different" on every run,
 whatever the file says — and a posted bill judged different is rebuilt, which
 means unposting it. On a foreign-currency bill whose settlement drew a cost
-basis down, unposting is refused outright:
+basis down, unposting was refused outright, before Q-054 made what drew on
+the cost basis pending instead:
 
     bill 'BILL-…' cannot be unposted: its cost basis is what 1 transaction(s)
     measure against …
 
-so the ledger cannot be imported at all, and the only way out — deleting the
+so the ledger could not be imported at all, and the only way out — deleting the
 `notes:` line from a file this tool wrote — is not in the message. The address
 keys met this first and got a fallback through `held_value`; the bill's own
 text is twenty lines away in the same file and did not.
@@ -69,15 +70,13 @@ def book_from_the_shipped_release(tmp_path):
 
 
 class TestEditingALineOfIt:
-    def test_says_what_the_obstacle_is(self, book_from_the_shipped_release,
-                                       tmp_path):
-        """The cost basis, not the posting.
+    def test_says_to_unpost_it_first(self, book_from_the_shipped_release, tmp_path):
+        """The posting is the obstacle, and `unpost-bills` removes it.
 
-        A file changing a posted bill's lines is refused and told to
-        run `unpost-bills` first — but this bill cannot be unposted at all,
-        because its settlement is what a cost basis measures against, so
-        that command refuses too and for a reason the first message never
-        mentioned. Two hops to the truth, and the first one wrong.
+        A file changing a posted bill's lines is refused and told to run
+        `unpost-bills` first. That command goes through for this bill though
+        its settlement is what a cost basis measures against: what drew on the
+        bill's cost basis is made pending (Q-054).
         """
         edited = tmp_path / 'edited.txt'
         edited.write_text(
@@ -91,8 +90,8 @@ class TestEditingALineOfIt:
 
         assert result.exit_code != 0, result.output
         message = str(result.output) + str(result.exception)
-        assert 'cost basis' in message, message
-        assert 'unpost-bills' not in message, message
+        assert 'this bill is posted, and this file changes it' in message, message
+        assert 'unpost-bills' in message, message
 
 
 class TestReadingItsOwnLedgerAgain:

@@ -1,7 +1,7 @@
 """A payment block's realized difference reaches `realized_gains_fx`.
 
 The commonest realized exchange difference this tool writes is not a
-hand-written disposal at all: it is a settlement. A US dollar invoice is posted
+disposal a file states as a transaction at all: it is a settlement. A US dollar invoice is posted
 at one rate and paid at another, the payment block's `$residual$` line takes
 the difference, and the import marks that split.
 
@@ -11,7 +11,7 @@ settling split carries `cost_basis_split_guid` and the entry is restated in the
 book's own currency. Both are conditions of the reader, and neither is obvious
 from the payment block a person writes.
 
-Every other test of these keys draws its gain from a hand-written transaction,
+Every other test of these keys draws its gain from a transaction the file states,
 or from a settlement in the record's own currency, which realizes nothing. So
 if either condition changed, the figure would drop to 0.00 with nothing to
 notice — on the shape a reader is most likely to have.

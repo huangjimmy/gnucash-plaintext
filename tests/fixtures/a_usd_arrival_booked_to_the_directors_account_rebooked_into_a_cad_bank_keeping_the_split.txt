@@ -9,7 +9,7 @@
 # as the edit leaves it.
 #
 # Verified by
-# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+# tests/scenario/test_an_edit_may_move_the_split_that_sets_the_rate.py.
 2026-01-01 open Assets:CAD Bank
 	type: "Bank"
 	commodity.namespace: "CURRENCY"

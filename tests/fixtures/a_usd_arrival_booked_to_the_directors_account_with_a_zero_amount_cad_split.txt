@@ -8,7 +8,7 @@
 # Canadian dollar split to income and keeps this one as it is.
 #
 # Verified by
-# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+# tests/scenario/test_an_edit_may_move_the_split_that_sets_the_rate.py.
 2026-08-13 * "Received money"
 	guid: "e1d60fe6bc104e018c50c67dd61665ec"
 	currency.mnemonic: "USD"

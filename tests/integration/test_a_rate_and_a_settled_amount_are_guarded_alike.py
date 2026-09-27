@@ -60,7 +60,8 @@ def book_holding_the_hkd_settlement(tmp_path):
 
 
 class TestASecondInvoiceNamingThatMovementWithAMistypedGuid:
-    """A hand-written block against a book that already holds the money."""
+    """A block that is not an export, against a book that already holds the
+    money."""
 
     def _import_by_rate(self, book, tmp_path):
         ledger = tmp_path / 'by_rate.txt'

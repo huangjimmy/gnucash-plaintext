@@ -1,7 +1,7 @@
 """Re-importing a book's own export leaves a credit-settled invoice alone.
 
 An export describes a credit that settled an invoice as a payment block
-carrying `from_credit: true`; a hand-written file asks for the same thing with
+carrying `from_credit: true`; a file that is not an export asks for the same thing with
 `auto_apply_credit: true` on the header. Both have to read as "already done"
 against a book where it is done, or importing a book's own export walks the
 destructive path: unpost, rebuild, and a warning that the bank-side payment
@@ -104,7 +104,7 @@ def test_a_partly_spent_credit_reads_as_already_applied(tmp_path):
     assert 'Bills:       0 created, 0 updated, 2 unchanged' in again.output, again.output
     assert _blocks(_export(runner, book, tmp_path, 'out2.txt')) == _blocks(exported)
 
-    # And the hand-written form says the same thing about the same book: the
+    # And the `auto_apply_credit:` form says the same thing about the same book: the
     # request has been honoured, so there is nothing left to honour.
     for fixture in ('q015_aac_inv002_partial_credit.txt',
                     'q015_aac_bill002_partial_credit.txt'):

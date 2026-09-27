@@ -4,7 +4,7 @@
 # position. Each draws on the cost basis it states: 499.28 and 2,719.28 left.
 #
 # Verified by
-# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+# tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
 2026-08-13 * "Received money, one fee from the dollars held and one from the arrival"
 	currency.mnemonic: "CAD"
 	Assets:Wise USD 2720.00 USD

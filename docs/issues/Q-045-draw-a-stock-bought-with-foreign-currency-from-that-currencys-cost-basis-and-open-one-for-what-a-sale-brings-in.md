@@ -62,7 +62,7 @@ The book: 10,000.00 USD bought at 1.30 and held, 5,000.00 USD borrowed at 1.30 a
 
 **Every arrival is handled, and handled correctly.** A currency coming in opens a cost basis whether it arrives from a share sale, from Canadian dollars, or from another foreign currency, and it is costed in the book's own currency: case 10 opened 7,800.00 HKD at 0.16667 CAD, which is the 1,300.00 CAD the dollars were worth. Neither side of that transaction is CAD — the figure comes from the `value:` its splits carry, which is there because the transaction is stated in CAD. Written wholly in USD or HKD there would be no CAD figure to cost either side from, which is the ground Q-044's `measured_from: gnucash_revaluation` fallback covers.
 
-**No departure is handled at all.** Currency leaving draws nothing down unless the ledger hands over `cost_basis_split_guid:` by hand, and nothing refuses a ledger that does not. The realized gain on those disposals is never taken either.
+**No departure is handled at all.** Currency leaving draws nothing down unless the ledger states `cost_basis_split_guid:`, and nothing refuses a ledger that does not. The realized gain on those disposals is never taken either.
 
 **So the subject is wider than the title.** It is not stocks: case 9 is plain US dollars sold for Canadian ones and fails the same way, and case 10 fails between two foreign currencies. What the two faults have in common is a disposal of foreign currency that does not say which basis it came out of. Stocks are where the reporter met it.
 

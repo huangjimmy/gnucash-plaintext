@@ -104,7 +104,7 @@ run_test() {
     # Through `scripts/test.sh`, which is the one place that decides how the
     # suite is run — the user, the mount, HOME, the coverage file. Spelled out
     # here it was a third copy of that recipe beside `test-in-docker.sh` and
-    # CI's own, agreeing only by hand: CI's copy had no `--user` and so ran as
+    # CI's own, agreeing only while someone kept them in step: CI's copy had no `--user` and so ran as
     # root, where a test that takes write permission off a directory cannot
     # fail, and the gate reported green on every version while CI reported red
     # on every version.

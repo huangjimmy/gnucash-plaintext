@@ -75,7 +75,7 @@ class BeancountTransaction:
 # `@@ <total>` states outright what a cross-commodity posting is worth in the
 # transaction's currency — the form this exporter writes, because a rate is a
 # quotient that has to be rounded to write down. `@ <rate>` is the per-unit
-# form, which hand-written files use and beancount's own docs lead with, and
+# form, which beancount ledgers use and beancount's own docs lead with, and
 # `{…}` is a cost basis, which says the same thing a third way. Dropped on the
 # way in, a split was valued at its own amount instead — 12.345 units of a fund
 # entered as 12.345 CAD against 1,234.50 of cash — and GnuCash balanced the
@@ -109,7 +109,7 @@ _POSTING = re.compile(
     r'\s*(?:,[^}]*)?\}))?'
     # `\s*` on *both* sides of the sigil, because beancount reads `@` and `@@`
     # as tokens of their own: `@1.35`, `@ 1.35`, `USD@1.35` and `USD@ 1.35`
-    # are one thing written four ways, and a person writing by hand writes all
+    # are one thing written four ways, and a person editing a ledger writes all
     # of them. Spelled with the space after optional and the space before
     # required, this was one rule answered two ways — `USD @1.35 CAD` read and
     # `USD@1.35 CAD` matched nothing at all, because the currency group
@@ -634,7 +634,7 @@ class BeancountParser:
             # covered only the entries.
             if lines[i][:1] not in (' ', '\t'):
                 # Unless it is a posting that lost its indentation, which is
-                # the commonest hand-edit slip there is. Ending the
+                # the commonest slip in editing a file. Ending the
                 # transaction there dropped it and everything below it in
                 # silence — the outer loop matches none of the three directive
                 # forms and skips on, GnuCash scrubs in an Imbalance for what
@@ -653,7 +653,7 @@ class BeancountParser:
             # currency. `@@ <total>` states it outright — the form this
             # exporter writes, because a rate is a quotient that has to be
             # rounded to write down. `@ <rate>` is the per-unit form, which
-            # hand-written files use and beancount's own docs lead with, and
+            # beancount ledgers use and beancount's own docs lead with, and
             # `{…}` is a cost basis, which says the same thing a third way.
             #
             # Dropped on the way in, the split was valued at its own amount

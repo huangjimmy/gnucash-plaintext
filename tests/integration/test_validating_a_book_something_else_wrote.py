@@ -3,7 +3,7 @@
 GnuCash balances every transaction it stores, so the checks that matter most —
 a transaction whose splits do not sum to zero, one with no splits at all —
 cannot be produced by importing anything. What produces them is what the
-command is for: a book edited by hand, or written by another tool, or left
+command is for: a book edited in the GUI, or written by another tool, or left
 behind by a version of something that had a bug.
 
 So these tests make one. A GnuCash book is gzipped XML; dropping a `<trn:split>`

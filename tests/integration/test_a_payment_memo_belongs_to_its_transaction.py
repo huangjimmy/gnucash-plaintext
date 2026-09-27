@@ -353,7 +353,7 @@ SHARED_LEDGER = (SHARED
                  + _an_invoice('INV-B', 40,
                                'cc00cc00cc00cc00cc00cc00cc000002'))
 
-#: The same wire and the same two invoices, hand-written: neither block
+#: The same wire and the same two invoices, stating no split guid: neither block
 #: names a split, so both state the memo of the one they share.
 SHARED_NAMING_NO_SPLIT = (
     SHARED
@@ -810,7 +810,7 @@ class TestALedgerAnEarlierReleaseWrote:
 
 
 class TestABlockNamingNeitherGuid:
-    """Hand-written, or an export with its guids taken out."""
+    """A file that is not an export, or an export with its guids taken out."""
 
     def test_matches_the_payment_the_book_already_holds(self, tmp_path):
         """It states the settling split's memo, so it is compared to that.

@@ -8,7 +8,7 @@
 # 1.55. Left: 1,720.00 USD and 899.00 EUR.
 #
 # Verified by
-# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+# tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
 2026-08-13 * "Received money, some to euros, and a euro fee"
 	currency.mnemonic: "CAD"
 	Assets:Wise USD 2720.00 USD

@@ -124,12 +124,12 @@ def _a_credit_handed_back(runner, tmp_path):
     listing = _run(runner, 'fx-balances', str(book)).output
     loosened = [line.split()[1] for line in listing.splitlines()
                 if 'Accounts Receivable USD' in line
-                and 'none recorded' in line]
+                and line.rstrip().endswith('100.00 USD liability')]
     return book, loosened, listing
 
 
 def test_the_loosened_credit_is_a_cost_basis_again(tmp_path):
-    """Which is what makes the order of the two tests matter."""
+    """Owed to the customer in full again: a liability cost basis of 100.00."""
     runner = CliRunner()
     _, loosened, listing = _a_credit_handed_back(runner, tmp_path)
     assert loosened, listing
@@ -146,16 +146,19 @@ def _a_usd_paid_credit_spent_whole(runner, tmp_path):
 
     Handed back before the record is unposted, so a ledger can be written
     while the credit is still spent.
+
+    80.00 of the dollars the overpayment brought into the bank are sold
+    first, against the bank's cost basis.
     """
     book = _overpaid_book(runner, tmp_path)
     listing = _run(runner, 'fx-balances', str(book)).output
-    credit = next(line.split()[1] for line in listing.splitlines()
-                  if 'Accounts Receivable USD' in line and '2026-02-25' in line)
+    bank = next(line.split()[1] for line in listing.splitlines()
+                if 'Assets:Bank:USD' in line and '2026-02-25' in line)
 
     sale = tmp_path / 'sale.txt'
     sale.write_text(
-        Path('tests/fixtures/fx_sell_part_of_a_credit.txt').read_text()
-        .replace('{basis}', credit))
+        Path('tests/fixtures/fx_sell_80_usd_the_overpayment_brought_into_the_bank.txt')
+        .read_text().replace('{basis}', bank))
     assert _run(runner, 'import', str(book), str(sale),
                 '--fx-rates', OWN_CURRENCY_RATES).exit_code == 0
 
@@ -191,8 +194,8 @@ def test_a_credit_priced_only_by_a_stored_cost_survives_being_spent(tmp_path):
     book = _a_usd_paid_credit_handed_back(runner, tmp_path)
 
     listing = _run(runner, 'fx-balances', str(book)).output
-    assert '2026-02-25' in listing, listing
-    assert '1.4 CAD/USD' in _the_credits_row(listing), listing
+    assert re.search(r'1\.37 CAD/USD\s+100\.00 USD\s+100\.00 USD\s+liability',
+                     _the_credits_row(listing)), listing
 
 
 def test_a_book_rebuilt_while_the_credit_is_spent_prices_it_the_same(tmp_path):
@@ -204,7 +207,7 @@ def test_a_book_rebuilt_while_the_credit_is_spent_prices_it_the_same(tmp_path):
     the cost is on a live cost basis and is kept whatever that test says.
 
     Rebuild from a ledger written while the credit was spent, unpost the
-    invoice there, and the split has to come back priced at 1.4 the way it
+    invoice there, and the split has to come back priced at 1.37 the way it
     does in the book the ledger came from. Dropped, it comes back a cost basis
     with no cost at all, the currency is unsellable, and the two books answer
     differently about the same money.
@@ -227,7 +230,7 @@ def test_a_book_rebuilt_while_the_credit_is_spent_prices_it_the_same(tmp_path):
     listing = _run(runner, 'fx-balances', str(fresh)).output
     row = _the_credits_row(listing)
     assert row, listing
-    assert '1.4 CAD/USD' in row, row
+    assert '1.37 CAD/USD' in row, row
 
 
 def test_the_sale_that_drew_on_it_is_not_reported(tmp_path):
@@ -255,10 +258,11 @@ def test_the_sale_that_drew_on_it_is_not_reported(tmp_path):
 
 
 def test_a_sale_against_it_is_still_refused(tmp_path):
-    """It has no balance recorded, so nothing says how much is left to sell.
+    """The loosened credit is a cost basis of dollars owed to the customer.
 
-    Which is what the ordering fix is for: asked the other way round, the mark
-    alone let the sale past the drawdown, the over-sell refusal,
+    A sale of dollars held stating it is refused as drawing on the other side
+    (Q-054). Asked the other way round — the mark first — the mark alone let
+    the sale past the drawdown, the over-sell refusal,
     `_require_basis_collected` and `_require_stated_cost` alike, and its
     realized gain was whatever the file said.
     """
@@ -271,4 +275,5 @@ def test_a_sale_against_it_is_still_refused(tmp_path):
     result = _run(runner, 'import', str(book), str(sale), '--fx-rates', RATES)
     message = result.output + str(result.exception)
     assert result.exit_code != 0, message
-    assert 'no balance recorded' in message, message
+    assert (f"cost_basis_split_guid '{loosened[0]}' is a cost basis of USD the book owed, "
+            'but this split spends USD the book held') in message, message

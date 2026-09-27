@@ -3,7 +3,7 @@
 ; Beancount reads `@` and `@@` as tokens of their own, so the spaces around
 ; one are decoration on both sides. The space *after* the sigil was already
 ; optional and the space *before* it was required, which is one rule stated
-; twice and answered differently — and a person writing by hand does not know
+; twice and answered differently — and a person writing a file does not know
 ; there were two.
 ;
 ; A posting this parser cannot read is refused rather than skipped, on the

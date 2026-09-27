@@ -9,7 +9,7 @@ not tell them apart.
 
 Read that loosely, rebuilding one invoice from a printed file into a book
 that happens to hold the other customer's deposit is refused outright — and
-the remedy offered is to hand-edit a file this tool generated.
+the remedy offered is to edit a file this tool generated.
 
 The memo is what a payment block carries to say which movement it is, so it is
 part of the question.

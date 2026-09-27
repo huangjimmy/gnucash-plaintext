@@ -1,5 +1,5 @@
 # The same note, stated a level up. Unposting writes it on a split and only
-# there, so a file carrying one on a transaction is hand-written either way —
+# there, so no export ever carries one on a transaction —
 # and refused on the split alone, it was stored as ordinary metadata and
 # written back out, making the next export of that book a file this tool says
 # no file may write. The export drops it from a transaction for the same

@@ -332,7 +332,7 @@ to int `22…22`, losing the original digit count — `0000…0022` and `22`
 both decode to int `22`.
 
 The exporter emits `guid: "<hex>"` (quoted) so this never bites the
-round-trip. Hand-written files must quote all-digit GUIDs; mixed-hex
+round-trip. A file must quote an all-digit GUID; mixed-hex
 forms like `b2b3…b4` work unquoted because the parser keeps strings as
 strings.
 

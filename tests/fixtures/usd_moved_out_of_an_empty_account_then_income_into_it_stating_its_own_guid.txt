@@ -9,7 +9,7 @@
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes.
 #
 # Verified by
-# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+# tests/scenario/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
 2034-02-01 * "1,000.00 USD of income paid into A, stating its own guid"
 	currency.mnemonic: "CAD"
 	Assets:USD A 1000.00 USD

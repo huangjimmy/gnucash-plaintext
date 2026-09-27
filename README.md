@@ -35,7 +35,7 @@ human-editable — one wrong tag and the whole file is unusable.
 GnuCash file. The workflow is:
 
 1. **Export** your `.gnucash` file to plaintext.
-2. **Edit** the text however you like — by hand, with a script, by piping it
+2. **Edit** the text however you like — in an editor, with a script, by piping it
    through an LLM, or as part of a larger tool chain.
 3. **Import** back into GnuCash. Accounts, transactions, splits, commodities,
    prices (exported with `--include-prices`), customers, vendors, invoices,
@@ -219,7 +219,7 @@ price
 	type: "last"
 ```
 
-An exchange rate is the same block with `commodity.namespace: "CURRENCY"`. One USD in CAD on 2026-01-02, typed by hand:
+An exchange rate is the same block with `commodity.namespace: "CURRENCY"`. One USD in CAD on 2026-01-02:
 
 ```
 price
@@ -382,7 +382,7 @@ That rate comes from `--fx-rates` on `import`, and importing a foreign-currency 
 
 `share_price: "1.37"` states the same thing as a rate, meaning what it means on any split — one unit of the record's currency in units of the account's. Either one is required when the two currencies differ, both are rejected when they match, and stating both is fine only if they agree. Nothing is looked up: a payment records what actually happened, and only the payer knows what their money converted at.
 
-Settling at a rate other than the one the record was booked at **realizes a gain or loss**: revenue recognised at 1.40 against 137.00 CAD received is a 3.00 CAD loss on the settlement date. The A/R side of the payment is valued at the cost basis it settles, so the entry balances only once that difference is placed — which the block does with an ordinary **split line**, the same syntax a transaction uses, and `$residual$` works there exactly as it does anywhere else. No key states an account and nothing is configured. That line is the only one a payment block may carry: the realized difference is the one figure in the entry that moved no money, and anything that did — a wire fee is a bank debit — is imported as its own transaction, so it cannot quietly change the rate the settlement converted at. `$residual$` must post to an income or expense account, since a realized difference is a gain or a loss; anywhere else absorbs it into the balance sheet. A settlement that realizes something without a split to take it is refused. The cost basis it settles drops to zero available — that currency has been converted and cannot be sold again. Settling in the record's own currency realizes nothing, and split lines belong to the cross-currency settlement alone: a payment that settles in its own currency, or one attached to an existing transaction with `txn_guid:`, is refused if it carries them rather than accepting the file and dropping them. Write that payment as an ordinary transaction, where any number of splits is ordinary, and attach it. On a transaction, where a split line does state an amount, one its currency cannot hold — `2.005 CAD`, half a cent — is refused rather than rounded on your behalf: a figure the file states is honoured or refused, which is the opposite side of the same rule that has GnuCash round a *computed* figure like 45.00 USD at 1.405 to the cent.
+Settling at a rate other than the one the record was booked at **realizes a gain or loss**: revenue recognised at 1.40 against 137.00 CAD received is a 3.00 CAD loss on the settlement date. The A/R side of the payment is valued at the cost basis it settles, so the entry balances only once that difference is placed — which the block does with an ordinary **split line**, the same syntax a transaction uses, and `$residual$` works there exactly as it does anywhere else. No key states an account and nothing is configured. That line is the only one a payment block may carry: the realized difference is the one figure in the entry that moved no money, and anything that did — a wire fee is a bank debit — is imported as its own transaction, so it cannot quietly change the rate the settlement converted at. `$residual$` must post to an income or expense account, since a realized difference is a gain or a loss; anywhere else absorbs it into the balance sheet. A settlement that realizes something without a split to take it is refused. The cost basis it settles drops to zero available — that currency has been converted and cannot be sold again. Settling in the record's own currency realizes nothing, and split lines belong to the cross-currency settlement alone: a payment that settles in its own currency is refused if it carries them rather than accepting the file and dropping them. A payment attached to an existing transaction with `txn_guid:` carries none either, with one exception: where it converts the record's currency, a USD invoice collected by a transaction into a Canadian dollar bank, the `$residual$` line takes the difference exactly as it does for a payment GnuCash writes. The settlement is restated at the record's cost, and a difference with no line to take it is refused. A transaction that already states its settlement at the record's cost, with `cost_basis_split_guid:` of the record's posting split and the difference on a split of its own, needs no line. That is how an export writes it. Otherwise, write the payment as an ordinary transaction, where any number of splits is ordinary, and attach it. On a transaction, where a split line does state an amount, one its currency cannot hold — `2.005 CAD`, half a cent — is refused rather than rounded on your behalf: a figure the file states is honoured or refused, which is the opposite side of the same rule that has GnuCash round a *computed* figure like 45.00 USD at 1.405 to the cent.
 
 **Selling foreign currency.** The sale states the guid of the cost basis it is measured against, on its own foreign-currency split, and values what it sells at that cost basis's cost. What the sale fetched is on the other splits, and `$residual$` takes the difference — the realized gain or loss:
 
@@ -397,7 +397,7 @@ Settling at a rate other than the one the record was booked at **realizes a gain
 	Income:FX Gain and Loss $residual$ CAD         # the 1.00 CAD loss falls out
 ```
 
-A sale measured against two cost bases carries two foreign-currency splits, each stating one of them, and each split's amount is how much of that cost basis it uses — 200 USD can be taken entirely from one cost basis, 100 from each of two, or 50 and 150. Selling more than a cost basis has available is refused on import, and so is selling against an **unpaid invoice**: an A/R split states what a customer owes, not currency the book holds, so it must be collected first (or carry `cost_basis_force: true`). Deleting a sale puts its currency straight back on the cost bases it measured against, and a record whose cost basis is in use cannot be unposted until those sales are removed.
+A sale measured against two cost bases carries two foreign-currency splits, each stating one of them, and each split's amount is how much of that cost basis it uses — 200 USD can be taken entirely from one cost basis, 100 from each of two, or 50 and 150. Selling more than a cost basis has available is refused on import, and so is selling against an **unpaid invoice**: an A/R split states what a customer owes, not currency the book holds, so it must be collected first (or carry `cost_basis_force: true`). Deleting a sale puts its currency straight back on the cost bases it measured against. Unposting a record destroys its cost basis, and every sale that measured against it is made pending its cost basis (below) rather than the unpost being refused.
 
 **A disposal that does not say which cost basis it came out of is refused**, wherever the currency goes — a supplier paid, shares bought, a loan repaid, dollars sold for Canadian ones or for Hong Kong ones. Which cost basis a disposal drew on decides the gain it realized, so no rule picks one: not the oldest, not the largest, not the one that makes the figures come out flattest. A guessed cost basis would state a gain the file never stated, in a book that looked perfectly correct afterwards.
 
@@ -423,6 +423,10 @@ The refusal says what kind of disposition the transaction is, read from the acco
 A pending disposal is counted, never reported as wrong: `fx-balances --verify-costs` ends with how many are pending, `--verify-integrity` compares the cost bases with the accounts net of what they took and says how many and how much, and the balance sheet takes them off the cost bases at what their transactions recorded, listing them with `--itemize` as `split_guid: $pending$`, so no gain is stated for a disposal whose cost is not decided.
 
 To resolve a pending disposal, edit the same split to `cost_basis_split_guid: "<guid>"`, the guid of the cost basis it draws on. The import then draws that cost basis down, and runs every check a new transaction goes through. The export writes `$pending$` back unquoted, so a book holding one is rebuilt from its export.
+
+**What a pending disposal draws on is the part it disposes of, never more than its side has left.** Every cost basis counts, whichever account its split is on: an invoice's on its receivable and a bill's on its payable as much as a purchase's on a bank. A split crossing zero disposes of the part up to zero: 1,000.00 USD bought at 1.20 into a bank owing 500.00 disposes of 500.00, pending at the 600.00 CAD the transaction records for it, and the other 500.00 opens an asset cost basis at 1.20. A pending disposal is refused where it, with the other pending disposals of its side, would take more than that side's cost bases have left: `the cost bases of USD the book held have 2720.00 USD left, and this split disposes of 3000.00 USD. A disposal cannot take a cost basis below nothing.`
+
+**A command that destroys a cost basis makes what drew on it pending, rather than being refused.** `unpost-invoices`, `unpost-bills`, and an import that unposts a record to rebuild it destroy the record's posting, whose split is the record's cost basis. Each disposal that stated that cost basis's guid is written `cost_basis_split_guid: $pending$`, and the command lists them, so the user chooses the cost basis each draws on when they know it rather than before the command can run.
 
 The message goes on to list each cost basis that split could draw on, written as the line to add: each one the book holds by its guid, with what it has left (not an invoice's or a bill's, which settling it draws down), and each arrival in the same transaction or in one above it in the file by its position (see "A file that opens a cost basis and spends it in one run" below). Where the currency held left an account the same transaction brings it into, it also shows the arrival written net of what was spent, which makes the spend part of what the currency cost and records no spend. It chooses none of them.
 
@@ -618,8 +622,20 @@ customers and vendors, invoices and bills:
 | In the block | What it means |
 |---|---|
 | `key: "value"` | set the field to that value |
+| `key: $None$` | remove a custom key, unquoted; a GnuCash field cannot be removed, so on one it is read as `#None` |
+| `key: #None` | set a custom key to the null value, which the export writes back as `#None`; on a field, hand GnuCash's setter a null |
 | `key: ""` | clear the field — and for a custom key, remove it |
 | *(the line is absent)* | say nothing: the book keeps what it has |
+
+A pick is removed the same way: `cost_basis_split_guid: $None$` on a split removes its `$pending$` or its guid, and the split is read again as a new one is.
+
+**A field keeps what GnuCash keeps.** Each field a block states is set and read back, and where GnuCash keeps something other than what was stated, the import says so:
+
+```
+⚠ 'Assets:Bank 100.00 CAD': `action: #None` was stated, and GnuCash keeps `action: "Deposit"`.
+```
+
+Most text fields ignore a null and keep the value they had; an account's code and description, and an invoice's or a bill's billing id, keep `""`; a transaction's doc link ignores a null and keeps `#None` for `""`, so `#None` and `$None$` on it are handed to GnuCash as `""` and set it to `#None`, and `doc_link: ""` sets it to `#None` too, which the import says. A split's `memo:` and a transaction's `notes:` cannot be set to `#None` at all, so `#None` and `$None$` on them set them to `""`, and the import says so. An empty field is not written in the export, which does not mean it was removed.
 
 **What a quoted value may hold.** Four characters are written with a backslash before
 them: `\"` for a quote, `\\` for a backslash, `\n` for a newline and `\r` for a
@@ -645,7 +661,7 @@ did not name.
 Two consequences worth stating:
 
 - To clear something, say so: `addr[0]: ""` empties an address line, and
-  `department: ""` takes a custom key off. There is no spelling that means "remove"
+  `department: ""` removes a custom key. There is no spelling that means "remove"
   by omission, and there cannot be one — omission is how a partial block stays safe.
 - A comparison follows the same rule. A field the block does not name cannot make a
   re-import report `updated`, which is what keeps an unchanged ledger from rewriting
@@ -1589,12 +1605,12 @@ and re-emitted on export; they never reach the rendered seller block.
 
 Importing a `company` directive is a **partial update** — for the custom keys as
 well as the known fields. Keys you list are set, keys you omit are **kept**, and
-a key set to the null value `#None` is **removed** (JSON Merge Patch semantics):
+a key stated `$None$` is **removed**. `#None` sets the key to the null value:
 
 ```
 company
   province: "Ontario"      # set/update province
-  entity_type: #None       # remove the entity_type key
+  entity_type: $None$      # remove the entity_type key
   # any custom key not listed here is left untouched
 ```
 
@@ -1632,7 +1648,7 @@ Every exported `posted:` block carries a `posted_txn_guid:` line — the GUID of
 
 The `date:`, `amount:`, `bank_account:` and `memo:` of a `payment:` block are the payment **transaction's**, not the invoice's — GnuCash writes them onto the splits `ApplyPayment` makes, and nothing about the invoice or the bill holds them. So correcting one word of a memo and re-importing changes that transaction, and the run reports it under `Updated:` with the transactions while the invoice itself reads `unchanged`. The invoice has not moved: its posting transaction keeps its guid, its lines keep theirs, and the payment goes on settling the lot it was already in.
 
-The memo is the **settling split's** — the receivable or payable split in this invoice's lot, the one `txn_split_guid:` states — and that is the split every writer reads it back from, so a correction lands where the next export looks for it. One block describes one settlement, so it states the memo of the one split that settlement is: a payment settling two invoices carries a split for each, and each block states one of them; the bank split they share is neither block's. A block naming no split — hand-written, and free to — states that same settling split's memo; only where the invoice has none in that transaction is it the split its `bank_account:` names.
+The memo is the **settling split's** — the receivable or payable split in this invoice's lot, the one `txn_split_guid:` states — and that is the split every writer reads it back from, so a correction lands where the next export looks for it. One block describes one settlement, so it states the memo of the one split that settlement is: a payment settling two invoices carries a split for each, and each block states one of them; the bank split they share is neither block's. A block stating no split, which a file is free to write, states that same settling split's memo; only where the invoice has none in that transaction is it the split its `bank_account:` names.
 
 **The bank split follows**, and only where it still holds what the settling split held: that is how `ApplyPayment` leaves the two sides of a payment, and keeping them together is the difference between correcting a memo and breaking one in half. It does not follow on a payment settling several records, whose bank split is shared and whose wording came from a bank feed. Everything else on the transaction — the other invoice's portion, a wire fee, the residue of an overpayment — is nobody's block to rewrite, whatever memo it happens to carry.
 
@@ -1933,7 +1949,7 @@ What to do with each credit:
   b) **Refund, write off, or forfeit** — record a normal `transaction:` whose AR/AP split carries a `lot_owner:` KVP for the owner; the counter account decides the intent (bank ⇒ refund, expense ⇒ vendor bad debt, income ⇒ customer forfeit). This is the canonical non-destructive disposal — see [Disposing of a credit](#disposing-of-a-credit-refund-write-off-or-forfeit-lot_owner) below. It never touches the original payment, and a partial amount leaves the residual credit open.
   c) **Delete the source bank tx** — only safe for standalone-payment credits (the source bank tx has just the bank-side split and the AR/AP credit split, nothing else). `delete-transactions --by-guid <source-bank-tx>` drops the tx and produces a plaintext backup. Not safe for overpayment-residual credits, where the source tx also carries the original invoice payment.
 
-When the book and the plaintext have diverged (the user hand-edited the `.gnucash` file in the GnuCash UI, or hand-edited the `.txt` file before re-importing, or a third-party tool modified the book), the importer's recovery behaviour per scenario is documented in [`docs/payment-manual-edit-behavior.md`](docs/payment-manual-edit-behavior.md).
+When the book and the plaintext have diverged (the user edited the `.gnucash` file in the GnuCash UI, or edited the `.txt` file before re-importing, or a third-party tool modified the book), the importer's recovery behaviour per scenario is documented in [`docs/payment-manual-edit-behavior.md`](docs/payment-manual-edit-behavior.md).
 
 #### Listing foreign-currency cost bases: `fx-balances`
 
@@ -2011,7 +2027,7 @@ Write a vendor's $50 credit off as bad debt:
 
 Details:
 
-- The trailing guid is the **owner's** authoritative key; it is always emitted on export and optional hand-written (`lot_owner: customer:C001` works). When present it must resolve to the same owner as the id — a mismatch is a hard error, never a warning.
+- The trailing guid is the **owner's** authoritative key; it is always emitted on export and optional in a file (`lot_owner: customer:C001` works). When present it must resolve to the same owner as the id — a mismatch is a hard error, never a warning.
 - **`lot_guid:` says which of the owner's credits this is**, on the line below. An owner may hold several — a deposit in January and another in February — and without it the importer chooses: the oldest open lot the split would reduce. So a refund written against February's deposit came off January's, and the export then described two credits the ledger just imported did not.
 
   ```
@@ -2023,7 +2039,7 @@ Details:
       lot_guid: "7c2f9a1b5e8d4c3a9016b7d2e4f80523"
   ```
 
-  Every split in a credit lot carries it on export, the deposit that opened the credit as well as whatever settles it. A block stating none behaves exactly as before, which is what a hand-written file does. A split **already** in a lot is left where it is — an exported credit re-imported over itself must not open a second one — so editing the line to point at a different credit is refused rather than quietly doing nothing; moving money between credits is what an invoice's `payment:` block does, with the split's guid in `txn_split_guid:`. The lot a `lot_guid:` states must be **this owner's**, on **this account**, **open**, and not a posted invoice or bill's — each refused in its own words, since every one of them is a settlement landing on money the file did not mean. And a `lot_guid:` the book has no lot for is the guid a *credit* opens with, so a book rebuilt from an export holds the credits it came from; on a clearing split it matches nothing, and creating the lot would be inventing a credit out of a typo, so it is refused.
+  Every split in a credit lot carries it on export, the deposit that opened the credit as well as whatever settles it. A block stating none behaves exactly as before. A split **already** in a lot is left where it is — an exported credit re-imported over itself must not open a second one — so editing the line to point at a different credit is refused rather than quietly doing nothing; moving money between credits is what an invoice's `payment:` block does, with the split's guid in `txn_split_guid:`. The lot a `lot_guid:` states must be **this owner's**, on **this account**, **open**, and not a posted invoice or bill's — each refused in its own words, since every one of them is a settlement landing on money the file did not mean. And a `lot_guid:` the book has no lot for is the guid a *credit* opens with, so a book rebuilt from an export holds the credits it came from; on a clearing split it matches nothing, and creating the lot would be inventing a credit out of a typo, so it is refused.
 - The `lot_owner:` split's own account fixes the owner type: a `customer` KVP must sit on an AR account and a `vendor` KVP on an AP account, and the importer rejects that mismatch (e.g. a `customer` KVP on an AP split). The counter account is not otherwise constrained on this path — it simply records which of the operations above this is.
 - **Partial** is just a smaller amount — the residual credit stays open; an exact amount closes the lot.
 - If the owner has no open credit to reduce and the split is itself credit-shaped (AR-negative / AP-positive), the importer instead **creates** a new credit lot and attaches the owner — this is how a *standalone* credit (money received with no invoice) is represented in plaintext. A clearing-shaped split with no credit to reduce is an error.
@@ -2041,7 +2057,7 @@ Exported AR and AP accounts carry an `open_prepayment:` block per open credit �
     amount: 50.00 CAD
 ```
 
-It is informational and derived: the importer rebuilds the credits from the per-split `lot_owner:` KVPs, not from this summary, so the block is parsed and otherwise ignored. If a hand-edited summary disagrees with the book's actual lots, import prints a warning to stderr and still succeeds — the next export rewrites the correct figure.
+It is informational and derived: the importer rebuilds the credits from the per-split `lot_owner:` KVPs, not from this summary, so the block is parsed and otherwise ignored. If an edited summary disagrees with the book's actual lots, import prints a warning to stderr and still succeeds — the next export rewrites the correct figure.
 
 Under an `open` line, its keys and its `open_prepayment:` blocks are all that is read. Anything else written there, such as a `payment:` block, is refused with its line number, and nothing in the file is imported.
 
@@ -2068,7 +2084,7 @@ invoice "INV-001"
 	...
 ```
 
-**Hand-written files** can omit `guid:` entirely — GnuCash will assign a
+**A file** can omit `guid:` entirely — GnuCash will assign a
 fresh one on first import. On subsequent re-imports (after the first export
 has put guids in the file) the importer uses the guid as the precise
 identity key.
@@ -2127,7 +2143,7 @@ it — which is what anything
 holding a reference to a line needs, and what makes two consecutive exports of
 an edited ledger comparable at all.
 
-**Hand-written files state no guids**, and that keeps working: where a block has
+**A file stating no guids keeps working**: where a block has
 no `guid:` it edits the line in the same position, so the second `entry:` block
 of an invoice edits its second line. Guids come from an export, and a file
 that mixes the two — some lines with a guid, some without — is read guid-first,
@@ -2150,7 +2166,7 @@ it is the guid the new line asks for, and the line is created with it. That is
 how an invoice is restored into a fresh book with the lines it had.
 
 **The comparison that decides `unchanged` pairs the lines the same way**, so a
-file whose `entry:` blocks were reordered — by hand, by a merge — is the same
+file whose `entry:` blocks were reordered — in an editor, by a merge — is the same
 invoice and imports as `unchanged`, on a posted invoice or bill as on an unposted
 one. Two lines that trade only their `guid:` values are a change, and are
 reported as one: which line is which is what a guid says.
@@ -2186,6 +2202,7 @@ Behaviour:
 - **Entry GUIDs are preserved** — entries are not destroyed and recreated. External references to entries by GUID still resolve.
 - Per-record line: `<id> (<guid>): unposted` (or `not posted`, `not found`, or `failed — multiple records share this id`).
 - **Orphan-payment warning**: when the record being unposted was paid, the CLI lists each bank-side payment transaction that is about to be orphaned — with the orphan's GUID, date, bank account, amount, currency, customer/vendor name, and memo. The warning steers the user toward the two safe cleanup paths: `delete-transactions --by-guid <orphan-guid>` (drop the orphan, then re-import with a fresh `payment:` block), or a `payment:` block carrying `txn_guid: "<orphan-guid>"` on re-import (links the existing bank tx into the new posted lot — see [Q-004](docs/issues/Q-004-payment-transaction-duplicates.md)). Importing the file the invoice or bill was read from also puts the payment back, though its `payment:` block states no `txn_guid:`: a block stating the orphan's date and amount on its account is that payment, because the unpost wrote the invoice's or bill's guid on the orphan, and the import prints a note that it was put back. A `payment:` block describing any other movement is a new payment, and recording it beside the orphan counts the money twice.
+- **Disposals made pending**: a foreign-currency record's posting is its cost basis, and unposting destroys it. Each sale or repayment that stated that cost basis's guid is written `cost_basis_split_guid: $pending$`, and the CLI lists them under the record: `1 disposal(s) drew on its cost basis and are now pending their cost basis …`, then `2026-09-01 'Sell one dollar' (1.00 USD)`. An edit states the cost basis each draws on when it is known (see the cost basis section).
 - Exit code 1 if any record was not found, not posted, or ambiguous; successful unposts are still saved.
 
 For after-the-fact recovery — auditing a book that's already accumulated orphans from prior unpost runs — use `find-orphan-payments` (next section).
@@ -2432,7 +2449,7 @@ The importer looks up the existing bank transaction by `txn_guid:`, finds the AR
 
 **The block states the amount the split carries.** A split already on the invoice's receivable (or the bill's payable), stated by `txn_split_guid:` with no `prepayment:` beside it, is attached whole, so `amount:` has to be what it carries, and a block stating another figure is refused, stating both. Accepted, it would mean two things: in the book holding the transaction the invoice is paid what the split carries, and in a book that never held it the payment is entered from `amount:`. An export states the split's own amount. A block with `prepayment:` is not weighed this way: its `amount:` states what moved through the bank, and its `prepayment:` is weighed against the transaction's other receivable splits, the ones the block does not apply.
 
-`txn_split_guid:` is optional in hand-written plaintext (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order). It is emitted on export for every payment of one settling split, so those round-trips are order-independent and unambiguous. A payment made of several settling splits is written as a `Transaction` block instead and carries neither key — see [One payment made of several splits](#one-payment-made-of-several-splits).
+`txn_split_guid:` is optional in a file (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order). It is emitted on export for every payment of one settling split, so those round-trips are order-independent and unambiguous. A payment made of several settling splits is written as a `Transaction` block instead and carries neither key — see [One payment made of several splits](#one-payment-made-of-several-splits).
 
 **A `txn_guid:` that names nothing has two readings**, and the block cannot tell them apart on its own: an invoice being rebuilt into a fresh book, where the bank transaction genuinely is not there yet, and a link against the book that holds it, where the guid is simply mistyped. The first has to go through — a printed page carries the guids of the book it came from precisely so that book relinks rather than paying twice, and it still has to be readable elsewhere. The second must not: recording the payment from the block enters money that has already moved.
 
@@ -2888,7 +2905,7 @@ A file naming none of them still imports: an entry GnuCash has never been asked 
 
 **A flag is written `#True` or `#False`** — the same `#` that marks `#None` and `#3/4`, and the only spelling that is actually a boolean. A bare `true` is the *string* `"true"`, which is why `taxable: True` once read as false and `placeholder: false` once killed the account it was on. Every writer here spells every flag that way, and there is a test over a real export that says so.
 
-**Reading is looser, because a person writes by hand**: `true`, `1` or `yes`, and `false`, `0` or `no`, in any case, are all read as the flag they look like, so a ledger written by hand or by an earlier release imports unchanged. Any *other* word is refused, naming the key and both sets of spellings, rather than read as one or the other — `taxable: treu` is a typo an invoice keeps no trace of otherwise, since it decides the line's tax, every `breakdown:` block and the three totals, so a page printed afterwards agrees with itself and re-imports against a book that dropped the tax.
+**Reading is looser, because a person writes the word they know**: `true`, `1` or `yes`, and `false`, `0` or `no`, in any case, are all read as the flag they look like, so a ledger a person wrote, or an earlier release wrote, imports unchanged. Any *other* word is refused, naming the key and both sets of spellings, rather than read as one or the other — `taxable: treu` is a typo an invoice keeps no trace of otherwise, since it decides the line's tax, every `breakdown:` block and the three totals, so a page printed afterwards agrees with itself and re-imports against a book that dropped the tax.
 
 The flags are `taxable:`, `tax_included:` and `billable:` on an `entry:`, `accumulate:` on a `posted:` block, `credit_note:` and `auto_apply_credit:` on an invoice, `from_credit:` on a payment, `active:` on a customer or vendor, `closing:` on a transaction, `placeholder:` and `tax_related:` on an `open` block, and `cost_basis_force:` on a split.
 
@@ -2994,7 +3011,7 @@ When using `--strategy update`, each field is updated only if it is explicitly p
 
 In other words, **omitting a field means "leave it alone"**, while supplying an empty string means "clear it". This applies to both split `memo` and split `action`.
 
-**Which split a block updates is decided by its `guid:`**, the same way the transaction's own guid decides which transaction it is. Position decides only where a block states none, which is what a hand-written file does. Two blocks stating one split's guid are refused: a guid is one split, so the second would fall through to position and put its amount and memo on a split the file never mentioned. So is a block stating a guid the book holds on something that is not a split of that transaction — another transaction's split, an account, a line. **Changing a block's account line moves that split**, keeping its guid: changing a split's account is the commonest edit anyone makes to an exported ledger, and the split used to be destroyed and rebuilt under a guid GnuCash minted. A split sitting in a **lot** is not moved — it is settling an invoice or standing as an owner's credit, and moving it would leave a receivable's lot holding a split that now lives on an expense account. That is refused, and the refusal states the lot's guid; the way to move such money is the invoice's own `payment:` block or `unapply-payment`. A split in a lot that *no* block states is refused rather than removed, for the same reason: one mistyped digit of a `guid:` reads as a new split, and dropping the one it meant would take a settlement out of its invoice's lot while the account's balance stayed put — nothing looking wrong, and the invoice reading unpaid. Every exported split carries one, so a file whose two `Expenses:Dining` blocks were rewritten the other way round updates each split with its own block — where pairing by position moved the amounts between them, reported `Updated: 1`, and left the book contradicting the file that had just been imported into it. Two splits of the same amount are the case that moved in silence: 15.00 for coffee and 15.00 for cake swap their *memos* and nothing else, so no total changes, no balance changes, and no figure looks wrong.
+**Which split a block updates is decided by its `guid:`**, the same way the transaction's own guid decides which transaction it is. Position decides only where a block states none. Two blocks stating one split's guid are refused: a guid is one split, so the second would fall through to position and put its amount and memo on a split the file never mentioned. So is a block stating a guid the book holds on something that is not a split of that transaction — another transaction's split, an account, a line. **Changing a block's account line moves that split**, keeping its guid: changing a split's account is the commonest edit anyone makes to an exported ledger, and the split used to be destroyed and rebuilt under a guid GnuCash minted. A split sitting in a **lot** is not moved — it is settling an invoice or standing as an owner's credit, and moving it would leave a receivable's lot holding a split that now lives on an expense account. That is refused, and the refusal states the lot's guid; the way to move such money is the invoice's own `payment:` block or `unapply-payment`. A split in a lot that *no* block states is refused rather than removed, for the same reason: one mistyped digit of a `guid:` reads as a new split, and dropping the one it meant would take a settlement out of its invoice's lot while the account's balance stayed put — nothing looking wrong, and the invoice reading unpaid. Every exported split carries one, so a file whose two `Expenses:Dining` blocks were rewritten the other way round updates each split with its own block — where pairing by position moved the amounts between them, reported `Updated: 1`, and left the book contradicting the file that had just been imported into it. Two splits of the same amount are the case that moved in silence: 15.00 for coffee and 15.00 for cake swap their *memos* and nothing else, so no total changes, no balance changes, and no figure looks wrong.
 
 **How conflicts are detected:**
 
@@ -3108,8 +3125,9 @@ On a book kept in CAD that holds US and Hong Kong dollars and 12 shares of NASDA
 	#
 	#   Expenses:Interest — USD
 	#
-	# gnucash-plaintext does not support that, and every figure on this
-	# page those accounts reach can be wrong.
+	# A book may keep one, but no cost basis records what its amounts
+	# cost, so this book's cost bases are not expected to be correct,
+	# and every figure on this page those accounts reach can be wrong.
 	#
 	# An expense is what it cost on the day it was incurred, and a rate
 	# that moves afterwards does not change it. The balance of one of
@@ -3123,9 +3141,10 @@ On a book kept in CAD that holds US and Hong Kong dollars and 12 shares of NASDA
 	# knows what each amount cost on its own day can work the right
 	# figure out for themselves.
 	#
-	# Keep an income or expense account in CAD. Record a payment
-	# made in another currency at what that currency cost on the day it
-	# was spent.
+	# Keep an income or expense account in CAD, or turn cost
+	# bases off with `cost_bases: "off"` in the company block. Record a
+	# payment made in another currency at what that currency cost on the
+	# day it was spent.
 	# #################################################################
 	#
 	# An account line is that account's own balance — never its children's.
@@ -3186,7 +3205,8 @@ Every account line is the balance GnuCash's Balance Sheet report states for it, 
 - **Every asset and liability account type is in its section** — Bank, Cash, Stock, Mutual Fund and Accounts Receivable among the assets; Credit Card, Accounts Payable and the rest among the liabilities.
 - **`retained_earnings`** is the income and expenses not yet closed into an equity account. After `close-books` the profit sits in `Equity:Retained Earnings:<currency>` as an account line and the key is gone, so the sheet balances either way.
 - **A security is at its market value**, from the book's price database: AMZN is 12 shares at 280 USD, at 1.42 CAD, so 397.6 CAD a share.
-- **An income or expense account kept in another currency is warned about at the top of the page**, and gnucash-plaintext does not support one. An expense is what it cost on the day it was incurred, and the account's balance is a sum of amounts from many days, each of those days having had a rate of its own — no one rate turns that sum into the book's own currency. The page converts it at the report date's rate, which states the expense at a rate it was never incurred at and states it differently again on a page drawn a month later, so every figure those accounts reach can be wrong: `retained_earnings` and `total_equity` on the balance sheet, `total_revenue`, `total_expenses` and `net_income` on the income statement. The page is drawn all the same, with a warning listing each such account and the currency it is kept in, because every other figure on it is right and because the page carries what a reader needs to work the expense out: the account line states what the account holds in its own currency and the rate the page converted it at, so a reader who knows what each amount cost on its own day can read the right figure off it. Keep the account in the book's own currency, and record a payment made in another currency at what that currency cost on the day it was spent. `--verify-integrity` reports the same accounts. **A page drawn in another currency than the book's own carries a warning of its own**, since it converts every income and expense account at its own date's rate for the same reason: it says which currency the page is in and which the book is kept in, and to draw the page in the book's currency. The accounts are not listed as wrong, because they are not.
+- **An income or expense account kept in another currency is warned about at the top of the page.** A book may keep one, but do not expect its cost bases to be correct: no cost basis records what the account's amounts cost, and nothing can check the book is consistent. Keep such accounts in the book's own currency, or turn cost bases off with `cost_bases: "off"` in the company block. An expense is what it cost on the day it was incurred, and the account's balance is a sum of amounts from many days, each of those days having had a rate of its own — no one rate turns that sum into the book's own currency. The page converts it at the report date's rate, which states the expense at a rate it was never incurred at and states it differently again on a page drawn a month later, so every figure those accounts reach can be wrong: `retained_earnings` and `total_equity` on the balance sheet, `total_revenue`, `total_expenses` and `net_income` on the income statement. The page is drawn all the same, with a warning listing each such account and the currency it is kept in, because every other figure on it is right and because the page carries what a reader needs to work the expense out: the account line states what the account holds in its own currency and the rate the page converted it at, so a reader who knows what each amount cost on its own day can read the right figure off it. Record a payment made in another currency at what that currency cost on the day it was spent. **A page drawn in another currency than the book's own carries a warning of its own**, since it converts every income and expense account at its own date's rate for the same reason: it says which currency the page is in and which the book is kept in, and to draw the page in the book's currency. The accounts are not listed as wrong, because they are not.
+- **`--verify-integrity` and `fx-balances --verify-costs` say the same of such a book.** `--verify-integrity` lists the accounts as a finding and exits 1, and `--verify-costs` prints them as a warning, which does not set its exit code. Both say to turn cost bases off with `cost_bases: "off"` in the company block, or to read the cost bases and the checks as unverified.
 - **A realized gain is recorded; an unrealized gain is calculated.** A realized gain has happened, so the book records it: the file states it on the `$residual$` split of the transaction that realized it, and the page states what the book records. It needs no cost basis, which is why a book that keeps none still states one. An unrealized gain has not happened, so nothing records it and the page calculates it: from the book's cost bases, or from GnuCash's revaluation where the book keeps none or they cannot speak for a holding.
 - **A gain already taken is stated apart from one the book has yet to take**, and foreign currency apart from everything else. `realized_gains_fx` is what the book took when foreign currency left it — a disposal values what it sells at what that currency cost, so the splits facing it state what it fetched and the difference is what was made or lost. `unrealized_gains_assets_fx` is what the foreign currency the book holds is worth at the price nearest the date, less what its own cost bases say it cost, and `unrealized_gains_liabilities_fx` is the same question asked of the currency it owes — a loan drawn at 1.30 and worth 1.40 at the year end has cost the book the difference. `unrealized_gains_fx` is the two added together. A currency the cost bases cannot speak for keeps GnuCash's own revaluation and is still stated on its own side, because it is currency however it was measured. `realized_gains_other` and `unrealized_gains_other` are everything that is not a currency — a stock, a mutual fund — measured the same two ways: a security has a cost basis of its own in the book's own currency, so a sale realizes the difference between what the units cost and what they fetched, and what is still held is worth what its price says at the sheet's date less what its cost bases say it cost. A security the cost bases cannot speak for keeps GnuCash's own revaluation, as a currency does. `total_realized_gains` and `total_unrealized_gains` are their totals, and only the unrealized total reaches `total_equity`.
 - **A book written before `took_the_residual` states no realized gain until its FX gain/loss account is specified.** That key records which split of a disposal is the exchange difference, and nothing else in a book answers it: every split of a balanced transaction takes part in the same arithmetic, and the account type separates nothing either — 8.60 USD disposed of paid an 11.92 bank charge beside 0.07 of exchange difference, both on expense accounts. A plaintext file imported before the key existed used `$residual$` correctly — `import` calculated the amount, and that amount is what was stored — but the release that stored it had no key to write. Such a book states `realized_gains_fx: 0.00` while its own income statement carries the difference its income account holds. `--fx-gain-account "Income:FX Gain"` states the account those differences are booked to, on `balance-sheet` and on `report`, and is repeatable for a book that keeps its gains and its losses in two accounts. **With an FX gain/loss account specified, the key is not consulted at all** — the two are not added together. A reader who states where their differences are booked has answered the question for the whole book, and a page that also counted whatever keys happened to be in it would answer differently depending on which release imported which transaction. So a split carrying the key on an account the option does not state is passed over, and a book that wants both counts states both accounts. **The account is believed**, because nothing in the book contradicts it: on a disposal, whatever sits on the stated account is taken for the exchange difference, so stating an account that holds something else counts that instead — a bank charge on a stated account is read as a loss. What the option cannot do is widen where a difference may sit. Three conditions the book answers for itself hold either way: the split must be on an **income or expense** account, its transaction must be stated in the book's own currency, and one of that transaction's splits must state the cost basis it draws on in `cost_basis_split_guid:`. So it counts nothing on a transaction that disposed of no currency — and nothing at all where the account stated is a bank, a receivable or any other balance-sheet account, since a split there moved money rather than measuring a difference. That last one is warned about, because such an account can never count and the option replaces the key rather than adding to it: passed such an account, a book that states `realized_gains_fx: 100.00` on its own would otherwise state `0.00` and exit 0. **It says nothing about `realized_gains_other`**, which is read from the key alone: a gain on shares is realized only where an import that writes the key drew down a share's cost basis, so no book is without it, and a share sale whose difference sits on another account is still a gain on shares.

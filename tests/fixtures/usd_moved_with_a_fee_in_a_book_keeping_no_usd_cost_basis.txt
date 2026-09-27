@@ -13,7 +13,7 @@
 # corrects the fees to 80.00.
 #
 # Verified by
-# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+# tests/scenario/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
 2035-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"

@@ -2,7 +2,7 @@
 #
 # The three fields above the lines are the ones read unconditionally, so a
 # block truncated after them still parses — a file cut short by a failed
-# write, a copy-paste that stopped early, a hand edit interrupted.
+# write, a copy-paste that stopped early, an edit interrupted.
 #
 # The invoice is rebuilt from its block, which is the model: the file is the
 # source of truth for the lines. But nothing told "the writer restated one

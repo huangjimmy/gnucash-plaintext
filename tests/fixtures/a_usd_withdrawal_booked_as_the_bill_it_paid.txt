@@ -8,7 +8,7 @@
 # BILL-USD-1's `payment:` block stating this transaction and its payable split.
 #
 # Verified by
-# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+# tests/scenario/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
 2026-08-20 * "Paid Example Supplier Inc"
 	guid: "0e510000000000000000000000000b01"
 	currency.mnemonic: "CAD"

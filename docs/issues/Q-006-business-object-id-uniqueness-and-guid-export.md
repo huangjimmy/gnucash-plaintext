@@ -146,7 +146,7 @@ loses information that survives across GnuCash UI sessions.
 
 Add `guid:` as an optional field for `customer`, `vendor`, `taxtable`,
 `invoice`, `bill` — emitted on export, accepted on import, but not required
-in hand-written files:
+in a file:
 
 ```
 customer "C001"
@@ -191,7 +191,7 @@ generically as `<role>_id` / `<role>_guid` where `<role>` is `customer` or
 
 | `<role>_id` provided? | `<role>_guid` provided? | Action |
 |---|---|---|
-| yes | no | look up by id; error if not found or multiple matches (the latter only happens in legacy hand-written files; see §5) |
+| yes | no | look up by id; error if not found or multiple matches (the latter only happens in older files stating no guid; see §5) |
 | no | yes | look up by guid; error if not found |
 | yes | yes | look up by guid, then verify the matched record's id equals `<role>_id`; error on any mismatch (`customer_guid points to record with id "C002", but directive says customer_id "C001"`) |
 | no | no | error: invoice/bill missing required customer/vendor reference |

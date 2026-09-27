@@ -24,7 +24,7 @@ from tests.conftest import _run
 @pytest.fixture
 def book(tmp_path):
     """10.00 moved from cash onto `No Commodity`, whose split also stores a
-    `cost_basis_balance`, as a hand edit can leave one."""
+    `cost_basis_balance`, as a GUI edit can leave one."""
     path = tmp_path / 'book.gnucash'
     repo = GnuCashRepository(str(path))
     repo.open(SessionMode.NEW)

@@ -88,6 +88,25 @@ def _put_in_a_transaction_slot(book_path, blob):
     raise AssertionError('no transaction in the book')
 
 
+def _the_transactions_keys(book_path):
+    """The one transaction's custom keys, as the book holds them."""
+    from gnucash import Query, Transaction
+
+    from infrastructure.gnucash.kvp import get_custom_metadata
+
+    repo = GnuCashRepository(str(book_path))
+    repo.open(mode=SessionMode.READ_ONLY)
+    try:
+        query = Query()
+        query.search_for('Trans')
+        query.set_book(repo.book)
+        found = [get_custom_metadata(Transaction(instance=raw)) for raw in query.run()]
+        query.destroy()
+        return found[0]
+    finally:
+        repo.close()
+
+
 class TestABookSlotThatIsNotJson:
     def test_set_book_key_still_stores_its_key(self, tmp_path):
         """The blob is unreadable, so it holds no keys — not "no book"."""
@@ -201,3 +220,38 @@ class TestASplitSlotThatIsNotJson:
         text = out.read_text()
         assert 'reviewed: #None' in text, text
         assert 'tags: "[\'a\', \'b\']"' in text, text
+
+    def _exported_with_a_null(self, tmp_path):
+        gnc = self._book_with_a_transaction(tmp_path)
+        _put_in_a_transaction_slot(gnc, '{"reviewed": null, "keeper": "y"}')
+        out = tmp_path / 'out.txt'
+        result = CliRunner().invoke(cli, ['export', str(gnc), str(out)])
+        assert result.exit_code == 0, result.output
+        assert 'reviewed: #None' in out.read_text(), out.read_text()
+        return gnc, out
+
+    def test_a_null_stays_when_its_export_is_edited_and_imported_again(self, tmp_path):
+        """`#None` is the null the slot holds, so the book keeps it.
+
+        Another key is edited, so the import writes the transaction rather
+        than finding it up to date. Read as "remove the key", the book's own
+        export deleted a key the book holds.
+        """
+        gnc, out = self._exported_with_a_null(tmp_path)
+        out.write_text(out.read_text().replace('keeper: "y"', 'keeper: "z"'))
+
+        again = CliRunner().invoke(cli, ['import', str(gnc), str(out),
+                                         '--strategy', 'update'])
+
+        assert again.exit_code == 0, again.output
+        assert _the_transactions_keys(gnc) == {'reviewed': None, 'keeper': 'z'}
+
+    def test_none_between_dollar_signs_removes_the_key(self, tmp_path):
+        gnc, out = self._exported_with_a_null(tmp_path)
+        out.write_text(out.read_text().replace('reviewed: #None', 'reviewed: $None$'))
+
+        again = CliRunner().invoke(cli, ['import', str(gnc), str(out),
+                                         '--strategy', 'update'])
+
+        assert again.exit_code == 0, again.output
+        assert _the_transactions_keys(gnc) == {'keeper': 'y'}

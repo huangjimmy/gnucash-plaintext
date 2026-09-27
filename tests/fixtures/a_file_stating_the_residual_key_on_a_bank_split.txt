@@ -1,6 +1,6 @@
 # A file stating `took_the_residual` on the bank split of a disposal.
 #
-# The sale is written out by hand — the gain stated rather than declared with
+# The sale states every figure — the gain stated rather than declared with
 # `$residual$` — and the key is put on the wrong line: the 1,400.00 the bank
 # received, rather than the 100.00 the sale made.
 #

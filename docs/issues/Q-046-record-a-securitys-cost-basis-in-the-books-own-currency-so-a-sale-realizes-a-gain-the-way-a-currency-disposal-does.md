@@ -157,9 +157,9 @@ Investigated on two books:
 
 **That second book is corrected by moving the account.** Its whole US dollar side falls back to GnuCash's revaluation — the loan was drawn in a transaction stated wholly in US dollars, so the debt has no Canadian cost and the cost bases cannot account for what the accounts hold. As it stands, that fallback prices the 100.00 USD of interest at the sheet's 1.42 along with the rest, `cost_value: 10116.00` for `value: 10621.60`, and the page balances at 38,532.80 with the expense stated as 142.00. With `Expenses:Interest` kept in Canadian dollars and the repayment written in them — the 1,600.00 USD leaving the bank at the 1.30 they cost, the interest at 130.00 CAD, and the debt they pay off at the same 1.30 — it still balances at 38,532.80: `retained_earnings` is 12,738.00, 12.00 more with the expense at what it cost, and `unrealized_gains_fx` is 593.60, 12.00 less, because the fallback's cost moves with the repayment as it is written.
 
-The fixture keeps the account in US dollars all the same, being the book the warning is shown on, and the page says what it is: a book gnucash-plaintext does not support, whose figures can be wrong.
+The fixture keeps the account in US dollars all the same, being the book the warning is shown on, and the page says what it is: a book whose cost bases are not expected to be correct, and whose figures can be wrong.
 
-**gnucash-plaintext does not support such an account, and both statements say so on the page rather than refusing to draw it.** The warning lists each account and the currency it is kept in, and says that every figure those accounts reach can be wrong:
+**A book may keep such an account, but its cost bases are then not expected to be correct, and both statements say so on the page rather than refusing to draw it.** The warning lists each account and the currency it is kept in, says that every figure those accounts reach can be wrong, and says to keep the account in the book's own currency or turn cost bases off:
 
 ```
 	# ############################ WARNING ############################
@@ -167,8 +167,9 @@ The fixture keeps the account in US dollars all the same, being the book the war
 	#
 	#   Expenses:Interest — USD
 	#
-	# gnucash-plaintext does not support that, and every figure on this
-	# page those accounts reach can be wrong.
+	# A book may keep one, but no cost basis records what its amounts
+	# cost, so this book's cost bases are not expected to be correct,
+	# and every figure on this page those accounts reach can be wrong.
 ```
 
 The page is drawn because every other figure on it is right, and because what it prints is the material a reader needs to work the expense out: the account line states what the account holds in its own currency and the rate the page converted it at.

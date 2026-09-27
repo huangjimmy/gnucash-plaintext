@@ -8,15 +8,17 @@ Fails immediately with ValueError if the GUID is not found in the book.
 Only transactions can be deleted — not accounts or commodities.
 """
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 from repositories.gnucash_repository import GnuCashRepository
 from services.foreign_currency import (
     amounts_by_cost_basis,
     cost_bases_changed,
+    establishes_cost_basis,
+    make_pending_what_draws_on,
     put_back_on_cost_bases,
-    require_no_cost_basis_dependents,
+    split_guid,
 )
 from use_cases.export_transactions import (
     ExportTransactionsUseCase,
@@ -59,6 +61,9 @@ class DeleteTransactionResult:
     # transaction is deleted either way; `plaintext` then holds a commented
     # note instead of a transaction block, and the caller says so.
     undo_copy_error: Optional[str] = None
+    # The disposals that drew on a cost basis the deleted transaction held, and
+    # which are pending their cost basis now, until the user states one.
+    made_pending: List[str] = field(default_factory=list)
 
 
 class DeleteTransactionUseCase:
@@ -147,24 +152,31 @@ class DeleteTransactionUseCase:
             raise ValueError(f"Transaction GUID {guid!r} not found in book")
         return target
 
-    def carry_out(self, prepared: APreparedDelete) -> DeleteTransactionResult:
+    def carry_out(self, prepared: APreparedDelete, going=frozenset()) -> DeleteTransactionResult:
         """Delete a transaction already written out by `prepare`.
 
         Looked up again rather than kept from `prepare`, so that a guid named
         twice in one run is refused the second time by the book rather than
         destroyed twice.
 
+        `going` holds the guids of the other transactions deleted in the same
+        run. A disposal in this transaction or in one of them is not made
+        pending, because it is deleted too.
+
         Raises:
-            ValueError: If the book no longer holds it, or if a cost basis in
-                it is still measured against.
+            ValueError: If the book no longer holds it.
         """
         target = self._the_one_the_book_holds(prepared.guid)
 
-        # Q-035: a transaction that establishes a cost basis cannot go while
-        # anything still measures against it — that split *is* the cost basis.
-        require_no_cost_basis_dependents(
-            self.repository.book, target,
-            f'{prepared.date} {prepared.description!r}')
+        # A cost basis this transaction holds goes with it, so each disposal
+        # that drew on one is made pending its cost basis rather than the
+        # delete being refused, and the user states the one it draws on (Q-054).
+        made_pending = []
+        for split in target.GetSplitList():
+            if establishes_cost_basis(split):
+                made_pending.extend(make_pending_what_draws_on(
+                    self.repository.book, split_guid(split),
+                    going=frozenset(going) | {prepared.guid}))
 
         # And read what this transaction takes from each cost basis before it
         # goes, so those amounts can be put back — deleting a sale returns
@@ -184,4 +196,5 @@ class DeleteTransactionUseCase:
             date=prepared.date,
             plaintext=prepared.plaintext,
             undo_copy_error=prepared.undo_copy_error,
+            made_pending=sorted(made_pending),
         )

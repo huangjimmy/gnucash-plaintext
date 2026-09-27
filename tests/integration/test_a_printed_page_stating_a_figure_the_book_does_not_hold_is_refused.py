@@ -3,7 +3,7 @@
 `print-invoice --format plaintext` states what each line is worth: its amount,
 its tax, and one `breakdown:` block per tax-table entry with the account, the
 rate and the amount. Reading the page back recomputes each from the line and its
-tax table and compares them exactly, so a page edited by hand, or copied into
+tax table and compares them exactly, so a page edited, or copied into
 another book, is refused for the figure it states wrongly, with both numbers.
 A page that leaves the line's amount and tax out and states only the breakdown
 is read like any other.

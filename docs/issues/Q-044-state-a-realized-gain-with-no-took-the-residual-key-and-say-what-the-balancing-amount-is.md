@@ -389,7 +389,7 @@ Two books have a balancing amount equal to their own realized loss, and they are
 
 The difference is what each book still holds. The first holds 0.00 USD, so its unrealized gain is 0.00 CAD. The second holds 1,000.00 USD with 7.30 of loss not yet taken, and a reader who took the matching figures to mean the whole 12.56 was already accounted for would be wrong about it. The groups are what tell them apart: on the second book the US dollar group's accounts hold 1,000.00 where the first book's hold nothing, so the difference converted is −2,384.78 rather than −3,771.28. Nothing on the page asserts which case it is; the figures do.
 
-`_resolve_residual` refuses a residual with nothing to take — "asking for one where the splits already balance is an error rather than a silent zero" — so a plaintext file using `$residual$` cannot produce a disposal whose difference is nothing. Every disposal such a file writes moves the figures, so a book carrying one always has something in its groups for a reader to read. A hand-written `took_the_residual: "true"` on a `0.00` income split is a different path and is **not measured here**.
+`_resolve_residual` refuses a residual with nothing to take — "asking for one where the splits already balance is an error rather than a silent zero" — so a plaintext file using `$residual$` cannot produce a disposal whose difference is nothing. Every disposal such a file writes moves the figures, so a book carrying one always has something in its groups for a reader to read. A file stating `took_the_residual: "true"` on a `0.00` income split is a different path and is **not measured here**.
 
 ## What this does not handle yet
 

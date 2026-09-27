@@ -3,9 +3,8 @@
 INV-USD-OVER is overpaid by 100.00 USD into the USD bank, and INV-USD-AUTO
 spends that credit whole. `unpost-invoices INV-USD-AUTO` hands it back: the
 split carries `applied_from_credit` and the unpost's orphan KVP, and is the
-customer's credit again, a cost basis at 1.40 with no balance recorded.
-`--strategy update` records `cost_basis_balance: "100.00"` on it, as
-`fx-balances` says to.
+customer's credit again, a liability cost basis at the payment's 1.37 with
+all 100.00 owed (Q-054).
 
 INV-USD-GROUPED then applies that split with a `Transaction` block. Applying
 it spends the credit, so the balance comes off: left on, it would stay on a
@@ -47,10 +46,11 @@ def _done(*args):
 
 
 def _the_credit_handed_back(book):
-    """The guid of the split `fx-balances` lists with no balance recorded."""
+    """The guid of the credit `fx-balances` lists as 100.00 USD owed."""
     listing = _done('fx-balances', book).output
     rows = [line.split()[1] for line in listing.splitlines()
-            if 'Accounts Receivable USD' in line and 'none recorded' in line]
+            if 'Accounts Receivable USD' in line
+            and line.rstrip().endswith('100.00 USD liability')]
     assert len(rows) == 1, listing
     return rows[0]
 
@@ -88,13 +88,9 @@ def test_the_grouped_payment_leaves_no_balance_on_the_credit_it_spent(tmp_path):
 
     exported = tmp_path / 'export.txt'
     _done('export', book, exported)
-    text = exported.read_text()
-    line = f'\t\tguid: "{credit}"\n'
-    transaction = _the_transaction_holding(text, credit)
-    stated = tmp_path / 'stated.txt'
-    stated.write_text(text.replace(line, line + '\t\tcost_basis_balance: "100.00"\n'))
-    _done('import', book, stated, '--strategy', 'update', '--fx-rates', RATES)
-    assert 'Total USD cost basis balance: 200.00 USD' in _done('fx-balances', book).output
+    transaction = _the_transaction_holding(exported.read_text(), credit)
+    assert ('Total USD cost basis balance: 200.00 USD held, 100.00 USD owed'
+            in _done('fx-balances', book).output)
 
     grouped = tmp_path / 'grouped.txt'
     grouped.write_text(GROUPED.read_text()
@@ -141,10 +137,6 @@ def test_a_block_stating_the_credit_beside_a_bank_paid_orphan_takes_its_balance_
     text = exported.read_text()
     transaction = _the_transaction_holding(text, credit)
     settlement = _the_other_receivable_split(text, transaction, credit)
-    line = f'\t\tguid: "{credit}"\n'
-    stated = tmp_path / 'stated.txt'
-    stated.write_text(text.replace(line, line + '\t\tcost_basis_balance: "100.00"\n'))
-    _done('import', book, stated, '--strategy', 'update', '--fx-rates', RATES)
 
     grouped = tmp_path / 'grouped.txt'
     grouped.write_text(BESIDE_AN_ORPHAN.read_text()

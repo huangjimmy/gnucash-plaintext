@@ -62,9 +62,31 @@ def _a_line_of_nothing(runner, tmp_path):
 
 
 def _a_refund(runner, tmp_path):
+    """The refund's receivable split, stating no cost basis of its own.
+
+    The fixture's refund states the customer's credit on that split, as the
+    import requires, and a split stating a cost basis is given the sale's
+    reason. So the pick is removed in the book, as a book edited in the
+    GnuCash GUI can hold it, and the split is a refund and nothing else, which
+    is the reason under test.
+    """
     book = tmp_path / 'book.gnucash'
     _import(runner, book, '--new', str(book), 'tests/fixtures/fx_refund_usd_prepayment.txt',
             '--include-business-objects')
+    repo = GnuCashRepository(str(book))
+    repo.open(mode=SessionMode.NORMAL)
+    try:
+        account = find_account(repo.book.get_root_account(), RECEIVABLE)
+        refund = next(split for split in account.GetSplitList() if _amount(split) > 0)
+        transaction = refund.GetParent()
+        transaction.BeginEdit()
+        metadata = dict(get_custom_metadata(refund))
+        metadata.pop('cost_basis_split_guid', None)
+        set_custom_metadata(refund, metadata)
+        transaction.CommitEdit()
+        repo.save()
+    finally:
+        repo.close()
     return book, RECEIVABLE, lambda split: _amount(split) > 0
 
 

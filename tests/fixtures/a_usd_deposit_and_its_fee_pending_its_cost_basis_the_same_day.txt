@@ -7,7 +7,7 @@
 # about the 10.00 USD it brought in.
 #
 # Verified by
-# tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
+# tests/scenario/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
 2026-08-13 * "Received money from a customer"
 	currency.mnemonic: "USD"
 	Assets:Wise USD 10.00 USD

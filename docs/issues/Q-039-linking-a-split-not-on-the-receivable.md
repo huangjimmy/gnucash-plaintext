@@ -80,7 +80,7 @@ The first attempt at this took the bank's figure less everything else in the ent
 
 ## One payment may be more than one split
 
-A hand-written entry can clear one receivable with five splits as readily as with one. That is *one* payment — money arrived once — whose transaction happens to have five splits in it, and it is a different fact from an invoice paid on five occasions.
+A transaction can clear one receivable with five splits as readily as with one. That is *one* payment — money arrived once — whose transaction happens to have five splits in it, and it is a different fact from an invoice paid on five occasions.
 
 The format does not tell those apart today, and the export gets it wrong. A `payment:` block is written per settling split (`services/invoice_renderer.py:928` loops the splits in the invoice's lot), so a single payment made of five splits exports as five `payment:` blocks and reads back as five payments. The block count is the payment count, and here it is five times the truth.
 
@@ -116,7 +116,7 @@ Four key-shaped spellings were considered and rejected. Each makes the one-split
 
 **The simple form stays.** `txn_guid:` and `txn_split_guid:` are what one settling split is written with, which is nearly every settlement and what every export so far emits.
 
-**Where a block carries both, the `Transaction` directive decides** and the `txn_guid:` / `txn_split_guid:` keys beside it are not read. A strict override rather than a refusal: someone correcting an exported block adds the advanced form to it, and having to remember to delete two keys first is a step that earns nothing. It also means a file carrying both has one defined reading rather than an error a writer has to resolve by hand.
+**Where a block carries both, the `Transaction` directive decides** and the `txn_guid:` / `txn_split_guid:` keys beside it are not read. A strict override rather than a refusal: someone correcting an exported block adds the advanced form to it, and having to remember to delete two keys first is a step that earns nothing. It also means a file carrying both has one defined reading rather than an error a writer has to resolve.
 
 **And the run says so**, so precedence is never silent — the keys being read by nothing is exactly the state a reader cannot see in the book afterwards:
 

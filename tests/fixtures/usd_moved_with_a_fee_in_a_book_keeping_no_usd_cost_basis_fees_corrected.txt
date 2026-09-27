@@ -9,7 +9,7 @@
 # the edit is made in place.
 #
 # Verified by
-# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+# tests/scenario/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
 2035-01-20 * "Fees paid from savings"
 	guid: "0b0b0000000000000000000000000001"
 	currency.mnemonic: "USD"

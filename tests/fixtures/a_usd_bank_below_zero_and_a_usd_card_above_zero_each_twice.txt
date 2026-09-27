@@ -1,0 +1,120 @@
+# A Canadian book with a US dollar bank below zero and a US dollar card above
+# zero, each reached twice with a figure in Canadian dollars.
+#
+# Assets:USD Bank pays 100.00 USD of travel at 1.30 while it holds nothing,
+# then 200.00 USD more at 1.35. It goes from 0 to -100.00 and then to -300.00,
+# acting as a liability, so each payment opens a liability cost basis on the
+# bank's split: 100.00 USD owed at 1.30 and 200.00 USD owed at 1.35.
+#
+# Liabilities:USD Card is charged 100.00 USD of travel at 1.30, which opens a
+# liability cost basis of 100.00 USD owed at 1.30. It is then paid 300.00 USD
+# from the Canadian bank at 1.35. That repays the 100.00 it owed, drawing on
+# the charge's cost basis, and takes the card from 0 to +200.00, acting as an
+# asset, so the payment's split opens an asset cost basis of 200.00 USD held
+# at 1.35. It is paid 100.00 USD more at 1.40, from +200.00 to +300.00, which
+# opens a second asset cost basis of 100.00 USD held at 1.40.
+#
+# What this fixture produces: Assets:USD Bank at -300.00 USD with two
+# liability cost bases, 100.00 and 200.00; Liabilities:USD Card at +300.00 USD
+# with an asset cost basis of 200.00 and one of 100.00; and the charge's
+# liability cost basis drawn to nothing.
+#
+# Verified by
+# tests/scenario/test_every_cost_basis_is_consumable_on_its_own_side_and_never_below_nothing.py.
+2034-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Liabilities:USD Card
+	type: "Credit Card"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses:Travel
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2034-01-05 * "Travel paid from the empty USD bank"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 130.00 CAD
+	Assets:USD Bank -100.00 USD
+		guid: "0d0d0000000000000000000000000001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-130.00"
+
+2034-01-06 * "More travel paid from the USD bank"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 270.00 CAD
+	Assets:USD Bank -200.00 USD
+		guid: "0d0d0000000000000000000000000002"
+		account.commodity.mnemonic: "USD"
+		share_price: "27/20"
+		value: "-270.00"
+
+2034-01-07 * "Travel charged to the card"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 130.00 CAD
+	Liabilities:USD Card -100.00 USD
+		guid: "0d0d0000000000000000000000000003"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-130.00"
+
+2034-01-10 * "Card paid 300.00 USD, 200.00 past what it owed"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank -405.00 CAD
+	Liabilities:USD Card 300.00 USD
+		guid: "0d0d0000000000000000000000000004"
+		account.commodity.mnemonic: "USD"
+		share_price: "4/3"
+		value: "400.00"
+		cost_basis_split_guid: "0d0d0000000000000000000000000003"
+	Income:FX Gain $residual$ CAD
+
+2034-01-20 * "Card paid 100.00 USD more"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank -140.00 CAD
+	Liabilities:USD Card 100.00 USD
+		guid: "0d0d0000000000000000000000000005"
+		account.commodity.mnemonic: "USD"
+		share_price: "7/5"
+		value: "140.00"

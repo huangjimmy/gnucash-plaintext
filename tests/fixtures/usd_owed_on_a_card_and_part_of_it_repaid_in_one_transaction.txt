@@ -7,7 +7,7 @@
 # realizes a loss of 1.40 − 1.01 = 0.39. 1.00 USD is still owed.
 #
 # Verified by
-# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+# tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
 2026-08-13 * "Supplies on the card, part paid back"
 	currency.mnemonic: "CAD"
 	Expenses:Supplies 2.01 CAD

@@ -259,10 +259,10 @@ The `lot_owner: vendor:V001` KVP joins the AP split to the vendor's oldest open 
 
 ### The credit round-trips in the export — the "special directives"
 
-You never have to re-derive an overpayment by hand: the credit state is carried by three exported directives, so it survives export → fresh-book re-import intact:
+You never have to re-derive an overpayment yourself: the credit state is carried by three exported directives, so it survives export → fresh-book re-import intact:
 
 - **`prepayment: N`** on a bill's `payment:` block — the overpayment residual that opened the credit (see [Bill overpayment](#bill-overpayment-vendor-credit)).
-- **`open_prepayment:`** block on each AP account — the owner, owner guid, and amount of every open credit (see [Detecting…](#detecting-a-vendors-bill-payment-state-paid--partial--overpaid)). It is informational: the importer rebuilds credits from the `lot_owner:` KVPs, not from this block, so a hand-edited summary that disagrees only prints a warning and is overwritten on the next export.
-- **`lot_owner: vendor:ID[:guid]`** on the AP split of a disposal transaction — the durable link between a clearing / refund / write-off split and the vendor's credit lot. The trailing owner guid is emitted on export and optional by hand.
+- **`open_prepayment:`** block on each AP account — the owner, owner guid, and amount of every open credit (see [Detecting…](#detecting-a-vendors-bill-payment-state-paid--partial--overpaid)). It is informational: the importer rebuilds credits from the `lot_owner:` KVPs, not from this block, so an edited summary that disagrees only prints a warning and is overwritten on the next export.
+- **`lot_owner: vendor:ID[:guid]`** on the AP split of a disposal transaction — the durable link between a clearing / refund / write-off split and the vendor's credit lot. The trailing owner guid is emitted on export and optional in a file.
 
 So the whole lifecycle lives in plaintext: `find-prepayments --vendor` (or the `open_prepayment:` blocks) to see credits, `auto_apply_credit:` to consume, or a `lot_owner:` transaction to refund / write off.
