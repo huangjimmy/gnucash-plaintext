@@ -3511,6 +3511,17 @@ After cloning the repository, start the dev environment:
 removed because Docker-in-Docker depends on the host's Unix socket;
 Docker also runs meaningfully faster on Windows under WSL2.
 
+**macOS, outside Docker**: the commands run against a MacPorts GnuCash, which
+is the only mac install measured (`sudo port install gnucash py311-gnucash`,
+then a venv built `--system-site-packages` so `import gnucash` works). `import`,
+`export`, `balance-sheet`, `income-statement` and the `find-*` commands all
+run; the **printed pages** — `print-invoice`, `print-bill`, and
+`--output-format pdf` — do not, because they are laid out by WebKit through
+`python3-gi` + `gir1.2-webkit2`, which no mac has. Use `--output-format html`,
+or run those commands in Docker. A mac is not a supported build: the eleven
+containers are, and `./scripts/test.sh` is still what tests a change — it works
+on an Apple-silicon host, where the images run as arm64.
+
 **What you get:**
 - VS Code Server at https://localhost:8765 (password: `123456`)
   - **Note**: Uses self-signed SSL certificate - browser will show security warning

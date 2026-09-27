@@ -55,6 +55,23 @@ _MAPPED = re.compile(r'\s(/\S*/libguile[^\s/]*\.so[^\s/]*)$')
 # the format to find it.
 _NEEDED = re.compile(rb'libguile-[0-9.]+\.so\.[0-9]+')
 
+# The same fact in a Mach-O, where what a library records is the full install
+# path of what it is linked to — `/opt/local/lib/libguile-3.0.1.dylib` — and
+# that path is what the loader resolves for GnuCash itself, macOS having no
+# search prefix for MacPorts or Homebrew. The path is therefore kept whole:
+# handed the trailing `libguile-3.0.1.dylib` alone, dlopen looks in `/usr/lib`
+# and the dyld cache and finds nothing. Measured on MacPorts GnuCash 5.14,
+# where the library in the engine's own directory that records a libguile is
+# `libgnc-expressions-guile.dylib`.
+#
+# A NUL ends the path as surely as whitespace does, and is spelled out because
+# `\S` does not cover it: in a binary the match would otherwise be free to
+# start at a `/` in unrelated data and come back as a path with NULs through
+# it, which dlopen refuses. That it does not happen today rests on the
+# `0x0c` in front of each load command counting as whitespace, which is no
+# rule at all.
+_NEEDED_MACHO = re.compile(rb'/[^\x00\s]*/libguile-[0-9.]+\.dylib')
+
 _loaded = None
 
 
@@ -70,9 +87,43 @@ def mapped_libguile():
     importing the GnuCash bindings maps no libguile, measured — and afterwards
     reports the file the soname below resolved to, which is how a test sees that
     the library loaded is the one GnuCash is linked against.
+
+    macOS has no `/proc`, and dyld answers the same question directly:
+    `_dyld_get_image_name` is the path each image in the process was loaded
+    from. Measured on MacPorts GnuCash 5.14 — before `load_guile` the list
+    holds no libguile, afterwards `/opt/local/lib/libguile-3.0.1.dylib`.
     """
-    lines = Path('/proc/self/maps').read_text().splitlines()
+    maps = Path('/proc/self/maps')
+    if not maps.exists():
+        return _the_libguile_dyld_lists()
+    lines = maps.read_text().splitlines()
     return next((found.group(1) for found in map(_MAPPED.search, lines) if found), None)
+
+
+def _the_libguile_dyld_lists():
+    """The libguile among the images dyld says this process has loaded, or None.
+
+    libSystem's calls, not libguile's, so declared here rather than in
+    `load_guile`: the handle is the process's own image list and carries no
+    Scheme symbols. `argtypes` for the same reason as everywhere else — the
+    index is a C `uint32_t` and the return is a pointer to be read as a string,
+    neither of which ctypes guesses.
+
+    On a mac this answers what `/proc/self/maps` answers on Linux, and it was
+    measured there: before `load_guile` the list holds no libguile, afterwards
+    `/opt/local/lib/libguile-3.0.1.dylib`. `_dyld_image_count` is not a symbol
+    on Linux, so what a container can check is this function's own reading of
+    the list, which
+    `tests/unit/infrastructure/test_which_libguile_each_platform_records.py`
+    does with the list supplied.
+    """
+    dyld = ctypes.CDLL(None)
+    dyld._dyld_image_count.restype = ctypes.c_uint32
+    dyld._dyld_image_count.argtypes = []
+    dyld._dyld_get_image_name.restype = ctypes.c_char_p
+    dyld._dyld_get_image_name.argtypes = [ctypes.c_uint32]
+    images = (dyld._dyld_get_image_name(index) for index in range(dyld._dyld_image_count()))
+    return next((image.decode() for image in images if image and b'libguile' in image), None)
 
 
 def gnucash_libguile_soname():
@@ -82,7 +133,9 @@ def gnucash_libguile_soname():
     it is `libgncmod-app-utils.so` and on 5.x `libgnc-app-utils.so`, among
     others — so the directories the engine is found in are read until one
     does. Returning a soname rather than a path lets the dynamic loader
-    resolve it the way it resolves it for GnuCash.
+    resolve it the way it resolves it for GnuCash. On macOS, where a Mach-O
+    records the full install path instead, that path is what comes back, and
+    it is what the loader resolves for GnuCash there.
 
     Raises `StopIteration` where no library records one, which no supported
     image is.
@@ -96,8 +149,10 @@ def gnucash_libguile_soname():
                 directories.append(directory)
     return next(found.group().decode()
                 for directory in directories
-                for path in sorted(directory.glob('libgnc*.so*'))
-                for found in [_NEEDED.search(path.read_bytes())]
+                for path in sorted(directory.glob('libgnc*.so*')) + sorted(directory.glob('libgnc*.dylib'))
+                for recorded in [path.read_bytes()]
+                for pattern in (_NEEDED, _NEEDED_MACHO)
+                for found in [pattern.search(recorded)]
                 if found)
 
 

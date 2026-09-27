@@ -88,7 +88,10 @@ class TestAPathThatIsNotABook:
 
     `Error: call to begin resulted in the following errors,
     ERR_BACKEND_NO_HANDLER` is what GnuCash says about it, and it says nothing
-    a reader can act on.
+    a reader can act on. A directory is refused with `ERR_BACKEND_NO_HANDLER`
+    on an x86_64 build and with `ERR_FILEIO_UNKNOWN_FILE_TYPE` on the arm64
+    Debian 13 image, GnuCash 5.10 both times, so both codes read as the same
+    sentence and this class covers whichever one the host answers with.
     """
 
     def test_a_plaintext_ledger_is_not_a_book(self, tmp_path):

@@ -126,7 +126,9 @@ then went in over the following three months with no build left to catch them.
 - `convert_qfx.py` - reference for QFX parsing requirements
 - `ledger.py` - reference for update workflow requirements
 - `reference_file*.txt` - sample data for understanding format
-- `.claude/` - Claude CLI directory, an agent's own state — **except `.claude/settings.json`**, which is tracked (`.gitignore` says `.claude/*` and then `!.claude/settings.json`) because it is what wires the `PreToolUse` guards that refuse a shell file-edit, an unscoped kill, "out" written as a verb meaning wrong, and "name" used as a verb for something that has no name. Re-ignoring or deleting it turns every one of those guards off, silently — nothing fails, the refusals simply stop happening. **The guards have no tests, deliberately**: they are shell, they run on the machine an agent works on rather than inside a test container, and the suite tests what this tool does to a GnuCash book. Check one yourself if you change it — pipe a payload into it and read the exit code, 2 being a refusal.
+- `.claude/` - Claude CLI directory, an agent's own state — **except `.claude/settings.json`**, which is tracked (`.gitignore` says `.claude/*` and then `!.claude/settings.json`) because it is what wires the `PreToolUse` guards that refuse a shell file-edit, an unscoped kill, "out" written as a verb meaning wrong, and "name" used as a verb for something that has no name, and the one that asks before a coverage exclusion. Re-ignoring or deleting it turns every one of those guards off, silently — nothing fails, the refusals simply stop happening. **The guards have no tests, deliberately**: they are shell, they run on the machine an agent works on rather than inside a test container, and the suite tests what this tool does to a GnuCash book. Check one yourself if you change it — pipe a payload into it and read the exit code, 2 being a refusal.
+
+  **One of them asks instead of refusing**, and the difference is the point. `scripts/ask-about-a-no-cover-pragma.sh` answers a line being added that carries `pragma: no cover` (or `no branch`, or `no partial branch`) with `permissionDecision: "ask"`, so Claude Code puts it to the person at the keyboard. A refusal would be wrong: the pragma has honest uses here — every image has `Xvfb`, so `printing.py` excludes that branch — and a guard that blocked it outright would be turned off. What it must not be is an agent's private decision, because a pragma **moves** the 100% union gate rather than satisfying it: the line stops being counted, the gate stays green, and nothing left in the suite can report that the line is untested. It exists because that happened — two branches of the macOS library loading were excluded on the reasoning that no container could reach them, and both turned out to be testable by supplying what the code reads (a list of paths, the bytes of a Mach-O, a patched module attribute) rather than the platform it runs on. `infrastructure/guile.py` reached 100% with seven tests the pragma had declared impossible. So the question the hook puts is not whether the pragma is allowed but whether that has been tried. It exempts itself and this file, which quote the pragma in order to state the rule.
 
 ### Repository Layout
 - `cli/` - Click-based CLI commands; `cli/main.py` is the entry point
@@ -143,7 +145,11 @@ then went in over the following three months with no build left to catch them.
 
 `tests/scenario/` holds the cases that come from real books: a case a user of this tool reported, or one the project's author confirmed matches a case from their own books. Each file's module docstring cites the report — the issue doc, the evidence file, or the report quoted — and each test runs the case the way a user does, through the CLI: the book before, the file imported or the command run, and the outcome stated as the figures the scenario gives.
 
-A case written to exercise an implementation, however realistic it looks, belongs in `tests/integration/`. An agent does not add a scenario test on its own reading of what a user would do; it adds one when a person has reported the case or confirmed it, and says so in the docstring. `./scripts/coverage.sh` gates what the scenario tests alone reach, beside the union, because that is the coverage real books give the tool. It may not drop below `SCENARIO_THRESHOLD` in that script; the pre-commit hook and CI both refuse a change that leaves the scenarios reaching less. The floor may be raised, and is not lowered.
+A case written to exercise an implementation, however realistic it looks, belongs in `tests/integration/`. An agent does not add a scenario test on its own reading of what a user would do; it adds one when a person has reported the case or confirmed it, and says so in the docstring. `./scripts/coverage.sh` gates what the scenario tests alone reach, beside the union, because that is the coverage real books give the tool. It may not drop below `SCENARIO_THRESHOLD` in that script; the pre-commit hook and CI both refuse a change that leaves the scenarios reaching less.
+
+**A scenario is an accounting case, and that is what bounds this gate.** A book, a file, a command, and the figures that come back — money, dates, accounts, records. Platform machinery is not one however real the report behind it: which library a binding resolves to, and how a call is made on one processor, cannot be stated in a ledger, because no ledger a person writes has a processor. Such a change is covered by the suite and recorded in prose (finding 31 is the first), and it lowers the scenario figure with no scenario test weaker than it was — it adds statements to the denominator that no book can reach.
+
+So the floor may be raised freely, and **may be lowered only by the dilution such code causes, by no more than that**, in a commit that states both figures. A test deleted, weakened, or moved out of `tests/scenario/` is never a reason. Neither is a test written to reach a line rather than to state a case: calling an implementation function from `tests/scenario/` would clear the floor while measuring nothing, which is the one thing this gate exists to refuse. The first time it was lowered, on 2026-09-27, is written up where the figure is set — 41.12% to 41.05%, from 26 statements and 8 branch exits of library loading, with the union unchanged at 100%.
 
 Tests are about what a user does and what the book then says. A test that calls an implementation function to check another implementation function tests neither the book nor the user, and is not written.
 
@@ -1181,4 +1187,36 @@ takes two `gint64` and a cost summed across part-drawn bases outgrows that.
 
 ---
 
-**Last Updated**: 2026-09-22
+### 31. A library is found by the host's processor, not by `x86_64`, and a variadic call with no `argtypes` at all segfaults on Apple silicon
+
+Discovered 2026-09-27, running `import` on an Apple-silicon mac with GnuCash 5.14 from MacPorts.
+
+A mac is not a supported build and is not becoming one: the supported set is the eleven containers, `./scripts/test.sh` is still how this tool is tested, and nothing here was measured on more than one mac. Two of the three things that stopped that run are nevertheless facts about this code rather than about macOS, and the second one fails on Linux too.
+
+**The multiarch directory is the host's processor.** The same eleven images run on an Apple-silicon host as arm64, where Debian and Ubuntu put the engine in `/usr/lib/aarch64-linux-gnu/gnucash/`. Measured in the Debian 13 image on an M-series mac: with the triplet written out as `x86_64-linux-gnu`, 17 tests in `test_c_bindings_are_declared_once.py` failed with `Could not load libgnc-engine.so — tried: [...]`, and nothing in that list said the host's processor was the reason. So `ENGINE_LIB_PATHS` reads the triplet from `sysconfig.get_config_var('MULTIARCH')` and keeps the `x86_64` spelling beside it, for a Python that reports none. This has nothing to do with macOS — it is any arm64 Linux, a Raspberry Pi or a cloud instance as much as a mac.
+
+**A variadic C function called with no `argtypes` at all segfaults on Apple silicon.** `qof_instance_set_kvp` and `qof_instance_get_kvp` are `(QofInstance*, GValue*, unsigned count, ...)`, the slot path following the count, and both had a `restype` and no `argtypes` — deliberately, so that ctypes would pass each argument as the caller had cast it. That is right on x86_64, where System V passes a variadic argument in the same register a fixed one would use, and wrong on arm64 Apple, whose ABI passes variadic arguments on the stack. ctypes builds a variadic call (libffi's `ffi_prep_cif_var`) only where `argtypes` is set **and** the call carries more arguments than it lists; with no `argtypes` every argument goes in a register, `qof_instance_get_kvp` reads the path off the stack, and GnuCash dereferences what was there.
+
+| where | what happens |
+|---|---|
+| x86_64, no `argtypes` | correct, on all eleven builds |
+| arm64 Apple, no `argtypes` | **SIGSEGV** in `g_value_get_string`, under `get_custom_metadata`, one directive into an import |
+| either, fixed three declared and the path passed as an extra argument | correct |
+
+So the fixed parameters are declared and the path segments stay extra arguments. The same shape is required of any variadic call added later, and there are only these two.
+
+**Where GnuCash's libraries are on a mac, and what a mac can and cannot do.** Measured on MacPorts 5.14, arm64 (`port install gnucash py311-gnucash`), with the project installed into a venv built `--system-site-packages` so the bindings are importable:
+
+| library | spelling | found by |
+|---|---|---|
+| the engine | `/opt/local/lib/libgnc-engine.dylib` | a path in `ENGINE_LIB_PATHS`; promoting it to RTLD_GLOBAL and then `CDLL(None)` resolves every declared function, as on Debian |
+| libgobject | `/opt/local/lib/libgobject-2.0.0.dylib` | a path in `GOBJECT_LIB_PATHS`: macOS searches neither MacPorts' prefix nor Homebrew's, so `CDLL('libgobject-2.0.so.0')` and `CDLL('libgobject-2.0.0.dylib')` both raise, and the KVP calls then dropped every custom key with one `logging.debug` line |
+| libguile | `/opt/local/lib/libguile-3.0.1.dylib` | the install path a Mach-O records, read from `libgnc-expressions-guile.dylib` — the whole path, since the trailing name alone is not on any search path. `/proc/self/maps` does not exist, so `mapped_libguile` asks dyld |
+
+What runs there, measured: `import` (including `--new`), `export`, `balance-sheet` and `income-statement` as text and as HTML — the Scheme reports, through libguile in-process — and the `find-*` and `fx-balances` commands. A 17,987-transaction book opens read-only and closes cleanly.
+
+What does not: every **printed page** — `print-invoice`, `print-bill`, and `--output-format pdf`. Those are laid out by WebKit through `python3-gi` + `gir1.2-webkit2`, and a mac has no such typelib; XQuartz's `Xvfb` being on `PATH` is not enough, and the run ends with the refusal that lists each distribution's package. `--output-format html` needs none of it and works.
+
+---
+
+**Last Updated**: 2026-09-27

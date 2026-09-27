@@ -30,11 +30,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from infrastructure.gnucash.engine import (
+    GOBJECT_LIB_PATHS,
     GList,
     iterate_glist,
     load_gnc_engine,
+    load_gobject,
     safe_ctypes_string,
     verify_ctypes_functions,
+)
+from infrastructure.gnucash.engine import (
+    _engine_lib_paths as engine_lib_paths,
 )
 
 # ---------------------------------------------------------------------------
@@ -293,3 +298,91 @@ class TestVerifyCtypesFunctions:
 
         # And present on the engine this test is running against.
         verify_ctypes_functions(load_gnc_engine(), owner_functions)
+
+
+# ---------------------------------------------------------------------------
+# Where each library is looked for: the processor this Python reports, and the
+# spellings that follow the platform rather than the distribution
+# ---------------------------------------------------------------------------
+
+class TestWhereTheEngineIsLookedFor:
+    """The Debian and Ubuntu paths follow the host's processor.
+
+    The same eleven images run on an Apple-silicon host as arm64, where the
+    engine is in `/usr/lib/aarch64-linux-gnu/gnucash/`. A written-out
+    `x86_64-linux-gnu` found nothing there and said only "Could not load
+    libgnc-engine.so" (CLAUDE.md finding 31).
+    """
+
+    def test_the_triplet_this_python_reports_is_looked_in(self):
+        with patch('infrastructure.gnucash.engine._MULTIARCH', 'aarch64-linux-gnu'):
+            paths = engine_lib_paths()
+
+        assert '/usr/lib/aarch64-linux-gnu/gnucash/libgnc-engine.so' in paths
+        assert '/usr/lib/aarch64-linux-gnu/gnucash/gnucash/libgncmod-engine.so' in paths
+
+    def test_x86_64_is_looked_in_whatever_this_python_reports(self):
+        """Written out as well as derived, so the eleven builds hold either way."""
+        with patch('infrastructure.gnucash.engine._MULTIARCH', 'aarch64-linux-gnu'):
+            elsewhere = engine_lib_paths()
+        with patch('infrastructure.gnucash.engine._MULTIARCH', None):
+            unreported = engine_lib_paths()
+
+        for paths in (elsewhere, unreported):
+            assert '/usr/lib/x86_64-linux-gnu/gnucash/libgnc-engine.so' in paths
+            assert '/usr/lib/x86_64-linux-gnu/gnucash/gnucash/libgncmod-engine.so' in paths
+
+    def test_a_python_reporting_no_triplet_asks_for_no_path_of_none(self):
+        with patch('infrastructure.gnucash.engine._MULTIARCH', None):
+            paths = engine_lib_paths()
+
+        assert not [path for path in paths if 'None' in path]
+
+    def test_each_spelling_is_dlopened_once(self):
+        """On an x86_64 host the derived triplet and the written-out one agree."""
+        with patch('infrastructure.gnucash.engine._MULTIARCH', 'x86_64-linux-gnu'):
+            paths = engine_lib_paths()
+
+        assert len(paths) == len(set(paths))
+
+    def test_the_other_distributions_and_a_mac_are_still_looked_in(self):
+        with patch('infrastructure.gnucash.engine._MULTIARCH', 'x86_64-linux-gnu'):
+            paths = engine_lib_paths()
+
+        assert '/usr/lib64/gnucash/libgnc-engine.so' in paths          # Fedora
+        assert '/usr/lib64/libgnc-engine.so' in paths                  # openSUSE
+        assert '/usr/lib/libgnc-engine.so' in paths                    # Arch
+        assert '/opt/local/lib/libgnc-engine.dylib' in paths           # MacPorts
+
+
+class TestLibgobjectIsLookedForByEachSpelling:
+    """One library, a soname on Linux and a path on a mac.
+
+    macOS searches neither MacPorts' prefix nor Homebrew's, so the path is
+    written out; a spelling that is not there is skipped rather than ending the
+    search, which is what left `load_gobject` answering None on a mac and every
+    custom key dropped with one `logging.debug` line.
+    """
+
+    def setup_method(self):
+        load_gobject.cache_clear()
+
+    def teardown_method(self):
+        load_gobject.cache_clear()
+
+    def test_a_spelling_that_is_not_there_is_skipped(self):
+        with patch('infrastructure.gnucash.engine.GOBJECT_LIB_PATHS',
+                   ['/nonexistent/libgobject-2.0.0.dylib', 'libgobject-2.0.so.0']):
+            gobj = load_gobject()
+
+        assert gobj is not None
+        assert gobj.g_value_get_string.restype is ctypes.c_char_p
+
+    def test_none_where_no_spelling_loads(self):
+        """A broken install, and the KVP callers report and carry on."""
+        with patch('infrastructure.gnucash.engine.GOBJECT_LIB_PATHS',
+                   ['/nonexistent/libgobject-2.0.0.dylib']):
+            assert load_gobject() is None
+
+    def test_the_soname_every_supported_build_has_is_asked_for_first(self):
+        assert GOBJECT_LIB_PATHS[0] == 'libgobject-2.0.so.0'
