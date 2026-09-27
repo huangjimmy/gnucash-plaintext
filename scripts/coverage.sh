@@ -52,10 +52,31 @@ cd "$PROJECT_ROOT"
 THRESHOLD=100
 
 # What `tests/scenario/` alone reaches, line and branch, on the union of every
-# supported build: 41.12% measured on 2026-09-27, gated at 41.10%. A floor: a
+# supported build: 41.05% measured on 2026-09-27, gated at 41.03%. A floor: a
 # change may raise it, and a change that leaves the scenarios reaching less is
-# refused. Two decimal places, because the report is read at that precision.
-SCENARIO_THRESHOLD=41.10
+# refused. Two decimal places, because the report is read at that precision, and
+# the 0.02 of slack is what the figure before this one carried, so a rounding
+# difference between eleven data files and twelve does not fail a run.
+#
+# **It was 41.10%, from 41.12% measured the same day, and it came down because
+# the tree gained code no book can reach.** A scenario is an accounting case —
+# a book, a file, a command, and the figures that come back — and the library
+# this tool loads GnuCash from is not one: no ledger a person writes can state a
+# processor. The commit that found the engine by the processor the host reports
+# added 26 statements and 8 branch exits of that kind, all of them covered by
+# the suite (the union stayed at 100%) and none of them reachable by any
+# scenario on any processor, which moved 41.12% to 41.05% with no scenario test
+# weaker than it was.
+#
+# So the floor gives way to that dilution and to nothing else. It may be raised
+# freely. It may be lowered only by a change that adds code no book can reach,
+# by no more than the dilution that code causes, and the commit that lowers it
+# states both figures. A test deleted, weakened, or moved out of
+# `tests/scenario/` is not a reason, and a scenario test written to reach a line
+# rather than to state a case is the thing this gate exists to refuse — calling
+# an implementation function from `tests/scenario/` would clear the floor and
+# measure nothing.
+SCENARIO_THRESHOLD=41.03
 REPORT_ONLY=""
 HTML=""
 while [ $# -gt 0 ]; do

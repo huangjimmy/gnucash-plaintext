@@ -33,16 +33,67 @@ return wrong results on any 64-bit platform if the pointer happens to be >4 GB).
 import contextlib
 import ctypes
 import logging
+import sysconfig
 from functools import lru_cache
-from typing import Optional
+from typing import List, Optional
 
-ENGINE_LIB_PATHS = [
-    '/usr/lib/x86_64-linux-gnu/gnucash/libgnc-engine.so',            # Debian 11/12/13, Ubuntu 22/24
-    '/usr/lib/x86_64-linux-gnu/gnucash/gnucash/libgncmod-engine.so', # Ubuntu 20 (GnuCash 3.8)
-    '/usr/lib64/gnucash/libgnc-engine.so',                           # Fedora 41+
-    '/usr/lib64/libgnc-engine.so',                                   # openSUSE Tumbleweed
-    '/usr/lib/libgnc-engine.so',                                     # Arch Linux
-]
+#: The processor Debian and Ubuntu put in their library directory, as this
+#: interpreter reports its own: `x86_64-linux-gnu`, `aarch64-linux-gnu`. It is
+#: read rather than written down, because the same eleven images run on an
+#: Apple-silicon host as arm64 and put the engine in
+#: `/usr/lib/aarch64-linux-gnu/gnucash/` there — measured in the Debian 13
+#: image on an M-series mac, where the x86_64 path alone left 17 tests in
+#: `test_c_bindings_are_declared_once.py` failing with "Could not load
+#: libgnc-engine.so" and no other sign that the host's processor was the
+#: reason. `None` on a Python built without it, and on macOS, where the value
+#: means nothing and the `.dylib` entries below are what answer.
+_MULTIARCH = sysconfig.get_config_var('MULTIARCH')
+
+
+def _engine_lib_paths() -> List[str]:
+    """Where libgnc-engine may be, most specific first, each spelling once.
+
+    The x86_64 triplet stays written out beside the derived one: it is what the
+    eleven supported builds have, and it keeps the list right on a Python that
+    reports no `MULTIARCH` at all. Where the two agree — every supported build
+    on an x86_64 host — the duplicate is dropped rather than dlopen'd twice.
+    """
+    paths = []
+    for triplet in (_MULTIARCH, 'x86_64-linux-gnu'):
+        if triplet:
+            # Debian 11/12/13, Ubuntu 22/24/26, then Ubuntu 20 (GnuCash 3.8),
+            # which keeps the engine one directory deeper and calls it
+            # `libgncmod-engine.so`.
+            paths.append(f'/usr/lib/{triplet}/gnucash/libgnc-engine.so')
+            paths.append(f'/usr/lib/{triplet}/gnucash/gnucash/libgncmod-engine.so')
+    paths += [
+        '/usr/lib64/gnucash/libgnc-engine.so',                       # Fedora 41+
+        '/usr/lib64/libgnc-engine.so',                               # openSUSE Tumbleweed
+        '/usr/lib/libgnc-engine.so',                                 # Arch Linux
+        # macOS, where the same library is a `.dylib` and the prefix is
+        # whichever package manager installed GnuCash. The supported builds are
+        # the eleven containers and none of them is a mac, so these are a
+        # developer's own machine rather than a build this suite measures — but
+        # the loading rule this module exists for holds there too, and was
+        # measured on MacPorts GnuCash 5.14: promoting
+        # `/opt/local/lib/libgnc-engine.dylib` to RTLD_GLOBAL and then
+        # `CDLL(None)` resolves every function declared below, `gnc_version`
+        # included, exactly as on Debian. dlopen on macOS searches a handle's
+        # dependencies too, so glib's and gobject's functions come back from
+        # the same call.
+        '/opt/local/lib/libgnc-engine.dylib',                        # MacPorts
+        # Homebrew's two prefixes, Apple silicon and Intel. Unmeasured: no mac
+        # here has GnuCash from Homebrew. They are the layout a `brew install`
+        # produces, and a path that is not there costs one failed dlopen.
+        '/opt/homebrew/lib/libgnc-engine.dylib',
+        '/usr/local/lib/libgnc-engine.dylib',
+    ]
+    # Order kept, each spelling once: `dict` preserves insertion order from
+    # Python 3.7, which is this project's floor (Debian 10).
+    return list(dict.fromkeys(paths))
+
+
+ENGINE_LIB_PATHS = _engine_lib_paths()
 
 
 class GncNumericC(ctypes.Structure):
@@ -64,6 +115,21 @@ class GValue(ctypes.Structure):
 
 G_TYPE_STRING = 64  # G_TYPE_STRING on all platforms (GLib constant)
 
+#: libgobject, as each platform spells it. The soname first: on every supported
+#: build the dynamic loader finds it under that alone, and the search stops
+#: there. macOS calls the same library `libgobject-2.0.0.dylib` and its loader
+#: searches neither MacPorts' prefix nor Homebrew's, so the path is written out
+#: — measured on MacPorts, where `CDLL('libgobject-2.0.0.dylib')` raises
+#: `image not found` and the full path loads. Without this the KVP calls found
+#: no GValue to hand GnuCash and every custom key, company option and
+#: migration record was dropped with one `logging.debug` line.
+GOBJECT_LIB_PATHS = [
+    'libgobject-2.0.so.0',                          # every supported build
+    '/opt/local/lib/libgobject-2.0.0.dylib',        # MacPorts
+    '/opt/homebrew/lib/libgobject-2.0.0.dylib',     # Homebrew, Apple silicon
+    '/usr/local/lib/libgobject-2.0.0.dylib',        # Homebrew, Intel
+]
+
 
 @lru_cache(maxsize=1)
 def load_gobject() -> Optional[ctypes.CDLL]:
@@ -78,17 +144,18 @@ def load_gobject() -> Optional[ctypes.CDLL]:
     part-way through a book. That None is the implicit one the suppressed
     `OSError` falls out to.
     """
-    with contextlib.suppress(OSError):
-        gobj = ctypes.CDLL('libgobject-2.0.so.0')
-        gobj.g_value_init.argtypes = [ctypes.POINTER(GValue), ctypes.c_ulong]
-        gobj.g_value_init.restype = ctypes.POINTER(GValue)
-        gobj.g_value_set_string.argtypes = [ctypes.POINTER(GValue), ctypes.c_char_p]
-        gobj.g_value_set_string.restype = None
-        gobj.g_value_get_string.argtypes = [ctypes.POINTER(GValue)]
-        gobj.g_value_get_string.restype = ctypes.c_char_p
-        gobj.g_value_unset.argtypes = [ctypes.POINTER(GValue)]
-        gobj.g_value_unset.restype = None
-        return gobj
+    for path in GOBJECT_LIB_PATHS:
+        with contextlib.suppress(OSError):
+            gobj = ctypes.CDLL(path)
+            gobj.g_value_init.argtypes = [ctypes.POINTER(GValue), ctypes.c_ulong]
+            gobj.g_value_init.restype = ctypes.POINTER(GValue)
+            gobj.g_value_set_string.argtypes = [ctypes.POINTER(GValue), ctypes.c_char_p]
+            gobj.g_value_set_string.restype = None
+            gobj.g_value_get_string.argtypes = [ctypes.POINTER(GValue)]
+            gobj.g_value_get_string.restype = ctypes.c_char_p
+            gobj.g_value_unset.argtypes = [ctypes.POINTER(GValue)]
+            gobj.g_value_unset.restype = None
+            return gobj
 
 
 class GncAccountValueC(ctypes.Structure):
@@ -716,10 +783,32 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     lib.qof_book_mark_session_dirty.restype    = None
     lib.qof_book_mark_session_dirty.argtypes   = [ctypes.c_void_p]
     # The KVP calls `infrastructure/gnucash/kvp.py` makes. The two
-    # `qof_instance_*_kvp` are variadic, so only their return is declared:
-    # ctypes passes each argument the caller has already cast.
+    # `qof_instance_*_kvp` are variadic — `(QofInstance*, GValue*, unsigned
+    # count, ...)`, the path segments following the count — and their **fixed**
+    # parameters are declared, not none of them.
+    #
+    # Declaring none of them is right on x86_64 and a segfault on Apple
+    # silicon, which is where it was found (MacPorts GnuCash 5.14, arm64).
+    # The two ABIs differ over variadics: System V passes them in the same
+    # registers as fixed arguments, so a call built as though every argument
+    # were fixed lands correctly, while the arm64 Apple ABI passes variadic
+    # arguments on the stack. ctypes builds a *variadic* call only when
+    # `argtypes` is set and the call carries more arguments than it lists —
+    # that is what reaches libffi's `ffi_prep_cif_var`. With no `argtypes` at
+    # all every argument goes in a register, `qof_instance_get_kvp` reads the
+    # slot path off the stack, and GnuCash dereferences whatever was there:
+    # measured as a SIGSEGV inside `g_value_get_string`, one directive into an
+    # import.
+    #
+    # So the fixed three are listed and the path segments stay extra
+    # arguments. On the eleven supported builds this changes nothing: the
+    # variadic call libffi then builds for x86_64 is the same call.
     lib.qof_instance_set_kvp.restype           = None
+    lib.qof_instance_set_kvp.argtypes          = [ctypes.c_void_p, ctypes.POINTER(GValue),
+                                                  ctypes.c_uint]
     lib.qof_instance_get_kvp.restype           = None
+    lib.qof_instance_get_kvp.argtypes          = [ctypes.c_void_p, ctypes.POINTER(GValue),
+                                                  ctypes.c_uint]
     lib.qof_instance_set_dirty.restype         = None
     lib.qof_instance_set_dirty.argtypes        = [ctypes.c_void_p]
     lib.qof_book_get_string_option.restype     = ctypes.c_char_p

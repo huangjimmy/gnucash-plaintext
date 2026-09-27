@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: Test on ${{ matrix.tag }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ endsWith(matrix.tag, '-arm') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
 
     # All eleven supported builds, the same eleven `scripts/test-all-versions-parallel.sh`
     # sweeps for the pre-commit gate. Seven of them until `build.sh` learned to
@@ -19,14 +19,35 @@ jobs:
     # gate and not CI.
     #
     # The tag is the only column, and the version each carries is not written
-    # here at all — `build.sh` prints it from the one table that has it. Spelled
-    # into the job names, it was a copy: `ubuntu24` read `GnuCash-49` long after
-    # the image moved to 5.5, and nothing printed or checked it.
+    # here at all — `build.sh` prints it from the one table that has it.
+    # Spelled into the job names, it was a copy: `ubuntu24` read `GnuCash-49`
+    # long after the image moved to 5.5, and nothing printed or checked it.
+    #
+    # A tag ending `-arm` is that image built and run on an arm64 runner, and
+    # `ubuntu24-arm` is the first. It is a column of its own rather than a
+    # second dimension because it is one entry, not eleven: what differs by
+    # processor is which library a binding resolves to and how a call is made,
+    # not what GnuCash does to a book.
+    #
+    # It is not a duplicate of `ubuntu24`. The engine is loaded from a path
+    # holding the processor Debian and Ubuntu put in their library directory,
+    # and on x86_64 the one read from `sysconfig` and the one written out are
+    # the same string, deduplicated to a single entry — so no x86_64 job can
+    # tell the two apart. On arm64 `/usr/lib/aarch64-linux-gnu/gnucash/
+    # libgnc-engine.so` is the only entry that resolves, and a written-out
+    # `x86_64-linux-gnu` failed the whole suite there with `Could not load
+    # libgnc-engine.so` (CLAUDE.md finding 31). The unit tests force the
+    # triplet and can say what the list holds; only an arm64 image can say that
+    # GnuCash loads from it.
+    #
+    # The runner's own distribution need not match the tag — the image is built
+    # from the tag's own base — so `ubuntu-24.04-arm` running the `ubuntu24`
+    # image is GitHub's label happening to agree, not a requirement.
     strategy:
       fail-fast: false
       matrix:
         tag: [latest, debian12, debian11, debian10, ubuntu26, ubuntu24,
-              ubuntu22, ubuntu20, fedora41, arch, opensuse]
+              ubuntu22, ubuntu20, fedora41, arch, opensuse, ubuntu24-arm]
 
     steps:
       - name: Checkout code
@@ -35,11 +56,24 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: The image behind this matrix entry
+        # `ubuntu24-arm` is this matrix's name for the `ubuntu24` image on an
+        # arm64 runner. The scripts know an image by its own tag and build for
+        # whatever processor they are run on, so the suffix is dropped for
+        # them; the matrix keeps it, because the coverage file and the artifact
+        # are named after the entry and two runs of one build may not answer to
+        # one name. Written as a step rather than an expression because
+        # GitHub's have no way to cut a suffix off a string.
+        id: image
+        env:
+          MATRIX_TAG: ${{ matrix.tag }}
+        run: echo "tag=${MATRIX_TAG%-arm}" >> "$GITHUB_OUTPUT"
+
       - name: Build Docker image
         # By tag, through the script that knows which Dockerfile and which base
         # image each one means — the same call the sweep and every local build
         # make.
-        run: ./scripts/build.sh ${{ matrix.tag }}
+        run: ./scripts/build.sh ${{ steps.image.outputs.tag }}
 
       - name: Run tests
         # Through `scripts/test.sh`, which is now the one place that decides
@@ -54,13 +88,28 @@ jobs:
         # permission off a directory could not fail here — the gate reported
         # green on every version and CI red on every version.
         #
-        # With coverage on, so these eleven runs are also what the union job
+        # With coverage on, so these runs are also what the union job
         # below adds up. `scripts/test.sh` writes
         # `.coverage-data/.coverage.<tag>`, a name per build, which is what lets
-        # eleven separate jobs be combined afterwards without writing over each
+        # separate jobs be combined afterwards without writing over each
         # other. Nothing is gated on it here beyond the build's own figure: the
         # union is the figure that means anything.
-        run: GNC_COVERAGE=1 ./scripts/test.sh ${{ matrix.tag }}
+        run: GNC_COVERAGE=1 ./scripts/test.sh ${{ steps.image.outputs.tag }}
+
+      - name: Name this run's coverage after the matrix entry
+        # `test.sh` names the file after the image it ran, so both `ubuntu24`
+        # jobs write `.coverage.ubuntu24`. The artifact upload refuses a name
+        # already taken, and the union job downloads with `merge-multiple`,
+        # which would keep whichever landed last — one of the two runs gone,
+        # silently, from the figure this project gates on. Renaming to the
+        # matrix entry is what keeps the two apart, and `coverage combine`
+        # still finds it: the union globs `.coverage.*`.
+        env:
+          MATRIX_TAG: ${{ matrix.tag }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          [ "$MATRIX_TAG" = "$IMAGE_TAG" ] || \
+            mv ".coverage-data/.coverage.$IMAGE_TAG" ".coverage-data/.coverage.$MATRIX_TAG"
 
       - name: Check this build's own coverage
         # A single build is not the union and cannot be. The paths a particular
@@ -91,7 +140,7 @@ jobs:
             -e COVERAGE_FILE=/cov/.coverage.${{ matrix.tag }} \
             -v ${{ github.workspace }}/.coverage-data:/cov \
             -v ${{ github.workspace }}:/workspace \
-            gnucash-dev:${{ matrix.tag }} \
+            gnucash-dev:${{ steps.image.outputs.tag }} \
             sh -c "mkdir -p /tmp/home/.local && cd /workspace && \
               python3 -m pip install -e '.[dev]' -q --break-system-packages --user && \
               PATH=/tmp/home/.local/bin:\$PATH coverage report --fail-under=98"
@@ -109,21 +158,21 @@ jobs:
           retention-days: 7
 
       - name: Run deployment test
-        run: ./scripts/test-deployment.sh ${{ matrix.tag }}
+        run: ./scripts/test-deployment.sh ${{ steps.image.outputs.tag }}
 
       - name: Run linting
         if: matrix.tag == 'latest'
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
-            gnucash-dev:${{ matrix.tag }} \
+            gnucash-dev:${{ steps.image.outputs.tag }} \
             sh -c "cd /workspace && \
               python3 -m pip install -e '.[dev]' -q --break-system-packages && \
               ruff check ."
         # Note: --break-system-packages is safe in Docker (isolated environment)
 
   union-coverage:
-    name: Union coverage, all eleven builds
+    name: Union coverage, every build
     needs: test
     runs-on: ubuntu-latest
 
@@ -136,10 +185,17 @@ jobs:
 
       - name: Build Docker image
         # Only the image this job combines and reports in. The suites
-        # themselves have already run, once each, in the eleven matrix jobs
-        # above; nothing is run again here. Before this job existed, a twelfth
-        # run of the whole `latest` suite happened for the sole purpose of
-        # producing a figure one build cannot reach.
+        # themselves have already run, once each, in the matrix jobs above;
+        # nothing is run again here. Before this job existed, another run of
+        # the whole `latest` suite happened for the sole purpose of producing a
+        # figure one build cannot reach.
+        #
+        # One of those jobs is the same build on another processor, so the
+        # union is over twelve data files and eleven builds. Combining them is
+        # sound because coverage is a set of lines reached: the arm64 run of
+        # `ubuntu24` reaches what that GnuCash reaches, and the paths only it
+        # takes — the engine found under `aarch64-linux-gnu` — are lines of
+        # this tree like any other.
         run: ./scripts/build.sh latest
 
       - name: Collect what every build measured

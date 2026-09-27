@@ -83,7 +83,14 @@ def _what_gnucash_meant(error: Exception, creating: bool = False) -> str:
             'refuses even a command that only reads. Copy the book somewhere '
             'writable, or get write access to the directory it is '
             'in.')
-    if 'ERR_BACKEND_NO_HANDLER' in text:
+    # Two codes for the same state, and which one arrives is not this tool's
+    # doing: a directory handed to `export` is refused as
+    # `ERR_BACKEND_NO_HANDLER` on an x86_64 build and as
+    # `ERR_FILEIO_UNKNOWN_FILE_TYPE` on the arm64 Debian 13 image, GnuCash
+    # 5.10 both times, with `GncXmlBackend::check_path()` logging `is a
+    # directory` in each. Either way what the reader has is not a book this
+    # tool reads, which is the one sentence that helps them.
+    if 'ERR_BACKEND_NO_HANDLER' in text or 'ERR_FILEIO_UNKNOWN_FILE_TYPE' in text:
         return _NOT_A_BOOK
     return f'GnuCash could not open the book: {text}'
 
