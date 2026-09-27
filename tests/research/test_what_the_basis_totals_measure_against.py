@@ -19,7 +19,7 @@ Measured:
 ```
                                     bases       all      cash   owed-in  in-less-sold
 buy and borrow                 USD 200.00    200.00 ✓  200.00 ✓  200.00 ✓  200.00 ✓
-invoice overpaid into USD bank USD 200.00    100.00    200.00 ✓  300.00    200.00 ✓
+invoice overpaid into USD bank USD 300.00    100.00    200.00    300.00 ✓  300.00 ✓
 invoice overpaid into CAD bank USD 100.00   -100.00      0.00    100.00 ✓  100.00 ✓
 bill overpaid from USD bank    USD 200.00   -100.00   -200.00   -100.00    200.00 ✓
 invoice settled into HKD bank  HKD 780.00    780.00 ✓  780.00 ✓  780.00 ✓  780.00 ✓
@@ -78,6 +78,7 @@ def _holdings(book_path):
     from repositories.gnucash_repository import GnuCashRepository, SessionMode
     from services.foreign_currency import (
         BASE_CURRENCY,
+        brought_in_by,
         cost_basis_balance_of,
         cost_basis_guid_of,
         establishes_cost_basis,
@@ -135,8 +136,11 @@ def _holdings(book_path):
                 continue
             if not establishes_cost_basis(split):
                 continue
+            # What the split brought in, which beside an invoice it collects
+            # part of is less than its amount: the collected part is the
+            # invoice's.
             readings['in-less-sold'][currency] = (
-                readings['in-less-sold'].get(currency, Fraction(0)) + abs(amount))
+                readings['in-less-sold'].get(currency, Fraction(0)) + brought_in_by(split))
             balance = cost_basis_balance_of(split)
             if balance is None:
                 continue

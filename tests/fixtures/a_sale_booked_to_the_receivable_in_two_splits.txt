@@ -8,7 +8,7 @@
 # against one income split, neither receivable split in a lot.
 #
 # Verified by tests/integration/test_a_posting_the_book_holds_is_refused_where_it_cannot_be_the_records.py.
-2026-01-01 * "Sales, booked by hand"
+2026-01-01 * "Sales, booked to the receivable"
 	guid: "8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e"
 	currency.mnemonic: "CAD"
 	Assets:Accounts Receivable 60.00 CAD

@@ -1,6 +1,6 @@
 """An exported beancount file is meant to be edited, so it has to be readable.
 
-Editing an export by hand is the whole reason to export to beancount, and a
+Editing an export is the whole reason to export to beancount, and a
 person writes beancount's own spellings, not this exporter's. It emits only
 `@@ total CUR`; a reader reaches for the per-unit `@ rate CUR`, the cost basis
 `{cost CUR}`, and a trailing `; note`.
@@ -25,7 +25,7 @@ from gnucash import Query, Transaction
 from cli.main import cli
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 
-BY_HAND = 'tests/fixtures/beancount_postings_written_by_hand.beancount'
+WRITTEN = 'tests/fixtures/beancount_postings_a_person_writes.beancount'
 UNREADABLE = 'tests/fixtures/beancount_posting_it_cannot_read.beancount'
 
 
@@ -55,7 +55,7 @@ class TestTheFormsAPersonWrites:
     def _imported(self, tmp_path):
         book = tmp_path / 'hand.gnucash'
         result = CliRunner().invoke(
-            cli, ['import-beancount', str(book), BY_HAND])
+            cli, ['import-beancount', str(book), WRITTEN])
         assert result.exit_code == 0, result.output
         return book, result
 
@@ -315,7 +315,7 @@ class TestDirectivesAnotherToolAnnotated:
     """
 
     ANNOTATED = ('tests/fixtures/'
-                 'beancount_directives_annotated_by_hand.beancount')
+                 'beancount_directives_a_person_annotates.beancount')
 
     def _imported(self, tmp_path):
         book = tmp_path / 'annotated.gnucash'
@@ -959,14 +959,14 @@ class TestADirectiveEditedDownToItsKeyword:
         book = tmp_path / 'tagged.gnucash'
         result = CliRunner().invoke(cli, [
             'import-beancount', str(book),
-            'tests/fixtures/beancount_directives_annotated_by_hand.beancount'])
+            'tests/fixtures/beancount_directives_a_person_annotates.beancount'])
 
         assert result.exit_code == 0, result.output
         assert 'Buy 12.345 units' in _entries(book), _entries(book)
 
 
 class TestAFileThatDeclaresNoCurrencies:
-    """Nothing obliges a hand-written file to declare CAD.
+    """Nothing obliges a file a person writes to declare CAD.
 
     `commodity` directives are how a file names a security — `FUND.FUNDX` for
     `FUNDX` in the `FUND` namespace — and GnuCash already carries every ISO
@@ -1202,7 +1202,7 @@ class TestAConversionWithNoRate:
     refused for — 100.00 USD entered as 100.00 CAD against 135.00 of cash,
     with GnuCash inventing `Imbalance-USD 35.00` and the run reporting no
     errors. `{}` was refused; leaving the rate off entirely, which is the
-    plainer hand-edit, was not.
+    plainer edit, was not.
     """
 
     NO_RATE = 'tests/fixtures/beancount_conversion_with_no_rate.beancount'
@@ -1295,7 +1295,7 @@ class TestFixingTheFileAndRunningItAgain:
     """
 
     UNREADABLE = UNREADABLE
-    GOOD = 'tests/fixtures/beancount_postings_written_by_hand.beancount'
+    GOOD = 'tests/fixtures/beancount_postings_a_person_writes.beancount'
 
     def test_a_failure_before_the_ledger_is_read_is_swept_too(self, tmp_path):
         """The file exists from `create_new_file` onward, not from the parse.

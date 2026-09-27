@@ -4,6 +4,19 @@
 #
 # The split the retarget divides is the +200.00 USD payable side, 274.00 being
 # its CAD value, so `amount: 200` and `prepayment: 100` are both USD.
+#
+# The 100.00 USD paying the bill is converted at the payment's 1.37, against
+# the 1.40 the bill was posted at, so it consumes the bill's cost basis and
+# realizes 3.00 CAD, which `Income:FX Gain $residual$ CAD` takes (Q-054).
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
 bill "BILL-USD-RETARGET"
 	vendor_id: "V-US"
 	currency: USD
@@ -30,3 +43,4 @@ bill "BILL-USD-RETARGET"
 		txn_guid: "TXN_GUID"
 		prepayment: 100
 		memo: "Payment for BILL-USD-RETARGET"
+		Income:FX Gain $residual$ CAD

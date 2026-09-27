@@ -399,7 +399,7 @@ def cost_of(split) -> Optional[Fraction]:
     split that paid 135.00 CAD for 100.00 USD reported whatever its KVP said,
     9.99 CAD/USD, and `fx-balances`, every realized gain and the cost every
     later sale must be valued at followed the copy rather than the money. A
-    copy can be stale, hand-edited, or left behind by a correction; the
+    copy can be stale, edited in the GnuCash GUI, or left behind by a correction; the
     transaction is what the book is.
     """
     derived = derived_cost_of(split)
@@ -545,39 +545,51 @@ def pending_disposals(book) -> List[Dict]:
     """Every split with `cost_basis_split_guid: $pending$` that can stand, oldest first.
 
     The import refuses one that cannot (`why_a_pending_split_cannot_stand`),
-    but a book can be changed elsewhere. One that cannot stand is left out
-    here, since it would be taken off the cost bases wrong, and
+    but a book can be changed elsewhere. One that cannot stand on its own is
+    left out here, since it would be subtracted from the cost bases wrong, and
     `--verify-costs` and `--verify-integrity` report it with the reason
     (`what_the_pending_disposals_get_wrong`).
+
+    Not asked whether its side has enough left: where the pending disposals
+    of a side together take more than its cost bases have, that is a fault of
+    the side, and `--verify-costs` reports it once. Every one of them is still
+    subtracted, since leaving them all out would hide what they dispose of.
     """
     found = []
-    for split in iter_splits(book):
-        if not is_pending(split) or why_a_pending_split_cannot_stand(split):
+    for split in splits_drawing_on(book, PENDING):
+        if why_a_pending_split_cannot_stand(split, counting_what_is_left=False):
             continue
         transaction = split.GetParent()
         found.append({'date': transaction.GetDate().strftime('%Y-%m-%d'),
                       'when': transaction.GetDate().date(),
                       'account': get_account_full_name(split.GetAccount()),
-                      'amount': drawn_by(split),
+                      # What it consumes, which for a split crossing zero is
+                      # the part up to zero.
+                      'amount': draws_down(split),
                       'unit': smallest_unit(split),
                       'currency': split_commodity(split),
                       'namespace': split.GetAccount().GetCommodity().get_namespace(),
                       'side': the_side_it_draws(split),
-                      # What the transaction records it at in the book's own
-                      # currency, which is what leaves the book's figures,
-                      # since no cost basis was drawn at a cost. The import
-                      # refuses `$pending$` where no figure says.
-                      'recorded_at': _what_the_book_recorded_it_at(split),
+                      # What the transaction records that part at in the
+                      # book's own currency, which is what leaves the book's
+                      # figures, since no cost basis was drawn at a cost. The
+                      # import refuses `$pending$` where no figure says.
+                      'recorded_at': _what_the_book_recorded_its_disposal_at(split),
                       'description': transaction.GetDescription() or ''})
     return sorted(found, key=lambda row: (row['date'], row['account']))
 
 
-def why_a_pending_split_cannot_stand(split) -> str:
-    """Why a split with `$pending$` cannot be taken off the cost bases as pending, or `''`.
+def why_a_pending_split_cannot_stand(split, counting_what_is_left: bool = True) -> str:
+    """Why a split with `$pending$` cannot be subtracted from the cost bases as pending, or `''`.
 
     Asked when its transaction is imported or edited. What the split moves on
     each side is recorded then (`_stored_brought_in`), so a transaction
     imported later and dated before it does not change the answer.
+
+    `counting_what_is_left` asks too whether the cost bases of its side, open
+    on its date, have enough left for it beside the other pending disposals.
+    The import asks it; the listings do not, since that is a fault of the
+    side rather than of one split.
     """
     here = (f'the split on {get_account_full_name(split.GetAccount())} has '
             f'`{COST_BASIS_SPLIT_KEY}: {PENDING}`')
@@ -604,31 +616,106 @@ def why_a_pending_split_cannot_stand(split) -> str:
         return (f'{here}, but on {when} the book had no cost basis for the '
                 f'{commodity} it {held}, so there is no cost basis to choose. '
                 f'Remove `{PENDING}` from this split.')
-    # And only on a split whose whole amount is the disposition. One crossing
-    # zero disposes of part and borrows the rest; one beside another account
-    # of its side transfers part there. A pending row takes the split off
-    # whole, at its whole value, so either would be taken off wrong.
-    amount = abs(_fraction(split.GetAmount()))
-    if not draws_down(split) == drawn_by(split) == amount:
-        return (f'{here}, but it disposes of only '
-                f'{_format(draws_down(split), smallest_unit(split))} of its '
-                f'{_format(amount, smallest_unit(split))} {split_commodity(split)}. '
-                f'The rest is borrowed, taking the account below zero, or moved to '
-                f'another account on the same side. `{PENDING}` is only for a '
-                f'split that disposes of its whole amount. State the guid of the '
-                f'cost basis this split draws on instead.')
-    # A pending disposition is taken off the cost bases at what its
-    # transaction records it at in the book's own currency. Taken off at
+    # A pending disposition is subtracted from the cost bases at what its
+    # transaction records it at in the book's own currency. Subtracted at
     # nothing where none says, the whole of its cost stayed on what the cost
     # bases still hold, and the balance sheet overstated it.
-    if _what_the_book_recorded_it_at(split) is None:
+    if _what_the_book_recorded_its_disposal_at(split) is None:
         return (f'{here}, but its transaction does not record what it disposes '
                 f'of in {BASE_CURRENCY}: either no {BASE_CURRENCY} figure covers '
                 f'all of it, or one figure covers it and another split that also '
-                f'draws on a cost basis. A pending disposal is taken off the cost '
-                f'bases at its {BASE_CURRENCY} figure. State the guid of the cost '
+                f'draws on a cost basis. A pending disposal is subtracted from the '
+                f'cost bases at its {BASE_CURRENCY} figure. State the guid of the cost '
                 f'basis it draws on, or write the transaction in {BASE_CURRENCY}.')
+    if not counting_what_is_left:
+        return ''
+    # And never past what the cost bases of its side have left, once the
+    # other pending disposals of the side are counted: whichever cost basis
+    # an edit later states, it would be taken below nothing. What it disposes
+    # of is what it consumes, not its amount: 1,000.00 USD into a bank owing
+    # 500.00 consumes 500.00, and the other 500.00 opens a cost basis of its
+    # own.
+    consumed = draws_down(split)
+    bases, pending = _what_a_side_has_and_has_pending(
+        book, commodity, side, open_on=when, leaving_out=split_guid(split))
+    left = bases - pending
+    if consumed > left:
+        held = 'held' if side == 'asset' else 'owed'
+        unit = smallest_unit(split)
+        return (f'{here}, but the cost bases of {commodity} the book {held} have '
+                f'{_format(left, unit)} {commodity} left, and this split disposes of '
+                f'{_format(consumed, unit)} {commodity}. A disposal cannot take a cost '
+                f'basis below nothing.')
     return ''
+
+
+def _what_a_side_has_and_has_pending(book, commodity: str, side: str, open_on=None,
+                                     leaving_out: str = '') -> tuple:
+    """What the cost bases of a currency and side have left, and what is pending on them.
+
+    The balances of the cost bases, those opened by `open_on` where it is
+    given, since a disposal cannot draw on a cost basis opened after it. And
+    what every pending disposal of that currency and side consumes, but the
+    one `leaving_out` states, since none of them has been drawn down yet.
+
+    The pending ones come from the pick index; the cost bases take a walk of
+    the accounts holding the currency, so this is asked only where something
+    is pending.
+    """
+    pending = sum((draws_down(each) for each in splits_drawing_on(book, PENDING)
+                   if split_guid(each) != leaving_out
+                   and split_commodity(each) == commodity
+                   and the_side_it_draws(each) == side), Fraction(0))
+    bases = Fraction(0)
+    for account in _accounts_holding(book, commodity):
+        for each in account.GetSplitList():
+            # A balance that will not parse reads as None, and counts for
+            # nothing, as it does everywhere else these are added up.
+            balance = cost_basis_balance_of(each)
+            if (balance and establishes_cost_basis(each)
+                    and the_side_of_a_cost_basis(each) == side
+                    and (open_on is None
+                         or each.GetParent().GetDate().date() <= open_on)):
+                bases += balance
+    return bases, pending
+
+
+def _what_the_book_recorded_its_disposal_at(split) -> Optional[Fraction]:
+    """What the part of a split that disposes of a holding left the book at, or None.
+
+    What it consumes, at the rate its transaction records for the units its
+    Canadian dollar figure pays for. Stated in Canadian dollars, that is the
+    split's own value per unit: 1,000.00 USD bought for 1,200.00 CAD into a
+    bank owing 500.00 consumes 500.00, recorded at 600.00, and the other
+    500.00 opens a cost basis at the same 1.20. Stated in another currency,
+    the Canadian dollar splits say what they paid, and for how much of the
+    split: 100.00 USD out of Wise, 60.00 of it to USD Savings and 40.00 for
+    55.75 CAD, consumes 40.00, recorded at 55.75.
+
+    None where no figure says: beside another split whose cost basis is also
+    unstated, the one rate would be an average of both, and a Canadian figure
+    paying for less than the split consumes says nothing of the rest.
+    """
+    consumed = draws_down(split)
+    amount = abs(_fraction(split.GetAmount()))
+    value = abs(_fraction(split.GetValue()))
+    transaction = split.GetParent()
+    if transaction_currency(transaction) == BASE_CURRENCY:
+        return value * consumed / amount
+    if sum(1 for each in transaction.GetSplitList() if _says_which(each)) != 1 or not value:
+        return None
+    in_base = [each for each in transaction.GetSplitList()
+               if split_commodity(each) == BASE_CURRENCY]
+    valued = sum((abs(_fraction(each.GetValue())) for each in in_base), Fraction(0))
+    # The base-currency amounts added up, a split of no value among them: a
+    # gain or loss booked beside the sale at a value of nothing is part of
+    # what the transaction records.
+    paid = abs(sum((_fraction(each.GetAmount()) for each in in_base), Fraction(0)))
+    # How much of this split the Canadian figure pays for, in its own units.
+    covered = valued / value * amount
+    if not covered or covered < consumed:
+        return None
+    return paid / covered * consumed
 
 
 def what_the_pending_disposals_get_wrong(book) -> List[Dict]:
@@ -637,20 +724,46 @@ def what_the_pending_disposals_get_wrong(book) -> List[Dict]:
     The import refuses such a split, so a book holds one only where it was
     changed elsewhere. Reported rather than left out in silence, it shows
     the reader the split and the reason.
+
+    And a side whose pending disposals together take more than its cost bases
+    have left, once: a command destroying a cost basis leaves that, and so
+    can a sale stating a guid in a book an earlier release wrote. It is
+    reported on the side's first pending disposal, with the figures.
     """
     found = []
-    for split in iter_splits(book):
-        wrong = why_a_pending_split_cannot_stand(split) if is_pending(split) else ''
-        if not wrong:
-            continue
-        transaction = split.GetParent()
-        found.append({'guid': split_guid(split),
-                      'account': get_account_full_name(split.GetAccount()),
-                      'date': transaction.GetDate().strftime('%Y-%m-%d'),
-                      'description': transaction.GetDescription() or '',
-                      'tx_guid': transaction.GetGUID().to_string(),
-                      'problems': [wrong]})
+    sides = {}
+    for split in splits_drawing_on(book, PENDING):
+        problems = []
+        wrong = why_a_pending_split_cannot_stand(split, counting_what_is_left=False)
+        if wrong:
+            problems.append(wrong)
+        else:
+            sides.setdefault((split_commodity(split), the_side_it_draws(split)), []).append(split)
+        if problems:
+            found.append(_a_pending_finding(split, problems))
+    for (commodity, side), splits in sorted(sides.items(), key=lambda item: item[0]):
+        bases, pending = _what_a_side_has_and_has_pending(book, commodity, side)
+        if pending > bases:
+            first = min(splits, key=lambda each: (each.GetParent().GetDate(), split_guid(each)))
+            held = 'held' if side == 'asset' else 'owed'
+            unit = smallest_unit(first)
+            found.append(_a_pending_finding(first, [
+                f'the disposals pending their cost basis of {commodity} the book {held} '
+                f'dispose of {_format(pending, unit)} {commodity}, and the cost bases of '
+                f'{commodity} the book {held} have {_format(bases, unit)} {commodity} '
+                f'left. A disposal cannot take a cost basis below nothing: state a cost '
+                f'basis on each, or take a stated one off a disposal that drew on these.']))
     return found
+
+
+def _a_pending_finding(split, problems: List[str]) -> Dict:
+    transaction = split.GetParent()
+    return {'guid': split_guid(split),
+            'account': get_account_full_name(split.GetAccount()),
+            'date': transaction.GetDate().strftime('%Y-%m-%d'),
+            'description': transaction.GetDescription() or '',
+            'tx_guid': transaction.GetGUID().to_string(),
+            'problems': problems}
 
 
 def _says_which(split) -> bool:
@@ -677,26 +790,35 @@ def splits_drawing_on(book, basis_guid: str) -> list:
     carves off holds none (CLAUDE.md finding 10), so nothing the engine
     does adds a pick the log misses. A pick written any other way would not
     be found until the next import walks the book again.
+
+    `basis_guid` may be `PENDING`, which lists every split with
+    `$pending$`, so nothing has to walk the book to find them.
     """
     changes = custom_key_changes(COST_BASIS_SPLIT_KEY)
     kept = getattr(book, '_plaintext_drawn_on', None)
     if kept is None or kept[0] is not changes:
         index: Dict[str, set] = {}
         for split in iter_splits(book):
-            picked = cost_basis_guid_of(split)
+            picked = _the_pick_indexed(get_custom_metadata(split).get(COST_BASIS_SPLIT_KEY))
             if picked:
                 index.setdefault(picked, set()).add(split_guid(split))
         kept = [changes, len(changes), index]
         book._plaintext_drawn_on = kept
     for guid, was, now in changes[kept[1]:]:
         guid = _as_a_pick(guid)
-        kept[2].get(_as_a_pick(was), set()).discard(guid)
+        kept[2].get(_the_pick_indexed(was), set()).discard(guid)
         if now:
-            kept[2].setdefault(_as_a_pick(now), set()).add(guid)
+            kept[2].setdefault(_the_pick_indexed(now), set()).add(guid)
     kept[1] = len(changes)
     found = (find_split_by_guid(book, guid) for guid in sorted(kept[2].get(basis_guid, ())))
-    return [split for split in found
-            if split is not None and cost_basis_guid_of(split) == basis_guid]
+    return [split for split in found if split is not None
+            and _the_pick_indexed(get_custom_metadata(split).get(COST_BASIS_SPLIT_KEY))
+            == basis_guid]
+
+
+def _the_pick_indexed(value) -> str:
+    """The key `splits_drawing_on` files a pick under: the guid, or `PENDING`."""
+    return PENDING if str(value) == PENDING else _as_a_pick(value)
 
 
 def takes_an_exchange_difference(account) -> bool:
@@ -1364,9 +1486,8 @@ def _only_moved_within_one_side(split, account, amount: Fraction) -> bool:
     read the borrowing as a transfer and open neither, leaving a book that owes
     money the cost bases know nothing about.
 
-    Business accounts are left out of the sum for the reason
-    `_currency_arrived_elsewhere` leaves them out: a receivable's settling
-    split sits beside an overpayment's credit on the same account, and is the
+    Business accounts are left out of the sum: a receivable's settling split
+    sits beside an overpayment's credit on the same account, and is the
     invoice's money rather than a movement of anybody's. Their direction is
     already decided, carefully, by `_raises_a_foreign_balance`.
     """
@@ -1414,8 +1535,10 @@ def _only_moved_within_one_side(split, account, amount: Fraction) -> bool:
         # collection into a US dollar bank never was, being stated in the
         # dollars. Stated in Canadian dollars beside a bank charge, the
         # arrival read as dollars bought, and the book held two cost bases
-        # for one lump of money (Q-051).
-        if at == 0 and _settles_an_invoice(other):
+        # for one lump of money (Q-051). The customer's credit spent on an
+        # invoice collects nothing into a bank, so it is not counted as
+        # leaving: it settles what they owed out of what they were owed.
+        if at == 0 and not came_out_of_credit(other) and _settles_an_invoice(other):
             net += _fraction(other.GetAmount())
             continue
         moves = split_moves(other)
@@ -1426,6 +1549,17 @@ def _only_moved_within_one_side(split, account, amount: Fraction) -> bool:
     # same account leaves the side lower than it started, and a side that lost
     # units has nothing arriving on it to cost.
     return net <= 0 and amount != 0
+
+
+def came_out_of_credit(split) -> bool:
+    """Whether this split settled an invoice or a bill out of the owner's credit.
+
+    Written on the split by the import that applied the credit
+    (`applied_from_credit`), since nothing else about it says so: in the
+    record's lot it sits as a bank payment's split does.
+    """
+    return str(get_custom_metadata(split).get(APPLIED_FROM_CREDIT_KEY, '')
+               ).strip().lower() == 'true'
 
 
 def _settles_an_invoice(split) -> bool:
@@ -1480,6 +1614,30 @@ def _settles_an_invoice(split) -> bool:
                                     None))
 
 
+def _pays_a_bill(split) -> bool:
+    """Whether this split pays a bill that prices it, out of money rather than out of credit.
+
+    A debit on a payable in a posted bill's lot. The bill's posting is then
+    the cost basis of the dollars it owed, whichever account owes them now.
+    """
+    from infrastructure.gnucash.utils import wrap_invoice_or_bill
+
+    account = split.GetAccount()
+    if (account is None or account.GetType() != ACCT_TYPE_PAYABLE
+            or _fraction(split.GetAmount()) <= 0 or came_out_of_credit(split)):
+        return False
+    raw_lot = split.GetLot()
+    raw_bill = (_gc.gncInvoiceGetInvoiceFromLot(qof_instance(raw_lot))
+                if raw_lot is not None else None)
+    record = wrap_invoice_or_bill(raw_bill) if raw_bill else None
+    if record is None or not record.IsPosted():
+        return False
+    posted = get_account_full_name(record.GetPostedAcc())
+    return _the_posting_prices(next((each for each in record.GetPostedTxn().GetSplitList()
+                                     if get_account_full_name(each.GetAccount()) == posted),
+                                    None))
+
+
 def _the_posting_prices(posting) -> bool:
     """Whether an invoice's posting split is a cost basis, so the invoice prices what collects it."""
     try:
@@ -1504,12 +1662,16 @@ def _raises_a_foreign_balance(split, account, amount: Fraction) -> bool:
             # gone, which would open a cost basis for currency the book no longer
             # has.
             #
-            # And only when nothing else in the transaction already brought
-            # that currency in. A prepayment paid into a foreign bank writes
-            # two splits for one lump of money: the bank holds it, and this
-            # credit says it is owed back. Counting both listed 100.00 USD
-            # twice and offered 200.00 for sale from a bank holding 100.
-            return _is_prepayment(split) and not _currency_arrived_elsewhere(split)
+            # A prepayment is a cost basis of its own beside whatever brought
+            # the money in: a customer's overpayment into a US dollar bank is a
+            # liability cost basis on the receivable, owed back, and an asset
+            # cost basis on the bank, held, as a borrowing is one on each side.
+            #
+            # A split in no lot is read against the account's balance before
+            # it: a credit in no lot that takes the receivable below zero is
+            # owed back, while one taking a receivable of 100.00 to nothing
+            # only brings it to zero.
+            return _is_prepayment(split) or _past_what_the_account_held(split) > 0
         # The normal direction — what a customer owes on a receivable, what is
         # owed to a vendor on a payable — but not everything shaped like it.
         # A refund is a debit on a receivable too, and it sends the customer's
@@ -1526,50 +1688,32 @@ def _raises_a_foreign_balance(split, account, amount: Fraction) -> bool:
     return False
 
 
-def _currency_arrived_elsewhere(split) -> bool:
-    """Whether another split in this transaction already brings this currency
-    in, at a cost of its own.
+def _past_what_the_account_held(split) -> Fraction:
+    """How far a split in no lot takes a receivable or a payable past zero.
 
-    Asked only of a business account moved against its normal direction, where
-    the split records an obligation rather than a holding: a customer's
-    overpayment paid into a USD bank is one lump of money written twice, and
-    the account that took it is where it can be sold from. Where the money
-    arrives converted, or in the record's own currency — a USD invoice overpaid
-    from a USD bank, whose splits carry no base-currency figure and so no cost
-    — nothing else brings it in, and this credit carries the cost basis.
+    Read against the account's balance before it, as every account is (Q-054):
+    moving against the account's normal direction — a credit on a receivable,
+    a debit on a payable — a split first uses up what the account held, and
+    the rest is owed back, or held with a vendor. 100.00 USD credited to a
+    receivable holding nothing is 100.00 past zero; the same credit beside a
+    posting of 100.00 is none, and neither is 100.00 paid onto a payable owing
+    a bill of 100.00. What the account held is GnuCash's running balance just
+    above the split, `what_the_account_held_before`, read without walking the
+    account.
 
-    Business accounts are not consulted: the settling split beside an
-    overpayment is on the same receivable, and is the invoice's money, not a
-    second arrival. That also keeps this from asking about a split whose own
-    answer would ask back.
+    Zero for a split in a lot, whose lot says what it is, and for one moving
+    the normal way.
     """
-    # A split in a book is always in a transaction. Not every split in that
-    # transaction has an account: committing a multi-currency transaction on a
-    # book using trading accounts makes trading splits, and on GnuCash 4.8 one
-    # of them is in the split list before its account is attached. Such a split
-    # is screened out below by its commodity — `split_commodity` answers the
-    # empty string for it, which matches no real commodity — so nothing here
-    # asks it for an account.
-    transaction = split.GetParent()
-    commodity = split_commodity(split)
-    this_one = split_guid(split)
-    for other in transaction.GetSplitList():
-        if split_guid(other) == this_one:
-            continue
-        if split_commodity(other) != commodity:
-            continue
-        account = other.GetAccount()
-        if account.GetType() in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
-            continue
-        # Which direction counts as an arrival is the account type's business,
-        # and `establishes_cost_basis` already answers it: a positive amount
-        # on a bank, a negative one on a credit line, whose balance rises as
-        # it goes down. Filtering on the sign here first meant currency drawn
-        # on a USD credit line was never seen to arrive, so a vendor
-        # prepayment funded by it opened a second cost basis for the same lump.
-        if establishes_cost_basis(other):
-            return True
-    return False
+    account = split.GetAccount()
+    if (account is None or split.GetLot() is not None
+            or account.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE)):
+        return Fraction(0)
+    sign = 1 if account.GetType() == ACCT_TYPE_RECEIVABLE else -1
+    moving = _fraction(split.GetAmount()) * sign
+    if moving >= 0:
+        return Fraction(0)
+    held = max(what_the_account_held_before([split]) * sign, Fraction(0))
+    return max(-moving - held, Fraction(0))
 
 
 def _is_prepayment(split) -> bool:
@@ -2052,7 +2196,6 @@ def cost_basis_items_by_currency_and_side(book, as_of) -> List[Dict]:
             # taken from it since.
             balance += drawn_since.get(split_guid(split), Fraction(0))
             cost = cost_of(split)
-            amount = _fraction(split.GetAmount())
             currency = split_commodity(split)
             in_pair, rate, pair_currency = what_a_unit_cost_in_its_pair(split, cost)
         except Exception:
@@ -2098,7 +2241,7 @@ def cost_basis_items_by_currency_and_side(book, as_of) -> List[Dict]:
             # is not: a page looking `USCO` up under `CURRENCY` finds nothing
             # and leaves every security to GnuCash's revaluation.
             'namespace': split.GetAccount().GetCommodity().get_namespace(),
-            'side': 'asset' if amount > 0 else 'liability',
+            'side': the_side_of_a_cost_basis(split),
             'unit': smallest_unit(split),
             'balance': balance,
             'cost': cost,
@@ -2562,6 +2705,30 @@ def record_borrowed_basis(split, cost: Fraction) -> None:
     open_cost_basis_balance(split)
 
 
+def record_what_an_overpayment_brought_in(split, cost: Fraction) -> None:
+    """Open an asset cost basis on a bank's split for what an overpayment brought in.
+
+    200.00 USD paid into the bank against a 100.00 USD invoice: the first
+    100.00 is the invoice collected, which the invoice's own cost basis stands
+    for, and the other 100.00 arrived with the overpayment (`brought_in_by`).
+    This split opens a cost basis of those 100.00, at `cost`, the payment's
+    rate, beside the liability cost basis of the same 100.00 on the
+    receivable. A sale of dollars held may draw on it like any other asset
+    cost basis.
+
+    Nothing, in a book that keeps no cost bases (Q-049), or where the split
+    already carries a cost basis.
+    """
+    if not book_keeps_cost_bases(split.GetBook()) or has_cost_basis_balance(split):
+        return
+    # A split stating a figure in the book's own currency opened its cost
+    # basis when its transaction was imported, and returned above. What comes
+    # here is one written in the record's currency alone, which states no cost.
+    write_cost_basis_cost(split, cost)
+    open_cost_basis_balance(split)
+    cost_bases_changed()
+
+
 def write_cost_basis_cost(split, cost: Fraction) -> None:
     """Store `cost_basis_cost` on a split whose transaction cannot price it.
 
@@ -2781,6 +2948,67 @@ def refuse_a_disposal_that_states_no_cost_basis(book, transaction) -> None:
             commodity, side, unstated,
             [split for split in on_that_side if not _says_which(split)],
             transaction)
+    _refuse_a_credit_paid_back_stating_no_cost_basis(book, transaction)
+
+
+def _what_it_pays_back_of_an_owners_credit(split) -> tuple:
+    """How much of an owner's credit this split pays back, and the side the credit is on.
+
+    A split in a lot of the owner's that no invoice or bill owns, moving the
+    lot toward zero: a refund of a customer's prepayment, a debit on the
+    receivable against their credit of −100.00, pays back what the customer
+    was owed; a vendor refunding what the book prepaid them is the mirror.
+    What the lot held before the split, less the split's own amount.
+
+    (0, None) for any other split.
+    """
+    account = split.GetAccount()
+    if (account is None or account.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE)
+            or split.GetLot() is None or not _is_prepayment(split)):
+        return Fraction(0), None
+    from gnucash import Split
+
+    amount = _fraction(split.GetAmount())
+    here = split_guid(split)
+    raw_lot = split.GetLot()
+    # The binding hands a lot back raw on some builds and wrapped on others
+    # (CLAUDE.md finding 17).
+    lot = raw_lot if hasattr(raw_lot, 'get_split_list') else GncLot(instance=raw_lot)
+    before = sum((_fraction(Split(instance=raw).GetAmount())
+                  for raw in lot.get_split_list()
+                  if split_guid(Split(instance=raw)) != here), Fraction(0))
+    if before == 0 or (before > 0) == (amount > 0):
+        return Fraction(0), None
+    return min(abs(amount), abs(before)), ('liability' if before < 0 else 'asset')
+
+
+def _refuse_a_credit_paid_back_stating_no_cost_basis(book, transaction) -> None:
+    """Refuse a split paying back an owner's credit that states no cost basis.
+
+    The credit is a cost basis the book keeps (Q-054): a customer's is owed
+    back, a liability cost basis, and what the book prepaid a vendor is held
+    with them, an asset one. Paying it back consumes it, as repaying a loan
+    consumes the loan's, and the file states which with
+    `cost_basis_split_guid:`, or `$pending$` where it is not decided yet.
+    Imported without one, the credit's cost basis stood for currency nobody
+    was owed any more.
+    """
+    for split in transaction.GetSplitList():
+        if _says_which(split):
+            continue
+        paid_back, side = _what_it_pays_back_of_an_owners_credit(split)
+        commodity = split_commodity(split)
+        if not paid_back or not a_cost_basis_is_kept_for(book, commodity, side):
+            continue
+        held = 'owed' if side == 'liability' else 'held'
+        raise Exception(
+            f'{transaction.GetDate().strftime("%Y-%m-%d")} '
+            f'{transaction.GetDescription()!r}: the split on '
+            f'{get_account_full_name(split.GetAccount())} pays back '
+            f'{_format(paid_back, smallest_unit(split))} {commodity} of an owner\'s credit, '
+            f'{commodity} the book {held} and keeps a cost basis for, and states none. '
+            f'State `cost_basis_split_guid:` with the guid of the credit it pays back — '
+            f'`fx-balances` lists it — or `$pending$` where that is not decided yet.')
 
 
 def what_a_disposal_is(commodity: str, side: str, spent: str, disposing: list, others: list):
@@ -2953,22 +3181,16 @@ def a_cost_basis_is_kept_for(book, commodity: str, side: str) -> bool:
     A balance of nothing counts for nothing, the way it counts for nothing on
     the balance sheet: a cost basis spent to the last unit stays on the book as
     a row reading 0.00, and a side holding only those has no units left to draw
-    on. The side is the sign of what the basis brought in rather than the type
-    of the account holding it, which is how `cost_basis_items_by_currency_and_side`
-    reads it and why an overpaid invoice's two bases stay apart.
+    on. The side is `the_side_of_a_cost_basis`.
 
-    **A cost basis on a receivable or a payable is passed over**, for the reason
-    `_what_left_each_side` passes those accounts over: what draws one of them
-    down is the settlement of the record it belongs to, through its lot, and
-    never the arithmetic of a disposal. So it is not a cost basis a disposal can
-    consume, and a side holding nothing else has none to offer.
-
-    Counted, a book whose only US dollars are an owner's credit turned away the
-    spending of that credit. Investigated on two: a sale of 80.00 USD out of a
-    customer's 100.00 USD credit, and a credit an unpost hands back and a rebuilt
-    book then spends — both refused, and both sent their reader to a listing
-    holding one row they could not have used, because a credit is spent through
-    its lot and the guid would have been refused as well.
+    **Every cost basis counts, whatever account it is on.** An invoice's
+    posting on a receivable is the cost of the dollars its collection brought
+    into the bank, and a bill's posting on a payable the cost of the dollars
+    owed on the card that paid it. Passed over, a book whose only US dollar
+    cost basis was an invoice's refused a sale of one collected dollar with
+    `$pending$`, saying the book had no cost basis for the dollars it held,
+    while the same sale stating the invoice's guid was accepted
+    (`tests/scenario/test_pending_counts_the_cost_basis_an_invoice_or_a_bill_opened.py`).
     """
     # Asked once for every disposal that states no guid, so the answer is kept
     # on the book for as long as no cost basis changes: a book kept wholly in
@@ -3010,8 +3232,6 @@ def _walk_for_a_kept_cost_basis(book, commodity: str, side: str) -> bool:
     # only one carrying a stored balance is asked whether it is a cost basis —
     # one KVP read turns the rest away.
     for account in _accounts_holding(book, commodity):
-        if account.GetType() in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
-            continue
         for split in account.GetSplitList():
             try:
                 balance = cost_basis_balance_of(split)
@@ -3022,7 +3242,7 @@ def _walk_for_a_kept_cost_basis(book, commodity: str, side: str) -> bool:
                 # here as it does everywhere else that adds these up.
                 # `--verify-costs` is what reports such a figure.
                 continue
-            if ('asset' if _fraction(split.GetAmount()) > 0 else 'liability') == side:
+            if the_side_of_a_cost_basis(split) == side:
                 return True
     return False
 
@@ -3031,15 +3251,13 @@ def _a_cost_basis_opened_by(book, commodity: str, side: str, when) -> bool:
     """Whether a cost basis of `commodity` on `side` was opened on or before `when`.
 
     Asked of a split with `$pending$`, whose cost basis has to be one the
-    book held on its date. Receivables and payables are passed over, as
-    `_walk_for_a_kept_cost_basis` passes them over.
+    book held on its date. Every cost basis counts, whatever account it is on,
+    as in `_walk_for_a_kept_cost_basis`.
     """
     for account in _accounts_holding(book, commodity):
-        if account.GetType() in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
-            continue
         if any(split.GetParent().GetDate().date() <= when
                and establishes_cost_basis(split)
-               and ('asset' if _fraction(split.GetAmount()) > 0 else 'liability') == side
+               and the_side_of_a_cost_basis(split) == side
                for split in account.GetSplitList()):
             return True
     return False
@@ -3075,6 +3293,25 @@ def account_side(account) -> Optional[str]:
     if account_type in _CREDIT_TYPES:
         return 'liability'
     return None
+
+
+def the_side_of_a_cost_basis(split) -> Optional[str]:
+    """The side a cost basis stands for: 'asset' or 'liability'.
+
+    By definition, a split that makes an asset grow opens an asset cost basis,
+    and one that takes an asset below zero, where it acts as a liability,
+    opens a liability cost basis. A liability is the mirror: growing opens a
+    liability cost basis, and going below zero, where it acts as an asset,
+    opens an asset cost basis. A disposal of what the book holds draws on an
+    asset cost basis, and one of what it owes on a liability cost basis.
+
+    Read from the sign of the split's amount, one read of a figure the split
+    already has: currency arriving on a debit is held, and currency arriving
+    on a credit is owed, whatever the account's type. The scenarios in
+    `tests/scenario/test_every_cost_basis_is_consumable_on_its_own_side_and_never_below_nothing.py`
+    consume each kind from its own side and are refused from the other.
+    """
+    return 'asset' if _fraction(split.GetAmount()) > 0 else 'liability'
 
 
 def _what_left_each_side(transaction) -> Dict[tuple, Fraction]:
@@ -3352,9 +3589,51 @@ def brought_in_by(split) -> Fraction:
 
     Its whole amount, except where its account crossed zero: 1,000.00 USD into
     an account at −500.00 brought 500.00 in, and repaid the other 500.00.
+
+    And except beside an invoice it collects part of: 200.00 USD paid into the
+    bank against a 100.00 USD invoice collects 100.00, whose cost basis is the
+    invoice's (Q-051), and brings in the other 100.00, which the overpayment
+    opens a cost basis for. The customer's credit, spent later on another
+    invoice, lands in that invoice's lot beside this split, and collects
+    nothing into the bank: it settles what the customer owed out of what they
+    were owed, so it is not counted.
     """
     brought_in = _stored_brought_in(split)
-    return abs(_fraction(split.GetAmount())) if brought_in is None else brought_in
+    amount = _fraction(split.GetAmount())
+    account = split.GetAccount()
+    if brought_in is not None:
+        # The mirror of an invoice collected: 200.00 USD paid out of an empty
+        # US dollar bank against a 100.00 USD bill takes the bank to -200.00,
+        # and the first 100.00 is the bill paid, whose own cost basis stands
+        # for it. What the split brings in owed is the other 100.00.
+        if amount < 0 and brought_in > 0:
+            commodity = split_commodity(split)
+            paid = sum((_fraction(other.GetAmount())
+                        for other in split.GetParent().GetSplitList()
+                        if split_guid(other) != split_guid(split)
+                        and split_commodity(other) == commodity
+                        and _pays_a_bill(other)),
+                       Fraction(0))
+            if 0 < paid < brought_in:
+                return brought_in - paid
+        return brought_in
+    whole = abs(amount)
+    past_zero = _past_what_the_account_held(split)
+    if past_zero:
+        return past_zero
+    if amount > 0 and account.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+        commodity = split_commodity(split)
+        here = split_guid(split)
+        collected = -sum((_fraction(other.GetAmount())
+                          for other in split.GetParent().GetSplitList()
+                          if split_guid(other) != here
+                          and split_commodity(other) == commodity
+                          and not came_out_of_credit(other)
+                          and _settles_an_invoice(other)),
+                         Fraction(0))
+        if 0 < collected < whole:
+            return whole - collected
+    return whole
 
 
 def drawn_by(split) -> Fraction:
@@ -3524,10 +3803,10 @@ def _validate_pick(book, selling_split, basis_guid: str):
     # sold out of a bank lowered what the book owed and left the bank's cost
     # basis whole, holding 1,500.00 against the 1,400.00 the bank had left.
     #
-    # A cost basis on a receivable or a payable has no side here, and neither
-    # does a split on one: an overpayment's credit sits on the receivable as
-    # money owed back, and the dollars it brought in are in the bank, costed by
-    # that credit. Selling them out of the bank states the credit's guid.
+    # A cost basis on a receivable or a payable has a side like any other: an
+    # invoice's posting is dollars held, and an overpayment's credit, owed back
+    # to the customer, is dollars owed. A split on a receivable or a payable
+    # draws on no side, since what settles a record is its lot.
     #
     # Each side is read from which way the money moves, not from the account's
     # type (Q-047): an account below zero owes, so what goes into it pays off
@@ -3732,33 +4011,21 @@ def a_sale_against_a_basis_on_the_other_side(selling_split, basis,
                                              basis_guid: str) -> Optional[str]:
     """What is wrong where a split spends currency held and draws on a cost basis of currency owed, or the reverse.
 
-    `_validate_pick` refuses it of a sale in a file.
+    `_validate_pick` refuses it of a sale in a file, and `--verify-costs`
+    reports it of a sale the book holds.
 
-    A cost basis on a receivable or a payable has no side, because an owner's
-    credit sits there as money owed back while the dollars it brought in are
-    in the bank. A record's posting is not a credit: a bill's is dollars the
-    book owes, and an invoice's dollars it is owed, which are held once
-    collected, so each is read as that side. Read as no
-    side, a bank's fee restated onto a bill's cost basis, linked in the same
-    `--atomic` file as the deposit it came out of, left the bank holding
-    2,719.28 USD while the invoice's cost basis offered 2,720.00, and the
-    bill owing 1,000.00 while its cost basis read 999.28, and nothing
-    reported it.
+    Every cost basis has a side, `the_side_of_a_cost_basis`, a receivable's
+    and a payable's included. An invoice's posting is a cost basis of dollars
+    held and a bill's of dollars owed; an owner's credit, which takes the
+    receivable below zero, is dollars the book owes back, so dollars leaving
+    the bank cannot draw on it. Read as having no side, a customer's credit
+    let a bank sell dollars against what the book owed the customer, and a
+    bank's fee restated onto a bill's cost basis left the bank holding
+    2,719.28 USD while the invoice's cost basis offered 2,720.00.
     """
     spending_side = the_side_it_draws(selling_split)
-    basis_side = (None if split_moves(basis) is None
-                  else 'asset' if _fraction(basis.GetAmount()) > 0 else 'liability')
-    # A record's posting in its normal direction, in a lot an invoice or a
-    # bill owns.
-    posted = {ACCT_TYPE_PAYABLE: 'liability', ACCT_TYPE_RECEIVABLE: 'asset'}.get(
-        basis.GetAccount().GetType())
-    normal = _fraction(basis.GetAmount()) * (1 if posted == 'asset' else -1) > 0
-    raw_lot = basis.GetLot()
-    in_a_records_lot = raw_lot is not None and bool(
-        _gc.gncInvoiceGetInvoiceFromLot(qof_instance(raw_lot)))
-    if basis_side is None and posted and normal and in_a_records_lot:
-        basis_side = posted
-    if None in (spending_side, basis_side) or spending_side == basis_side:
+    basis_side = the_side_of_a_cost_basis(basis)
+    if spending_side is None or spending_side == basis_side:
         return None
     spent = 'held' if spending_side == 'asset' else 'owed'
     stands_for = 'held' if basis_side == 'asset' else 'owed'
@@ -4093,9 +4360,8 @@ def cost_basis_users(book, record) -> List[str]:
 def disposals_drawing_on(book, basis_split, still_draws=lambda split: True) -> List[str]:
     """Descriptions of every disposal measured against this one cost basis.
 
-    `transactions_measuring_against` asks the same question of a whole
-    transaction, for the delete guard. Linking a payment discards the cost basis on
-    a single split, so it has to ask about that split by itself.
+    Linking a payment discards the cost basis on a single split, so it asks
+    about that split by itself.
 
     `still_draws` leaves out a disposal that will not draw on it once the file
     is applied: under `--atomic`, a fee the same file restates onto another
@@ -4220,28 +4486,6 @@ def move_disposals_to_the_new_basis(book, spent_guid: str, remainder) -> int:
     return moved
 
 
-def transactions_measuring_against(book, transaction) -> List[str]:
-    """Descriptions of what measures against any cost basis this transaction
-    establishes — what would be orphaned if it were deleted."""
-    basis_guids = {split_guid(split) for split in transaction.GetSplitList()
-                   if establishes_cost_basis(split)}
-    if not basis_guids:
-        return []
-
-    users = []
-    for split in iter_splits(book):
-        if cost_basis_guid_of(split) not in basis_guids:
-            continue
-        parent = split.GetParent()
-        if parent.GetGUID().to_string() == transaction.GetGUID().to_string():
-            continue
-        label = parent.GetDescription() or '(no description)'
-        users.append(f"{parent.GetDate().strftime('%Y-%m-%d')} {label!r} "
-                     f'({_format(abs(_fraction(split.GetAmount())), smallest_unit(split))} '
-                     f'{split_commodity(split)})')
-    return users
-
-
 def transactions_drawing_on(book, transaction, bases) -> List[tuple]:
     """`(guid, description)` of each transaction that must be deleted before this one.
 
@@ -4320,8 +4564,7 @@ def cost_basis_facts(transaction) -> List[tuple]:
         name = get_account_full_name(split.GetAccount())
         commodity = split_commodity(split)
         if establishes_cost_basis(split):
-            facts.append(('basis', guid, name, commodity,
-                          'asset' if _fraction(split.GetAmount()) > 0 else 'liability',
+            facts.append(('basis', guid, name, commodity, the_side_of_a_cost_basis(split),
                           brought_in_by(split), cost_of(split), when))
         picked = cost_basis_guid_of(split)
         if picked:
@@ -4378,38 +4621,84 @@ def a_disposal_the_finished_book_cannot_value(book, transaction) -> str:
     return ''
 
 
-def require_no_cost_basis_dependents(book, transaction, label: str) -> None:
-    """Refuse to delete a transaction whose cost basis something measures against.
 
-    Deleting it destroys the split the cost basis lives on, leaving those
-    transactions stating a guid the book no longer holds — the export then fails
-    to re-import, and nothing puts their currency back. The mirror of the
-    unpost guard, for the other way a cost basis can be destroyed.
+def make_pending_what_draws_on_the_records_cost_basis(book, record) -> List[str]:
+    """Make every disposal drawing on this record's cost basis pending; return what it made pending.
+
+    Unposting destroys the posting, and the posting's split is the record's
+    cost basis, so a disposal stating that split's guid would state a guid
+    the book no longer holds. The unpost is not refused for it: which cost
+    basis the disposal draws on instead may not be known yet, and the user is
+    not made to choose one before the unpost goes through. Each disposal is
+    written `cost_basis_split_guid: $pending$`, as a disposal imported
+    without its cost basis chosen is, and an edit states the one it draws on.
+
+    Returned as `cost_basis_users` describes them, for the command to list.
+    Asked only of a posted record, before it is unposted.
     """
-    users = transactions_measuring_against(book, transaction)
-    if not users:
-        return
-    listed = '; '.join(sorted(users))
-    raise ValueError(
-        f'{label} cannot be deleted: it establishes a cost basis that '
-        f'{len(users)} transaction(s) measure against — {listed}. Deleted, it '
-        f'would leave them drawing on a split the book no longer holds. Delete '
-        f'those first.')
+    if not cost_basis_users(book, record):
+        return []
+    posted_name = get_account_full_name(record.GetPostedAcc())
+    basis = next(split for split in record.GetPostedTxn().GetSplitList()
+                 if get_account_full_name(split.GetAccount()) == posted_name)
+    return make_pending_what_draws_on(book, split_guid(basis))
 
 
-def require_cost_basis_unused(book, record, kind: str, ident: str) -> None:
-    """Refuse to unpost a record whose cost basis something is measured against."""
-    users = cost_basis_users(book, record)
-    if not users:
-        return
-    listed = '; '.join(sorted(users))
-    raise Exception(
-        f'{kind} {ident!r} cannot be unposted: its cost basis is what '
-        f'{len(users)} transaction(s) measure against — {listed}. Unposting '
-        f'destroys the split that cost basis lives on, and re-posting creates a new '
-        f'one with the whole amount available again, so those transactions '
-        f'would be measured against a cost basis the book no longer has. '
-        f'Remove or re-point them first.')
+def make_pending_what_draws_on(book, basis_guid: str, going=frozenset()) -> List[str]:
+    """Make every disposal stating this cost basis's guid pending; describe each.
+
+    For a command the user may run that destroys a cost basis or changes what
+    it stands for. It does not work out again what each disposal drew: which
+    cost basis each draws on now is the user's to state, by an edit.
+
+    `going` holds the guids of the transactions the command is deleting. A
+    disposal in one of them is left alone: it is deleted with the cost basis,
+    and listing it as pending would tell the user to state a cost basis for
+    a split the book no longer holds.
+
+    A split in the same lot as the cost basis it draws on is the record's own
+    settlement — a collection converted into Canadian dollars, or the owner's
+    credit spent on it — and the unpost that destroys the record's cost basis
+    hands that split back unsettled. It disposes of nothing afterwards, so its
+    guid is removed rather than made pending. The owner's credit handed back
+    is theirs again, owed in full, so its cost basis opens at its amount. A
+    bill paid by a transaction of its own, in no lot, is a disposal like any
+    other, and is made pending.
+    """
+    basis = find_split_by_guid(book, basis_guid)
+    basis_lot = basis.GetLot() if basis is not None else None
+    made = []
+    for split in iter_splits(book):
+        if cost_basis_guid_of(split) != basis_guid:
+            continue
+        transaction = split.GetParent()
+        if transaction.GetGUID().to_string() in going:
+            continue
+        metadata = dict(get_custom_metadata(split))
+        lot = split.GetLot()
+        if (basis_lot is not None and lot is not None
+                and qof_pointer(lot) == qof_pointer(basis_lot)):
+            metadata.pop(COST_BASIS_SPLIT_KEY, None)
+            transaction.BeginEdit()
+            set_custom_metadata(split, metadata)
+            transaction.CommitEdit()
+            # After the commit, and safe there: `write_cost_basis_balance`
+            # brackets its own write in the transaction's edit.
+            if came_out_of_credit(split) and cost_of(split) is not None:
+                open_cost_basis_balance(split)
+            continue
+        metadata[COST_BASIS_SPLIT_KEY] = PENDING
+        # Bracketed, like every other KVP write: one written outside an edit
+        # does not mark the transaction dirty, so it never reaches disk.
+        transaction.BeginEdit()
+        set_custom_metadata(split, metadata)
+        transaction.CommitEdit()
+        made.append(f"{transaction.GetDate().strftime('%Y-%m-%d')} "
+                    f"{transaction.GetDescription() or '(no description)'!r} "
+                    f'({_format(abs(_fraction(split.GetAmount())), smallest_unit(split))} '
+                    f'{split_commodity(split)})')
+    cost_bases_changed()
+    return sorted(made)
 
 
 def what_the_disposals_get_wrong(book) -> List[Dict]:
@@ -4493,8 +4782,12 @@ def what_the_disposals_get_wrong(book) -> List[Dict]:
                 wrong = a_sale_against_another_currencys_basis(
                     split, basis, picked)
                 if not wrong and establishes_cost_basis(basis):
+                    # The side first, as a file's sale is checked. A book an
+                    # earlier release wrote may hold a bank's sale drawing on a
+                    # customer's credit, which its own export cannot state.
                     wrong = (
-                        a_sale_valued_against_another_cost(
+                        a_sale_against_a_basis_on_the_other_side(split, basis, picked)
+                        or a_sale_valued_against_another_cost(
                             split, basis, picked, in_the_book=True)
                         or a_sale_against_an_uncollected_receivable(
                             split, basis, picked, in_the_book=True))
@@ -4579,11 +4872,6 @@ def why_it_is_no_basis(split) -> str:
             return (f'it settles an owner\'s credit rather than posting a '
                     f'record, so it sends {currency} back rather than '
                     f'bringing any in')
-        if (not moves_the_normal_way and _is_prepayment(split)
-                and _currency_arrived_elsewhere(split)):
-            return (f'another split in its transaction already brings that '
-                    f'{currency} in, at a cost of its own, so counting this '
-                    f'one as well would offer the same money twice')
     if not _raises_a_foreign_balance(split, account, amount):
         return (f'it lowers this account\'s {currency} rather than raising it, '
                 f'so it spends currency rather than bringing it in')
@@ -4995,7 +5283,7 @@ def cost_bases(book) -> List[Dict]:
     would suggest an order of consumption that does not exist.
 
     A cost basis this cannot read — a `cost_basis_cost` that is not a cost, most
-    likely written by hand — is listed as unreadable rather than ending the
+    likely mistyped in a file — is listed as unreadable rather than ending the
     listing. One such split used to take the whole command down with it, so a
     book could not be inspected at exactly the moment there was something in
     it to inspect. `verify_cost_bases` says why, with the traceback.
@@ -5037,6 +5325,10 @@ def cost_bases(book) -> List[Dict]:
             'description': (transaction.GetDescription()
                             if transaction is not None else ''),
             'account': get_account_full_name(split.GetAccount()),
+            # Which side it stands for: a disposal of dollars held draws on an
+            # asset cost basis and one of dollars owed on a liability cost
+            # basis, and two on one account can be one of each.
+            'side': the_side_of_a_cost_basis(split),
             **row,
         })
     return rows
@@ -5096,14 +5388,50 @@ def foreign_currency_account_balances(book, as_of=None) -> List[Dict]:
         if not mnemonic or mnemonic == BASE_CURRENCY:
             continue
         fraction = commodity.get_fraction()
+        balance = (_held_up_to(account, as_of) if as_of is not None
+                   else numeric_to_fraction(account.GetBalance()))
+        held, owed = _held_and_owed(account, balance, as_of)
         rows.append({
             'account': get_account_full_name(account),
             'currency': mnemonic,
             'unit': fraction if fraction and fraction > 0 else 1,
-            'balance': (_held_up_to(account, as_of) if as_of is not None
-                        else numeric_to_fraction(account.GetBalance())),
+            'balance': balance,
+            # What the account holds and what it owes, each positive. An
+            # account's balance is on one side, but a receivable's or a
+            # payable's lots are holdings of their own: an invoice not
+            # collected is held and a customer's credit owed back, and the two
+            # add to a balance that says neither.
+            'held': held,
+            'owed': owed,
         })
     return rows
+
+
+def _held_and_owed(account, balance: Fraction, as_of) -> tuple:
+    """What an account holds and what it owes, each positive, at the end of `as_of` or now.
+
+    Its balance, on the side its sign puts it, for every account but a
+    receivable or a payable. For those, each lot on the side its own balance
+    puts it: INV-USD-OVER open again at +100.00 beside its customer's credit at
+    −100.00 holds 100.00 and owes 100.00, where the account's balance of 0.00
+    says it holds nothing and owes nothing. The splits in no lot are one
+    holding, as the account's own balance: an invoice imported without its
+    business objects leaves its posting and its settlement in no lot, and
+    read one by one they were 2,720.00 held and 2,720.00 owed on an account
+    holding nothing.
+    """
+    if account.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
+        return max(balance, Fraction(0)), max(-balance, Fraction(0))
+    lots: Dict = {}
+    for split in account.GetSplitList():
+        if as_of is not None and split.GetParent().GetDate().date() > as_of:
+            continue
+        lot = split.GetLot()
+        key = qof_pointer(lot) if lot is not None else None
+        lots[key] = lots.get(key, Fraction(0)) + _fraction(split.GetAmount())
+    held = sum((each for each in lots.values() if each > 0), Fraction(0))
+    owed = -sum((each for each in lots.values() if each < 0), Fraction(0))
+    return held, owed
 
 
 def _held_up_to(account, as_of) -> Fraction:
@@ -5123,7 +5451,9 @@ def _held_up_to(account, as_of) -> Fraction:
 def profit_and_loss_accounts_in_another_currency(book, currency: str) -> List[Dict]:
     """The income and expense accounts this book does not keep in `currency`.
 
-    gnucash-plaintext does not support one. A holding has a cost and a price,
+    A book may keep one, and its cost bases are then not expected to be
+    correct (`what_an_income_or_expense_account_in_another_currency_means`).
+    A holding has a cost and a price,
     and the difference between them is a gain; an expense has neither, being
     what it cost on the day it was incurred, and a rate that moves afterwards
     does not change it. Such an account's balance is a sum of amounts from many
@@ -5152,3 +5482,20 @@ def profit_and_loss_accounts_in_another_currency(book, currency: str) -> List[Di
             'currency': mnemonic,
         })
     return rows
+
+
+def what_an_income_or_expense_account_in_another_currency_means(rows: List[Dict],
+                                                                own: str) -> str:
+    """What `--verify-integrity` and `fx-balances --verify-costs` say of such accounts.
+
+    A book may keep an income or expense account in another currency. No cost
+    basis records what its amounts cost, so the book's cost bases are not
+    expected to be correct, and the checks cannot say the book is consistent.
+    The reader is told so, and told how to stop keeping cost bases.
+    """
+    listed = ', '.join(f'{row["account"]} ({row["currency"]})' for row in rows)
+    return (f'these income and expense accounts are not kept in {own}: {listed}. '
+            f'No cost basis records what their amounts cost, so this book\'s cost '
+            f'bases are not expected to be correct, and it is not expected to be '
+            f'consistent. Turn cost bases off with `cost_bases: "off"` in the '
+            f'company block, or read the cost bases and these checks as unverified.')

@@ -1,0 +1,21 @@
+# Layered on fx_buy_and_borrow_usd.txt: 200.00 USD borrowed at 1.40, less a
+# 2.00 USD fee taken out of the dollars that arrived. The fee's split draws on
+# the arrival's split, in the same transaction, so deleting the transaction
+# deletes the cost basis and the one disposal drawing on it together.
+2026-03-01 * "Wire of 200 USD less its fee"
+	guid: "0d0d0d0d0d0d0d0d0d0d0d0d0d0d7200"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 200.00 USD
+		guid: "0d0d0d0d0d0d0d0d0d0d0d0d0d0d0140"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "280.00"
+	Assets:Bank:USD -2.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "-2.80"
+		cost_basis_split_guid: "0d0d0d0d0d0d0d0d0d0d0d0d0d0d0140"
+	Liabilities:Loan -277.20 CAD
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "-277.20"

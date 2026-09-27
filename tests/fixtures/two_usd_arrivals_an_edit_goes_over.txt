@@ -2,7 +2,7 @@
 # an_edit_stating_the_position_of_a_line_that_states_no_guid.txt to edit.
 #
 # Verified by
-# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+# tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
 2026-08-01 * "Dollars bought earlier"
 	guid: "0e5e00000000000000000000000000c1"
 	currency.mnemonic: "CAD"

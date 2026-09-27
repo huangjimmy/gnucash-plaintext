@@ -4,7 +4,7 @@
 # statement line to the invoice it collected.
 #
 # Verified by
-# tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
+# tests/scenario/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
 invoice "INV-USD-1"
 	customer_id: "C-USD"
 	currency: USD

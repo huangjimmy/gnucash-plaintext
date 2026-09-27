@@ -299,7 +299,7 @@ def test_a_basis_this_command_creates_is_opened_by_it(command, book, record):
     on `Assets:Bank:USD` reading `none recorded`, left out of the total,
     under the sentence "this tool never wrote one for them". It had. A later
     sale stating that cost basis was refused for the same untrue reason, offering a
-    hand-written `cost_basis_balance:` as the remedy.
+    `cost_basis_balance:` stated in the file as the remedy.
 
     The invoice side never reached it — a credit on a debit-type account
     raises no foreign balance — which is why both records are run here.

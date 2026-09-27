@@ -70,7 +70,7 @@ def the_books_invoice_style(book) -> tuple:
         # nothing else in this project touches them, the importer's company
         # block iterating a fixed map of its own and `set-book-key` writing
         # custom metadata elsewhere — so a value without the prefix takes a
-        # book edited by hand or by something written later. Asked rather
+        # book edited in the GnuCash GUI or by something written later. Asked rather
         # than assumed, because stripping five characters off a value that
         # never carried the prefix is a silent truncation, and asking costs
         # nothing.

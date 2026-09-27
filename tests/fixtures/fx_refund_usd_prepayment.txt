@@ -5,13 +5,16 @@
 # debit on that same receivable, which is the *normal* direction for a
 # receivable and yet is money leaving the book.
 #
-# What this fixture produces: one basis, the bank's 100.00 USD at 1.37. The
-# prepayment is one lump of money written as two splits — the bank holds it,
-# the credit says it is owed back — and only the bank side is currency that
-# can be sold, so listing the credit as well offers 200.00 USD against 100.00
-# held. The refund adds nothing either: counting its debit because debits are
-# the normal direction on a receivable offers a further 100.00 that has
-# already gone out the door.
+# What this fixture produces: two cost bases, each at 1.37 (Q-054). The bank's
+# 100.00 USD is an asset cost basis of the dollars held. The credit takes the
+# receivable below zero, and is a liability cost basis of the 100.00 owed
+# back to the customer.
+#
+# The refund pays the customer back out of the bank: dollars held leave, and
+# what was owed goes. So it consumes both cost bases, and states each: the
+# bank split the bank's, and the receivable split the credit's. Both leave
+# at the 1.37 they were taken on at, and no gain is realized. The book ends
+# holding and owing nothing, and both cost bases have 0.00 left.
 #
 # What separates a refund from an invoice posting: a posting sits in the lot
 # its invoice owns, a refund settles an owner lot that no invoice owns.
@@ -46,6 +49,7 @@ customer "C-US"
 		share_price: "1.37"
 		value: "137.00"
 	Assets:Accounts Receivable USD -100.00 USD
+		guid: "0e0e0e0e0e0e0e0e0e0e0e0e0e0e0101"
 		account.commodity.mnemonic: "USD"
 		share_price: "1.37"
 		value: "-137.00"
@@ -58,6 +62,7 @@ customer "C-US"
 		share_price: "1.37"
 		value: "137.00"
 		lot_owner: "customer:C-US"
+		cost_basis_split_guid: "0e0e0e0e0e0e0e0e0e0e0e0e0e0e0101"
 	Assets:Bank:USD -100.00 USD
 		account.commodity.mnemonic: "USD"
 		share_price: "1.37"

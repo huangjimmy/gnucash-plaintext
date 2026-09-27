@@ -1,4 +1,13 @@
 # The invoice, attached to the CAD payment that settles it.
+#
+# The payment converts the invoice's 100.00 USD at its own rate, against the
+# 1.40 the invoice was posted at, so it consumes the invoice's cost basis and
+# the difference goes to `Income:FX Gain $residual$ CAD` (Q-054).
+2026-01-01 open Income:FX Gain
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
 invoice "INV-FX-CAD-BANK"
 	customer_id: "C-FX"
 	currency: USD
@@ -24,3 +33,4 @@ invoice "INV-FX-CAD-BANK"
 		bank_account: "Assets:Bank"
 		txn_guid: "TXN_GUID"
 		memo: "Payment for INV-FX-CAD-BANK"
+		Income:FX Gain $residual$ CAD

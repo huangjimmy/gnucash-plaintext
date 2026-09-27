@@ -7,7 +7,7 @@
 # read.
 #
 # The test that uses this writes a `cost_basis_cost` that does not parse onto
-# the outgoing split, which is what a hand edit or an older tool can leave in
+# the outgoing split, which is what another tool or an older version can leave in
 # a book; the importer refuses such a line at the door.
 #
 # Verified by tests/integration/test_verify_costs.py.

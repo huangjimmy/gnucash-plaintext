@@ -12,6 +12,7 @@ nothing to value the cash with. What it is short of is a number, and it now
 says which one.
 """
 
+import re
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -356,13 +357,15 @@ class TestOverpaidAcrossThreeCurrencies:
         assert not book.exists(), 'a refused payment left a book behind'
 
     def test_the_credit_carries_that_rate_as_its_cost(self, tmp_path):
-        """And is sellable at it, like any other USD the book holds."""
+        """The customer's 100.00 USD is owed back at that rate: a liability cost basis."""
         book, _ = _import(tmp_path, BOTH, ledger=self.LEDGER)
 
         listed = CliRunner().invoke(cli, ['fx-balances', str(book)])
         assert listed.exit_code == 0, listed.output
-        assert '1.3416 CAD/USD' in listed.output, listed.output
-        assert 'Total USD cost basis balance: 100.00 USD' in listed.output, listed.output
+        assert re.search(r'1\.3416 CAD/USD\s+100\.00 USD\s+100\.00 USD\s+liability',
+                         listed.output), listed.output
+        assert ('Total USD cost basis balance: 0.00 USD held, 100.00 USD owed'
+                in listed.output), listed.output
 
     def test_that_rate_is_in_the_file_the_book_exports(self, tmp_path):
         """Because nothing stores it: the transaction is what carries it.
@@ -393,7 +396,8 @@ class TestOverpaidAcrossThreeCurrencies:
         listed = runner.invoke(cli, ['fx-balances', str(rebuilt)])
         assert listed.exit_code == 0, listed.output
         assert '1.3416 CAD/USD' in listed.output, listed.output
-        assert 'Total USD cost basis balance: 100.00 USD' in listed.output, listed.output
+        assert ('Total USD cost basis balance: 0.00 USD held, 100.00 USD owed'
+                in listed.output), listed.output
         checked = runner.invoke(cli, ['fx-balances', str(rebuilt),
                                       '--verify-costs'])
         assert checked.exit_code == 0, checked.output

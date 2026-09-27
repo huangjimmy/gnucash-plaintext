@@ -7,7 +7,7 @@
 #
 # `lot_owner:` is what makes this a prepayment rather than a settlement. The
 # two are otherwise the same three lines (see fx_settlement_arriving_as_cad.txt),
-# and a hand-written split that names no owner belongs to no lot, which is how
+# and a split whose file states no owner belongs to no lot, which is how
 # a settlement looks.
 #
 # What this fixture produces: `fx-balances` lists the receivable credit,

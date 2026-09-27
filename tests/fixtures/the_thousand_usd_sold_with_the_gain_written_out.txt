@@ -1,5 +1,5 @@
 # The same sale as `the_thousand_usd_sold_at_a_higher_rate.txt`, with the gain
-# worked out by hand instead of declared with `$residual$`.
+# stated as a figure instead of declared with `$residual$`.
 #
 # `$residual$` resolves to the negation of what the other splits come to, so a
 # file that works the figure out itself writes the same transaction: the same

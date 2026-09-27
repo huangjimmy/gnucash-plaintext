@@ -1,6 +1,6 @@
 # 100.00 USD arriving as one payment, cleared by two receivable splits.
 #
-# A hand-written entry may clear one receivable with more than one split — two
+# An entry may clear one receivable with more than one split — two
 # tranches of one wire, two lines a bookkeeper entered separately. It is still
 # **one** payment: the money arrived once, and the transaction is one.
 #

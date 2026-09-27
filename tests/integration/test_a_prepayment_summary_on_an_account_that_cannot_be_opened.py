@@ -3,7 +3,7 @@
 The account is refused for its type, and that refusal is the error the run
 reports. The summary under it is still compared with the book, which holds no
 such account and so no credit on it, and the difference is said as the warning
-any hand-edited summary gets, beside the error rather than instead of it.
+any edited summary gets, beside the error rather than instead of it.
 """
 
 from click.testing import CliRunner

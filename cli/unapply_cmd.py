@@ -77,6 +77,13 @@ def unapply_payment(gnucash_file, record_id, to_account_name, txn_guids,
     for _tx_guid, amount, currency in result.credited:
         click.echo(f"   {amount} {currency} stays on {result.to_account} as the "
                    f"{owner}'s credit")
+    if result.made_pending:
+        click.echo(f'   {len(result.made_pending)} disposal(s) drew on a cost basis this '
+                   f'changed, and are now pending their cost basis, '
+                   f'`cost_basis_split_guid: $pending$`, until an edit states the one '
+                   f'each draws on:')
+        for each in result.made_pending:
+            click.echo(f'     {each}')
     state = 'Outstanding' if result.remaining_balance != 0 else 'fully paid'
     # In the record's own currency: the balance is the record's figure, and a
     # USD invoice in a CAD book does not share the book's.

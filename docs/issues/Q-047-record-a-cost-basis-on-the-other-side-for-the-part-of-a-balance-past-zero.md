@@ -94,7 +94,7 @@ Every case above breaks at that seam.
 
 ## Cases the tests cover
 
-`tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py`, on the book `tests/fixtures/usd_moved_out_of_an_empty_account.txt` makes: C holds 1,000.00 USD bought at 1.30, and 500.00 USD moved from an empty A to B at 1.35.
+`tests/scenario/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py`, on the book `tests/fixtures/usd_moved_out_of_an_empty_account.txt` makes: C holds 1,000.00 USD bought at 1.30, and 500.00 USD moved from an empty A to B at 1.35.
 
 1. The transfer out of an empty A: an owed cost basis of 500.00 at 1.35 on A and a held one of 500.00 at 1.35 on B. At 1.40 the owed side is revalued by −25.00 and the held side by +125.00.
 2. 1,200.00 USD moved from C, holding 1,000.00, to B at 1.40: 1,000.00 moves with no cost basis, and 200.00 opens on each side, held at B and owed at C.

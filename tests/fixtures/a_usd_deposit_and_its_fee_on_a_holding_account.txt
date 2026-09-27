@@ -8,7 +8,7 @@
 # the fee draws 0.72 of it, valued 1.01: 2,719.28 left.
 #
 # Verified by
-# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+# tests/scenario/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
 2026-08-13 * "Received money from Example Customer Inc"
 	guid: "0e510000000000000000000000000a01"
 	currency.mnemonic: "CAD"

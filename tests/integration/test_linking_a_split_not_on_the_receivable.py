@@ -576,7 +576,7 @@ class TestAPaymentNamingOnlyTheTransaction:
 
     The transaction has one side that is not the bank, so there is nothing to
     choose between and naming the split adds nothing. This is what a person
-    writes by hand, and it is the way that failed worst: it measured the parked
+    writes, and it is the way that failed worst: it measured the parked
     139.00 CAD against the invoice's 100.00 USD, called the difference an
     overpayment, and offered `prepayment: 39.00` for money that does not exist
     in either currency.
@@ -2386,8 +2386,8 @@ class TestACreditNotesRefund:
 
     Only the `txn_guid:`-alone spelling reaches it: an exported refund carries
     `txn_split_guid:`, whose branch does not run the guard for a split already
-    on the receivable. So a round-trip was unaffected and a hand-written or
-    bank-feed-first ledger was not.
+    on the receivable. So a round-trip was unaffected and a ledger stating
+    no split guid, or one entered from a bank feed first, was not.
     """
 
     @pytest.fixture
@@ -2656,7 +2656,7 @@ class TestUnitsHeldOnAnAccountOfAnOrdinaryType:
     same corruption, one type across.
 
     Refusing by commodity closes both, and closes the ones nobody enumerated:
-    a security on a Bank account, a book whose types were set by hand.
+    a security on a Bank account, a book whose types were set in the GUI.
     """
 
     @pytest.fixture
@@ -4178,7 +4178,7 @@ class TestABlockNamingOneSplit:
         assert [row['amount'] for row in lotted] == [-60], rows
 
     def test_reading_the_same_block_again_changes_nothing(self, part_paid):
-        """The hand-written spelling, read twice — no export in between.
+        """The spelling with no split guid, read twice — no export in between.
 
         A one-split grouped block had a `None` slot, so it was paired by
         date/amount/memo instead of by the guid it states. Its `amount:` is the

@@ -47,7 +47,7 @@ The exception is a transaction with no CAD figure anywhere in it — a USD invoi
 
 Where the payment *did* convert — 200 USD arriving as 274.00 CAD — nothing is stored: the credit's own value over its amount says 1.37, the rate the money actually came in at, and that is read rather than copied.
 
-The transaction always outranks the stored cost, which is consulted only where the transaction states none. A copy can be stale, hand-edited, or left behind by a correction, and the ledger is what the book is: read first, a KVP saying 9.99 made a split that paid 135.00 CAD for 100.00 USD report 9.99, and `fx-balances`, every realized gain and the cost each later sale had to be valued at all followed it. Stating a cost on a split the transaction already prices is refused for the same reason.
+The transaction always outranks the stored cost, which is consulted only where the transaction states none. A copy can be stale, edited in the GnuCash GUI, or left behind by a correction, and the ledger is what the book is: read first, a KVP saying 9.99 made a split that paid 135.00 CAD for 100.00 USD report 9.99, and `fx-balances`, every realized gain and the cost each later sale had to be valued at all followed it. Stating a cost on a split the transaction already prices is refused for the same reason.
 
 **A cost basis balance is what the book still holds of that currency**, on that side of the sheet: what came in, less what each disposal that stated its guid drew down. Sum the balances of one currency's cost bases **on one side** and you have what the accounts on that side hold of it, on a book whose disposals each say which cost basis they came out of. The two sides are not added together: a liability's balance is stored as a positive number — a 1,000.00 USD loan carries `cost_basis_balance: "1000.00"` against the −1,000.00 USD its account owes — so adding held to owed yields what the book has passed through that currency rather than what it is left carrying, which is why the balance sheet states the two sides as separate keys. `fx-balances` prints each cost basis with its balance and what it cost; what the accounts themselves hold is on the balance sheet's own lines, and comparing the two is what `fx-balances --verify-costs` does not do.
 
@@ -217,7 +217,7 @@ One shape is not covered by it. Where a transaction is stated in the *foreign* c
 
 The same rules as anywhere else apply: at most one `$residual$`, nothing for it to take is an error, and a split on an account in another currency is refused. (There is no amount to get wrong here — `$residual$` states none. The rule that a stated figure its currency cannot hold is refused rather than rounded applies where such a figure can be written, which is a transaction: see [Money, to the smallest unit its currency has](#money-to-the-smallest-unit-its-currency-has).)
 
-Split lines belong to the converting settlement, which is the entry with a realized difference for them to sit in. A payment that settles in the record's own currency has no such entry, and one attached with `txn_guid:` already has its transaction, splits and all; carrying split lines there is refused rather than accepted-and-dropped:
+Split lines belong to the converting settlement, which is the entry with a realized difference for them to sit in. A payment that settles in the record's own currency has no such entry, and one attached with `txn_guid:` already has its transaction, splits and all; carrying split lines there is refused rather than accepted-and-dropped. The exception is a `txn_guid:` payment that converts the record's currency, whose settling split states no cost basis: it is a converting settlement like the one GnuCash writes, and its `$residual$` line takes the difference (Q-054):
 
 ```
 Error: invoice "INV-CAD-FEE": this invoice payment carries 1 split line(s)
@@ -429,7 +429,7 @@ Which repair a book needs depends on whether anything drew on that cost basis be
 	Assets:Current assets:Accounts receivable:USD -2720.00 USD
 ```
 
-`import --strategy update`. The receivable's posting split is then the single cost basis for that money, which is where the link should have left the book. Export the transaction and edit that one line rather than writing the block by hand, so the figures are the ones the book holds.
+`import --strategy update`. The receivable's posting split is then the single cost basis for that money, which is where the link should have left the book. Export the transaction and edit that one line rather than writing the block anew, so the figures are the ones the book holds.
 
 **Something drew on it** — a transfer fee spent out of the deposit, say. Re-point it at the receivable's cost basis in place, with `--strategy update`: nothing else draws on the fee, so its edit is read as a new transaction would be (Q-051). What it drew is put back on the deposit's cost basis, it draws its 0.72 USD from the receivable's — where the money it spent actually is — and its value is checked against what that cost basis cost, as any new disposal's is. The deposit then holds its whole 2,720.00 again on a split that is no cost basis, which `--verify-costs` reports until the balance is cleared as above. Two runs, and `--verify-costs` is clean and the account totals level, which is how you know the book is out of it.
 
@@ -465,17 +465,17 @@ A payment written as a `payment:` block gets that lot from the engine. A prepaym
 
 `fx-balances` lists that credit — 100.00 USD at 1.37 CAD/USD — even though no account in the book holds a USD balance: the bank took CAD, and the receivable is the only record of the currency owed.
 
-**One lump of currency is listed once.** Where the money lands decides which split carries the cost basis, and the credit on a receivable is not automatically it:
+**A prepayment into a bank kept in its own currency is two cost bases** (Q-054). The credit on the receivable is owed back to the customer, a liability cost basis, and the bank's split is the dollars held, an asset cost basis:
 
-| how the prepayment arrives | the cost basis is on | why |
-|---|---|---|
-| into a CAD bank (arrives converted) | the A/R credit, `−100.00 USD` | nothing else in the book holds that USD; the credit is the only record of it |
-| into a USD bank, written by hand with CAD values | the bank split, `+100.00 USD` | the bank holds it and it is sellable from there; the credit facing it records the obligation |
-| into a USD bank, paid on a USD invoice (`payment:` block) | the A/R credit, `−100.00 USD` | every split is USD, so none carries a base-currency figure to derive a cost from — the credit is the only one that can carry one, as `cost_basis_cost` |
+| how the prepayment arrives | cost bases |
+|---|---|
+| into a CAD bank (arrives converted) | the A/R credit, `−100.00 USD`, owed; nothing in the book holds that USD |
+| into a USD bank, the transaction stating CAD values | the A/R credit, owed, and the bank split, `+100.00 USD`, held, each at the rate the transaction states |
+| into a USD bank, paid on a USD invoice (`payment:` block) | the A/R credit, owed, and the bank split, held, for the part past the invoice, each at the rates file's rate for the payment's day, stored as `cost_basis_cost` |
 
-`lot_owner:` says which side of a receivable a split is, not how much currency the book holds: adding it to a prepayment paid into a USD bank does not make the money two lumps. Counting both listed the same 100.00 USD twice and offered 200.00 for sale from a bank holding 100.
+A sale of the dollars the bank holds draws on the bank's cost basis, never on the credit's, which is a cost basis of dollars owed.
 
-Without `lot_owner:`, a hand-written credit belongs to no lot, which is how a settlement looks, and it establishes nothing. That is deliberate rather than an oversight — the settlement of a USD invoice whose money arrives as CAD is written with exactly the same three lines:
+A split on the receivable is read against the account's balance before it, whether or not it states an owner with `lot_owner:`. A credit that takes the receivable below zero is owed back, and opens a liability cost basis for the part past zero. The settlement of a USD invoice whose money arrives as CAD is written with the same three lines:
 
 ```
 2026-02-01 * "Customer settles, the money arriving as CAD"
@@ -486,13 +486,11 @@ Without `lot_owner:`, a hand-written credit belongs to no lot, which is how a se
 		value: "-137.00"
 ```
 
-That receivable's cost basis was opened when the invoice was posted, so counting the credit as well would offer 200.00 USD from a book holding none.
+There the receivable held the invoice's 100.00 before the credit, so the credit takes it to zero and opens nothing.
 
-**A refund is the mirror, and it needs `lot_owner:` for the same reason.** It is a debit on the receivable — the direction that normally establishes a cost basis — but it sends the customer's own money back rather than bringing any in. Naming the owner puts it in the lot no invoice owns, which is what marks it a refund, and it then establishes nothing; counting it because debits are the normal direction offered a third 100.00 USD that had already left the book.
+**A refund pays a credit back.** It is a debit on the receivable in the customer's lot, `lot_owner:` stating the customer, and it takes their credit toward zero. That consumes the credit's liability cost basis, so the refund states which with `cost_basis_split_guid:`, or `$pending$` where it is not decided yet; stating none, it is refused. The same debit stating no owner is read against the receivable's balance: taking it above zero, it is money the customer owes, and opens an asset cost basis.
 
-Naming no owner, it is read as a receivable written by hand and does establish one — because that is the other thing those three lines are, exactly as a lot-less credit is read as a settlement. Neither side guesses: the file says which it is, or it is read by its shape.
-
-The payable side works the same way in reverse. What is owed to a vendor sits on the credit side and always establishes a cost basis; a **debit** on a payable is either money sent to settle a bill (establishes nothing — that currency has gone) or a prepayment to a vendor (a claim on them, which does). Again the lot decides, not the direction.
+The payable side is the mirror. What is owed to a vendor is a liability cost basis. A **debit** on a payable that takes it toward zero pays the vendor, and one that takes it above zero is money held with the vendor, an asset cost basis.
 
 Prepaying a vendor out of USD the book already holds moves the cost basis across rather than adding one: the claim on the vendor is where that currency now is, and the bank split that sent it is a spend like any other, so it states the guid of the cost basis it spends and that cost basis goes to zero. Written without stating one, nothing is drawn down and the listing keeps offering the bank's cost basis — 200.00 USD against 100.00 held — which is the same rule as any sale that states no cost basis rather than an exception to it.
 
@@ -855,7 +853,7 @@ It is repeatable, for a book that keeps its gains and its losses in two accounts
 
 What the option cannot do is widen where a difference may sit. The three conditions the book answers for itself hold either way — the transaction stated in the book's own currency, a split stating the guid of the cost basis it draws on, and the split itself on an income or expense account — so an account specified by mistake counts nothing on a transaction that disposed of no currency.
 
-What mends the book itself is the second way of writing a disposal, above. Export the book, add `took_the_residual: "true"` to the gain split of each disposal, and import that back with `--strategy update`. The key is honoured on the same terms as any other, so what you are doing is stating by hand what a `$residual$` would have recorded at the time.
+What mends the book itself is the second way of writing a disposal, above. Export the book, add `took_the_residual: "true"` to the gain split of each disposal, and import that back with `--strategy update`. The key is honoured on the same terms as any other, so what you are doing is stating yourself what a `$residual$` would have recorded at the time.
 
 **The balance sheet reads it.** `realized_gains_fx` is the total, up to the sheet's date, of the splits the book marks — or of the splits on the accounts `--fx-gain-account` specifies, where it is used — at the book's own sign — a gain is a credit on an income account, so the figure is the negative of the value on them. See [Q-043](issues/Q-043-state-realized-and-unrealized-gains-separately-and-value-foreign-currency-from-the-cost-bases.md).
 
@@ -940,7 +938,7 @@ Without that guard, unposting and re-posting silently reset a cost basis to its 
 
 **Which splits a cost basis rests on** is its own split — the amount that arrived, the value it arrived at, the rate between them — and, where the transaction is stated in a *foreign* currency, every CAD split too, because the rate is worked out by adding all of them up. Nothing else. So a USD deposit whose other split is on a CAD account can have that split moved to income, or to another CAD account: the USD split keeps its amount, its `value:` and its `share_price:`, so its cost is the same figure before and after. Comparing every split instead refused that, which is an ordinary correction to have to make.
 
-State the rate the book holds, not the one you first typed. A value that reached the cent leaves an effective rate of its own — 2,720.00 USD booked at 1.4029 is 3,815.89 CAD, a rate of 381589/272000 — and that is what the split holds and what the export writes. Editing an export gets this right for free; a block written by hand from the original rate reads as a changed figure and is refused.
+State the rate the book holds, not the one you first typed. A value that reached the cent leaves an effective rate of its own — 2,720.00 USD booked at 1.4029 is 3,815.89 CAD, a rate of 381589/272000 — and that is what the split holds and what the export writes. Editing an export gets this right for free; a block written from the original rate reads as a changed figure and is refused.
 
 ```
 Error: transaction <guid> touches a cost basis, so its amounts, values,
@@ -1412,7 +1410,7 @@ So the line that identifies the case is `measured_from:`, not a disagreement a r
 
 **`fx-balances --verify-costs` finds nothing here, and there is nothing for it to find.** No cost basis in this book has moved without a sale: every disposal stated the guid of the one it drew on, and the dollars the bases cannot speak for never had a cost to be misstated. Run on the book above it reports no finding and exits 0. What it cannot tell a reader is that a currency arrived uncosted, which is what `measured_from:` on the balance sheet is for.
 
-**This book's page also opens with the warning**, because it keeps `Expenses:Interest` in US dollars — a second thing gnucash-plaintext does not support, and one the example carries so that a reader meets it somewhere. The two are separate: `measured_from: gnucash_revaluation` is about dollars that arrived with no cost, and the warning is about an income or expense balance no one rate converts.
+**This book's page also opens with the warning**, because it keeps `Expenses:Interest` in US dollars — a book whose cost bases are then not expected to be correct, and one the example carries so that a reader meets it somewhere. The two are separate: `measured_from: gnucash_revaluation` is about dollars that arrived with no cost, and the warning is about an income or expense balance no one rate converts.
 
 #### A Canadian company that bought US-listed shares and still holds them
 
@@ -1437,7 +1435,7 @@ Sell some of them and the same cost basis answers the other half: the units leav
 
 ## What is not covered
 
-- **An income or expense account kept in another currency.** An expense is what it cost on the day it was incurred, and the account's balance is a sum of amounts from many days, each of those days having had a rate of its own. No one rate turns that sum into the book's own currency, so a statement converts it at the report date's rate and states the expense at a rate it was never incurred at — differently again on a page drawn a month later. `balance-sheet`, `income-statement` and `report` still draw the page, with a warning at the top listing each such account and saying that every figure those accounts reach can be wrong, and `--verify-integrity` reports the same accounts and exits 1. What the page offers a reader is the material to work the figure out: the account line states what the account holds in its own currency and the rate the page converted it at. Keep the account in the book's own currency, and record a payment made in another currency at what that currency cost on the day it was spent — which is the cost drawn down from the cost basis it came out of.
+- **An income or expense account kept in another currency.** A book may keep one, but do not expect its cost bases to be correct: no cost basis records what the account's amounts cost, and nothing can check the book is consistent. `--verify-integrity` and `fx-balances --verify-costs` both say so, and say to turn cost bases off with `cost_bases: "off"` in the company block. An expense is what it cost on the day it was incurred, and the account's balance is a sum of amounts from many days, each of those days having had a rate of its own. No one rate turns that sum into the book's own currency, so a statement converts it at the report date's rate and states the expense at a rate it was never incurred at — differently again on a page drawn a month later. `balance-sheet`, `income-statement` and `report` still draw the page, with a warning at the top listing each such account and saying that every figure those accounts reach can be wrong, and `--verify-integrity` reports the same accounts and exits 1. What the page offers a reader is the material to work the figure out: the account line states what the account holds in its own currency and the rate the page converted it at. Keep the account in the book's own currency, and record a payment made in another currency at what that currency cost on the day it was spent — which is the cost drawn down from the cost basis it came out of.
 - **Booking a year-end retranslation into the accounts.** `balance-sheet` states what currency still held is worth against what it cost — that is `unrealized_gains_fx`, above — but it only states it. Nothing is written to the book, no transaction is made, and the income and expense accounts are untouched. Under IAS 21 and ASPE 1651 an exchange difference on a monetary item belongs in profit or loss, so a filer who wants it booked writes that entry themselves; until they do it is a figure on the sheet and no account holds it, which is what the key exists to say.
 - **A borrowing stated wholly in the foreign currency.** US dollars borrowed straight into a US dollar account carry no figure in the book's own currency for either side, so neither side opens a cost basis and neither the cost bases nor GnuCash can say what the debt has cost. Borrowing with Canadian dollars does open one, and is measured normally.
 - **A repayment written wholly in the foreign currency that realizes a difference.** Repaying a US dollar loan out of US dollars the book holds draws a cost basis down on each side, and where the debt cost 1.35 a dollar and the dollars paying it cost 1.30, the difference is realized. `$residual$` states it in the book's own currency, and a transaction with no split in that currency cannot, so `import` refuses it and says what the difference is. Write it in Canadian dollars, each US dollar split valued at what its cost basis cost, with a `$residual$` split. Where both sides cost the same a dollar nothing is realized, and the repayment is imported as written. `tests/fixtures/a_us_loan_repaid_in_a_transaction_stating_no_canadian_figure.txt` writes all three.

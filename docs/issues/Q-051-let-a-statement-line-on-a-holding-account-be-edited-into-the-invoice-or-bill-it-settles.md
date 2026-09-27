@@ -311,7 +311,7 @@ An update now costs about the reading of the file and the book, plus a few milli
 
 ## Cases the tests cover
 
-`tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py`, onto `tests/fixtures/a_usd_invoice_and_bill_for_statement_lines_on_a_holding_account.txt` posted at `tests/fixtures/usd_at_the_rates_the_statement_lines_records_were_posted_at.yaml`. Every test of an edit failed on `main`; the tests of E6, E10 and the fee's owed-side reading as imported passed there, as outcomes that stand.
+`tests/scenario/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py`, onto `tests/fixtures/a_usd_invoice_and_bill_for_statement_lines_on_a_holding_account.txt` posted at `tests/fixtures/usd_at_the_rates_the_statement_lines_records_were_posted_at.yaml`. Every test of an edit failed on `main`; the tests of E6, E10 and the fee's owed-side reading as imported passed there, as outcomes that stand.
 
 | case | test |
 |---|---|

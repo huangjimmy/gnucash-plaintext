@@ -195,6 +195,27 @@ def pytest_unconfigure(config):
     put_the_descriptor_back_if_it_has_gone(1, _A_SPARE_STDOUT)
 
 
+def pytest_runtest_setup(item):
+    """Record the lines a scenario test reaches apart from the rest.
+
+    `scripts/coverage.sh` gates what `tests/scenario/` alone reaches, so a
+    line has to say whether a scenario test reached it. Two contexts say
+    that: `scenario` while a test in `tests/scenario/` runs, and `suite`
+    otherwise. A context per test would say it too, at a cost in memory by
+    the test: measured on Debian 10, the suite peaks at 527 MiB without
+    coverage and passes 3 GiB with `--cov-context=test`.
+
+    Nothing to switch where coverage is not measuring.
+    """
+    from coverage import Coverage
+
+    measuring = Coverage.current()
+    if measuring is None:
+        return
+    in_the_scenarios = '/tests/scenario/' in str(item.fspath).replace(os.sep, '/')
+    measuring.switch_context('scenario' if in_the_scenarios else 'suite')
+
+
 _harden_pytest_capture_teardown()
 _harden_pytest_logging_teardown()
 _harden_the_terminal_writer()

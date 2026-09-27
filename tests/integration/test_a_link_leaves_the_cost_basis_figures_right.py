@@ -321,7 +321,7 @@ def test_reclassifying_the_other_split_is_allowed(tmp_path):
     _invoices_and_a_parked_deposit(runner, book, with_fee=False)
 
     # The way a person makes this correction: export the book, change the
-    # account on the line, import it back. Writing the block by hand instead
+    # account on the line, import it back. Writing a new block instead
     # would state a rate of its own, and the book holds the rate its value and
     # amount work out to — 381589/272000, not the 1.4029 that was typed.
     exported = _exported(runner, book, tmp_path / 'before.txt')

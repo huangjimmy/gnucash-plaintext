@@ -1,0 +1,21 @@
+2026-01-01 open Asset
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Asset:BankA
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Asset:BankB
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-01-10 * "A draft from bank account b"
+	guid: "5ce0a4100000000000000000000000d2"
+	notes: "DONT DO THIS AGAIN"
+	Asset:BankA 500.00 CAD
+		guid: "5ce0a4100000000000000000000000a2"
+	Asset:BankB -500.00 CAD
+		guid: "5ce0a4100000000000000000000000b2"
+		memo: "interest APR 24.99%, I should repay early"

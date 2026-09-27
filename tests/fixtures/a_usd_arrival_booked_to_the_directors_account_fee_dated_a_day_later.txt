@@ -7,7 +7,7 @@
 # it drew is put back, and it draws the same 0.72 on its new date.
 #
 # Verified by
-# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+# tests/scenario/test_an_edit_may_move_the_split_that_sets_the_rate.py.
 2026-08-14 * "Wise charges"
 	guid: "0d0d0000000000000000000000000001"
 	currency.mnemonic: "CAD"

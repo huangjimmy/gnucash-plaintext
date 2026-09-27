@@ -18,7 +18,7 @@ every test asserted the spelling its own writer produced. This one asks the
 question the other way round: whatever a writer emits, is it a typed literal?
 
 **The readers stay liberal** — `true`/`1`/`yes` and `false`/`0`/`no` are all
-still accepted, so no ledger ever hand-written stops importing. This is about
+still accepted, so no ledger a person ever wrote stops importing. This is about
 what is *written*, which is the half a round trip depends on.
 """
 

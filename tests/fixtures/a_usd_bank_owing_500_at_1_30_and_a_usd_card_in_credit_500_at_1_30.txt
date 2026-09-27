@@ -1,0 +1,85 @@
+# A Canadian book whose US dollar bank owes 500.00 USD and whose US dollar
+# card holds 500.00 USD in credit, each at 1.30.
+#
+# Assets:USD Bank pays 500.00 USD of travel at 1.30 while it holds nothing, so
+# it goes from 0 to -500.00, acting as a liability: the payment's split opens a
+# liability cost basis of 500.00 USD owed at 1.30, 650.00 CAD.
+#
+# Liabilities:USD Card is paid 500.00 USD from the Canadian bank at 1.30 while
+# it owes nothing, so it goes from 0 to 500.00 in credit, acting as an asset:
+# the payment's split opens an asset cost basis of 500.00 USD held at 1.30,
+# 650.00 CAD.
+#
+# a_usd_bank_owing_500_at_1_30_and_a_usd_card_in_credit_500_at_1_30_each_crossing_zero_at_1_20_*.txt
+# then take each across zero at 1.20.
+#
+# Verified by
+# tests/scenario/test_a_split_crossing_zero_consumes_one_cost_basis_and_opens_another.py.
+2034-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2034-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Liabilities:USD Card
+	type: "Credit Card"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2034-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2034-01-01 open Expenses:Travel
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2034-01-05 * "Travel paid from the empty USD bank"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 650.00 CAD
+	Assets:USD Bank -500.00 USD
+		guid: "0f0f0000000000000000000000000001"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "-650.00"
+
+2034-01-05 * "500.00 USD paid onto the empty card"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank -650.00 CAD
+	Liabilities:USD Card 500.00 USD
+		guid: "0f0f0000000000000000000000000003"
+		account.commodity.mnemonic: "USD"
+		share_price: "13/10"
+		value: "650.00"

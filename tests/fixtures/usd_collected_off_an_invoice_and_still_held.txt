@@ -1,0 +1,78 @@
+# A Canadian book whose only US dollars are the ones an invoice collected.
+#
+# INV-USD-1 bills 2,720.00 USD and is posted on 2026-07-31 at 1.393801
+# (usd_at_the_rates_the_statement_lines_records_were_posted_at.yaml), which
+# opens the invoice's cost basis on its A/R posting split: 2,720.00 USD at
+# 3,791.14 CAD. It is collected into Assets:Wise USD on 2026-08-13. The
+# invoice's cost basis is then what the dollars in Wise USD cost, and it is the
+# only US dollar cost basis the book keeps.
+#
+# What this fixture produces: Assets:Wise USD holding 2,720.00 USD and one US
+# dollar cost basis, INV-USD-1's, at 2,720.00. Imported with
+# `--include-business-objects` and the rates file above.
+#
+# Verified by
+# tests/scenario/test_pending_counts_the_cost_basis_an_invoice_or_a_bill_opened.py.
+2026-07-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-07-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-07-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Wise USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Assets:Chequing
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Accounts Receivable USD
+	type: "Receivable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+customer "C-USD"
+	name: "Example Customer Inc"
+	currency: USD
+invoice "INV-USD-1"
+	customer_id: "C-USD"
+	currency: USD
+	date_opened: 2026-07-31
+	entry:
+		date: 2026-07-31
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 2720
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-07-31
+		due: 2026-08-30
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-1"
+		accumulate: true
+	payment:
+		date: 2026-08-13
+		amount: 2720
+		account: "Assets:Wise USD"
+		memo: "Collected INV-USD-1"

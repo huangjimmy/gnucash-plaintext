@@ -12,7 +12,7 @@ so there are two collectors per account: the **balance**, in the account's own
 commodity, and the sum of its splits' **values**, each value stated in its own
 transaction's currency. Both are converted at the report price and subtracted.
 
-This prints both, per account, so the subtraction can be done by hand against
+This prints both, per account, so the subtraction can be checked against
 what GnuCash's own page states. Run it against a book and a price:
 
     python3 tests/research/how_gnucash_computes_unrealized_gains_probe.py <book> <USD price in the book's currency>

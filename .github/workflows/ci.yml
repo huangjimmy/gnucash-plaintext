@@ -48,7 +48,7 @@ jobs:
         # runs, goes through it too.
         #
         # Spelled out here as its own `docker run` it was one of three copies
-        # of that recipe, agreeing only by hand: this one had no `--user`, so
+        # of that recipe, kept in step by nothing: this one had no `--user`, so
         # CI ran as root while every local run ran as the invoking user. Root
         # writes whatever the mode says, so the one test that takes write
         # permission off a directory could not fail here — the gate reported
@@ -149,12 +149,16 @@ jobs:
           merge-multiple: true
           path: .coverage-data
 
-      - name: Gate the union at 100%
+      - name: Gate the union at 100% and the scenarios at their floor
         # The figure this project gates on. A line no supported version reaches
         # is a line nothing tests, and a line no version *can* reach is itself
         # the defect — so the answer is a test or a deletion, never a lower
         # number. `--report-only` combines the eleven files and reports them;
         # the script runs no suite of its own here.
+        #
+        # The same run gates what `tests/scenario/` alone reaches, against the
+        # floor `SCENARIO_THRESHOLD` in scripts/coverage.sh, which may be
+        # raised and is not lowered.
         #
         # `touch` changes the timestamps, not the data. The script warns when
         # the source is newer than the coverage data, because a figure measured

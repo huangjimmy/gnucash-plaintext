@@ -72,7 +72,7 @@ price
 ### Import rules
 
 - **A block whose guid the book holds** edits that price in place. The guid stays, even when `time:` moves the price to another day. A key the block leaves out changes nothing. Status `updated` or `unchanged`.
-- **A block with no guid that states exactly a price the book holds** — the same commodity, currency, time, value, source and type — leaves it as it is. Status `unchanged`, so a hand-written file imported twice changes nothing.
+- **A block with no guid that states exactly a price the book holds** — the same commodity, currency, time, value, source and type — leaves it as it is. Status `unchanged`, so a file imported twice changes nothing.
 - **A block whose guid the book does not hold, or with no guid,** creates a price, with the stated guid when there is one. Status `created`.
 - **The book already holds another price for the same commodity and currency on the same local day.** The block is refused, and the refusal lists that price's guid, time and source; stating that guid edits it instead. `gnc_pricedb_add_price` is not called in that case, because it silently deletes the other price (table 1). Two times are on the same day when GnuCash's `gnc_time64_get_day_start` returns the same start for both: the local day of the process running the import, which is the day `gnc_pricedb_add_price` was measured to replace on (table 1).
 - **The pair counts whichever way round it is written.** GnuCash keeps one price a day for USD in CAD and CAD in USD together: adding one on a day holding the other deletes the other, or is turned away when its source ranks lower (table 1). So a CAD in USD block on a day the book prices USD in CAD is refused the same way, and the refusal lists the USD in CAD price.

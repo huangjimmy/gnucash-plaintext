@@ -9,7 +9,7 @@
 # a fee. (Out of an empty Savings the 5.00 would be a borrowing, not a spend.)
 #
 # Verified by
-# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+# tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
 2026-08-01 * "Dollars bought into savings"
 	currency.mnemonic: "CAD"
 	Assets:USD Savings 100.00 USD

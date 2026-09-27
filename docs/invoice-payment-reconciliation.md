@@ -19,7 +19,7 @@ transaction in-place**, linking its counter-split to AR
 and linking it to the invoice lot. All original bank metadata — notes,
 description, split memos, FITID — is preserved.
 
-The companion `txn_split_guid:` field names the *specific* AR/AP-side split that belongs to this invoice/bill. It's optional in hand-written plaintext (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order) but is emitted on export for every payment of one settling split, so a round-tripped book reconstructs bit-for-bit on a fresh re-import — including the shape where one bank transaction covers several invoices or bills, each claiming one specific AR/AP-side split via its own `txn_split_guid:`. The one payment it does not spell is a payment made of *several* settling splits, which is written as a `Transaction` block with a `PaymentSplit` per split and carries neither key; see [README § One payment made of several splits](../README.md#one-payment-made-of-several-splits).
+The companion `txn_split_guid:` field names the *specific* AR/AP-side split that belongs to this invoice/bill. It's optional in a file (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order) but is emitted on export for every payment of one settling split, so a round-tripped book reconstructs bit-for-bit on a fresh re-import — including the shape where one bank transaction covers several invoices or bills, each claiming one specific AR/AP-side split via its own `txn_split_guid:`. The one payment it does not spell is a payment made of *several* settling splits, which is written as a `Transaction` block with a `PaymentSplit` per split and carries neither key; see [README § One payment made of several splits](../README.md#one-payment-made-of-several-splits).
 
 This guide describes:
 
@@ -89,9 +89,9 @@ invoice "INV-2026-001"
 
 Only `bank_account` and `txn_guid` are required in the `payment:` block —
 `date`, `amount`, and `memo` are taken from the existing transaction and do
-not need to be repeated. `txn_split_guid:` is optional in hand-written files (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order) but is recommended for multi-invoice bank transactions and is emitted on export for every payment of one settling split. A payment made of several is written as a `Transaction` block carrying a `PaymentSplit` per split, and carries neither key.
+not need to be repeated. `txn_split_guid:` is optional in a file (the importer falls back to the iterative linking mechanism that walks the bank tx's counter-splits in plaintext order) but is recommended for multi-invoice bank transactions and is emitted on export for every payment of one settling split. A payment made of several is written as a `Transaction` block carrying a `PaymentSplit` per split, and carries neither key.
 
-The `customer_guid:` line is optional in hand-written files but emitted on
+The `customer_guid:` line is optional in a file but emitted on
 every export. When both `customer_id:` and `customer_guid:` are present,
 they must resolve to the same customer record (see
 [Error cases](#error-cases)).

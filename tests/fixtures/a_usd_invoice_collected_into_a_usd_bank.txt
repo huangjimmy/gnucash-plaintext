@@ -2,7 +2,7 @@
 # the bank at the rate the invoice was posted at.
 #
 # The shape a real book arrived in: 2,720.00 USD billed and received, against a
-# CAD book. The collection is a payment block rather than a hand-written
+# CAD book. The collection is a payment block rather than a plain
 # transaction, because that is the route that records what the money cost —
 # `fx-balances` reports the basis afterwards, and its SPLIT GUID is what step 2
 # spends against.

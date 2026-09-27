@@ -1,0 +1,18 @@
+# 100.00 of the US dollars usd_owed_on_a_card_that_paid_a_bill.txt owes on the
+# card, repaid from the Canadian dollar bank for 138.00 CAD on 2026-09-01, the
+# cost basis it repaid not chosen yet.
+#
+# The only US dollar cost basis the book keeps is BILL-USD-1's, so the
+# repayment is a disposal on the owed side pending that choice: the book counts
+# 100.00 USD pending against the dollars that cost basis stands for, until an
+# edit states the cost basis.
+#
+# Verified by
+# tests/scenario/test_pending_counts_the_cost_basis_an_invoice_or_a_bill_opened.py.
+2026-09-01 * "Card part paid back"
+	currency.mnemonic: "USD"
+	Liabilities:Credit Card USD 100.00 USD
+		cost_basis_split_guid: $pending$
+	Assets:Chequing -138.00 CAD
+		account.commodity.mnemonic: "CAD"
+		value: "-100.00"

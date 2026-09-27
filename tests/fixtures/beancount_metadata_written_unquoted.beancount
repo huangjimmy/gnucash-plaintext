@@ -3,7 +3,7 @@
 ; A beancount metadata value is not always a string: a number is written bare,
 ; and that is the natural way to write one. This tool quotes everything it
 ; emits, so its own files always round-trip — and a person widening an
-; account's unit by hand writes `gnucash-scu: 1000`.
+; account's unit writes `gnucash-scu: 1000`.
 ;
 ; Read as a quoted string or not at all, such a line was recognised as
 ; metadata, consumed, and dropped without a word: the account was rebuilt at

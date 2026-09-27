@@ -28,7 +28,7 @@ So a user following the docs hit the same silent failure.
 - `create_account` resolves the type **before** attaching the account, so an unrecognised type raises a clear, actionable error that names the bad type and lists the supported ones — instead of a cryptic `KeyError` that half-creates an INVALID account. The error stays non-fatal and is surfaced in the import summary (matching the existing `test_import_new_reports_account_creation_error` design), but it can no longer pass silently with an account left untyped.
 - Docs corrected: README's account-type list is precise and lists the accepted spellings; the uppercase native `type:` examples in `docs/gnucash-beancount-format.md` and `docs/issues/F-010-…` are now the canonical title-case forms.
 
-This is distinct from **Q-003**, which added the exporter's short forms (`A/Receivable` / `A/Payable`) so an exported file re-imports; here the strings are the ones a human writes by hand.
+This is distinct from **Q-003**, which added the exporter's short forms (`A/Receivable` / `A/Payable`) so an exported file re-imports; here the strings are the ones a person writes.
 
 ## Tests
 

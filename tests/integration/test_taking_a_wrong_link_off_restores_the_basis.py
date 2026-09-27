@@ -185,20 +185,18 @@ def test_a_basis_that_had_no_balance_comes_back_holding_all_of_it(tmp_path):
     assert 'none recorded' not in listing, listing
 
 
-def test_an_overpaid_records_deposit_is_not_opened_whole(tmp_path):
-    """A cost basis opens at everything its split brought in, and that figure
-    is only this record's where nothing else accounts for part of it.
+def test_an_overpaid_records_deposit_opens_whole_beside_the_customers_credit(tmp_path):
+    """A 100.00 USD invoice paid with 200.00 USD into a USD bank, at 1.37.
 
-    A 100.00 USD invoice paid with 200.00 USD from a USD bank: the other
-    100.00 is the customer's credit, and a cost basis already. Every split is
-    USD, so nothing in the transaction says what the USD cost and the bank
-    split is no cost basis at all.
+    The payment collects the invoice, and the other 100.00 is the customer's
+    credit: a liability cost basis on the receivable, and an asset cost basis
+    on the bank's split, each at 1.37 (Q-054).
 
-    Moving the settlement to a CAD account prices that transaction — and with it
-    the bank's whole 200.00, the customer's half included. Measured before the
-    check: `fx-balances` totalled 300.00 USD against the 200.00 the bank
-    holds, every figure passing `--verify-costs`, because 200.00 is exactly
-    what that split brought in.
+    Unapplying the payment to a Canadian dollar account leaves the invoice
+    open, and the bank's split collecting nothing: it brought in all 200.00,
+    and its cost basis opens whole. The book then holds 300.00, the invoice's
+    100.00 and the bank's 200.00, and owes the customer's 100.00, and the cost
+    bases state the same on each side.
     """
     runner = CliRunner()
     book = tmp_path / 'over.gnucash'
@@ -213,38 +211,32 @@ def test_an_overpaid_records_deposit_is_not_opened_whole(tmp_path):
     assert unapplied.exit_code == 0, unapplied.output
 
     listing = _run(runner, 'fx-balances', str(book)).output
-    assert 'Total USD cost basis balance: 100.00 USD' in listing, listing
+    assert ('Total USD cost basis balance: 300.00 USD held, 100.00 USD owed'
+            in listing), listing
+    assert 'Total USD held in accounts: 300.00 USD' in listing, listing
+    assert 'Total USD owed on accounts: 100.00 USD' in listing, listing
     bank = next(line for line in listing.splitlines()
                 if 'Assets:Bank:USD' in line)
-    assert 'none recorded' in bank, bank
+    assert bank.rstrip().endswith('200.00 USD asset'), bank
 
-    # `--verify-costs` does report this book, and about the credit rather than
-    # about the bank: the restatement puts a base-currency figure in the
-    # transaction, which makes the bank split the one that brings that USD in, and
-    # the credit's stored balance is left over. Measured with the opening
-    # disabled outright, the report is identical — it follows from restating
-    # the settlement, not from anything opened here.
     verified = _run(runner, 'fx-balances', str(book), '--verify-costs')
-    assert verified.exit_code == 1, verified.output
-    assert 'it is no cost basis' in verified.output, verified.output
-    assert 'Assets:Bank:USD' not in verified.output.split(
-        'do not hold:')[-1], verified.output
+    assert verified.exit_code == 0, verified.output
 
 
 def test_a_deposit_whose_credit_another_invoice_spent_is_not_opened_whole(
         tmp_path):
     """The same 200.00 USD deposit, after its credit settled a second invoice.
 
-    Spending the credit takes its balance off and puts the split in the second
-    invoice's lot, so nothing in the transaction is a cost basis any more and
-    the check on that alone lets the unapply through. What stops it is the
-    other question — whether some other split of the transaction is already
-    somebody's money — and that one has to be asked without the exception
-    `_settles_another_record` carries for a split spent from credit, which
-    this one is.
+    Spending the credit settled INV-USD-AUTO out of what the customer was
+    owed: its cost basis and the credit's were both spent, and no dollar
+    arrived in the bank for it. Unapplying the payment from the first invoice
+    leaves the bank's split collecting nothing, so it brought in all 200.00
+    and opens there. The book holds the first invoice's 100.00 and the bank's
+    200.00, and the cost bases total the same 300.00.
 
-    Measured with that exception in place: `fx-balances` totalled 400.00 USD
-    against the 200.00 the bank holds.
+    Measured before the credit's split was left out of what the bank's split
+    collected: `fx-balances` totalled 400.00 USD against the 300.00 the book
+    holds.
     """
     runner = CliRunner()
     book = tmp_path / 'spent.gnucash'
@@ -263,10 +255,11 @@ def test_a_deposit_whose_credit_another_invoice_spent_is_not_opened_whole(
     assert unapplied.exit_code == 0, unapplied.output
 
     listing = _run(runner, 'fx-balances', str(book)).output
-    assert 'Total USD cost basis balance: 200.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 300.00 USD held\n' in listing, listing
+    assert 'Total USD held in accounts: 300.00 USD' in listing, listing
     bank = next(line for line in listing.splitlines()
                 if 'Assets:Bank:USD' in line)
-    assert 'none recorded' in bank, bank
+    assert bank.rstrip().endswith('200.00 USD asset'), bank
 
 
 def _one_deposit_settling_both_invoices(runner, tmp_path, link_both=True):
@@ -424,11 +417,38 @@ def test_a_claim_part_sold_before_a_bill_spent_it_is_not_opened_whole(
                      '--fx-rates', OWN_CURRENCY_RATES)
     assert unapplied.exit_code == 0, unapplied.output
 
-    listing = _run(runner, 'fx-balances', str(book)).output
-    claim_row = next(line for line in listing.splitlines()
-                     if 'Assets:Bank:USD' in line)
-    assert 'none recorded' in claim_row, listing
-    assert 'Total USD cost basis balance: 100.00 USD' in listing, listing
+    # The claim is a cost basis again, on the US dollar bank, at all 100.00
+    # it brings in, and the sale that drew 80.00 of it before it was spent is
+    # made pending: nothing recorded the 20.00 left.
+    assert "2026-02-28 'Sell 80 USD of the claim' (80.00 USD)" in unapplied.output, \
+        unapplied.output
+    listing = _run(runner, 'fx-balances', str(book), '--verify-costs').output
+    assert re.search(rf'{claim}\s+Assets:Bank:USD\s+1\.37 CAD/USD\s+100\.00 USD\s+'
+                     r'100\.00 USD\s+asset', listing), listing
+    assert '1 disposal(s) pending their cost basis: 80.00 USD.' in listing, listing
+
+    # The user states the claim's cost basis on the sale again, and the book
+    # is whole: 20.00 USD in the bank and the bill's 100.00 owed.
+    exported = tmp_path / 'after.txt'
+    assert _run(runner, 'export', str(book), str(exported)).exit_code == 0
+    sale_guid = re.search(r'2026-02-28 \* "Sell 80 USD of the claim"\n\tguid: "([0-9a-f]{32})"',
+                          exported.read_text()).group(1)
+    restated = tmp_path / 'restated.txt'
+    restated.write_text(
+        Path('tests/fixtures/fx_sell_80_of_a_claim_bought_at_1_37.txt').read_text()
+        .replace('{basis}', claim)
+        .replace('"Sell 80 USD of the claim"\n',
+                 f'"Sell 80 USD of the claim"\n\tguid: "{sale_guid}"\n'))
+    edited = _run(runner, 'import', '--strategy', 'update', str(book), str(restated),
+                  '--fx-rates', OWN_CURRENCY_RATES)
+    assert edited.exit_code == 0 and 'Errors:       0' in edited.output, edited.output
+    listing = _run(runner, 'fx-balances', str(book), '--verify-costs').output
+    assert 'pending their cost basis' not in listing, listing
+    assert re.search(rf'{claim}\s+Assets:Bank:USD\s+1\.37 CAD/USD\s+100\.00 USD\s+'
+                     r'20\.00 USD\s+asset', listing), listing
+    assert 'Total USD cost basis balance: 20.00 USD held, 100.00 USD owed' in listing, listing
+    integrity = _run(runner, '--verify-integrity', str(book))
+    assert integrity.exit_code == 0, integrity.output
 
 
 def test_the_book_and_a_book_rebuilt_from_its_ledger_agree(tmp_path):

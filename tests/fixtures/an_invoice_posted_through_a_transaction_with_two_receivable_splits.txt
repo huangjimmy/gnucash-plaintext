@@ -29,6 +29,6 @@ invoice "INV-POSTED-THROUGH-TWO-SPLITS"
 		date: 2026-01-01
 		due: 2026-01-31
 		ar_account: "Assets:Accounts Receivable"
-		memo: "Sales, booked by hand"
+		memo: "Sales, booked to the receivable"
 		accumulate: true
 		posted_txn_guid: "8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e"

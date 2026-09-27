@@ -1,6 +1,6 @@
 # A file stating the note unposting writes for itself. No export produces this
-# — the key is of the book, not of the file — so it can only be hand-written or
-# copied from a book edited elsewhere.
+# — the key is of the book, not of the file — so a file states it only when a
+# person typed it or copied it from a book edited elsewhere.
 #
 # Believed, it says a split is not the owner's credit when it is, and it names
 # an invoice, which is how a rebuild picks its own orphan out of a transaction

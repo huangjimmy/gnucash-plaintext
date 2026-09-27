@@ -92,6 +92,13 @@ def _run_unpost(gnucash_file, ids, use_case_cls, by_guid=False):
             warning = _format_orphan_warning(r)
             if warning:
                 click.echo(warning)
+            if r.made_pending:
+                click.echo(
+                    f'  {len(r.made_pending)} disposal(s) drew on its cost basis and are now '
+                    f'pending their cost basis, `cost_basis_split_guid: $pending$`, until an '
+                    f'edit states the one each draws on:')
+                for each in r.made_pending:
+                    click.echo(f'    {each}')
             if r.status != UnpostStatus.UNPOSTED:
                 all_ok = False
 

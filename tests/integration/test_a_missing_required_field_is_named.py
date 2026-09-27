@@ -1,7 +1,7 @@
 """A required field a block leaves out is named, not echoed as a key.
 
 Every key in a `posted:` block is required — the writer and the comparison
-both read them outright — so a hand-written block that omits one has to be
+both read them outright — so a block a person types that omits one has to be
 told which. Read outright, the omission surfaced as the key's own name and
 nothing else: `Error: invoice "INV-NODUE": 'due'`, which says neither that the
 field is required nor what to write.

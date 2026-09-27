@@ -114,7 +114,7 @@ def _a_book_with_a_sale(runner, tmp_path):
 
 
 def _change_the_kvp_of(book, guid, change):
-    """Rewrite one split's KVP, as a hand edit or an older tool leaves it."""
+    """Rewrite one split's KVP, as a GUI edit or an older tool leaves it."""
     repo = GnuCashRepository(str(book))
     repo.open(mode=SessionMode.NORMAL)
     try:
@@ -185,7 +185,7 @@ def test_a_cost_basis_with_no_balance_recorded_opens_with_all_it_brought_in(tmp_
     """A sale put back on a cost basis with no balance opens one.
 
     A book can hold a sale against a cost basis with no balance written on it,
-    from a hand edit or an older tool. Deleting the sale opens the cost basis
+    from a GUI edit or an older tool. Deleting the sale opens the cost basis
     holding everything it brought in.
     """
     runner = CliRunner()

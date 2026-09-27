@@ -14,7 +14,7 @@
 # **What separates the idiom from ordinary English is the word in front of
 # "out", and that is the whole design.** In "laid out by WebKit" the word "out"
 # is part of the verb "lay out" — it is a particle, and the sentence is
-# correct. The same is true of "worked out by hand", "written back out by the
+# correct. The same is true of "worked out by the reader", "written back out by the
 # exporter", "filtered out by the export", "spelled out by the export". In the
 # idiom nothing owns "out" at all: a copula is put in front of it — "is out",
 # "was out", "are out", "were out" — as though "out" were itself the verb. That
@@ -100,8 +100,8 @@ sys.stdout.write("\n".join(fresh))
 #   - "the release is out by Friday" — "out" means published, "by Friday" is a
 #     deadline. The copula form refused this until the quantity was required, and
 #     it is a sentence anybody might write in a probe or a note.
-#   - "working the bank figure out by hand" — verb, object, particle, and "by
-#     hand" is a manner. Three lines of this tree are that sentence. Syntax cannot
+#   - "working the bank figure out by the reader's own sum" — verb, object,
+#     particle, and "by" starts a manner. Syntax cannot
 #     separate it from "puts the totals out", which has the same shape; what comes
 #     after is the only thing that can.
 #
@@ -136,7 +136,7 @@ OFFENDING=$(printf '%s\n' "$TEXT" | grep -inE "$IDIOM" | head -5)
     echo "                              -> leaves the totals disagreeing by that amount"
     echo
     echo "Where a verb owns the word, it is a particle and is untouched: a page is"
-    echo "laid out by WebKit, a figure is worked out by hand, a key is written back"
+    echo "laid out by WebKit, a figure is worked out by the reader, a key is written back"
     echo "out by the exporter, output goes to stdout by default."
 } >&2
 

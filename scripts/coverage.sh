@@ -22,6 +22,15 @@
 # raise any more — a figure below 100 is a line nothing tests, and `--threshold`
 # is for reading a tree mid-change, not for lowering the bar.
 #
+# Beside the union it gates what `tests/scenario/` alone reaches: the cases a
+# person reported from a real book. Every line is recorded as reached by a
+# scenario test or by the rest of the suite (the `scenario` and `suite`
+# contexts, switched in tests/conftest.py), and the second report counts only
+# lines the `scenario` context reached. It says how much of
+# the tool real books exercise, which the union cannot, and it may not drop
+# below SCENARIO_THRESHOLD, the figure the scenarios reached when it was set.
+# The pre-commit hook and CI both reach this gate through `--report-only`.
+#
 # The data lands in .coverage-data/ (git-ignored) so a failing run can be read
 # afterwards; `--report-only` re-reads it without running anything.
 
@@ -41,6 +50,12 @@ cd "$PROJECT_ROOT"
 # interchangeable either: `debian11` is 4.4, not 4.13, and `ubuntu24` is 5.5 —
 # CLAUDE.md lists what each one carries.
 THRESHOLD=100
+
+# What `tests/scenario/` alone reaches, line and branch, on the union of every
+# supported build: 41.12% measured on 2026-09-27, gated at 41.10%. A floor: a
+# change may raise it, and a change that leaves the scenarios reaching less is
+# refused. Two decimal places, because the report is read at that precision.
+SCENARIO_THRESHOLD=41.10
 REPORT_ONLY=""
 HTML=""
 while [ $# -gt 0 ]; do
@@ -159,10 +174,21 @@ docker run --rm \
                cp /cov/.coverage /tmp/comb/.coverage; \
            fi && \
            ${HTML:+coverage html -d /workspace/htmlcov && } \
-           coverage report --fail-under=$THRESHOLD" || STATUS=$?
+           coverage report --fail-under=$THRESHOLD; \
+           union=\$?; \
+           echo ''; \
+           echo '========================================='; \
+           echo 'Scenario coverage: tests/scenario/ alone (gated at $SCENARIO_THRESHOLD%)'; \
+           echo '========================================='; \
+           coverage report --contexts='^scenario$' --precision=2 \
+               --fail-under=$SCENARIO_THRESHOLD; \
+           scenario=\$?; \
+           if [ \$union -ne 0 ]; then exit \$union; fi; \
+           if [ \$scenario -eq 2 ]; then exit 3; fi; \
+           exit \$scenario" || STATUS=$?
 
 echo ""
-if [ -n "$PARTIAL" ] && [ $STATUS -ne 2 ] && [ $STATUS -ne 0 ]; then
+if [ -n "$PARTIAL" ] && [ $STATUS -ne 2 ] && [ $STATUS -ne 3 ] && [ $STATUS -ne 0 ]; then
     # Partial data *and* the reporting itself failed, so there is no figure
     # above to call a floor. The tooling message is the one that helps: a
     # missing image is the usual cause and is reachable exactly here, since
@@ -187,7 +213,16 @@ elif [ -n "$PARTIAL" ]; then
     # from missing data, rather than a pass off half the evidence.
     exit 1
 elif [ $STATUS -eq 0 ]; then
-    echo "✅ Coverage is at or above $THRESHOLD%"
+    echo "✅ Coverage is at or above $THRESHOLD%, and the scenarios reach at least $SCENARIO_THRESHOLD%"
+elif [ $STATUS -eq 3 ]; then
+    # The union is whole; what fell is what `tests/scenario/` alone reaches.
+    echo "❌ The scenarios reach less than $SCENARIO_THRESHOLD%"
+    echo ""
+    echo "The union is at $THRESHOLD%, so every line is still tested. What fell"
+    echo "is how much of the tool the scenario tests reach on their own: a"
+    echo "scenario was removed or narrowed, or code they ran was moved where"
+    echo "none of them runs it. Put the scenario back, or add one that reaches"
+    echo "the code. The floor may be raised; it is not lowered."
 elif [ $STATUS -ne 2 ]; then
     # Exit 2 is coverage's own "below --fail-under". Anything else came from
     # the machinery around it — a missing image (reachable through

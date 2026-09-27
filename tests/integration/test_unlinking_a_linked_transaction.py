@@ -113,8 +113,9 @@ def _linked_book(tmp_path):
 
     `Assets:Bank` +139.00 CAD against `Assets:Suspense USD` −100.00 USD, whose
     own value is −139.00 CAD. Linking puts the USD receivable's account on that
-    USD split, where it states the settlement outright and nothing but the
-    account changes.
+    USD split, and the split, converting the invoice's dollars, is restated at
+    the invoice's cost, −140.00 CAD, with `Income:FX Gain` taking the 1.00 the
+    payment block's `$residual$` line places (Q-054).
     """
     path = tmp_path / 'linked.gnucash'
     runner = CliRunner()
@@ -132,9 +133,35 @@ def _linked_book(tmp_path):
              if row['account'] == AR_USD]
     assert len(on_ar) == 1, _splits_of(path, DESCRIPTION)
     assert on_ar[0]['amount'] == -100, on_ar
-    assert on_ar[0]['value'] == -139, on_ar
+    assert on_ar[0]['value'] == -140, on_ar
     assert on_ar[0]['in_a_lot'], 'the link put it in the invoice lot'
     return path
+
+
+def test_a_book_keeping_no_cost_bases_links_it_with_no_residual_line(tmp_path):
+    """No cost basis stands for the invoice's dollars, so none restates the link.
+
+    The split keeps the −139.00 CAD the bank's entry gave it, and the payment
+    block needs no `$residual$` line, as before a book kept cost bases.
+    """
+    path = tmp_path / 'no_cost_bases.gnucash'
+    runner = CliRunner()
+    for ledger, flags in ((str(FIXTURES / 'a_company_that_keeps_no_cost_bases.txt'), ['--new']),
+                          (BOOK, []), (MONEY, [])):
+        made = runner.invoke(cli, ['import', *flags, str(path), ledger,
+                                   '--include-business-objects', '--fx-rates', RATES])
+        assert made.exit_code == 0, made.output
+    text = Path(LINKED).read_text()
+    assert '    Income:FX Gain $residual$ CAD\n' in text
+    no_residual = tmp_path / 'no_residual.txt'
+    no_residual.write_text(text.replace('    Income:FX Gain $residual$ CAD\n', ''))
+
+    linked = runner.invoke(cli, ['import', str(path), str(no_residual),
+                                 '--include-business-objects', '--fx-rates', RATES])
+
+    assert linked.exit_code == 0, linked.output
+    on_ar = [row for row in _splits_of(path, DESCRIPTION) if row['account'] == AR_USD]
+    assert [(row['amount'], row['value']) for row in on_ar] == [(-100, -139)], on_ar
 
 
 CENTS_MONEY = str(FIXTURES / 'money_reaching_a_cad_bank_at_a_rate_with_cents.txt')
@@ -142,6 +169,7 @@ CENTS_LINK = str(FIXTURES / 'a_payment_stating_the_split_valued_at_a_rate_with_c
 CENTS_DESCRIPTION = 'Money in at a rate with cents'
 DIRECTOR_WHOLE = 'Assets:Due From Director Whole'
 COARSE_ACCOUNT = str(FIXTURES / 'an_account_kept_to_whole_dollars.txt')
+RATES_CENTS_FROM_THE_INVOICE = str(FIXTURES / 'fx_rates_usd_at_1_3937_from_the_invoice_s_date.yaml')
 
 
 def _book_valued_with_cents(tmp_path):
@@ -150,13 +178,15 @@ def _book_valued_with_cents(tmp_path):
     The split is worth −139.37 CAD rather than −139.00, so the figure a CAD
     account takes has cents in it — which is what an account kept to whole
     dollars cannot state. `Assets:Due From Director Whole` is that account,
-    opened by the same fixture.
+    opened by the same fixture. The invoice is posted at the same 1.3937, so
+    the link consumes its cost basis at the split's own figure and the split
+    keeps its cents.
     """
     path = tmp_path / 'cents.gnucash'
     runner = CliRunner()
     first = runner.invoke(cli, [
         'import', '--new', str(path), BOOK,
-        '--include-business-objects', '--fx-rates', RATES])
+        '--include-business-objects', '--fx-rates', RATES_CENTS_FROM_THE_INVOICE])
     assert first.exit_code == 0, first.output
     money = runner.invoke(cli, ['import', str(path), CENTS_MONEY])
     assert money.exit_code == 0, money.output
@@ -164,7 +194,7 @@ def _book_valued_with_cents(tmp_path):
     assert coarse.exit_code == 0, coarse.output
     linked = runner.invoke(cli, [
         'import', str(path), CENTS_LINK,
-        '--include-business-objects', '--fx-rates', RATES])
+        '--include-business-objects', '--fx-rates', RATES_CENTS_FROM_THE_INVOICE])
     assert linked.exit_code == 0, linked.output
 
     on_ar = [row for row in _splits_of(path, CENTS_DESCRIPTION)
@@ -184,9 +214,11 @@ RATES_HKD = str(FIXTURES / 'fx_rates_usd_and_hkd.yaml')
 def _book_behind_an_hkd_bank(tmp_path):
     """A USD invoice settled by a split of an entry quoted in a third currency.
 
-    The book is CAD, the invoice USD, the entry HKD — so neither side of the
-    transaction is the book's own currency, and the split's value is in a
-    currency an account may not be kept in.
+    The book is CAD, the invoice USD, the bank HKD. The entry is written
+    quoted in HKD; the link, converting the invoice's dollars, restates it in
+    the book's currency at the invoice's cost, −140.00 CAD, as a payment
+    GnuCash writes into an HKD bank is, and `Income:FX Gain` takes the 5.84
+    CAD between that and the 134.16 the bank received (Q-054).
     """
     path = tmp_path / 'hkd.gnucash'
     runner = CliRunner()
@@ -205,7 +237,7 @@ def _book_behind_an_hkd_bank(tmp_path):
              if row['account'] == AR_USD]
     assert len(on_ar) == 1, _splits_of(path, HKD_DESCRIPTION)
     assert on_ar[0]['amount'] == -100, on_ar
-    assert on_ar[0]['value'] == -780, on_ar
+    assert on_ar[0]['value'] == -140, on_ar
     assert on_ar[0]['in_a_lot'], 'the link put it in the invoice lot'
     return path
 
@@ -507,9 +539,9 @@ class TestUnlinkingALinkedTransaction:
         """No rate is asked for, because the split states the figure.
 
         The entry is quoted in CAD and `--to` is a CAD account, so what the
-        split is worth there is its own value — −139.00. Setting the account
-        and nothing else would leave −100.00 on a CAD account and turn 100 US
-        dollars into 100 Canadian ones.
+        split is worth there is its own value — −140.00, the invoice's cost the
+        link restated it at. Setting the account and nothing else would leave
+        −100.00 on a CAD account and turn 100 US dollars into 100 Canadian ones.
         """
         path = _linked_book(tmp_path)
 
@@ -520,8 +552,8 @@ class TestUnlinkingALinkedTransaction:
         rows = _splits_of(path, DESCRIPTION)
         on_director = [row for row in rows if row['account'] == DIRECTOR]
         assert len(on_director) == 1, rows
-        assert on_director[0]['amount'] == -139, on_director
-        assert on_director[0]['value'] == -139, on_director
+        assert on_director[0]['amount'] == -140, on_director
+        assert on_director[0]['value'] == -140, on_director
         assert not on_director[0]['in_a_lot'], 'it settles nothing now'
 
     def test_it_reports_the_figure_in_the_currency_it_is_in(self, tmp_path):
@@ -557,7 +589,7 @@ class TestUnlinkingALinkedTransaction:
         assert result.exit_code == 0, result.output
         rows = _splits_of(path, DESCRIPTION)
         assert [row['account'] for row in rows] == [
-            'Assets:Bank', DIRECTOR], rows
+            'Assets:Bank', DIRECTOR, 'Income:FX Gain'], rows
         bank = [row for row in rows if row['account'] == 'Assets:Bank']
         assert bank[0]['amount'] == 139, bank
         assert bank[0]['value'] == 139, bank
@@ -583,7 +615,7 @@ class TestUnlinkingALinkedTransaction:
                        if row['account'] == 'Assets:Suspense USD']
         assert len(on_suspense) == 1, rows
         assert on_suspense[0]['amount'] == -100, on_suspense
-        assert on_suspense[0]['value'] == -139, on_suspense
+        assert on_suspense[0]['value'] == -140, on_suspense
 
     def test_unapply_payment_restates_the_same_way(self, tmp_path):
         """The two commands are one operation and cannot disagree.
@@ -602,7 +634,7 @@ class TestUnlinkingALinkedTransaction:
         rows = _splits_of(path, DESCRIPTION)
         on_director = [row for row in rows if row['account'] == DIRECTOR]
         assert len(on_director) == 1, rows
-        assert on_director[0]['amount'] == -139, on_director
+        assert on_director[0]['amount'] == -140, on_director
 
     def test_unapply_payment_says_what_it_needs_instead_of_raising(
             self, tmp_path):

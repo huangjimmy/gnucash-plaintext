@@ -465,7 +465,7 @@ class TestABookWrittenBySomethingElse:
 
     `set-invoice-style` stores the text behind a prefix so a footer set to
     nothing survives `qof_book_set_string_option` deleting an empty slot. A
-    book whose slot was written by hand — or by something written later —
+    book whose slot was written by another tool — or by something written later —
     carries no prefix, and the value is taken as it stands rather than losing
     its first five characters to the strip.
     """

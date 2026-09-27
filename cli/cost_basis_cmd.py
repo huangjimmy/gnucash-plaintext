@@ -19,6 +19,7 @@ import click
 
 from infrastructure.gnucash.utils import exact_text, money_text
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
+from services.book_currency import the_books_own_currency_or
 from services.foreign_currency import (
     BASE_CURRENCY,
     COST_BASIS_BALANCE_KEY,
@@ -26,7 +27,9 @@ from services.foreign_currency import (
     cost_bases,
     foreign_currency_account_balances,
     pending_disposals,
+    profit_and_loss_accounts_in_another_currency,
     verify_cost_bases,
+    what_an_income_or_expense_account_in_another_currency_means,
 )
 
 
@@ -116,6 +119,12 @@ def _finish_verifying(verified, pending: int = 0) -> None:
     _report_disagreements(verified['findings'], verified['checked'],
                           pending)
     _report_currency_totals(verified.get('currency_totals') or [])
+    # A warning, and it does not set the exit code: such an account is the
+    # book's to keep, and what it costs is that nothing here can vouch for the
+    # cost bases.
+    if verified.get('foreign_income_or_expense'):
+        click.echo('')
+        click.echo(f"warning: {verified['foreign_income_or_expense']}")
     if verified['findings']:
         raise SystemExit(1)
 
@@ -338,18 +347,21 @@ def _report_account_balances(holdings, currency):
     for row in sorted(holdings, key=lambda row: (row['currency'], row['account'])):
         shown = _format_amount(row['balance'], row['unit']) + ' ' + row['currency']
         click.echo(f"{row['account']:<{width}} {shown:>18}")
-        # By sign, which is which side the money is on — the same division the
-        # cost bases are kept in, and for the same reason: a book can hold a
-        # currency and owe it at once, and one total for both matches neither.
-        side = owed if row['balance'] < 0 else held
-        side[row['currency']] = side.get(row['currency'], 0) + abs(row['balance'])
+        # Each side on its own — the same division the cost bases are kept in,
+        # and for the same reason: a book can hold a currency and owe it at
+        # once, and one total for both matches neither. A receivable's or a
+        # payable's lots are read one by one, so an invoice not collected is
+        # held beside a customer's credit owed back.
+        held[row['currency']] = held.get(row['currency'], 0) + row['held']
+        if row['owed']:
+            owed[row['currency']] = owed.get(row['currency'], 0) + row['owed']
         units[row['currency']] = row['unit']
 
+    # Every currency with a row has a held total, 0 where it only owes.
     click.echo('')
-    for code in sorted(set(held) | set(owed)):
-        if code in held:
-            click.echo(f'Total {code} held in accounts: '
-                       f'{_format_amount(held[code], units[code])} {code}')
+    for code in sorted(held):
+        click.echo(f'Total {code} held in accounts: '
+                   f'{_format_amount(held[code], units[code])} {code}')
         if code in owed:
             click.echo(f'Total {code} owed on accounts: '
                        f'{_format_amount(owed[code], units[code])} {code}')
@@ -414,6 +426,12 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
         pending = [row for row in pending_disposals(repo.book)
                    if not currency or row['currency'] == currency.upper()]
         verified = verify_cost_bases(repo.book) if verify_costs and keeps else None
+        if verified is not None:
+            own = the_books_own_currency_or(repo.book, BASE_CURRENCY)
+            elsewhere = profit_and_loss_accounts_in_another_currency(repo.book, own)
+            verified['foreign_income_or_expense'] = (
+                what_an_income_or_expense_account_in_another_currency_means(elsewhere, own)
+                if elsewhere else None)
     finally:
         repo.close()
 
@@ -457,7 +475,7 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
     # which account the cost basis is on, which is half of what the row is for.
     width = max(len('ACCOUNT'), max(len(row['account']) for row in rows))
     header = (f"{'DATE':<12} {'SPLIT GUID':<34} {'ACCOUNT':<{width}} "
-              f"{'COST':>18} {'BROUGHT IN':>14} {'COST BASIS BALANCE':>18}")
+              f"{'COST':>18} {'BROUGHT IN':>14} {'COST BASIS BALANCE':>18} {'SIDE':<9}")
     click.echo(header)
     click.echo('-' * len(header))
     for row in rows:
@@ -465,7 +483,7 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
             f"{row['date']:<12} {row['guid']:<34} {row['account']:<{width}} "
             f"{_format_cost(row['cost'], row['currency']):>18} "
             f"{_format_amount(row['brought_in'], row['unit']) + ' ' + row['currency']:>14} "
-            f"{_format_cost_basis_balance(row):>18}"
+            f"{_format_cost_basis_balance(row):>18} {row['side']:<9}"
         )
         if row['description']:
             click.echo(f"{'':<12} {row['description']}")
@@ -480,11 +498,17 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
         if row['balance'] is None:
             no_balance_recorded += 1
             continue
-        totals[row['currency']] = totals.get(row['currency'], 0) + row['balance']
+        # Per side: a cost basis of currency held and one of currency owed
+        # stand for different money, and added together they come to a
+        # figure no account holds.
+        sides = totals.setdefault(row['currency'], {})
+        sides[row['side']] = sides.get(row['side'], 0) + row['balance']
         units[row['currency']] = row['unit']
     for code in sorted(totals):
-        click.echo(f'Total {code} cost basis balance: '
-                   f'{_format_amount(totals[code], units[code])} {code}')
+        stated = [f"{_format_amount(totals[code][side], units[code])} {code} {word}"
+                  for side, word in (('asset', 'held'), ('liability', 'owed'))
+                  if side in totals[code]]
+        click.echo(f'Total {code} cost basis balance: ' + ', '.join(stated))
     if no_balance_recorded:
         click.echo(
             f'{no_balance_recorded} cost basis(es) have no balance recorded '

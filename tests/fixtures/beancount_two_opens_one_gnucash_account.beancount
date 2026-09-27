@@ -3,7 +3,7 @@
 ; A beancount account name cannot hold every character a GnuCash one can, so
 ; the two views are kept apart: the beancount name is what postings are
 ; written against, and `gnucash-name` is the account they mean. Renaming in
-; the beancount view is therefore a hand-edit that can point two of them at
+; the beancount view is therefore an edit that can point two of them at
 ; one account — here `Assets:Bank` and `Assets:BankCAD`.
 ;
 ; The second `open` finds the account already there and creates nothing, but

@@ -8,7 +8,7 @@
 # is refused below it, the cost bases the refusal lists leave it out.
 #
 # Verified by
-# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+# tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
 2026-08-13 open Assets:Accounts Receivable USD
 	type: Receivable
 	commodity.namespace: "CURRENCY"

@@ -14,7 +14,7 @@ Found via a double-roundtrip probe (export → import → export): every GUID ma
 
 ## Fix
 
-`create_account` now applies the declared `guid:` to the freshly created account via the existing `_set_object_guid` helper (ctypes `qof_instance_set_guid`, with the same book-wide uniqueness guard used for customers/vendors). Only newly created accounts are affected — re-import of an existing account returns early as before. Hand-written files may still omit `guid:` (GnuCash assigns one on first import); on re-export that GUID is then preserved.
+`create_account` now applies the declared `guid:` to the freshly created account via the existing `_set_object_guid` helper (ctypes `qof_instance_set_guid`, with the same book-wide uniqueness guard used for customers/vendors). Only newly created accounts are affected — re-import of an existing account returns early as before. A file may still omit `guid:` (GnuCash assigns one on first import); on re-export that GUID is then preserved.
 
 ## Files touched
 

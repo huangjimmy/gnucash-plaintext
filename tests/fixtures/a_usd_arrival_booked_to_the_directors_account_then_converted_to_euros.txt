@@ -10,7 +10,7 @@
 # arrival, in that order, listing the euro fee once though it draws on both.
 #
 # Verified by
-# tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py.
+# tests/scenario/test_an_edit_may_move_the_split_that_sets_the_rate.py.
 2026-01-01 commodity EUR
 	mnemonic: "EUR"
 	fullname: "Euro"

@@ -41,5 +41,5 @@ def test_the_parking_opens_what_it_owes_and_the_deposit_keeps_what_it_bought(tmp
     CliRunner().invoke(cli, ['import', '--new', str(book), LEDGER])
     listing = CliRunner().invoke(cli, ['fx-balances', str(book)]).output
 
-    assert 'Total USD cost basis balance: 600.00 USD' in listing, listing
+    assert 'Total USD cost basis balance: 500.00 USD held, 100.00 USD owed' in listing, listing
     assert 'Total USD held in accounts: 400.00 USD' in listing, listing

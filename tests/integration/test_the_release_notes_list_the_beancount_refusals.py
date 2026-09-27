@@ -1,7 +1,7 @@
 """Every new `import-beancount` refusal is written down where readers look.
 
 A refusal turns a file that imported — silently wrong, but imported — into a
-run that stops. Hand-editing an export is the reason this format exists, so
+run that stops. Editing an export is the reason this format exists, so
 these are shapes people arrive at, and a reader upgrading meets them without
 warning unless the release notes say so. The plaintext refusals are listed
 exhaustively; the beancount ones were two lines of fourteen.

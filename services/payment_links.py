@@ -1,8 +1,8 @@
 """Linking a bank transaction the book already holds to an invoice's payment.
 
 A `payment:` block can point at money that is already in the book rather than
-describe money to enter. The bank feed came in first, or somebody recorded the
-deposit by hand; either way the transaction exists, and what the block does is
+describe money to enter. The bank feed came in first, or the deposit was
+recorded as a transaction of its own; either way the transaction exists, and what the block does is
 say which of its splits settles this invoice or bill.
 
 Two things make that harder than it sounds, and both live here.

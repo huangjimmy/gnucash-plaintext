@@ -158,7 +158,7 @@ def test_the_transaction_outranks_a_cost_stored_beside_it(tmp_path):
     a cost — every split in one foreign currency, no base-currency figure
     anywhere in it. Where the transaction *can* state one, it is the answer:
     the ledger's own figures are what the book is, and a KVP beside them is a
-    copy that can be stale, hand-edited, or left behind by a correction.
+    copy that can be stale, edited, or left behind by a correction.
 
     Consulted first, that copy won. A split bought for 135.00 CAD reported
     whatever the KVP said — 9.99 CAD/USD here — and `fx-balances`, every gain,

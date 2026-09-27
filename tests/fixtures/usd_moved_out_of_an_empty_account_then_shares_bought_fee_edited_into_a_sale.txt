@@ -8,7 +8,7 @@
 # for currency alone.
 #
 # Verified by
-# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+# tests/scenario/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
 2034-02-02 * "Bank fee"
 	guid: "0c0c0000000000000000000000000003"
 	currency.mnemonic: "CAD"

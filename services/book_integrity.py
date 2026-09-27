@@ -20,8 +20,9 @@ exact comparison:
   is a sum of amounts from many days, each of those days having had a rate of
   its own. No one rate turns that sum into the book's currency, so a statement
   converting it at the report date's rate states an expense at a rate it was
-  never incurred at. gnucash-plaintext does not support such an account, and
-  both statements print a warning listing it.
+  never incurred at. A book may keep such an account, but its cost bases are
+  then not expected to be correct: the finding says so, and says to turn cost
+  bases off, and both statements print a warning listing it.
 * **No cost basis holds more than the accounts do**, per currency and side.
   Cost bases falling short is an ordinary state — currency that arrived in a
   transaction stating no figure in the book's own currency has no cost, so no
@@ -64,6 +65,7 @@ from services.foreign_currency import (
     pending_disposals,
     profit_and_loss_accounts_in_another_currency,
     verify_cost_bases,
+    what_an_income_or_expense_account_in_another_currency_means,
 )
 from services.gnucash_statements import (
     render_balance_sheet,
@@ -127,11 +129,12 @@ def _holdings(book, as_of: date, units: Dict[str, int]) -> Dict[tuple, Fraction]
     held: Dict[tuple, Fraction] = {}
     for row in foreign_currency_account_balances(book, as_of):
         units[row['currency']] = row['unit']
-        balance = row['balance']
-        if balance == 0:
-            continue
-        at = (row['currency'], 'asset' if balance > 0 else 'liability')
-        held[at] = held.get(at, Fraction(0)) + abs(balance)
+        # Each side on its own, a receivable's or a payable's lots included: an
+        # invoice not collected is held beside a credit owed back.
+        for side, figure in (('asset', row['held']), ('liability', row['owed'])):
+            if figure:
+                at = (row['currency'], side)
+                held[at] = held.get(at, Fraction(0)) + figure
     return held
 
 
@@ -298,17 +301,8 @@ def _check_the_profit_and_loss_currency(book, own: str,
     wrong = profit_and_loss_accounts_in_another_currency(book, own)
     if not wrong:
         return True
-    listed = ', '.join(f'{row["account"]} ({row["currency"]})' for row in wrong)
     report.findings.append(
-        f'these income and expense accounts are not kept in '
-        f'{own}: {listed}. gnucash-plaintext does not support one. '
-        f'Such a balance is a sum of amounts from many days, each of those days '
-        f'having had a rate of its own, and no one rate turns that sum into '
-        f'{own}. Both statements convert it at the report date\'s '
-        f'rate, which states an expense at a rate it was never incurred at, so '
-        f'a page drawn a month later states the same expense differently. Keep '
-        f'the account in {own}, and record a payment made in '
-        f'another currency at what that currency cost on the day it was spent.')
+        what_an_income_or_expense_account_in_another_currency_means(wrong, own))
     return False
 
 

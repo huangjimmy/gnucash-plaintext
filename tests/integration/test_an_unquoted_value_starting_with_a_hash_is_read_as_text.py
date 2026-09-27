@@ -1,7 +1,7 @@
 """An unquoted value that starts with `#` and is no typed literal is read as text.
 
 `#` starts a typed literal — `#True`, `#False`, `#None`, a number such as
-`#100`. A hand-written colour, `colour: #ff0000`, is none of those, and the
+`#100`. A colour a person types, `colour: #ff0000`, is none of those, and the
 import keeps it as the text it is. The export then writes it quoted.
 """
 

@@ -8,7 +8,7 @@
 # accounts_for_spending_currency_its_own_import_brings_in.txt.
 #
 # Verified by
-# tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
+# tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py.
 2026-08-13 * "Received money"
 	currency.mnemonic: "CAD"
 	Assets:Chequing 500.00 CAD

@@ -14,7 +14,7 @@
 # USD stands at 1.30 on 2034-01-05, 1.35 on 2034-01-10 and 1.40 on 2034-02-01.
 #
 # Verified by
-# tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
+# tests/scenario/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py.
 2034-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"

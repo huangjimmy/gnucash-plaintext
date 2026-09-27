@@ -41,7 +41,8 @@ def _basis_on(listing: str, account_fragment: str) -> str:
     raise AssertionError(f'no cost basis on {account_fragment!r} in:\n{listing}')
 
 
-def test_unposting_an_invoice_whose_basis_was_sold_is_refused(tmp_path):
+def test_unposting_an_invoice_whose_basis_was_sold_makes_the_sale_pending(tmp_path):
+    """The unpost destroys the invoice's cost basis, and the sale that drew on it is made pending (Q-054)."""
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
     assert _run(runner, 'import', '--new', str(book),
@@ -63,18 +64,24 @@ def test_unposting_an_invoice_whose_basis_was_sold_is_refused(tmp_path):
     assert 'Total USD cost basis balance: 60.00 USD' in _balances(runner, book)
 
     result = _run(runner, 'unpost-invoices', str(book), 'INV-USD-001')
-    assert result.exit_code != 0, result.output
-    message = result.output + str(result.exception)
-    assert 'cost basis' in message, message
-    assert 'Sell 40 USD' in message, message
+    assert result.exit_code == 0, result.output
+    assert '1 disposal(s) drew on its cost basis and are now pending' in result.output, \
+        result.output
+    assert 'Sell 40 USD' in result.output, result.output
 
-    # And the cost basis is untouched: nothing was half-done.
-    assert 'Total USD cost basis balance: 60.00 USD' in _balances(runner, book)
+    # The invoice's was the book's only US dollar cost basis, so the sale made
+    # pending draws on nothing the book keeps. Whether the unpost should then
+    # go through is not decided (Q-054); today it does, and `--verify-costs`
+    # reports the sale.
+    checked = _run(runner, 'fx-balances', str(book), '--verify-costs')
+    assert checked.exit_code == 1, checked.output
+    assert 'Sell 40 USD' in checked.output, checked.output
 
 
-def test_unposting_a_bill_whose_basis_was_settled_is_refused(tmp_path):
+def test_unposting_a_bill_whose_basis_was_settled_makes_the_settlement_pending(tmp_path):
     """The bill mirror: the A/P split is the cost basis, and settling it with USD
-    cash measures against it."""
+    cash measures against it. The unpost destroys it, and the settlement's pick
+    of it is made pending (Q-054)."""
     runner = CliRunner()
     book = tmp_path / 'book.gnucash'
     assert _run(runner, 'import', '--new', str(book),
@@ -106,10 +113,10 @@ def test_unposting_a_bill_whose_basis_was_settled_is_refused(tmp_path):
     assert _run(runner, 'import', str(book), str(settle)).exit_code == 0
 
     result = _run(runner, 'unpost-bills', str(book), 'BILL-USD-001')
-    assert result.exit_code != 0, result.output
-    message = result.output + str(result.exception)
-    assert 'cost basis' in message, message
-    assert 'Pay US vendor' in message, message
+    assert result.exit_code == 0, result.output
+    assert '1 disposal(s) drew on its cost basis and are now pending' in result.output, \
+        result.output
+    assert 'Pay US vendor' in result.output, result.output
 
 
 def test_an_untouched_cost_basis_still_unposts(tmp_path):

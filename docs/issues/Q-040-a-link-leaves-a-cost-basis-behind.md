@@ -259,7 +259,7 @@ That copy had a second fault of the same shape. Deleting a sale puts its currenc
 - `fx_usd_bill_with_a_cad_expense.txt` and `fx_supplier_paid_on_a_usd_credit_line.txt` — the bill side
 - `fx_invoice_spending_a_part_sold_credit_in_full.txt` and `fx_invoice_auto_applying_the_whole_credit.txt` — a credit spent in full, named by guid and left to the engine
 
-Step 4 is not a fixture: the test exports the book and puts the `payment:` block into the invoice's own block, which is what a person does and what makes the rates match — a hand-written rate of 1.4029 is not the 381589/272000 the book holds once the value has reached the cent.
+Step 4 is not a fixture: the test exports the book and puts the `payment:` block into the invoice's own block, which is what a person does and what makes the rates match — a rate of 1.4029 copied from the invoice is not the 381589/272000 the book holds once the value has reached the cent.
 
 A6 is unchanged and already covered, by `fx_invoice_usd_paid_from_usd_bank.txt`.
 

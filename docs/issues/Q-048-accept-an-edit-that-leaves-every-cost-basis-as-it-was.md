@@ -68,7 +68,7 @@ A figure the edit cannot apply — a `value:` of `eight`, an amount of `--10.00`
 
 ## Cases the tests cover
 
-`tests/integration/test_an_edit_may_move_the_split_that_sets_the_rate.py`, on `tests/fixtures/a_usd_arrival_booked_to_the_directors_account.txt`:
+`tests/scenario/test_an_edit_may_move_the_split_that_sets_the_rate.py`, on `tests/fixtures/a_usd_arrival_booked_to_the_directors_account.txt`:
 
 1. The Canadian dollar split moved to income: the edit goes through, and the cost basis is priced as it was.
 2. That split divided between income and the director's account: the edit goes through, and the cost basis is priced as it was.

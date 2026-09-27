@@ -269,10 +269,19 @@ Arch and openSUSE Tumbleweed, which is every supported GnuCash from 3.8 to
 "the cross-version sweep should be run" is not a finding. What is worth
 reporting is a behaviour no test covers.
 
+## You may not propose new scenarios:
+The scenarios this commit handles are the author's, stated in the commit
+message and in its tests. Review whether the code does what they say, for the
+cases they state. Do not propose a case the commit does not state — another
+shape of transaction, another order of dates, another combination of commands
+— and do not ask for new behaviour for one, however likely it looks. Such a
+concern is not a finding and is discarded. Where the code gives a wrong result
+for a case the commit states, report that case with the figures it gives.
+
 ## Your Task:
-1. Understand what this commit is trying to do
-2. Verify the changes are correct and complete
-3. Check for: logic errors, missing edge cases, security issues, missing tests
+1. Understand what this commit is trying to do, from its message and its tests
+2. Verify the changes do that, for the cases they state
+3. Check for: logic errors in those cases, security issues, a stated case no test covers
 4. Output your decision:
    - If issues found: Start your response with "CONCERNS:" and list specific issues
    - If approved: Start your response with "APPROVED:" and briefly explain why

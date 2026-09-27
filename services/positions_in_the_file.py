@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 
 from gnucash.gnucash_core_c import ACCT_TYPE_PAYABLE, ACCT_TYPE_RECEIVABLE
 
-from infrastructure.gnucash.kvp import get_custom_metadata, set_custom_metadata
+from infrastructure.gnucash.kvp import REMOVE_THE_KEY, get_custom_metadata, set_custom_metadata
 from infrastructure.gnucash.utils import Variable, get_account_full_name, money_text
 from services.foreign_currency import (
     COST_BASIS_SPLIT_KEY,
@@ -83,8 +83,8 @@ def what_is_wrong_with_the_positions(transactions) -> List[str]:
                  f'{transaction.props.get("tx_desc") or "(no description)"!r}')
         for line, split in enumerate(transaction.children):
             for key, value in split.metadata.items():
-                if not isinstance(value, Variable) or (
-                        key == COST_BASIS_SPLIT_KEY and value == PENDING):
+                if (not isinstance(value, Variable) or value == REMOVE_THE_KEY
+                        or (key == COST_BASIS_SPLIT_KEY and value == PENDING)):
                     continue
                 position = the_position(value)
                 if key != COST_BASIS_SPLIT_KEY or position is None:
@@ -137,11 +137,56 @@ def the_variables_where_none_is_read(root) -> List[str]:
                     f'position is read only as `{COST_BASIS_SPLIT_KEY}:` on a split '
                     f'of a transaction; written in quotes it is a string'
                     for key, value in child.metadata.items()
-                    if isinstance(value, Variable))
+                    if isinstance(value, Variable) and value != REMOVE_THE_KEY)
             walk(child)
 
     walk(root)
     return wrong
+
+
+def the_fields_that_cannot_be_removed(root, is_a_field, kept_as_text) -> List[str]:
+    """Read each field stated `$None$`, or a text field stated `#None`, as what it can be; a warning each.
+
+    `$None$` removes a custom key. A field GnuCash keeps itself cannot be
+    removed: it is always there. So `$None$` on one is read as `#None`, and
+    the import then sets it and reads it back (`_set_a_field`), saying so
+    where GnuCash keeps something else.
+
+    A split's `memo:` and a transaction's `notes:`, the fields `kept_as_text`
+    maps each block type to, cannot be set to `#None` either: GnuCash keeps
+    them as text, and its setters ignore a null. So `$None$` and `#None` on
+    them are read as `""`.
+
+    A block keeping no custom keys, an `entry:` or a `payment:`, holds fields
+    alone, and is read the same way for `$None$`. `is_a_field` maps each block
+    type that keeps custom keys to whether a key of it is a field.
+    """
+    said = []
+
+    def walk(directive):
+        for child in directive.children:
+            a_field = is_a_field.get(child.type)
+            text = kept_as_text.get(child.type, ())
+            for key, value in list(child.metadata.items()):
+                removes = isinstance(value, Variable) and value == REMOVE_THE_KEY
+                if removes and a_field is not None and not a_field(key):
+                    continue
+                line = f'{child.line.strip()!r}: `{key}` is a GnuCash field'
+                if key in text and (removes or value is None):
+                    stated = REMOVE_THE_KEY if removes else '#None'
+                    child.metadata[key] = ''
+                    said.append(f'{line}, which cannot be removed or set to #None, so '
+                                f'`{key}: {stated}` sets it to "". An empty field is not '
+                                f'written in the export, which does not mean it was '
+                                f'removed.')
+                elif removes:
+                    child.metadata[key] = None
+                    said.append(f'{line}, which cannot be removed, so `{key}: '
+                                f'{REMOVE_THE_KEY}` sets it to #None.')
+            walk(child)
+
+    walk(root)
+    return said
 
 
 def replace_the_positions_with_their_guids(directive, splits) -> None:

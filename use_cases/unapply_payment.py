@@ -51,16 +51,20 @@ from services.foreign_currency import (
     APPLIED_FROM_CREDIT_KEY,
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
+    brought_in_by,
     cost_basis_guid_of,
     derived_cost_of,
     establishes_cost_basis,
     iter_splits,
+    make_pending_what_draws_on,
     open_cost_basis_balance_if_none_is_stored,
     open_what_an_edit_made_a_basis,
     put_back_on_cost_bases,
     record_borrowed_basis,
     split_guid,
+    splits_drawing_on,
     the_bases_a_transaction_has,
+    write_cost_basis_balance,
 )
 from services.gnucash_importer import (
     _attach_record_owner_to_lot,
@@ -88,6 +92,9 @@ class UnapplyResult:
     # The payments among them that `--to` left on the receivable or payable
     # they were already on, and so are the owner's credit now.
     credited: List[tuple] = field(default_factory=list)
+    # The disposals that drew on a cost basis the restatement changed, and
+    # which are pending their cost basis now, until the user states one.
+    made_pending: List[str] = field(default_factory=list)
     remaining_balance: Decimal = Decimal('0')  # lot's outstanding after unapply
     # How finely the record's currency divides (GnuCash's commodity fraction):
     # 100 where there are hundredths, 1 for a currency with no minor unit.
@@ -326,6 +333,51 @@ def _open_what_the_restatement_made_a_basis(
         transaction.BeginEdit()
         open_what_an_edit_made_a_basis(transaction, bases_before)
         transaction.CommitEdit()
+
+
+def _reopen_what_the_restatement_changed(
+        book, each_transaction_and_the_cost_bases_it_had, brought_in_before) -> List[str]:
+    """Reopen whole each cost basis the restatement changed, and make what drew on it pending.
+
+    A split that was a cost basis before and still is, and now brings in
+    another amount, stands for other currency than it did. An overpaid
+    invoice's payment into a US dollar bank opened an asset cost basis of the
+    100.00 the overpayment brought in; with the settlement unapplied to a
+    Canadian dollar account, the bank's split brings in all 200.00, the other
+    100.00 bought with the Canadian dollars. Nothing is worked out again for
+    what drew on it: each disposal is made pending, the cost basis opens at
+    all it now brings in, and the user states which cost basis each disposal
+    draws on.
+
+    And a split the restatement makes a cost basis again, with disposals still
+    drawing on it from before it was spent. A claim on a vendor, 80.00 of it
+    sold and then spent on a bill, loses its balance when spent, and nothing
+    records the 20.00 that was left; moved onto a US dollar bank by the
+    unapply, it opens at the 100.00 it brings in, and the sale is made pending
+    for the same reason.
+
+    Returns the disposals made pending, as `make_pending_what_draws_on`
+    describes them.
+    """
+    made = []
+    for transaction, _ in each_transaction_and_the_cost_bases_it_had.values():
+        for split in transaction.GetSplitList():
+            if not establishes_cost_basis(split):
+                continue
+            before = brought_in_before.get(split_guid(split))
+            now = brought_in_by(split)
+            if before is None:
+                if not splits_drawing_on(book, split_guid(split)):
+                    continue
+            elif now == before:
+                continue
+            made.extend(make_pending_what_draws_on(book, split_guid(split)))
+            # Bracketed, or the balance reads back as its old value after a
+            # save — CLAUDE.md finding 11.
+            transaction.BeginEdit()
+            write_cost_basis_balance(split, now)
+            transaction.CommitEdit()
+    return sorted(made)
 
 
 def _put_back_on_the_basis_what_the_settlement_drew(book, drawn) -> None:
@@ -671,6 +723,9 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
     staying = {_guid_of(sp) for sp, _ in takings
                if lib.xaccSplitGetAccount(sp) == to_ptr}
     wrapped = {}
+    # What each cost basis on those transactions brought in before the
+    # restatement, so the ones it changes can be told from the ones it leaves.
+    brought_in_before = {}
     for split in iter_splits(book):
         if split_guid(split) not in wanted:
             continue
@@ -687,6 +742,9 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
         each_transaction_and_the_cost_bases_it_had[
             transaction.GetGUID().to_string()] = (
                 transaction, the_bases_a_transaction_has(transaction))
+        for each in transaction.GetSplitList():
+            if establishes_cost_basis(each):
+                brought_in_before[split_guid(each)] = brought_in_by(each)
 
     for sp, takes in takings:
         tx = lib.xaccSplitGetParent(sp)
@@ -703,6 +761,8 @@ def unapply_payments(book: Book, record, to_account, *, kind='invoice',
     _drop_a_cost_the_transaction_states_itself(book, wanted)
     _open_what_the_restatement_made_a_basis(
         each_transaction_and_the_cost_bases_it_had)
+    res.made_pending = _reopen_what_the_restatement_changed(
+        book, each_transaction_and_the_cost_bases_it_had, brought_in_before)
     _keep_them_as_the_owners_credit(
         book, record, [wrapped[guid] for guid in sorted(staying)])
     res.warnings.extend(_rates_that_came_from_an_earlier_day(fx_rates,

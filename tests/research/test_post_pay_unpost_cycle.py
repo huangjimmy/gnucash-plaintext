@@ -392,7 +392,7 @@ def test_invoice_post_pay_unpost_cycle(tmp_path):
         json.dump(entry_guid_trace, f, indent=2)
 
     # And the diff between each consecutive pair, which is what the research
-    # doc actually quotes. Written here rather than by hand so they are
+    # doc actually quotes. Computed here rather than pasted so they are
     # regenerated with the snapshots they describe and cannot drift from them.
     _write_diffs(snapshots, "exports", [
         ("invoice_created", text_a),

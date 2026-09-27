@@ -29,8 +29,24 @@ import logging
 from typing import Optional
 
 from infrastructure.gnucash.engine import G_TYPE_STRING, GValue, load_gnc_engine, load_gobject
+from infrastructure.gnucash.utils import Variable
 
 PT_DATA_SLOT = 'plaintext_metadata'
+
+# `key: $None$`, unquoted, removes a custom key. Written in quotes it is the
+# text `$None$`, and is stored as such. `#None` is the JSON null, a value the
+# slot holds and the export writes back as `#None`.
+REMOVE_THE_KEY = Variable('$None$')
+
+
+def removes_the_key(value) -> bool:
+    """Whether a value a block states for a custom key removes that key.
+
+    `$None$` unquoted, and on the blocks README's rule lists, an empty value,
+    as an empty value clears a field there.
+    """
+    return (isinstance(value, Variable) and value == REMOVE_THE_KEY) or (
+        value is not None and str(value) == '')
 
 # Q-029: book option slot that stores the `company` directive's custom
 # (non-Business) keys as one JSON blob — `fiscal_year_end`, `province`, etc.
@@ -698,9 +714,9 @@ def get_book_custom_metadata(book) -> dict:
 
 
 def merge_book_custom_metadata(book, updates: dict) -> bool:
-    """Upsert keys into the book's custom-metadata blob with **JSON Merge Patch**
-    semantics (RFC 7386): a key with a non-None value is set; a key whose value
-    is None is *removed*; keys not named in `updates` are left untouched. This is
+    """Upsert keys into the book's custom-metadata blob: a key whose value is
+    `REMOVE_THE_KEY` is *removed*; any other value is set, None included, which
+    is stored as the JSON null; keys not named in `updates` are left untouched. This is
     the single, shared writer for the `company` directive's custom keys and
     `set-book-key`, so both behave identically — a partial update never silently
     drops keys it didn't mention. Returns True if the stored blob changed."""
@@ -713,7 +729,7 @@ def merge_book_custom_metadata(book, updates: dict) -> bool:
         data = {}
 
     for key, value in updates.items():
-        if value is None:
+        if isinstance(value, Variable) and value == REMOVE_THE_KEY:
             data.pop(key, None)
         else:
             data[key] = value

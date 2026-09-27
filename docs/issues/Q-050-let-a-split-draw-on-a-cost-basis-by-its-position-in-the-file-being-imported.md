@@ -123,7 +123,7 @@ Any spend stating no cost basis is refused with the same list, wherever it stand
 
 ## Cases the tests cover
 
-`tests/integration/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py`, one fixture per case in `tests/fixtures/`. Every test but the ones for a refusal the old code also made failed on `main`.
+`tests/scenario/test_a_split_draws_on_a_cost_basis_by_its_position_in_the_file.py`, one fixture per case in `tests/fixtures/`. Every test but the ones for a refusal the old code also made failed on `main`.
 
 | case | test |
 |---|---|
@@ -150,4 +150,4 @@ Any spend stating no cost basis is refused with the same list, wherever it stand
 | E10, owed side | `test_a_repayment_is_offered_no_net_charge` |
 | export | `test_the_export_writes_the_guid_and_rebuilds_the_book` |
 
-Fixtures that spent currency their own transaction brings in and stated no cost basis now state the arrival's position: `usd_bought_with_the_bank_keeping_part_as_its_fee_drawn_on_the_purchase.txt` (with `tests/integration/test_a_purchase_whose_fee_draws_on_it_leaves_what_the_account_holds.py`), `fx_two_base_splits_at_different_rates.txt`, and the two card fixtures of `tests/integration/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py`. The re-pricing rule above is covered by the two `--atomic` tests of `tests/integration/test_an_update_restating_what_prices_a_cost_basis_is_read_as_new.py`, and its limit by `tests/integration/test_a_repriced_basis_is_caught_under_its_sales.py`.
+Fixtures that spent currency their own transaction brings in and stated no cost basis now state the arrival's position: `usd_bought_with_the_bank_keeping_part_as_its_fee_drawn_on_the_purchase.txt` (with `tests/integration/test_a_purchase_whose_fee_draws_on_it_leaves_what_the_account_holds.py`), `fx_two_base_splits_at_different_rates.txt`, and the two card fixtures of `tests/scenario/test_a_balance_past_zero_has_a_cost_basis_on_the_other_side.py`. The re-pricing rule above is covered by the two `--atomic` tests of `tests/integration/test_an_update_restating_what_prices_a_cost_basis_is_read_as_new.py`, and its limit by `tests/integration/test_a_repriced_basis_is_caught_under_its_sales.py`.

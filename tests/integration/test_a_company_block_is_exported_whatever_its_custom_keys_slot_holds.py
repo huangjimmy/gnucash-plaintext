@@ -2,7 +2,7 @@
 
 A company block's own keys live in the book's Business options, and any other
 key a block stated is kept as one JSON object in one slot. A book whose slot holds
-something else, from a hand edit or another tool, has no custom keys to read
+something else, from another tool, has no custom keys to read
 there, so the export writes the company block from the options and goes on.
 """
 

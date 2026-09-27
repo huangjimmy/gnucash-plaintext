@@ -8,7 +8,7 @@
 # 2,999.28, and nothing else opens or falls.
 #
 # Verified by
-# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+# tests/scenario/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
 2026-08-13 * "Moved to Wise, less the transfer fee"
 	currency.mnemonic: "CAD"
 	Assets:USD Savings -500.00 USD

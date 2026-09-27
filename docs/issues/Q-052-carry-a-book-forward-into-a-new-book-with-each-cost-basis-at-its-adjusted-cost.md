@@ -28,7 +28,7 @@ A book that is carried forward stays the size of the years it covers.
 
 ## What is already known
 
-- An opening balance against an equity account, valued at what the currency cost, already opens a cost basis. Q-051 relies on it for a book started part-way through its life (`TestATransferBesideItsFee` in `tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py`). A split has one amount and one value, so one opening split holding currency from two cost bases at two costs would open one cost basis at their average. Carrying each cost basis whole needs one opening split per cost basis.
+- An opening balance against an equity account, valued at what the currency cost, already opens a cost basis. Q-051 relies on it for a book started part-way through its life (`TestATransferBesideItsFee` in `tests/scenario/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py`). A split has one amount and one value, so one opening split holding currency from two cost bases at two costs would open one cost basis at their average. Carrying each cost basis whole needs one opening split per cost basis.
 - A cost basis is kept on the split that brought the currency in, with its balance, what it brought in and its cost as KVPs (`cost_basis_balance`, `cost_basis_brought_in`, `cost_basis_cost`). None of those splits is in the new book, so every disposal there must state a cost basis the new book's opening splits establish.
 
 ## Known, not yet investigated

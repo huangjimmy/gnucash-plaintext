@@ -128,7 +128,7 @@ def test_splits_follow_the_renamed_account(tmp_path):
     exported = _export(runner, gf, tmp_path)
     # The transaction split now names the new path; the old path is gone
     # entirely (open directive and split alike) — nothing in the ledger text
-    # had to be hand-edited.
+    # had to be edited.
     assert 'Assets:Checking' in exported
     assert 'Assets:Bank:Checking' not in exported
     # The split (and its -50.00) still belongs to the moved account.

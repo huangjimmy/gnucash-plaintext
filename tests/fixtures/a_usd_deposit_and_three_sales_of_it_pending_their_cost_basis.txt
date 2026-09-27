@@ -5,7 +5,7 @@
 # an edit states the cost basis it draws on.
 #
 # Verified by
-# tests/integration/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
+# tests/scenario/test_a_deposit_linked_to_its_invoice_with_its_fee_restated_in_one_file.py.
 2026-08-13 * "Balance-leaving deposit"
 	currency.mnemonic: "USD"
 	Assets:Wise USD 2720.00 USD

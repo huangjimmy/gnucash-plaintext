@@ -126,7 +126,7 @@ The list below is the plan. Where a test was built under another name, or checks
 - `test_print_invoice_plaintext_format_emits_informational_fields` — a posted invoice with one HST 13% line; assert `entry_amount: 100.00`, `entry_tax: 13.00`, `invoice_subtotal: 100.00`, `invoice_tax_total: 13.00`, `invoice_total: 113.00` are present with correct values.
 - `test_print_invoice_plaintext_emits_tax_breakdown_combined_table` — invoice with one entry against a combined-HST tax table (5% GST + 8% PST); assert `entry_tax_breakdown:` lists both tax-account/rate/amount lines with the right per-account dollars.
 - `test_render_plaintext_roundtrips_via_import` — `print-invoice --format plaintext > out.txt`, then `import --new fresh.gnucash out.txt`, succeeds with no diff.
-- `test_tampered_invoice_total_errors_loudly` and `test_tampered_entry_tax_breakdown_errors_loudly` — same as above but with a hand-edited `invoice_total:` or breakdown amount; re-import must fail with an error that prints the field and both values.
+- `test_tampered_invoice_total_errors_loudly` and `test_tampered_entry_tax_breakdown_errors_loudly` — same as above but with an edited `invoice_total:` or breakdown amount; re-import must fail with an error that prints the field and both values.
 - `test_draft_invoice_plaintext_emits_provisional_totals` — unposted invoice. Planned as subtotal only; since Q-019 a draft prints the full stack of totals under a `# Tax figures are provisional` header.
 - `test_multi_invoice_by_positional_ids` — several invoice ids on the command line select exactly those invoices, checked in plaintext rather than as PDF page groups.
 - `test_multi_invoice_by_date_range` — 5 invoices, `--from`/`--to` selects 2; assert output has exactly 2.

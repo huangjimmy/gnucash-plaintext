@@ -5,7 +5,7 @@ Changing a posted invoice is refused, and the refusal states the route:
 leaves the payment's receivable split in the lot the invoice had, marked as
 that invoice's, and GnuCash's View → Lots can then take it out of the lot.
 
-The file was written by hand, so its `payment:` block states no `txn_guid:`.
+The file is not an export, so its `payment:` block states no `txn_guid:`.
 It still describes the money the book holds: the same day, the same figure,
 the same account, and a split the unpost marked as this invoice's. Reading it
 puts that settlement back rather than entering a second payment for money

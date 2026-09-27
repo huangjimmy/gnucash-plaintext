@@ -141,7 +141,7 @@ class DirectiveType(Enum):
     # Q-039: which splits of one transaction settle this invoice or bill.
     #
     # `txn_guid:` + `txn_split_guid:` name one settling split, which is nearly
-    # every settlement. A hand-written transaction may clear one receivable
+    # every settlement. A transaction may clear one receivable
     # with several splits, and that is still **one** payment — money arrived
     # once — so it is one `payment:` block naming all of them, not several
     # blocks. Written as directives rather than as a repeated key because a

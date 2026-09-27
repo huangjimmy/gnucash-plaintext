@@ -1,0 +1,10 @@
+# A USD rate that does not come out in whole dollars, from the day INV-USD-001
+# is posted: 100.00 USD is 139.37 CAD.
+#
+# The invoice is then carried at 139.37 CAD, and the money that settles it,
+# `money_reaching_a_cad_bank_at_a_rate_with_cents.txt`, brings in 139.37 CAD
+# for its 100.00 USD. Linking the two consumes the invoice's cost basis at the
+# figure the split already carries and realizes nothing, so the split keeps
+# its cents — which is what an account kept to whole dollars has to refuse.
+USD/CAD:
+  2026-01-05: 1.3937

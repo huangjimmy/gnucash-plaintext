@@ -5,7 +5,7 @@ without its lines losing the identity the book assigned them. Two things follow,
 and neither was true while an edit destroyed every line and built them again:
 
 - a block naming **no** guid still edits a line rather than replacing it, so
-  a hand-written file — which names none — leaves the guids alone instead of
+  a file stating no guids leaves the guids alone instead of
   renumbering every line of every invoice it touches;
 - a guid naming a line that is somebody else's, or the same line twice, is
   refused. Forcing a guid GnuCash already assigned to another object is how a
@@ -201,7 +201,7 @@ def _reimported(book, tmp_path, text, name='edited.txt'):
 
 
 def _without_entry_guids(text):
-    """The same ledger with no `guid:` under any entry — a hand-written one.
+    """The same ledger with no `guid:` under any entry.
 
     Only the entry blocks lose theirs: an invoice's own `guid:` sits at one
     tab, an entry's at two, and dropping the invoice's would make this a

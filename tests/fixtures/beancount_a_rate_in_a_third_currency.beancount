@@ -12,7 +12,7 @@
 ; rate was read as answering a question it was not asked.
 ;
 ; This tool's own export always quotes in the transaction's currency, so only
-; a hand-edit produces it.
+; an edit produces it.
 ;
 ; What this fixture produces: a refusal naming the posting, the currency its
 ; rate is in, and the one the entry is denominated in.

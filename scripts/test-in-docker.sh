@@ -56,6 +56,11 @@ python3 -m pip install -e ".[dev]" --break-system-packages --user -q
 # anything is the union of every supported distribution's run (scripts/
 # coverage.sh) and a single run's number would read as a shortfall. Nothing is
 # reported or gated here: the data file is written for the sweep to add up.
+#
+# Every line is recorded as reached by a scenario test or by the rest of the
+# suite (`pytest_runtest_setup` in tests/conftest.py), so the sweep can also
+# gate what the tests in `tests/scenario/` reach on their own: the coverage
+# cases from real books give the tool.
 COV_ARGS=()
 if [ -n "$GNC_COVERAGE" ]; then
     COV_ARGS=(--cov --cov-report= --cov-fail-under=0)

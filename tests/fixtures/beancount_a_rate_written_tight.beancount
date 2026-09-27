@@ -1,7 +1,7 @@
 ; A rate written against the sigil, with no space.
 ;
 ; Beancount reads `@` and `@@` as tokens of their own, so `@1.35` is as legal
-; as `@ 1.35` and a person writing by hand writes both. Read as needing the
+; as `@ 1.35` and a person writes both. Read as needing the
 ; space, the posting matched nothing at all — and a posting this parser cannot
 ; read is refused rather than skipped, on the reasoning that skipping it would
 ; import the entry short and let GnuCash scrub in an Imbalance. So one missing

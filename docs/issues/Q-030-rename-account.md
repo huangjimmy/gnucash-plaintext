@@ -14,7 +14,7 @@ The full export/import round-trip can't express it cleanly. Every transaction sp
 
 ## Fix
 
-A surgical CLI command, `rename-account`, that mutates the live book directly. GnuCash keeps splits attached to accounts **by reference, not by name**, so renaming the account leaves every split intact; the next export simply prints the new path wherever the account appears — no transaction lines to hand-edit.
+A surgical CLI command, `rename-account`, that mutates the live book directly. GnuCash keeps splits attached to accounts **by reference, not by name**, so renaming the account leaves every split intact; the next export simply prints the new path wherever the account appears — no transaction lines to edit.
 
 ```
 gnucash-plaintext rename-account <book> --guid <account-guid> --to "<new name>"

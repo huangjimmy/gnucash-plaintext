@@ -7,8 +7,8 @@
 ; without it, GnuCash scrubbed in an Imbalance for what was missing, and the
 ; run reported success.
 ;
-; Losing the leading spaces on one line is the commonest hand-edit slip there
-; is, so it is said rather than dropped.
+; Losing the leading spaces on one line is the commonest slip in editing a
+; file, so it is said rather than dropped.
 ;
 ; What this fixture produces: a refusal quoting the line and saying it is not
 ; indented, rather than a book missing a split.

@@ -3,7 +3,7 @@
 # a_usd_invoice_and_bill_for_statement_lines_on_a_holding_account.txt.
 #
 # Verified by
-# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+# tests/scenario/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
 2026-08-01 * "Dollars bought"
 	guid: "0e510000000000000000000000000d01"
 	currency.mnemonic: "CAD"

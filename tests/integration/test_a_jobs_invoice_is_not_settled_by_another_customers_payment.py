@@ -2,7 +2,7 @@
 
 INV-JOB is for job J-1 of customer C-JOB, paid and unposted. C-OTHER's
 INV-OTHER is paid 100.00 and unposted as well, which leaves its payment loose
-for an invoice of C-OTHER's to take. A hand-written INV-JOB block, which keeps
+for an invoice of C-OTHER's to take. An INV-JOB block stating no guid, which keeps
 the invoice on the job, posts it and states that payment's transaction with
 `txn_guid:`.
 

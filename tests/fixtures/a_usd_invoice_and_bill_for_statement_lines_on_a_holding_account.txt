@@ -10,7 +10,7 @@
 # `--include-business-objects`.
 #
 # Verified by
-# tests/integration/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
+# tests/scenario/test_a_statement_line_on_a_holding_account_is_edited_into_what_it_settles.py.
 2026-07-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"

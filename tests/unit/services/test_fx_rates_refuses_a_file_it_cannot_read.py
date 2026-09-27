@@ -10,7 +10,7 @@ happened to need the bad entry first.
 Dates are the other half. A YAML date key comes back as three different Python
 types depending on how it was written, and all three name the same day: bare
 `2026-01-05` is a `date`, one with a time on it is a `datetime`, and a quoted
-one is a `str`. A file that a person hand-edited, or that a spreadsheet
+one is a `str`. A file that a person edited, or that a spreadsheet
 exported, is as likely to hold any of them.
 
 `test_fx_rates_dated.py` holds the lookups; this is what happens before there

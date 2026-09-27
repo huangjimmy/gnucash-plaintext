@@ -96,7 +96,7 @@ class TestWhyTheReaderScansRatherThanReplaces:
         assert unescape_string('C:\\\\new') == 'C:\\new'
 
     def test_an_unknown_escape_keeps_both_characters(self):
-        """A hand-written file that never meant an escape keeps its text
+        """A file that never meant an escape keeps its text
         rather than losing a character to a rule it did not know about."""
         assert unescape_string('\\q') == '\\q'
         assert unescape_string('ends with a backslash \\') == \

@@ -1,0 +1,40 @@
+# A customer's overpayment applied to no invoice: a transaction with no
+# `payment:` block and no `lot_owner:`, so its receivable split is in no lot.
+#
+# The 100.00 USD goes into the USD bank, which grows: an asset cost basis of
+# the dollars held. The receivable's credit takes the receivable from nothing
+# to −100.00, owed back to the customer: a liability cost basis (Q-054). Each
+# is 100.00 at 1.40, the rate the transaction states.
+#
+# What this fixture produces: `fx-balances` lists both, 100.00 USD held and
+# 100.00 USD owed, the same as a prepayment in a lot of the customer's
+# (fx_refund_usd_prepayment.txt).
+#
+# Verified by tests/integration/test_foreign_currency_cost_basis.py.
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank:USD
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2026-02-01 * "Customer overpaid, applied to no invoice"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD 100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "140.00"
+	Assets:Accounts Receivable USD -100.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "-140.00"

@@ -1,5 +1,5 @@
 # The same invoice as fx_usd_invoice_cad_income.txt, now claiming the
-# hand-written settlement transaction as its payment. The payment block carries
+# settlement transaction that file states as its payment. The payment block carries
 # no rate: the transaction it points at already states both amounts.
 invoice "INV-USD-001"
 	customer_id: "C-US"

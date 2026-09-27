@@ -1,0 +1,42 @@
+# a_usd_bank_owing_500_at_1_30_and_a_usd_card_in_credit_500_at_1_30.txt taken
+# across zero at 1.20, each split pending the cost basis it consumes.
+#
+# 1,000.00 USD is bought for 1,200.00 CAD at 1.20 and deposited into
+# Assets:USD Bank, which owes 500.00, and the bank is at +500.00. The first
+# 500.00 repays the debt: it consumes 500.00 of the liability cost bases,
+# pending which, at the 600.00 CAD it was repaid with. The other 500.00 opens
+# an asset cost basis of 500.00 USD at 1.20, 600.00 CAD. No cost basis is
+# chosen, so the bank's split is valued at the rate the dollars were bought
+# at, 1,200.00, and the gain is realized once an edit states the cost basis.
+#
+# 1,000.00 USD of travel, 1,200.00 CAD at 1.20, is charged to
+# Liabilities:USD Card, which holds 500.00 in credit, and the card owes
+# 500.00. The first 500.00 spends the credit: it consumes 500.00 of the asset
+# cost bases, pending which, at the 600.00 CAD of travel it paid for. The other
+# 500.00 opens a liability cost basis of 500.00 USD at 1.20, 600.00 CAD. The
+# card's split is valued at -1,200.00, and the loss is realized once an edit
+# states the cost basis.
+#
+# Verified by
+# tests/scenario/test_a_split_crossing_zero_consumes_one_cost_basis_and_opens_another.py.
+2034-01-10 * "1,000.00 USD bought at 1.20 and deposited into the USD bank"
+	guid: "0f0f00000000000000000000000000a1"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank -1200.00 CAD
+	Assets:USD Bank 1000.00 USD
+		guid: "0f0f0000000000000000000000000002"
+		account.commodity.mnemonic: "USD"
+		share_price: "6/5"
+		value: "1200.00"
+		cost_basis_split_guid: $pending$
+
+2034-01-10 * "1,000.00 USD of travel charged to the card at 1.20"
+	guid: "0f0f00000000000000000000000000a2"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 1200.00 CAD
+	Liabilities:USD Card -1000.00 USD
+		guid: "0f0f0000000000000000000000000004"
+		account.commodity.mnemonic: "USD"
+		share_price: "6/5"
+		value: "-1200.00"
+		cost_basis_split_guid: $pending$

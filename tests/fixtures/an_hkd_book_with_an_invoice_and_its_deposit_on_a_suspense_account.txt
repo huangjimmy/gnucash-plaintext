@@ -4,7 +4,7 @@
 # Assets:Suspense before the owner knew what it was.
 #
 # Verified by
-# tests/integration/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
+# tests/scenario/test_an_atomic_import_brings_a_book_back_to_a_state_it_exported.py.
 2026-01-01 commodity HKD
 	mnemonic: "HKD"
 	fullname: "Hong Kong Dollar"

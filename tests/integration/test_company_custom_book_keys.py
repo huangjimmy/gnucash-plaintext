@@ -169,9 +169,9 @@ def test_partial_import_preserves_unmentioned_custom_keys(tmp_path):
     assert fields.get('province') == 'Ontario'             # the named key updated
 
 
-def test_null_value_removes_a_custom_key(tmp_path):
-    """`key: #None` (the format's null) removes that custom key — JSON Merge
-    Patch semantics — while leaving the others intact."""
+def test_the_null_value_is_kept(tmp_path):
+    """`key: #None` is the format's null, a value the key holds, and the
+    export writes it back."""
     runner = CliRunner()
     gf = _new_book(runner, tmp_path)
     _import(runner, gf,
@@ -180,8 +180,32 @@ def test_null_value_removes_a_custom_key(tmp_path):
     _import(runner, gf, 'company\n\tentity_type: #None\n', tmp_path, 'c2.txt')
 
     fields = _company_fields(_export(runner, gf, tmp_path))
-    assert 'entity_type' not in fields                     # removed via null
+    assert fields.get('entity_type') == '#None'
+    assert fields.get('province') == 'BC'
+
+
+def test_none_between_dollar_signs_removes_a_custom_key(tmp_path):
+    """`key: $None$` removes that custom key, while leaving the others intact."""
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    _import(runner, gf,
+            'company\n\tprovince: "BC"\n\tentity_type: "T2 Corporation"\n',
+            tmp_path, 'c1.txt')
+    _import(runner, gf, 'company\n\tentity_type: $None$\n', tmp_path, 'c2.txt')
+
+    fields = _company_fields(_export(runner, gf, tmp_path))
+    assert 'entity_type' not in fields                     # removed
     assert fields.get('province') == 'BC'                  # the other key survives
+
+
+def test_none_between_dollar_signs_in_quotes_is_its_text(tmp_path):
+    """`key: "$None$"` is a string, stored as written; only unquoted does it remove."""
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    _import(runner, gf, 'company\n\tentity_type: "$None$"\n', tmp_path, 'c1.txt')
+
+    fields = _company_fields(_export(runner, gf, tmp_path))
+    assert fields.get('entity_type') == '$None$'
 
 
 class TestAKeyTheCompanyBlockOwns:

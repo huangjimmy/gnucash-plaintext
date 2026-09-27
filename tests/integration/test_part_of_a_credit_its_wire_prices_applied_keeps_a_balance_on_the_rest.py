@@ -1,9 +1,9 @@
 """Part of a credit its wire prices, applied, leaves the rest a balance and no stored cost.
 
 A 200.00 USD wire from the CAD bank, entered in USD, overpays INV-USD-WIRE for
-100.00 USD, and the import divides it. The 100.00 USD credit left over is
-valued at 100.00 USD. Its cost, 1.37, is read from the CAD bank split, so only
-its cost basis balance is stored.
+100.00 USD, and states the collection and the 100.00 left over as two splits.
+The 100.00 USD credit is valued at 100.00 USD. Its cost, 1.37, is read from
+the CAD bank split, so only its cost basis balance is stored.
 
 INV-USD-SMALL for 40.00 USD then asks for any credit with `auto_apply_credit:
 true`. The credit's value equals its amount, so GnuCash applies it and carves
@@ -49,7 +49,12 @@ def test_the_60_00_left_is_a_cost_basis_at_1_37_with_a_balance_of_60_00(tmp_path
     assert balances.exit_code == 0, balances.output
     assert re.search(r'Assets:Accounts Receivable USD\s+1\.37 CAD/USD\s+60\.00 USD\s+60\.00 USD',
                      balances.output), balances.output
-    assert 'Total USD cost basis balance: 200.00 USD' in balances.output, balances.output
+    # INV-USD-WIRE was collected into Canadian dollars and INV-USD-SMALL paid
+    # out of the credit, so no US dollar is held; 60.00 is owed back.
+    assert ('Total USD cost basis balance: 0.00 USD held, 60.00 USD owed'
+            in balances.output), balances.output
+    integrity = _run('--verify-integrity', book)
+    assert integrity.exit_code == 0, integrity.output
     exported = tmp_path / 'out.txt'
     _done('export', book, exported, '--include-business-objects')
     assert 'cost_basis_cost' not in exported.read_text(), exported.read_text()

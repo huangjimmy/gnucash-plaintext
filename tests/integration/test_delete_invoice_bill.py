@@ -385,7 +385,7 @@ class TestNotFound:
 class TestAmbiguousId:
     """Legacy data may contain multiple invoices/bills sharing the
     same user-facing id (the importer enforces uniqueness from
-    Q-008 onwards, but pre-Q-008 books or hand-edited XML can have
+    Q-008 onwards, but pre-Q-008 books or edited XML can have
     them). The use case must refuse to pick one — it returns
     AMBIGUOUS_ID with a message steering the user toward --by-guid,
     and touches neither record.

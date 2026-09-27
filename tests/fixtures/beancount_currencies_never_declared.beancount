@@ -2,7 +2,7 @@
 ;
 ; `commodity` directives are how a file names a security — `FUND.FUNDX` for
 ; `FUNDX` in the `FUND` namespace — and GnuCash already carries every ISO 4217
-; currency, so a person writing an entry by hand from scratch has no reason to
+; currency, so a person writing an entry from scratch has no reason to
 ; declare CAD or USD at all. The account's commodity and the entry's currency
 ; both fall back to looking the symbol up as a currency, which is what makes
 ; that file work.

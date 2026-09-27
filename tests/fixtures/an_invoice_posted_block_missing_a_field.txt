@@ -1,7 +1,7 @@
 # A `posted:` block with no `due:` line.
 #
 # Every key in a posted block is required — the writer and the comparison both
-# read them outright — and a hand-written block is where one goes missing. Read
+# read them outright — and a block a person types is where one goes missing. Read
 # outright, the missing key surfaced as its own name and nothing else:
 # `Error: invoice "INV-NODUE": 'due'`. That says neither that the field is
 # required, nor which block wanted it, nor what to write.

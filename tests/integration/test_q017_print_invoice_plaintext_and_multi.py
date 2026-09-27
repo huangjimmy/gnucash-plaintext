@@ -114,7 +114,7 @@ def test_render_plaintext_roundtrips_via_import(tmp_path):
 
 
 def test_tampered_invoice_total_errors_loudly(tmp_path):
-    """A hand-edited `invoice_total:` that disagrees with recomputed value
+    """An edited `invoice_total:` that disagrees with recomputed value
     must produce a clear error naming the field and both numbers."""
     runner = CliRunner()
     gf_src = _build_book(runner, tmp_path,

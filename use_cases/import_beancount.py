@@ -199,7 +199,7 @@ class ImportBeancountUseCase:
             # As an int: beancount metadata is quoted text, and the setter is
             # a C `int` that refuses a string outright. Refused in the same
             # words as every other counted value off a directive — a
-            # hand-edited `gnucash-scu: 1o00` said `invalid literal for int()
+            # mistyped `gnucash-scu: 1o00` said `invalid literal for int()
             # with base 10` while `gnucash-fraction` beside it named the file,
             # the key and the text.
             directive.metadata['commodity_scu'] = a_whole_number(
@@ -364,7 +364,7 @@ class ImportBeancountUseCase:
                 # in whatever the account holds, so `Assets:Bank 50.00 USD` on
                 # a CAD account booked 50.00 CAD — the figure kept, its
                 # currency thrown away, and the run reporting success. Which
-                # is the plainest hand-edit there is: change the account on a
+                # is the plainest edit there is: change the account on a
                 # posting and leave the commodity behind.
                 stated_commodity = self._commodity_named(
                     posting.commodity, commodity_table)
@@ -398,7 +398,7 @@ class ImportBeancountUseCase:
                 # the way the empty-basket refusal is written against: 100.00
                 # USD entered as 100.00 CAD against 135.00 of cash, with
                 # GnuCash inventing `Imbalance-USD 35.00` — measured, from
-                # the plainest hand-edit there is, leaving the rate off.
+                # the plainest edit there is, leaving the rate off.
                 # `{}` was refused and this was not.
                 #
                 # Zero units are exempt: nothing times any rate is nothing,

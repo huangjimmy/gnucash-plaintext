@@ -1,0 +1,81 @@
+# A Canadian book whose only US dollars owed are the ones a card paid a bill with.
+#
+# BILL-USD-1 bills 1,000.00 USD and is posted on 2026-08-01 at 1.38
+# (usd_at_the_rates_the_statement_lines_records_were_posted_at.yaml), which
+# opens the bill's cost basis on its A/P posting split: 1,000.00 USD owed at
+# 1,380.00 CAD. It is paid on 2026-08-05 on Liabilities:Credit Card USD, so the
+# dollars are still owed, now to the card issuer. The bill's cost basis is what
+# those dollars owed cost, and it is the only US dollar cost basis the book keeps.
+#
+# What this fixture produces: Liabilities:Credit Card USD owing 1,000.00 USD and
+# one US dollar cost basis, BILL-USD-1's, at 1,000.00. Imported with
+# `--include-business-objects` and the rates file above.
+#
+# Verified by
+# tests/scenario/test_pending_counts_the_cost_basis_an_invoice_or_a_bill_opened.py.
+2026-07-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-07-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-07-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Assets:Chequing
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Liabilities:Accounts Payable USD
+	type: "Payable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Liabilities:Credit Card USD
+	type: "Credit Card"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-07-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-07-01 open Expenses:Supplies
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+vendor "V-USD"
+	name: "Example Supplier Inc"
+	currency: USD
+bill "BILL-USD-1"
+	vendor_id: "V-USD"
+	currency: USD
+	date_opened: 2026-08-01
+	entry:
+		date: 2026-08-01
+		description: "Parts"
+		account: "Expenses:Supplies"
+		quantity: 1
+		price: 1000
+		taxable: false
+	posted:
+		date: 2026-08-01
+		due: 2026-08-31
+		ap_account: "Liabilities:Accounts Payable USD"
+		memo: "Bill BILL-USD-1"
+		accumulate: true
+	payment:
+		date: 2026-08-05
+		amount: 1000
+		account: "Liabilities:Credit Card USD"
+		memo: "Paid on the company card"

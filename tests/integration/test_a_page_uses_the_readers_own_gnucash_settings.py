@@ -472,7 +472,7 @@ class TestTheReportTheBookPrintsWith:
         → Properties, and the refusal would quote a guid nobody typed here.
 
         GnuCash's own chooser cannot offer such a report, so a book reaching
-        this was written by hand or by another tool.
+        this was edited outside GnuCash or written by another tool.
         """
         _a_saved_report(A_REPORT_THAT_DRAWS_NOTHING)
         self._the_book_names(book, A_REPORTLESS_GUID, 'Account Summary')
@@ -581,8 +581,8 @@ TWO_CONFIGURATIONS_OF_ONE_NAME = (
              f'"{A_NAME_TWO_CONFIGURATIONS_ANSWER_TO}"'))
 
 #: The same guid in another case. GnuCash writes lowercase and refuses an
-#: exact duplicate, so two entries answering to one guid takes a hand-edited
-#: file — and `--report <guid>` matches without regard to case, because a guid
+#: exact duplicate, so two entries answering to one guid takes a file edited
+#: outside GnuCash — and `--report <guid>` matches without regard to case, because a guid
 #: is hex.
 THE_SAME_GUID_IN_CAPS = \
     A_REPORT_SAVED_IN_GNUCASH.replace(SAVED_REPORT_GUID,
@@ -594,7 +594,7 @@ THE_SAME_GUID_IN_CAPS = \
 #: A report that registers and cannot be told which invoice to draw: its
 #: options carry no `General / Invoice Number`. GnuCash's own chooser offers
 #: only reports hooked to `'invoice`, all of which have the option, so a book
-#: naming this was written by hand or by another tool.
+#: pointing at this was edited outside GnuCash or written by another tool.
 #:
 #: Options declared the way both eras declare them — `gnc-new-optiondb` on
 #: 4.x/5.x, `gnc:new-options` on 3.8 — asked of the build rather than
