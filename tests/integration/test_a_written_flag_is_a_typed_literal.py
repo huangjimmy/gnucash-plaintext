@@ -112,16 +112,23 @@ def test_the_list_is_not_quietly_empty(tmp_path):
                  _flags_written(_exported(tmp_path, ledger,
                                           f'seen-{Path(ledger).stem}'))}
 
-    # Three are not written by these ledgers, each for a reason:
+    # Five are not written by these ledgers, each for a reason:
     #
-    # `auto_apply_credit:` and `cost_basis_force:` are read-only — a file
-    # asks for something with them and the book records what happened, not
-    # the asking. No export writes either.
+    # `auto_apply_credit:` is read-only — a file asks for something with it
+    # and the book records what happened, not the asking. No export writes it.
     #
     # `from_credit:` is written, by both the export and the printers, but
     # only for an invoice a credit settled — which none of these hold.
     # `test_printing_a_credit_settled_invoice.py` and
     # `test_credit_reimport_changes_nothing.py` are where its spelling is
     # asserted.
-    assert FLAG_KEYS - seen == {'auto_apply_credit', 'cost_basis_force',
-                                'from_credit'}, FLAG_KEYS - seen
+    #
+    # `cost_basis_force:`, `took_the_residual:`, `applied_from_credit:` and
+    # `cash_basis:` are written on a sale forced against an uncollected
+    # invoice, a split a `$residual$` line resolved to, a split spent out of a
+    # customer's credit, and an invoice filed on a cash basis — none of which
+    # these hold. The scenario tests in `tests/scenario/` and
+    # `test_q018_cash_basis_kvp.py` assert theirs.
+    assert FLAG_KEYS - seen == {'auto_apply_credit', 'cost_basis_force', 'from_credit',
+                                'took_the_residual', 'applied_from_credit',
+                                'cash_basis'}, FLAG_KEYS - seen

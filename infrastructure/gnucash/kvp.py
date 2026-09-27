@@ -29,7 +29,7 @@ import logging
 from typing import Optional
 
 from infrastructure.gnucash.engine import G_TYPE_STRING, GValue, load_gnc_engine, load_gobject
-from infrastructure.gnucash.utils import Variable
+from infrastructure.gnucash.utils import DateAsWritten, Variable
 
 PT_DATA_SLOT = 'plaintext_metadata'
 
@@ -42,11 +42,10 @@ REMOVE_THE_KEY = Variable('$None$')
 def removes_the_key(value) -> bool:
     """Whether a value a block states for a custom key removes that key.
 
-    `$None$` unquoted, and on the blocks README's rule lists, an empty value,
-    as an empty value clears a field there.
+    Only `$None$` unquoted. `""` is the empty text, which the key holds, and
+    `#None` the null value, which it holds too.
     """
-    return (isinstance(value, Variable) and value == REMOVE_THE_KEY) or (
-        value is not None and str(value) == '')
+    return isinstance(value, Variable) and value == REMOVE_THE_KEY
 
 # Q-029: book option slot that stores the `company` directive's custom
 # (non-Business) keys as one JSON blob — `fiscal_year_end`, `province`, etc.
@@ -455,10 +454,39 @@ def set_custom_metadata(obj, metadata: dict) -> None:
             if was != metadata.get(key):
                 changes.append((obj.GetGUID().to_string(), was, metadata.get(key)))
     try:
-        json_str = json.dumps(metadata, ensure_ascii=False, sort_keys=True)
+        json_str = json.dumps(_as_stored(metadata), ensure_ascii=False, sort_keys=True)
         _set_string_slot(obj, PT_DATA_SLOT, json_str)
     except Exception as e:
         logging.error(f"Failed to store custom metadata: {e}")
+
+
+# How a date is kept in a custom key's JSON, which has no date of its own:
+# `{"$date": "2026-01-31"}`, so it is read back a date and not the text
+# "2026-01-31".
+_A_STORED_DATE = '$date'
+
+
+def _as_stored(metadata: dict) -> dict:
+    return {key: ({_A_STORED_DATE: str(value)} if isinstance(value, DateAsWritten) else value)
+            for key, value in metadata.items()}
+
+
+def _as_read(value):
+    if isinstance(value, dict) and set(value) == {_A_STORED_DATE}:
+        return DateAsWritten(value[_A_STORED_DATE])
+    return value
+
+
+def same_value(one, other) -> bool:
+    """Whether two custom key values are the same value, and of the same kind.
+
+    Python calls `True` equal to `1` and a date equal to the text of its
+    digits, so `==` alone reads `#True` and `1`, or `2026-01-31` and
+    `"2026-01-31"`, as unchanged.
+    """
+    return (one == other
+            and isinstance(one, bool) == isinstance(other, bool)
+            and isinstance(one, DateAsWritten) == isinstance(other, DateAsWritten))
 
 
 _WATCHED_KEYS: set = set()
@@ -702,15 +730,16 @@ def get_book_string_option(book, section: str, name: str) -> Optional[str]:
 
 def get_book_custom_metadata(book) -> dict:
     """Read the book's custom-metadata JSON blob (the keys the `company`
-    directive's non-Business tier and `set-book-key` share) as a dict."""
+    directive's non-Business tier and `set-book-key` share) as a dict, a date
+    stored as `{"$date": …}` read back as a date."""
     current = get_book_string_option(book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT)
     if not current:
         return {}
     try:
         data = json.loads(current)
-        return data if isinstance(data, dict) else {}
     except (ValueError, TypeError):
         return {}
+    return {key: _as_read(value) for key, value in data.items()} if isinstance(data, dict) else {}
 
 
 def merge_book_custom_metadata(book, updates: dict) -> bool:
@@ -734,7 +763,10 @@ def merge_book_custom_metadata(book, updates: dict) -> bool:
         else:
             data[key] = value
 
-    blob = json.dumps(data, ensure_ascii=False, sort_keys=True)
+    # A date is stored as `{"$date": …}`, as it is in an object's own slot, so
+    # it reads back as a date rather than as the text of one. A date the blob
+    # already holds is in that form and passes through unchanged.
+    blob = json.dumps(_as_stored(data), ensure_ascii=False, sort_keys=True)
     if blob != current:
         set_book_string_option(book, COMPANY_CUSTOM_SECTION, COMPANY_CUSTOM_SLOT, blob)
         return True
@@ -771,7 +803,7 @@ def get_custom_metadata(obj) -> dict:
                     f"external tool or older version); dropping it on read."
                 )
             else:
-                sanitized[k] = v
+                sanitized[k] = _as_read(v)
         return sanitized
     except (json.JSONDecodeError, TypeError) as e:
         logging.warning(f"Failed to parse custom metadata JSON from KVP: {e}")

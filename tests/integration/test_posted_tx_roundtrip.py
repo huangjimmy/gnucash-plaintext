@@ -321,7 +321,7 @@ def test_user_kvp_on_posting_tx_survives_attach(tmp_path):
     that has both the standalone posting tx block with a custom KVP key
     AND the invoice's `posted:` block with `posted_txn_guid:` pointing
     at it. After import, the dst book's posting tx must carry both
-    `business_generated: true` and `audit_note` from the user.
+    `business_generated: #True` and `audit_note` from the user.
     """
     fixture = ACCOUNTS + """
 customer "C001"
@@ -388,7 +388,7 @@ invoice "INV-001"
                 break
         assert posting_tx is not None, "no posting tx found after import"
         meta = get_custom_metadata(posting_tx)
-        assert meta.get('business_generated') == 'true', (
+        assert meta.get('business_generated') is True, (
             f"`business_generated` KVP missing — attach helper didn't "
             f"plant the KVP: {meta!r}")
         assert meta.get('audit_note') == 'verified by auditor on 2026-01-02', (

@@ -6,7 +6,7 @@ invoice "INV-Q18-UNPOSTED-WITH-DUE"
 	customer_id: "C-Q18-U1"
 	currency: CAD
 	date_opened: 2026-05-01
-	cash_basis: true
+	cash_basis: #True
 	due_date: 2026-05-30
 	entry:
 		date: 2026-05-01

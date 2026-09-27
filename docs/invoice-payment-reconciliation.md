@@ -124,7 +124,7 @@ The mechanic is just the bank-feed-first workflow above with three constraints a
 
 - `posted.date == payment.date == bank-tx.date` (the cash-receipt date).
 - Exactly one `payment:` block carrying `txn_guid:` + `txn_split_guid:` linking the existing bank tx.
-- An optional `cash_basis: true` line on the invoice header marking tax-method intent.
+- An optional `cash_basis: #True` line on the invoice header marking tax-method intent.
 
 ```
 # Step 1: bank tx already in the book (e.g. from a QFX import)
@@ -137,7 +137,7 @@ invoice "INV-CASH-001"
     customer_id: "C001"
     currency: CAD
     date_opened: 2026-04-15
-    cash_basis: true                     # Q-018 blessed KVP key
+    cash_basis: #True                     # Q-018 blessed KVP key
     entry:
         date: 2026-04-15
         description: "One-day consulting"
@@ -163,22 +163,22 @@ invoice "INV-CASH-001"
 
 Post-import the invoice is GnuCash-posted and GnuCash-paid; the AR account sees a same-day debit-and-credit netting to zero in a single closed lot; only one bank tx exists (the original, linked — Q-016 prevents the duplicate that the ApplyPayment path would create). Income and any tax-account splits are dated on the cash-receipt date, so a P&L grouped by date matches the cash-basis books.
 
-`cash_basis: true` is a **descriptive** flag — a tax-method label for the issuer's own filing / reporting tools. It does NOT constrain the invoice's structure: partial payments, multi-payment, overpayment, and prepayment are all allowed alongside the flag (cash-basis filers commonly receive installments — each payment recognizes its portion of revenue at its own date). The flag survives import → export → fresh-book re-import as a KVP slot on the invoice.
+`cash_basis: #True` is a **descriptive** `bool`, stored and exported as `#True` or `#False` — a tax-method label for the issuer's own filing / reporting tools. It does NOT constrain the invoice's structure: partial payments, multi-payment, overpayment, and prepayment are all allowed alongside the flag (cash-basis filers commonly receive installments — each payment recognizes its portion of revenue at its own date). The flag survives import → export → fresh-book re-import as a KVP slot on the invoice.
 
 For the **posted** path above, customer-facing rendering is unchanged — the existing PAID badge already conveys everything that matters; the customer never sees "cash basis" anywhere in the output.
 
 ### Unposted cash-basis invoices (waiting for cash to arrive)
 
-In a cash-basis workflow the invoice posts only when cash arrives. Before that, the invoice still needs to be sent to the customer — they're being billed and haven't paid yet. When `cash_basis: true` is set on an unposted invoice, `print-invoice` renders an **UNPAID** badge (instead of DRAFT, which is the default for unposted invoices) so the customer-facing PDF reads as a real bill rather than a work-in-progress draft.
+In a cash-basis workflow the invoice posts only when cash arrives. Before that, the invoice still needs to be sent to the customer — they're being billed and haven't paid yet. When `cash_basis: #True` is set on an unposted invoice, `print-invoice` renders an **UNPAID** badge (instead of DRAFT, which is the default for unposted invoices) so the customer-facing PDF reads as a real bill rather than a work-in-progress draft.
 
-Because the `posted:` block is absent on an unposted invoice (there's no `posted.due` to read from), an optional `due_date: YYYY-MM-DD` field can be added directly to the invoice header to supply the customer-facing due date:
+Because the `posted:` block is absent on an unposted invoice (there's no `posted.due` to read from), an optional `due_date: YYYY-MM-DD` field can be added directly to the invoice header to supply the customer-facing due date. It is a date, written without quotes; one written in quotes, `"2026-05-30"`, is read as the date too and exported without them, and a text that is no date is refused:
 
 ```
 invoice "INV-CASH-002"
     customer_id: "C001"
     currency: CAD
     date_opened: 2026-05-01
-    cash_basis: true
+    cash_basis: #True
     due_date: 2026-05-30            # KVP slot, read only when unposted
     entry:
         ...
@@ -188,7 +188,7 @@ invoice "INV-CASH-002"
 
 If `due_date` is omitted on an unposted cash-basis invoice, the rendered output simply has no "Due:" row — the customer sees an UNPAID badge but no calendar date. Once the invoice is posted (cash has arrived), `due_date` is ignored — the GnuCash `posted.due` field takes over.
 
-The Q-012 draft path is preserved for invoices that do NOT carry the `cash_basis: true` flag: an ordinary work-in-progress invoice still renders with the DRAFT badge as before.
+The Q-012 draft path is preserved for invoices that do NOT carry the `cash_basis: #True` flag: an ordinary work-in-progress invoice still renders with the DRAFT badge as before.
 
 ### Not supported: bank tx with the income/tax breakdown baked in
 
@@ -196,7 +196,7 @@ If your bank tx is already a "complete" cash-sale entry — `Bank +N`, `Income �
 
 The fix is in the bank tx, not the invoice: restructure it to `Bank: +N` / `Accounts Receivable: −N` (no Income or Tax splits on the bank tx). Then the standard Q-018 paid-on-receipt workflow above creates the Income and Tax splits via the invoice's posting tx, and the two same-day transactions net to a clean cash-basis P&L.
 
-If restructuring isn't acceptable (e.g. the bank tx must stay byte-identical to a QFX import for bank reconciliation), the only fallback is to leave the invoice unposted with `cash_basis: true` (renders UNPAID) and treat the link between the invoice and the bank tx as documentary only — via memo / billing-id matching by eye, not via GnuCash's posting machinery. See **[docs/issues/Q-018-cash-basis-invoice-kvp.md § Intentionally not supported](issues/Q-018-cash-basis-invoice-kvp.md#intentionally-not-supported-bank-tx-that-already-has-the-incometax-breakdown)** for the full rationale on why this isn't built as a first-class feature.
+If restructuring isn't acceptable (e.g. the bank tx must stay byte-identical to a QFX import for bank reconciliation), the only fallback is to leave the invoice unposted with `cash_basis: #True` (renders UNPAID) and treat the link between the invoice and the bank tx as documentary only — via memo / billing-id matching by eye, not via GnuCash's posting machinery. See **[docs/issues/Q-018-cash-basis-invoice-kvp.md § Intentionally not supported](issues/Q-018-cash-basis-invoice-kvp.md#intentionally-not-supported-bank-tx-that-already-has-the-incometax-breakdown)** for the full rationale on why this isn't built as a first-class feature.
 
 ---
 
@@ -418,7 +418,7 @@ the bank-feed duplicate using:
 ```bash
 gnucash-plaintext find-transactions ledger.gnucash \
     --account "Assets:Bank" --date 2026-01-15 --amount 500
-# → two GUIDs; one has notes "business_generated: true" (the payment tx)
+# → two GUIDs; one carries business_generated: #True (the payment tx)
 # Delete the bank-feed duplicate:
 gnucash-plaintext delete-transactions ledger.gnucash --by-guid <bank-feed-guid>
 ```

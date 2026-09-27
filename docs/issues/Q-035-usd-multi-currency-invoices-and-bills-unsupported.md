@@ -67,7 +67,7 @@ If users want to sell 200 USD, they can either choose only b, or choose a 100 US
 5. **`$residual$`** so the FX gain/loss split takes what the others leave over.
 6. **A KVP slot on the USD split holding its cost basis balance**, updated as sales pick that cost basis. A sale carries, on its own USD split, the guid of the split whose cost basis it picks, so a sale measured against two cost bases has two USD splits, and picking more than a cost basis's balance is refused on import. The cost is `share_price`, which the split already carries — nothing is stored for it.
 7. **A CLI listing every split guid with its cost and cost basis balance.**
-7a. **Only currency the book actually holds may be sold**: an unpaid invoice's A/R split is refused as a cost basis unless the sale carries `cost_basis_force: true`, deleting a sale returns what it took, and a record whose cost basis something measures against cannot be unposted until those transactions are removed — unposting destroys the split the cost basis lives on, and re-posting would silently restore the whole amount.
+7a. **Only currency the book actually holds may be sold**: an unpaid invoice's A/R split is refused as a cost basis unless the sale carries `cost_basis_force: #True`, deleting a sale returns what it took, and a record whose cost basis something measures against cannot be unposted until those transactions are removed — unposting destroys the split the cost basis lives on, and re-posting would silently restore the whole amount.
 8. **`--include-business-objects` implies `--all-accounts`**, so an export is always re-importable.
 
 ## Verification

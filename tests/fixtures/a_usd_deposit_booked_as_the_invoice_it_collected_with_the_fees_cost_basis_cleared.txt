@@ -1,6 +1,6 @@
 # Q-051 E13: a_usd_deposit_booked_as_the_invoice_it_collected.txt with the
-# fee's cost basis cleared, `cost_basis_split_guid: ""`. A block leaving the
-# line out keeps the pick the split has; this one takes it off. Read as a new
+# fee's cost basis cleared, `cost_basis_split_guid: $None$`. A block leaving
+# the line out keeps the pick the split has; this one removes it. Read as a new
 # transaction, the fee then spends dollars the transaction collects without
 # saying which cost basis they came out of, so the edit is refused, and the
 # transaction is left as it was.
@@ -30,5 +30,5 @@
 		guid: "0e510000000000000000000000000a05"
 		account.commodity.mnemonic: "USD"
 		value: "-1.00"
-		cost_basis_split_guid: ""
+		cost_basis_split_guid: $None$
 	Income:FX gain $residual$ CAD

@@ -12,7 +12,7 @@ invoice "INV-Q18-CASH-100"
 	customer_id: "C-Q18-1"
 	currency: CAD
 	date_opened: 2026-04-15
-	cash_basis: true
+	cash_basis: #True
 	entry:
 		date: 2026-04-15
 		description: "One-day consulting"

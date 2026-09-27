@@ -6,6 +6,8 @@ Extracted from legacy utils.py and placed in new architecture.
 """
 
 import copy
+import datetime
+import re
 from contextlib import contextmanager, suppress
 from decimal import Decimal
 from fractions import Fraction
@@ -425,7 +427,15 @@ FLAG_KEYS = frozenset({
     'taxable', 'tax_included', 'billable',  # an `entry:` block
     'from_credit',                          # a `payment:` block
     'cost_basis_force',                     # a split
+    'took_the_residual',                    # a split
+    'applied_from_credit',                  # a split
+    'business_generated',                   # a transaction
+    'cash_basis',                           # an invoice or a bill (Q-018)
 })
+
+# How a file may write a flag besides `#True` and `#False`, whatever the case.
+TRUE_SPELLINGS = frozenset({'true', 'yes', '1'})
+FALSE_SPELLINGS = frozenset({'false', 'no', '0'})
 
 
 def escape_string(s: str) -> str:
@@ -469,6 +479,8 @@ def encode_value_as_string(value) -> str:
         return f'#{value}'
     if isinstance(value, (int, float)):
         return f'{value}'
+    if isinstance(value, DateAsWritten):
+        return str(value)
     if isinstance(value, str):
         return f'"{escape_string(value)}"'
     # Fallback for other types
@@ -612,7 +624,43 @@ def decode_value_from_string(s: str):
             return DecimalAsWritten(s)
         except ValueError:
             pass
+        if is_a_date(s):
+            return DateAsWritten(s)
+        return BareWord(s)
     return s
+
+
+# A date as the format writes one, `2026-06-09`, unquoted.
+A_DATE = re.compile(r'\d{4}-\d{2}-\d{2}')
+
+
+def is_a_date(text: str) -> bool:
+    """Whether `text` is a date written `YYYY-MM-DD`, and a day the calendar has."""
+    if not A_DATE.fullmatch(text):
+        return False
+    try:
+        datetime.datetime.strptime(text, '%Y-%m-%d')
+    except ValueError:
+        return False
+    return True
+
+
+class DateAsWritten(str):
+    """A date, written `2026-06-09` without quotes; `"2026-06-09"` in quotes is text.
+
+    Held as its digits, so a reader of a date field that parses text parses it
+    as it did. Stored in a custom key's JSON as `{"$date": "2026-06-09"}`, so
+    it is read back a date and exported without quotes.
+    """
+
+
+class BareWord(str):
+    """A value written without quotes that is no keyword and no number, such as `currency: USD`.
+
+    Text like any other, and told apart from a quoted one only where that
+    matters: a key of the user's own holds what the file states, so `yes`
+    there is refused rather than guessed to be `"yes"` or `#True`.
+    """
 
 
 def number_in_string_format_is_1(s: str) -> bool:

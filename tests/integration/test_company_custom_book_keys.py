@@ -208,6 +208,57 @@ def test_none_between_dollar_signs_in_quotes_is_its_text(tmp_path):
     assert fields.get('entity_type') == '$None$'
 
 
+def _company_lines(text):
+    """The company block's lines as the export writes them, quotes included."""
+    return [line.strip() for line in _company_block(text).splitlines()[1:]]
+
+
+def test_a_custom_key_holds_what_the_file_states(tmp_path):
+    """A company key holds what the file states, as it states it.
+
+    `import` of a `company` block stating `incorporated: 2026-01-31`, a date
+    without quotes; `renewal: "2026-01-31"`, the text of a date;
+    `audited: #True`, a bool; `branches: 1`, a number; and `motto: ""`, the
+    empty text. The export writes each back as stated: the date without
+    quotes, the text in quotes, `#True`, `1` and `""`. Importing that export
+    changes nothing.
+    """
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    _import(runner, gf,
+            'company\n\tincorporated: 2026-01-31\n\trenewal: "2026-01-31"\n'
+            '\taudited: #True\n\tbranches: 1\n\tmotto: ""\n',
+            tmp_path, 'c1.txt')
+
+    exported = _export(runner, gf, tmp_path)
+    assert _company_lines(exported) == [
+        'audited: #True', 'branches: 1', 'incorporated: 2026-01-31',
+        'motto: ""', 'renewal: "2026-01-31"']
+
+    _import(runner, gf, exported, tmp_path, 'c2.txt')
+    assert _export(runner, gf, tmp_path, 'exp2.txt') == exported
+
+
+def test_a_word_without_quotes_is_refused(tmp_path):
+    """A company key stating a word without quotes is refused, and the key is kept.
+
+    `import` of a `company` block stating `province: "BC"`, then one stating
+    `province: yes`. A word without quotes is neither text nor `#True`, so the
+    second file is refused whole and the key keeps "BC".
+    """
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    _import(runner, gf, 'company\n\tprovince: "BC"\n', tmp_path, 'c1.txt')
+    p = tmp_path / 'c2.txt'
+    p.write_text('company\n\tprovince: yes\n')
+    refused = runner.invoke(cli, ['import', str(gf), str(p), '--include-business-objects'])
+    assert refused.exit_code == 1, refused.output
+    assert ("'company': `province` is a key of your own, and `province: yes` states a word "
+            'without quotes. Write `province: "yes"` for the text, or #True or #False.'
+            ) in refused.output, refused.output
+    assert _company_lines(_export(runner, gf, tmp_path)) == ['province: "BC"']
+
+
 class TestAKeyTheCompanyBlockOwns:
     """`set-book-key` writes the blob, and a `company` field is not kept there.
 

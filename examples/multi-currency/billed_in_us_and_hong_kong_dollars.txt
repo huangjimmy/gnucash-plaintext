@@ -22,22 +22,22 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-23 commodity CAD
+2026-09-27 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 commodity HKD
+2026-09-27 commodity HKD
 	mnemonic: "HKD"
 	fullname: "Hong Kong Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 commodity USD
+2026-09-27 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 open Assets
+2026-09-27 open Assets
 	guid: "f61aaf09362d49dfa46385fa349474a1"
 	type: "Asset"
 	placeholder: #True
@@ -46,7 +46,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:CAD Bank
+2026-09-27 open Assets:CAD Bank
 	guid: "92e444541b4c41538f94466f66579447"
 	type: "Bank"
 	placeholder: #False
@@ -55,7 +55,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:HKD Bank
+2026-09-27 open Assets:HKD Bank
 	guid: "d6e2b43bba8a4659832a6d5843d8fefa"
 	type: "Bank"
 	placeholder: #False
@@ -64,7 +64,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "HKD"
-2026-09-23 open Assets:USD Bank
+2026-09-27 open Assets:USD Bank
 	guid: "1140d64cbd3444609ba1b92f4de6263d"
 	type: "Bank"
 	placeholder: #False
@@ -73,7 +73,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-23 open Income
+2026-09-27 open Income
 	guid: "2886ea2fb1fe49cfa7c59c9d63f21388"
 	type: "Income"
 	placeholder: #True
@@ -82,7 +82,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:Consulting
+2026-09-27 open Income:Consulting
 	guid: "d6383135ab8f4eef93ca56a2aacf92d6"
 	type: "Income"
 	placeholder: #False
@@ -91,7 +91,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:FX Gain
+2026-09-27 open Income:FX Gain
 	guid: "c99bf759096149518ace272914cdff6a"
 	type: "Income"
 	placeholder: #False
@@ -100,7 +100,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses
+2026-09-27 open Expenses
 	guid: "f0850db53ffd48798151db4e685340ca"
 	type: "Expense"
 	placeholder: #True
@@ -109,7 +109,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses:Rent
+2026-09-27 open Expenses:Rent
 	guid: "e35ec191d90e4464b662455953220799"
 	type: "Expense"
 	placeholder: #False
@@ -118,7 +118,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses:Subcontractors
+2026-09-27 open Expenses:Subcontractors
 	guid: "f87ac913b6604bbfa577289ce867a647"
 	type: "Expense"
 	placeholder: #False
@@ -127,7 +127,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity
+2026-09-27 open Equity
 	guid: "141e4b1e4ef64070a881b232c6ea0b0f"
 	type: "Equity"
 	placeholder: #True
@@ -136,7 +136,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity:Opening CAD
+2026-09-27 open Equity:Opening CAD
 	guid: "e18136597b6e47818e7f29bb90db7282"
 	type: "Equity"
 	placeholder: #False
@@ -265,7 +265,7 @@ price
 		cost_basis_split_guid: "905f723f4b024759bbb624d9e3d877ea"
 	Income:FX Gain -60.00 CAD
 		guid: "317392a2d60a4967ac13441aa3072844"
-		took_the_residual: "true"
+		took_the_residual: #True
 2026-08-01 * "Subcontractor paid in Hong Kong dollars, the peg at 7.75"
 	guid: "b77f60e5410d423bbbb92ce18527afc1"
 	currency.mnemonic: "CAD"
@@ -279,7 +279,7 @@ price
 		cost_basis_split_guid: "06f38d6ed30745c8be16b4481d6902da"
 	Income:FX Gain -50.00 CAD
 		guid: "957bbb9ef0194714b10f4007649a27ec"
-		took_the_residual: "true"
+		took_the_residual: #True
 2026-09-01 * "Rent, in Canadian dollars"
 	guid: "130dd169b79044d38a792253c97efd0a"
 	Expenses:Rent 900.00 CAD

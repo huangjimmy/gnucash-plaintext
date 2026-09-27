@@ -1,20 +1,14 @@
-"""`key: ""` clears a custom key on an account being created.
+"""`key: ""` is the empty text on an account being created, and `key: $None$` leaves no key.
 
-README states the rule once: `key: "value"` sets, `key: ""` clears, and an
-absent line says nothing. Transactions, splits, customers, vendors, invoices
-and bills all keep it.
-
-Accounts did not. An empty value was stored as an empty custom key, written
-back out by the exporter, and carried through every round trip after that — so
-one spelling meant "remove this" on six kinds of block and "store an empty
-string" on the seventh, and there was no spelling at all that took a custom
-key off an account.
+README states the rule once: `key: "value"` sets, `key: ""` is the empty
+text, `key: $None$` removes the key, and an absent line says nothing. An
+account keeps it as every other block does.
 
 **Only on creation.** An `open` for an account the book already holds is
 skipped whole — found by name, and the block never read — so nothing in it
-sets, clears or compares anything. That is what the last class here pins, and
+sets, empties or compares anything. That is what the last class here pins, and
 what README says beside the rule, because a reader who takes the rule at its
-word would otherwise write `key: ""` into an `open` and watch nothing happen.
+word would otherwise write a key into an `open` and watch nothing happen.
 """
 
 from pathlib import Path
@@ -57,9 +51,13 @@ LEDGER = """\
 
 @pytest.fixture
 def exported(tmp_path):
+    return _exported(tmp_path, LEDGER)
+
+
+def _exported(tmp_path, text):
     book = tmp_path / 'book.gnucash'
     ledger = tmp_path / 'ledger.txt'
-    ledger.write_text(LEDGER)
+    ledger.write_text(text)
     result = CliRunner().invoke(cli, ['import', '--new', str(book), str(ledger)])
     assert result.exit_code == 0, result.output
 
@@ -72,20 +70,28 @@ def exported(tmp_path):
     return text
 
 
-class TestAnAccountsClearedKey:
-    def test_it_is_not_written_back(self, exported):
-        assert 'department:' not in exported, exported
+class TestAnAccountsEmptyKey:
+    def test_it_is_written_back_empty(self, exported):
+        assert '\tdepartment: ""\n' in exported, exported
 
     def test_the_key_with_a_value_is_kept(self, exported):
-        """Clearing one says nothing about the others."""
+        """An empty key says nothing about the others."""
         assert 'region: "west"' in exported, exported
+
+
+class TestAnAccountsKeyStatedNoneBetweenDollarSigns:
+    def test_it_is_not_stored(self, tmp_path):
+        text = _exported(tmp_path, LEDGER.replace('department: ""', 'department: $None$'))
+
+        assert 'department:' not in text, text
+        assert 'region: "west"' in text, text
 
 
 class TestAnOpenForAnAccountTheBookAlreadyHas:
     """A no-op, whatever it says — which is why README says so beside the rule.
 
     The account is found by name and the block skipped whole, so an `open` is
-    "create this account" and nothing else. Neither setting a key nor clearing
+    "create this account" and nothing else. Neither setting a key nor emptying
     one reaches the book, and there is no comparison to notice the difference.
     """
 
@@ -114,7 +120,7 @@ class TestAnOpenForAnAccountTheBookAlreadyHas:
         assert 'region: "west"' in text, text
         assert 'east' not in text, text
 
-    def test_clearing_a_key_does_not_reach_it_either(self, tmp_path):
+    def test_emptying_a_key_does_not_reach_it_either(self, tmp_path):
         text = self._twice(tmp_path, LEDGER.replace('region: "west"',
                                                     'region: ""'))
 

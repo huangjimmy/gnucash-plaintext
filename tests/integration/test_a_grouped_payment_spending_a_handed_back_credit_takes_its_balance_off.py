@@ -104,7 +104,7 @@ def test_the_grouped_payment_leaves_no_balance_on_the_credit_it_spent(tmp_path):
     after = tmp_path / 'after.txt'
     _done('export', book, after)
     keys = _the_keys_on(after.read_text(), credit)
-    assert 'applied_from_credit: "true"' in keys, keys
+    assert 'applied_from_credit: #True' in keys, keys
     assert 'cost_basis_balance' not in keys, keys
 
 
@@ -151,7 +151,7 @@ def test_a_block_stating_the_credit_beside_a_bank_paid_orphan_takes_its_balance_
     after = tmp_path / 'after.txt'
     _done('export', book, after)
     spent = _the_keys_on(after.read_text(), credit)
-    assert 'applied_from_credit: "true"' in spent, spent
+    assert 'applied_from_credit: #True' in spent, spent
     assert 'cost_basis_balance' not in spent, spent
     paid = _the_keys_on(after.read_text(), settlement)
     assert 'applied_from_credit' not in paid, paid

@@ -89,7 +89,7 @@ def _linked_to_the_wrong_invoice(runner, tmp_path, clear_the_balance=False):
                           first.read_text()).group(0)
         cleared = tmp_path / 'cleared.txt'
         cleared.write_text(re.sub(r'\t\tcost_basis_balance: "[^"]*"\n',
-                                  '\t\tcost_basis_balance: ""\n', block))
+                                  '\t\tcost_basis_balance: $None$\n', block))
         assert _run(runner, 'import', str(book), str(cleared),
                     '--strategy', 'update').exit_code == 0
         assert 'none recorded' in _run(runner, 'fx-balances', str(book)).output

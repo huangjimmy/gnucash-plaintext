@@ -1,6 +1,6 @@
 """Unposting the record a credit settled makes it a live cost basis again.
 
-Spending a credit marks the split `applied_from_credit: true`, and that mark
+Spending a credit marks the split `applied_from_credit: #True`, and that mark
 survives an unpost — CLAUDE.md finding 10. Unposting the record it settled
 hands the split back as an owner's credit, loose and spendable, and where its
 cost is readable it is a cost basis once more.

@@ -11,9 +11,9 @@ it is. What mends it is stating the key in the file and importing that back with
 `--strategy update` — the second of the two ways to write a disposal.
 
 A book of that shape is made here the only way a test can make one: by taking
-the mark off a book that has it. `took_the_residual: ""` **removes** the key
-rather than emptying it, which is what a key named empty means in this format —
-so the export of a cleared book carries no such line at all, and putting the
+the mark off a book that has it. `took_the_residual: $None$` **removes** the
+key, which is the one way a key is removed in this format — so the export of a
+cleared book carries no such line at all, and putting the
 mark back means adding a line rather than changing one. That is exactly what a
 reader does to their own book, and it is why the two helpers below differ.
 """
@@ -29,7 +29,7 @@ from tests.integration.text_report_pages import block_of, block_total_of
 BOUGHT = 'tests/fixtures/a_cad_book_that_bought_a_thousand_usd.txt'
 DECLARED = 'tests/fixtures/the_thousand_usd_sold_at_a_higher_rate.txt'
 AS_OF = '2026-12-31'
-MARK = re.compile(r'took_the_residual: "[^"]*"')
+MARK = re.compile(r'took_the_residual: #True')
 GAIN_SPLIT = 'Income:FX Gain '
 
 # The two shapes `realized_gains_fx` takes on this book: the sale's 100.00 with
@@ -86,7 +86,7 @@ def _with_the_mark_cleared(runner, book, tmp_path, name='cleared'):
     ledger = _exported(runner, book, tmp_path, name)
     text = ledger.read_text(encoding='utf-8')
     assert MARK.search(text), text
-    ledger.write_text(MARK.sub('took_the_residual: ""', text), encoding='utf-8')
+    ledger.write_text(MARK.sub('took_the_residual: $None$', text), encoding='utf-8')
     return _re_imported(runner, book, ledger)
 
 
@@ -100,7 +100,7 @@ def _with_the_mark_stated(runner, book, tmp_path, name='restated'):
     for line in text.splitlines():
         lines.append(line)
         if line.strip().startswith(GAIN_SPLIT):
-            lines.append('\t\ttook_the_residual: "true"')
+            lines.append('\t\ttook_the_residual: #True')
     assert any('took_the_residual' in line for line in lines), text
     ledger.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     return _re_imported(runner, book, ledger)

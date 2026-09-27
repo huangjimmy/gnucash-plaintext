@@ -532,9 +532,9 @@ def _a_keyless_credit_the_engine_can_divide(runner, tmp_path):
     three of the ten supported builds.
 
     So the same state is built on the USD book, where the engine's application
-    is the same everywhere, by taking the two keys off in a file — which is
-    what `cost_basis_balance: ""` is for and what the listing tells a reader
-    to write.
+    is the same everywhere, by removing the two keys in a file — which is
+    what `cost_basis_balance: $None$` is for and what the listing tells a
+    reader to write.
 
     Returns the book and the guid of the bank's cost basis.
     """
@@ -550,7 +550,7 @@ def _a_keyless_credit_the_engine_can_divide(runner, tmp_path):
     # keep whatever they carry.
     chunk = re.search(rf'guid: "{credit}"\n(?:\t\t[^\n]*\n)*', block).group(0)
     cleared = block.replace(chunk, re.sub(
-        r'cost_basis_(balance|cost): "[^"]*"', r'cost_basis_\1: ""', chunk))
+        r'cost_basis_(balance|cost): "[^"]*"', r'cost_basis_\1: $None$', chunk))
     stripped = tmp_path / 'stripped.txt'
     stripped.write_text(cleared)
     result = _run(runner, 'import', str(book), str(stripped),

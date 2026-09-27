@@ -19,17 +19,17 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-23 commodity CAD
+2026-09-27 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 commodity USD
+2026-09-27 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 open Assets
+2026-09-27 open Assets
 	guid: "7553735bbd424e839ebf2f4db566aba3"
 	type: "Asset"
 	placeholder: #True
@@ -38,7 +38,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:CAD Bank
+2026-09-27 open Assets:CAD Bank
 	guid: "3dff27192da84aa98238f8f71772c4b2"
 	type: "Bank"
 	placeholder: #False
@@ -47,7 +47,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:USD Bank
+2026-09-27 open Assets:USD Bank
 	guid: "52f714f94f2b4d76bf1137b11100d530"
 	type: "Bank"
 	placeholder: #False
@@ -56,7 +56,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-23 open Expenses
+2026-09-27 open Expenses
 	guid: "7d8fec1335574739942f47f4f5a9746f"
 	type: "Expense"
 	placeholder: #True
@@ -65,7 +65,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses:Rent
+2026-09-27 open Expenses:Rent
 	guid: "8aeb7df74cfc4135bd1b60878e9177b7"
 	type: "Expense"
 	placeholder: #False
@@ -74,7 +74,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity
+2026-09-27 open Equity
 	guid: "59b6b074b32540308caa7af5692a031a"
 	type: "Equity"
 	placeholder: #True
@@ -83,7 +83,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity:Opening CAD
+2026-09-27 open Equity:Opening CAD
 	guid: "f70cdbfcc3eb4232b8d6bd29c95e8113"
 	type: "Equity"
 	placeholder: #False

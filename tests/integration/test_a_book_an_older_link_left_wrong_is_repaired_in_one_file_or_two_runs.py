@@ -122,7 +122,7 @@ def _the_repair(runner, book, tmp_path):
         r'\t+guid: "([0-9a-f]{32})"', text).group(1)
 
     deposit = re.sub(r'\t\tcost_basis_balance: "[^"]*"\n',
-                     '\t\tcost_basis_balance: ""\n',
+                     '\t\tcost_basis_balance: $None$\n',
                      _block_for(text, '2026-08-13 * "Received'))
     posting = _block_for(text, '2026-07-31 * "INV-USD-001"').replace(
         'cost_basis_balance: "2720.00"', 'cost_basis_balance: "2719.28"')
@@ -167,7 +167,7 @@ def test_re_pointing_the_fee_and_then_clearing_the_balance_repairs_it_in_two_run
 
     clear = tmp_path / 'clear.txt'
     clear.write_text(re.sub(r'\t\tcost_basis_balance: "[^"]*"\n',
-                            '\t\tcost_basis_balance: ""\n',
+                            '\t\tcost_basis_balance: $None$\n',
                             _block_for(text, '2026-08-13 * "Received')))
     assert _run(runner, 'import', str(book), str(clear),
                 '--strategy', 'update').exit_code == 0
@@ -193,7 +193,7 @@ def test_clearing_the_balance_first_leaves_the_fee_drawing_on_no_cost_basis(tmp_
     # this half-repair is the disposal check rather than the balance one.
     clear = tmp_path / 'clear.txt'
     clear.write_text(re.sub(r'\t\tcost_basis_balance: "[^"]*"\n',
-                            '\t\tcost_basis_balance: ""\n',
+                            '\t\tcost_basis_balance: $None$\n',
                             _block_for(text, '2026-08-13 * "Received')))
     assert _run(runner, 'import', str(book), str(clear),
                 '--strategy', 'update').exit_code == 0
@@ -232,7 +232,7 @@ def test_restating_the_balance_the_book_holds_beside_the_repair(tmp_path):
         r'Assets:Current assets:Accounts receivable:USD 2720\.00 USD\n'
         r'\t+guid: "([0-9a-f]{32})"', text).group(1)
     deposit = re.sub(r'\t\tcost_basis_balance: "[^"]*"\n',
-                     '\t\tcost_basis_balance: ""\n',
+                     '\t\tcost_basis_balance: $None$\n',
                      _block_for(text, '2026-08-13 * "Received'))
     posting = _block_for(text, '2026-07-31 * "INV-USD-001"')
     assert 'cost_basis_balance: "2720.00"' in posting, posting

@@ -40,6 +40,7 @@ from services.foreign_currency import (
     COST_BASIS_COST_KEY,
     COST_BASIS_SPLIT_KEY,
     PENDING,
+    as_written,
     derived_cost_of,
     establishes_cost_basis,
     is_a_spent_credit,
@@ -1201,7 +1202,7 @@ class ExportTransactionsUseCase:
                 continue
             if key in _q014_reserved_tx:
                 continue
-            lines.append(f'\t{key}: {encode_value_as_string(value)}')
+            lines.append(f'\t{key}: {encode_value_as_string(as_written(key, value))}')
 
         # Splits
         for split in tx_splits:
@@ -1451,7 +1452,7 @@ class ExportTransactionsUseCase:
             # read back as the guid of a split the book does not hold.
             lines.append(f'\t\t{key}: '
                          + (PENDING if key == COST_BASIS_SPLIT_KEY and value == PENDING
-                            else encode_value_as_string(value)))
+                            else encode_value_as_string(as_written(key, value))))
 
         # Running balance — emitted last so it reads as a post-transaction annotation
         if balance is not None:

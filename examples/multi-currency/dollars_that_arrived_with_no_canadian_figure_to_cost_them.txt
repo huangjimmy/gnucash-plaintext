@@ -39,27 +39,27 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-23 commodity CAD
+2026-09-27 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 commodity NASDAQ.AMZN
+2026-09-27 commodity NASDAQ.AMZN
 	mnemonic: "AMZN"
 	fullname: "Amazon.com Inc"
 	namespace: "NASDAQ"
 	fraction: 10000
-2026-09-23 commodity HKD
+2026-09-27 commodity HKD
 	mnemonic: "HKD"
 	fullname: "Hong Kong Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 commodity USD
+2026-09-27 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 open Assets
+2026-09-27 open Assets
 	guid: "970a7718db5a40ab94a8260158d3b810"
 	type: "Asset"
 	placeholder: #True
@@ -68,7 +68,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:AMZN
+2026-09-27 open Assets:AMZN
 	guid: "5cfefc27602642948d984a7161184016"
 	type: "Stock"
 	placeholder: #False
@@ -77,7 +77,7 @@
 	tax_related: #False
 	commodity.namespace: "NASDAQ"
 	commodity.mnemonic: "AMZN"
-2026-09-23 open Assets:Receivable
+2026-09-27 open Assets:Receivable
 	guid: "caa9b07005754c1481e07e12d140c193"
 	type: "Asset"
 	placeholder: #False
@@ -86,7 +86,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:CAD Bank
+2026-09-27 open Assets:CAD Bank
 	guid: "ebddea65ef2b4c55b3f21a4f829904ea"
 	type: "Bank"
 	placeholder: #False
@@ -95,7 +95,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:HKD Bank
+2026-09-27 open Assets:HKD Bank
 	guid: "486161cdd4c849e0acf42edf3b8ef127"
 	type: "Bank"
 	placeholder: #False
@@ -104,7 +104,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "HKD"
-2026-09-23 open Assets:USD Bank
+2026-09-27 open Assets:USD Bank
 	guid: "c4b6c662899a48d4aafec2230675bcb8"
 	type: "Bank"
 	placeholder: #False
@@ -113,7 +113,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-23 open Liabilities
+2026-09-27 open Liabilities
 	guid: "71c9e98e4fde494e9da7edadaa7fbf16"
 	type: "Liability"
 	placeholder: #True
@@ -122,7 +122,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Liabilities:USD Loan
+2026-09-27 open Liabilities:USD Loan
 	guid: "0964093b6d3b4215952e3fc1cb8b6d63"
 	type: "Liability"
 	placeholder: #False
@@ -131,7 +131,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-23 open Income
+2026-09-27 open Income
 	guid: "2672cd496125458e834a96d9a4488003"
 	type: "Income"
 	placeholder: #True
@@ -140,7 +140,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:Consulting
+2026-09-27 open Income:Consulting
 	guid: "28124a52db62468c9845c9dd6c671e3b"
 	type: "Income"
 	placeholder: #False
@@ -149,7 +149,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:Realized FX Gains
+2026-09-27 open Income:Realized FX Gains
 	guid: "b36d8bbd08a7453d85110a371b53685a"
 	type: "Income"
 	placeholder: #False
@@ -158,7 +158,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:Realized Gains
+2026-09-27 open Income:Realized Gains
 	guid: "ae41e86048c84a5e81a3774ddc6c3265"
 	type: "Income"
 	placeholder: #False
@@ -167,7 +167,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses
+2026-09-27 open Expenses
 	guid: "c61e235890d7432a832afe72b2979e22"
 	type: "Expense"
 	placeholder: #True
@@ -176,7 +176,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses:Fees
+2026-09-27 open Expenses:Fees
 	guid: "d4a95ea5ac9d4202b5ccae19a7c0cd08"
 	type: "Expense"
 	placeholder: #False
@@ -185,7 +185,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses:Interest
+2026-09-27 open Expenses:Interest
 	guid: "06e966d391f44ff3aa2808d81aa6abbf"
 	type: "Expense"
 	placeholder: #False
@@ -194,7 +194,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-23 open Equity
+2026-09-27 open Equity
 	guid: "6112fad7413d4333bfb0082289422331"
 	type: "Equity"
 	placeholder: #True
@@ -203,7 +203,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity:Opening CAD
+2026-09-27 open Equity:Opening CAD
 	guid: "e2ec978a08664ea19292916139cb416c"
 	type: "Equity"
 	placeholder: #False
@@ -445,7 +445,7 @@ price
 		cost_basis_split_guid: "dddddddddddddddddddddddddddd0004"
 	Income:Realized Gains -728.00 CAD
 		guid: "b4f97cfe284846d29d03665c49c84617"
-		took_the_residual: "true"
+		took_the_residual: #True
 2026-07-15 * "Sell 3,000.00 USD at 1.38"
 	guid: "eb4e9020145e4b048f0672648b16a625"
 	currency.mnemonic: "CAD"

@@ -79,6 +79,7 @@ from gnucash.gnucash_core_c import (
 )
 
 from infrastructure.gnucash.kvp import (
+    REMOVE_THE_KEY,
     custom_key_changes,
     forget_custom_key_changes,
     get_custom_metadata,
@@ -88,8 +89,15 @@ from infrastructure.gnucash.kvp import (
     watched_key_writes,
 )
 from infrastructure.gnucash.utils import (
+    FALSE_SPELLINGS,
+    TRUE_SPELLINGS,
+    BareWord,
+    DateAsWritten,
+    Variable,
+    encode_value_as_string,
     exact_text,
     get_account_full_name,
+    is_a_date,
     is_power_of_ten,
     money_text,
     numeric_to_fraction,
@@ -174,6 +182,112 @@ COST_BASES_KEY = 'cost_bases'
 COST_BASIS_KEYS = (COST_BASIS_BALANCE_KEY, COST_BASIS_BROUGHT_IN_KEY,
                    COST_BASIS_SPLIT_KEY, COST_BASIS_FORCE_KEY, COST_BASIS_COST_KEY)
 
+# KVP on the transaction an invoice's or a bill's posting made.
+BUSINESS_GENERATED_KEY = 'business_generated'
+
+# gnucash-plaintext's own keys a file may state, and the type each holds.
+# Only `$None$` removes one, and `""` states nothing, so it is refused on every
+# one of them rather than stored as text nothing reads.
+THE_TOOL_S_OWN_KEYS = {
+    TOOK_THE_RESIDUAL_KEY: bool,
+    APPLIED_FROM_CREDIT_KEY: bool,
+    COST_BASIS_FORCE_KEY: bool,
+    BUSINESS_GENERATED_KEY: bool,
+    # Q-018's, on an invoice or a bill: whether it is filed on a cash basis,
+    # and the due date of one not yet posted.
+    'cash_basis': bool,
+    'due_date': DateAsWritten,
+    COST_BASIS_BALANCE_KEY: str,
+    COST_BASIS_COST_KEY: str,
+    COST_BASIS_SPLIT_KEY: str,
+}
+
+
+def as_a_bool(value) -> Optional[bool]:
+    """`value` as True or False, or None where it is no spelling of either.
+
+    `#True` and `#False` as they are; `"true"`, `"yes"` and `1` as True, and
+    `"false"`, `"no"` and `0` as False, whatever their case. A book written
+    before these keys were stored as `bool` holds the text `"true"`, which
+    reads as True.
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if text in TRUE_SPELLINGS:
+        return True
+    if text in FALSE_SPELLINGS:
+        return False
+    return None
+
+
+def as_written(key, value):
+    """A key's value as the export writes it: each of gnucash-plaintext's own keys as the type it holds.
+
+    A book written before those keys held one type each stores a `bool` key
+    as the text `"true"` and `due_date` as the text of a date, because a bare
+    date was read as text. Its export writes `#True` and a date without
+    quotes, as the export of a book written since does. Any other key, and a
+    value that is no spelling of its key's type, is written as stored.
+    """
+    kind = THE_TOOL_S_OWN_KEYS.get(key)
+    if kind is bool and as_a_bool(value) is not None:
+        return as_a_bool(value)
+    if kind is DateAsWritten and isinstance(value, str) and is_a_date(value):
+        return DateAsWritten(value)
+    return value
+
+
+def the_tool_s_own_keys_as_they_hold(root) -> List[str]:
+    """Read each of gnucash-plaintext's own keys a file states as the type it holds; a refusal each where it cannot be.
+
+    A `bool` key is stored as `#True` or `#False`, so each spelling of either
+    is read as that, and a word without quotes is refused. A date key takes a
+    date, in quotes or not, and is stored as one. `""` on any of these keys is
+    refused: it states nothing, and would be stored where nothing reads it,
+    and written back out by the export. `$None$` removes the key, as it
+    removes any.
+    """
+    refused = []
+
+    def walk(directive):
+        for child in directive.children:
+            for key, value in list(child.metadata.items()):
+                holds = THE_TOOL_S_OWN_KEYS.get(key)
+                if holds is None or (isinstance(value, Variable) and value == REMOVE_THE_KEY):
+                    continue
+                empty = isinstance(value, str) and value == ''
+                if holds is bool and not empty and not isinstance(value, BareWord) \
+                        and as_a_bool(value) is not None:
+                    child.metadata[key] = as_a_bool(value)
+                    continue
+                if holds is DateAsWritten and isinstance(value, str) and is_a_date(value):
+                    child.metadata[key] = DateAsWritten(value)
+                    continue
+                if holds is str and not empty:
+                    continue
+                said = (f"{child.line.strip()!r}: `{key}` is gnucash-plaintext's own key, "
+                        f'so `{key}: {as_stated(value)}` is refused.')
+                if empty:
+                    said += f' It states nothing; to remove the key, write `{key}: {REMOVE_THE_KEY}`.'
+                elif holds is bool:
+                    said += (' It holds #True or #False, which may also be written "true", '
+                             '"yes" or 1, and "false", "no" or 0.')
+                else:
+                    said += ' It holds a date, written YYYY-MM-DD, such as 2026-01-31.'
+                refused.append(said)
+            walk(child)
+
+    walk(root)
+    return refused
+
+
+def as_stated(value) -> str:
+    """A value as the file wrote it: a word without quotes as the word, anything else as the format writes it."""
+    return str(value) if isinstance(value, BareWord) else encode_value_as_string(value)
+
 
 #: Each book's answer to `book_keeps_cost_bases`, by the book's address. Asked
 #: for every split a cost basis writer is handed and every transaction the
@@ -207,7 +321,7 @@ WHAT_TO_FORGET_WHEN_A_BOOK_OPENS.append(forget_whether_books_keep_cost_bases)
 
 
 def refuse_a_cost_bases_setting_it_cannot_read(value) -> None:
-    """Refuse a `cost_bases:` other than `on` or `off`; an empty one removes the line, which keeps them."""
+    """Refuse a `cost_bases:` other than `on` or `off`; an empty one is the empty text, which keeps them as no line does."""
     if value is None or str(value).strip() in ('', 'on', 'off'):
         return
     raise ValueError(
@@ -849,17 +963,17 @@ def states_the_residual_mark(value) -> bool:
     saved split, and the import counts the splits of one transaction that claim
     the residual, so that two cannot both claim it. Were the two to disagree, a
     file could state a key the import counted and the page did not, or the
-    reverse. A value of `"false"`, `"no"`, `"0"` or nothing at all is a file
-    saying no.
+    reverse. Only a spelling of `#True` says yes (`as_a_bool`); the import
+    refuses a value that is no spelling of either.
     """
-    return str(value).strip().lower() not in ('', 'false', '0', 'no')
+    return as_a_bool(value) is True
 
 
 def took_the_residual(split) -> bool:
     """True when a transaction's `$residual$` line resolved to this split.
 
     The key alone does not decide it. It is an ordinary custom KVP, so a file
-    can state `took_the_residual: "true"` on any split it likes, and the export
+    can state `took_the_residual: #True` on any split it likes, and the export
     writes it back out — measured, so it cannot simply be refused without
     breaking the round trip of every book that has a real one. Believed on its
     own word it let a file put any split into `realized_gains_fx`: stated on a
@@ -959,7 +1073,7 @@ def mark_as_having_taken_the_residual(split) -> None:
     and lose it on save, so open the edit rather than relying on this to.
     """
     metadata = dict(get_custom_metadata(split))
-    metadata[TOOK_THE_RESIDUAL_KEY] = 'true'
+    metadata[TOOK_THE_RESIDUAL_KEY] = True
     set_custom_metadata(split, metadata)
 
 
@@ -1558,8 +1672,7 @@ def came_out_of_credit(split) -> bool:
     (`applied_from_credit`), since nothing else about it says so: in the
     record's lot it sits as a bank payment's split does.
     """
-    return str(get_custom_metadata(split).get(APPLIED_FROM_CREDIT_KEY, '')
-               ).strip().lower() == 'true'
+    return as_a_bool(get_custom_metadata(split).get(APPLIED_FROM_CREDIT_KEY)) is True
 
 
 def _settles_an_invoice(split) -> bool:
@@ -2356,8 +2469,8 @@ def raise_cost_basis_balance(split, amount: Fraction) -> Fraction:
 def _stored_cost_basis_balance(split):
     """The `cost_basis_balance` text as the split holds it, or None.
 
-    An empty string answers None: a file states `cost_basis_balance: ""` to
-    take a balance off, and a split that has had one taken off has none.
+    An empty string answers None too: it is no figure. A file removes a
+    balance with `cost_basis_balance: $None$`.
     """
     raw = get_custom_metadata(split).get(COST_BASIS_BALANCE_KEY)
     return None if raw in (None, '') else raw
@@ -3843,7 +3956,7 @@ def a_sale_against_an_uncollected_receivable(selling_split, basis, basis_guid: s
     A payable is not restricted. Its lot is open precisely until the bill is
     paid, and settling it with foreign cash is the ordinary way that happens.
 
-    `cost_basis_force: true` on the selling split overrides it, for the case
+    `cost_basis_force: #True` on the selling split overrides it, for the case
     where the user knows the money is in hand and the record simply has not
     been marked paid yet.
 
@@ -3854,7 +3967,7 @@ def a_sale_against_an_uncollected_receivable(selling_split, basis, basis_guid: s
     states is read wherever the file states it.
     """
     # Read as a word, like every other flag a ledger carries: compared
-    # against a list of the truthy spellings, `cost_basis_force: treu` was
+    # against a list of the truthy spellings, `cost_basis_force: "maybe"` was
     # silently *not* forced, and the sale then failed with a message telling
     # its author to add the key they had already added.
     #
@@ -3906,7 +4019,7 @@ def a_sale_against_an_uncollected_receivable(selling_split, basis, basis_guid: s
         f'{get_account_full_name(account)!r}, and the invoice it belongs to '
         f'has not been collected — that {currency} is owed, not held, so '
         f'there is none to sell. Record the payment first, or add '
-        f'`{COST_BASIS_FORCE_KEY}: true` to this split to measure against it '
+        f'`{COST_BASIS_FORCE_KEY}: #True` to this split to measure against it '
         f'anyway.')
 
 
@@ -4412,8 +4525,7 @@ def is_a_spent_credit(split) -> bool:
     its invoice again (CLAUDE.md finding 10), and the answer is then no — which
     is right, because the credit is loose and spendable once more.
     """
-    if str(get_custom_metadata(split).get(APPLIED_FROM_CREDIT_KEY, '')
-           ).strip().lower() != 'true':
+    if as_a_bool(get_custom_metadata(split).get(APPLIED_FROM_CREDIT_KEY)) is not True:
         return False
     raw_lot = split.GetLot()
     if raw_lot is None:
@@ -4927,7 +5039,7 @@ def _a_figure_on_a_split_that_is_no_basis(split) -> Optional[Dict]:
             f'absent from the listing and from every check below — and the '
             f'export writes it back out, so a book rebuilt from this one\'s '
             f'ledger holds the same figure in the same place. Nothing clears '
-            f'it but saying so: `cost_basis_balance: ""` on this split in a '
+            f'it but saying so: `cost_basis_balance: $None$` on this split in a '
             f'`--strategy update` file.'],
     }
 

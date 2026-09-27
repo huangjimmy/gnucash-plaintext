@@ -1,0 +1,23 @@
+invoice "INV-Q18-UNPOSTED-WITH-DUE"
+	guid: "{invoice}"
+	customer_id: "C-Q18-U1"
+	customer_guid: "{customer}"
+	currency: CAD
+	date_opened: 2026-05-01
+	cash_basis: #True
+	entry:
+		guid: "{entry}"
+		date: 2026-05-01
+		description: "Awaiting cash receipt"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 80
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted: none
+	payment: none

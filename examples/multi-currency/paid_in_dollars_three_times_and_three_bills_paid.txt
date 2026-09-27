@@ -20,17 +20,17 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-23 commodity CAD
+2026-09-27 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 commodity USD
+2026-09-27 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 open Assets
+2026-09-27 open Assets
 	guid: "6de9eab40d014f8ea475c8a245b7a16f"
 	type: "Asset"
 	placeholder: #True
@@ -39,7 +39,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:CAD Bank
+2026-09-27 open Assets:CAD Bank
 	guid: "65753c552964439eb1daaba5efa6ff45"
 	type: "Bank"
 	placeholder: #False
@@ -48,7 +48,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:USD Bank
+2026-09-27 open Assets:USD Bank
 	guid: "3e01833506a14b08a8f43b801c036ccb"
 	type: "Bank"
 	placeholder: #False
@@ -57,7 +57,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-23 open Income
+2026-09-27 open Income
 	guid: "d35cc85ff0e24276b2fff82240dbb034"
 	type: "Income"
 	placeholder: #True
@@ -66,7 +66,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:Consulting
+2026-09-27 open Income:Consulting
 	guid: "fe2b3a9bce644e5bbda6cbd904971924"
 	type: "Income"
 	placeholder: #False
@@ -75,7 +75,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:FX Gain
+2026-09-27 open Income:FX Gain
 	guid: "252a49eb5e5a416292ccdeca54282ebe"
 	type: "Income"
 	placeholder: #False
@@ -84,7 +84,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses
+2026-09-27 open Expenses
 	guid: "2cabf0febdf54f77b372baf73e031209"
 	type: "Expense"
 	placeholder: #True
@@ -93,7 +93,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses:Subcontractors
+2026-09-27 open Expenses:Subcontractors
 	guid: "154ac34ff22049e88d1b410bd1698c46"
 	type: "Expense"
 	placeholder: #False
@@ -102,7 +102,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity
+2026-09-27 open Equity
 	guid: "a8c04e2a5def4f168c800ffe0210fc50"
 	type: "Equity"
 	placeholder: #True
@@ -111,7 +111,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity:Opening CAD
+2026-09-27 open Equity:Opening CAD
 	guid: "eecbed0b1ae147ab98876264e70e22cc"
 	type: "Equity"
 	placeholder: #False
@@ -185,7 +185,7 @@ price
 		cost_basis_split_guid: "7570827bd78b4063bebfa08026ea76fb"
 	Income:FX Gain -90.00 CAD
 		guid: "97fca487a4a74b20a21982d8e32d1f4b"
-		took_the_residual: "true"
+		took_the_residual: #True
 2026-08-01 * "Subcontractor paid, the rest of the 1.30 basis at 1.50"
 	guid: "338d4324b6b04552a5dad7b33e7943ea"
 	currency.mnemonic: "CAD"
@@ -199,7 +199,7 @@ price
 		cost_basis_split_guid: "7570827bd78b4063bebfa08026ea76fb"
 	Income:FX Gain -80.00 CAD
 		guid: "68bcab5101bb4038b2c41ed35e1576d1"
-		took_the_residual: "true"
+		took_the_residual: #True
 2026-09-01 * "Subcontractor paid, the 1.35 basis at 1.38"
 	guid: "d72389c678d345609df982a7881bee91"
 	currency.mnemonic: "CAD"
@@ -213,7 +213,7 @@ price
 		cost_basis_split_guid: "79027a5116ed4ad98ef81ac533a30cfd"
 	Income:FX Gain -60.00 CAD
 		guid: "11fd1a62606441db998e152f78196944"
-		took_the_residual: "true"
+		took_the_residual: #True
 2026-10-01 * "Subcontractor paid, the 1.40 basis at 1.42"
 	guid: "696823cc70104f16aef9e1ebcda68b41"
 	currency.mnemonic: "CAD"
@@ -227,7 +227,7 @@ price
 		cost_basis_split_guid: "f04d9a9d4cee424da61e467a5f8ee287"
 	Income:FX Gain -20.00 CAD
 		guid: "47310d6eb08c41df95aec88fd97cd91f"
-		took_the_residual: "true"
+		took_the_residual: #True
 
 # ---------------------------------------------------------------
 # What `balance-sheet --as-of 2026-12-31` prints for the book above.

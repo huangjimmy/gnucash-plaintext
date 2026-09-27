@@ -750,13 +750,13 @@ class TestAValueWrittenAsANumber:
     def test_a_mistyped_taxable_is_refused_rather_than_read_as_false(
             self, tmp_path):
         """The costlier direction, and the costliest key: read as
-        `== 'true'`, `taxable: treu` imported as **not taxable**, and the
+        `== 'true'`, `taxable: "maybe"` imported as **not taxable**, and the
         flag decides the line's tax, every `breakdown:` block and the
         invoice's totals — so a page printed afterwards agreed with itself
         and re-imported `unchanged` against a book that had dropped the
         tax."""
         result, _ = self._imported(tmp_path, 'taxable: false',
-                                   'taxable: treu')
+                                   'taxable: "maybe"')
 
         assert result.exit_code != 0, result.output
         assert 'taxable' in result.output, result.output
@@ -764,17 +764,17 @@ class TestAValueWrittenAsANumber:
 
     def test_and_a_mistyped_tax_included_likewise(self, tmp_path):
         result, _ = self._imported(tmp_path, 'tax_included: false',
-                                   'tax_included: treu')
+                                   'tax_included: "maybe"')
 
         assert result.exit_code != 0, result.output
         assert 'tax_included' in result.output, result.output
 
     def test_a_word_that_is_neither_true_nor_false_is_refused(self, tmp_path):
-        """`billable: treu` used to import as **true** — read as "not
+        """`billable: "maybe"` used to import as **true** — read as "not
         false", a typo became the costly answer, and the line was re-billed
         to a customer nobody named."""
         result, _ = self._imported(tmp_path, 'billable: true',
-                                   'billable: treu')
+                                   'billable: "maybe"')
 
         assert result.exit_code != 0, result.output
         assert 'billable' in result.output, result.output

@@ -147,7 +147,7 @@ def test_verify_costs_says_which_split_to_correct(tmp_path):
 
 
 def test_a_stranded_balance_nothing_drew_on_is_cleared_in_one_file(tmp_path):
-    """`cost_basis_balance: ""` takes the figure off, and that is the whole fix.
+    """`cost_basis_balance: $None$` removes the figure, and that is the whole fix.
 
     The receivable's posting split is then the single cost basis for that money,
     which is where the link should have left the book.
@@ -162,8 +162,8 @@ def test_a_stranded_balance_nothing_drew_on_is_cleared_in_one_file(tmp_path):
     deposit = _block_for(exported.read_text(), '2026-08-13 * "Received')
     clear = tmp_path / 'clear.txt'
     clear.write_text(deposit.replace('\t\tcost_basis_balance: "2720.00"\n',
-                                     '\t\tcost_basis_balance: ""\n'))
-    assert 'cost_basis_balance: ""' in clear.read_text(), clear.read_text()
+                                     '\t\tcost_basis_balance: $None$\n'))
+    assert 'cost_basis_balance: $None$' in clear.read_text(), clear.read_text()
 
     result = _run(runner, 'import', str(book), str(clear),
                   '--strategy', 'update')
@@ -204,7 +204,7 @@ def test_the_disposal_is_re_pointed_in_place_and_the_balance_cleared(tmp_path):
     deposit = _block_for(text, '2026-08-13 * "Received')
     clear = tmp_path / 'clear.txt'
     clear.write_text(re.sub(r'\t\tcost_basis_balance: "[^"]*"\n',
-                            '\t\tcost_basis_balance: ""\n', deposit))
+                            '\t\tcost_basis_balance: $None$\n', deposit))
     result = _run(runner, 'import', str(book), str(clear),
                   '--strategy', 'update')
     assert result.exit_code == 0, result.output

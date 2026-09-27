@@ -9,7 +9,7 @@ which key it landed in:
   **false**, and so did a typo;
 - read as "not one of the falsy words" — `auto_apply_credit:`, `from_credit:`,
   `active:`, `closing:`, `billable:` — a typo read as **true**, which is the
-  costly direction on each of them: `auto_apply_credit: treu` spends the
+  costly direction on each of them: `auto_apply_credit: "maybe"` spends the
   owner's credit against an invoice the file never asked to settle that way;
 - and `payment_type:` was refused by name, which is what the rest do now.
 
@@ -181,7 +181,7 @@ class TestAWordThatIsNeither:
         ('tax_related', 'tax_related: false'),
     ])
     def test_a_mistyped_flag_is_refused_by_name(self, tmp_path, key, source):
-        result, _ = _imported(tmp_path, source, f'{key}: treu')
+        result, _ = _imported(tmp_path, source, f'{key}: "maybe"')
 
         assert result.exit_code != 0, result.output
         assert key in result.output, result.output

@@ -6,7 +6,7 @@ invoice "INV-Q18-PARTIAL-200"
 	customer_id: "C-Q18-2"
 	currency: CAD
 	date_opened: 2026-04-15
-	cash_basis: true
+	cash_basis: #True
 	entry:
 		date: 2026-04-15
 		description: "Two-day project (paid in installments)"

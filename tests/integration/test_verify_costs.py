@@ -849,7 +849,7 @@ def test_a_sale_whose_force_flag_cannot_be_read_is_reported_in_that_flags_words(
         transaction = split.GetParent()
         transaction.BeginEdit()
         metadata = dict(get_custom_metadata(split))
-        metadata['cost_basis_force'] = 'treu'
+        metadata['cost_basis_force'] = 'maybe'
         set_custom_metadata(split, metadata)
         transaction.CommitEdit()
         repo.save()
@@ -860,4 +860,4 @@ def test_a_sale_whose_force_flag_cannot_be_read_is_reported_in_that_flags_words(
     assert checked.exit_code == 1, checked.output
     assert 'what is measured against it could not be read' in checked.output, checked.output
     assert bought in checked.output, checked.output
-    assert 'treu' in checked.output, checked.output
+    assert 'maybe' in checked.output, checked.output
