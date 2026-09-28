@@ -145,7 +145,7 @@ def test_dropping_the_pick_is_refused(tmp_path):
 
     dropped = tmp_path / 'dropped.txt'
     dropped.write_text(re.sub(r'\t\tcost_basis_split_guid: "[0-9a-f]{32}"\n',
-                              '\t\tcost_basis_split_guid: ""\n',
+                              '\t\tcost_basis_split_guid: $None$\n',
                               _the_fee_block(_exported(runner, book, tmp_path / 'before.txt'))))
 
     result = _run(runner, 'import', str(book), str(dropped), '--atomic',

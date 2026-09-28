@@ -1,0 +1,13 @@
+2026-02-01 * "INV-002" "INV-002"
+	guid: "{posting}"
+	txn_type: I
+	owner: customer:C001
+	business_generated: "maybe"
+	Assets:Accounts Receivable 30.00 CAD
+		guid: "{posting_ar}"
+		action: "Invoice"
+		memo:"INV-002"
+	Income:Sales -30.00 CAD
+		guid: "{posting_sales}"
+		action: "Invoice"
+		memo:"INV-002"

@@ -20,17 +20,17 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-23 commodity CAD
+2026-09-27 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 commodity USD
+2026-09-27 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 open Assets
+2026-09-27 open Assets
 	guid: "3afb46a975da40fc8d90f0f3bb71d0b9"
 	type: "Asset"
 	placeholder: #True
@@ -39,7 +39,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:CAD Bank
+2026-09-27 open Assets:CAD Bank
 	guid: "10c28d7e05a046b39d62f2441ddbe7b2"
 	type: "Bank"
 	placeholder: #False
@@ -48,7 +48,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:USD Bank
+2026-09-27 open Assets:USD Bank
 	guid: "37228586581648ec94525744f4e7dffc"
 	type: "Bank"
 	placeholder: #False
@@ -57,7 +57,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-23 open Income
+2026-09-27 open Income
 	guid: "bdf29b095d3747c083dccf0d78c40767"
 	type: "Income"
 	placeholder: #True
@@ -66,7 +66,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:FX Gain
+2026-09-27 open Income:FX Gain
 	guid: "958d3babd767482fae4cf2e41aec467d"
 	type: "Income"
 	placeholder: #False
@@ -75,7 +75,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity
+2026-09-27 open Equity
 	guid: "24caef345c1b49ebaec0edda50c5d7a8"
 	type: "Equity"
 	placeholder: #True
@@ -84,7 +84,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity:Opening CAD
+2026-09-27 open Equity:Opening CAD
 	guid: "d9f24779141c41b894ab62566b0def99"
 	type: "Equity"
 	placeholder: #False
@@ -146,7 +146,7 @@ price
 		cost_basis_split_guid: "57f5300faa4c482e812f5198193901e7"
 	Income:FX Gain -100.00 CAD
 		guid: "2338142fcf024194a287df7077df4de0"
-		took_the_residual: "true"
+		took_the_residual: #True
 
 # ---------------------------------------------------------------
 # What `balance-sheet --as-of 2026-12-31` prints for the book above.

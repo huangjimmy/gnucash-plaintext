@@ -2,7 +2,7 @@
 #
 # The cost basis is the invoice's posting split, which the test fills in for
 # BASIS. A receivable that has not been collected holds no currency to sell,
-# and `cost_basis_force: true` says the money is in hand anyway, so the sale
+# and `cost_basis_force: #True` says the money is in hand anyway, so the sale
 # draws 40.00 USD out of the posting split's balance and leaves 60.00.
 #
 # Verified by
@@ -14,7 +14,7 @@
 		share_price: "1.40"
 		value: "-56.00"
 		cost_basis_split_guid: "BASIS"
-		cost_basis_force: true
+		cost_basis_force: #True
 	Assets:Bank 54.80 CAD
 		account.commodity.mnemonic: "CAD"
 		share_price: "1"

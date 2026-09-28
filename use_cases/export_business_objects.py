@@ -8,7 +8,6 @@ GnuCash Python SWIG bindings have const-type mismatches for these calls
 See infrastructure/gnucash/engine.py for the platform notes.
 """
 
-import json
 from fractions import Fraction
 
 import gnucash.gnucash_business as gb
@@ -16,12 +15,11 @@ from gnucash import Book, Query
 
 from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine, safe_ctypes_string
 from infrastructure.gnucash.kvp import (
-    COMPANY_CUSTOM_SECTION,
-    COMPANY_CUSTOM_SLOT,
     KNOWN_BILL_METADATA_KEYS,
     KNOWN_CUSTOMER_METADATA_KEYS,
     KNOWN_INVOICE_METADATA_KEYS,
     KNOWN_VENDOR_METADATA_KEYS,
+    get_book_custom_metadata,
     get_book_string_option,
     get_custom_metadata,
 )
@@ -32,6 +30,7 @@ from infrastructure.gnucash.utils import (
     numeric_to_fraction,
     wrap_invoice_or_bill,
 )
+from services.foreign_currency import as_written
 from services.gnucash_importer import COMPANY_FIELD_TO_SLOT
 from services.invoice_renderer import credit_note_lines
 from services.payment_links import kind_of, the_payment_account_on
@@ -241,14 +240,7 @@ class ExportBusinessObjectsUseCase:
         # and without the fallback an export of such a book emitted no line
         # at all, having filtered the only copy the book had out of the
         # custom keys below.
-        held = {}
-        blob = get_book_string_option(self.book, COMPANY_CUSTOM_SECTION,
-                                      COMPANY_CUSTOM_SLOT)
-        if blob:
-            try:
-                held = json.loads(blob) or {}
-            except (ValueError, TypeError):
-                held = {}
+        held = get_book_custom_metadata(self.book)
 
         def opt(slot, key):
             value = (get_book_string_option(self.book, 'Business', slot)
@@ -496,7 +488,7 @@ class ExportBusinessObjectsUseCase:
                        in (get_custom_metadata(inv) or {}).items()
                        if k not in KNOWN_INVOICE_METADATA_KEYS}
         for k, v in sorted(custom_meta.items()):
-            lines.append(f'	{k}: {encode_value_as_string(v)}')
+            lines.append(f'	{k}: {encode_value_as_string(as_written(k, v))}')
 
         for raw_entry in inv.GetEntries():
             lines += self._format_inv_entry(lib, raw_entry, guid_for_ptr)
@@ -842,7 +834,7 @@ class ExportBusinessObjectsUseCase:
                        in (get_custom_metadata(inv) or {}).items()
                        if k not in KNOWN_BILL_METADATA_KEYS}
         for k, v in sorted(custom_meta.items()):
-            lines.append(f'	{k}: {encode_value_as_string(v)}')
+            lines.append(f'	{k}: {encode_value_as_string(as_written(k, v))}')
 
         for raw_entry in inv.GetEntries():
             lines += self._format_bill_entry(lib, raw_entry, guid_for_ptr)

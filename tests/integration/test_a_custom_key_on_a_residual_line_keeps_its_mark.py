@@ -104,4 +104,4 @@ def test_the_custom_key_survives_the_round_trip(tmp_path):
 
     text = out.read_text(encoding='utf-8')
     assert 'department: "ops"' in text, text
-    assert 'took_the_residual: "true"' in text, text
+    assert 'took_the_residual: #True' in text, text

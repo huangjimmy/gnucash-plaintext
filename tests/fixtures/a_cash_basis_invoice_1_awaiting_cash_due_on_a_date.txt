@@ -1,0 +1,38 @@
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C-Q18-U1"
+	name: "Gamma Ltd"
+	currency: CAD
+
+invoice "INV-Q18-UNPOSTED-WITH-DUE"
+	customer_id: "C-Q18-U1"
+	currency: CAD
+	date_opened: 2026-05-01
+	cash_basis: #True
+	due_date: 2026-05-30
+	entry:
+		date: 2026-05-01
+		description: "Awaiting cash receipt"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 80
+		taxable: false
+		tax_included: false
+	posted: none
+	payment: none

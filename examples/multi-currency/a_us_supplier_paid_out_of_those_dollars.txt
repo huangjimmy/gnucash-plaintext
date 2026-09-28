@@ -20,17 +20,17 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-23 commodity CAD
+2026-09-27 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 commodity USD
+2026-09-27 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 open Assets
+2026-09-27 open Assets
 	guid: "8358132660024fe7ac0abbc3c71cee30"
 	type: "Asset"
 	placeholder: #False
@@ -39,7 +39,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:Accounts Receivable USD
+2026-09-27 open Assets:Accounts Receivable USD
 	guid: "1812b84a64a44a859a105b039cc184ff"
 	type: "A/Receivable"
 	placeholder: #False
@@ -48,7 +48,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-23 open Assets:Bank
+2026-09-27 open Assets:Bank
 	guid: "e7c821e0c3e34b71b41d17a32b42842b"
 	type: "Bank"
 	placeholder: #False
@@ -57,7 +57,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:Bank:USD
+2026-09-27 open Assets:Bank:USD
 	guid: "f2ba3e98a7cb4a82807ee633ab331c67"
 	type: "Bank"
 	placeholder: #False
@@ -66,7 +66,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "USD"
-2026-09-23 open Income
+2026-09-27 open Income
 	guid: "e7c4a2efa1514e998ce1881cd80175a6"
 	type: "Income"
 	placeholder: #False
@@ -75,7 +75,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:FX Gain
+2026-09-27 open Income:FX Gain
 	guid: "dc6142ad6c474a2493ef18131a4b59cd"
 	type: "Income"
 	placeholder: #False
@@ -84,7 +84,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Income:Sales
+2026-09-27 open Income:Sales
 	guid: "5fda3d2031e945faa68fb687c5d4965e"
 	type: "Income"
 	placeholder: #False
@@ -93,7 +93,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses
+2026-09-27 open Expenses
 	guid: "21e106b934ac49a0910734f9ed66a8f7"
 	type: "Expense"
 	placeholder: #False
@@ -102,7 +102,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Expenses:Bank charges
+2026-09-27 open Expenses:Bank charges
 	guid: "ed0eedb9310f412fa5914c71ed28e428"
 	type: "Expense"
 	placeholder: #False
@@ -179,7 +179,7 @@ invoice "INV-USD-1"
 	currency.mnemonic: "USD"
 	txn_type: I
 	owner: customer:C-USD
-	business_generated: "true"
+	business_generated: #True
 	Assets:Accounts Receivable USD 2720.00 USD
 		guid: "8447276e4dab457d9286e883f2e1b698"
 		action: "Invoice"
@@ -199,7 +199,7 @@ invoice "INV-USD-1"
 		guid: "3f09144435874cd79d377496d863218d"
 	Income:FX Gain 19.86 CAD
 		guid: "21ef8a1397f34473a96a544dc9e0c08d"
-		took_the_residual: "true"
+		took_the_residual: #True
 	Assets:Bank:USD -2720.00 USD
 		guid: "f92404223b5c4b0c8a50551c07626b0e"
 		account.commodity.mnemonic: "USD"

@@ -1,0 +1,25 @@
+2026-02-01 * "Buy 1,000.00 USD at 1.30"
+	guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b2000"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1000"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.30000"
+		value: "1300.00"
+		cost_basis_balance: "0.00"
+	Assets:CAD Bank -1300.00 CAD
+		guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1001"
+2026-06-01 * "Sell every dollar at 1.40"
+	guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b2001"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 1400.00 CAD
+		guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1003"
+	Assets:USD Bank -1000.00 USD
+		guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1002"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.30000"
+		value: "-1300.00"
+		cost_basis_split_guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1000"
+	Income:FX Gain -100.00 CAD
+		guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1004"
+		took_the_residual: #False

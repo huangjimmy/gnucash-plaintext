@@ -4,7 +4,7 @@
 # written back out on export, so a ledger can carry a field this tool does not
 # understand and not lose it.
 #
-# Dropping such a key from the ledger has to take it off the object too — and
+# Removing such a key in the ledger has to remove it from the object too — and
 # that is the case the writer skipped: it wrote the slot only when the file
 # still had something to put in it, so the last key could never be removed.
 # The object then differed from the file for good, and every import from then
@@ -18,7 +18,7 @@
 #
 # What this fixture produces: two owners carrying `department`.
 #
-# Verified by tests/integration/test_dropping_a_custom_key_takes_it_off.py.
+# Verified by tests/integration/test_removing_a_custom_key_removes_it_from_the_book.py.
 2026-01-01 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"

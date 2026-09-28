@@ -136,7 +136,7 @@ For every case the tool does not cover, and for every book already stranded, the
 
 | repair | result |
 |---|---|
-| clear the stranded balance — `cost_basis_balance: ""` on the deposit split | **works today**, exit 0. That transaction has no split that establishes or picks a cost basis, so the in-place guard does not fire. Documented nowhere |
+| clear the stranded balance — `cost_basis_balance: ""` on the deposit split | **works today**, exit 0. That transaction has no split that establishes or picks a cost basis, so the in-place guard does not fire. Documented nowhere. Since Q-055, `""` on this key is refused, and `cost_basis_balance: $None$` removes the balance |
 | re-point the fee at the receivable's cost basis | **refused** — its transaction picks a cost basis, so `_require_no_cost_basis_edit` stops it. This is the one that cannot be worked around |
 | both in one file | refused for the fee — **and the book was saved anyway**, with the first transaction's change on disk: `Updated: 1`, `Errors: 1`, `Saving changes… ✓ Changes saved`, exit 1 |
 
@@ -232,7 +232,7 @@ It asks two things, and the `applied_from_credit` mark alone is not one of them.
 
 Accepting it is no weaker than what the format already allows. A sale may leave `cost_basis_split_guid:` out entirely and draw on nothing — that is what an ordinary bank fee does — so a guid that matches a pool since used up allows nothing a blank line does not. A guid that was never a cost basis is still refused, and `test_a_guid_that_was_never_a_basis_is_still_refused` pins it by pointing a sale at the first invoice's settlement, which sits in the same transaction on the same account and lowers its USD the same way.
 
-The two paths that spend a credit write the same thing, which is why one test answers for both: `_mark_spent_credit` for a block stating the credit's guid and `_mark_applied_from_credit` for the engine's own application each take `cost_basis_balance` off and write `applied_from_credit: true`. So neither leaves a stranded balance for the first check to find, and both leave the mark the second one reads.
+The two paths that spend a credit write the same thing, which is why one test answers for both: `_mark_spent_credit` for a block stating the credit's guid and `_mark_applied_from_credit` for the engine's own application each take `cost_basis_balance` off and write `applied_from_credit: #True`. So neither leaves a stranded balance for the first check to find, and both leave the mark the second one reads.
 
 **The cost stays where the balance goes.** A balance is how much of the currency is still there to sell, which spending ends; a cost is what the currency was acquired for, which spending does not change, and it is the only thing that can price the split again if the record it settles is later unposted — a credit paid in the record's own currency carries no base-currency figure anywhere in its transaction. Stripped, an unpost handed back a split that was neither a cost basis nor a spent credit. The export keeps it for the same reason: `_stored_cost_is_ignorable` drops a stored cost from any split that is no cost basis, and a credit settling a record is not one, so a ledger written while the credit was spent carried no cost at all and the book rebuilt from it could not price the split at all. `is_a_spent_credit` is the exemption, beside the one `_the_basis_it_states_was_spent` already makes for the guid.
 

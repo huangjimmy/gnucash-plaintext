@@ -21,7 +21,12 @@ from infrastructure.gnucash.kvp import (
 )
 from repositories.gnucash_repository import GnuCashRepository
 from services.conflict_resolver import ConflictResolver, ResolutionStrategy
-from services.foreign_currency import begin_import_run, running_atomic
+from services.foreign_currency import (
+    THE_TOOL_S_OWN_KEYS,
+    begin_import_run,
+    running_atomic,
+    the_tool_s_own_keys_as_they_hold,
+)
 from services.gnucash_importer import (
     COMPANY_FIELD_TO_SLOT,
     GnuCashImporter,
@@ -38,6 +43,7 @@ from services.positions_in_the_file import (
     number_the_transactions,
     record_the_guids_it_states,
     resolve_for_an_edit,
+    the_custom_keys_stated_as_bare_words,
     the_fields_that_cannot_be_removed,
     the_variables_where_none_is_read,
     what_is_wrong_with_the_positions,
@@ -67,6 +73,12 @@ _KEPT_AS_TEXT = {
     DirectiveType.TRANSACTION: ('notes',),
     DirectiveType.SPLIT: ('memo',),
 }
+
+# gnucash-plaintext's own keys, which are kept as custom KVP and read by
+# `the_tool_s_own_keys_as_they_hold` rather than as a user's, and the
+# payment's owner and type, which the export writes without quotes, as
+# `owner: customer:C001` and `txn_type: P`.
+_THE_TOOL_S_OWN_KEYS = frozenset(THE_TOOL_S_OWN_KEYS) | {'owner', 'txn_type', 'lot_owner'}
 
 
 def _the_book_would_write(exporter, transaction, directive) -> bool:
@@ -494,6 +506,9 @@ class ImportTransactionsUseCase:
         if not parser.errors:
             parser.errors.extend(the_variables_where_none_is_read(parser.root_directive))
             parser.errors.extend(what_is_wrong_with_the_positions(transactions))
+            parser.errors.extend(the_tool_s_own_keys_as_they_hold(parser.root_directive))
+            parser.errors.extend(the_custom_keys_stated_as_bare_words(
+                parser.root_directive, _IS_A_FIELD, _THE_TOOL_S_OWN_KEYS))
             for warning in the_fields_that_cannot_be_removed(parser.root_directive,
                                                              _IS_A_FIELD, _KEPT_AS_TEXT):
                 _echo_note(f'⚠ {warning}')

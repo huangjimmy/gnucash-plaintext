@@ -1,4 +1,4 @@
-"""Q-018: `cash_basis: true` invoice KVP for cash-basis tax filing.
+"""Q-018: `cash_basis: #True` invoice KVP for cash-basis tax filing.
 
 The KVP is purely descriptive — it labels the issuer's tax-method intent.
 The format and importer already support every required mechanic (Q-016
@@ -160,22 +160,22 @@ def test_same_date_post_pay_via_retarget_produces_paid_invoice(tmp_path):
 
 
 def test_cash_basis_kvp_roundtrips(tmp_path):
-    """The `cash_basis: true` line lands on the invoice as a custom KVP
+    """The `cash_basis: #True` line lands on the invoice as a custom KVP
     slot, survives re-import into a fresh book, and is re-emitted by
     `export --include-business-objects`."""
     runner = CliRunner()
     gnc = _build_paid_book(runner, tmp_path)
 
     state = _invoice_state(gnc, 'INV-Q18-CASH-100')
-    assert state['kvp'].get('cash_basis') == 'true', (
-        f'cash_basis flag must persist as KVP slot; got kvp={state["kvp"]}'
+    assert state['kvp'].get('cash_basis') is True, (
+        f'cash_basis must persist as KVP slot; got kvp={state["kvp"]}'
     )
 
     exported = tmp_path / 'exported.txt'
     r = runner.invoke(cli, ['export', str(gnc), str(exported),
                             '--include-business-objects'])
     assert r.exit_code == 0
-    assert 'cash_basis: "true"' in exported.read_text(), (
+    assert 'cash_basis: #True' in exported.read_text(), (
         'exporter must re-emit cash_basis on the invoice block'
     )
 
@@ -184,7 +184,7 @@ def test_cash_basis_kvp_roundtrips(tmp_path):
                             str(exported), '--include-business-objects'])
     assert r.exit_code == 0, f'fresh re-import: {r.output}'
     fresh_state = _invoice_state(gnc_fresh, 'INV-Q18-CASH-100')
-    assert fresh_state['kvp'].get('cash_basis') == 'true', (
+    assert fresh_state['kvp'].get('cash_basis') is True, (
         'flag must survive fresh-book re-import'
     )
 
@@ -217,7 +217,7 @@ def test_cash_basis_with_partial_payment_is_allowed(tmp_path):
     )
 
     state = _invoice_state(gnc, 'INV-Q18-PARTIAL-200')
-    assert state['kvp'].get('cash_basis') == 'true'
+    assert state['kvp'].get('cash_basis') is True
     assert state['is_posted']
     assert not state['is_paid'], 'invoice is partially paid, not fully paid'
     assert state['lot']['balance'] == 150.0, (
@@ -302,7 +302,7 @@ def test_cash_basis_flag_does_not_appear_in_pdf_or_html(tmp_path):
     )
 
 
-# ── Unposted-render path (cash_basis: true on an invoice awaiting cash) ──
+# ── Unposted-render path (cash_basis: #True on an invoice awaiting cash) ──
 
 def _render_invoice(gnc, invoice_id):
     """Helper: render the named invoice as GnuCash draws it and
@@ -344,7 +344,7 @@ def _import_into_fresh_book(runner, tmp_path, fixture_name):
 
 
 def test_a_cash_basis_invoice_is_drawn_like_any_other_unposted_one(tmp_path):
-    """`cash_basis: true` is the issuer's tax classification, and GnuCash's
+    """`cash_basis: #True` is the issuer's tax classification, and GnuCash's
     page has no notion of it: an unposted invoice is priced from its entries
     and marked in progress, whether the flag is there or not.
 

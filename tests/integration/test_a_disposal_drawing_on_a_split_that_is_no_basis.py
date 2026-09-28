@@ -127,7 +127,7 @@ def _a_fee_drawing_on_a_split_that_is_no_basis(runner, tmp_path):
     assert _run(runner, 'export', str(book), str(out)).exit_code == 0
     clear = tmp_path / 'clear.txt'
     clear.write_text(re.sub(r'\t\tcost_basis_balance: "[^"]*"\n',
-                            '\t\tcost_basis_balance: ""\n',
+                            '\t\tcost_basis_balance: $None$\n',
                             _block_for(out.read_text(),
                                        '2026-08-13 * "Received')))
     assert _run(runner, 'import', str(book), str(clear),

@@ -21,22 +21,22 @@
 #
 # The statement that ledger produces is at the end of this file.
 
-2026-09-23 commodity CAD
+2026-09-27 commodity CAD
 	mnemonic: "CAD"
 	fullname: "Canadian Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 commodity NASDAQ.AMZN
+2026-09-27 commodity NASDAQ.AMZN
 	mnemonic: "AMZN"
 	fullname: "Amazon.com Inc"
 	namespace: "NASDAQ"
 	fraction: 10000
-2026-09-23 commodity USD
+2026-09-27 commodity USD
 	mnemonic: "USD"
 	fullname: "US Dollar"
 	namespace: "CURRENCY"
 	fraction: 100
-2026-09-23 open Assets
+2026-09-27 open Assets
 	guid: "bb3ce3b01d114068be8fc0245a8a1eaa"
 	type: "Asset"
 	placeholder: #True
@@ -45,7 +45,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Assets:AMZN
+2026-09-27 open Assets:AMZN
 	guid: "35e6e1347200416ba33c88300f7fc5b4"
 	type: "Stock"
 	placeholder: #False
@@ -54,7 +54,7 @@
 	tax_related: #False
 	commodity.namespace: "NASDAQ"
 	commodity.mnemonic: "AMZN"
-2026-09-23 open Assets:Bank
+2026-09-27 open Assets:Bank
 	guid: "d03c99beea1b4d96880013323fcde6ad"
 	type: "Bank"
 	placeholder: #False
@@ -63,7 +63,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity
+2026-09-27 open Equity
 	guid: "61df61fc1fcb47709d1547c1a5ff8b40"
 	type: "Equity"
 	placeholder: #True
@@ -72,7 +72,7 @@
 	tax_related: #False
 	commodity.namespace: "CURRENCY"
 	commodity.mnemonic: "CAD"
-2026-09-23 open Equity:Opening balances
+2026-09-27 open Equity:Opening balances
 	guid: "e06467bf91254a57b76472da6247e970"
 	type: "Equity"
 	placeholder: #False

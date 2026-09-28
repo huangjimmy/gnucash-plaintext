@@ -21,7 +21,13 @@ from typing import List, Optional, Tuple
 from gnucash.gnucash_core_c import ACCT_TYPE_PAYABLE, ACCT_TYPE_RECEIVABLE
 
 from infrastructure.gnucash.kvp import REMOVE_THE_KEY, get_custom_metadata, set_custom_metadata
-from infrastructure.gnucash.utils import Variable, get_account_full_name, money_text
+from infrastructure.gnucash.utils import (
+    A_DATE,
+    BareWord,
+    Variable,
+    get_account_full_name,
+    money_text,
+)
 from services.foreign_currency import (
     COST_BASIS_SPLIT_KEY,
     PENDING,
@@ -187,6 +193,41 @@ def the_fields_that_cannot_be_removed(root, is_a_field, kept_as_text) -> List[st
 
     walk(root)
     return said
+
+
+def the_custom_keys_stated_as_bare_words(root, is_a_field, the_tool_s_own) -> List[str]:
+    """A refusal for each key of the user's own stated as a word without quotes.
+
+    A key of the user's own holds what the file states: `"yes"` is the text
+    yes, `1` the number 1, `#True` the flag. A bare `yes` is none of them, and
+    reading it as the text or as `#True` would be a guess, so it is refused.
+    GnuCash's fields and gnucash-plaintext's own keys, `the_tool_s_own`, take
+    bare words and are left to their own readers.
+    """
+    refused = []
+
+    def walk(directive):
+        for child in directive.children:
+            a_field = is_a_field.get(child.type)
+            if a_field is not None:
+                for key, value in child.metadata.items():
+                    if not (isinstance(value, BareWord) and not a_field(key)
+                            and key not in the_tool_s_own):
+                        continue
+                    if A_DATE.fullmatch(value):
+                        refused.append(
+                            f'{child.line.strip()!r}: `{key}: {value}` is no date. Write a '
+                            f'date as YYYY-MM-DD, such as 2026-01-31, or `{key}: "{value}"` '
+                            f'for the text.')
+                    else:
+                        refused.append(
+                            f'{child.line.strip()!r}: `{key}` is a key of your own, and '
+                            f'`{key}: {value}` states a word without quotes. Write '
+                            f'`{key}: "{value}"` for the text, or #True or #False.')
+            walk(child)
+
+    walk(root)
+    return refused
 
 
 def replace_the_positions_with_their_guids(directive, splits) -> None:

@@ -70,10 +70,13 @@ from infrastructure.gnucash.kvp import (
     held_value,
     merge_book_custom_metadata,
     removes_the_key,
+    same_value,
     set_book_string_option,
     set_custom_metadata,
 )
 from infrastructure.gnucash.utils import (
+    FALSE_SPELLINGS,
+    TRUE_SPELLINGS,
     encode_value_as_string,
     exact_text,
     find_account,
@@ -89,6 +92,7 @@ from infrastructure.gnucash.utils import (
 from services.foreign_currency import (
     APPLIED_FROM_CREDIT_KEY,
     BASE_CURRENCY,
+    BUSINESS_GENERATED_KEY,
     COST_BASES_KEY,
     COST_BASIS_BALANCE_KEY,
     COST_BASIS_BROUGHT_IN_KEY,
@@ -103,6 +107,7 @@ from services.foreign_currency import (
     account_side,
     amounts_by_cost_basis,
     apply_cost_basis_picks,
+    as_a_bool,
     balance_came_from_file,
     balance_the_run_found,
     book_keeps_cost_bases,
@@ -323,7 +328,7 @@ def refuse_an_update_leaving_two_splits_taking_the_residual(
     decides its own split; a block silent about the key leaves whatever that
     split already carries, which is how a second claim arrives with no file
     ever stating two: export a disposal, whose gain split carries the key, add
-    `took_the_residual: "true"` to the bank charge beside it, and re-import. No
+    `took_the_residual: #True` to the bank charge beside it, and re-import. No
     figure moves, so the cost-basis refusal has nothing to catch, and the slot
     merge writes the second key beside the first.
 
@@ -365,8 +370,8 @@ def refuse_an_update_leaving_two_splits_taking_the_residual(
             f'{len(claimed)} splits would take the residual — {accounts} — but '
             f'only one split per transaction can, because a transaction has one '
             f'exchange difference. A split already carrying took_the_residual '
-            f'keeps it unless its block states took_the_residual: "" to take it '
-            f'off.')
+            f'keeps it unless its block states took_the_residual: $None$ to '
+            f'remove it.')
 
 
 def refuse_two_splits_taking_the_residual(
@@ -376,7 +381,7 @@ def refuse_two_splits_taking_the_residual(
     A transaction has one, and there are two ways to say which split it is:
     write `$residual$` in place of the amount and let the import work the
     figure out, or work it out yourself, write it, and state
-    `took_the_residual: "true"` on that split. They produce the same book, so
+    `took_the_residual: #True` on that split. They produce the same book, so
     one of each — or two of either — claims the difference twice.
 
     Counted twice it is not a near miss. On a sale of 1,000.00 USD that cost
@@ -423,7 +428,7 @@ def refuse_two_splits_taking_the_residual(
             f'one split per transaction can, because a transaction has one '
             f'exchange difference. A split takes it by writing '
             f'{RESIDUAL_AMOUNT} in place of its amount, or by stating '
-            f'took_the_residual: "true" beside a figure the file states.')
+            f'took_the_residual: #True beside a figure the file states.')
 
 
 def _resolve_residual(directive: PlaintextDirective, tx_currency, root_account) -> str:
@@ -514,7 +519,7 @@ def string_to_gnc_numeric_quantity(s):
     return GncNumeric(exact.numerator, exact.denominator)
 
 
-_FALSY_STRINGS = {'false', '0', 'no'}
+_FALSY_STRINGS = FALSE_SPELLINGS
 
 
 @dataclass
@@ -1287,8 +1292,8 @@ def _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record=None,
     book offers 7,720.00 USD where it holds 5,000.00. Measured on a 2,720.00
     USD deposit linked to a 5,000.00 USD invoice and the balance paid after.
     So the currency is the receivable's from the link on, and a sale of it
-    waits for the invoice to be collected — or states `cost_basis_force: true`,
-    which is what that flag is for.
+    waits for the invoice to be collected — or states `cost_basis_force: #True`,
+    which is what that key is for.
 
     **Paying an invoice in full**, it is neither a purchase nor a borrowing
     any more: it is that invoice being paid, and the invoice's own posting
@@ -2161,7 +2166,7 @@ def is_a_bank_paid_orphan(split) -> bool:
     meta = get_custom_metadata(split)
     if not str(meta.get(ORPHANED_BY_UNPOST_KEY, '')).strip():
         return False
-    return str(meta.get(APPLIED_FROM_CREDIT_KEY, '')).strip().lower() != 'true'
+    return as_a_bool(meta.get(APPLIED_FROM_CREDIT_KEY)) is not True
 
 
 def still_orphaned_by_an_unpost(book, txn_guid: str) -> bool:
@@ -2319,7 +2324,7 @@ def _refuse_to_discard_a_part_sold_balance(split, guid: str,
             f'How much of that currency is unsold cannot be read, so whether '
             f'discarding the balance loses anything cannot be answered. '
             f'Correct it with `{COST_BASIS_BALANCE_KEY}: "<amount>"` on that '
-            f'split, or clear it with `{COST_BASIS_BALANCE_KEY}: ""`, and '
+            f'split, or remove it with `{COST_BASIS_BALANCE_KEY}: $None$`, and '
             f'link the payment again.')
     balance = cost_basis_balance_of(split)
     if balance is None:
@@ -2335,7 +2340,7 @@ def _refuse_to_discard_a_part_sold_balance(split, guid: str,
         f'{money_text(brought_in, unit)} {currency} it brought in. The '
         f'{money_text(brought_in - balance, unit)} {currency} difference is '
         f'currency sold outside this book, and discarding the balance is the '
-        f'only record of it going. State `{COST_BASIS_BALANCE_KEY}: ""` on '
+        f'only record of it going. State `{COST_BASIS_BALANCE_KEY}: $None$` on '
         f'that split first if that difference is not currency this book '
         f'should account for.')
 
@@ -2719,7 +2724,7 @@ def _mark_spent_credit(split) -> None:
     # invoice or a bill owns.
     metadata = {key: val for key, val in get_custom_metadata(split).items()
                 if key not in (COST_BASIS_BALANCE_KEY, 'lot_owner')}
-    metadata[APPLIED_FROM_CREDIT_KEY] = 'true'
+    metadata[APPLIED_FROM_CREDIT_KEY] = True
     # As above: both callers reach here with the transaction committed — after
     # a division, or after the whole split was moved into the record's lot.
     transaction = split.GetParent()
@@ -2841,7 +2846,7 @@ def _retarget_with_prepayment_split(lib, book, record, existing_tx,
     return new_split
 
 
-_BUSINESS_GENERATED_META = {'business_generated': 'true'}
+_BUSINESS_GENERATED_META = {BUSINESS_GENERATED_KEY: True}
 
 
 def _attach_existing_tx_as_posted(invoice_or_bill, existing_tx, ar_ap_account,
@@ -3056,18 +3061,10 @@ def _refuse_bracketed_keys(md: dict, known) -> None:
 def _custom_keys_to_store(md: dict, known: frozenset) -> dict:
     """The custom keys a block names, ready to store on a new object.
 
-    `key: ""` clears, and a cleared custom key is one that is not there —
-    README's rule for every block, and there is no other reading available:
-    nothing could tell a key holding the empty string from one nobody wrote.
-    On a create there is nothing to remove, so such a key simply does not
-    appear.
-
-    Read as "not None", an empty value was stored as an empty key, and the
-    create and update paths then answered the same line differently: a fresh
-    book kept `department: ""` and a book that already held the transaction
-    dropped it. The export writes back whatever is stored, so the file grew a
-    line nobody typed, and the same ledger built two different books depending
-    on which book it met — a create, export and re-import that never settled.
+    Only `$None$` removes a key, and on a create there is nothing to remove,
+    so a key stated `$None$` does not appear. `key: ""` is stored as the empty
+    text, on a create as on an update, so the same line builds the same book
+    whichever book it meets.
 
     `_merge_custom_metadata` is the same rule where there is something to
     remove.
@@ -3105,10 +3102,10 @@ def _merge_custom_metadata(obj, md: dict, known: frozenset) -> None:
     carries one, and so does a person correcting a name. Replacing the slot
     wholesale made every partial block a delete.
 
-    A key is removed by stating it `$None$`, as a company block removes one,
-    or by stating it empty, which is what `addr[0]: ""` does one field over.
-    `#None` is the null value, and is stored. Removing it by leaving the line
-    out cannot be told from never having mentioned it.
+    A key is removed only by stating it `$None$`, as a company block removes
+    one. A key stated `""` holds the empty text, and `#None` is the null
+    value; both are stored. Removing it by leaving the line out cannot be told
+    from never having mentioned it.
     """
     _refuse_bracketed_keys(md, known)
     named = {k: v for k, v in md.items() if k not in known}
@@ -3221,7 +3218,7 @@ def _named_custom_metadata_matches(obj, md: dict, known: frozenset) -> bool:
         if removes_the_key(value):
             if key in held:
                 return False
-        elif key not in held or held[key] != value:
+        elif key not in held or not same_value(held[key], value):
             return False
     return True
 
@@ -3402,7 +3399,7 @@ def _a_word_gnucash_knows(table: dict, word, key: str, where: str) -> int:
     return known
 
 
-_TRUTHY_STRINGS = {'true', '1', 'yes'}
+_TRUTHY_STRINGS = TRUE_SPELLINGS
 
 
 def _a_yes_or_no(value, key: str, where: str) -> bool:
@@ -3411,11 +3408,11 @@ def _a_yes_or_no(value, key: str, where: str) -> bool:
     Every boolean this format carries is read here, so a typo gets one
     answer wherever it lands. Read as "not one of the falsy words" — which is
     how most of them were read — a typo went through as **true**, the costly
-    direction on every key that has one: `billable: treu` re-billed a line to
-    a customer, and `auto_apply_credit: treu` spent the owner's credit
+    direction on every key that has one: `billable: "maybe"` re-billed a line
+    to a customer, and `auto_apply_credit: "maybe"` spent the owner's credit
     against an invoice the file never asked to settle that way. Beside them
-    `taxable: treu` compared against the string `true` and read as false, and
-    `payment_type: cassh` was refused by name, so one typo had three answers
+    `taxable: "maybe"` compared against the string `true` and read as false, and
+    `payment_type: "maybe"` was refused by name, so one word had three answers
     depending on which key it landed in.
     """
     word = str(value).strip().lower()
@@ -4574,7 +4571,7 @@ def _entry_fields_named(md: dict, side: str) -> dict:
     fields = {
         'notes': str(md.get('notes', '')),
         # The two tax flags read the same way `billable:` does. Read as
-        # `== 'true'`, `taxable: treu` imported as **not taxable** — the
+        # `== 'true'`, `taxable: "maybe"` imported as **not taxable** — the
         # costlier direction, and costlier still now that the flag decides
         # `entry_tax:`, every `breakdown:` block and the page's totals:
         # a page printed after the typo agrees with itself and re-imports
@@ -6125,8 +6122,7 @@ def _split_came_from_credit(split) -> bool:
     applied, it sits in the record's lot exactly as a bank payment's split
     does.
     """
-    return str(get_custom_metadata(split).get(APPLIED_FROM_CREDIT_KEY, '')
-               ).strip().lower() == 'true'
+    return as_a_bool(get_custom_metadata(split).get(APPLIED_FROM_CREDIT_KEY)) is True
 
 
 def _looks_like_consumed_credit(split, this_lot_id: int) -> bool:
@@ -10734,7 +10730,7 @@ def _mark_applied_from_credit(record, lot_before) -> list:
         # A split is always in a transaction.
         transaction = split.GetParent()
         metadata = dict(get_custom_metadata(split))
-        metadata[APPLIED_FROM_CREDIT_KEY] = 'true'
+        metadata[APPLIED_FROM_CREDIT_KEY] = True
         # A settlement holds no balance: this currency has been spent on the
         # invoice, whether the credit went whole into it or was carved. Nor
         # is it anybody's orphan — the engine copies the source split's
@@ -11112,7 +11108,7 @@ def _check_stated_balances(book, directive) -> None:
     # transaction.
     for child in directive.children:
         stated = child.metadata.get(COST_BASIS_BALANCE_KEY)
-        if stated is None or str(stated).strip() == '':
+        if stated is None or removes_the_key(stated):
             continue
         account_name = str(child.props.get('account', ''))
         account = find_account(root, account_name)
@@ -11248,7 +11244,7 @@ def _check_stated_costs(book, directive, existing_tx=None) -> None:
     # transaction.
     for child in directive.children:
         stated = child.metadata.get(COST_BASIS_COST_KEY)
-        if stated is None or str(stated).strip() == '':
+        if stated is None or removes_the_key(stated):
             continue
         account_name = str(child.props.get('account', ''))
         currency = commodity_of(child)

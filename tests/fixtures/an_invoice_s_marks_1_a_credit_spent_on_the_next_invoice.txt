@@ -1,0 +1,71 @@
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Accounts Receivable
+	type: Accounts Receivable
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income:Sales
+	type: Income
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "C001"
+	name: "Acme"
+	currency: CAD
+
+invoice "INV-001"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-01-01
+	entry:
+		date: 2026-01-01
+		description: "A"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-01-01
+		due: 2026-01-31
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-001"
+		accumulate: true
+	payment:
+		date: 2026-01-10
+		amount: 150
+		bank_account: "Assets:Bank"
+		memo: "Overpaid"
+		prepayment: 50
+
+invoice "INV-002"
+	customer_id: "C001"
+	currency: CAD
+	date_opened: 2026-02-01
+	auto_apply_credit: true
+	entry:
+		date: 2026-02-01
+		description: "B"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 30
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-02-01
+		due: 2026-02-28
+		ar_account: "Assets:Accounts Receivable"
+		memo: "INV-002"
+		accumulate: true

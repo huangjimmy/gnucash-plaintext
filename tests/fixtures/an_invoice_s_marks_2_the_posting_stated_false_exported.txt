@@ -1,0 +1,36 @@
+2026-01-10 * "Acme"
+	guid: "{payment}"
+	txn_type: P
+	owner: customer:C001
+	Assets:Bank 150.00 CAD
+		guid: "{bank}"
+		action: "Payment"
+		memo:"Overpaid"
+	Assets:Accounts Receivable -100.00 CAD
+		guid: "{settled}"
+		action: "Payment"
+		memo:"Overpaid"
+	Assets:Accounts Receivable -30.00 CAD
+		guid: "{spent}"
+		action: "Payment"
+		memo:"Overpaid"
+		applied_from_credit: #True
+	Assets:Accounts Receivable -20.00 CAD
+		guid: "{credit}"
+		action: "Payment"
+		memo:"Overpaid"
+		lot_owner: customer:C001:{customer}
+		lot_guid: "{lot}"
+2026-02-01 * "INV-002" "INV-002"
+	guid: "{posting}"
+	txn_type: I
+	owner: customer:C001
+	business_generated: #False
+	Assets:Accounts Receivable 30.00 CAD
+		guid: "{posting_ar}"
+		action: "Invoice"
+		memo:"INV-002"
+	Income:Sales -30.00 CAD
+		guid: "{posting_sales}"
+		action: "Invoice"
+		memo:"INV-002"

@@ -60,7 +60,7 @@ def test_its_export_re_imports_and_carries_the_fault(tmp_path):
     assert DEPOSIT_SPLIT in rebuilt.output, rebuilt.output
 
 
-def test_stating_an_empty_balance_clears_it(tmp_path):
+def test_removing_the_balance_clears_it(tmp_path):
     """The one thing that does, and what the report asks for."""
     runner = CliRunner()
     book = _a_book_already_wrong(runner, tmp_path)
@@ -71,7 +71,7 @@ def test_stating_an_empty_balance_clears_it(tmp_path):
                       out.read_text()).group(0)
     clear = tmp_path / 'clear.txt'
     clear.write_text(re.sub(r'cost_basis_balance: "[^"]*"',
-                            'cost_basis_balance: ""', block))
+                            'cost_basis_balance: $None$', block))
     assert _run(runner, 'import', str(book), str(clear),
                 '--strategy', 'update').exit_code == 0
 

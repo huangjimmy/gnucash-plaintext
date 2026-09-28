@@ -297,7 +297,7 @@ def test_a_balance_a_refused_edit_states_is_not_read_as_stated(tmp_path):
     text = _exported(book, tmp_path)
     refused_deposit = (_without_comments(FIXTURES + DEPOSIT)
                        .replace('cost_basis_split_guid: $transactions_to_import[0].splits[0].guid$',
-                                'cost_basis_split_guid: ""')
+                                'cost_basis_split_guid: $None$')
                        .replace('\t\tvalue: "3815.89"\n',
                                 '\t\tvalue: "3815.89"\n\t\tcost_basis_balance: "2000.00"\n'))
     smaller_sale = (_without_comments(FIXTURES + SALE)
@@ -595,9 +595,10 @@ class TestTheSameCostBasis:
 
     @staticmethod
     def _stated(book, tmp_path, figure):
-        """The deposit's balance stated by a file of its own, as a book records currency sold outside it."""
-        stated = _exported(book, tmp_path).replace('cost_basis_balance: "2719.28"',
-                                                    f'cost_basis_balance: "{figure}"')
+        """The deposit's balance stated by a file of its own, as a book records currency sold outside it; None removes it."""
+        stated = _exported(book, tmp_path).replace(
+            'cost_basis_balance: "2719.28"',
+            'cost_basis_balance: ' + ('$None$' if figure is None else f'"{figure}"'))
         ledger = tmp_path / 'stated.txt'
         ledger.write_text(stated)
         _accepted(_run(CliRunner(), 'import', str(book), str(ledger), '--strategy', 'update',
@@ -682,7 +683,7 @@ class TestTheSameCostBasis:
     def test_booked_as_income_holds_no_balance_where_a_file_cleared_it(self, tmp_path):
         """Cleared, the deposit's cost basis is read as holding nothing, and still is after the edit."""
         book = _book(tmp_path, DEPOSIT)
-        self._stated(book, tmp_path, '')
+        self._stated(book, tmp_path, None)
         before = _bases(book)
         assert not [row for row in before if row[0] == 'Assets:Wise USD']
 

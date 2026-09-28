@@ -1,0 +1,39 @@
+# A transaction and a split each stating a custom key as the empty text.
+#
+# `key: ""` is the empty text, which a custom key holds like any other text;
+# only `$None$` removes a key. The rule README states under "What a key says,
+# and what leaving it out says".
+#
+# What this fixture produces: one transaction carrying `region: "west"` and
+# `department: ""`, whose bank split carries `project: ""`, each written back
+# by the export as stated.
+#
+# Verified by tests/integration/test_a_key_stated_empty_holds_the_empty_text.py.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: Asset
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank
+	type: Bank
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses:Sundry
+	type: Expense
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+2026-02-01 * "Kept some keys, emptied others"
+	region: "west"
+	department: ""
+	Assets:Bank -20.00 CAD
+		project: ""
+	Expenses:Sundry 20.00 CAD

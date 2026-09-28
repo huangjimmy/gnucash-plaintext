@@ -1,27 +1,18 @@
-"""`key: ""` removes a custom key, on a new transaction as on an old one.
+"""`key: ""` is the empty text, which a custom key holds, on a new transaction as on an old one.
 
-README states one rule for every block: `key: "value"` sets, `key: ""` clears,
-and a line that is absent says nothing. Clearing a custom key means the key is
-gone — there is no such thing as a custom key whose value is the empty string,
-because nothing could tell it from one that was never written.
-
-Owners, invoices and bills have always kept that rule: they merge through one
-function that pops an empty value whichever path they arrive on. Transactions
-and splits read it as "not None", so an empty value was stored on a book that
-did not yet hold the transaction, and removed on a book that did. The two
-answers are the visible cost: the export writes back a line nobody typed, and
-the same ledger builds a different book depending on which book it meets — so a
-create, export and re-import never settles.
+Only `$None$` removes a custom key; `""` is text, and the export writes it
+back as `""`. The create path and the update path store it alike, so the
+same ledger builds the same book whichever book it meets, and a create,
+export and re-import settles.
 """
 
 from pathlib import Path
 
-import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
 
-LEDGER = str(Path('tests/fixtures/a_transaction_naming_a_key_empty.txt'))
+LEDGER = str(Path('tests/fixtures/a_transaction_stating_a_key_as_the_empty_text.txt'))
 
 
 def _import_new(tmp_path, name='book.gnucash'):
@@ -39,18 +30,18 @@ def _export(book, tmp_path, name='out.txt'):
 
 
 class TestOnABookThatDidNotHaveIt:
-    def test_the_cleared_key_is_not_written_back(self, tmp_path):
+    def test_the_empty_key_is_written_back_empty(self, tmp_path):
         text = _export(_import_new(tmp_path), tmp_path)
 
-        assert 'department:' not in text, text
+        assert '\tdepartment: ""\n' in text, text
 
-    def test_the_cleared_split_key_is_not_written_back(self, tmp_path):
+    def test_the_empty_split_key_is_written_back_empty(self, tmp_path):
         text = _export(_import_new(tmp_path), tmp_path)
 
-        assert 'project:' not in text, text
+        assert '\t\tproject: ""\n' in text, text
 
     def test_the_key_that_was_set_to_a_value_is_kept(self, tmp_path):
-        """Clearing one key says nothing about the others."""
+        """An empty key says nothing about the others."""
         text = _export(_import_new(tmp_path), tmp_path)
 
         assert 'region: "west"' in text, text

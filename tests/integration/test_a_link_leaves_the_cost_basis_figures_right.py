@@ -226,7 +226,7 @@ def test_a_part_payment_link_hands_the_currency_to_the_receivable(tmp_path):
 
     What it costs is that the currency in the bank is the receivable's from
     the link on: a sale of it waits until the invoice is collected, or says
-    `cost_basis_force: true`, which is what that flag is for. The listing
+    `cost_basis_force: #True`, which is what that key is for. The listing
     keeps showing the receivable's cost basis throughout, so nothing goes quiet.
     """
     runner = CliRunner()
@@ -516,7 +516,7 @@ def test_a_bill_link_keeps_a_basis_that_has_no_recorded_balance(tmp_path):
     cleared.write_text(re.sub(r'\t\tcost_basis_balance: "[^"]*"\n', '', block)
                        .replace(f'guid: "{CREDIT_LINE_SPLIT}"',
                                 f'guid: "{CREDIT_LINE_SPLIT}"\n'
-                                f'\t\tcost_basis_balance: ""'))
+                                f'\t\tcost_basis_balance: $None$'))
     assert _run(runner, 'import', str(book), str(cleared),
                 '--strategy', 'update', '--fx-rates', RATES).exit_code == 0
     assert _stored_balance(book, CREDIT_LINE_SPLIT) is None
@@ -561,8 +561,8 @@ def test_unapplying_the_bills_link_leaves_no_cost_the_ledger_contradicts(tmp_pat
 
     Left on, `--verify-costs` reported the book unsound after an ordinary
     undo — "cost_basis_cost says 381589/272000 … but the transaction says
-    1.2" — with nothing telling its reader that `cost_basis_cost: ""` is the
-    fix. The transaction outranks a stored copy wherever both exist, so the
+    1.2" — with nothing telling its reader that `cost_basis_cost: $None$` is
+    the fix. The transaction outranks a stored copy wherever both exist, so the
     copy is what goes.
     """
     runner = CliRunner()

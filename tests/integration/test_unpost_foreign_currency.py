@@ -57,7 +57,7 @@ def test_unposting_an_invoice_whose_basis_was_sold_makes_the_sale_pending(tmp_pa
         Path('tests/fixtures/fx_sell_usd_partial.txt').read_text()
         .replace('{basis_a}', basis)
         .replace(f'cost_basis_split_guid: "{basis}"',
-                 f'cost_basis_split_guid: "{basis}"\n\t\tcost_basis_force: true')
+                 f'cost_basis_split_guid: "{basis}"\n\t\tcost_basis_force: #True')
         .replace('share_price: "1.35"', 'share_price: "1.40"')
         .replace('value: "-54.00"', 'value: "-56.00"'))
     assert _run(runner, 'import', str(book), str(sale)).exit_code == 0

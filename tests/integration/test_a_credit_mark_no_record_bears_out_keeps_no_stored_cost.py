@@ -30,5 +30,5 @@ def test_the_stored_cost_is_not_written_out(tmp_path):
     assert _run(runner, 'export', str(book), str(out)).exit_code == 0
     block = re.search(r'2026-02-02 \* "Move 10 USD[^\n]*\n(?:\t[^\n]*\n)*',
                       out.read_text()).group(0)
-    assert 'applied_from_credit: "true"' in block, block
+    assert 'applied_from_credit: #True' in block, block
     assert 'cost_basis_cost' not in block, block

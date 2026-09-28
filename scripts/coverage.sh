@@ -52,13 +52,22 @@ cd "$PROJECT_ROOT"
 THRESHOLD=100
 
 # What `tests/scenario/` alone reaches, line and branch, on the union of every
-# supported build: 41.05% measured on 2026-09-27, gated at 41.03%. A floor: a
+# supported build: 42.35% measured on 2026-09-27, gated at 42.35%. A floor: a
 # change may raise it, and a change that leaves the scenarios reaching less is
-# refused. Two decimal places, because the report is read at that precision, and
-# the 0.02 of slack is what the figure before this one carried, so a rounding
-# difference between eleven data files and twelve does not fail a run.
+# refused. Two decimal places, because the report is read at that precision.
 #
-# **It was 41.10%, from 41.12% measured the same day, and it came down because
+# It is gated at the figure measured, with no slack below it, because the
+# figure CI gates cannot be lower than the one measured here. This script's
+# sweep combines the eleven builds, and CI combines the same eleven and the
+# arm64 run of `ubuntu24`. The figure is a union of lines and branch exits
+# reached, against the same tree: a twelfth data file can add to what is
+# reached and can take nothing away.
+#
+# It was 41.03% until Q-055's scenario tests of custom keys and of the keys
+# gnucash-plaintext keeps for itself raised the measured figure from 41.05% to
+# 42.35%, with the union at 100% before and after.
+#
+# **Before that it was 41.10%, from 41.12% measured the same day, and it came down because
 # the tree gained code no book can reach.** A scenario is an accounting case —
 # a book, a file, a command, and the figures that come back — and the library
 # this tool loads GnuCash from is not one: no ledger a person writes can state a
@@ -76,7 +85,7 @@ THRESHOLD=100
 # rather than to state a case is the thing this gate exists to refuse — calling
 # an implementation function from `tests/scenario/` would clear the floor and
 # measure nothing.
-SCENARIO_THRESHOLD=41.03
+SCENARIO_THRESHOLD=42.35
 REPORT_ONLY=""
 HTML=""
 while [ $# -gt 0 ]; do

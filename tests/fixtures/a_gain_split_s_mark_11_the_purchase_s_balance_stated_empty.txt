@@ -1,0 +1,11 @@
+2026-02-01 * "Buy 1,000.00 USD at 1.30"
+	guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b2000"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 1000.00 USD
+		guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1000"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.30000"
+		value: "1300.00"
+		cost_basis_balance: ""
+	Assets:CAD Bank -1300.00 CAD
+		guid: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b1001"

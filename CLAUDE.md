@@ -685,11 +685,11 @@ The same rule applies to every business object, not just customers: `import_cust
 
 So the slot is merged rather than replaced, and follows the rule the address lines follow:
 
-- a key the block does not name says nothing about it;
-- a key named empty (`department: ""`) is removed;
+- a key the block does not state says nothing about it;
+- a key stated `$None$` (`department: $None$`) is removed, and it is the only way to remove one; `department: ""` is the empty text, which the key holds;
 - a key that has since become a field of its own (`addr1` on a vendor, once vendors gained address setters) is dropped from the slot on the next import, and filtered out of every writer — emitted from both the slot and the field, the line appeared twice and the stale copy came second, which is the one a re-import keeps.
 
-**The rule is in README under "What a key says, and what leaving it out says"** — that is where the format is defined, and the code follows it: `key: "value"` sets, `key: ""` clears (and removes a custom key), an absent line says nothing. It holds for reserved fields and custom metadata alike, on every block, in both the writer and the comparison that decides `unchanged`.
+**The rule is in README under "What a key says, and what leaving it out says"** — that is where the format is defined, and the code follows it: `key: "value"` sets, `key: ""` sets the empty text, `key: $None$` removes a custom key, an absent line says nothing. gnucash-plaintext's own keys (`took_the_residual`, `applied_from_credit`, `cost_basis_force`, `business_generated`, `cash_basis`, `due_date`, and the cost basis keys) hold one type each, listed in `THE_TOOL_S_OWN_KEYS` in `services/foreign_currency.py`, and `""` on one is refused. It holds for reserved fields and custom metadata alike, on every block, in both the writer and the comparison that decides `unchanged`.
 
 **The general rule this is one case of**: on the import side, an absent key is not an instruction. `if 'notes' in metadata` is the shape — the transaction and split paths have always used it — and `md.get('notes', '')` is the shape that erases. Whatever the comparison that decides `unchanged` reads, the writer must write, and neither may read a field the block did not name.
 

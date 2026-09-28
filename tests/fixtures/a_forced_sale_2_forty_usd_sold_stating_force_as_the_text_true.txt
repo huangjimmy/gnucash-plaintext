@@ -1,0 +1,18 @@
+2026-02-01 * "Sell 40 USD"
+	guid: "0c0c0c0c0c0c0c0c0c0c0c0c0c0c2000"
+	currency.mnemonic: "CAD"
+	Assets:Bank:USD -40.00 USD
+		guid: "0c0c0c0c0c0c0c0c0c0c0c0c0c0c1000"
+		account.commodity.mnemonic: "USD"
+		share_price: "1.40"
+		value: "-56.00"
+		cost_basis_split_guid: "{basis}"
+		cost_basis_force: "true"
+	Assets:Bank 54.80 CAD
+		guid: "0c0c0c0c0c0c0c0c0c0c0c0c0c0c1001"
+		account.commodity.mnemonic: "CAD"
+		share_price: "1"
+		value: "54.80"
+	Income:FX Gain $residual$ CAD
+		guid: "0c0c0c0c0c0c0c0c0c0c0c0c0c0c1002"
+		account.commodity.mnemonic: "CAD"

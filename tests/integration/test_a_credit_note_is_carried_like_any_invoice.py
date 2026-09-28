@@ -372,7 +372,7 @@ class TestAMistypedFlag:
         # Tab-anchored: the key, not the sentence about it in the fixture's
         # own header comment.
         ledger.write_text(text.replace('\tcredit_note: true',
-                                       '\tcredit_note: treu', 1),
+                                       '\tcredit_note: "maybe"', 1),
                           encoding='utf-8')
 
         result = CliRunner().invoke(cli, ['import', '--new',
