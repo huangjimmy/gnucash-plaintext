@@ -10,7 +10,7 @@
 # this sale worth 46.37. So 46.37 is the one figure this split may state, and
 # the check that reads it rounds the same way before comparing.
 #
-# The sale fetched 46.00, so the residual is the 0.37 lost on it.
+# The sale's proceeds are 46.00 CAD, so the residual is the 0.37 CAD lost on it.
 #
 # {basis_guid} is filled in from `fx-balances`.
 #

@@ -167,7 +167,7 @@ realizes a difference of its own, and one guid cannot say both.
 
     asset side
       consumed  1,010.00 USD at 1.35  =  1,363.50 CAD of cost
-      fetched   1,010.00 USD at 1.40  =  1,414.00 CAD
+      proceeds  1,010.00 USD at 1.40  =  1,414.00 CAD
       realized                          +   50.50 CAD    a gain
 
     liability side
@@ -207,7 +207,7 @@ t4 — THE DOLLARS THE LOAN BROUGHT IN ARE SOLD
     		cost_basis_split_guid: "<the 1,000.00 borrowing basis, held side>"
     	Income:FX Gain $residual$ CAD
 
-They cost 1.30 and fetch 1.40, so they leave at 1,300.00 against 1,400.00 taken
+They cost 1.30 CAD/USD and are sold at 1.40 CAD/USD, so they leave at 1,300.00 CAD against 1,400.00 CAD of proceeds taken
 in and the residual is a gain of 100.00 CAD — exactly what the owed side lost
 on the same dollars at t3.
 

@@ -1,13 +1,13 @@
 # Part of each of the three currencies spent.
 #
 #     400.00 USD from the 1.30 basis, spent at 1.45
-#                                     520.00 cost      580.00 fetched     60.00 realized
+#                                     520.00 cost      580.00 proceeds    60.00 realized
 #  46,500.00 HKD from the 1/6 basis, spent with the peg at 7.75, so at 26/155
-#                                   7,750.00 cost    7,800.00 fetched     50.00 realized
+#                                   7,750.00 cost    7,800.00 proceeds    50.00 realized
 #     900.00 CAD of rent, which realizes nothing: Canadian dollars are what
 #                                   this book is kept in
 #
-# 46,500 divides by both 6 and 155, so the cost and what it fetched are each
+# 46,500 divides by both 6 and 155, so the cost and the proceeds are each
 # exact to the cent rather than rounded — the gain is 50.00 and not 50.00-ish.
 #
 # What is left is 600.00 USD costing 780.00, and 99,510.00 HKD costing

@@ -4,11 +4,11 @@
 # The shape a real book arrives in, and the reason an account has to be named
 # rather than guessed at. 1,000.00 USD costing 1,300.00 CAD are sold: 1,390.00
 # reaches the Canadian bank, 10.00 goes to the bank's charge, and the 100.00
-# between what the dollars cost and the 1,400.00 they fetched is the difference.
+# between what the dollars cost and their proceeds of 1,400.00 is the difference.
 #
-#     cost          1,300.00
-#     fetched       1,400.00   =  1,390.00 banked + 10.00 charged
-#     difference      100.00
+#     cost          1,300.00 CAD
+#     proceeds      1,400.00 CAD  =  1,390.00 CAD banked + 10.00 CAD charged
+#     difference      100.00 CAD
 #
 # Both the charge and the difference sit on accounts a difference can land on —
 # one an expense, one an income — so neither the amounts nor the account types

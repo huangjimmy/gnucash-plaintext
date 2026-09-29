@@ -1,4 +1,4 @@
-# One entry that sells shares and spends the dollars they fetched, in a single
+# One entry that sells shares and spends their proceeds in dollars, in a single
 # transaction, with one split standing as the difference.
 #
 # It is refused. The entry disposes of two cost bases of two different kinds — the
@@ -8,8 +8,8 @@
 # the single figure as either would state the other as nothing, and dividing it
 # would be `import` writing a split the file never did.
 #
-# Written as two entries it is unambiguous: the shares sold for what they
-# fetched, and then those dollars spent.
+# Written as two entries it is unambiguous: the sale of the shares, and then
+# their proceeds in dollars spent.
 #
 # Verified by
 # tests/integration/test_an_entry_disposing_of_two_kinds_at_once_is_refused.py.

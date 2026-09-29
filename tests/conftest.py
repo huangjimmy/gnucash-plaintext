@@ -216,6 +216,21 @@ def pytest_runtest_setup(item):
     measuring.switch_context('scenario' if in_the_scenarios else 'suite')
 
 
+@pytest.fixture(autouse=True)
+def _measured_in_what_a_book_stating_none_is_measured_in():
+    """Every test starts in the base currency of a book that states none (Q-056).
+
+    A run keeps the base currency of the last book it opened until another
+    opens, because a command reads it after closing its book. One pytest
+    process runs every test, so a test that opens no book would otherwise
+    read the one before it: a rates file measured in HKD because the test
+    before imported a Hong Kong company.
+    """
+    from services.foreign_currency import forget_the_base_currency
+    forget_the_base_currency()
+    yield
+
+
 _harden_pytest_capture_teardown()
 _harden_pytest_logging_teardown()
 _harden_the_terminal_writer()

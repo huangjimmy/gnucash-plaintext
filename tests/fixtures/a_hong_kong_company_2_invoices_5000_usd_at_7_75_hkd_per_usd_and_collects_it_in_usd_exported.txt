@@ -1,0 +1,54 @@
+2026-01-02 * "Share capital paid in"
+	guid: "0d560000000000000000000000000001"
+	Assets:Bank HKD 1000000.00 HKD
+		guid: "0d560000000000000000000000000101"
+	Equity:Share Capital -1000000.00 HKD
+		guid: "0d560000000000000000000000000102"
+2026-02-02 * "INV-001" "Invoice INV-001"
+	guid: "0d560000000000000000000000000011"
+	currency.mnemonic: "USD"
+	txn_type: I
+	owner: customer:C-US
+	business_generated: #True
+	Assets:Accounts Receivable USD 10000.00 USD
+		guid: "0d560000000000000000000000000111"
+		cost_basis_balance: "10000.00"
+	Income:Sales -78000.00 HKD
+		guid: "0d560000000000000000000000000112"
+		account.commodity.mnemonic: "HKD"
+		share_price: "1000000/7800000"
+		value: "-10000.00"
+2026-03-02 * "Pacific Buyer Inc"
+	guid: "0d560000000000000000000000000012"
+	txn_type: P
+	owner: customer:C-US
+	Assets:Bank USD 10000.00 USD
+		guid: "0d560000000000000000000000000121"
+		memo:"Payment for INV-001"
+	Assets:Accounts Receivable USD -10000.00 USD
+		guid: "0d560000000000000000000000000122"
+		memo:"Payment for INV-001"
+2026-04-01 * "INV-002" "Invoice INV-002"
+	guid: "0d560000000000000000000000000021"
+	currency.mnemonic: "USD"
+	txn_type: I
+	owner: customer:C-US
+	business_generated: #True
+	Assets:Accounts Receivable USD 5000.00 USD
+		guid: "0d560000000000000000000000000211"
+		cost_basis_balance: "5000.00"
+	Income:Sales -38750.00 HKD
+		guid: "0d560000000000000000000000000212"
+		account.commodity.mnemonic: "HKD"
+		share_price: "500000/3875000"
+		value: "-5000.00"
+2026-05-04 * "Pacific Buyer Inc"
+	guid: "0d560000000000000000000000000022"
+	txn_type: P
+	owner: customer:C-US
+	Assets:Bank USD 5000.00 USD
+		guid: "0d560000000000000000000000000221"
+		memo:"Payment for INV-002"
+	Assets:Accounts Receivable USD -5000.00 USD
+		guid: "0d560000000000000000000000000222"
+		memo:"Payment for INV-002"

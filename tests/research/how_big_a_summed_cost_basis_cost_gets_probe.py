@@ -78,7 +78,7 @@ DRAWS = (
     ('2026-11-06', Fraction('1562.83')),
 )
 
-# What the dollars fetch the day they are sold. One rate for all five, so the
+# The rate the dollars are sold at, in CAD/USD. One rate for all five, so the
 # only thing varying between the disposals is the basis each draws on.
 SOLD_AT = Fraction('1.41')
 
@@ -208,7 +208,7 @@ def test_how_big_the_cost_gets(tmp_path, capsys):
         _report('five earnings banked, nothing spent', untouched, _totals(book))
 
     # Draw part of each basis, valued at what that basis cost, with the
-    # difference against what the dollars fetched taken by the residual.
+    # difference against the proceeds of the dollars taken by the residual.
     blocks = []
     for (when, draw), basis in zip(DRAWS, untouched):
         assert basis['balance'] >= draw, (basis, draw)

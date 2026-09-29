@@ -324,7 +324,7 @@ class TestEveryDollarSpentPricedAwayFromTheRateTheyLeftAt:
         return _sheet(runner, _spend(runner, tmp_path, book, SPENT), HIGHER_RATES)
 
     def test_the_realized_loss_does_not_move_with_the_report_price(self, tmp_path):
-        """What the dollars cost and what they fetched are both in the book already."""
+        """What the dollars cost and their proceeds are both in the book already."""
         page = self._page(tmp_path)
 
         assert block_total_of(page, 'realized_gains_fx') == Fraction('-19.86')
@@ -563,7 +563,7 @@ class TestTwoForeignCurrenciesAtOnce:
         """60.00 on the US dollars and 50.00 on the Hong Kong dollars.
 
         Both exact: 46,500 divides by 6 and by 155, so what those Hong Kong
-        dollars cost and what they fetched are each a whole number of cents.
+        dollars cost and their proceeds are each a whole number of cents.
         """
         for as_of, page in self._pages(tmp_path).items():
             assert block_total_of(page, 'realized_gains_fx') == 110, (as_of, page)
@@ -720,11 +720,12 @@ class TestUsdEarnedThreeTimesAndSpentOutInFour:
     dollars three times at 1.30, 1.35 and 1.40, and spends every dollar in four
     payments at 1.45, 1.50, 1.38 and 1.42:
 
-        600.00 from the 1.30 basis     780.00 cost     870.00 fetched     90.00
-        400.00 from the 1.30 basis     520.00 cost     600.00 fetched     80.00
-      2,000.00 from the 1.35 basis   2,700.00 cost   2,760.00 fetched     60.00
-      1,000.00 from the 1.40 basis   1,400.00 cost   1,420.00 fetched     20.00
-                                                                        250.00
+        USD spent, from its basis      CAD cost       CAD proceeds    CAD realized
+        600.00 from the 1.30 basis     780.00 cost     870.00 proceeds     90.00
+        400.00 from the 1.30 basis     520.00 cost     600.00 proceeds     80.00
+      2,000.00 from the 1.35 basis   2,700.00 cost   2,760.00 proceeds     60.00
+      1,000.00 from the 1.40 basis   1,400.00 cost   1,420.00 proceeds     20.00
+                                                                          250.00
 
     The first basis is drawn on twice and emptied by the second of them, so the
     figure has to sum across disposals as well as across cost bases.

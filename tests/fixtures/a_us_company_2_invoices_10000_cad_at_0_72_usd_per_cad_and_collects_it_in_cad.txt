@@ -1,0 +1,50 @@
+invoice "INV-C02"
+	customer_id: "C-CA"
+	currency: CAD
+	date_opened: 2026-04-01
+	entry:
+		date: 2026-04-01
+		description: "Supplies"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 10000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2026-04-01
+		due: 2026-05-01
+		ar_account: "Assets:Accounts Receivable CAD"
+		memo: "Invoice INV-C02"
+		posted_txn_guid: "0d570000000000000000000000000021"
+		accumulate: #True
+	payment:
+		date: 2026-05-04
+		amount: 10000.00
+		bank_account: "Assets:Bank CAD"
+		txn_guid: "0d570000000000000000000000000022"
+		txn_split_guid: "0d570000000000000000000000000222"
+		memo: "Payment for INV-C02"
+
+2026-04-01 * "INV-C02" "Invoice INV-C02"
+	guid: "0d570000000000000000000000000021"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable CAD 10000.00 CAD
+		guid: "0d570000000000000000000000000211"
+	Income:Sales -7200.00 USD
+		guid: "0d570000000000000000000000000212"
+		share_price: "10000/7200"
+		value: "-10000.00"
+
+2026-05-04 * "Maple Retail Ltd"
+	guid: "0d570000000000000000000000000022"
+	txn_type: P
+	owner: customer:C-CA
+	Assets:Bank CAD 10000.00 CAD
+		guid: "0d570000000000000000000000000221"
+	Assets:Accounts Receivable CAD -10000.00 CAD
+		guid: "0d570000000000000000000000000222"

@@ -26,7 +26,7 @@
 #               1,000.00 USD now costs 1,100.00, so settling it realizes a
 #               gain of 200.00 CAD.
 # - 2028-12-30  7 shares sold at 158.40 USD, the 60% rise. They cost 900.90
-#               CAD — 7 at 128.70 — and fetch 1,108.80 USD at the 1.20 of the
+#               CAD — 7 at 128.70 — and their proceeds are 1,108.80 USD at the 1.20 CAD/USD of the
 #               day, which is 1,330.56 CAD, so 429.66 CAD is realized on the
 #               shares.
 # - 2028-12-31  the second loan repaid with 1,030.00 USD, being 1,010.00 of

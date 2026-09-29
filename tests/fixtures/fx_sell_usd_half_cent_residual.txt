@@ -2,7 +2,7 @@
 # transaction rather than a payment block.
 #
 # 45.00 USD carried at 1.405 CAD/USD is 63.225 CAD — half a cent — and 62.00
-# CAD is what the sale fetched, so `$residual$` is 1.225 CAD. The residual is a
+# CAD is the sale's proceeds, so `$residual$` is 1.225 CAD. The residual is a
 # figure this tool computes, not one the file states, so GnuCash rounds it to
 # the cent the way it rounds the cost beside it: both reach 63.23 and 1.23, and
 # the entry balances exactly.

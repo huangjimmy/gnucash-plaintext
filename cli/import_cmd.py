@@ -505,20 +505,29 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
                 """
                 nonlocal biz_directives, biz_objects_seen, early_biz_result
                 nonlocal all_directives
-                click.echo("Importing business objects...")
+                if include_business_objects:
+                    click.echo("Importing business objects...")
                 # The file, read once. What the deferred invoice pass and the
                 # `open_prepayment:` check need is here, and reading it again
                 # to get it is what this hook exists to stop.
                 all_directives = list(parser.root_directive.children)
+                # The `company` block is the book's own, and is applied on
+                # every import, with or without `--include-business-objects`
+                # (Q-056). It states the base currency the run is measured in,
+                # and a run measured in a currency the book does not then store
+                # left the next run measuring the same book in CAD.
+                early_types = ({DirectiveType.COMPANY, DirectiveType.CUSTOMER,
+                                DirectiveType.VENDOR, DirectiveType.TAXTABLE}
+                               if include_business_objects
+                               else {DirectiveType.COMPANY})
                 early_directives = [
                     d for d in parser.root_directive.children
-                    if d.type in {DirectiveType.COMPANY, DirectiveType.CUSTOMER,
-                                  DirectiveType.VENDOR, DirectiveType.TAXTABLE}
+                    if d.type in early_types
                 ]
                 biz_directives = [
                     d for d in parser.root_directive.children
                     if d.type in (DirectiveType.INVOICE, DirectiveType.BILL)
-                ]
+                ] if include_business_objects else []
                 biz_objects_seen = len(early_directives) + len(biz_directives)
                 try:
                     early_biz_result = importer.import_business_objects(
@@ -556,8 +565,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
 
             result = use_case.import_from_file(
                 input_file, resolution_strategy,
-                on_accounts_ready=(_owners_and_tax_tables
-                                   if include_business_objects else None),
+                on_accounts_ready=_owners_and_tax_tables,
                 atomic=atomic,
                 applies_payments=include_business_objects)
             # A file that could not be read is refused, not summarised. The
@@ -572,7 +580,9 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
 
             # Now process the deferred invoice/bill directives — by now
             # any bank tx referenced via `txn_guid:` is in the book.
-            biz_result = early_biz_result if include_business_objects else None
+            # Counted with or without the flag: the `company` block is applied
+            # on every import, and a run that changes only it has to save.
+            biz_result = early_biz_result
             if biz_directives:
                 try:
                     late_result = importer.import_business_objects(

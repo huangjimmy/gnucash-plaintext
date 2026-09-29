@@ -81,8 +81,8 @@ class TestWithoutTheBanksRate:
         _, result = _import(tmp_path, USD_ONLY)
 
         assert result.exit_code != 0, result.output
-        assert 'HKD/CAD rate on 2026-02-25' in result.output
-        assert 'does not carry' in result.output
+        assert ("valuing the cash needs the HKD/CAD rate on 2026-02-25: No FX "
+                "rate for HKD. Add 'HKD: <rate>' to your --fx-rates file.") in result.output
 
     def test_it_does_not_call_the_shape_unsupported(self, tmp_path):
         """The old message blamed the shape for a missing number.

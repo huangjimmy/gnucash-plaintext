@@ -50,7 +50,7 @@ def test_the_edit_is_refused_and_sent_to_delete_and_import(tmp_path):
 
 
 def test_the_same_edit_taking_the_canadian_dollars_as_the_residual_is_refused_as_a_sale(tmp_path):
-    """`Assets:CAD Bank $residual$ CAD` is debited the 140.00 that balances the other split, so it is read as what the sale fetched."""
+    """`Assets:CAD Bank $residual$ CAD` is debited the 140.00 that balances the other split, so it is read as the sale's proceeds."""
     book = tmp_path / 'book.gnucash'
     made = CliRunner().invoke(cli, ['import', '--new', str(book), BOOK])
     assert 'Errors:       0' in made.output, made.output

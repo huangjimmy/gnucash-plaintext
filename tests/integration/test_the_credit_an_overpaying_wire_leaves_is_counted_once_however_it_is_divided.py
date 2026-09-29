@@ -57,7 +57,7 @@ def test_a_customers_credit_divided_in_the_file_from_the_cad_bank_is_priced(tmp_
 
     The settling split states the invoice's cost basis and is valued at its
     1.40, so the invoice's cost basis goes to 0.00 and Income:FX Gain takes
-    the 3.00 CAD between the 140.00 it cost and the 137.00 it fetched.
+    the 3.00 CAD between the 140.00 CAD it cost and its proceeds of 137.00 CAD.
     """
     book = tmp_path / 'book.gnucash'
     balances = _balances_after_importing(

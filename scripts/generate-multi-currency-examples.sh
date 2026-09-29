@@ -193,7 +193,7 @@ write_example "$BOOKS/spent.gnucash" 2026-12-31 \
     "...and then pays a US supplier out of those dollars" \
     "The same company spends all 2,720.00 — a transfer to a payee and two" \
     "bank charges. Each disposal is valued at what those dollars cost, so" \
-    "the splits facing it state what they fetched and \$residual\$ takes the" \
+    "the splits facing it state its proceeds and \$residual\$ takes the" \
     "difference." \
     "" \
     "The 19.86 has moved from unrealized to realized, and nothing is" \

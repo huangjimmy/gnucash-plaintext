@@ -8,13 +8,13 @@
 # onto that book.
 #
 # What it leaves: a bank holding nothing, a consumed basis, and the difference
-# between what the US dollars cost and what they fetched booked as realized FX
+# between what the US dollars cost and their proceeds booked as realized FX
 # — which is the state a real book was in when its balance sheet still claimed
 # an unrealized gain of 19.86 CAD on an account holding zero.
 
 # The dollars leave valued at what they cost — 189557/136000 CAD per USD, so
-# 3,791.14 CAD for the 2,720.00 — while the bank receives the 3,771.28 the sale
-# actually fetched. The 19.86 between them is the realized loss, and it stands
+# 3,791.14 CAD for the 2,720.00 USD — while the bank receives the sale's actual
+# proceeds of 3,771.28 CAD. The 19.86 between them is the realized loss, and it stands
 # apart in the residual rather than being folded into either side; the importer
 # refuses a disposal valued at the sale rate for exactly that reason.
 2026-08-17 * "Sent the whole balance out"

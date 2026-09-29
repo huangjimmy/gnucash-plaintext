@@ -66,8 +66,9 @@ def test_the_cost_bases_hold_what_the_accounts_hold(tmp_path):
 def test_the_gain_on_the_shares_is_stated_apart_from_the_gain_on_the_currency(tmp_path):
     """Two figures a return asks for separately, so the page keeps them apart.
 
-    The shares cost 900.90 CAD — 7 at 128.70 — and fetched 1,108.80 USD at the
-    1.20 of the day, which is 1,330.56, so 429.66 is realized on them. The
+    The shares cost 900.90 CAD — 7 at 128.70 CAD — and their proceeds were
+    1,108.80 USD at the 1.20 CAD/USD of the day, which is 1,330.56 CAD, so
+    429.66 CAD is realized on them. The
     first loan cost 1,300.00 and was settled with dollars costing 1,100.00, a
     gain of 200.00; the second cost 1,111.00 and was settled with dollars
     costing 1,212.00, a loss of 101.00. The currency figure is the 99.00

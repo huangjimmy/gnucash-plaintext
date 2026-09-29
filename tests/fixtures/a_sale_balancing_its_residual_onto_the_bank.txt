@@ -2,7 +2,7 @@
 #
 # `$residual$` is a balancing feature, not a currency one: it writes on any
 # account whose commodity is the transaction's. So a file may let the bank take
-# what is left over — 1,400.00, what the dollars fetched — and say on the income
+# what is left over — 1,400.00 CAD, the proceeds of the dollars — and say on the income
 # line which split is the exchange difference.
 #
 # One split claims the difference, not two. A residual balancing onto a bank

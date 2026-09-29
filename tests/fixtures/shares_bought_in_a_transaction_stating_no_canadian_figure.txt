@@ -32,7 +32,7 @@
 #               with 2,200.00 USD out of that cost basis. Stated wholly in US
 #               dollars, which is how a US broker's confirmation reads.
 # - 2029-12-30  20 USD_TECH sold at 55.00 USD. They cost 1,040.00 CAD — 20 at
-#               52.00 — and fetch 1,100.00 USD at the 1.20 of the day, which is
+#               52.00 — and their proceeds are 1,100.00 USD at the 1.20 CAD/USD of the day, which is
 #               1,320.00 CAD, so 280.00 CAD is realized.
 #
 # What is left at the year end: 30 USD_TECH costing 1,560.00 CAD, 10 USD_CORP

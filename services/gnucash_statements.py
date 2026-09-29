@@ -202,7 +202,7 @@ def _render(session, template: str, called: str, currency: str,
             realized_as_of=None, itemize: bool = True, gain_accounts=(),
             max_items: int = -1) -> str:
     from services.foreign_currency import (
-        BASE_CURRENCY,
+        base_currency,
         book_keeps_cost_bases,
         cost_basis_items_by_currency_and_side,
         realized_fx_items_up_to,
@@ -216,7 +216,7 @@ def _render(session, template: str, called: str, currency: str,
     # The balance sheet states it and adds it into nothing — it is inside
     # `retained_earnings` already, having gone through the income statement —
     # so a reader can tell it from the gain the book has yet to take.
-    measures_realized = realized_as_of is not None and currency == BASE_CURRENCY
+    measures_realized = realized_as_of is not None and currency == base_currency()
     # A book that keeps no cost bases (Q-049) still states the realized gains
     # its transactions record, which no cost basis decides, and measures every
     # unrealized gain from GnuCash's own revaluation.
@@ -246,7 +246,7 @@ def _render(session, template: str, called: str, currency: str,
             and template in (BALANCE_SHEET_AS_TEXT, INCOME_STATEMENT_AS_TEXT)):
         warn(f'--fx-gain-account is not applied to a page in {currency}: the '
              f'cost bases a realized gain is measured from are recorded in '
-             f'{BASE_CURRENCY}, so this page states no realized gain',
+             f'{base_currency()}, so this page states no realized gain',
              key=('fx-gain-account-other-currency', currency))
     if (measures_realized and gain_accounts
             and template in (BALANCE_SHEET_AS_TEXT, INCOME_STATEMENT_AS_TEXT)):
@@ -356,9 +356,12 @@ def _render(session, template: str, called: str, currency: str,
             # Only the text reports carry the setter, so only they are told —
             # and only when the page is drawn in the currency the cost bases
             # are kept in. `cost_of` measures every basis against
-            # `BASE_CURRENCY`, so on a book kept in anything else the totals
-            # would be figures in the wrong currency; that book keeps GnuCash's
-            # own reconstruction until the cost bases learn the book's currency.
+            # `base_currency()`, the `base_currency:` the book's `company` block
+            # states or CAD where it states none (Q-056). A page drawn in
+            # another currency would read those totals as figures in its own,
+            # so it keeps GnuCash's own reconstruction: a book stating no base
+            # currency whose top-level accounts are in HKD is drawn in HKD, and
+            # its cost bases, if any, are in CAD.
             #
             # Set on every render, because the variable lives as long as the
             # Guile process: a page that left it alone inherited the cost of

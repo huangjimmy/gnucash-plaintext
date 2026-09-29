@@ -79,9 +79,9 @@ The book is one USD invoice, its collection, a transfer out and two bank charges
 
 ### The 19.86 is a realized gain or loss
 
-By step 7 all 2,720.00 USD have been spent. They went in three transactions, and gnucash-plaintext valued each disposal at what those dollars cost — 189557/136000 CAD/USD — and booked the difference between that and what they fetched to `Income:Non-farming revenue:Foreign exchange gains/losses`. Every figure here is on the step 7 blocks below:
+By step 7 all 2,720.00 USD have been spent. They went in three transactions, and gnucash-plaintext valued each disposal at what those dollars cost — 189557/136000 CAD/USD — and booked the difference between that and their proceeds to `Income:Non-farming revenue:Foreign exchange gains/losses`. Every figure here is on the step 7 blocks below:
 
-| transaction | USD spent | valued at cost | what it fetched | to Foreign exchange gains/losses |
+| transaction | USD spent | valued at cost | proceeds | to Foreign exchange gains/losses |
 |---|---|---|---|---|
 | Bank charge | 0.72 | 1.00 | 1.00 of bank charge | none |
 | transfer to the payee | 2,710.68 | 3,778.15 | 3,758.36 | 19.79 |
@@ -179,7 +179,7 @@ GnuCash's balancing amount = value of the disposals − amount disposed × neare
 
 They come to the same thing exactly when `amount disposed × nearest price` equals the proceeds — that is, **when the nearest price is the rate the currency left at**.
 
-In the reported book it is. The dollars left on 2026-08-13 and 2026-08-17, and the price the year-end sheet draws on is 1.3865, the rate of that transfer: 2,720.00 USD at 1.3865 is 3,771.28 CAD, and the disposals fetched 1.00 + 3,758.36 + 11.92 — the same 3,771.28. So GnuCash's balancing amount comes to 3,791.14 − 3,771.28, the 19.86 the book lost and booked to `Income:Non-farming revenue:Foreign exchange gains/losses`.
+In the reported book it is. The dollars left on 2026-08-13 and 2026-08-17, and the price the year-end sheet draws on is 1.3865, the rate of that transfer: 2,720.00 USD at 1.3865 is 3,771.28 CAD, and the proceeds of the disposals were 1.00 + 3,758.36 + 11.92 CAD — the same 3,771.28. So GnuCash's balancing amount comes to 3,791.14 − 3,771.28, the 19.86 the book lost and booked to `Income:Non-farming revenue:Foreign exchange gains/losses`.
 
 It is the book that makes them meet, not the report. Hold the year-end price away from the rate the currency left at and they part: the partly spent book at 1.45 states −96.66 where its realized loss is still 12.56. A book whose foreign currency left at one rate and is priced at another on the report date gets a figure that is neither of its two gains.
 
@@ -461,6 +461,8 @@ What has not been done is the cost side. `BASE_CURRENCY` in `services/foreign_cu
 What it costs on a book kept in something else, measured on the Hong Kong book above: every gain key reads 0.00 and the realized keys are left off, while the account lines, the section totals and `retained_earnings` are GnuCash's own and the sheet balances at 37,330.00 HKD on both sides. So the page is not wrong, but it says nothing the cost bases know.
 
 Closing it means recording a cost in the currency the book is kept in and reading it back the same way, and tests on a book that is not Canadian. It is not closed here.
+
+Q-056 closes it. The constant is `base_currency()`, which answers the `base_currency:` the book's `company` block states, and CAD where it states none. A Hong Kong company stating `base_currency: "HKD"` records its cost bases, and its realized and unrealized gains, in HKD (`tests/scenario/test_a_hong_kong_company_measures_its_usd_cny_and_eur_in_hkd.py`).
 
 ## Tests
 

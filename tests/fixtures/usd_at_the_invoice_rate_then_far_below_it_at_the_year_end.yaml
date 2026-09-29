@@ -6,7 +6,7 @@
 # what they cost. Here the unrealized figure is a loss of 193.80 where 1.45
 # makes it a gain of 56.20, and GnuCash's residual swings the other way too —
 # +333.34 here against −96.66 there — while the realized loss stays 12.56 at
-# every price, being a matter of what the dollars cost and what they fetched.
+# every price, being a matter of what the dollars cost and their proceeds.
 #
 # One direction proves nothing about the other: a figure that is always
 # negative passes a test that only ever prices upwards.

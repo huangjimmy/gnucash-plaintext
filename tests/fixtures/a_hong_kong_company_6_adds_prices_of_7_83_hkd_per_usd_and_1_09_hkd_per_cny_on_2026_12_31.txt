@@ -1,0 +1,17 @@
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "HKD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "7.83"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "HKD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "1.09"
+	source: "user:price-editor"
+	type: "last"

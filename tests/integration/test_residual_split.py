@@ -1,7 +1,7 @@
 """Q-035: `$residual$` — a split that takes what the others leave over.
 
-An FX gain or loss is the difference between what a currency cost and what it
-fetched, which the transaction already determines. Writing `$residual$` in
+An FX gain or loss is the difference between what a currency cost and its
+proceeds, which the transaction already determines. Writing `$residual$` in
 place of the amount books it, so nobody hand-computes a tax figure.
 """
 

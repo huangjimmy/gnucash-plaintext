@@ -7,7 +7,7 @@ Because they are equivalent, a file that writes one of each — or two of either
 — claims the difference twice.
 
 Counted twice it states as a gain money that was something else. These sales
-pay a 5.00 bank charge out of what they fetched, so the entry carries two lines
+pay a 5.00 CAD bank charge from their proceeds, so the entry carries two lines
 a difference could land on — the charge and the exchange difference, both in
 the profit and loss — and claiming both would put 105.00 into
 `realized_gains_fx` where the sale made 100.00.

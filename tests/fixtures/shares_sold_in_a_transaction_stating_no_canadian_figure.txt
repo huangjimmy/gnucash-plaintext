@@ -3,7 +3,7 @@
 #
 # The shares have a cost basis in Canadian dollars: 20 bought for 5,200.00 CAD,
 # 260.00 a share. Selling 8 of them for 2,080.00 USD draws that cost basis down
-# by 2,080.00 CAD of cost and realizes whatever the dollars fetched above it —
+# by 2,080.00 CAD of cost and realizes whatever the proceeds come to above it —
 # and a transaction with no split in Canadian dollars has nowhere to state that
 # figure, while the dollars it brings in arrive with no cost to open a cost
 # basis at. So the sale is refused, as a repayment written wholly in US dollars

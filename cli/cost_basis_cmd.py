@@ -21,8 +21,8 @@ from infrastructure.gnucash.utils import exact_text, money_text
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.book_currency import the_books_own_currency_or
 from services.foreign_currency import (
-    BASE_CURRENCY,
     COST_BASIS_BALANCE_KEY,
+    base_currency,
     book_keeps_cost_bases,
     cost_bases,
     foreign_currency_account_balances,
@@ -103,7 +103,7 @@ def _format_cost(value, currency: str) -> str:
     """
     if value is None:
         return '—'
-    return f'{_grouped(exact_text(value))} {BASE_CURRENCY}/{currency}'
+    return f'{_grouped(exact_text(value))} {base_currency()}/{currency}'
 
 
 def _finish_verifying(verified, pending: int = 0) -> None:
@@ -242,7 +242,7 @@ def _report_disagreements(disagreements, checked: int, pending: int = 0) -> None
                            f"{row['malformed_balance']!r}   (does not parse)")
             if row['tx_rate'] is not None:
                 click.echo(f"    transaction rate   {exact_text(row['tx_rate'])} "
-                           f"{BASE_CURRENCY}/{row['tx_currency']}")
+                           f"{base_currency()}/{row['tx_currency']}")
             # The figures the rate was added up from, so a reader can see what
             # the cost came from. Where an account is kept finer than its
             # currency, say so: three decimals on a CAD figure otherwise read
@@ -252,7 +252,7 @@ def _report_disagreements(disagreements, checked: int, pending: int = 0) -> None
                         f'  (account held to '
                         f'{_format_exactly(Fraction(1, unit), unit)})')
                 click.echo(f"    {account}: "
-                           f"{_format_exactly(amount, unit)} {BASE_CURRENCY} "
+                           f"{_format_exactly(amount, unit)} {base_currency()} "
                            f"for {_format_exactly(value, row['tx_unit'])} "
                            f"{row['tx_currency']}{held}")
             # The factors the derivation multiplied, as it multiplied them.
@@ -262,7 +262,7 @@ def _report_disagreements(disagreements, checked: int, pending: int = 0) -> None
             # happened.
             for label, factor in row['factors']:
                 if factor is None:
-                    shown = f'— (no {BASE_CURRENCY} figure in the transaction)'
+                    shown = f'— (no {base_currency()} figure in the transaction)'
                 else:
                     shown = exact_text(factor)
                 click.echo(f'    {label:<18} {shown}')
@@ -427,7 +427,7 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
                    if not currency or row['currency'] == currency.upper()]
         verified = verify_cost_bases(repo.book) if verify_costs and keeps else None
         if verified is not None:
-            own = the_books_own_currency_or(repo.book, BASE_CURRENCY)
+            own = the_books_own_currency_or(repo.book, base_currency())
             elsewhere = profit_and_loss_accounts_in_another_currency(repo.book, own)
             verified['foreign_income_or_expense'] = (
                 what_an_income_or_expense_account_in_another_currency_means(elsewhere, own)

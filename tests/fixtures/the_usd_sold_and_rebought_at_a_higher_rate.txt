@@ -6,7 +6,7 @@
 # `fx-balances` and substituted before this file is imported.
 #
 # - 2026-08-01  1,000.00 USD sold at 1.50. Valued at what those dollars cost
-#               — 1,300.00 CAD — against the 1,500.00 the sale fetched, so
+#               — 1,300.00 CAD — against the sale's proceeds of 1,500.00 CAD, so
 #               `$residual$` books a 200.00 CAD gain and the January cost
 #               basis falls to nothing.
 # - 2026-08-01  1,000.00 USD bought again at 1.50, opening a second cost basis

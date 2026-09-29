@@ -1,9 +1,10 @@
-"""What a book kept in Hong Kong dollars gets from cost bases today: none.
+"""What a book kept in Hong Kong dollars that states no base currency gets from cost bases: none.
 
-Cost bases are recorded in Canadian dollars whatever currency a book is kept
-in — `services/foreign_currency.py` reads every cost in `BASE_CURRENCY`. A book
-kept in Hong Kong dollars that states no Canadian figure therefore opens no
-cost basis, and nothing that depends on one applies to it:
+A book is measured in the base currency its `company` block states, and one
+stating none is measured in Canadian dollars, as every book was before Q-056.
+This book is kept in Hong Kong dollars, states no base currency and states no
+Canadian figure, so it opens no cost basis, and nothing that depends on one
+applies to it:
 
 * a spend that states no guid is not refused, because there is no cost basis to
   state;
@@ -13,9 +14,10 @@ cost basis, and nothing that depends on one applies to it:
   revaluation for the unrealized figures;
 * `--verify-integrity` finds the book consistent, drawn in its own currency.
 
-This asserts what that book gets now. Recording costs in the book's own currency
-is what changes it — then the spend is asked for its guid, the shares are costed
-from the dollars, and the realized keys are measured.
+Stating `base_currency: "HKD"` is what changes it: the costs are then recorded
+in Hong Kong dollars, as
+`tests/scenario/test_a_hong_kong_company_measures_its_usd_cny_and_eur_in_hkd.py`
+states for a company that does.
 
 `tests/fixtures/an_hkd_book_holding_us_dollars_and_shares.txt`.
 """

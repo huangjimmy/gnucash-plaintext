@@ -23,8 +23,8 @@ def _write(tmp_path, text):
 def test_flat_rates_still_load_and_convert(tmp_path):
     rates = FxRates.load(_write(tmp_path, 'USD: 1.36\nHKD: 0.172\n'))
     assert rates.rate_fraction('USD') == Fraction('1.36')
-    assert rates.to_cad(Fraction(100), 'USD') == Fraction(136)
-    assert rates.to_cad(Fraction(100), 'CAD') == Fraction(100)
+    assert rates.to_base(Fraction(100), 'USD') == Fraction(136)
+    assert rates.to_base(Fraction(100), 'CAD') == Fraction(100)
 
 
 def test_rates_are_exact_fractions_not_floats(tmp_path):
@@ -32,7 +32,7 @@ def test_rates_are_exact_fractions_not_floats(tmp_path):
     135 CAD and not 134.99999999999999."""
     rates = FxRates.load(_write(tmp_path, 'USD: 1.35\n'))
     assert rates.rate_fraction('USD') == Fraction(27, 20)
-    assert rates.to_cad(Fraction(100), 'USD') == Fraction(135)
+    assert rates.to_base(Fraction(100), 'USD') == Fraction(135)
 
 
 def test_dated_rates_take_the_most_recent_quote_on_or_before(tmp_path):
@@ -69,13 +69,29 @@ def test_both_forms_may_share_one_file(tmp_path):
 
 
 def test_the_pair_spelling_names_the_same_currency(tmp_path):
-    """`USD` and `USD/CAD` are one rate; a pair to anything but CAD is not a
-    conversion this tool performs."""
+    """`USD` and `USD/CAD` are one rate in a book measured in CAD; a pair into
+    another currency than the base is refused when a rate is looked up."""
     rates = FxRates.load(_write(tmp_path, 'USD/CAD: 1.36\n'))
     assert rates.rate_fraction('USD') == Fraction(34, 25)
 
-    with pytest.raises(ValueError):
-        FxRates({'USD/EUR': 1.1})
+    with pytest.raises(MissingFxRateError) as excinfo:
+        FxRates({'USD/EUR': 1.1}).rate_fraction('USD')
+    assert str(excinfo.value) == (
+        "FX rate key 'USD/EUR' quotes USD in EUR, and this book is measured in CAD, "
+        "so each rate is quoted in CAD (write it as 'USD: <rate>' or 'USD/CAD:')")
+
+
+def test_a_pair_quotes_into_the_base_currency_the_book_states(tmp_path):
+    """In a book measured in HKD, `USD/HKD` quotes USD in HKD, and HKD is 1 (Q-056)."""
+    from services.foreign_currency import forget_the_base_currency, measure_in
+    measure_in('HKD')
+    try:
+        rates = FxRates.load(_write(tmp_path, 'USD/HKD: 7.8\n'))
+        assert rates.rate_fraction('USD') == Fraction(39, 5)
+        assert rates.rate_fraction('HKD') == Fraction(1)
+        assert rates.to_base(Fraction(100), 'USD') == Fraction(780)
+    finally:
+        forget_the_base_currency()
 
 
 def test_missing_currency_names_the_flag(tmp_path):

@@ -170,6 +170,11 @@ class SessionMode:
 #: the repository keeps no business state and knows nothing of what is kept.
 WHAT_TO_FORGET_WHEN_A_BOOK_OPENS: List[Callable[[], None]] = []
 
+#: What a service reads from a book as soon as it is open, each a function
+#: handed the book, run once the book has loaded. Registered by the service
+#: that reads it, as the list above is.
+WHAT_TO_READ_WHEN_A_BOOK_OPENS: List[Callable[[object], None]] = []
+
 
 class GnuCashRepository:
     """Repository for GnuCash file operations"""
@@ -271,6 +276,8 @@ class GnuCashRepository:
                 self._discard_the_private_copy()
 
         self._book = self.session.book
+        for read in WHAT_TO_READ_WHEN_A_BOOK_OPENS:
+            read(self._book)
 
     def _a_private_copy(self) -> str:
         """The book copied into a directory of its own, as the URI to open it by.

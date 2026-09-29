@@ -28,6 +28,7 @@ from typing import List, Optional
 
 from infrastructure.gnucash.utils import numeric_to_fraction
 from repositories.gnucash_repository import GnuCashRepository
+from services.foreign_currency import base_currency
 from services.fx_rates import FxRates, MissingFxRateError
 
 
@@ -41,11 +42,11 @@ class AccountBalance:
     # 100 where there are hundredths, 1 for a currency with no minor unit. The
     # balance is rendered at this, not at an assumed two decimals.
     unit: int = 100
-    # Set when FX conversion was applied on a non-CAD leaf account
+    # Set when FX conversion was applied on a leaf account not in the base currency
     original_amount: Optional[Fraction] = None
     original_currency: Optional[str] = None
     original_unit: int = 100
-    share_price: Optional[Fraction] = None  # rate: 1 original_currency = share_price CAD
+    share_price: Optional[Fraction] = None  # rate: 1 original_currency = share_price of the base currency
 
 
 @dataclass
@@ -53,9 +54,9 @@ class AccountBalanceResult:
     """Result of the account-balance use case."""
     as_of: date
     balances: List[AccountBalance] = field(default_factory=list)
-    # Sum of the top-level shown account(s) in CAD when fx_rates provided.
+    # Sum of the top-level shown account(s) in the base currency when fx_rates provided.
     # No prefix: sum of all root-level accounts. With prefix: balance of matched account.
-    consolidated_cad: Optional[Fraction] = None
+    consolidated: Optional[Fraction] = None
 
 
 # ---------------------------------------------------------------------------
@@ -158,16 +159,16 @@ def _get_direct_balance(account, as_of: date) -> Fraction:
         account.GetBalanceAsOfDate(as_of + timedelta(days=1)))
 
 
-def _get_recursive_balance_cad(account, as_of: date, get_rate) -> Fraction:
+def _get_recursive_balance_in_base(account, as_of: date, get_rate) -> Fraction:
     """
-    Recursively sum all balances in the account's subtree, converting each to CAD.
+    Recursively sum all balances in the account's subtree, converting each to the base currency.
 
     get_rate(currency: str) -> Fraction raises MissingFxRateError if unavailable.
     """
     currency = account.GetCommodity().get_mnemonic()
     total = _get_direct_balance(account, as_of) * get_rate(currency)
     for child in account.get_children_sorted():
-        total += _get_recursive_balance_cad(child, as_of, get_rate)
+        total += _get_recursive_balance_in_base(child, as_of, get_rate)
     return total
 
 
@@ -202,7 +203,7 @@ class AccountBalanceUseCase:
         Shows the matched account and all sub-accounts, each with recursive balance.
 
     With fx_rates:
-        All balances consolidated to CAD. Call update_pricedb() before execute()
+        All balances consolidated to the base currency. Call update_pricedb() before execute()
         to write any changed rates to the GnuCash pricedb.
     """
 
@@ -222,13 +223,13 @@ class AccountBalanceUseCase:
 
         book = self.repository.book
         commod_table = book.get_table()
-        cad_commodity = commod_table.lookup("CURRENCY", "CAD")
+        base_commodity = commod_table.lookup("CURRENCY", base_currency())
         pricedb = gnc_pricedb_get_db(book.instance)
 
         lib = load_gnc_engine()
 
         def get_rate(currency: str) -> Fraction:
-            if currency == "CAD":
+            if currency == base_currency():
                 return Fraction(1)
             commodity = commod_table.lookup("CURRENCY", currency)
             if commodity is None:
@@ -236,11 +237,11 @@ class AccountBalanceUseCase:
                     f"Currency {currency} not found in GnuCash commodity table"
                 )
             existing = gnc_pricedb_lookup_latest(
-                pricedb, commodity.instance, cad_commodity.instance
+                pricedb, commodity.instance, base_commodity.instance
             )
             if existing is None:
                 raise MissingFxRateError(
-                    f"No FX rate for {currency} -> CAD in GnuCash pricedb. "
+                    f"No FX rate for {currency} -> {base_currency()} in GnuCash pricedb. "
                     f"Provide rates via --fx-rates."
                 )
             # A price's value always has a denominator: GnuCash stores a rate
@@ -264,7 +265,7 @@ class AccountBalanceUseCase:
             as_of:           Balance date (inclusive).
             account_prefix:  Exact account path to query (e.g. "Assets:Bank").
                              None = all accounts in the book.
-            fx_rates:        When provided, convert all amounts to CAD.
+            fx_rates:        When provided, convert all amounts to the base currency.
             include_children: Only relevant when account_prefix is passed.
                              False (default) = show only the matched account.
                              True (--with-children) = show matched account + all sub-accounts.
@@ -309,11 +310,11 @@ class AccountBalanceUseCase:
         # Pricedb rate function, built lazily on first multi-currency account encountered
         pricedb_rate_fn = None
 
-        # Accumulators for consolidated_cad (avoids recomputing after the loop)
-        first_account_cad: Optional[Fraction] = None   # with prefix: matched account balance
-        top_level_cad = Fraction(0)                     # no prefix: sum of root children
+        # Accumulators for consolidated (avoids recomputing after the loop)
+        first_account_in_base: Optional[Fraction] = None   # with prefix: matched account balance
+        top_level_in_base = Fraction(0)                     # no prefix: sum of root children
 
-        cad_unit = _currency_unit(root, "CAD")
+        base_unit = _currency_unit(root, base_currency())
 
         for account in accounts:
             currency = account.GetCommodity().get_mnemonic()
@@ -322,24 +323,24 @@ class AccountBalanceUseCase:
             needs_fx = len(all_currencies) > 1
 
             if fx_rates is not None:
-                # Explicit FX: always output in CAD
-                cad_balance = _get_recursive_balance_cad(account, as_of, explicit_rate_fn)
+                # Explicit FX: always output in the base currency
+                base_balance = _get_recursive_balance_in_base(account, as_of, explicit_rate_fn)
 
-                # Track for consolidated_cad without a second traversal
-                if account_prefix is not None and first_account_cad is None:
-                    first_account_cad = cad_balance
+                # Track for consolidated without a second traversal
+                if account_prefix is not None and first_account_in_base is None:
+                    first_account_in_base = base_balance
                 if account_prefix is None and account.get_parent().is_root():
-                    top_level_cad += cad_balance
+                    top_level_in_base += base_balance
 
-                if _is_leaf(account) and currency != "CAD":
-                    # Non-CAD leaf: include original amount and exchange rate metadata
+                if _is_leaf(account) and currency != base_currency():
+                    # A leaf in another currency: include original amount and exchange rate metadata
                     direct = _get_direct_balance(account, as_of)
                     rate = explicit_rate_fn(currency)
                     result.balances.append(AccountBalance(
                         account_path=_get_account_path(account),
-                        amount=cad_balance,
-                        currency="CAD",
-                        unit=cad_unit,
+                        amount=base_balance,
+                        currency=base_currency(),
+                        unit=base_unit,
                         original_amount=direct,
                         original_currency=currency,
                         original_unit=unit,
@@ -348,21 +349,21 @@ class AccountBalanceUseCase:
                 else:
                     result.balances.append(AccountBalance(
                         account_path=_get_account_path(account),
-                        amount=cad_balance,
-                        currency="CAD",
-                        unit=cad_unit,
+                        amount=base_balance,
+                        currency=base_currency(),
+                        unit=base_unit,
                     ))
 
             elif needs_fx:
                 # Multi-currency subtree without explicit fx_rates: try pricedb
                 if pricedb_rate_fn is None:
                     pricedb_rate_fn = self._build_pricedb_rate_fn()
-                cad_balance = _get_recursive_balance_cad(account, as_of, pricedb_rate_fn)
+                base_balance = _get_recursive_balance_in_base(account, as_of, pricedb_rate_fn)
                 result.balances.append(AccountBalance(
                     account_path=_get_account_path(account),
-                    amount=cad_balance,
-                    currency="CAD",
-                    unit=cad_unit,
+                    amount=base_balance,
+                    currency=base_currency(),
+                    unit=base_unit,
                 ))
 
             else:
@@ -375,14 +376,14 @@ class AccountBalanceUseCase:
                     unit=unit,
                 ))
 
-        # consolidated_cad: balance of the top-level shown account(s) in CAD.
+        # consolidated: balance of the top-level shown account(s) in the base currency.
         # With prefix: balance of the matched account.
         # No prefix: sum of all root-level account balances.
         if fx_rates is not None:
             if account_prefix is not None:
-                result.consolidated_cad = first_account_cad or Fraction(0)
+                result.consolidated = first_account_in_base or Fraction(0)
             else:
-                result.consolidated_cad = top_level_cad
+                result.consolidated = top_level_in_base
 
         return result
 
@@ -390,12 +391,12 @@ class AccountBalanceUseCase:
         """
         Sync fx_rates into GnuCash pricedb.
 
-        For each currency in fx_rates (other than CAD), compare against the
+        For each currency in fx_rates (other than the base currency), compare against the
         pricedb latest rate. If different or missing, write a new price entry
         dated price_date.
 
         Args:
-            fx_rates:   FxRates instance with currency->CAD rates
+            fx_rates:   FxRates instance with currency->base currency rates
             price_date: Date to use for new price entries (always today)
         """
         from datetime import datetime
@@ -419,7 +420,7 @@ class AccountBalanceUseCase:
         book = self.repository.book
         book_instance = book.instance
         commod_table = book.get_table()
-        cad_commodity = commod_table.lookup("CURRENCY", "CAD")
+        base_commodity = commod_table.lookup("CURRENCY", base_currency())
         pricedb = gnc_pricedb_get_db(book_instance)
 
         # gnc_price_get_value returns gnc_numeric by value; SWIG wraps it as an
@@ -438,7 +439,7 @@ class AccountBalanceUseCase:
                             12, 0, 0)
 
         for currency_code in sorted(fx_rates.available_currencies):
-            if currency_code == "CAD":
+            if currency_code == base_currency():
                 continue
 
             commodity = commod_table.lookup("CURRENCY", currency_code)
@@ -459,7 +460,7 @@ class AccountBalanceUseCase:
             # Both sides are exact rationals, so "already this rate" is an
             # equality, not a comparison against an epsilon.
             existing = gnc_pricedb_lookup_latest(
-                pricedb, commodity.instance, cad_commodity.instance
+                pricedb, commodity.instance, base_commodity.instance
             )
             needs_update = True
             if existing is not None:
@@ -473,7 +474,7 @@ class AccountBalanceUseCase:
                 price = gnc_price_create(book_instance)
                 # commodity/currency/value require raw SwigPyObject (.instance)
                 gnc_price_set_commodity(price, commodity.instance)
-                gnc_price_set_currency(price, cad_commodity.instance)
+                gnc_price_set_currency(price, base_commodity.instance)
                 # Through the wrapper, which converts the `datetime` the way
                 # this build wants; the raw call takes seconds and 3.4 reads
                 # those as a date two thousand years out. `set_time64` is on

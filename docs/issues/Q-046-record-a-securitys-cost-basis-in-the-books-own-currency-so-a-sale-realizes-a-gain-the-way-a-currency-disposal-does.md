@@ -33,7 +33,7 @@ Both lines are the same arithmetic. What the holding is worth is quantity times 
 			unrealized_gains_other: 184.14 # value - cost_value
 ```
 
-**`cost_share_price` is the price in the currency the transaction was stated in**, which is the only pair price the ledger holds. A purchase written wholly in US dollars states 99.00 USD a share and the entry says so. The same shares bought in a transaction stated in Canadian dollars state a Canadian price instead, and the entry then reads `cost_share_price: 260 # AMZN in CAD`, `cost_rate: 1` — the ledger's own figure either way, never a price fetched from elsewhere and presented as what the trade was at.
+**`cost_share_price` is the price in the currency the transaction was stated in**, which is the only pair price the ledger holds. A purchase written wholly in US dollars states 99.00 USD a share and the entry says so. The same shares bought in a transaction stated in Canadian dollars state a Canadian price instead, and the entry then reads `cost_share_price: 260 # AMZN in CAD`, `cost_rate: 1` — the ledger's own figure either way, never a price looked up elsewhere and presented as what the trade was at.
 
 Where the security is held in the book's own currency there is no second rate, so `cost_rate` is 1 and `cost_share_price_in_base` is `cost_share_price` — the same three lines, saying the same thing about a simpler trade.
 
@@ -42,7 +42,7 @@ This is why the distinction has gone unnoticed so far: for US dollars bought wit
 **Half of this was on the page before this change.** `share_price: 397.6` for AMZN is in Canadian dollars — 280.00 USD at 1.42, converted by the report — and `unrealized_gains_other` was measured from it. What was missing was the other half: the cost, converted the same way. With it, `realized_gains_other` needs no machinery of its own:
 
 - buying opens a cost basis on the security split, at what the units cost converted at the rate on the day they were bought;
-- selling draws that basis down, and the difference between what the units cost and what they fetched is realized then — one subtraction, in the book's own currency;
+- selling draws that basis down, and the difference between what the units cost and their proceeds is realized then — one subtraction, in the book's own currency;
 - the file says which basis a sale drew on with `cost_basis_split_guid:`, and a sale that does not say is refused. Nothing is picked for the reader — which basis a disposal drew on decides the gain, the same reason it is never guessed for a currency;
 - where a fee or a commission shares the transaction, `$residual$` and `took_the_residual` say which split is the difference, as they already do for a bank charge sitting beside an exchange difference;
 - `realized_gains_other` is then the sum of those differences to the sheet's date, as `realized_gains_fx` is the sum of the currency ones.
@@ -64,7 +64,7 @@ Two things made that worth deciding rather than assuming:
 
 > Currency only: shares are counted in units and priced, not converted, so a security establishes nothing however its account is typed.
 
-That reasoning is about **valuation**: a holding the book still has is priced at what a share fetches now. It does not carry over to **disposal**. A share that has been sold is not being priced; it is being compared with what it cost, and it cost something in Canadian dollars whatever it was counted in. So a security now opens a cost basis on the same terms as a currency.
+That reasoning is about **valuation**: a holding the book still has is priced at what a share is worth now. It does not carry over to **disposal**. A share that has been sold is not being priced; it is being compared with what it cost, and it cost something in Canadian dollars whatever it was counted in. So a security now opens a cost basis on the same terms as a currency.
 
 ## What was investigated
 
@@ -99,11 +99,11 @@ The sale itself, which carries every figure the subtraction needs:
 	Income:Realized Gains -480.00 USD
 ```
 
-**The shares leave at what they cost** — 200.00 USD each, the price they were bought at, not the 260.00 they fetched — which is the same convention a currency disposal follows. So the 1,600.00 is the cost and the 2,080.00 is the proceeds, both in US dollars, and 480.00 is the difference the book already booked to income.
+**The shares leave at what they cost** — 200.00 USD each, the price they were bought at, not their proceeds of 260.00 USD each — which is the same convention a currency disposal follows. So the 1,600.00 is the cost and the 2,080.00 is the proceeds, both in US dollars, and 480.00 is the difference the book already booked to income.
 
 **`total_realized_gains` stated 0.00 for a book that realized 480.00 USD on its shares**, while the income statement beside it carried that 480.00. Two pages from one tool disagreed about whether anything was realized; the currency half of that was Q-044's subject.
 
-**The fixture now states both trades in Canadian dollars**, the purchase at the 5,200.00 CAD the dollars cost and the sale at the 2,808.00 CAD the 2,080.00 USD fetched at 1.35, so the shares leave at 260.00 CAD each and `Income:Realized Gains` takes the difference as `$residual$`:
+**The fixture now states both trades in Canadian dollars**, the purchase at the 5,200.00 CAD the dollars cost and the sale at its proceeds of 2,080.00 USD, 2,808.00 CAD at 1.35 CAD/USD, so the shares leave at 260.00 CAD each and `Income:Realized Gains` takes the difference as `$residual$`:
 
 ```
 2026-06-30 * "Sell 8 AMZN at 260.00 USD"

@@ -1,6 +1,6 @@
 # Two splits of one transaction both stating `took_the_residual`.
 #
-# The sale pays a 5.00 bank charge out of what it fetched, so the transaction
+# The sale pays a 5.00 CAD bank charge from its proceeds, so the transaction
 # carries two expense-or-income lines: the charge and the exchange difference.
 # Neither the arithmetic nor the account can tell them apart — both are in the
 # profit and loss, and a residual would resolve to either — so the key is the

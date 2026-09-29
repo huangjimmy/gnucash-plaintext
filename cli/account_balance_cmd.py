@@ -19,7 +19,8 @@ With ACCOUNT_PREFIX + --with-children:
 
 With --fx-rates:
     Updates GnuCash pricedb for changed rates (today's date), then outputs all
-    shown accounts consolidated to CAD.
+    shown accounts consolidated to the book's base currency (CAD where the
+    book states none).
 """
 
 from datetime import date
@@ -61,8 +62,9 @@ def _format_amount(amount, unit: int) -> str:
     "fx_rates_file",
     default=None,
     type=click.Path(exists=True),
-    help="YAML file with currency->CAD rates. Consolidates all accounts to CAD "
-         "and writes updated rates to the GnuCash pricedb.",
+    help="YAML file with each currency's rate in the book's base currency "
+         "(CAD where the book states none). Consolidates all accounts to the "
+         "base currency and writes updated rates to the GnuCash pricedb.",
 )
 @click.option(
     "--with-children",
@@ -116,7 +118,7 @@ def account_balance(
       As of a specific date:
         gnucash-plaintext account-balance ledger.gnucash --as-of 2024-12-31
 
-      With FX consolidation to CAD (updates pricedb):
+      With FX consolidation to the base currency (updates pricedb):
         gnucash-plaintext account-balance ledger.gnucash \\
             --as-of 2024-12-31 --fx-rates rates.yaml
     """

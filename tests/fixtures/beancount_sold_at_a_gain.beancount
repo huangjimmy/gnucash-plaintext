@@ -1,7 +1,7 @@
 ; A holding sold at a gain, written the way beancount writes one.
 ;
 ; `-10 HOOL {500.00 USD} @ 550.00 USD` says two different things: the basket
-; is what the units cost, and the price is what they fetched. Beancount
+; is what the units cost, and the price is their proceeds per unit. Beancount
 ; balances the entry at `units × cost` — the basket — and treats the price as
 ; information. The gain is the third posting, stated outright.
 ;

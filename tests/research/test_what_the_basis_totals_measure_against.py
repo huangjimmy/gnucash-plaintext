@@ -77,7 +77,7 @@ def _holdings(book_path):
 
     from repositories.gnucash_repository import GnuCashRepository, SessionMode
     from services.foreign_currency import (
-        BASE_CURRENCY,
+        base_currency,
         brought_in_by,
         cost_basis_balance_of,
         cost_basis_guid_of,
@@ -97,7 +97,7 @@ def _holdings(book_path):
         for raw in query.run():
             for split in Transaction(instance=raw).GetSplitList():
                 currency = split_commodity(split)
-                if not currency or currency == BASE_CURRENCY:
+                if not currency or currency == base_currency():
                     continue
                 account = split.GetAccount()
                 if account.GetCommodity().get_namespace() != 'CURRENCY':
@@ -126,7 +126,7 @@ def _holdings(book_path):
         # a drawdown records, written on the selling split by the file.
         for split in iter_splits(repo.book):
             currency = split_commodity(split)
-            if not currency or currency == BASE_CURRENCY:
+            if not currency or currency == base_currency():
                 continue
             amount = Fraction(split.GetAmount().num(), split.GetAmount().denom())
             if cost_basis_guid_of(split):
