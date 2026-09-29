@@ -215,7 +215,7 @@ class TestACostAndAPriceOnOneLine:
     Beancount balances a posting held at cost at `units × cost`; the `@ price`
     beside it is what the units are worth today, which the entry does not
     balance at. Read the other way round, the standard spelling of a disposal
-    at a gain valued the holding at what it fetched instead of what it cost,
+    at a gain valued the holding at its proceeds instead of what it cost,
     the splits summed to the gain, and GnuCash scrubbed in an Imbalance while
     the run reported one transaction and no error.
     """

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### A book is measured in the base currency its `company` block states
+
+**A book stating `base_currency:` keeps its cost bases and its gains in that currency.** `base_currency: "HKD"` in the `company` block makes HKD the book's base currency. Every other currency is foreign, and each amount of a foreign currency the book holds has a cost basis stating what it cost in HKD. Realized and unrealized gains, foreign invoices and bills and their settlements, the balance sheet, `fx-balances`, `--verify-costs` and `--verify-integrity` are measured in HKD, and a rates file passed to `import --fx-rates` or `account-balance --fx-rates` quotes each currency in HKD. Before this release every cost basis was measured in CAD. On a book stating `base_currency: "HKD"`, a USD invoice collected into a USD account opened no cost basis, and selling those dollars was refused as drawing on no cost basis. ([Q-056](docs/issues/Q-056-measure-a-book-in-the-base-currency-it-states.md))
+
+**A book that states no base currency is measured in CAD, as before.** Nothing changes for it.
+
+**Every import applies the `company` block, with or without `--include-business-objects`.** The block is the book's own, and it states the base currency the book is measured in. Before this release it was applied only with the flag, so a file stating `base_currency: "HKD"` imported without the flag left the book stating none, and the next command measured the same book in CAD. Customers, vendors, tax tables, invoices and bills still need the flag.
+
+**A file stating `base_currency:` is measured in it from its first transaction.** `import` reads the file's `base_currency:` before it applies any part of the file, so a new book can be created and filled in HKD by one file.
+
+**A pair in a rates file quotes into the base currency.** `USD/HKD:` is accepted in a book measured in HKD. A pair into another currency, such as `USD/CAD:` in that book, is refused when a rate is looked up, with the two ways to write it.
+
 ### Only `$None$` removes a key, a custom key holds what the file states, and gnucash-plaintext's own keys hold one type each
 
 **Breaking: `key: ""` no longer removes a custom key.** It is the empty text, which the key holds and the export writes back as `""`. `$None$`, unquoted, is the one way to remove a key. A file that removed a key with `""` keeps it now, empty; write `$None$` instead. `cost_basis_balance: $None$` removes a stranded balance, and the refusal that asks for it says so.

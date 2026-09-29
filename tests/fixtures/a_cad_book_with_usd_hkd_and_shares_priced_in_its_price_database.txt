@@ -340,7 +340,7 @@ price
 # Stated in Canadian dollars, because a disposal that says nothing in the
 # book's own currency cannot say what it realized. The shares leave at what
 # they cost — 260.00 CAD each, being the 200.00 USD they were bought at carried
-# through the 1.30 those dollars cost — the dollars they fetch arrive at the
+# through the 1.30 those dollars cost — their proceeds in dollars arrive at the
 # 1.35 of the day, and `$residual$` takes the 728.00 CAD between the two.
 2026-06-30 * "Sell 8 AMZN at 260.00 USD"
 	currency.mnemonic: "CAD"

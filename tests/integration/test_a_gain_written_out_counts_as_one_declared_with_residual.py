@@ -64,7 +64,7 @@ def _both(tmp_path):
 
 
 def test_the_gain_is_the_hundred_the_sale_made(tmp_path):
-    """1,000.00 USD costing 1,300.00 CAD fetched 1,400.00."""
+    """1,000.00 USD costing 1,300.00 CAD is sold for proceeds of 1,400.00 CAD."""
     declared, written_out = _both(tmp_path)
 
     assert block_total_of(declared, 'realized_gains_fx') == 100

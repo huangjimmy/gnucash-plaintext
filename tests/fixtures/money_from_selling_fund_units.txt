@@ -2,7 +2,7 @@
 #
 # The other side is not money at all. `Assets:Fund` is a Mutual Fund account
 # holding FUNDX, quoted in units — 1.000 of them here — and the 100.00 beside
-# it is what the units fetched, not a figure standing in for a receivable.
+# it is the proceeds of the units, not a figure standing in for a receivable.
 #
 # It is the cash sale one commodity further along. A payment that moved this
 # split onto the receivable would restate it in dollars, so 1.000 FUNDX would

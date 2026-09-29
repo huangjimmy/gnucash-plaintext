@@ -1,6 +1,6 @@
 # Sell 80.00 USD of a 100.00 USD cost basis that cost 1.37 CAD/USD, leaving
 # 20.00 of it. Valued at what that cost basis cost — 109.60 CAD — because a
-# sale must be; what it fetched is the 110.40 on the bank, and the 0.80
+# sale must be; its proceeds are the 110.40 CAD on the bank, and the 0.80 CAD
 # difference is the realized gain.
 #
 # {basis} is the cost basis split's guid, filled in by the test from the book.

@@ -1,0 +1,112 @@
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Accounts Receivable CAD
+	type: "A/Receivable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:Bank USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank CAD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity:Share Capital
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+company
+	name: "Lakeshore Supply Inc"
+	base_currency: "USD"
+
+2026-01-02 * "Share capital paid in"
+	guid: "0d570000000000000000000000000001"
+	Assets:Bank USD 500000.00 USD
+		guid: "0d570000000000000000000000000101"
+	Equity:Share Capital -500000.00 USD
+		guid: "0d570000000000000000000000000102"
+
+customer "C-CA"
+	name: "Maple Retail Ltd"
+	currency: CAD
+
+invoice "INV-C01"
+	customer_id: "C-CA"
+	currency: CAD
+	date_opened: 2026-02-02
+	entry:
+		date: 2026-02-02
+		description: "Supplies"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 20000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2026-02-02
+		due: 2026-03-04
+		ar_account: "Assets:Accounts Receivable CAD"
+		memo: "Invoice INV-C01"
+		posted_txn_guid: "0d570000000000000000000000000011"
+		accumulate: #True
+	payment:
+		date: 2026-03-02
+		amount: 20000.00
+		bank_account: "Assets:Bank CAD"
+		txn_guid: "0d570000000000000000000000000012"
+		txn_split_guid: "0d570000000000000000000000000122"
+		memo: "Payment for INV-C01"
+
+2026-02-02 * "INV-C01" "Invoice INV-C01"
+	guid: "0d570000000000000000000000000011"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable CAD 20000.00 CAD
+		guid: "0d570000000000000000000000000111"
+	Income:Sales -14800.00 USD
+		guid: "0d570000000000000000000000000112"
+		share_price: "20000/14800"
+		value: "-20000.00"
+
+2026-03-02 * "Maple Retail Ltd"
+	guid: "0d570000000000000000000000000012"
+	txn_type: P
+	owner: customer:C-CA
+	Assets:Bank CAD 20000.00 CAD
+		guid: "0d570000000000000000000000000121"
+	Assets:Accounts Receivable CAD -20000.00 CAD
+		guid: "0d570000000000000000000000000122"

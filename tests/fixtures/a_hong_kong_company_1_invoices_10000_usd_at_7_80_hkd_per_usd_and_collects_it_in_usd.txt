@@ -1,0 +1,146 @@
+2026-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity CNY
+	mnemonic: "CNY"
+	fullname: "Yuan Renminbi"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity EUR
+	mnemonic: "EUR"
+	fullname: "Euro"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Assets:Accounts Receivable USD
+	type: "A/Receivable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank HKD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Assets:Bank USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Assets:Bank CNY
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+2026-01-01 open Assets:Bank EUR
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+2026-01-01 open Liabilities
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Liabilities:Accounts Payable EUR
+	type: "A/Payable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+2026-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Equity:Share Capital
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Expenses
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2026-01-01 open Expenses:Design Services
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+
+company
+	name: "Harbour Trading Ltd"
+	base_currency: "HKD"
+
+2026-01-02 * "Share capital paid in"
+	guid: "0d560000000000000000000000000001"
+	Assets:Bank HKD 1000000.00 HKD
+		guid: "0d560000000000000000000000000101"
+	Equity:Share Capital -1000000.00 HKD
+		guid: "0d560000000000000000000000000102"
+
+customer "C-US"
+	name: "Pacific Buyer Inc"
+	currency: USD
+
+invoice "INV-001"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-02-02
+	entry:
+		date: 2026-02-02
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 10000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2026-02-02
+		due: 2026-03-04
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-001"
+		posted_txn_guid: "0d560000000000000000000000000011"
+		accumulate: #True
+	payment:
+		date: 2026-03-02
+		amount: 10000.00
+		bank_account: "Assets:Bank USD"
+		txn_guid: "0d560000000000000000000000000012"
+		txn_split_guid: "0d560000000000000000000000000122"
+		memo: "Payment for INV-001"
+
+2026-02-02 * "INV-001" "Invoice INV-001"
+	guid: "0d560000000000000000000000000011"
+	currency.mnemonic: "USD"
+	Assets:Accounts Receivable USD 10000.00 USD
+		guid: "0d560000000000000000000000000111"
+	Income:Sales -78000.00 HKD
+		guid: "0d560000000000000000000000000112"
+		share_price: "10000/78000"
+		value: "-10000.00"
+
+2026-03-02 * "Pacific Buyer Inc"
+	guid: "0d560000000000000000000000000012"
+	txn_type: P
+	owner: customer:C-US
+	Assets:Bank USD 10000.00 USD
+		guid: "0d560000000000000000000000000121"
+	Assets:Accounts Receivable USD -10000.00 USD
+		guid: "0d560000000000000000000000000122"

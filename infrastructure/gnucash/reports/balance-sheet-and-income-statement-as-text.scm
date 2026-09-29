@@ -252,7 +252,7 @@
 
 ;; What the book has already taken on foreign currency by the report's date, in
 ;; the book's own currency. A disposal values what it sells at what that
-;; currency cost, so the splits beside it state what it fetched and the
+;; currency cost, so the splits beside it state its proceeds and the
 ;; difference is what was made or lost — gnucash-plaintext sums that and calls
 ;; `plaintext:set-realized-fx!` before the report runs.
 ;;
@@ -2994,7 +2994,7 @@
             ;;
             ;; `realized_gains_fx` and `total_realized_gains` are written from
             ;; the splits a `$residual$` resolved to, which gnucash-plaintext
-            ;; marks as it imports them: what a disposal fetched is on the
+            ;; marks as it imports them: a disposal's proceeds are on the
             ;; splits facing it, and nothing in a saved transaction could be
             ;; asked afterwards which of those was the exchange difference. A
             ;; trading-accounts book states none of these keys either, for the

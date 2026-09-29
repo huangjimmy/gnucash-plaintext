@@ -18,12 +18,15 @@ from infrastructure.gnucash.kvp import (
     KNOWN_SPLIT_METADATA_KEYS,
     KNOWN_TX_METADATA_KEYS,
     KNOWN_VENDOR_METADATA_KEYS,
+    removes_the_key,
 )
 from repositories.gnucash_repository import GnuCashRepository
+from services.book_currency import BASE_CURRENCY_KEY
 from services.conflict_resolver import ConflictResolver, ResolutionStrategy
 from services.foreign_currency import (
     THE_TOOL_S_OWN_KEYS,
     begin_import_run,
+    measure_in,
     running_atomic,
     the_tool_s_own_keys_as_they_hold,
 )
@@ -533,6 +536,17 @@ class ImportTransactionsUseCase:
         # Process directives in order: commodities -> accounts -> transactions
         book = self.repository.book
         importer = GnuCashImporter()
+
+        # A run is measured in one base currency (Q-056). The book stated its
+        # own when it was opened; a `company` block stating one in this file
+        # says it for the run. It is read here, before any part of the file is
+        # applied. The block itself is applied on every import, after the
+        # accounts and before the transactions, so the book stores what the
+        # run was measured in.
+        for child in parser.root_directive.children:
+            if child.type == DirectiveType.COMPANY and BASE_CURRENCY_KEY in child.metadata:
+                stated = child.metadata[BASE_CURRENCY_KEY]
+                measure_in(None if removes_the_key(stated) else stated)
 
         # Step 1: Create all commodities
         for child in parser.root_directive.children:

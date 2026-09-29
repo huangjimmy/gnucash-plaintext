@@ -1,0 +1,8 @@
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+	currency.mnemonic: "USD"
+	time: "2026-12-31 12:00:00 +0000"
+	value: "0.73"
+	source: "user:price-editor"
+	type: "last"

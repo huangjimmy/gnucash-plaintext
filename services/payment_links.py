@@ -59,7 +59,7 @@ from infrastructure.gnucash.utils import (
     qof_pointer,
     to_money,
 )
-from services.foreign_currency import BASE_CURRENCY, split_guid
+from services.foreign_currency import base_currency, split_guid
 from services.plaintext_parser import DirectiveType
 
 
@@ -1172,12 +1172,10 @@ def the_amount_the_new_account_takes(held: str, quoted: str, account,
     owes no cost basis, being the currency the book is kept in. Everything
     else is refused, whatever rate is passed.
 
-    "The book's own" is `BASE_CURRENCY`, which is `'CAD'` for every book this
-    tool opens rather than something read off the one in hand. That is a known
-    limitation of the whole tool and this is the first place it hands out
-    *advice* on the strength of it: a ledger kept in USD is told to use a CAD
-    account and refused the currency it actually keeps its books in. README
-    says so where the rule is stated.
+    "The book's own" is `base_currency()`: the `base_currency:` the book's
+    `company` block states, and CAD where it states none (Q-056). So a book
+    stating `base_currency: "USD"` is offered a USD account, and one stating
+    none is offered a CAD account.
 
     The currency the transaction is *quoted* in is not a third. It is one of
     those two or it is refused like any other, and the order of the tests here
@@ -1220,7 +1218,7 @@ def the_amount_the_new_account_takes(held: str, quoted: str, account,
     and `fx-balances` then listed the USD receivable and no JPY at all — yen
     held in the book with no cost basis behind them.
 
-    `BASE_CURRENCY` is the book's own currency and not foreign, so it needs no
+    `base_currency()` is the book's own currency and not foreign, so it needs no
     cost basis and the conversion is complete in itself. Any other currency
     would need a cost basis opened here, which is the sale-and-purchase machinery
     and not an undo.
@@ -1269,7 +1267,7 @@ def the_amount_the_new_account_takes(held: str, quoted: str, account,
     # through a supported shape — a USD invoice settled by an HKD-quoted entry
     # carrying a USD split — and it wrote the HKD with nothing accounting for
     # it.
-    if destination != BASE_CURRENCY:
+    if destination != base_currency():
         # The two an account may be kept in, each written once: the commodity
         # the split holds, which brings nothing new into the book, and the
         # book's own currency, which owes no cost basis. The *quoted* currency is
@@ -1278,7 +1276,7 @@ def the_amount_the_new_account_takes(held: str, quoted: str, account,
         # the split holds the book's own currency the two collapse to one, and
         # a sentence listing CAD twice reads as a mistake.
         instead = []
-        for code in (held, BASE_CURRENCY):
+        for code in (held, base_currency()):
             if code and code not in instead:
                 instead.append(code)
         raise AccountCannotTakeTheSplitError(

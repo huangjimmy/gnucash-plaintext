@@ -1,0 +1,70 @@
+vendor "V-EU"
+	name: "Atelier Lumière SARL"
+	currency: EUR
+
+bill "BILL-EU-001"
+	vendor_id: "V-EU"
+	currency: EUR
+	date_opened: 2026-08-03
+	entry:
+		date: 2026-08-03
+		description: "Design services"
+		action: "Hours"
+		account: "Expenses:Design Services"
+		quantity: 1
+		price: 2000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+	posted:
+		date: 2026-08-03
+		due: 2026-09-02
+		ap_account: "Liabilities:Accounts Payable EUR"
+		memo: "Bill BILL-EU-001"
+		posted_txn_guid: "0d560000000000000000000000000051"
+		accumulate: #True
+	payment:
+		date: 2026-08-20
+		amount: 2000.00
+		bank_account: "Assets:Bank EUR"
+		txn_guid: "0d560000000000000000000000000053"
+		txn_split_guid: "0d560000000000000000000000000531"
+		memo: "Payment for BILL-EU-001"
+
+2026-08-03 * "BILL-EU-001" "Bill BILL-EU-001"
+	guid: "0d560000000000000000000000000051"
+	currency.mnemonic: "EUR"
+	Liabilities:Accounts Payable EUR -2000.00 EUR
+		guid: "0d560000000000000000000000000511"
+	Expenses:Design Services 17000.00 HKD
+		guid: "0d560000000000000000000000000512"
+		share_price: "2000/17000"
+		value: "2000.00"
+
+2026-08-14 * "Buy 2,000.00 EUR at 8.45 HKD/EUR"
+	guid: "0d560000000000000000000000000052"
+	currency.mnemonic: "HKD"
+	Assets:Bank EUR 2000.00 EUR
+		guid: "0d560000000000000000000000000521"
+		share_price: "8.45"
+		value: "16900.00"
+	Assets:Bank HKD -16900.00 HKD
+		guid: "0d560000000000000000000000000522"
+
+2026-08-20 * "Atelier Lumière SARL"
+	guid: "0d560000000000000000000000000053"
+	currency.mnemonic: "HKD"
+	txn_type: P
+	owner: vendor:V-EU
+	Liabilities:Accounts Payable EUR 2000.00 EUR
+		guid: "0d560000000000000000000000000531"
+		share_price: "8.50"
+		value: "17000.00"
+		cost_basis_split_guid: "0d560000000000000000000000000511"
+	Assets:Bank EUR -2000.00 EUR
+		guid: "0d560000000000000000000000000532"
+		share_price: "8.45"
+		value: "-16900.00"
+		cost_basis_split_guid: "0d560000000000000000000000000521"
+	Income:FX Gain $residual$ HKD
+		guid: "0d560000000000000000000000000533"

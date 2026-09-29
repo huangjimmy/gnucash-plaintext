@@ -213,6 +213,32 @@ def _company_lines(text):
     return [line.strip() for line in _company_block(text).splitlines()[1:]]
 
 
+def test_the_company_block_is_imported_without_the_business_objects_flag_and_nothing_else_is(tmp_path):
+    """The `company` block is imported on every import; a customer and a vendor still need the flag.
+
+    The test imports a file holding a `company` block, a customer and a vendor
+    without `--include-business-objects`. The `company` block is the book's own
+    (Q-056), so its name, its `gst` and its custom key `province` are in the
+    book. The customer and the vendor are business objects, and are not.
+    """
+    runner = CliRunner()
+    gf = _new_book(runner, tmp_path)
+    p = tmp_path / 'c1.txt'
+    p.write_text('company\n\tname: "Acme Plaintext Co."\n\tgst: "123456789RT0001"\n'
+                 '\tprovince: "BC"\n\n'
+                 'customer "C-1"\n\tname: "A Customer"\n\tcurrency: CAD\n\n'
+                 'vendor "V-1"\n\tname: "A Vendor"\n\tcurrency: CAD\n')
+    done = runner.invoke(cli, ['import', str(gf), str(p)])
+    assert done.exit_code == 0, done.output
+    assert 'company "Acme Plaintext Co.": created' in done.output, done.output
+
+    exported = _export(runner, gf, tmp_path)
+    assert _company_lines(exported) == [
+        'name: "Acme Plaintext Co."', 'gst: "123456789RT0001"', 'province: "BC"']
+    assert 'customer "C-1"' not in exported
+    assert 'vendor "V-1"' not in exported
+
+
 def test_a_custom_key_holds_what_the_file_states(tmp_path):
     """A company key holds what the file states, as it states it.
 

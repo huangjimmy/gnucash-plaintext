@@ -1,6 +1,7 @@
 # B's 500.00 USD sold at 1.40, drawing on the cost basis the transfer out of
-# an empty A opened at B at 1.35. 500.00 at 1.35 is 675.00 of cost against
-# 700.00 fetched, so 25.00 is realized, and C's cost basis is left whole.
+# an empty A opened at B at 1.35 CAD/USD. 500.00 USD at 1.35 CAD/USD is 675.00
+# CAD of cost against 700.00 CAD of proceeds, so 25.00 CAD is realized, and
+# C's cost basis is left whole.
 #
 # Imported into the book usd_moved_out_of_an_empty_account.txt makes.
 #

@@ -35,7 +35,7 @@
 
 ## Known, not yet investigated
 
-- A book kept in another currency than CAD states no realized gain from a `$residual$`, whether it keeps cost bases or not: the realized difference is read only in a transaction stated in `BASE_CURRENCY`, which is CAD (Q-043, "A cost is recorded against a constant").
+- A book kept in another currency than CAD that states no base currency states no realized gain from a `$residual$`, whether it keeps cost bases or not. The realized difference is read only in a transaction stated in the book's base currency, and a book stating none is measured in CAD. A book that states its base currency in its `company` block, such as `base_currency: "HKD"`, has its realized difference read in a transaction stated in that currency (Q-056).
 
 ## Cases the tests cover
 

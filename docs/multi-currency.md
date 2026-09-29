@@ -1,6 +1,6 @@
 # Multi-currency: invoicing, billing, and holding foreign currency
 
-The book reports in CAD. This guide is the worked reference for everything that happens when money is denominated in something else: invoicing a US customer, being billed by a US vendor, paying either across a currency boundary, holding the USD that results, and selling it.
+A book is measured in the base currency its `company` block states, such as `base_currency: "HKD"`, and in CAD where it states none (Q-056). The examples in this guide are of a book measured in CAD; a book stating another base currency works the same way in that currency. This guide is the worked reference for everything that happens when money is denominated in something else: invoicing a US customer, being billed by a US vendor, paying either across a currency boundary, holding the USD that results, and selling it.
 
 Every figure below was produced by running the commands against a real GnuCash book — the transactions are copied out of `export` output, and the errors out of the importer.
 
@@ -25,7 +25,7 @@ They move independently. A USD invoice paid into a USD bank leaves the bank hold
 
 ## Cost bases
 
-Every split that brings foreign currency into the book establishes a **cost basis**: so many units, at what they cost in CAD.
+Every split that brings foreign currency into the book establishes a **cost basis**: so many units, at what they cost in the base currency, CAD in these examples.
 
 | how the currency arrives | the split that establishes the cost basis | what it cost |
 |---|---|---|
@@ -531,7 +531,7 @@ A credit bigger than the invoice is divided the way a bank transfer bigger than 
 
 ### A security has a cost basis too, and is kept apart from currency
 
-A cost basis is established for every commodity that is not the book's own currency, a security included, and it records the same two things in both cases: how many units are left, and what a unit cost in the book's own currency. 10 shares bought for 990.00 USD on a day the dollar stood at 1.30 cost 1,287.00 CAD, which is 128.70 a share, and selling 7 of them draws the basis down by 900.90 and realizes the difference between that and what they fetched (Q-046).
+A cost basis is established for every commodity that is not the book's own currency, a security included, and it records the same two things in both cases: how many units are left, and what a unit cost in the book's own currency. 10 shares bought for 990.00 USD on a day the dollar stood at 1.30 cost 1,287.00 CAD, which is 128.70 a share, and selling 7 of them draws the basis down by 900.90 and realizes the difference between that and their proceeds (Q-046).
 
 **What decides which gain key the difference lands in is the commodity, not how its account is typed.** A currency that is not the book's own is `_fx`, and anything else — a stock, a mutual fund — is `_other`. The two are stated apart on every page and in `fx-balances`, because a program reading gnucash-plaintext's pages may handle currency and not securities, and one figure covering both could not be taken apart again.
 
@@ -639,7 +639,7 @@ Authoritative, and therefore checked before it lands: it must be on a split that
 
 ## Selling foreign currency
 
-A sale states the guid of the cost basis it is measured against and values what it sells at that cost basis's cost. What the sale fetched is on the other splits, and `$residual$` takes the difference:
+A sale states the guid of the cost basis it is measured against and values what it sells at that cost basis's cost. What the currency was sold for is on the other splits, and `$residual$` takes the difference:
 
 ```
 2026-02-01 * "Sell 40 USD"
@@ -652,7 +652,7 @@ A sale states the guid of the cost basis it is measured against and values what 
 	Income:FX Gain $residual$ CAD
 ```
 
-40 USD that cost 54.00 CAD fetched 55.60, so the residual books `Income:FX Gain -1.60 CAD` — a 1.60 gain — and that cost basis drops to `60.00 USD` available while the other is untouched.
+40 USD that cost 54.00 CAD was sold for 55.60 CAD, so the residual books `Income:FX Gain -1.60 CAD` — a 1.60 gain — and that cost basis drops to `60.00 USD` available while the other is untouched.
 
 ### Spreading a sale across several cost bases
 
@@ -696,12 +696,12 @@ This tool keeps books; it does not support trading a position the book does not 
 |---|---|
 | a sale of 150 USD against a cost basis of 100 | `150.00 USD against cost basis <guid> exceeds its cost basis balance by 50.00 USD (the cost basis brought in 100.00 USD and has 100.00 left)` |
 | a sale against an invoice that is not yet paid | `cost basis <guid> is a split on 'Assets:Accounts Receivable USD', and the invoice it belongs to has not been collected — that USD is owed, not held, so there is none to sell…` |
-| a cost other than the cost basis's | `this split sells 100.00 USD valued at 120.00 CAD, but cost basis <guid> cost 1.35 CAD per USD, i.e. 135.00 CAD — value what is sold at the cost basis it picks, so the CAD the sale fetched and the residual gain or loss stand apart` |
+| a cost other than the cost basis's | `this split sells 100.00 USD valued at 120.00 CAD, but cost basis <guid> cost 1.35 CAD per USD, i.e. 135.00 CAD — value what is sold at the cost basis it picks, so what the currency was sold for in CAD and the residual gain or loss stand apart` |
 | a guid matching no split | `cost_basis_split_guid '<guid>' matches no split in the book` |
 | a guid matching a split that holds no foreign currency | `cost_basis_split_guid '<guid>' matches a split that is no USD cost basis — a cost basis is a split that brought USD into the book (an invoice, a bill, a purchase or a borrowing)` |
 | a cost basis with no balance recorded | `cost basis <guid> has no balance recorded — the split was not written by this tool, so how much of its USD is still unsold is not known and cannot be assumed to be all of it…` |
 | a `payment:` block spending a foreign account whose cost bases still have a balance | `this bill pays 100.00 USD out of 'Assets:Bank:USD', whose cost bases still have 200.00 USD of balance between them, and spending that has to say which cost basis it comes out of. A payment block cannot — GnuCash writes its bank split. Write the settlement as an ordinary transaction with cost_basis_split_guid: on the bank line and attach it with txn_guid: / txn_split_guid:` |
-| a settlement into a foreign bank with no rate for **that bank's** currency | `this invoice is in USD and settles into HKD, so valuing the cash needs the HKD/CAD rate on 2026-02-25, which the rates file does not carry: …` |
+| a settlement into a foreign bank with no rate for **that bank's** currency | `this invoice is in USD and settles into HKD, so valuing the cash needs the HKD/CAD rate on 2026-02-25: No FX rate for HKD. Add 'HKD: <rate>' to your --fx-rates file.` |
 | a CAD invoice settled into a foreign bank | `invoice INV-…: this payment settles a CAD invoice into a HKD account. Nothing is realized — CAD does not move against itself — and what the HKD cost belongs to that account, recorded where the currency was bought, not to this invoice. Settle it from a CAD account, or record the HKD purchase as its own transaction.` |
 
 The first of those three is the one most likely to meet an existing ledger, and it is asked of **every** foreign bank rather than only one in a third currency — paying a USD bill out of a USD bank whose cost bases still have a balance reaches none of the cross-currency arithmetic and leaves the cost bases claiming currency the account no longer holds just the same, so the question is asked before it. A foreign account gets its first cost basis as soon as something opens one, and a settlement landing in it is one such thing; README's foreign-currency section shows the ordinary transaction that replaces the payment block.
@@ -818,7 +818,7 @@ It is a **token, not an omitted amount**: inferring a residual from a missing fi
 
 It is not specific to currency: any transaction may use it.
 
-**The book records which split took it**, in a `took_the_residual` KVP on that split. Nothing in a saved transaction could be asked afterwards. A disposal balances — what it fetched plus the difference it realized is what those units cost — so the arithmetic alone cannot say which of its splits is which, and neither can the account: 8.60 USD disposed of at a cost of 11.99 paid an 11.92 bank charge beside 0.07 of exchange difference, both on expense accounts, and an account is not one or the other because of its name. The file said which, and the key is what keeps that.
+**The book records which split took it**, in a `took_the_residual` KVP on that split. Nothing in a saved transaction could be asked afterwards. A disposal balances — its proceeds plus the difference it realized are what those units cost — so the arithmetic alone cannot say which of its splits is which, and neither can the account: 8.60 USD disposed of at a cost of 11.99 paid an 11.92 bank charge beside 0.07 of exchange difference, both on expense accounts, and an account is not one or the other because of its name. The file said which, and the key is what keeps that.
 
 **So there are two ways to write a disposal, and they produce the same book.** `$residual$` has the import work the figure out and record the key. Working it out yourself produces the same transaction — the same accounts, the same amounts, the same values — because the token resolves to nothing more than the negation of what the other splits come to. What a written-out figure has to state as well is which split is the difference, since the numbers cannot say: in a balanced transaction the same arithmetic holds for every split. So state `took_the_residual: #True` on it, and the page states the same gain:
 
@@ -834,7 +834,7 @@ The key is honoured where the ledger bears it out, exactly as the import require
 
 **What none of that can do is tell one income or expense from another in the same disposal.** A bank charge is an expense too — 8.60 USD disposed of at a cost of 11.99 paid an 11.92 charge beside 0.07 of exchange difference, both on expense accounts. Where a disposal carries both, the `$residual$` token or a stated `took_the_residual` is the only thing that says which is which, and a file that puts either on the wrong line is believed.
 
-**One split per transaction may take it, whichever way it is claimed.** Two stated keys, or a key stated beside a `$residual$` token, are refused — a transaction has one exchange difference, and counting two on a sale of 1,000.00 USD that cost 1,300.00 and fetched 1,400.00 would state the 1,400.00 the bank received as a gain beside the 100.00 that was one.
+**One split per transaction may take it, whichever way it is claimed.** Two stated keys, or a key stated beside a `$residual$` token, are refused — a transaction has one exchange difference, and counting two on a sale of 1,000.00 USD that cost 1,300.00 CAD, with proceeds of 1,400.00 CAD, would state the 1,400.00 the bank received as a gain beside the 100.00 that was one.
 
 **The export carries the key**, because it cannot carry the token. An exported split states the figure the residual resolved to, not `$residual$`, so a book rebuilt from its own ledger would otherwise have no record of which split was the difference. It is the same key a file may state, so an exported disposal re-imports as the disposal it was.
 
@@ -1033,9 +1033,9 @@ A book owing 1,000.00 USD borrowed at 1.30, drawn when the nearest price is 1.40
 
 The debt was drawn at 1.30 and is worth 1.40 a dollar now, so it has cost the book 100.00 CAD that it has not paid yet. The figures on the owed side are negative — a cost basis there is currency the book owes rather than holds — and the two sides add to `unrealized_gains_fx` as they stand, without either being re-signed.
 
-- **`realized_gains_fx`** is what the book took when currency left it. A disposal is valued at what those units cost, so the splits facing it state what they fetched and the difference is the gain — the split the file marked `$residual$`. These are in the income and expense accounts already, so the sheet states them and adds them into nothing; adding them to equity a second time leaves equity standing against money that is gone.
+- **`realized_gains_fx`** is what the book took when currency left it. A disposal is valued at what those units cost, so the splits facing it state its proceeds and the difference is the gain — the split the file marked `$residual$`. These are in the income and expense accounts already, so the sheet states them and adds them into nothing; adding them to equity a second time leaves equity standing against money that is gone.
 - **`unrealized_gains_assets_fx`** and **`unrealized_gains_liabilities_fx`** are what the currency still held, and still owed, are worth at the price nearest the sheet's date, less what the cost bases say they cost. They add to `unrealized_gains_fx`, and only that total reaches `total_equity`.
-- **`realized_gains_other`** is what the book took when a security left it, measured the same way: the units are valued at what they cost, and the difference between that and what they fetched is the gain. A security has a cost basis of its own, in the book's own currency, so the subtraction is the one `realized_gains_fx` makes (Q-046).
+- **`realized_gains_other`** is what the book took when a security left it, measured the same way: the units are valued at what they cost, and the difference between that and their proceeds is the gain. A security has a cost basis of its own, in the book's own currency, so the subtraction is the one `realized_gains_fx` makes (Q-046).
 - **`unrealized_gains_other`** is everything that is not a currency — a stock, a mutual fund — worth what its price says at the sheet's date, less what its own cost bases say it cost. A security the cost bases cannot speak for keeps GnuCash's own revaluation, and the page says so with `measured_from: gnucash_revaluation`.
 - **`gnucash_balancing_amount` is an amount GnuCash adds to equity as the unrealized gain, and it is not always the unrealized gain** — which is why it is stated here under a name saying whose figure it is rather than under a name of its own. GnuCash reaches it by taking the summed values of the splits in a holding's own accounts from what that holding is worth at the sheet's date. That is the unrealized gain only where every one of those splits carries a figure in the book's own currency. Where foreign currency arrived carrying no figure in the book's own currency and was later spent, GnuCash's amount comes out as the negative of the realized gain: the realized gain is in the income and expense accounts, so `retained_earnings` carries it already, and adding an amount of the opposite sign cancels it rather than leaving it, so GnuCash's own page then states more liabilities and equity than it has assets. Currency bought with the book's own money and sold again does not do this — both splits carry the book's own figures, so GnuCash's subtraction cancels exactly and states `0.00`. This page adds the gain measured from the cost bases instead, and balances. The amount is carried across so a reader with GnuCash's page beside them can find the same number, and nothing adds it in. Beneath it the page states the subtraction GnuCash made rather than a verdict on it, commodity by commodity — the commodities its own figure is summed from, read out of the collector GnuCash sums rather than grouped by anything this page decided. Each group states that commodity's amount and the amount converted, with the splits valued in it and the accounts holding it beside them, so a reader can see what went into the figure. Which of the cases above a book is in is worked out from those figures, and every example under `examples/multi-currency/` carries the block for its own book, so the arithmetic can be followed rather than taken on trust. [Q-044](issues/Q-044-state-a-realized-gain-with-no-took-the-residual-key-and-say-what-the-balancing-amount-is.md) has the measurements.
 
@@ -1136,7 +1136,7 @@ Nothing has been realized, because no dollar has left. The 19.86 is what the hol
 
 *[`a_us_supplier_paid_out_of_those_dollars.txt`](../examples/multi-currency/a_us_supplier_paid_out_of_those_dollars.txt)*
 
-The same company now spends all 2,720.00 — a transfer to a payee and two bank charges. Each disposal is valued at what those dollars cost, so the splits facing it state what they fetched and `$residual$` takes the difference, which is the loss realized that day.
+The same company now spends all 2,720.00 — a transfer to a payee and two bank charges. Each disposal is valued at what those dollars cost, so the splits facing it state what the dollars were spent for and `$residual$` takes the difference, which is the loss realized that day.
 
 ```
 	realized_gains_fx: -19.86 CAD
@@ -1429,7 +1429,7 @@ The shares open a cost basis of their own, in the book's own currency, at the 26
 
 That figure can be checked against GnuCash itself. Its **Advanced Portfolio** report, run on this same book, states **Basis C$3,120.00, Value C$4,771.20 and Unrealized Gain C$1,651.20** — by arithmetic this shares no code with, value less basis where the sheet takes what the cost bases say the units cost from what the holding is worth at the sheet's price. Two ways of asking, one answer.
 
-Sell some of them and the same cost basis answers the other half: the units leave at what they cost, the splits facing them state what they fetched, and the difference is `realized_gains_other`. `tests/fixtures/a_broker_fee_two_us_loans_and_part_of_the_shares_sold.txt` sells 7 of 10 shares costing 128.70 for 1,330.56 CAD and realizes 429.66.
+Sell some of them and the same cost basis answers the other half: the units leave at what they cost, the splits facing them state what the shares were sold for, and the difference is `realized_gains_other`. `tests/fixtures/a_broker_fee_two_us_loans_and_part_of_the_shares_sold.txt` sells 7 of 10 shares costing 128.70 for 1,330.56 CAD and realizes 429.66.
 
 ---
 

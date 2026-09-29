@@ -1,0 +1,50 @@
+invoice "INV-002"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-04-01
+	entry:
+		date: 2026-04-01
+		description: "Consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 5000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2026-04-01
+		due: 2026-05-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-002"
+		posted_txn_guid: "0d560000000000000000000000000021"
+		accumulate: #True
+	payment:
+		date: 2026-05-04
+		amount: 5000.00
+		bank_account: "Assets:Bank USD"
+		txn_guid: "0d560000000000000000000000000022"
+		txn_split_guid: "0d560000000000000000000000000222"
+		memo: "Payment for INV-002"
+
+2026-04-01 * "INV-002" "Invoice INV-002"
+	guid: "0d560000000000000000000000000021"
+	currency.mnemonic: "USD"
+	Assets:Accounts Receivable USD 5000.00 USD
+		guid: "0d560000000000000000000000000211"
+	Income:Sales -38750.00 HKD
+		guid: "0d560000000000000000000000000212"
+		share_price: "5000/38750"
+		value: "-5000.00"
+
+2026-05-04 * "Pacific Buyer Inc"
+	guid: "0d560000000000000000000000000022"
+	txn_type: P
+	owner: customer:C-US
+	Assets:Bank USD 5000.00 USD
+		guid: "0d560000000000000000000000000221"
+	Assets:Accounts Receivable USD -5000.00 USD
+		guid: "0d560000000000000000000000000222"

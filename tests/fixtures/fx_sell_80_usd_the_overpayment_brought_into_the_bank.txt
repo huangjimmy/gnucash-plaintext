@@ -5,7 +5,7 @@
 # paid 200.00 USD on 2026-02-25 at 1.37. The bank's split opens an asset cost
 # basis of the 100.00 USD past the invoice, at 1.37; `{basis}` is its guid.
 #
-# 80.00 USD at 1.37 cost 109.60 CAD and fetch 112.00 CAD, so the bank's cost
+# 80.00 USD at 1.37 CAD/USD cost 109.60 CAD and their proceeds are 112.00 CAD, so the bank's cost
 # basis is left at 20.00 USD and Income:FX Gain takes the 2.40 CAD difference.
 2026-02-28 * "Sell 80 USD the overpayment brought in"
 	currency.mnemonic: "CAD"

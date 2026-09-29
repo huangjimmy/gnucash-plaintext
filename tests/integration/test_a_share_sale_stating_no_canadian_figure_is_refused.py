@@ -1,7 +1,7 @@
 """A share sale written wholly in a foreign currency is refused, as the matching repayment is.
 
 Shares with a cost basis in Canadian dollars leave at what they cost, and the
-difference between that and what they fetched is realized as they go —
+difference between that and their proceeds is realized as they go —
 `$residual$` states it, in the book's own currency. A sale written wholly in
 US dollars has no split in that currency to state it, and the dollars it brings
 in arrive with no cost to open a cost basis at.
@@ -27,8 +27,8 @@ def test_the_sale_is_refused_and_says_how_to_write_it(tmp_path):
             'dollars: this transaction sells 8.0000 USD_TECH, which cost 260 '
             'CAD/USD_TECH, and is written wholly in USD, so no split in it can '
             'state what the sale realized. Write it in CAD, the shares at what '
-            'they cost and the currency at what it fetched, and put the '
-            'difference on a `$residual$` split.') in done.output, done.output
+            'they cost and the currency they were sold for at what it is worth '
+            'in CAD, and put the difference on a `$residual$` split.') in done.output, done.output
 
 
 def test_the_shares_keep_their_cost_basis(tmp_path):

@@ -231,8 +231,8 @@ class TestAccountBalanceWithPrefix:
 
         assert result.balances[0].amount == Fraction(500)
 
-    def test_no_consolidated_cad_without_fx(self, temp_gnucash_account_balance):
-        """consolidated_cad is None when no fx_rates provided."""
+    def test_no_consolidated_without_fx(self, temp_gnucash_account_balance):
+        """consolidated is None when no fx_rates provided."""
         repo = _open_repo(temp_gnucash_account_balance)
         try:
             result = _exec(repo, as_of=date(2024, 12, 31),
@@ -240,10 +240,10 @@ class TestAccountBalanceWithPrefix:
         finally:
             repo.close()
 
-        assert result.consolidated_cad is None
+        assert result.consolidated is None
 
-    def test_consolidated_cad_equals_account_balance(self, temp_gnucash_account_balance, tmp_path):
-        """consolidated_cad equals the matched account's recursive CAD balance."""
+    def test_consolidated_equals_account_balance(self, temp_gnucash_account_balance, tmp_path):
+        """consolidated equals the matched account's recursive CAD balance."""
         from repositories.gnucash_repository import SessionMode
         from services.fx_rates import FxRates
 
@@ -258,9 +258,9 @@ class TestAccountBalanceWithPrefix:
         finally:
             repo.close()
 
-        assert result.consolidated_cad is not None
+        assert result.consolidated is not None
         expected = Fraction(3420) + Fraction(8700) * Fraction(17, 100)
-        assert result.consolidated_cad == expected
+        assert result.consolidated == expected
 
 
 # ---------------------------------------------------------------------------

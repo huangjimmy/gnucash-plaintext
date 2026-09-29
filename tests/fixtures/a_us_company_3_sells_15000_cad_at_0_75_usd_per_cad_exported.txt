@@ -1,0 +1,68 @@
+2026-01-02 * "Share capital paid in"
+	guid: "0d570000000000000000000000000001"
+	Assets:Bank USD 500000.00 USD
+		guid: "0d570000000000000000000000000101"
+	Equity:Share Capital -500000.00 USD
+		guid: "0d570000000000000000000000000102"
+2026-02-02 * "INV-C01" "Invoice INV-C01"
+	guid: "0d570000000000000000000000000011"
+	currency.mnemonic: "CAD"
+	txn_type: I
+	owner: customer:C-CA
+	business_generated: #True
+	Assets:Accounts Receivable CAD 20000.00 CAD
+		guid: "0d570000000000000000000000000111"
+		cost_basis_balance: "5000.00"
+	Income:Sales -14800.00 USD
+		guid: "0d570000000000000000000000000112"
+		account.commodity.mnemonic: "USD"
+		share_price: "2000000/1480000"
+		value: "-20000.00"
+2026-03-02 * "Maple Retail Ltd"
+	guid: "0d570000000000000000000000000012"
+	txn_type: P
+	owner: customer:C-CA
+	Assets:Bank CAD 20000.00 CAD
+		guid: "0d570000000000000000000000000121"
+		memo:"Payment for INV-C01"
+	Assets:Accounts Receivable CAD -20000.00 CAD
+		guid: "0d570000000000000000000000000122"
+		memo:"Payment for INV-C01"
+2026-04-01 * "INV-C02" "Invoice INV-C02"
+	guid: "0d570000000000000000000000000021"
+	currency.mnemonic: "CAD"
+	txn_type: I
+	owner: customer:C-CA
+	business_generated: #True
+	Assets:Accounts Receivable CAD 10000.00 CAD
+		guid: "0d570000000000000000000000000211"
+		cost_basis_balance: "10000.00"
+	Income:Sales -7200.00 USD
+		guid: "0d570000000000000000000000000212"
+		account.commodity.mnemonic: "USD"
+		share_price: "1000000/720000"
+		value: "-10000.00"
+2026-05-04 * "Maple Retail Ltd"
+	guid: "0d570000000000000000000000000022"
+	txn_type: P
+	owner: customer:C-CA
+	Assets:Bank CAD 10000.00 CAD
+		guid: "0d570000000000000000000000000221"
+		memo:"Payment for INV-C02"
+	Assets:Accounts Receivable CAD -10000.00 CAD
+		guid: "0d570000000000000000000000000222"
+		memo:"Payment for INV-C02"
+2026-06-01 * "Sell 15,000.00 CAD at 0.75 USD/CAD"
+	guid: "0d570000000000000000000000000031"
+	currency.mnemonic: "USD"
+	Assets:Bank USD 11250.00 USD
+		guid: "0d570000000000000000000000000311"
+	Assets:Bank CAD -15000.00 CAD
+		guid: "0d570000000000000000000000000312"
+		account.commodity.mnemonic: "CAD"
+		share_price: "0.74"
+		value: "-11100.00"
+		cost_basis_split_guid: "0d570000000000000000000000000111"
+	Income:FX Gain -150.00 USD
+		guid: "0d570000000000000000000000000313"
+		took_the_residual: #True

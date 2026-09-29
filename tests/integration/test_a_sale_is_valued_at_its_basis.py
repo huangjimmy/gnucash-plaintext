@@ -1,7 +1,7 @@
 """A sale states what the currency it sells cost, to the cent the book holds.
 
 Valuing the currency at its cost basis is what makes the residual split the gain or
-the loss: the currency leaves at cost, the other splits say what it fetched,
+the loss: the currency leaves at cost, the other splits state its proceeds,
 and the difference is what was made on it. A value that is not the cost basis puts
 part of the gain in the wrong place, quietly.
 
@@ -77,6 +77,6 @@ def test_and_the_figure_the_book_holds_is_accepted(tmp_path):
     assert _run(runner, 'export', str(book), str(exported)).exit_code == 0
     text = exported.read_text()
     assert 'Sell 33 USD' in text, text
-    # Valued at its cost basis, so the residual carries the loss: 46.00 fetched
-    # for currency that cost 46.37.
+    # Valued at its cost basis, so the residual carries the loss: proceeds of
+    # 46.00 CAD for currency that cost 46.37 CAD.
     assert 'Income:FX Gain 0.37 CAD' in text, text

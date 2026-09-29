@@ -82,6 +82,7 @@ from infrastructure.gnucash.kvp import (
     REMOVE_THE_KEY,
     custom_key_changes,
     forget_custom_key_changes,
+    get_book_custom_metadata,
     get_custom_metadata,
     log_custom_key_changes,
     set_custom_metadata,
@@ -105,11 +106,58 @@ from infrastructure.gnucash.utils import (
     qof_pointer,
     to_money,
 )
-from repositories.gnucash_repository import WHAT_TO_FORGET_WHEN_A_BOOK_OPENS
+from repositories.gnucash_repository import (
+    WHAT_TO_FORGET_WHEN_A_BOOK_OPENS,
+    WHAT_TO_READ_WHEN_A_BOOK_OPENS,
+)
+from services.book_currency import BASE_CURRENCY_KEY
 
-# The currency the book reports in. Hardcoded tool-wide (see `services/fx_rates.py`,
-# which quotes every rate in CAD).
-BASE_CURRENCY = 'CAD'
+# The currency the book is measured in (Q-056). A run has exactly one: what the
+# `company` block's `base_currency:` states, in the book or in the file being
+# imported, and CAD, which every book was measured in before, where neither
+# states one.
+_WHAT_A_BOOK_STATING_NONE_IS_MEASURED_IN = 'CAD'
+_the_base_currency: Optional[str] = None
+
+
+def base_currency() -> str:
+    """The currency the book is measured in, such as "HKD" (Q-056).
+
+    Every other currency is foreign, and carries a cost basis stating what it
+    cost in this one; this one carries none. Gains, realized and unrealized,
+    are measured in it.
+    """
+    return _the_base_currency or _WHAT_A_BOOK_STATING_NONE_IS_MEASURED_IN
+
+
+def measure_in(stated) -> None:
+    """Measure the run in the currency `stated`, or in CAD where it states none.
+
+    `stated` is what a `company` block's `base_currency:` holds, in the book
+    or in the file being imported. A file stating one is read before any of
+    its transactions, so a new book is measured in it from the first.
+    """
+    global _the_base_currency
+    text = '' if stated is None else str(stated).strip()
+    _the_base_currency = text or None
+
+
+def _measure_in_what_the_book_states(book) -> None:
+    measure_in(get_book_custom_metadata(book).get(BASE_CURRENCY_KEY))
+
+
+def forget_the_base_currency() -> None:
+    """Measure in what a book stating none is measured in, until a book says otherwise.
+
+    Run as a book opens, before it is read, and not as one closes: a command
+    reads the base currency after closing its book, as `fx-balances` does
+    when it prints each cost as so many of it per unit.
+    """
+    measure_in(None)
+
+
+WHAT_TO_FORGET_WHEN_A_BOOK_OPENS.append(forget_the_base_currency)
+WHAT_TO_READ_WHEN_A_BOOK_OPENS.append(_measure_in_what_the_book_states)
 
 # KVP on a foreign-currency split: how much of the cost basis it established is
 # still available, in the split's own commodity. Named for the cost basis, not
@@ -161,8 +209,8 @@ APPLIED_FROM_CREDIT_KEY = 'applied_from_credit'
 # difference a disposal realized, which the file declared and a saved book
 # would otherwise have no record of.
 #
-# It cannot be worked out again afterwards. A disposal balances — what it
-# fetched plus the difference it realized is what those units cost — so the
+# It cannot be worked out again afterwards. A disposal balances — its
+# proceeds plus the difference it realized are what those units cost — so the
 # arithmetic alone cannot say which of its splits is which, and neither can the
 # account: 8.60 USD disposed of at 11.99 paid an 11.92 bank charge beside 0.07
 # of exchange difference, both on expense accounts, and an account is not one
@@ -543,7 +591,7 @@ def derived_cost_of(split) -> Optional[Fraction]:
 
     # `share_price` is value per unit, stated in the transaction's currency.
     per_unit = abs(_fraction(split.GetValue()) / amount)
-    if tx_currency != BASE_CURRENCY:
+    if tx_currency != base_currency():
         base_per_tx_currency = _base_per_unit_of(transaction)
         if base_per_tx_currency is None:
             return None
@@ -577,7 +625,7 @@ def derived_cost_of(split) -> Optional[Fraction]:
         # Valued under what it repaid cost, what is left for the part brought
         # in is below nothing, and prices no currency;
         # `_a_crossing_valued_against_another_cost` refuses it where the
-        # transaction says what its currency fetched.
+        # transaction states the proceeds of its currency.
         per_unit = left if left > 0 else Fraction(0)
     return per_unit or None
 
@@ -616,7 +664,7 @@ def _base_per_unit_of(transaction) -> Optional[Fraction]:
     base_total = Fraction(0)
     value_total = Fraction(0)
     for other in transaction.GetSplitList():
-        if split_commodity(other) != BASE_CURRENCY:
+        if split_commodity(other) != base_currency():
             continue
         base_amount = _fraction(other.GetAmount())
         tx_value = _fraction(other.GetValue())
@@ -736,11 +784,11 @@ def why_a_pending_split_cannot_stand(split, counting_what_is_left: bool = True) 
     # bases still hold, and the balance sheet overstated it.
     if _what_the_book_recorded_its_disposal_at(split) is None:
         return (f'{here}, but its transaction does not record what it disposes '
-                f'of in {BASE_CURRENCY}: either no {BASE_CURRENCY} figure covers '
+                f'of in {base_currency()}: either no {base_currency()} figure covers '
                 f'all of it, or one figure covers it and another split that also '
                 f'draws on a cost basis. A pending disposal is subtracted from the '
-                f'cost bases at its {BASE_CURRENCY} figure. State the guid of the cost '
-                f'basis it draws on, or write the transaction in {BASE_CURRENCY}.')
+                f'cost bases at its {base_currency()} figure. State the guid of the cost '
+                f'basis it draws on, or write the transaction in {base_currency()}.')
     if not counting_what_is_left:
         return ''
     # And never past what the cost bases of its side have left, once the
@@ -814,12 +862,12 @@ def _what_the_book_recorded_its_disposal_at(split) -> Optional[Fraction]:
     amount = abs(_fraction(split.GetAmount()))
     value = abs(_fraction(split.GetValue()))
     transaction = split.GetParent()
-    if transaction_currency(transaction) == BASE_CURRENCY:
+    if transaction_currency(transaction) == base_currency():
         return value * consumed / amount
     if sum(1 for each in transaction.GetSplitList() if _says_which(each)) != 1 or not value:
         return None
     in_base = [each for each in transaction.GetSplitList()
-               if split_commodity(each) == BASE_CURRENCY]
+               if split_commodity(each) == base_currency()]
     valued = sum((abs(_fraction(each.GetValue())) for each in in_base), Fraction(0))
     # The base-currency amounts added up, a split of no value among them: a
     # gain or loss booked beside the sale at a value of nothing is part of
@@ -1012,7 +1060,7 @@ def _could_hold_an_exchange_difference(split) -> bool:
     # be loaded from a file on any supported version (CLAUDE.md §12), so there
     # is nothing here to guard against.
     transaction = split.GetParent()
-    if transaction_currency(transaction) != BASE_CURRENCY:
+    if transaction_currency(transaction) != base_currency():
         return False
     # What it disposed of, which in a book keeping no cost bases is read from
     # the splits in another commodity (Q-049).
@@ -1152,7 +1200,7 @@ def what_a_disposal_disposes_of(transaction) -> set:
     state a `cost_basis_split_guid:`, because a split stating one is the disposal
     and its own commodity says what was disposed of: `Assets:AMZN -8.0000 AMZN`
     disposed of shares and `Assets:USD Bank -3,000.00 USD` disposed of dollars. The
-    splits on the other side of the entry are what the disposal fetched, and
+    splits on the other side of the entry are the disposal's proceeds, and
     say nothing about what it was.
 
     A split carrying that key is one a file wrote onto an account it had to find
@@ -1191,7 +1239,7 @@ def _held_in_another_commodity(split) -> bool:
 
 def is_the_books_own_currency(commodity) -> bool:
     """Whether the commodity is the currency cost bases are recorded in: the one place that is asked."""
-    return is_a_currency(commodity) and commodity.get_mnemonic() == BASE_CURRENCY
+    return is_a_currency(commodity) and commodity.get_mnemonic() == base_currency()
 
 
 def _realized_items_up_to(book, as_of, kind: str, gain_accounts=()) -> list:
@@ -1241,7 +1289,7 @@ def refuse_a_disposal_of_two_kinds_at_once(transaction) -> None:
         'cost basis at once, so it realizes a difference on each — and one '
         'split cannot state both, because a balance sheet keeps a gain on '
         'currency apart from a gain on shares. Write it as two transactions: '
-        'the shares sold for what they fetched, and the currency spent.')
+        'the sale of the shares, and the currency spent.')
 
 
 def refuse_a_transfer_sharing_a_transaction(transaction) -> None:
@@ -1386,7 +1434,7 @@ def refuse_a_difference_no_split_can_state(book, transaction) -> None:
     """Refuse a disposal written wholly in a foreign currency that realizes a difference.
 
     Three shapes. A share sale always does: the shares leave at what they cost
-    in the book's own currency and fetch something in another, and the dollars
+    in the book's own currency and their proceeds are in another, and the dollars
     they bring in arrive with no cost to open a cost basis at. So does one
     currency held exchanged for another, for the same reason. A repayment does
     where the debt and the currency paying it cost different amounts a unit.
@@ -1410,13 +1458,13 @@ def refuse_a_difference_no_split_can_state(book, transaction) -> None:
     Runs after `apply_cost_basis_picks`, which has checked every guid stated,
     so each matches a split with a cost.
     """
-    if transaction_currency(transaction) == BASE_CURRENCY:
+    if transaction_currency(transaction) == base_currency():
         return
-    if any(split_commodity(split) == BASE_CURRENCY
+    if any(split_commodity(split) == base_currency()
            for split in transaction.GetSplitList()):
         return
     # A security leaving is the plainest case of it. Its cost basis is in the
-    # book's own currency, what it fetched arrives in another with no cost to
+    # book's own currency, its proceeds arrive in another with no cost to
     # open a basis at, and the gain between them has no split to state it.
     for split in transaction.GetSplitList():
         basis_guid = cost_basis_guid_of(split)
@@ -1428,11 +1476,12 @@ def refuse_a_difference_no_split_can_state(book, transaction) -> None:
             f'{_format(abs(_fraction(split.GetAmount())), smallest_unit(split))} '
             f'{commodity}, which cost '
             f'{exact_text(cost_of(find_split_by_guid(book, basis_guid)))} '
-            f'{BASE_CURRENCY}/{commodity}, and is written wholly in '
+            f'{base_currency()}/{commodity}, and is written wholly in '
             f'{transaction_currency(transaction)}, so no split in it can state '
-            f'what the sale realized. Write it in {BASE_CURRENCY}, the shares at '
-            f'what they cost and the currency at what it fetched, and put the '
-            f'difference on a `$residual$` split.')
+            f'what the sale realized. Write it in {base_currency()}, the shares at '
+            f'what they cost and the currency they were sold for at what it is '
+            f'worth in {base_currency()}, and put the difference on a '
+            f'`$residual$` split.')
     # So is one currency held exchanged for another: the first leaves at what
     # it cost, the second arrives with no cost to open a cost basis at, and
     # the cost of what the first disposed of leaves the book with nothing to show for it.
@@ -1452,14 +1501,14 @@ def refuse_a_difference_no_split_can_state(book, transaction) -> None:
             f'{_format(abs(_fraction(split.GetAmount())), smallest_unit(split))} '
             f'{split_commodity(split)}, which cost '
             f'{exact_text(cost_of(find_split_by_guid(book, cost_basis_guid_of(split))))} '
-            f'{BASE_CURRENCY}/{split_commodity(split)}, for '
+            f'{base_currency()}/{split_commodity(split)}, for '
             f'{_format(_fraction(arrived.GetAmount()), smallest_unit(arrived))} '
             f'{split_commodity(arrived)}, and is written wholly in '
             f'{transaction_currency(transaction)}, so no split in it can state '
             f'what the exchange realized, and the {split_commodity(arrived)} '
             f'arrive with no cost to open a cost basis at. Write it in '
-            f'{BASE_CURRENCY}, each split valued at what it is worth in '
-            f'{BASE_CURRENCY}, and put the difference on a `$residual$` split.')
+            f'{base_currency()}, each split valued at what it is worth in '
+            f'{base_currency()}, and put the difference on a `$residual$` split.')
     drawn: Dict[tuple, List[Fraction]] = {}
     units_of: Dict[str, int] = {}
     for split in transaction.GetSplitList():
@@ -1491,16 +1540,16 @@ def refuse_a_difference_no_split_can_state(book, transaction) -> None:
         realized = min(owed_units, held_units) * (owed_rate - held_rate)
         unit = units_of[commodity]
         base_unit = book.get_table().lookup(
-            'CURRENCY', BASE_CURRENCY).get_fraction()
+            'CURRENCY', base_currency()).get_fraction()
         raise Exception(
             f'this transaction pays off {_format(owed_units, unit)} {commodity} '
             f'owed, which cost {exact_text(owed_rate)} '
-            f'{BASE_CURRENCY}/{commodity}, with {_format(held_units, unit)} '
+            f'{base_currency()}/{commodity}, with {_format(held_units, unit)} '
             f'{commodity} held, which cost {exact_text(held_rate)} '
-            f'{BASE_CURRENCY}/{commodity}, so it realizes a difference of '
-            f'{_format(realized, base_unit)} {BASE_CURRENCY}. It is written wholly in '
+            f'{base_currency()}/{commodity}, so it realizes a difference of '
+            f'{_format(realized, base_unit)} {base_currency()}. It is written wholly in '
             f'{transaction_currency(transaction)}, so no split in it can state '
-            f'that figure. Write it in {BASE_CURRENCY}, each {commodity} split '
+            f'that figure. Write it in {base_currency()}, each {commodity} split '
             f'valued at what its cost basis cost, and put the difference on a '
             f'`$residual$` split.')
 
@@ -1535,7 +1584,7 @@ def establishes_cost_basis(split) -> bool:
     sent.
     """
     commodity = split_commodity(split)
-    if not commodity or commodity == BASE_CURRENCY:
+    if not commodity or commodity == base_currency():
         return False
     # A share is a holding with a cost like any other (Q-046), so the namespace
     # does not decide this — what decides it is the last line of this function,
@@ -1935,7 +1984,7 @@ def parse_stated_cost(raw, currency: str, where: str) -> Fraction:
     """
     text = str(raw).strip()
     parts = text.split()
-    expected = f'{BASE_CURRENCY}/{currency}'
+    expected = f'{base_currency()}/{currency}'
     if len(parts) != 2:
         raise Exception(
             f'{COST_BASIS_COST_KEY} on {where} reads '
@@ -1946,7 +1995,7 @@ def parse_stated_cost(raw, currency: str, where: str) -> Fraction:
         raise Exception(
             f'{COST_BASIS_COST_KEY} on {where} is stated in '
             f'{direction}, but that split holds {currency} and the book counts '
-            f'in {BASE_CURRENCY} — state it as {expected}')
+            f'in {base_currency()} — state it as {expected}')
     try:
         cost = Fraction(figure)
     except (ValueError, ZeroDivisionError) as exc:
@@ -2428,7 +2477,7 @@ def what_a_unit_cost_in_its_pair(split, cost: Fraction):
     value = abs(_fraction(split.GetValue()))
     pair_currency = transaction_currency(split.GetParent())
     if amount == 0 or value == 0:
-        return cost, Fraction(1), BASE_CURRENCY
+        return cost, Fraction(1), base_currency()
     in_pair = value / amount
     return in_pair, cost / in_pair, pair_currency
 
@@ -2864,8 +2913,8 @@ def write_cost_basis_cost(split, cost: Fraction) -> None:
     so the cost is 6323/4500 (1.405 + 1/9000). Storing the quoted rate instead
     would price this cost basis at 63.225, which no CAD figure in the book equals
     — the book holds 63.23 — so the stored cost would be 1/9000 of a dollar per
-    dollar lower than what those dollars actually cost. A gain is what the
-    currency fetched less what it cost, so every gain measured against that cost
+    dollar lower than what those dollars actually cost. A gain is the proceeds
+    of the currency less what it cost, so every gain measured against that cost
     would be larger than the truth by the same 1/9000 a dollar: 0.005 CAD on
     these 45.00 USD.
 
@@ -2886,12 +2935,12 @@ def write_cost_basis_cost(split, cost: Fraction) -> None:
     # with every ISO currency when it makes a book.
     units = abs(_fraction(split.GetAmount()))
     base = split.GetAccount().get_book().get_table().lookup(
-        'CURRENCY', BASE_CURRENCY)
+        'CURRENCY', base_currency())
     base_value = numeric_to_fraction(to_money(units * cost, base.get_fraction()))
     effective = base_value / units
 
     metadata = dict(get_custom_metadata(split))
-    metadata[COST_BASIS_COST_KEY] = f'{exact_text(effective)} {BASE_CURRENCY}/{currency}'
+    metadata[COST_BASIS_COST_KEY] = f'{exact_text(effective)} {base_currency()}/{currency}'
     # Bracketed whether or not the caller already has the transaction open:
     # GnuCash counts nested edits and commits only at the outermost, and a
     # slot written outside any edit never reaches disk (CLAUDE.md finding 11).
@@ -2971,7 +3020,7 @@ def refuse_a_disposal_that_states_no_cost_basis(book, transaction) -> None:
 
     Currency leaving the book is a disposal: the cost basis it came out of
     falls by what went, and the difference between what those units cost and
-    what they fetched is realized then. Which basis it came out of decides that
+    their proceeds is realized then. Which basis it came out of decides that
     difference, so the file states it with `cost_basis_split_guid:` and this
     tool never picks one — not the oldest, not the largest, not the one that
     makes the figures come out flattest. A guessed basis states a gain the
@@ -3168,11 +3217,11 @@ def what_a_disposal_is(commodity: str, side: str, spent: str, disposing: list, o
     if side == 'liability':
         return ('a repayment', f'of {gone}', paying_off(disposing))
     # A split of the same holding that disposes of it beside these is part of
-    # the same transaction: what it fetched was fetched by both, so it is
+    # the same transaction: the proceeds are the proceeds of both, so it is
     # listed, and no figure is put on the part.
     beside = [each for each in others if each[3] == commodity and each[5] < 0]
     disposed = [described(each) for each in disposing + beside]
-    fetched_by = '' if beside else ' for {}'
+    for_the_proceeds = '' if beside else ' for {}'
     received = [each for each in others if each[5] > 0]
     security = [each for each in received if not each[4]]
     if security:
@@ -3187,16 +3236,16 @@ def what_a_disposal_is(commodity: str, side: str, spent: str, disposing: list, o
     if onto_a_record:
         return ('a payment', f'of {gone}', disposed + taking(onto_a_record))
     # A sale for the book's own currency, for another, or of a security for a
-    # currency: what it fetched is in the currency coming in, the book's own
+    # currency: the proceeds are in the currency coming in, the book's own
     # where it comes in at all.
     kept = [each for each in received
             if each[1] not in _GAIN_TYPES and each[3] != commodity]
-    fetched_in = BASE_CURRENCY if any(each[3] == BASE_CURRENCY for each in kept) else (
+    proceeds_in = base_currency() if any(each[3] == base_currency() for each in kept) else (
         kept[0][3] if kept else '')
-    fetched = [each for each in kept if each[3] == fetched_in]
-    if fetched:
-        return ('a sale', f'of {gone}' + fetched_by.format(f'{total(fetched)} {fetched_in}'),
-                disposed + taking(fetched))
+    proceeds = [each for each in kept if each[3] == proceeds_in]
+    if proceeds:
+        return ('a sale', f'of {gone}' + for_the_proceeds.format(f'{total(proceeds)} {proceeds_in}'),
+                disposed + taking(proceeds))
     # An expense account debited is an expense; an income account debited, as
     # a refund to a customer debits the sale it returns, is a refund.
     expensed = [each for each in received if each[1] == ACCT_TYPE_EXPENSE]
@@ -3477,7 +3526,7 @@ def _what_left_each_side(transaction) -> Dict[tuple, Fraction]:
         # trading-accounts book (CLAUDE.md finding 12), so this turns that one
         # away and `split_moves` has an account to read.
         commodity = split_commodity(split)
-        if not commodity or commodity == BASE_CURRENCY:
+        if not commodity or commodity == base_currency():
             continue
         moves = split_moves(split)
         if moves is None:
@@ -3572,7 +3621,7 @@ def mark_what_arrives_past_zero(transaction, came_after=frozenset(), as_it_was=N
     on_each_account: Dict[str, list] = {}
     for split in transaction.GetSplitList():
         commodity = split_commodity(split)
-        if not commodity or commodity == BASE_CURRENCY or split_guid(split) in leaving:
+        if not commodity or commodity == base_currency() or split_guid(split) in leaving:
             continue
         account_type = split.GetAccount().GetType()
         if account_type not in (_DEBIT_TYPES | _CREDIT_TYPES) or account_type in (
@@ -4155,14 +4204,14 @@ def a_sale_valued_against_another_cost(selling_split, basis, basis_guid: str,
 
     A sale must value what it sells at the cost of the cost basis it picks. That is
     what makes the residual split the realized gain or loss: the currency
-    leaves at what it cost, the other splits state what it fetched, and the
+    leaves at what it cost, the other splits state its proceeds, and the
     difference is what was made or lost on it. Valuing it at the sale rate
     instead balances the transaction with nothing left over, and the gain
     silently disappears.
 
     Only asked of a sale priced in the book's own currency. In a transaction
-    stated in another currency, a Canadian dollar split states what the
-    currency fetched that day, not what it cost, and the transaction has no
+    stated in another currency, a Canadian dollar split states the proceeds of
+    the currency that day, not what it cost, and the transaction has no
     split that can record the difference in Canadian dollars; the balance
     sheet states it as a realized gain the book did not record. Asked of such
     a sale as well, it refused a bank statement's 2,710.68 USD sent at
@@ -4177,7 +4226,7 @@ def a_sale_valued_against_another_cost(selling_split, basis, basis_guid: str,
     in no file, so nothing else looks at them again.
     """
     transaction = selling_split.GetParent()
-    if transaction is None or transaction_currency(transaction) != BASE_CURRENCY:
+    if transaction is None or transaction_currency(transaction) != base_currency():
         return None
     if split_moves(selling_split) is not None and _stored_brought_in(selling_split):
         return _a_crossing_valued_against_another_cost(selling_split, basis, basis_guid)
@@ -4223,12 +4272,12 @@ def a_sale_valued_against_another_cost(selling_split, basis, basis_guid: str,
         return (
             f'this split sells the last {_format(sold, smallest_unit(selling_split))} '
             f'{currency} of cost basis {basis_guid}, valued at '
-            f'{_format(stated, base_unit)} {BASE_CURRENCY}, but cost basis '
-            f'{basis_guid} cost {exact_text(basis_cost)} {BASE_CURRENCY} per '
+            f'{_format(stated, base_unit)} {base_currency()}, but cost basis '
+            f'{basis_guid} cost {exact_text(basis_cost)} {base_currency()} per '
             f'{currency}, and what is left of cost basis {basis_guid} is what '
             f'the last of it cost plus what the rounding of the disposals before '
             f'it left, i.e. {_format(left, base_unit)} '
-            f'{BASE_CURRENCY} — value the last of it at that, so the values of '
+            f'{base_currency()} — value the last of it at that, so the values of '
             f'all of them add up to what the {currency} cost and the residual '
             f'splits to the realized gain or loss')
     if stated in (expected, left):
@@ -4236,12 +4285,11 @@ def a_sale_valued_against_another_cost(selling_split, basis, basis_guid: str,
     return (
         f'this split sells {_format(sold, smallest_unit(selling_split))} '
         f'{currency} valued at '
-        f'{_format(stated, base_unit)} {BASE_CURRENCY}, but cost basis {basis_guid} cost '
-        f'{exact_text(basis_cost)} {BASE_CURRENCY} per {currency}, i.e. '
-        f'{_format(expected, base_unit)} {BASE_CURRENCY} — value what is sold '
-        f'at the cost basis it picks, so the {BASE_CURRENCY} the sale fetched '
-        f'and the '
-        f'residual gain or loss stand apart')
+        f'{_format(stated, base_unit)} {base_currency()}, but cost basis {basis_guid} cost '
+        f'{exact_text(basis_cost)} {base_currency()} per {currency}, i.e. '
+        f'{_format(expected, base_unit)} {base_currency()} — value what is sold '
+        f'at the cost basis it picks, so what the currency was sold for in '
+        f'{base_currency()} and the residual gain or loss stand apart')
 
 
 def what_is_left_of_the_cost(selling_split, basis, basis_guid: str, drawn: Fraction,
@@ -4301,7 +4349,7 @@ def what_the_rounding_left(basis, disposals) -> Fraction:
     basis_cost = cost_of(basis)
     return sum((draws_down(split) * basis_cost - abs(_fraction(split.GetValue()))
                 for split in disposals
-                if transaction_currency(split.GetParent()) == BASE_CURRENCY
+                if transaction_currency(split.GetParent()) == base_currency()
                 and not (split_moves(split) is not None and _stored_brought_in(split))
                 and draws_down(split) == drawn_by(split)), Fraction(0))
 
@@ -4312,7 +4360,7 @@ def what_the_disposals_left_unrecorded(basis, disposals) -> Fraction:
     For the balance sheet's `realized_gains_not_recorded`, and nothing else.
     Beside the rounding `what_the_rounding_left` returns, it counts a disposal
     in a transaction stated in another currency, whose Canadian dollar split
-    states what it fetched and whose transaction has no split that can record
+    states its proceeds and whose transaction has no split that can record
     the difference. That difference is a realized gain, not rounding, so the
     rule valuing the last disposal of a cost basis at what is left of its
     cost does not read this: it would put one sale's gain on a later one.
@@ -4332,7 +4380,7 @@ def _what_the_book_recorded_it_at(split) -> Optional[Fraction]:
     """What a disposal left the book at in its own currency, or None where no figure says.
 
     Its value, where its transaction is stated in the book's own currency. In
-    one stated in another, the base-currency splits say what it fetched, as
+    one stated in another, the base-currency splits state its proceeds, as
     they price a cost basis there (`_base_per_unit_of`), where it is the only
     split drawing on a cost basis and they value the whole of what it sold.
     Left out, a bank's 2,710.68 USD sent at 3,758.36 CAD and 8.60 at 11.92,
@@ -4345,11 +4393,11 @@ def _what_the_book_recorded_it_at(split) -> Optional[Fraction]:
     """
     transaction = split.GetParent()
     value = abs(_fraction(split.GetValue()))
-    if transaction_currency(transaction) == BASE_CURRENCY:
+    if transaction_currency(transaction) == base_currency():
         return value
     drawing = sum(1 for each in transaction.GetSplitList() if _says_which(each))
     in_base = [each for each in transaction.GetSplitList()
-               if split_commodity(each) == BASE_CURRENCY]
+               if split_commodity(each) == base_currency()]
     valued = sum((abs(_fraction(each.GetValue())) for each in in_base), Fraction(0))
     # The base-currency amounts added up, a split of no value among them: a
     # gain or loss booked beside the sale at a value of nothing is part of
@@ -4364,7 +4412,7 @@ def _a_crossing_valued_against_another_cost(split, basis, basis_guid: str) -> Op
 
     Such a split values two things in one figure: what it repaid, at the cost
     of the cost basis it states, and what it brought in, at the rate the
-    transaction fetched it at. 1,000.00 USD of income worth 1,400.00 CAD into
+    transaction brought it in at. 1,000.00 USD of income worth 1,400.00 CAD into
     an account at −500.00 repays 500.00 owed at 1.35, 675.00, and brings in
     500.00 at 1.40, 700.00, so it is valued at 1,375.00 and `$residual$` takes
     the 25.00 the repayment lost (Q-047).
@@ -4375,8 +4423,8 @@ def _a_crossing_valued_against_another_cost(split, basis, basis_guid: str) -> Op
     left for the 500.00 brought in is a cost below nothing.
 
     What the part brought in came at is read from the transaction. Where this
-    is its one foreign-currency split, it is what the book-currency splits
-    fetched for the whole amount, the `$residual$` split aside. Where another
+    is its one foreign-currency split, it is the value the book-currency splits
+    state for the whole amount, the `$residual$` split aside. Where another
     split moves the same currency, the part brought in only moved from it, and
     came at the cost of the cost basis that split states: 500.00 USD from C onto
     a card owing 300.00 repays 300.00 at the card's 1.35 and moves 200.00 at
@@ -4392,7 +4440,7 @@ def _a_crossing_valued_against_another_cost(split, basis, basis_guid: str) -> Op
     this = split_guid(split)
     others = [each for each in transaction.GetSplitList()
               if split_guid(each) != this and split_commodity(each)
-              and split_commodity(each) != BASE_CURRENCY]
+              and split_commodity(each) != base_currency()]
     same = [each for each in others if split_commodity(each) == currency]
     sources = [each for each in same if cost_basis_guid_of(each)]
     if len(others) != len(same) or (same and len(sources) != 1):
@@ -4402,11 +4450,11 @@ def _a_crossing_valued_against_another_cost(split, basis, basis_guid: str) -> Op
         source = find_split_by_guid(split.GetBook(), cost_basis_guid_of(sources[0]))
         rate = (cost_of(source) if source is not None else None) or Fraction(0)
     else:
-        fetched = abs(sum((_fraction(each.GetValue()) for each in transaction.GetSplitList()
-                           if split_commodity(each) == BASE_CURRENCY
-                           and not took_the_residual(each)),
-                          Fraction(0)))
-        rate = fetched / amount
+        valued_in_base = abs(sum((_fraction(each.GetValue()) for each in transaction.GetSplitList()
+                                  if split_commodity(each) == base_currency()
+                                  and not took_the_residual(each)),
+                                 Fraction(0)))
+        rate = valued_in_base / amount
     repaid = drawn_by(split)
     brought_in = brought_in_by(split)
     basis_cost = cost_of(basis)
@@ -4418,11 +4466,11 @@ def _a_crossing_valued_against_another_cost(split, basis, basis_guid: str) -> Op
     unit = smallest_unit(split)
     return (
         f'this split repays {_format(repaid, unit)} {currency} from cost basis '
-        f'{basis_guid} at {exact_text(basis_cost)} {BASE_CURRENCY}/{currency} and '
+        f'{basis_guid} at {exact_text(basis_cost)} {base_currency()}/{currency} and '
         f'brings {_format(brought_in, unit)} {currency} in at the '
-        f'{exact_text(rate)} {BASE_CURRENCY}/{currency} it came at, '
-        f'i.e. {_format(expected, base_unit)} {BASE_CURRENCY}, but is valued at '
-        f'{_format(stated, base_unit)} {BASE_CURRENCY} — value it at that, so '
+        f'{exact_text(rate)} {base_currency()}/{currency} it came at, '
+        f'i.e. {_format(expected, base_unit)} {base_currency()}, but is valued at '
+        f'{_format(stated, base_unit)} {base_currency()} — value it at that, so '
         f'what the repayment realized stands apart in the residual and what it '
         f'brought in is costed at the rate it came at')
 
@@ -4721,7 +4769,7 @@ def a_disposal_the_finished_book_cannot_value(book, transaction) -> str:
                    if establishes_cost_basis(split)}
     for split in iter_splits(book):
         parent = split.GetParent()
-        if parent is None or transaction_currency(parent) == BASE_CURRENCY:
+        if parent is None or transaction_currency(parent) == base_currency():
             continue
         if cost_basis_guid_of(split) not in basis_guids or split_guid(split) in here:
             continue
@@ -4960,7 +5008,7 @@ def why_it_is_no_basis(split) -> str:
                 f'commodity, so the split holds no currency for a cost basis '
                 f'to be about')
     currency = commodity.get_mnemonic()
-    if currency == BASE_CURRENCY:
+    if currency == base_currency():
         return (f'it is a {currency} split, and a cost basis is about '
                 f'currency the book does not count in')
     if cost_basis_guid_of(split):
@@ -4998,7 +5046,7 @@ def why_it_is_no_basis(split) -> str:
     # and both callers ask this only of a split it said no to — so its cost is
     # what is missing.
     return ('nothing says what its currency cost: every split in its '
-            f'transaction is {currency}, so there is no {BASE_CURRENCY} '
+            f'transaction is {currency}, so there is no {base_currency()} '
             f'figure to divide, and no `{COST_BASIS_COST_KEY}` is stored '
             f'on it either')
 
@@ -5164,13 +5212,13 @@ def verify_cost_bases(book, totals: bool = True) -> Dict:
             problems.append(
                 f"{row['stored_error']}. The transaction says "
                 f"{exact_text(row['derived'])} "
-                f"{BASE_CURRENCY}/{row['currency']}, which is what is used"
+                f"{base_currency()}/{row['currency']}, which is what is used"
                 if row['derived'] is not None else row['stored_error'])
         elif (row['stored'] is not None and row['derived'] is not None
                 and row['stored'] != row['derived']):
             problems.append(
                 f"{COST_BASIS_COST_KEY} says {exact_text(row['stored'])} "
-                f"{BASE_CURRENCY}/{row['currency']}, but the transaction says "
+                f"{base_currency()}/{row['currency']}, but the transaction says "
                 f"{exact_text(row['derived'])} — the transaction is what is used")
 
         if problems:
@@ -5221,7 +5269,7 @@ def currency_totals_that_disagree(book) -> List[Dict]:
     counted: set = set()
     for split in iter_splits(book):
         currency = split_commodity(split)
-        if not currency or currency == BASE_CURRENCY:
+        if not currency or currency == base_currency():
             continue
         named = cost_basis_guid_of(split)
         # A split stating a guid is a sale of what it draws, and a split crossing
@@ -5300,13 +5348,13 @@ def cost_trace(split) -> Dict:
     # computed. Where a second factor is needed and missing, it is listed as
     # missing rather than left out, because that is why no cost came of it.
     tx_rate = (_base_per_unit_of(transaction)
-               if transaction is not None and tx_currency != BASE_CURRENCY
+               if transaction is not None and tx_currency != base_currency()
                else None)
     # Never a zero amount: this is asked only of a split that establishes a
     # cost basis, and one that moves nothing establishes none.
     factors = [('value / amount', value / amount)]
-    if tx_currency != BASE_CURRENCY:
-        factors.append((f'{BASE_CURRENCY} per {tx_currency}', tx_rate))
+    if tx_currency != base_currency():
+        factors.append((f'{base_currency()} per {tx_currency}', tx_rate))
     derived = derived_cost_of(split)
     # `cost_of` never reaches a stored cost on a split the transaction prices,
     # so a malformed one there is inert to everything else — but this reads it
@@ -5364,11 +5412,11 @@ def _base_figures_of(transaction, tx_currency: str) -> List:
 
     Empty for a transaction in the book's own currency, which converts nothing.
     """
-    if transaction is None or tx_currency == BASE_CURRENCY:
+    if transaction is None or tx_currency == base_currency():
         return []
     figures = []
     for other in transaction.GetSplitList():
-        if split_commodity(other) != BASE_CURRENCY:
+        if split_commodity(other) != base_currency():
             continue
         base_amount = abs(_fraction(other.GetAmount()))
         base_value = abs(_fraction(other.GetValue()))
@@ -5497,7 +5545,7 @@ def foreign_currency_account_balances(book, as_of=None) -> List[Dict]:
         if account.GetType() not in (_DEBIT_TYPES | _CREDIT_TYPES):
             continue
         mnemonic = commodity.get_mnemonic()
-        if not mnemonic or mnemonic == BASE_CURRENCY:
+        if not mnemonic or mnemonic == base_currency():
             continue
         fraction = commodity.get_fraction()
         balance = (_held_up_to(account, as_of) if as_of is not None

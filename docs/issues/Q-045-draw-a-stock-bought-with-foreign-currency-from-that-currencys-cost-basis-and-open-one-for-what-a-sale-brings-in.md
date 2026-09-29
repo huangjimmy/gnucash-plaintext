@@ -16,7 +16,7 @@ Reported by a user probing cost bases on a Canadian book that trades US-listed s
 
 **And the same wherever foreign currency goes out, because a stock is not what makes it a disposal.** The investigation below found the same fault on US dollars sold for Canadian ones and on US dollars sold for Hong Kong ones, so the rule has to be about the currency rather than about what it bought:
 
-- currency leaving a side draws that side's cost bases down, and the difference between what it cost and what it fetched is realized there and then;
+- currency leaving a side draws that side's cost bases down, and the difference between what it cost and its proceeds is realized there and then;
 - currency arriving on a side opens a cost basis, costed in the book's own currency;
 - **currency moving between two accounts of the same commodity does neither**, because the book still holds every unit of it. A rule that draws a basis down whenever a foreign split is negative destroys cost basis on a transfer, and one that opens a basis whenever a foreign split is positive invents it — `import` does the second today, which is what case 6 measures.
 

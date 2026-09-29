@@ -91,7 +91,6 @@ from infrastructure.gnucash.utils import (
 )
 from services.foreign_currency import (
     APPLIED_FROM_CREDIT_KEY,
-    BASE_CURRENCY,
     BUSINESS_GENERATED_KEY,
     COST_BASES_KEY,
     COST_BASIS_BALANCE_KEY,
@@ -110,6 +109,7 @@ from services.foreign_currency import (
     as_a_bool,
     balance_came_from_file,
     balance_the_run_found,
+    base_currency,
     book_keeps_cost_bases,
     brought_in_by,
     came_out_of_credit,
@@ -332,9 +332,9 @@ def refuse_an_update_leaving_two_splits_taking_the_residual(
     figure moves, so the cost-basis refusal has nothing to catch, and the slot
     merge writes the second key beside the first.
 
-    Counted, a sale of 1,000.00 USD costing 1,300.00 that fetched 1,400.00 and
-    paid a 5.00 bank charge out of it states `realized_gains_fx` as 105.00
-    where the sale made 100.00.
+    Counted, a sale of 1,000.00 USD that cost 1,300.00 CAD, with proceeds of
+    1,400.00 CAD of which 5.00 CAD paid a bank charge, states
+    `realized_gains_fx` as 105.00 CAD where the sale made 100.00 CAD.
 
     **The same claims the create path counts, and no others.** A split a
     difference could not land on claims nothing, so a key on a bank or a
@@ -385,7 +385,7 @@ def refuse_two_splits_taking_the_residual(
     one of each — or two of either — claims the difference twice.
 
     Counted twice it is not a near miss. On a sale of 1,000.00 USD that cost
-    1,300.00 and fetched 1,400.00, marking the bank line beside the gain puts
+    1,300.00 CAD, with proceeds of 1,400.00 CAD, marking the bank line beside the gain puts
     1,400.00 into `realized_gains_fx` alongside the 100.00, stating the money
     the bank received as a gain.
 
@@ -5372,7 +5372,7 @@ def _the_account_the_file_posts_to(book, directive):
 
     Read from the file rather than from the record, because the check that
     wants it runs before the record is in hand — an unchanged one is never
-    fetched at all.
+    looked up at all.
     """
     for child in directive.children:
         if child.type != DirectiveType.POSTED:
@@ -8170,7 +8170,7 @@ def _a_linked_payment_converts(record, book, pay_dir) -> bool:
     A transaction the book already holds — off a bank feed, or paid by a
     director — that settles a USD invoice out of a Canadian dollar bank
     converts the invoice's dollars: the settling split consumes the invoice's
-    cost basis, and what the dollars fetched differs from what they cost
+    cost basis, and the proceeds of the dollars differ from what they cost
     (Q-054). The payment GnuCash writes is answered by
     `_book_payment_fx_difference`, and a linked one joins the record's lot the
     same way and is answered the same way: the settlement drawn on the
@@ -8186,7 +8186,7 @@ def _a_linked_payment_converts(record, book, pay_dir) -> bool:
     record_currency = record.GetCurrency().get_mnemonic()
     bank_account = find_account(book.get_root_account(),
                                 _payment_xfer_account_name(pay_dir.metadata))
-    if (record_currency == BASE_CURRENCY or bank_account is None
+    if (record_currency == base_currency() or bank_account is None
             or bank_account.GetCommodity().get_mnemonic() == record_currency
             or record.GetPostedLot() is None):
         return False
@@ -9242,7 +9242,7 @@ def _carried_cost_of(record):
     None for a record in the book's own currency, which has no cost to carry.
     """
     currency = record.GetCurrency()
-    if currency is None or currency.get_mnemonic() == BASE_CURRENCY:
+    if currency is None or currency.get_mnemonic() == base_currency():
         return None
     # Posting makes the posting transaction and its split on the posted account
     # together, so that split is always there to read.
@@ -9390,7 +9390,7 @@ def _the_overpayments_cost(record, day, fx_rates) -> Optional[Fraction]:
     own currency, which opens no cost basis at all.
     """
     currency = record.GetCurrency()
-    if currency is None or currency.get_mnemonic() == BASE_CURRENCY:
+    if currency is None or currency.get_mnemonic() == base_currency():
         return None
     if fx_rates is not None and day is not None:
         return fx_rates.rate_fraction(currency.get_mnemonic(), day)
@@ -9673,14 +9673,14 @@ def _basis_relevant_accounts(existing_tx) -> set:
     # True where the transaction is stated in a foreign currency, which is
     # when the CAD splits are what the rate is worked out from.
     the_rate_comes_from_the_cad_splits = (
-        transaction_currency(existing_tx) != BASE_CURRENCY)
+        transaction_currency(existing_tx) != base_currency())
     for split in existing_tx.GetSplitList():
         account = split.GetAccount()
         name = get_account_full_name(account) if account is not None else ''
         it_is_a_basis_or_draws_on_one = (establishes_cost_basis(split)
                                          or cost_basis_guid_of(split))
         it_supplies_the_rate = (the_rate_comes_from_the_cad_splits
-                                and split_commodity(split) == BASE_CURRENCY)
+                                and split_commodity(split) == base_currency())
         if it_is_a_basis_or_draws_on_one or it_supplies_the_rate:
             accounts.add(name)
     return accounts
@@ -9699,7 +9699,7 @@ def _is_a_base_currency_account(root, name: str) -> bool:
     account = find_account(root, name)
     commodity = account.GetCommodity()
     return (commodity is not None
-            and commodity.get_mnemonic() == BASE_CURRENCY)
+            and commodity.get_mnemonic() == base_currency())
 
 
 def _is_a_foreign_currency_account(root, name: str) -> bool:
@@ -9735,7 +9735,7 @@ def _is_a_foreign_currency_account(root, name: str) -> bool:
     commodity = account.GetCommodity()
     return (commodity is not None
             and (commodity.get_namespace() or '').upper() == 'CURRENCY'
-            and commodity.get_mnemonic() != BASE_CURRENCY)
+            and commodity.get_mnemonic() != base_currency())
 
 
 def _basis_figures_in_book(existing_tx, relevant):
@@ -9933,7 +9933,7 @@ def _what_an_edited_split_spends(root, child, existing_tx, when):
     commodity = account.GetCommodity().get_mnemonic()
     side = account_side(account)
     amount = _stated_amount(child)
-    if (commodity == BASE_CURRENCY or side is None or amount == 0
+    if (commodity == base_currency() or side is None or amount == 0
             or _the_pick_a_block_states(child)):
         return None
     if not is_a_currency(account.GetCommodity()):
@@ -10060,8 +10060,8 @@ def _require_no_cost_basis_edit(existing_tx, directive):
     # it. Either way round, because a file may restate the currency itself,
     # and then the CAD splits start or stop mattering.
     stated_currency = str(directive.metadata.get('currency.mnemonic', '') or '')
-    priced_by_cad = (transaction_currency(existing_tx) != BASE_CURRENCY
-                     or (stated_currency and stated_currency != BASE_CURRENCY))
+    priced_by_cad = (transaction_currency(existing_tx) != base_currency()
+                     or (stated_currency and stated_currency != base_currency()))
     # Off an account, the way every other reader here gets it: a Transaction
     # has no `GetBook`. A split always has an account (CLAUDE.md finding 12),
     # and a transaction the book holds always has a split: measured on 5.10, a
@@ -10137,7 +10137,7 @@ def _defer_to_the_finished_book(book, existing_tx) -> None:
         f'transaction {guid} holds a cost basis that {unvaluable} draws '
         f'on, and --atomic cannot defer the refusal to edit it here: a '
         f'disposal stated in a foreign currency states its value in no '
-        f'{BASE_CURRENCY} figure, so the finished book cannot ask whether '
+        f'{base_currency()} figure, so the finished book cannot ask whether '
         f'it is still valued at what this cost basis cost. Delete this '
         f'transaction and import the new version instead: '
         f'`delete-transactions --by-guid {guid.replace("-", "")}` puts back '
@@ -10173,7 +10173,7 @@ def _with_values_the_import_requires(book, existing_tx, before, after):
                 split.GetParent().GetCurrency().get_fraction(), drawn_already=True)
             # And stated in the book's own currency, which is what `left` is
             # in: a value stated in another is in no figure to compare it with.
-            if (transaction_currency(split.GetParent()) == BASE_CURRENCY
+            if (transaction_currency(split.GetParent()) == base_currency()
                     and left is not None and fact[7] == left):
                 fact = old
         read.append(fact)
@@ -10263,7 +10263,7 @@ def _an_edit_moving_a_cost_basis(book, existing_tx, rows, before, after,
                                 f'{new[2]!r}')
                 if old[6] != new[6]:
                     said.append(f'cost basis {key[1]} costs {exact_text(old[6])} '
-                                f'{BASE_CURRENCY}/{old[3]} and would cost '
+                                f'{base_currency()}/{old[3]} and would cost '
                                 f'{exact_text(new[6])} — every disposal already '
                                 f'drawn on it was valued at what it cost, and every '
                                 f'gain measured against it would move')
@@ -11127,9 +11127,9 @@ def _check_stated_balances(book, directive) -> None:
         # left without a balance and opens at its full amount, so a file
         # asking for 60.00 available leaves 100.00 in the book with no error.
         # `cost_basis_cost:` is refused on the same line for the same reason.
-        if currency == BASE_CURRENCY:
+        if currency == base_currency():
             raise Exception(
-                f'{where} is on a {BASE_CURRENCY} split, which holds no '
+                f'{where} is on a {base_currency()} split, which holds no '
                 f'foreign currency for a cost basis to be about — state it on '
                 f'the split that does')
         text = str(stated).strip()
@@ -11236,8 +11236,8 @@ def _check_stated_costs(book, directive, existing_tx=None) -> None:
     # that states no `value:` is valued at its amount, so asking which keys
     # the file typed answered "not priced" for a split the transaction prices
     # at 1, and let a stated cost through to be written and then ignored.
-    prices_in_base = tx_currency == BASE_CURRENCY or any(
-        child.type == DirectiveType.SPLIT and commodity_of(child) == BASE_CURRENCY
+    prices_in_base = tx_currency == base_currency() or any(
+        child.type == DirectiveType.SPLIT and commodity_of(child) == base_currency()
         for child in directive.children)
 
     # Every child is a split: the parser refuses any other line under a
@@ -11253,10 +11253,10 @@ def _check_stated_costs(book, directive, existing_tx=None) -> None:
             # anything is written; guessing a currency here would report a
             # typo'd account as a malformed cost.
             continue
-        if currency == BASE_CURRENCY:
+        if currency == base_currency():
             raise Exception(
                 f'{COST_BASIS_COST_KEY} on split {account_name!r} is on a '
-                f'{BASE_CURRENCY} split, which holds no foreign currency to '
+                f'{base_currency()} split, which holds no foreign currency to '
                 f'have a cost — state it on the split that does')
         if prices_in_base:
             raise Exception(
@@ -11390,7 +11390,7 @@ def _refuse_a_payment_block_spending_a_cost_basis_balance(record, bank_account, 
     # `_refuse_a_payment_account_with_no_commodity` refuses one that has none
     # before anything is applied.
     bank_currency = bank_account.GetCommodity().get_mnemonic()
-    if bank_currency == BASE_CURRENCY:
+    if bank_currency == base_currency():
         return
     payment_txn = _settlement_transaction_in(record, lot_before)
     if payment_txn is None:
@@ -11432,8 +11432,8 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
 
     A USD invoice recognises its revenue at the posting-date rate; settling it
     into CAD months later at another rate is a disposal of that receivable, and
-    the difference between what the currency was booked at and what it actually
-    fetched is realized on the settlement date.
+    the difference between what the currency was booked at and its proceeds is
+    realized on the settlement date.
 
     GnuCash values the A/R side of its payment at the settlement rate, so the
     entry balances and the difference disappears — 140.00 CAD of revenue
@@ -11489,7 +11489,7 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     # the posting, so there is no directive to state it on. It had already
     # committed a `cost_basis_split:` pointing at a base-currency split by
     # then, which is itself a thing no file may state.
-    if record_currency == BASE_CURRENCY and bank_currency != BASE_CURRENCY:
+    if record_currency == base_currency() and bank_currency != base_currency():
         # Raised outright, not through `_require_no_unplaced_payment_splits`:
         # that only speaks when the block carries split lines, so a file
         # without a `$residual$` — which is what a reader writes for a
@@ -11499,11 +11499,11 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
         # differently on 3.8 than on 4.x.
         raise Exception(
             f'{kind} {record.GetID()}: this payment settles a '
-            f'{BASE_CURRENCY} {kind} into a {bank_currency} account. Nothing '
-            f'is realized — {BASE_CURRENCY} does not move against itself — '
+            f'{base_currency()} {kind} into a {bank_currency} account. Nothing '
+            f'is realized — {base_currency()} does not move against itself — '
             f'and what the {bank_currency} cost belongs to that account, '
             f'recorded where the currency was bought, not to this {kind}. '
-            f'Settle it from a {BASE_CURRENCY} account, or record the '
+            f'Settle it from a {base_currency()} account, or record the '
             f'{bank_currency} purchase as its own transaction.')
 
     # Asked right after `ApplyPayment` on a posted record, which always has its
@@ -11520,7 +11520,7 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     if basis_cost is None:
         _require_no_unplaced_payment_splits(
             pay_dir, kind,
-            f'the {kind} carries no cost in {BASE_CURRENCY} to measure a '
+            f'the {kind} carries no cost in {base_currency()} to measure a '
             f'realized difference against')
         return
 
@@ -11536,14 +11536,14 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     # unsupportable, the rates simply were not in scope. What it is short of
     # is a number, and it says which one.
     bank_rate = None
-    if bank_currency != BASE_CURRENCY:
+    if bank_currency != base_currency():
         pay_date = datetime.strptime(
             pay_dir.metadata['date'], "%Y-%m-%d").date()
         if fx_rates is None:
             raise MissingFxRateError(
                 f'this {kind} is in {record_currency} and settles into '
                 f'{bank_currency}, so valuing the cash needs the '
-                f'{bank_currency}/{BASE_CURRENCY} rate on {pay_date} — pass '
+                f'{bank_currency}/{base_currency()} rate on {pay_date} — pass '
                 f'--fx-rates <file> with that rate in it')
         try:
             bank_rate = fx_rates.rate_fraction(bank_currency, pay_date)
@@ -11551,11 +11551,10 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
             raise MissingFxRateError(
                 f'this {kind} is in {record_currency} and settles into '
                 f'{bank_currency}, so valuing the cash needs the '
-                f'{bank_currency}/{BASE_CURRENCY} rate on {pay_date}, which '
-                f'the rates file does not carry: {exc}') from exc
+                f'{bank_currency}/{base_currency()} rate on {pay_date}: {exc}') from exc
 
     base_commodity = (bank_commodity if bank_rate is None
-                      else book.get_table().lookup('CURRENCY', BASE_CURRENCY))
+                      else book.get_table().lookup('CURRENCY', base_currency()))
 
     payment_txn = _settlement_transaction_in(record, lot_before)
     lot = record.GetPostedLot()
@@ -11621,7 +11620,7 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
     # a `$residual$` line has to be denominated in. Asking for the *bank's*
     # currency was the same thing while the bank was required to be the base
     # currency, and refused a correct CAD residual the moment it was not.
-    prepared = _check_payment_split_lines(book, pay_dir, kind, BASE_CURRENCY)
+    prepared = _check_payment_split_lines(book, pay_dir, kind, base_currency())
 
     # Spending a cost basis balance was refused before any of this ran — see
     # `_refuse_a_payment_block_spending_a_cost_basis_balance`, called at the
@@ -11705,12 +11704,12 @@ def _book_payment_fx_difference(record, book, pay_dir, bank_account, is_bill,
             f'settling this {record_currency} {kind} into {bank_currency} '
             f'realizes '
             f'{_money_str(abs(leftover), base_commodity)} '
-            f'{BASE_CURRENCY} against the '
+            f'{base_currency()} against the '
             f'{exact_text(basis_cost)} '
-            f'{BASE_CURRENCY}/{record_currency} it was '
+            f'{base_currency()}/{record_currency} it was '
             f'booked at — add a split to the payment block saying where that '
             f'belongs, e.g. `Income:FX Gain {RESIDUAL_AMOUNT} '
-            f'{BASE_CURRENCY}`')
+            f'{base_currency()}`')
     # No early return when nothing was realized. There is no gain split to
     # place, but the entry still needs denominating in the base currency and
     # its values restating — and the cash still arrived, so the currency the
@@ -12217,7 +12216,7 @@ def _the_residual_states_an_exchange_difference(book, directive, currency) -> bo
     balance sheet's realized gains are read from, `realized_gains_fx` or
     `realized_gains_other` by what was disposed of.
     """
-    if currency is None or currency.get_mnemonic() != BASE_CURRENCY:
+    if currency is None or currency.get_mnemonic() != base_currency():
         return False
     splits = [child for child in directive.children if child.type == DirectiveType.SPLIT]
     if book_keeps_cost_bases(book):

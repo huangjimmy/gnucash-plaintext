@@ -61,7 +61,7 @@ class TestTheCostDividesTheWayTheDollarsDid:
 
 class TestWhatTheSheetThenSays:
     def test_the_gain_on_the_shares_is_measured_against_the_carried_cost(self, tmp_path):
-        """20 shares costing 52.00 fetched 1,100.00 USD at 1.20, so 280.00 is realized."""
+        """20 shares costing 52.00 CAD each are sold for proceeds of 1,100.00 USD at 1.20 CAD/USD, so 280.00 CAD is realized."""
         page = _sheet(book_from(tmp_path, LEDGER))
 
         assert key_of(page, 'realized_gains_other') == '280.00 CAD'

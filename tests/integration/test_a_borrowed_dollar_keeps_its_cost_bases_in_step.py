@@ -191,8 +191,8 @@ def _repay(loan_basis, interest_basis, bank_basis):
 def _sell_what_is_left(bank_basis):
     """The 1,000.00 USD the loan brought in, sold for Canadian dollars.
 
-    They cost 1.30 and fetch 1.40, so they leave at 1,300.00 and the bank takes
-    1,400.00: the residual is a gain of 100.00 CAD, which is exactly what the
+    They cost 1.30 CAD/USD and are sold at 1.40 CAD/USD, so they leave at
+    1,300.00 CAD and the bank takes proceeds of 1,400.00 CAD: the residual is a gain of 100.00 CAD, which is exactly what the
     owed side lost on the same dollars. A borrowing nobody spends ends level,
     and it takes both sides to show it.
 

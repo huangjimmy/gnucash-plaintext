@@ -134,7 +134,7 @@ def test_three_sales_of_the_deposit_stating_no_cost_basis_are_refused_as_sales(t
 def test_three_sales_of_the_deposit_each_stating_its_cost_basis_are_imported(tmp_path):
     """Sales stated in US dollars at the day's rate, each stating the deposit's cost basis, are imported.
 
-    Each Canadian dollar figure is what the dollars fetched that day, not what
+    Each Canadian dollar figure is the proceeds of the dollars that day, not what
     they cost, and a transaction stated in US dollars has no split that can
     record the difference in Canadian ones. A check refusing every such sale
     whose figure was not the cost refused this file, the one the application
@@ -178,7 +178,7 @@ def test_a_refund_stating_no_cost_basis_is_refused_as_a_refund(tmp_path):
 
 
 def test_a_loss_a_sale_stated_in_usd_records_on_a_split_of_no_value_is_not_stated_again(tmp_path):
-    """The 8.60 USD fee cost 11.99 CAD and fetched 11.92; booked with its 0.07 loss on Income:FX gain, only the transfer's 19.79 is stated as not recorded."""
+    """The 8.60 USD fee cost 11.99 CAD and its proceeds were 11.92 CAD; booked with its 0.07 loss on Income:FX gain, only the transfer's 19.79 is stated as not recorded."""
     book = tmp_path / 'book.gnucash'
     made = _run(CliRunner(), 'import', '--new', str(book), BASE,
                 '--include-business-objects', '--fx-rates', RATES)
@@ -334,7 +334,7 @@ def test_every_pending_sale_edited_to_state_its_cost_basis_leaves_the_book_consi
     page = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-08-17',
                 '--output-format', 'text', '--itemize')
     assert page.exit_code == 0 and '$pending$' not in page.output, page.output
-    # The sales fetched 3,771.28 CAD for dollars that cost 3,791.14, and a
+    # The sales had proceeds of 3,771.28 CAD for dollars that cost 3,791.14 CAD, and a
     # transaction stated in US dollars has no split to record that in.
     assert ('\t\trealized_gains_not_recorded: -19.86 # sum of each cost_basis\'s '
             'realized_gains_not_recorded') in page.output, page.output

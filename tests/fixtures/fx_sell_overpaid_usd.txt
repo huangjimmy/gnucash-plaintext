@@ -2,7 +2,7 @@
 # with 200.00 USD: 100 against the invoice's own cost basis, carried at 1.40,
 # and 100 against the asset cost basis the bank's split opened for the dollars
 # that arrived with the overpayment, at the payment's 1.37 (Q-054). The cost
-# consumed is 140.00 + 137.00 = 277.00 CAD, and the 290.00 CAD the sale fetched
+# consumed is 140.00 + 137.00 = 277.00 CAD, and the sale's proceeds of 290.00 CAD
 # leaves $residual$ booking a 13.00 CAD gain.
 #
 # The customer's credit is a liability cost basis, owed rather than held, so

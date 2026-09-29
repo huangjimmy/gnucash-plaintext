@@ -42,7 +42,7 @@ def test_the_stated_balance_is_not_lowered_a_second_time(tmp_path):
 
 
 def test_the_sale_realizes_its_gain_against_the_carried_cost(tmp_path):
-    """20 shares costing 52.00 fetched 1,320.00 CAD, so 280.00 is realized, and the page balances."""
+    """20 shares costing 52.00 CAD each are sold for proceeds of 1,320.00 CAD, so 280.00 CAD is realized, and the page balances."""
     drawn = _run(CliRunner(), 'balance-sheet', str(book_from(tmp_path, LEDGER)),
                  '--as-of', '2029-12-31', '--no-itemize')
     assert drawn.exit_code == 0, drawn.output

@@ -145,7 +145,7 @@ class TestAFiscalYearThatIsNotTheCalendars:
         assert _directive(result.output) == '2025-07-01 income-statement'
         assert _amount(result.output, 'Income:Consulting') == '6900.00 CAD'
         # 728.00 CAD, stated in the book's own currency by the sale itself:
-        # 8 shares costing 260.00 each against the 2,080.00 USD they fetched at
+        # 8 shares costing 260.00 CAD each against their proceeds of 2,080.00 USD at
         # the 1.35 of the day. An account kept in Canadian dollars carries no
         # price or value line, because there is nothing to convert.
         assert _amount(result.output, 'Income:Realized Gains') == '728.00 CAD'
@@ -539,8 +539,8 @@ class TestABookUsingTradingAccounts:
         assert 'total_unrealized_gains' not in result.output, result.output
         # 46.40 more than the same book's retained earnings once carried, and
         # the same 46.40 less is in `trading_gains` above. The share sale
-        # realized 728.00 CAD — 8 shares costing 260.00 against the 2,080.00
-        # USD they fetched at the 1.35 of that day. Booked in US dollars it was
+        # realized 728.00 CAD — 8 shares costing 260.00 CAD against their
+        # proceeds of 2,080.00 USD at the 1.35 CAD/USD of that day. Booked in US dollars it was
         # 480.00 USD, which the report converted at the year-end 1.42 to
         # 681.60, retranslating a gain months after the day it was realized.
         assert _key(result.output, 'retained_earnings') == '12726.00 CAD'

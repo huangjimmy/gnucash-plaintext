@@ -21,7 +21,7 @@ class TestFxRatesInit:
         from services.fx_rates import FxRates
         fx = FxRates({})
         assert fx.has_rate('CAD')
-        assert fx.to_cad(Fraction(100), 'CAD') == Fraction(100)
+        assert fx.to_base(Fraction(100), 'CAD') == Fraction(100)
 
     def test_foreign_currency_stored(self):
         from services.fx_rates import FxRates
@@ -31,7 +31,7 @@ class TestFxRatesInit:
     def test_foreign_currency_rate_converts_correctly(self):
         from services.fx_rates import FxRates
         fx = FxRates({'HKD': 0.5})
-        result = fx.to_cad(Fraction(200), 'HKD')
+        result = fx.to_base(Fraction(200), 'HKD')
         assert result == Fraction(100)
 
     def test_keys_normalized_to_uppercase(self):
@@ -49,25 +49,25 @@ class TestFxRatesInit:
 
 
 # ---------------------------------------------------------------------------
-# cad_only factory
+# base_only factory
 # ---------------------------------------------------------------------------
 
-class TestCadOnly:
+class TestBaseOnly:
 
-    def test_cad_only_has_cad(self):
+    def test_base_only_has_cad(self):
         from services.fx_rates import FxRates
-        fx = FxRates.cad_only()
+        fx = FxRates.base_only()
         assert fx.has_rate('CAD')
 
-    def test_cad_only_no_foreign_currencies(self):
+    def test_base_only_no_foreign_currencies(self):
         from services.fx_rates import FxRates
-        fx = FxRates.cad_only()
+        fx = FxRates.base_only()
         assert not fx.has_rate('HKD')
         assert not fx.has_rate('USD')
 
-    def test_cad_only_missing_currencies_set(self):
+    def test_base_only_missing_currencies_set(self):
         from services.fx_rates import FxRates
-        fx = FxRates.cad_only()
+        fx = FxRates.base_only()
         missing = fx.missing_currencies({'CAD', 'HKD'})
         assert missing == {'HKD'}
 
@@ -153,7 +153,7 @@ class TestFxRatesLoad:
             with os.fdopen(fd, 'w') as f:
                 f.write(content)
             fx = FxRates.load(path)
-            assert fx.to_cad(Fraction(1), 'CAD') == Fraction(1)
+            assert fx.to_base(Fraction(1), 'CAD') == Fraction(1)
         finally:
             os.unlink(path)
 
@@ -184,7 +184,7 @@ class TestFxRatesLoad:
 
 
 # ---------------------------------------------------------------------------
-# to_cad
+# to_base
 # ---------------------------------------------------------------------------
 
 class TestToCad:
@@ -192,42 +192,42 @@ class TestToCad:
     def test_cad_converts_to_same_amount(self):
         from services.fx_rates import FxRates
         fx = FxRates({'HKD': 0.172})
-        assert fx.to_cad(Fraction(500), 'CAD') == Fraction(500)
+        assert fx.to_base(Fraction(500), 'CAD') == Fraction(500)
 
     def test_foreign_currency_converts(self):
         from services.fx_rates import FxRates
         fx = FxRates({'HKD': 0.25})
-        assert fx.to_cad(Fraction(400), 'HKD') == Fraction(100)
+        assert fx.to_base(Fraction(400), 'HKD') == Fraction(100)
 
     def test_case_insensitive_currency_code(self):
         from services.fx_rates import FxRates
         fx = FxRates({'HKD': 0.172})
-        result_upper = fx.to_cad(Fraction(100), 'HKD')
-        result_lower = fx.to_cad(Fraction(100), 'hkd')
+        result_upper = fx.to_base(Fraction(100), 'HKD')
+        result_lower = fx.to_base(Fraction(100), 'hkd')
         assert result_upper == result_lower
 
     def test_missing_currency_raises(self):
         from services.fx_rates import FxRates, MissingFxRateError
         fx = FxRates({'HKD': 0.172})
         with pytest.raises(MissingFxRateError, match="USD"):
-            fx.to_cad(Fraction(100), 'USD')
+            fx.to_base(Fraction(100), 'USD')
 
     def test_error_message_contains_currency_code(self):
         from services.fx_rates import FxRates, MissingFxRateError
         fx = FxRates({})
         with pytest.raises(MissingFxRateError, match="JPY"):
-            fx.to_cad(Fraction(1000), 'JPY')
+            fx.to_base(Fraction(1000), 'JPY')
 
     def test_zero_amount_converts_to_zero(self):
         from services.fx_rates import FxRates
         fx = FxRates({'HKD': 0.172})
-        assert fx.to_cad(Fraction(0), 'HKD') == Fraction(0)
+        assert fx.to_base(Fraction(0), 'HKD') == Fraction(0)
 
     def test_fraction_result_is_exact(self):
-        """to_cad returns Fraction, not float — no rounding loss."""
+        """to_base returns Fraction, not float — no rounding loss."""
         from services.fx_rates import FxRates
         fx = FxRates({'HKD': 0.172})
-        result = fx.to_cad(Fraction(1), 'HKD')
+        result = fx.to_base(Fraction(1), 'HKD')
         assert isinstance(result, Fraction)
 
 

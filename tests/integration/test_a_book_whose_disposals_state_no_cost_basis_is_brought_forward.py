@@ -100,7 +100,7 @@ def test_the_rest_is_imported_and_lists_the_cost_basis_to_state(tmp_path):
 def test_written_as_a_disposal_the_spend_brings_the_book_forward(tmp_path):
     """The block every disposal is written as: the guid, the dollars at what they cost, and `$residual$`.
 
-    The dollars cost 1.30 and fetched 1.40, so 520.00 of cost leaves and
+    The dollars cost 1.30 CAD/USD and were sold at 1.40 CAD/USD, so 520.00 CAD of cost leaves and
     40.00 is realized. The spend draws 400.00 off the dollars bought, and
     600.00 are left on both counts.
     """

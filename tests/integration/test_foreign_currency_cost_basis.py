@@ -316,7 +316,7 @@ def test_the_overpaid_currency_can_then_be_sold(tmp_path):
 
     The book holds 200.00 USD after the overpayment, so all 200.00 can be sold
     — 100 against the invoice's cost basis, carried at 1.40, and 100 against
-    the bank's, opened at the payment's 1.37. The 290.00 CAD it fetches against
+    the bank's, opened at the payment's 1.37. Its proceeds of 290.00 CAD against
     277.00 of cost leaves a 13.00 CAD gain, and nothing held is left; the
     customer's 100.00 is still owed.
     """

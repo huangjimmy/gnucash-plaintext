@@ -1,0 +1,126 @@
+2026-01-02 * "Share capital paid in"
+	guid: "0d560000000000000000000000000001"
+	Assets:Bank HKD 1000000.00 HKD
+		guid: "0d560000000000000000000000000101"
+	Equity:Share Capital -1000000.00 HKD
+		guid: "0d560000000000000000000000000102"
+2026-02-02 * "INV-001" "Invoice INV-001"
+	guid: "0d560000000000000000000000000011"
+	currency.mnemonic: "USD"
+	txn_type: I
+	owner: customer:C-US
+	business_generated: #True
+	Assets:Accounts Receivable USD 10000.00 USD
+		guid: "0d560000000000000000000000000111"
+		cost_basis_balance: "2000.00"
+	Income:Sales -78000.00 HKD
+		guid: "0d560000000000000000000000000112"
+		account.commodity.mnemonic: "HKD"
+		share_price: "1000000/7800000"
+		value: "-10000.00"
+2026-03-02 * "Pacific Buyer Inc"
+	guid: "0d560000000000000000000000000012"
+	txn_type: P
+	owner: customer:C-US
+	Assets:Bank USD 10000.00 USD
+		guid: "0d560000000000000000000000000121"
+		memo:"Payment for INV-001"
+	Assets:Accounts Receivable USD -10000.00 USD
+		guid: "0d560000000000000000000000000122"
+		memo:"Payment for INV-001"
+2026-04-01 * "INV-002" "Invoice INV-002"
+	guid: "0d560000000000000000000000000021"
+	currency.mnemonic: "USD"
+	txn_type: I
+	owner: customer:C-US
+	business_generated: #True
+	Assets:Accounts Receivable USD 5000.00 USD
+		guid: "0d560000000000000000000000000211"
+		cost_basis_balance: "5000.00"
+	Income:Sales -38750.00 HKD
+		guid: "0d560000000000000000000000000212"
+		account.commodity.mnemonic: "HKD"
+		share_price: "500000/3875000"
+		value: "-5000.00"
+2026-05-04 * "Pacific Buyer Inc"
+	guid: "0d560000000000000000000000000022"
+	txn_type: P
+	owner: customer:C-US
+	Assets:Bank USD 5000.00 USD
+		guid: "0d560000000000000000000000000221"
+		memo:"Payment for INV-002"
+	Assets:Accounts Receivable USD -5000.00 USD
+		guid: "0d560000000000000000000000000222"
+		memo:"Payment for INV-002"
+2026-06-01 * "Sell 8,000.00 USD at 7.85 HKD/USD"
+	guid: "0d560000000000000000000000000031"
+	currency.mnemonic: "HKD"
+	Assets:Bank HKD 62800.00 HKD
+		guid: "0d560000000000000000000000000311"
+	Assets:Bank USD -8000.00 USD
+		guid: "0d560000000000000000000000000312"
+		account.commodity.mnemonic: "USD"
+		share_price: "7.8"
+		value: "-62400.00"
+		cost_basis_split_guid: "0d560000000000000000000000000111"
+	Income:FX Gain -400.00 HKD
+		guid: "0d560000000000000000000000000313"
+		took_the_residual: #True
+2026-07-02 * "Buy 50,000.00 CNY at 1.08 HKD/CNY"
+	guid: "0d560000000000000000000000000041"
+	currency.mnemonic: "HKD"
+	Assets:Bank CNY 50000.00 CNY
+		guid: "0d560000000000000000000000000411"
+		account.commodity.mnemonic: "CNY"
+		share_price: "1.08"
+		value: "54000.00"
+		cost_basis_balance: "50000.00"
+	Assets:Bank HKD -54000.00 HKD
+		guid: "0d560000000000000000000000000412"
+2026-08-03 * "BILL-EU-001" "Bill BILL-EU-001"
+	guid: "0d560000000000000000000000000051"
+	currency.mnemonic: "EUR"
+	txn_type: I
+	owner: vendor:V-EU
+	business_generated: #True
+	Expenses:Design Services 17000.00 HKD
+		guid: "0d560000000000000000000000000512"
+		account.commodity.mnemonic: "HKD"
+		share_price: "200000/1700000"
+		value: "2000.00"
+	Liabilities:Accounts Payable EUR -2000.00 EUR
+		guid: "0d560000000000000000000000000511"
+		cost_basis_balance: "0.00"
+2026-08-14 * "Buy 2,000.00 EUR at 8.45 HKD/EUR"
+	guid: "0d560000000000000000000000000052"
+	currency.mnemonic: "HKD"
+	Assets:Bank EUR 2000.00 EUR
+		guid: "0d560000000000000000000000000521"
+		account.commodity.mnemonic: "EUR"
+		share_price: "8.45"
+		value: "16900.00"
+		cost_basis_balance: "0.00"
+	Assets:Bank HKD -16900.00 HKD
+		guid: "0d560000000000000000000000000522"
+2026-08-20 * "Atelier Lumière SARL"
+	guid: "0d560000000000000000000000000053"
+	currency.mnemonic: "HKD"
+	txn_type: P
+	owner: vendor:V-EU
+	Liabilities:Accounts Payable EUR 2000.00 EUR
+		guid: "0d560000000000000000000000000531"
+		account.commodity.mnemonic: "EUR"
+		share_price: "8.5"
+		value: "17000.00"
+		memo:"Payment for BILL-EU-001"
+		cost_basis_split_guid: "0d560000000000000000000000000511"
+	Assets:Bank EUR -2000.00 EUR
+		guid: "0d560000000000000000000000000532"
+		account.commodity.mnemonic: "EUR"
+		share_price: "8.45"
+		value: "-16900.00"
+		memo:"Payment for BILL-EU-001"
+		cost_basis_split_guid: "0d560000000000000000000000000521"
+	Income:FX Gain -100.00 HKD
+		guid: "0d560000000000000000000000000533"
+		took_the_residual: #True

@@ -59,7 +59,7 @@ def _page(runner, book):
 
 
 def test_the_gain_is_still_counted(tmp_path):
-    """1,000.00 USD costing 1,300.00 CAD fetched 1,400.00."""
+    """1,000.00 USD costing 1,300.00 CAD is sold for proceeds of 1,400.00 CAD."""
     runner = CliRunner()
     page = _page(runner, _sold(runner, tmp_path, WITH_A_CUSTOM_KEY, 'keyed'))
 

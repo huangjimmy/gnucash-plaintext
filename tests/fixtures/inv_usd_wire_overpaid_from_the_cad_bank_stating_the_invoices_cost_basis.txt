@@ -4,8 +4,8 @@
 #
 # The settling split collects the invoice into Canadian dollars, so it
 # consumes the invoice's cost basis: it states the invoice's posting split,
-# c1c1…, and is valued at the 140.00 CAD that cost basis cost. The 137.00 CAD
-# it fetched is 3.00 less, and `Income:FX Gain $residual$` takes the 3.00.
+# c1c1…, and is valued at the 140.00 CAD that cost basis cost. Its proceeds of
+# 137.00 CAD are 3.00 CAD less, and `Income:FX Gain $residual$` takes the 3.00.
 # The invoice's posting is stated as the transaction it is, as an export
 # writes it, so its split has a guid for the settlement to state.
 #

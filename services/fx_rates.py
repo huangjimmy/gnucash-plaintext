@@ -1,5 +1,5 @@
 """
-FX rates service for currency conversion to CAD.
+FX rates service for currency conversion to the book's base currency.
 
 Loads exchange rates from a YAML file and converts amounts. Rates come in two
 forms in the same file, so one file serves every command:
@@ -11,10 +11,13 @@ forms in the same file, so one file serves every command:
       2026-01-05: 1.35
       2026-02-20: 1.37
 
-Both mean "1 unit of the foreign currency = N CAD". A dated lookup takes the
-most recent quote on or before the date asked for; a date earlier than every
-quote is an error rather than an extrapolation. Rates are held as exact
-fractions, never rounded to a float.
+Both mean "1 unit of the foreign currency = N of the base currency", the
+currency the book is measured in (Q-056): CAD for a book whose `company`
+block states none, as above, and HKD for one stating `base_currency: "HKD"`,
+whose file writes `USD: 7.8` or `USD/HKD:`. A dated lookup takes the most
+recent quote on or before the date asked for; a date earlier than every quote
+is an error rather than an extrapolation. Rates are held as exact fractions,
+never rounded to a float.
 
 CRA accepts Bank of Canada rates for foreign currency conversion — annual
 average (the flat form) or the daily rate on the transaction date (the dated
@@ -52,28 +55,34 @@ def _to_date(value) -> _date:
     return datetime.strptime(str(value), '%Y-%m-%d').date()
 
 
-def _normalise_currency(key: str) -> str:
-    """`USD` and `USD/CAD` both name the USD → CAD rate. The pair spelling is
-    accepted because a dated block reads better with both sides named; only
-    conversion to the book's own currency is supported, so the second half must
-    be CAD."""
+def _base_currency() -> str:
+    # Imported here: the rates file is read by commands that open no book, and
+    # the service that knows the base currency loads GnuCash's bindings.
+    from services.foreign_currency import base_currency
+    return base_currency()
+
+
+def _normalise_currency(key: str):
+    """The currency a rate key quotes, and the one it quotes it in, or None.
+
+    `USD` and `USD/HKD` both quote USD. The pair spelling is accepted because a
+    dated block reads better with both sides named. Its second half has to be
+    the base currency, which is known only once the book is open, so it is
+    kept and asked when a rate is looked up (`FxRates._quoted_in_the_base`).
+    """
     code = str(key).upper().strip()
     if '/' not in code:
-        return code
+        return code, None
     left, right = code.split('/', 1)
-    if right != 'CAD':
-        raise ValueError(
-            f"FX rate key {key!r} converts to {right}; only rates to CAD are "
-            f"supported (write it as '{left}: <rate>' or '{left}/CAD:')")
-    return left
+    return left, right
 
 
 class FxRates:
     """
-    Holds exchange rates for converting foreign currencies to CAD.
+    Holds exchange rates for converting foreign currencies to the base currency.
 
-    All rates are expressed as: 1 unit of foreign currency = N CAD.
-    CAD is always 1.0.
+    All rates are expressed as: 1 unit of foreign currency = N of the base
+    currency. The base currency itself is always 1.
     """
 
     def __init__(self, rates: Dict[str, Union[float, Dict]]):
@@ -82,12 +91,16 @@ class FxRates:
 
         Args:
             rates: e.g. {"HKD": 0.172, "USD": {"2026-01-05": 1.35}}
-                   CAD need not be included (always 1.0).
+                   The base currency need not be included (always 1).
         """
-        self._rates: Dict[str, Fraction] = {"CAD": Fraction(1)}
+        self._rates: Dict[str, Fraction] = {}
         self._dated: Dict[str, Dict[_date, Fraction]] = {}
+        # Each pair key's two halves, such as ('USD', 'CAD') for `USD/CAD`.
+        self._pairs: Dict[str, str] = {}
         for currency, rate in rates.items():
-            code = _normalise_currency(currency)
+            code, into = _normalise_currency(currency)
+            if into is not None:
+                self._pairs[str(currency)] = into
             if isinstance(rate, dict):
                 quotes = {_to_date(d): _to_fraction(r) for d, r in rate.items()}
                 if not quotes:
@@ -169,14 +182,26 @@ class FxRates:
         return cls(data)
 
     @classmethod
-    def cad_only(cls) -> "FxRates":
-        """Create an FxRates instance with only CAD (no conversion needed)."""
+    def base_only(cls) -> "FxRates":
+        """Create an FxRates instance with only the base currency (no conversion needed)."""
         return cls({})
 
-    def to_cad(self, amount: Fraction, currency: str,
-               as_of: Optional[_date] = None) -> Fraction:
+    def _quoted_in_the_base(self) -> str:
+        """The base currency, once every pair key is known to quote into it."""
+        base = _base_currency()
+        for key, into in self._pairs.items():
+            if into != base:
+                left = key.split('/', 1)[0].upper().strip()
+                raise MissingFxRateError(
+                    f"FX rate key {key!r} quotes {left} in {into}, and this book "
+                    f"is measured in {base}, so each rate is quoted in {base} "
+                    f"(write it as '{left}: <rate>' or '{left}/{base}:')")
+        return base
+
+    def to_base(self, amount: Fraction, currency: str,
+                as_of: Optional[_date] = None) -> Fraction:
         """
-        Convert an amount in `currency` to CAD.
+        Convert an amount in `currency` to the base currency.
 
         Args:
             amount: Amount in foreign currency
@@ -186,7 +211,7 @@ class FxRates:
                 rate in the file".
 
         Returns:
-            Amount in CAD
+            Amount in the base currency
 
         Raises:
             MissingFxRateError: If no rate is available for the currency
@@ -195,13 +220,14 @@ class FxRates:
 
     def rate_fraction(self, currency: str,
                       as_of: Optional[_date] = None) -> Fraction:
-        """The exact CAD-per-unit rate for a currency, as a Fraction.
+        """The exact base-currency-per-unit rate for a currency, as a Fraction.
 
         Raises:
-            MissingFxRateError: If no rate covers the currency and date.
+            MissingFxRateError: If no rate covers the currency and date, or a
+                pair key quotes into another currency than the base.
         """
         code = currency.upper()
-        if code == 'CAD':
+        if code == self._quoted_in_the_base():
             return Fraction(1)
         quotes = self._dated.get(code)
         if quotes is not None and as_of is not None:
@@ -232,8 +258,8 @@ class FxRates:
         says nothing about it. A caller that is about to write that rate into
         the book asks this to find out, and can say so.
 
-        None wherever no dated quote is consulted. The book's own currency is
-        the first of those, and it has to be answered here rather than left to
+        None wherever no dated quote is consulted. The base currency is the
+        first of those, and it has to be answered here rather than left to
         the file: `rate_fraction` returns 1 for it before it looks at the
         file, so nothing in the file is read — but a file may state `CAD:` all
         the same, dated like the rest, which the format allows and the README
@@ -243,7 +269,7 @@ class FxRates:
         quotes at all, and where no quote covers the date, which is the case
         `rate_fraction` refuses outright.
         """
-        if currency.upper() == 'CAD':
+        if currency.upper() == _base_currency():
             return None
         quotes = self._dated.get(currency.upper())
         if quotes is None or as_of is None:
@@ -252,8 +278,9 @@ class FxRates:
         return max(usable) if usable else None
 
     def has_rate(self, currency: str) -> bool:
-        """Check if a rate exists for `currency`."""
-        return currency.upper() in self._rates
+        """Check if a rate exists for `currency`; the base currency always has one."""
+        code = currency.upper()
+        return code == _base_currency() or code in self._rates
 
     def is_dated(self, currency: str) -> bool:
         """True if this currency is quoted with dated rates."""
@@ -273,5 +300,5 @@ class FxRates:
 
     @property
     def available_currencies(self) -> Set[str]:
-        """Return set of currencies with known rates."""
-        return set(self._rates.keys())
+        """Return set of currencies with known rates, the base currency among them."""
+        return set(self._rates.keys()) | {_base_currency()}
