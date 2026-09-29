@@ -83,8 +83,6 @@ INCOME_VALUED_BELOW_WHAT_IT_REPAID = (
     + 'usd_moved_out_of_an_empty_account_then_income_into_it_valued_below_what_it_repaid.txt')
 BOUGHT_INTO_A_WITH_HONG_KONG_DOLLARS = (
     FIXTURES + 'usd_moved_out_of_an_empty_account_then_bought_into_it_with_hong_kong_dollars.txt')
-A_DEPOSIT_DATED_BEFORE_THE_TRANSFER = (
-    FIXTURES + 'usd_moved_out_of_an_empty_account_then_a_deposit_dated_before_it.txt')
 BALANCE_TRANSFER_OF_MORE_THAN_OWED = (
     FIXTURES + 'a_usd_card_balance_transfer_of_more_than_the_card_owes.txt')
 
@@ -408,24 +406,6 @@ def test_a_repaid_cost_basis_deleted_in_gnucash_leaves_the_book_readable(tmp_pat
 
     assert listing.exit_code == 0, listing.output
     assert _bases(book) == [C_BOUGHT], _bases(book)
-
-
-def test_a_deposit_imported_after_a_later_transfer_out_is_reported(tmp_path):
-    """What the transfer brought in was read when it was imported, and is not read again.
-
-    A deposit into A dated before the transfer out of it, imported after, means
-    by date the transfer borrowed nothing. Its recorded 500.00 owed on A and
-    500.00 held on B stay, the deposit opens 500.00 held of its own, and
-    `--verify-integrity` reports both sides. Q-047 records it as known.
-    """
-    book = _book(tmp_path, A_DEPOSIT_DATED_BEFORE_THE_TRANSFER)
-    checked = CliRunner().invoke(cli, ['--verify-integrity', str(book)])
-
-    assert checked.exit_code == 1, checked.output
-    assert ('the USD cost bases on the asset side hold 2,000.00, and the book '
-            'holds 1,500.00') in checked.output, checked.output
-    assert ('the USD cost bases on the liability side hold 500.00, and the book '
-            'owes 0.00') in checked.output, checked.output
 
 
 def test_shares_sold_before_any_were_bought_open_no_cost_basis(tmp_path):

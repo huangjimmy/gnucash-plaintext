@@ -1,0 +1,37 @@
+# INV-USD-WHOLE, 100.00 USD posted on 2026-03-01 at the rates file's rate for
+# that day, settled by C-US's whole 100.00 USD credit. The 200.00 USD overpayment
+# of INV-USD-OVER left that credit on 2026-02-25, owed at 1.37 CAD/USD
+# (137.00 CAD). The `Income:FX Gain $residual$ CAD` line states where the
+# difference between the two goes. TXN_GUID and SPLIT_GUID are the credit's
+# transaction and split.
+#
+# Imported into the book fx_invoice_usd_overpaid_into_usd_bank.txt makes.
+#
+# Verified by
+# tests/scenario/test_a_credit_spent_on_an_invoice_realizes_what_the_two_costs_differ_by.py.
+invoice "INV-USD-WHOLE"
+	customer_id: "C-US"
+	currency: USD
+	date_opened: 2026-03-01
+	entry:
+		date: 2026-03-01
+		description: "More consulting"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 100
+		taxable: false
+		tax_included: false
+	posted:
+		date: 2026-03-01
+		due: 2026-04-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-USD-WHOLE"
+		accumulate: true
+	payment:
+		amount: 100.00
+		from_credit: true
+		credit_dated: 2026-02-25
+		txn_guid: "TXN_GUID"
+		txn_split_guid: "SPLIT_GUID"
+		Income:FX Gain $residual$ CAD

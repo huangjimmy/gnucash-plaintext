@@ -1,0 +1,7 @@
+# Dated USD → CAD rates: 1 USD = N CAD on that day. Those of
+# fx_rates_usd_dated.yaml, and 1.42 CAD/USD on 2026-03-01, the day INV-USD-WHOLE
+# is posted and spends a credit carried at 1.37 CAD/USD.
+USD/CAD:
+  2026-01-05: 1.40
+  2026-02-20: 1.37
+  2026-03-01: 1.42

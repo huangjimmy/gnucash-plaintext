@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### A credit spent at another rate realizes the difference, and a linked wire keeps the cost bases the bank holds
+
+**A foreign credit spent on an invoice posted at another rate realizes the difference.** A customer's 100.00 USD credit received at 1.37 CAD/USD, spent on an invoice of 100.00 USD posted at 1.32 CAD/USD, gains 5.00 CAD. The `from_credit:` block states where it goes with a split line such as `Income:FX Gain $residual$ CAD`, and the credit's transaction is stated in the book's own currency, the credit valued at the invoice's cost and the difference on that split. A difference with no such line is refused, stating the two costs. A credit spent at the invoice's own cost writes no split. `auto_apply_credit: true` is refused where the credit it spends realizes a difference. Before this release nothing booked the difference, and the balance sheet did not balance by it. ([Q-054](docs/issues/Q-054-pending-counts-every-cost-basis-and-a-cost-basis-a-command-destroys-leaves-its-disposals-pending.md))
+
+**A wire imported before the invoice it collects keeps the cost bases the bank holds once it is linked.** 200.00 USD wired into a US dollar bank against a 100.00 USD invoice, imported before the invoice's payment block linked it, opened 200.00 USD held on the bank and 100.00 USD owed on the split that settles the invoice. Linking it now takes the balance off the settling split and keeps the bank's to the 100.00 USD it brought in past the invoice, so the cost bases hold the 200.00 USD the bank holds.
+
+**What a bank's split brought in past an invoice costs what it cost.** 200.00 USD valued at 278.00 CAD, beside a split settling a 100.00 USD invoice at 140.00 CAD, brought in 100.00 USD that cost 138.00 CAD, 1.38 CAD/USD. It was priced at the whole wire's 1.39, and the balance sheet did not balance by 1.00 CAD.
+
 ### A book is measured in the base currency its `company` block states
 
 **A book stating `base_currency:` keeps its cost bases and its gains in that currency.** `base_currency: "HKD"` in the `company` block makes HKD the book's base currency. Every other currency is foreign, and each amount of a foreign currency the book holds has a cost basis stating what it cost in HKD. Realized and unrealized gains, foreign invoices and bills and their settlements, the balance sheet, `fx-balances`, `--verify-costs` and `--verify-integrity` are measured in HKD, and a rates file passed to `import --fx-rates` or `account-balance --fx-rates` quotes each currency in HKD. Before this release every cost basis was measured in CAD. On a book stating `base_currency: "HKD"`, a USD invoice collected into a USD account opened no cost basis, and selling those dollars was refused as drawing on no cost basis. ([Q-056](docs/issues/Q-056-measure-a-book-in-the-base-currency-it-states.md))

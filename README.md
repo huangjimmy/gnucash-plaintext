@@ -1921,6 +1921,20 @@ A credit **in no lot** can be attached whole but not divided, and the refusal na
 
 Nothing is re-decided: re-running the original request against a book that has moved on could apply a different credit, and re-applying an already-applied one leaves every invoice of that owner with a lot GnuCash discards on load (`invoice_postlot_handler: assertion 'lot' failed`), so a rebuilt book came back with nothing paid. Everything the block states is checked — the split must be on the named transaction and on this invoice's own posted account, carry the amount claimed with the sign a credit has on that side, and still be the owner's to spend — and a block that cannot be honoured is refused rather than half-applied. Writing `from_credit: true` beside a `bank_account:` or a `date:` is refused too, naming the key to drop.
 
+**A foreign credit spent on an invoice posted at another rate realizes the difference.** C-US's 100.00 USD credit, received at 1.37 CAD/USD, is carried at 137.00 CAD. Spent on an invoice of 100.00 USD posted at 1.32 CAD/USD, it pays off a receivable carried at 132.00 CAD, and the book gains 5.00 CAD; posted at 1.42 CAD/USD, it loses 5.00 CAD. The block says where that goes with a split line, and gnucash-plaintext works out the figure, as for a payment converting the invoice's currency:
+
+```
+  payment:
+    amount: 100.00
+    from_credit: true
+    credit_dated: 2026-02-25
+    txn_guid: "…"
+    txn_split_guid: "…"
+    Income:FX Gain $residual$ CAD
+```
+
+The credit's split is the settlement, so its transaction is written as a converting payment's is: stated in the book's own currency, the credit's split valued at the invoice's cost, and a split on `Income:FX Gain`, marked `took_the_residual: #True`, taking what that leaves. The export writes that transaction as it stands, and a book rebuilt from it holds the same figures. A difference with no such line is refused, stating the two costs and the difference; the refusal comes once the credit has been applied, as a converting payment's does, so under `--atomic` the book file is left as it was. A credit spent at the invoice's own cost realizes nothing, and no split is written for it. `auto_apply_credit: true` has no line to state the account on, so it is refused where the credit it would spend realizes a difference; spend the credit with a `from_credit:` block instead.
+
 A credit larger than one invoice is drawn down across several: mark each invoice/bill `auto_apply_credit: true` and GnuCash consumes the credit in **posting order** until it runs out. A $150 credit against two $100 invoices settles the first in full and leaves the second **$50 outstanding** (its lot open at +$50 for an invoice, −$50 for a bill), with the credit at $0. Because cash applies before credit on each invoice, that second invoice can also carry a `payment: amount: 50` — the $50 cash plus the $50 of remaining credit close it. This works identically on the receivable (invoice) and payable (bill) sides, sign-flipped.
 
 #### Listing open credits: `find-prepayments`

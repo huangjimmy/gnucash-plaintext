@@ -1242,6 +1242,80 @@ def _priced_bases_in(transactions) -> Dict[str, Fraction]:
     return priced
 
 
+def _what_the_link_made_the_records(book, record, linked) -> None:
+    """Take off the cost bases a link makes the record's, in the transactions it links.
+
+    A wire read before the payment block linking it was applied collects no
+    invoice. 200.00 USD into a US dollar bank beside two receivable splits
+    of 100.00 takes the empty receivable to −200.00: each receivable split
+    opens 100.00 owed, and the bank's split opens 200.00 held. The block
+    links the first receivable split to INV-USD-WIRE: it is that invoice's
+    collection now, and the bank's split collects 100.00 of the invoice,
+    whose own cost basis stands for it, and brings in the other 100.00
+    (Q-054). Left as they were, the cost bases held 300.00 USD against the
+    200.00 the bank held.
+
+    So a split the link put in the record's lot keeps no balance, as a
+    settlement holds none, and a split beside it keeps no more than it
+    brings in less what disposals drew on it, the most a balance can be. A
+    balance a file stated lower than that is kept. A disposal drawing on a
+    balance this takes off is refused, as `_keep_or_discard_a_cost_basis`
+    refuses one: it was measured at the cost this payment was entered at.
+    """
+    lot = record.GetPostedLot()
+    in_the_lot = ({split_guid(Split(instance=raw)) for raw in lot.get_split_list()}
+                  if lot is not None else set())
+    for transaction in linked:
+        for split in transaction.GetSplitList():
+            balance = cost_basis_balance_of(split)
+            if balance is None:
+                continue
+            guid = split_guid(split)
+            try:
+                a_cost_basis = establishes_cost_basis(split)
+            except Exception:
+                # A cost that will not read is `--verify-costs`'s to report,
+                # and nothing here can say what the split brings in.
+                continue
+            # A balance on a split that is no cost basis is stranded, and
+            # nothing clears it but the user stating `$None$`: it is left.
+            left = (None if guid in in_the_lot
+                    else brought_in_by(split) - sum(
+                        (drawn_by(each) for each in splits_drawing_on(book, guid)),
+                        Fraction(0)) if a_cost_basis
+                    else balance)
+            if left is not None and balance <= left:
+                continue
+            drawing = disposals_drawing_on(book, split)
+            if drawing and (left is None or left < 0):
+                kind = kind_of(record)
+                unit = smallest_unit(split)
+                currency = split_commodity(split)
+                brought = brought_in_by(split)
+                what = (f'linking this payment makes split {guid} the {kind}\'s '
+                        f'settlement, which holds no cost basis, and'
+                        if left is None else
+                        f'linking this payment makes part of what split {guid} '
+                        f'brought in the {kind}\'s, whose own cost basis stands '
+                        f'for it, so the split\'s cost basis covers the '
+                        f'{money_text(brought, unit)} {currency} it brought in '
+                        f'past the {kind}, and the disposals drawing on it '
+                        f'consume {money_text(brought - (left or 0), unit)} {currency};')
+                raise Exception(
+                    f'{kind} {record.GetID()}: {what} {len(drawing)} disposal(s) '
+                    f'are measured against that cost basis: '
+                    f'{"; ".join(sorted(drawing))}. They were valued at the rate '
+                    f'this payment was entered at, so they cannot simply be '
+                    f'pointed at the {kind}\'s cost basis. Delete them, link the '
+                    f'payment, and import them again measured against the cost '
+                    f'basis each draws on.')
+            if left is None:
+                _strip_a_settlements_basis(split)
+            else:
+                write_cost_basis_balance(split, max(left, Fraction(0)))
+            cost_bases_changed()
+
+
 def _the_record_prices_this_currency(record, split) -> bool:
     """Does this record's own posting hold a cost basis for the split's
     currency?
@@ -6054,7 +6128,25 @@ def _apply_owner_credit(record) -> None:
     record.AutoApplyPayments()
     _carry_basis_across_applied_credit(record, basis_before, set(basis_before))
     _mark_applied_from_credit(record, lot_before)
-    _the_credit_spent_draws_on_the_records_cost_basis(record)
+    posting, spent = _the_credit_spent_draws_on_the_records_cost_basis(record)
+    # `auto_apply_credit: true` has no line to state where a difference goes.
+    # A credit carried at another cost than the record's realizes one, and
+    # the file has to say where: spent by a `from_credit:` block, which states
+    # it with a `$residual$` line.
+    realized = _what_spending_the_credit_realized(
+        record.GetBook(), record, posting, spent)
+    if realized:
+        kind = kind_of(record)
+        base = record.GetBook().get_table().lookup('CURRENCY', base_currency())
+        raise Exception(
+            f'{kind} {record.GetID()}: `auto_apply_credit: true` spends a credit '
+            f'carried at another cost than the {kind} was posted at, which '
+            f'realizes {money_text(realized, base.get_fraction())} '
+            f'{base_currency()}, and nothing in the {kind} says where that '
+            f'belongs. Spend the credit with a `payment:` block stating '
+            f'`from_credit: true`, and add to it a split saying where the '
+            f'difference goes, e.g. `Income:FX Gain {RESIDUAL_AMOUNT} '
+            f'{base_currency()}`.')
 
 
 def _a_credit_is_being_added(record, asks_for_credit: bool) -> bool:
@@ -8156,12 +8248,15 @@ def _apply_payment_directive(record, pay_dir, book, is_bill, fx_rates=None):
     _apply_the_payment_directive(record, pay_dir, book, is_bill, fx_rates,
                                  residual_placed_later=converts)
     _keep_or_discard_a_cost_basis(book, priced_before, is_bill, record, linked)
+    _what_the_link_made_the_records(book, record, linked)
     if converts:
         _book_payment_fx_difference(
             record, book, pay_dir,
             find_account(book.get_root_account(), _payment_xfer_account_name(pay_dir.metadata)),
             is_bill, lot_before, fx_rates)
-    _the_credit_spent_draws_on_the_records_cost_basis(record)
+    posting, spent = _the_credit_spent_draws_on_the_records_cost_basis(record)
+    if _paid_from_credit(pay_dir.metadata):
+        _book_what_spending_the_credit_realized(book, record, pay_dir, posting, spent)
 
 
 def _a_linked_payment_converts(record, book, pay_dir) -> bool:
@@ -10750,7 +10845,7 @@ def _mark_applied_from_credit(record, lot_before) -> list:
     return marked
 
 
-def _the_credit_spent_draws_on_the_records_cost_basis(record) -> None:
+def _the_credit_spent_draws_on_the_records_cost_basis(record) -> tuple:
     """Draw the record's cost basis down by the owner's credit spent on it.
 
     Spending a customer's credit on an invoice settles what they owe out of
@@ -10764,6 +10859,9 @@ def _the_credit_spent_draws_on_the_records_cost_basis(record) -> None:
     Each split the credit put in the record's lot states the record's posting
     split as the cost basis it drew on, as a settlement converted into
     Canadian dollars does, and the posting's balance falls by its amount.
+
+    Returns the posting and the credit splits it pointed at it, for
+    `_what_spending_the_credit_realized`.
     """
     # Both callers have a posted record, which has all three.
     posted_account = record.GetPostedAcc()
@@ -10772,8 +10870,9 @@ def _the_credit_spent_draws_on_the_records_cost_basis(record) -> None:
     here = get_account_full_name(posted_account)
     posting = next((split for split in posting_txn.GetSplitList()
                     if get_account_full_name(split.GetAccount()) == here), None)
+    spent = []
     if posting is None or not has_cost_basis_balance(posting):
-        return
+        return posting, spent
     for raw in lot.get_split_list():
         split = Split(instance=raw)
         metadata = dict(get_custom_metadata(split))
@@ -10785,6 +10884,128 @@ def _the_credit_spent_draws_on_the_records_cost_basis(record) -> None:
         set_custom_metadata(split, metadata)
         transaction.CommitEdit()
         lower_cost_basis_balance(posting, abs(numeric_to_fraction(split.GetAmount())))
+        spent.append(split)
+    return posting, spent
+
+
+def _what_spending_the_credit_realized(book, record, posting, spent) -> Fraction:
+    """What the owner's credit spent on this record realized, in the base currency.
+
+    A customer's 100.00 USD credit, owed at 1.37 CAD/USD, spent on an invoice
+    of 100.00 USD posted at 1.42: a receivable carried at 142.00 CAD is paid
+    off by a credit carried at 137.00 CAD, and the 5.00 CAD between them is
+    lost on the day the credit is spent. Spent on a bill, the mirror: what
+    the vendor was owed at the bill's cost is paid off by what the book held
+    with them at the credit's.
+
+    Each part is carried to the base currency's smallest unit first, as the
+    book carries them, so the difference is the one the two carried figures
+    leave. Nothing where no credit was spent. A credit is pointed at a
+    posting only where the posting holds a cost basis balance, so the
+    record's cost is there to read whenever one was.
+    """
+    if not spent:
+        return Fraction(0)
+    record_cost = cost_of(posting)
+    scu = book.get_table().lookup('CURRENCY', base_currency()).get_fraction()
+    realized = Fraction(0)
+    for split in spent:
+        credit_cost = cost_of(split)
+        if credit_cost is None:
+            continue
+        units = abs(numeric_to_fraction(split.GetAmount()))
+        at_the_credit = numeric_to_fraction(to_money(units * credit_cost, scu))
+        at_the_record = numeric_to_fraction(to_money(units * record_cost, scu))
+        realized += (at_the_record - at_the_credit if kind_of(record) == 'bill'
+                     else at_the_credit - at_the_record)
+    return realized
+
+
+def _book_what_spending_the_credit_realized(book, record, pay_dir, posting, spent) -> None:
+    """Book what a `from_credit:` block's credit realized, on the account its `$residual$` line states.
+
+    The block states where the difference goes and gnucash-plaintext works
+    out the figure, as a payment converting a record's currency does:
+
+        payment:
+            from_credit: true
+            …
+            Income:FX Gain $residual$ CAD
+
+    The credit's split is the settlement: it is in the record's lot, stating
+    the record's posting split as the cost basis it draws on. So its
+    transaction is written as a converting payment's is: stated in the base
+    currency, the settlement valued at the record's cost, and the `$residual$`
+    split, marked as the split that took the difference, taking what that
+    leaves. C-US's credit of 100.00 USD, received at 1.37 CAD/USD, settling
+    an invoice posted at 1.32: the bank's 200.00 USD at 274.00 CAD, the split
+    settling the first invoice at −137.00, the credit at −132.00, and 5.00 CAD
+    gained on Income:FX Gain.
+
+    A difference with no `$residual$` line is refused. A credit spent at the
+    record's own cost realizes nothing, and nothing is written for it.
+    """
+    kind = kind_of(record)
+    realized = _what_spending_the_credit_realized(book, record, posting, spent)
+    prepared = _check_payment_split_lines(book, pay_dir, kind, base_currency())
+    if realized == 0:
+        return
+    base = book.get_table().lookup('CURRENCY', base_currency())
+    if not prepared:
+        credit_cost = cost_of(spent[0])
+        record_cost = cost_of(posting)
+        units = sum((abs(numeric_to_fraction(split.GetAmount())) for split in spent),
+                    Fraction(0))
+        currency = record.GetCurrency().get_mnemonic()
+        raise Exception(
+            f'the credit this payment spends, '
+            f'{money_text(units, record.GetCurrency().get_fraction())} '
+            f'{currency}, was carried at {exact_text(credit_cost)} '
+            f'{base_currency()}/{currency}, and the {kind} was posted at '
+            f'{exact_text(record_cost)} {base_currency()}/{currency}, so spending '
+            f'it realizes {money_text(realized, base.get_fraction())} {base_currency()} — add a '
+            f'split to the payment block saying where that belongs, e.g. '
+            f'`Income:FX Gain {RESIDUAL_AMOUNT} {base_currency()}`')
+    record_cost = cost_of(posting)
+    scu = base.get_fraction()
+    for transaction in {split.GetParent().GetGUID().to_string(): split.GetParent()
+                        for split in spent}.values():
+        here = {split_guid(split) for split in spent}
+        # What each split is worth in the base currency before the settlement
+        # is restated. A transaction stated in the record's currency, as the
+        # payment GnuCash writes into a bank kept in it is, converts at what
+        # the credit cost: the rate its overpayment was received at.
+        if transaction_currency(transaction) == base_currency():
+            rate = Fraction(1)
+        else:
+            rate = cost_of(next(split for split in transaction.GetSplitList()
+                                if split_guid(split) in here))
+        figures = []
+        for split in transaction.GetSplitList():
+            amount = split.GetAmount()
+            if split_guid(split) in here:
+                units = numeric_to_fraction(amount)
+                value = units * record_cost
+            elif split_commodity(split) == base_currency():
+                value = numeric_to_fraction(amount)
+            else:
+                value = numeric_to_fraction(split.GetValue()) * rate
+            figures.append((split, amount, numeric_to_fraction(to_money(value, scu))))
+        leftover = -sum((value for _, _, value in figures), Fraction(0))
+        transaction.BeginEdit()
+        transaction.SetCurrency(base)
+        for split, amount, value in figures:
+            split.SetAmount(amount)
+            split.SetValue(to_money(value, scu))
+        for account in prepared:
+            gain = Split(book)
+            gain.SetParent(transaction)
+            gain.SetAccount(account)
+            gain.SetAmount(to_money(leftover, scu))
+            gain.SetValue(to_money(leftover, scu))
+            gain.SetMemo(pay_dir.metadata.get('memo', ''))
+            mark_as_having_taken_the_residual(gain)
+        transaction.CommitEdit()
 
 
 def _basis_splits_on(account):
