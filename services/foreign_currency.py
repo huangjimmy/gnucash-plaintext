@@ -591,11 +591,30 @@ def derived_cost_of(split) -> Optional[Fraction]:
 
     # `share_price` is value per unit, stated in the transaction's currency.
     per_unit = abs(_fraction(split.GetValue()) / amount)
+    to_base = Fraction(1)
     if tx_currency != base_currency():
         base_per_tx_currency = _base_per_unit_of(transaction)
         if base_per_tx_currency is None:
             return None
         per_unit *= base_per_tx_currency
+        to_base = base_per_tx_currency
+    # A bank's split collecting an invoice beside what it brings in carries two
+    # things in one value as well: the collected part, at the value the split
+    # settling the invoice states, and the rest. 200.00 USD valued at 278.00
+    # CAD beside a split settling a 100.00 USD invoice at 140.00 collects
+    # 140.00 CAD of it, so the 100.00 it brought in cost 138.00, 1.38 each.
+    # Priced at 1.39, the whole split's rate, the cost bases held 279.00 CAD
+    # for dollars the book carried at 278.00, and the balance sheet did not
+    # balance by the 1.00.
+    if split_moves(split) is not None:
+        settled = _the_records_it_settles(split)
+        units = sum((abs(_fraction(each.GetAmount())) for each in settled), Fraction(0))
+        brought = brought_in_by(split) if units else Fraction(0)
+        if units and brought and units + brought == abs(amount):
+            collected = sum((abs(_fraction(each.GetValue())) for each in settled),
+                            Fraction(0)) * to_base
+            left = (per_unit * abs(amount) - collected) / brought
+            return left if left > 0 else None
     # A split crossing zero that states a guid carries two things in one value:
     # what it repaid, at the cost of the cost basis it states, and what it
     # brought in. 1,000.00 USD into an account at −500.00 valued at 1,375.00
@@ -1725,7 +1744,12 @@ def came_out_of_credit(split) -> bool:
 
 
 def _settles_an_invoice(split) -> bool:
-    """Whether this split takes currency off a receivable by settling an invoice that prices it.
+    """Whether this split takes currency off a receivable by settling an invoice that prices it."""
+    return _the_invoice_posting_it_settles(split) is not None
+
+
+def _the_invoice_posting_it_settles(split):
+    """The posting split of the invoice this split settles, where that posting prices it, or None.
 
     In the invoice's lot, or applied to an invoice by this file's `payment:`
     block, which puts it in that lot once the transaction it is in has been
@@ -1750,7 +1774,7 @@ def _settles_an_invoice(split) -> bool:
     account = split.GetAccount()
     if (account is None or account.GetType() != ACCT_TYPE_RECEIVABLE
             or _fraction(split.GetAmount()) >= 0):
-        return False
+        return None
     book = account.get_book()
     applied = _SPLITS_THE_FILES_PAYMENTS_APPLY.get(split_guid(split))
     if applied is not None and applied[0] == 'invoice':
@@ -1759,7 +1783,7 @@ def _settles_an_invoice(split) -> bool:
             stated = _POSTINGS_THE_FILE_STATES.get(applied)
             transaction = _find_transaction_by_guid(book, stated) if stated else None
             here = get_account_full_name(account)
-            return _the_posting_prices(next(
+            return _if_it_prices(next(
                 (each for each in (transaction.GetSplitList() if transaction else [])
                  if get_account_full_name(each.GetAccount()) == here), None))
         record = found[0] if len(found) == 1 else None
@@ -1768,16 +1792,11 @@ def _settles_an_invoice(split) -> bool:
         raw_invoice = (_gc.gncInvoiceGetInvoiceFromLot(qof_instance(raw_lot))
                        if raw_lot is not None else None)
         record = wrap_invoice_or_bill(raw_invoice) if raw_invoice else None
-    if record is None or not record.IsPosted():
-        return False
-    posted = get_account_full_name(record.GetPostedAcc())
-    return _the_posting_prices(next((each for each in record.GetPostedTxn().GetSplitList()
-                                     if get_account_full_name(each.GetAccount()) == posted),
-                                    None))
+    return _the_posting_of(record)
 
 
-def _pays_a_bill(split) -> bool:
-    """Whether this split pays a bill that prices it, out of money rather than out of credit.
+def _the_bill_posting_it_pays(split):
+    """The posting split of the bill this split pays out of money, where that posting prices it, or None.
 
     A debit on a payable in a posted bill's lot. The bill's posting is then
     the cost basis of the dollars it owed, whichever account owes them now.
@@ -1787,17 +1806,26 @@ def _pays_a_bill(split) -> bool:
     account = split.GetAccount()
     if (account is None or account.GetType() != ACCT_TYPE_PAYABLE
             or _fraction(split.GetAmount()) <= 0 or came_out_of_credit(split)):
-        return False
+        return None
     raw_lot = split.GetLot()
     raw_bill = (_gc.gncInvoiceGetInvoiceFromLot(qof_instance(raw_lot))
                 if raw_lot is not None else None)
-    record = wrap_invoice_or_bill(raw_bill) if raw_bill else None
+    return _the_posting_of(wrap_invoice_or_bill(raw_bill) if raw_bill else None)
+
+
+def _the_posting_of(record):
+    """A posted record's split on the account it posts to, where it prices the record, or None."""
     if record is None or not record.IsPosted():
-        return False
+        return None
     posted = get_account_full_name(record.GetPostedAcc())
-    return _the_posting_prices(next((each for each in record.GetPostedTxn().GetSplitList()
-                                     if get_account_full_name(each.GetAccount()) == posted),
-                                    None))
+    return _if_it_prices(next((each for each in record.GetPostedTxn().GetSplitList()
+                               if get_account_full_name(each.GetAccount()) == posted),
+                              None))
+
+
+def _if_it_prices(posting):
+    """The posting split, where it is a cost basis, or None."""
+    return posting if _the_posting_prices(posting) else None
 
 
 def _the_posting_prices(posting) -> bool:
@@ -3769,12 +3797,7 @@ def brought_in_by(split) -> Fraction:
         # and the first 100.00 is the bill paid, whose own cost basis stands
         # for it. What the split brings in owed is the other 100.00.
         if amount < 0 and brought_in > 0:
-            commodity = split_commodity(split)
-            paid = sum((_fraction(other.GetAmount())
-                        for other in split.GetParent().GetSplitList()
-                        if split_guid(other) != split_guid(split)
-                        and split_commodity(other) == commodity
-                        and _pays_a_bill(other)),
+            paid = sum((abs(_fraction(each.GetAmount())) for each in _the_records_it_settles(split)),
                        Fraction(0))
             if 0 < paid < brought_in:
                 return brought_in - paid
@@ -3784,18 +3807,38 @@ def brought_in_by(split) -> Fraction:
     if past_zero:
         return past_zero
     if amount > 0 and account.GetType() not in (ACCT_TYPE_RECEIVABLE, ACCT_TYPE_PAYABLE):
-        commodity = split_commodity(split)
-        here = split_guid(split)
-        collected = -sum((_fraction(other.GetAmount())
-                          for other in split.GetParent().GetSplitList()
-                          if split_guid(other) != here
-                          and split_commodity(other) == commodity
-                          and not came_out_of_credit(other)
-                          and _settles_an_invoice(other)),
-                         Fraction(0))
+        collected = sum((abs(_fraction(each.GetAmount())) for each in _the_records_it_settles(split)),
+                        Fraction(0))
         if 0 < collected < whole:
             return whole - collected
     return whole
+
+
+def _the_records_it_settles(split) -> list:
+    """The splits beside a bank's split that settle a record with its money.
+
+    Money into a bank beside the splits collecting an invoice, or out of one
+    beside the splits paying a bill: each of those splits, in the bank split's
+    currency. That much of the bank's split is the record's, and the record's
+    cost basis stands for it (Q-051); the rest is what the split brought in.
+    The customer's credit spent on an invoice collects nothing into a bank, so
+    it is not counted.
+    """
+    amount = _fraction(split.GetAmount())
+    commodity = split_commodity(split)
+    here = split_guid(split)
+    settled = []
+    for other in split.GetParent().GetSplitList():
+        if split_guid(other) == here or split_commodity(other) != commodity:
+            continue
+        if amount > 0:
+            posting = (None if came_out_of_credit(other)
+                       else _the_invoice_posting_it_settles(other))
+        else:
+            posting = _the_bill_posting_it_pays(other)
+        if posting is not None:
+            settled.append(other)
+    return settled
 
 
 def drawn_by(split) -> Fraction:

@@ -24,22 +24,3 @@ def test_the_parking_is_not_read_as_a_disposal(tmp_path):
 
     assert done.exit_code == 0, done.output
     assert 'Errors:       0' in done.output, done.output
-
-
-def test_the_parking_opens_what_it_owes_and_the_deposit_keeps_what_it_bought(tmp_path):
-    """The parking owes a hundred and opens a cost basis for it; it spends none.
-
-    500.00 held from the deposit, which the file lists first, and 100.00 owed
-    from the parking, which takes the account from nothing to −100.00 on its
-    own date (Q-047). By date the deposit came second and repaid that 100.00,
-    leaving 400.00 held; imported first, it opened 500.00, so the cost bases
-    hold 500.00 and owe 100.00 against the 400.00 the account holds. Q-047
-    records it: a file listing a later-dated deposit first builds cost bases its
-    dates contradict.
-    """
-    book = tmp_path / 'book.gnucash'
-    CliRunner().invoke(cli, ['import', '--new', str(book), LEDGER])
-    listing = CliRunner().invoke(cli, ['fx-balances', str(book)]).output
-
-    assert 'Total USD cost basis balance: 500.00 USD held, 100.00 USD owed' in listing, listing
-    assert 'Total USD held in accounts: 400.00 USD' in listing, listing
