@@ -1,0 +1,231 @@
+2022-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2022-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2022-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2022-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2022-01-01 open Assets:Chase USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2022-01-01 open Assets:Wise USD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2022-01-01 open Assets:HSBC HKD
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2022-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2022-01-01 open Equity:Opening Balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2022-01-01 open Income
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2022-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+company
+	name: "Three Accounts Ltd"
+	base_currency: "CAD"
+	currency_balances: "CAD USD HKD CNY GBP EUR"
+
+2022-01-04 * "1" "Open Chase USD with 10,000.00 USD"
+	guid: "0d5a0000000000000000000000000001"
+	currency.mnemonic: "CAD"
+	Assets:Chase USD 10000.00 USD
+		guid: "0d5a0000000000000000000000000011"
+		value: "12708.00"
+	Equity:Opening Balances -12708.00 CAD
+		guid: "0d5a0000000000000000000000000012"
+
+2022-01-17 * "2" "Open HSBC HKD with 50,000.00 HKD"
+	guid: "0d5a0000000000000000000000000002"
+	currency.mnemonic: "CAD"
+	Assets:HSBC HKD 50000.00 HKD
+		guid: "0d5a0000000000000000000000000021"
+		value: "8035.00"
+	Equity:Opening Balances -8035.00 CAD
+		guid: "0d5a0000000000000000000000000022"
+
+2022-02-01 * "3" "Move 4,000.00 USD from Chase USD to Wise USD"
+	guid: "0d5a0000000000000000000000000003"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 4000.00 USD
+		guid: "0d5a0000000000000000000000000031"
+	Assets:Chase USD -4000.00 USD
+		guid: "0d5a0000000000000000000000000032"
+
+2022-02-15 * "4" "Sell 2,000.00 USD from Chase USD for 15,604.41 HKD"
+	guid: "0d5a0000000000000000000000000004"
+	currency.mnemonic: "CAD"
+	Assets:HSBC HKD 15604.41 HKD
+		guid: "0d5a0000000000000000000000000041"
+		value: "2548.20"
+	Assets:Chase USD -2000.00 USD
+		guid: "0d5a0000000000000000000000000042"
+		value: "-2541.60"
+	Income:FX Gain $residual$ CAD
+		guid: "0d5a0000000000000000000000000043"
+
+2022-03-01 * "5" "Move 1,000.00 USD from Wise USD to Chase USD"
+	guid: "0d5a0000000000000000000000000005"
+	currency.mnemonic: "USD"
+	Assets:Chase USD 1000.00 USD
+		guid: "0d5a0000000000000000000000000051"
+	Assets:Wise USD -1000.00 USD
+		guid: "0d5a0000000000000000000000000052"
+
+2022-03-15 * "6" "Sell 20,000.00 HKD for 2,555.65 USD into Wise USD"
+	guid: "0d5a0000000000000000000000000006"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 2555.65 USD
+		guid: "0d5a0000000000000000000000000061"
+		value: "3272.00"
+	Assets:HSBC HKD -20000.00 HKD
+		guid: "0d5a0000000000000000000000000062"
+		value: "-3226.37"
+	Income:FX Gain $residual$ CAD
+		guid: "0d5a0000000000000000000000000063"
+
+2022-04-01 * "7" "Move 2,500.00 USD from Chase USD to Wise USD"
+	guid: "0d5a0000000000000000000000000007"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 2500.00 USD
+		guid: "0d5a0000000000000000000000000071"
+	Assets:Chase USD -2500.00 USD
+		guid: "0d5a0000000000000000000000000072"
+
+2022-04-18 * "8" "Add 3,000.00 USD to Wise USD"
+	guid: "0d5a0000000000000000000000000008"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 3000.00 USD
+		guid: "0d5a0000000000000000000000000081"
+		value: "3785.40"
+	Equity:Opening Balances -3785.40 CAD
+		guid: "0d5a0000000000000000000000000082"
+
+2022-05-02 * "9" "Sell 5,000.00 USD from Wise USD for 39,242.24 HKD"
+	guid: "0d5a0000000000000000000000000009"
+	currency.mnemonic: "CAD"
+	Assets:HSBC HKD 39242.24 HKD
+		guid: "0d5a0000000000000000000000000091"
+		value: "6447.50"
+	Assets:Wise USD -5000.00 USD
+		guid: "0d5a0000000000000000000000000092"
+		value: "-6352.77"
+	Income:FX Gain $residual$ CAD
+		guid: "0d5a0000000000000000000000000093"
+
+2022-05-16 * "10" "Move 1,234.56 USD from Wise USD to Chase USD"
+	guid: "0d5a0000000000000000000000000010"
+	currency.mnemonic: "USD"
+	Assets:Chase USD 1234.56 USD
+		guid: "0d5a0000000000000000000000000101"
+	Assets:Wise USD -1234.56 USD
+		guid: "0d5a0000000000000000000000000102"
+
+2022-06-01 * "11" "Sell 33,333.33 HKD for 4,248.75 USD into Chase USD"
+	guid: "0d5a0000000000000000000000000110"
+	currency.mnemonic: "CAD"
+	Assets:Chase USD 4248.75 USD
+		guid: "0d5a0000000000000000000000001101"
+		value: "5370.00"
+	Assets:HSBC HKD -33333.33 HKD
+		guid: "0d5a0000000000000000000000001102"
+		value: "-5423.25"
+	Income:FX Gain $residual$ CAD
+		guid: "0d5a0000000000000000000000001103"
+
+2022-06-15 * "12" "Move 3,333.33 USD from Chase USD to Wise USD"
+	guid: "0d5a0000000000000000000000000120"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 3333.33 USD
+		guid: "0d5a0000000000000000000000001201"
+	Assets:Chase USD -3333.33 USD
+		guid: "0d5a0000000000000000000000001202"
+
+2022-07-04 * "13" "Sell 1,000.00 USD from Chase USD for 7,845.73 HKD"
+	guid: "0d5a0000000000000000000000000130"
+	currency.mnemonic: "CAD"
+	Assets:HSBC HKD 7845.73 HKD
+		guid: "0d5a0000000000000000000000001301"
+		value: "1286.70"
+	Assets:Chase USD -1000.00 USD
+		guid: "0d5a0000000000000000000000001302"
+		value: "-1267.09"
+	Income:FX Gain $residual$ CAD
+		guid: "0d5a0000000000000000000000001303"
+
+2022-07-18 * "14" "Move all 8,154.42 USD of Wise USD to Chase USD"
+	guid: "0d5a0000000000000000000000000140"
+	currency.mnemonic: "USD"
+	Assets:Chase USD 8154.42 USD
+		guid: "0d5a0000000000000000000000001401"
+	Assets:Wise USD -8154.42 USD
+		guid: "0d5a0000000000000000000000001402"
+
+2022-08-02 * "15" "Sell all 59,359.05 HKD of HSBC HKD for 7,563.02 USD into Chase USD"
+	guid: "0d5a0000000000000000000000000150"
+	currency.mnemonic: "CAD"
+	Assets:Chase USD 7563.02 USD
+		guid: "0d5a0000000000000000000000001501"
+		value: "9723.01"
+	Assets:HSBC HKD -59359.05 HKD
+		guid: "0d5a0000000000000000000000001502"
+		value: "-9667.78"
+	Income:FX Gain $residual$ CAD
+		guid: "0d5a0000000000000000000000001503"
+
+2022-08-15 * "16" "Move 5,000.00 USD from Chase USD to Wise USD"
+	guid: "0d5a0000000000000000000000000160"
+	currency.mnemonic: "USD"
+	Assets:Wise USD 5000.00 USD
+		guid: "0d5a0000000000000000000000001601"
+	Assets:Chase USD -5000.00 USD
+		guid: "0d5a0000000000000000000000001602"
+
+2022-09-01 * "17" "Sell 2,500.00 USD from Chase USD for 19,615.61 HKD"
+	guid: "0d5a0000000000000000000000000170"
+	currency.mnemonic: "CAD"
+	Assets:HSBC HKD 19615.61 HKD
+		guid: "0d5a0000000000000000000000001701"
+		value: "3291.50"
+	Assets:Chase USD -2500.00 USD
+		guid: "0d5a0000000000000000000000001702"
+		value: "-3187.95"
+	Income:FX Gain $residual$ CAD
+		guid: "0d5a0000000000000000000000001703"
+
+2022-09-15 * "18" "Sell 10,000.00 HKD for 1,274.24 USD into Wise USD"
+	guid: "0d5a0000000000000000000000000180"
+	currency.mnemonic: "CAD"
+	Assets:Wise USD 1274.24 USD
+		guid: "0d5a0000000000000000000000001801"
+		value: "1682.00"
+	Assets:HSBC HKD -10000.00 HKD
+		guid: "0d5a0000000000000000000000001802"
+		value: "-1678.00"
+	Income:FX Gain $residual$ CAD
+		guid: "0d5a0000000000000000000000001803"

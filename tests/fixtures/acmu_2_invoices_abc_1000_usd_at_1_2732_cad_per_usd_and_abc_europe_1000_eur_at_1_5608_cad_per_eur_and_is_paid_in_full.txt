@@ -1,0 +1,201 @@
+# The Bank of Canada's daily rates of 2020-12-31, the last it published
+# before 2021-01-01, and of 2021-03-03, each in Canadian dollars.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2020-12-31 12:00:00 +0000"
+	value: "1.2732"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2020-12-31 12:00:00 +0000"
+	value: "1.5608"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2020-12-31 12:00:00 +0000"
+	value: "0.1949"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2020-12-31 12:00:00 +0000"
+	value: "0.1642"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2020-12-31 12:00:00 +0000"
+	value: "1.7381"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2021-03-03 12:00:00 +0000"
+	value: "1.2631"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2021-03-03 12:00:00 +0000"
+	value: "1.5240"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2021-03-03 12:00:00 +0000"
+	value: "0.1953"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2021-03-03 12:00:00 +0000"
+	value: "0.1628"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2021-03-03 12:00:00 +0000"
+	value: "1.7636"
+	source: "user:price-editor"
+	type: "last"
+
+customer "ABC"
+	name: "ABC"
+	currency: USD
+
+customer "ABC-EU"
+	name: "ABC Europe"
+	currency: EUR
+
+invoice "INV-ABC"
+	customer_id: "ABC"
+	currency: USD
+	date_opened: 2021-01-01
+	entry:
+		date: 2021-01-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2021-01-01
+		due: 2021-01-31
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-ABC"
+		posted_txn_guid: "0d590000000000000000000000000021"
+		accumulate: #True
+	payment:
+		date: 2021-03-03
+		amount: 1000.00
+		bank_account: "Assets:Chase Chequing"
+		txn_guid: "0d590000000000000000000000000023"
+		txn_split_guid: "0d590000000000000000000000000232"
+		memo: "Payment for INV-ABC"
+
+invoice "INV-ABC-EU"
+	customer_id: "ABC-EU"
+	currency: EUR
+	date_opened: 2021-01-01
+	entry:
+		date: 2021-01-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2021-01-01
+		due: 2021-01-31
+		ar_account: "Assets:Accounts Receivable EUR"
+		memo: "Invoice INV-ABC-EU"
+		posted_txn_guid: "0d590000000000000000000000000022"
+		accumulate: #True
+	payment:
+		date: 2021-03-03
+		amount: 1000.00
+		bank_account: "Assets:Wise EUR"
+		txn_guid: "0d590000000000000000000000000024"
+		txn_split_guid: "0d590000000000000000000000000242"
+		memo: "Payment for INV-ABC-EU"
+
+2021-01-01 * "INV-ABC" "Invoice INV-ABC"
+	guid: "0d590000000000000000000000000021"
+	currency.mnemonic: "USD"
+	Assets:Accounts Receivable USD 1000.00 USD
+		guid: "0d590000000000000000000000000211"
+	Income:Sales -1273.20 CAD
+		guid: "0d590000000000000000000000000212"
+		share_price: "100000/127320"
+		value: "-1000.00"
+
+2021-01-01 * "INV-ABC-EU" "Invoice INV-ABC-EU"
+	guid: "0d590000000000000000000000000022"
+	currency.mnemonic: "EUR"
+	Assets:Accounts Receivable EUR 1000.00 EUR
+		guid: "0d590000000000000000000000000221"
+	Income:Sales -1560.80 CAD
+		guid: "0d590000000000000000000000000222"
+		share_price: "100000/156080"
+		value: "-1000.00"
+
+2021-03-03 * "ABC"
+	guid: "0d590000000000000000000000000023"
+	txn_type: P
+	owner: customer:ABC
+	Assets:Chase Chequing 1000.00 USD
+		guid: "0d590000000000000000000000000231"
+	Assets:Accounts Receivable USD -1000.00 USD
+		guid: "0d590000000000000000000000000232"
+
+2021-03-03 * "ABC Europe"
+	guid: "0d590000000000000000000000000024"
+	txn_type: P
+	owner: customer:ABC-EU
+	Assets:Wise EUR 1000.00 EUR
+		guid: "0d590000000000000000000000000241"
+	Assets:Accounts Receivable EUR -1000.00 EUR
+		guid: "0d590000000000000000000000000242"

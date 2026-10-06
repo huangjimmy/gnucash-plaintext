@@ -1,0 +1,56 @@
+# The Bank of Canada's daily rates of 2021-06-01, each in Canadian dollars.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2021-06-01 12:00:00 +0000"
+	value: "1.2040"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2021-06-01 12:00:00 +0000"
+	value: "1.4729"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2021-06-01 12:00:00 +0000"
+	value: "0.1887"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2021-06-01 12:00:00 +0000"
+	value: "0.1552"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2021-06-01 12:00:00 +0000"
+	value: "1.7057"
+	source: "user:price-editor"
+	type: "last"
+
+2021-06-01 * "Sell 1,000.00 EUR for 1,223.34 USD"
+	guid: "0d580000000000000000000000000031"
+	currency.mnemonic: "USD"
+	Assets:Chase Chequing 1223.34 USD
+		guid: "0d580000000000000000000000000311"
+	Assets:Wise EUR -1000.00 EUR
+		guid: "0d580000000000000000000000000312"
+		value: "-1225.89"
+	Income:FX Gain $residual$ USD
+		guid: "0d580000000000000000000000000313"

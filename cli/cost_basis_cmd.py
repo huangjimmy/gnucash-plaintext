@@ -17,6 +17,7 @@ from fractions import Fraction
 
 import click
 
+from cli._dates import parse_date
 from infrastructure.gnucash.utils import exact_text, money_text
 from repositories.gnucash_repository import GnuCashRepository, SessionMode
 from services.book_currency import the_books_own_currency_or
@@ -377,7 +378,11 @@ def _report_account_balances(holdings, currency):
 @click.option('--verify-costs', is_flag=True,
               help='Check each cost against the ledger figures it is derived '
                    'from, and report any that disagree (exits 1 if any do).')
-def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
+@click.option('--as-of', 'as_of', default=None, callback=parse_date,
+              help='For a book keeping a balance in each selected currency: '
+                   'list what each account held at the end of this day '
+                   '(YYYY-MM-DD), in every selected currency.')
+def fx_balances(gnucash_file, currency, with_balance_only, verify_costs, as_of):
     """
     List every foreign-currency cost basis with its cost and its balance.
 
@@ -432,8 +437,37 @@ def fx_balances(gnucash_file, currency, with_balance_only, verify_costs):
             verified['foreign_income_or_expense'] = (
                 what_an_income_or_expense_account_in_another_currency_means(elsewhere, own)
                 if elsewhere else None)
+        from services.currency_balances import balances_by_account, selected_currencies
+        selected = selected_currencies(repo.book)
+        in_each_currency = balances_by_account(repo.book, as_of) if selected else []
     finally:
         repo.close()
+
+    # A date is for the balances a book keeps in each selected currency.
+    # A cost basis balance counts every disposal ever measured against it,
+    # whatever its date, so a listing of cost bases has no day to be read at.
+    if as_of is not None and not selected:
+        raise click.UsageError(
+            '--as-of lists what each account held on a day in every selected '
+            'currency, and this book selects none (no `currency_balances:` in '
+            'its company block)')
+
+    # A book keeping a balance in each selected currency lists what each
+    # account holds in each of them (Q-057).
+    if selected:
+        click.echo(f'This book keeps a balance in each of {", ".join(selected)} on '
+                   f'every account (`currency_balances:` in its company block).')
+        if as_of is not None:
+            click.echo(f'As of {as_of.isoformat()}:')
+        for row in in_each_currency:
+            if currency and currency.upper() != row['currency']:
+                continue
+            click.echo(f"{row['account']}: {row['balance']} {row['currency']}"
+                       + ''.join(f", {row['others'][code]} {code}"
+                                 for code in selected if code in row['others']))
+        if verify_costs:
+            click.echo('No cost was checked: this book records no cost basis.')
+        return
 
     # A book that keeps no cost bases has none to list or check (Q-049). What
     # its accounts hold is still what a reader came for.

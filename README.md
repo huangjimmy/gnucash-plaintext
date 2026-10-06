@@ -602,6 +602,70 @@ With cost bases off:
 
 **Turning cost bases on later** is bringing the book forward through its export, as for a book an earlier release wrote: remove the `cost_bases:` line, import the export into a new book, and state on each disposal the cost basis it draws on.
 
+#### A book that keeps a balance in each currency it selects
+
+A book can keep, on every account, a balance in each of a set of currencies. **[docs/currency-balances.md](docs/currency-balances.md)** follows one company through a year of it, and a second through a migration from cost bases, with what each command prints. The book selects its currencies in its `company` block:
+
+```
+company
+	name: "U's business"
+	base_currency: "CAD"
+	currency_balances: "CAD USD HKD CNY"
+```
+
+A book selects from USD, CAD, HKD, CNY, EUR, JPY, GBP and KRW. Each is listed once, and the base currency is among them. The setting is off unless the book states it, and `set-book-key` leaves it to the `company` block.
+
+**Each account stores a balance in each selected currency beside its own.** A US dollar account holding 100.00 USD also stores 130.00 CAD, 780.00 HKD and 600.00 CNY, as if the bank held each of them. GnuCash keeps the 100.00 USD, and gnucash-plaintext keeps the other three. `fx-balances` lists them:
+
+```
+This book keeps a balance in each of CAD, USD, HKD, CNY on every account (`currency_balances:` in its company block).
+Assets:USD_A: 90.00 USD, 117.00 CAD, 702.00 HKD, 540.00 CNY
+Assets:USD_A1: 10.00 USD, 13.00 CAD, 78.00 HKD, 60.00 CNY
+```
+
+`fx-balances --as-of 2030-01-31` lists what each account held at the end of that day, in every selected currency. It adds up what the account's splits moved up to that day, and reads no price.
+
+**Each split stores what it moved in each selected currency.** The export writes them on the split:
+
+```
+2030-02-01 * "Transfer 10.00 USD from USD_A to USD_A1"
+	guid: "0d570000000000000000000000000002"
+	Assets:USD_A1 10.00 USD
+		guid: "0d570000000000000000000000000021"
+		currency_amount.CAD: "13.00"
+		currency_amount.CNY: "60.00"
+		currency_amount.HKD: "78.00"
+	Assets:USD_A -10.00 USD
+		guid: "0d570000000000000000000000000022"
+		currency_amount.CAD: "-13.00"
+		currency_amount.CNY: "-60.00"
+		currency_amount.HKD: "-78.00"
+```
+
+and each account's stored balances on its `open` block, as `currency_balance.CAD: "117.00"`. Importing the export back into the book finds every transaction up to date.
+
+The import works these amounts out and a file does not have to state them:
+
+- **A split lowering what its account holds** moves the same share of each balance the account stores: 10.00 USD of 100.00 USD moves 13.00 CAD of 130.00 CAD. A split emptying the account moves all of each.
+- **A split of the same currency facing it** takes exactly those amounts, and nothing is realized.
+- **A split bringing money into an account kept in another currency** takes the amounts of the day. 10.00 USD moved to a Canadian dollar account for 14.00 CAD, when the book's prices are 7.85 HKD/USD and 6.50 CNY/USD, arrives as 14.00 CAD, 10.00 USD, 78.50 HKD and 65.00 CNY. The prices are the book's own, the one nearest the transaction's date, and a pair the book has no price of is worked out through a selected currency it has a price of both in. A transaction the book has no price for is not saved, and the import says which pair is missing.
+- **The `$residual$` split takes the difference in each currency**, which is the gain realized in that currency: 1.00 CAD on the income account, which also stores 0.50 HKD and 5.00 CNY. A transaction with no `$residual$` split realizes nothing in any currency: a currency or shares bought with no such split take what the account paying for them gave up, and no price is read.
+- **US dollars paying for shares realize a gain on the US dollars where the file states one**, in a book whose base currency is not USD. 10.00 USD stored at 13.00 CAD buy 2 shares worth 14.00 CAD: the shares arrive at 14.00 CAD, 10.00 USD, 78.50 HKD and 65.00 CNY, at the day's prices of the US dollar and with no price of the shares read, and the `$residual$` split takes 1.00 CAD, 0.50 HKD and 5.00 CNY. The balance sheet states it under `realized_gains_fx`, because the US dollars were disposed of and the shares were not. Selling a share later states its gain under `realized_gains_other`. A currency and shares sold in one transaction state each its own gain from the one `$residual$` split: the currency's is what a sale of it alone would state, at the book's price of the day, and the rest is the shares'.
+- **A book that uses GnuCash's trading accounts** selects its currencies like any other. GnuCash's trading splits store 0.00 in each currency, the other accounts store what they would without trading accounts, and a statement measures each gain from the stored balances.
+- **In the transaction's own currency a split moves its value**, as the transaction states it.
+
+**The average cost is one balance divided by another.** 117.00 CAD / 90.00 USD is 1.30 CAD/USD. No rate is stored.
+
+**The balance sheet and the income statement are printed in any selected currency**, with `--currency`, and in no other. An income, expense or equity account is read at what its splits moved in that currency on their own days. An account holding or owing money is valued at the price of the page's date, and its unrealized gain is that value less the balance it stores. The realized gain is what the `$residual$` splits took in that currency. That book, after the 10.00 USD moved to the Canadian dollar account, states in HKD 785.00 HKD of assets against 780.00 HKD of equity, 0.50 HKD realized and 4.50 HKD unrealized.
+
+**Such a book records no cost basis.** No disposal states which cost basis it draws on, and `--verify-integrity` lists the cost basis checks as not checked, with the reason.
+
+**A book with a history can turn the setting on**, a book that kept cost bases too. Importing the `company` block derives every amount and every balance from the book's first transaction, in the order GnuCash keeps its transactions. An invoice's posting and a payment are transactions like any other. The cost bases the book recorded stay in it and in its export, as its history. The import warns that a book migrated away from cost bases cannot be migrated back to them, and `currency_balances: $None$` on such a book is refused.
+
+**A currency added to the selection later** has its balances worked out from the first transaction as well, and a currency left out of it is no longer kept.
+
+Every command that saves the book derives the balances again first, so `delete-transactions`, `unpost-invoices` and the rest leave them right.
+
 See **[Listing foreign-currency cost bases](#listing-foreign-currency-cost-bases-fx-balances)** for the command that shows every cost basis with its cost and cost basis balance, and **[docs/multi-currency.md](docs/multi-currency.md)** for the full reference — invoicing and billing side by side, buying, borrowing and selling, every error with what it means, and how the reports treat foreign currency.
 
 ### Custom Metadata

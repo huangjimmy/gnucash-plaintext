@@ -1,0 +1,678 @@
+# The Bank of Canada's daily rates, each in Canadian dollars, for the day of
+# each transaction of 2021-07 to 2024-12 that reads one and for each fiscal
+# year end. It published none on Saturday 2023-04-01 or on Sunday 2024-06-30,
+# so 2023-03-31 and 2024-06-28 are here for those.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2021-06-30 12:00:00 +0000"
+	value: "1.2394"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2021-06-30 12:00:00 +0000"
+	value: "1.4699"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2021-06-30 12:00:00 +0000"
+	value: "0.1919"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2021-06-30 12:00:00 +0000"
+	value: "0.1596"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2021-06-30 12:00:00 +0000"
+	value: "1.7126"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2021-09-01 12:00:00 +0000"
+	value: "1.2607"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2021-09-01 12:00:00 +0000"
+	value: "1.4932"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2021-09-01 12:00:00 +0000"
+	value: "0.1951"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2021-09-01 12:00:00 +0000"
+	value: "0.1621"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2021-09-01 12:00:00 +0000"
+	value: "1.7376"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2021-11-15 12:00:00 +0000"
+	value: "1.2517"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2021-11-15 12:00:00 +0000"
+	value: "1.4282"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2021-11-15 12:00:00 +0000"
+	value: "0.1961"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2021-11-15 12:00:00 +0000"
+	value: "0.1607"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2021-11-15 12:00:00 +0000"
+	value: "1.6811"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2022-02-01 12:00:00 +0000"
+	value: "1.2694"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2022-02-01 12:00:00 +0000"
+	value: "1.4287"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2022-02-01 12:00:00 +0000"
+	value: "0.1996"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2022-02-01 12:00:00 +0000"
+	value: "0.1629"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2022-02-01 12:00:00 +0000"
+	value: "1.7146"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2022-03-01 12:00:00 +0000"
+	value: "1.2708"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2022-03-01 12:00:00 +0000"
+	value: "1.4143"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2022-03-01 12:00:00 +0000"
+	value: "0.2013"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2022-03-01 12:00:00 +0000"
+	value: "0.1626"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2022-03-01 12:00:00 +0000"
+	value: "1.6959"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2022-06-30 12:00:00 +0000"
+	value: "1.2886"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2022-06-30 12:00:00 +0000"
+	value: "1.3467"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2022-06-30 12:00:00 +0000"
+	value: "0.1924"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2022-06-30 12:00:00 +0000"
+	value: "0.1642"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2022-06-30 12:00:00 +0000"
+	value: "1.5668"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2022-09-01 12:00:00 +0000"
+	value: "1.3166"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2022-09-01 12:00:00 +0000"
+	value: "1.3110"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2022-09-01 12:00:00 +0000"
+	value: "0.1907"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2022-09-01 12:00:00 +0000"
+	value: "0.1678"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2022-09-01 12:00:00 +0000"
+	value: "1.5200"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2023-01-10 12:00:00 +0000"
+	value: "1.3421"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2023-01-10 12:00:00 +0000"
+	value: "1.4407"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2023-01-10 12:00:00 +0000"
+	value: "0.1980"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2023-01-10 12:00:00 +0000"
+	value: "0.1719"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2023-01-10 12:00:00 +0000"
+	value: "1.6311"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2023-03-31 12:00:00 +0000"
+	value: "1.3533"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2023-03-31 12:00:00 +0000"
+	value: "1.4708"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2023-03-31 12:00:00 +0000"
+	value: "0.1970"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2023-03-31 12:00:00 +0000"
+	value: "0.1724"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2023-03-31 12:00:00 +0000"
+	value: "1.6726"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2023-06-30 12:00:00 +0000"
+	value: "1.3240"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2023-06-30 12:00:00 +0000"
+	value: "1.4445"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2023-06-30 12:00:00 +0000"
+	value: "0.1825"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2023-06-30 12:00:00 +0000"
+	value: "0.1690"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2023-06-30 12:00:00 +0000"
+	value: "1.6817"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2023-09-01 12:00:00 +0000"
+	value: "1.3580"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2023-09-01 12:00:00 +0000"
+	value: "1.4674"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2023-09-01 12:00:00 +0000"
+	value: "0.1871"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2023-09-01 12:00:00 +0000"
+	value: "0.1731"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2023-09-01 12:00:00 +0000"
+	value: "1.7137"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2024-02-01 12:00:00 +0000"
+	value: "1.3404"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2024-02-01 12:00:00 +0000"
+	value: "1.4542"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2024-02-01 12:00:00 +0000"
+	value: "0.1867"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2024-02-01 12:00:00 +0000"
+	value: "0.1714"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2024-02-01 12:00:00 +0000"
+	value: "1.7036"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2024-06-28 12:00:00 +0000"
+	value: "1.3687"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2024-06-28 12:00:00 +0000"
+	value: "1.4659"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2024-06-28 12:00:00 +0000"
+	value: "0.1884"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2024-06-28 12:00:00 +0000"
+	value: "0.1753"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2024-06-28 12:00:00 +0000"
+	value: "1.7301"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2024-10-01 12:00:00 +0000"
+	value: "1.3504"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2024-10-01 12:00:00 +0000"
+	value: "1.4947"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2024-10-01 12:00:00 +0000"
+	value: "0.1924"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2024-10-01 12:00:00 +0000"
+	value: "0.1737"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2024-10-01 12:00:00 +0000"
+	value: "1.7942"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2024-12-31 12:00:00 +0000"
+	value: "1.4389"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2024-12-31 12:00:00 +0000"
+	value: "1.4928"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2024-12-31 12:00:00 +0000"
+	value: "0.1971"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2024-12-31 12:00:00 +0000"
+	value: "0.1853"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2024-12-31 12:00:00 +0000"
+	value: "1.8029"
+	source: "user:price-editor"
+	type: "last"

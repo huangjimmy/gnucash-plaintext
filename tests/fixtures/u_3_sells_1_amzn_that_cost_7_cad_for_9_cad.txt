@@ -1,0 +1,11 @@
+2030-03-01 * "Sell 1 AMZN that cost 7.00 CAD for 9.00 CAD"
+	guid: "0d570000000000000000000000000009"
+	currency.mnemonic: "CAD"
+	Assets:CAD_B 9.00 CAD
+		guid: "0d570000000000000000000000000091"
+	Assets:AMZN -1.0000 AMZN
+		guid: "0d570000000000000000000000000092"
+		share_price: "7"
+		value: "-7.00"
+	Income:FX Gain $residual$ CAD
+		guid: "0d570000000000000000000000000093"

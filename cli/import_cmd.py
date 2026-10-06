@@ -844,6 +844,23 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             if dry_run and not rolled_back:
                 _say_what_was_orphaned(repo.book, orphan_warnings)
 
+            # A book keeping a balance in each selected currency has every
+            # split's amounts and every account's balances worked out from
+            # its first transaction, on the finished book and before a byte
+            # of it is saved (Q-057). A transaction whose amounts cannot be
+            # worked out stops the save, as a refused block under `--atomic`
+            # does.
+            if not rolled_back:
+                from services.currency_balances import derive_before_a_save
+                try:
+                    if derive_before_a_save(repo.book):
+                        has_changes = True
+                except ValueError as not_worked_out:
+                    click.echo("")
+                    click.echo(f"✗ {not_worked_out}", err=True)
+                    has_changes = False
+                    rolled_back = True
+
             if not dry_run and has_changes:
                 click.echo("")
                 click.echo("Saving changes...")

@@ -319,7 +319,15 @@ def _pending_totals(pending) -> str:
 def _check_the_cost_bases(book, report: IntegrityReport) -> None:
     # A book that keeps no cost bases holds none to check (Q-049).
     if not book_keeps_cost_bases(book):
-        reason = ('this book keeps no cost bases (`cost_bases: "off"` in its '
+        from services.currency_balances import selected_currencies
+        selected = selected_currencies(book)
+        # A book keeping a balance in each selected currency records no cost
+        # basis either (Q-057).
+        reason = (f'this book keeps a balance in each of {", ".join(selected)} on '
+                  f'every account, and records no cost basis '
+                  f'(`currency_balances:` in its company block)'
+                  if selected else
+                  'this book keeps no cost bases (`cost_bases: "off"` in its '
                   'company block)')
         report.not_checked.append(
             f'no cost basis holds more of a currency than the accounts do: {reason}')

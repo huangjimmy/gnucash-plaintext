@@ -12,7 +12,7 @@ from infrastructure.gnucash.kvp import (
     get_book_custom_metadata,
     merge_book_custom_metadata,
 )
-from services.foreign_currency import COST_BASES_KEY
+from services.foreign_currency import COST_BASES_KEY, CURRENCY_BALANCES_KEY
 from services.gnucash_importer import COMPANY_FIELD_TO_SLOT
 from services.plaintext_addresses import (
     is_address_key,
@@ -69,6 +69,16 @@ def execute_set_book_key(book, key, value):
             f'{key!r} is set in the `company` block, which clears the cost '
             f'basis keys a book holds when it turns cost bases off. Import a '
             f'`company` block with `cost_bases: "off"` instead.')
+
+    # The currencies a book keeps a balance in are the `company` block's to
+    # say too: the import that reads the block derives every balance from the
+    # book's first transaction (Q-057). Written here, the book would say it
+    # kept them and hold none.
+    if key == CURRENCY_BALANCES_KEY:
+        raise ValueError(
+            f'{key!r} is set in the `company` block, and the import that reads '
+            f'it derives every balance from the book\'s first transaction. '
+            f'Import a `company` block stating `{key}:` instead.')
 
     old = get_book_custom_metadata(book).get(key)
     if old == value:
