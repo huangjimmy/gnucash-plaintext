@@ -1,0 +1,87 @@
+2030-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2030-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2030-01-01 commodity EUR
+	mnemonic: "EUR"
+	fullname: "Euro"
+	namespace: "CURRENCY"
+	fraction: 100
+2030-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2030-01-01 open Assets:EUR Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+2030-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Equity:Opening Balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Income
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+company
+	name: "A book with no price of the euro"
+	base_currency: "CAD"
+	currency_balances: "CAD USD HKD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2030-01-02 12:00:00 +0000"
+	value: "1.30"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "HKD"
+	time: "2030-01-02 12:00:00 +0000"
+	value: "7.80"
+	source: "user:price-editor"
+	type: "last"
+
+2030-01-02 * "The USD bank receives 100.00 USD"
+	guid: "0d570000000000000000000000000150"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 100.00 USD
+		guid: "0d570000000000000000000000001501"
+		value: "130.00"
+	Equity:Opening Balances -130.00 CAD
+		guid: "0d570000000000000000000000001502"
+
+2030-02-01 * "Buy 45.00 EUR with 50.00 USD"
+	guid: "0d570000000000000000000000000151"
+	currency.mnemonic: "CAD"
+	Assets:EUR Bank 45.00 EUR
+		guid: "0d570000000000000000000000001511"
+		value: "63.00"
+	Assets:USD Bank -50.00 USD
+		guid: "0d570000000000000000000000001512"
+		value: "-65.00"
+	Income:FX Gain $residual$ CAD
+		guid: "0d570000000000000000000000001513"

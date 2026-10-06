@@ -1,0 +1,14 @@
+2030-01-01 open Assets:USD kept at cost basis
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+
+2030-02-01 * "Move 10.00 USD"
+	guid: "0d570000000000000000000000000120"
+	currency.mnemonic: "USD"
+	Assets:USD kept at cost basis 10.00 USD
+		guid: "0d570000000000000000000000001201"
+	Assets:USD_A1 0.00 USD
+		guid: "0d570000000000000000000000001202"
+	Assets:USD_A -10.00 USD
+		guid: "0d570000000000000000000000001203"

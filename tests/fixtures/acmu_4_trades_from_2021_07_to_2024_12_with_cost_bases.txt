@@ -1,0 +1,347 @@
+2021-07-01 open Assets:RBC Chequing
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2021-07-01 open Assets:Accounts Receivable CAD
+	type: "A/Receivable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2021-07-01 open Expenses
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2021-07-01 open Expenses:Software
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2021-07-01 open Expenses:Rent
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2021-07-01 open Expenses:Travel
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2021-07-01 open Expenses:Bank Fees
+	type: "Expense"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+customer "MAPLE"
+	name: "Maple Co"
+	currency: CAD
+
+invoice "INV-ABC-2"
+	customer_id: "ABC"
+	currency: USD
+	date_opened: 2021-09-01
+	entry:
+		date: 2021-09-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 2000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2021-09-01
+		due: 2021-10-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-ABC-2"
+		posted_txn_guid: "0d590000000000000000000000000041"
+		accumulate: #True
+	payment:
+		date: 2021-10-01
+		amount: 2000.00
+		bank_account: "Assets:Chase Chequing"
+		txn_guid: "0d590000000000000000000000000042"
+		txn_split_guid: "0d590000000000000000000000000422"
+		memo: "Payment for INV-ABC-2"
+
+invoice "INV-MAPLE"
+	customer_id: "MAPLE"
+	currency: CAD
+	date_opened: 2022-03-01
+	entry:
+		date: 2022-03-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2022-03-01
+		due: 2022-03-31
+		ar_account: "Assets:Accounts Receivable CAD"
+		memo: "Invoice INV-MAPLE"
+		posted_txn_guid: "0d590000000000000000000000000045"
+		accumulate: #True
+	payment:
+		date: 2022-03-20
+		amount: 1000.00
+		bank_account: "Assets:RBC Chequing"
+		txn_guid: "0d590000000000000000000000000046"
+		txn_split_guid: "0d590000000000000000000000000462"
+		memo: "Payment for INV-MAPLE"
+
+invoice "INV-ABC-EU-2"
+	customer_id: "ABC-EU"
+	currency: EUR
+	date_opened: 2022-09-01
+	entry:
+		date: 2022-09-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 2000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2022-09-01
+		due: 2022-10-01
+		ar_account: "Assets:Accounts Receivable EUR"
+		memo: "Invoice INV-ABC-EU-2"
+		posted_txn_guid: "0d590000000000000000000000000048"
+		accumulate: #True
+	payment:
+		date: 2022-10-05
+		amount: 2000.00
+		bank_account: "Assets:Wise EUR"
+		txn_guid: "0d590000000000000000000000000049"
+		txn_split_guid: "0d590000000000000000000000000492"
+		memo: "Payment for INV-ABC-EU-2"
+
+invoice "INV-ABC-3"
+	customer_id: "ABC"
+	currency: USD
+	date_opened: 2023-09-01
+	entry:
+		date: 2023-09-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1500
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2023-09-01
+		due: 2023-10-01
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-ABC-3"
+		posted_txn_guid: "0d590000000000000000000000000052"
+		accumulate: #True
+	payment:
+		date: 2023-09-20
+		amount: 1500.00
+		bank_account: "Assets:Chase Chequing"
+		txn_guid: "0d590000000000000000000000000053"
+		txn_split_guid: "0d590000000000000000000000000532"
+		memo: "Payment for INV-ABC-3"
+
+invoice "INV-ABC-4"
+	customer_id: "ABC"
+	currency: USD
+	date_opened: 2024-10-01
+	entry:
+		date: 2024-10-01
+		description: "Services"
+		action: "Hours"
+		account: "Income:Sales"
+		quantity: 1
+		price: 1000
+		taxable: #False
+		tax_included: #False
+		notes: ""
+		discount: 0
+		discount_type: percent
+		discount_how: pretax
+	posted:
+		date: 2024-10-01
+		due: 2024-10-31
+		ar_account: "Assets:Accounts Receivable USD"
+		memo: "Invoice INV-ABC-4"
+		posted_txn_guid: "0d590000000000000000000000000055"
+		accumulate: #True
+
+2021-09-01 * "INV-ABC-2" "Invoice INV-ABC-2"
+	guid: "0d590000000000000000000000000041"
+	currency.mnemonic: "USD"
+	Assets:Accounts Receivable USD 2000.00 USD
+		guid: "0d590000000000000000000000000411"
+	Income:Sales -2521.40 CAD
+		guid: "0d590000000000000000000000000412"
+		share_price: "200000/252140"
+		value: "-2000.00"
+
+2021-10-01 * "ABC"
+	guid: "0d590000000000000000000000000042"
+	txn_type: P
+	owner: customer:ABC
+	Assets:Chase Chequing 2000.00 USD
+		guid: "0d590000000000000000000000000421"
+	Assets:Accounts Receivable USD -2000.00 USD
+		guid: "0d590000000000000000000000000422"
+
+2021-11-15 * "Software subscription, 300.00 USD at 1.2517 CAD/USD"
+	guid: "0d590000000000000000000000000043"
+	currency.mnemonic: "CAD"
+	Expenses:Software 375.51 CAD
+		guid: "0d590000000000000000000000000431"
+	Assets:Chase Chequing -300.00 USD
+		guid: "0d590000000000000000000000000432"
+		share_price: "1.2988"
+		value: "-389.64"
+		cost_basis_split_guid: "0d590000000000000000000000000011"
+	Income:FX Gain $residual$ CAD
+		guid: "0d590000000000000000000000000433"
+
+2022-02-01 * "Sell 1,500.00 USD for 1,904.10 CAD at 1.2694 CAD/USD"
+	guid: "0d590000000000000000000000000044"
+	currency.mnemonic: "CAD"
+	Assets:RBC Chequing 1904.10 CAD
+		guid: "0d590000000000000000000000000441"
+	Assets:Chase Chequing -700.00 USD
+		guid: "0d590000000000000000000000000442"
+		share_price: "1.2988"
+		value: "-909.16"
+		cost_basis_split_guid: "0d590000000000000000000000000011"
+	Assets:Chase Chequing -800.00 USD
+		guid: "0d590000000000000000000000000443"
+		share_price: "1.2732"
+		value: "-1018.56"
+		cost_basis_split_guid: "0d590000000000000000000000000211"
+	Income:FX Gain $residual$ CAD
+		guid: "0d590000000000000000000000000444"
+
+2022-03-01 * "INV-MAPLE" "Invoice INV-MAPLE"
+	guid: "0d590000000000000000000000000045"
+	currency.mnemonic: "CAD"
+	Assets:Accounts Receivable CAD 1000.00 CAD
+		guid: "0d590000000000000000000000000451"
+	Income:Sales -1000.00 CAD
+		guid: "0d590000000000000000000000000452"
+
+2022-03-20 * "Maple Co"
+	guid: "0d590000000000000000000000000046"
+	txn_type: P
+	owner: customer:MAPLE
+	Assets:RBC Chequing 1000.00 CAD
+		guid: "0d590000000000000000000000000461"
+	Assets:Accounts Receivable CAD -1000.00 CAD
+		guid: "0d590000000000000000000000000462"
+
+2022-05-10 * "Rent"
+	guid: "0d590000000000000000000000000047"
+	currency.mnemonic: "CAD"
+	Expenses:Rent 400.00 CAD
+		guid: "0d590000000000000000000000000471"
+	Assets:RBC Chequing -400.00 CAD
+		guid: "0d590000000000000000000000000472"
+
+2022-09-01 * "INV-ABC-EU-2" "Invoice INV-ABC-EU-2"
+	guid: "0d590000000000000000000000000048"
+	currency.mnemonic: "EUR"
+	Assets:Accounts Receivable EUR 2000.00 EUR
+		guid: "0d590000000000000000000000000481"
+	Income:Sales -2622.00 CAD
+		guid: "0d590000000000000000000000000482"
+		share_price: "200000/262200"
+		value: "-2000.00"
+
+2022-10-05 * "ABC Europe"
+	guid: "0d590000000000000000000000000049"
+	txn_type: P
+	owner: customer:ABC-EU
+	Assets:Wise EUR 2000.00 EUR
+		guid: "0d590000000000000000000000000491"
+	Assets:Accounts Receivable EUR -2000.00 EUR
+		guid: "0d590000000000000000000000000492"
+
+2023-01-10 * "Sell 1,000.00 EUR for 1,440.70 CAD at 1.4407 CAD/EUR"
+	guid: "0d590000000000000000000000000050"
+	currency.mnemonic: "CAD"
+	Assets:RBC Chequing 1440.70 CAD
+		guid: "0d590000000000000000000000000501"
+	Assets:Wise EUR -1000.00 EUR
+		guid: "0d590000000000000000000000000502"
+		share_price: "1.3110"
+		value: "-1311.00"
+		cost_basis_split_guid: "0d590000000000000000000000000481"
+	Income:FX Gain $residual$ CAD
+		guid: "0d590000000000000000000000000503"
+
+2023-04-01 * "Travel, 200.00 EUR at 1.4708 CAD/EUR"
+	guid: "0d590000000000000000000000000051"
+	currency.mnemonic: "CAD"
+	Expenses:Travel 294.16 CAD
+		guid: "0d590000000000000000000000000511"
+	Assets:Wise EUR -200.00 EUR
+		guid: "0d590000000000000000000000000512"
+		share_price: "1.3110"
+		value: "-262.20"
+		cost_basis_split_guid: "0d590000000000000000000000000481"
+	Income:FX Gain $residual$ CAD
+		guid: "0d590000000000000000000000000513"
+
+2023-09-01 * "INV-ABC-3" "Invoice INV-ABC-3"
+	guid: "0d590000000000000000000000000052"
+	currency.mnemonic: "USD"
+	Assets:Accounts Receivable USD 1500.00 USD
+		guid: "0d590000000000000000000000000521"
+	Income:Sales -2037.00 CAD
+		guid: "0d590000000000000000000000000522"
+		share_price: "150000/203700"
+		value: "-1500.00"
+
+2023-09-20 * "ABC"
+	guid: "0d590000000000000000000000000053"
+	txn_type: P
+	owner: customer:ABC
+	Assets:Chase Chequing 1500.00 USD
+		guid: "0d590000000000000000000000000531"
+	Assets:Accounts Receivable USD -1500.00 USD
+		guid: "0d590000000000000000000000000532"
+
+2024-02-01 * "Bank fee, 25.00 USD at 1.3404 CAD/USD"
+	guid: "0d590000000000000000000000000054"
+	currency.mnemonic: "CAD"
+	Expenses:Bank Fees 33.51 CAD
+		guid: "0d590000000000000000000000000541"
+	Assets:Chase Chequing -25.00 USD
+		guid: "0d590000000000000000000000000542"
+		share_price: "1.2732"
+		value: "-31.83"
+		cost_basis_split_guid: "0d590000000000000000000000000211"
+	Income:FX Gain $residual$ CAD
+		guid: "0d590000000000000000000000000543"
+
+2024-10-01 * "INV-ABC-4" "Invoice INV-ABC-4"
+	guid: "0d590000000000000000000000000055"
+	currency.mnemonic: "USD"
+	Assets:Accounts Receivable USD 1000.00 USD
+		guid: "0d590000000000000000000000000551"
+	Income:Sales -1350.40 CAD
+		guid: "0d590000000000000000000000000552"
+		share_price: "100000/135040"
+		value: "-1000.00"

@@ -107,6 +107,7 @@ from infrastructure.gnucash.utils import (
     to_money,
 )
 from repositories.gnucash_repository import (
+    WHAT_TO_BRING_UP_TO_DATE_BEFORE_A_SAVE,
     WHAT_TO_FORGET_WHEN_A_BOOK_OPENS,
     WHAT_TO_READ_WHEN_A_BOOK_OPENS,
 )
@@ -223,6 +224,12 @@ TOOK_THE_RESIDUAL_KEY = 'took_the_residual'
 # lot a dollar came out of. `cost_bases: "off"` keeps the book's foreign
 # currency as GnuCash does, and `"on"`, or no line at all, keeps cost bases.
 COST_BASES_KEY = 'cost_bases'
+
+# The `company` block's key listing the currencies a book keeps a balance in
+# on every account, such as `currency_balances: "CAD USD HKD CNY"` (Q-057).
+# A book stating it records those balances and records no cost basis. The
+# cost bases it recorded before stay in it: they are its history.
+CURRENCY_BALANCES_KEY = 'currency_balances'
 
 # The cost basis keys, which a book keeping no cost bases holds none of. Not
 # `took_the_residual`: the realized gain a file states is the file's, and no
@@ -347,14 +354,41 @@ _WHETHER_EACH_BOOK_KEEPS_COST_BASES: Dict[int, bool] = {}
 
 
 def book_keeps_cost_bases(book) -> bool:
-    """Whether the book keeps cost bases: the `company` block's `cost_bases:` is not `off` (Q-049)."""
+    """Whether the book keeps cost bases: the `company` block's `cost_bases:` is not `off` (Q-049).
+
+    A book keeping a balance in each selected currency records none either
+    (Q-057).
+    """
     from infrastructure.gnucash.kvp import get_book_custom_metadata
 
     address = qof_pointer(book)
     if address not in _WHETHER_EACH_BOOK_KEEPS_COST_BASES:
+        stated = get_book_custom_metadata(book)
         _WHETHER_EACH_BOOK_KEEPS_COST_BASES[address] = (
-            str(get_book_custom_metadata(book).get(COST_BASES_KEY, '')).strip() != 'off')
+            str(stated.get(COST_BASES_KEY, '')).strip() != 'off'
+            and not str(stated.get(CURRENCY_BALANCES_KEY, '') or '').strip())
     return _WHETHER_EACH_BOOK_KEEPS_COST_BASES[address]
+
+
+def _derive_every_currency_balance(book) -> None:
+    """Before a book is saved, derive what each split and account holds in each selected currency (Q-057).
+
+    Registered here, which every command reaches, so a command that removes
+    or changes a transaction leaves the balances after it right as well.
+    """
+    from services.currency_balances import derive_for_a_save
+
+    derive_for_a_save(book)
+
+
+WHAT_TO_BRING_UP_TO_DATE_BEFORE_A_SAVE.append(_derive_every_currency_balance)
+
+
+def book_keeps_currency_balances(book) -> bool:
+    """Whether the book keeps a balance in each selected currency on every account (Q-057)."""
+    from infrastructure.gnucash.kvp import get_book_custom_metadata
+
+    return bool(str(get_book_custom_metadata(book).get(CURRENCY_BALANCES_KEY, '') or '').strip())
 
 
 def forget_whether_books_keep_cost_bases() -> None:
@@ -429,8 +463,12 @@ def refuse_a_cost_basis_key_where_none_is_kept(book, directive) -> None:
     Such a book records none, so a figure the file states would be recorded by
     nothing, and a book is never half on. A key stated empty says to clear it,
     which is what the book already is.
+
+    A book keeping a balance in each selected currency keeps the cost bases
+    it recorded before, as its history (Q-057), so its own export states
+    them and is read back.
     """
-    if book_keeps_cost_bases(book):
+    if book_keeps_cost_bases(book) or book_keeps_currency_balances(book):
         return
     lines = [('the transaction', directive.metadata)] + [
         (f'the split on {child.props.get("account", "?")!r}', child.metadata)

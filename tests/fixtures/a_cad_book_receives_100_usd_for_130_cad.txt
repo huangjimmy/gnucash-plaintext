@@ -1,0 +1,9 @@
+2030-01-02 * "The USD bank holds 100.00 USD"
+	guid: "0d570000000000000000000000000006"
+	currency.mnemonic: "CAD"
+	Assets:USD Bank 100.00 USD
+		guid: "0d570000000000000000000000000061"
+		share_price: "1.30"
+		value: "130.00"
+	Equity:Opening Balances -130.00 CAD
+		guid: "0d570000000000000000000000000062"

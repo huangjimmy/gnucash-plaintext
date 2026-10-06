@@ -1,0 +1,42 @@
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2030-02-01 12:00:00 +0000"
+	value: "1.40"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "HKD"
+	time: "2030-02-01 12:00:00 +0000"
+	value: "7.85"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CNY"
+	time: "2030-02-01 12:00:00 +0000"
+	value: "6.50"
+	source: "user:price-editor"
+	type: "last"
+
+2030-02-01 * "Move 4.00 USD to USD_A1 and exchange 6.00 USD for 8.40 CAD"
+	guid: "0d570000000000000000000000000005"
+	currency.mnemonic: "CAD"
+	Assets:USD_A1 4.00 USD
+		guid: "0d570000000000000000000000000051"
+		share_price: "1.30"
+		value: "5.20"
+	Assets:CAD_B 8.40 CAD
+		guid: "0d570000000000000000000000000052"
+	Assets:USD_A -10.00 USD
+		guid: "0d570000000000000000000000000053"
+		share_price: "1.30"
+		value: "-13.00"
+	Income:FX Gain $residual$ CAD
+		guid: "0d570000000000000000000000000054"

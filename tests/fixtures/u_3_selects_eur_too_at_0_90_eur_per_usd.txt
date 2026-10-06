@@ -1,0 +1,11 @@
+company
+	currency_balances: "CAD USD HKD CNY EUR"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "EUR"
+	time: "2030-01-02 12:00:00 +0000"
+	value: "0.90"
+	source: "user:price-editor"
+	type: "last"

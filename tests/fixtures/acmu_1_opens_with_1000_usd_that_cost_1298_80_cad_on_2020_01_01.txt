@@ -1,0 +1,117 @@
+2020-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2020-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2020-01-01 commodity EUR
+	mnemonic: "EUR"
+	fullname: "Euro"
+	namespace: "CURRENCY"
+	fraction: 100
+2020-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2020-01-01 open Assets:Chase Chequing
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2020-01-01 open Assets:Wise EUR
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+2020-01-01 open Assets:Accounts Receivable USD
+	type: "A/Receivable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2020-01-01 open Assets:Accounts Receivable EUR
+	type: "A/Receivable"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+2020-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2020-01-01 open Equity:Opening Balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2020-01-01 open Income
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2020-01-01 open Income:Sales
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2020-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+company
+	name: "ACMU LLC"
+	base_currency: "CAD"
+	fiscal_year_end: "06-30"
+
+# The Bank of Canada's daily rates of 2019-12-31, the last it published
+# before 2020-01-01, each in Canadian dollars.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2019-12-31 12:00:00 +0000"
+	value: "1.2988"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2019-12-31 12:00:00 +0000"
+	value: "1.4583"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2019-12-31 12:00:00 +0000"
+	value: "0.1865"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2019-12-31 12:00:00 +0000"
+	value: "0.1668"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2019-12-31 12:00:00 +0000"
+	value: "1.7174"
+	source: "user:price-editor"
+	type: "last"
+
+2020-01-01 * "Opening balance"
+	guid: "0d590000000000000000000000000001"
+	currency.mnemonic: "CAD"
+	Assets:Chase Chequing 1000.00 USD
+		guid: "0d590000000000000000000000000011"
+		share_price: "1.2988"
+		value: "1298.80"
+	Equity:Opening Balances -1298.80 CAD
+		guid: "0d590000000000000000000000000012"

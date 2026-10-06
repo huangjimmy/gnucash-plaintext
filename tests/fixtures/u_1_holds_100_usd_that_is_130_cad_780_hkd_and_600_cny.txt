@@ -1,0 +1,102 @@
+2030-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2030-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2030-01-01 commodity HKD
+	mnemonic: "HKD"
+	fullname: "Hong Kong Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2030-01-01 commodity CNY
+	mnemonic: "CNY"
+	fullname: "Yuan Renminbi"
+	namespace: "CURRENCY"
+	fraction: 100
+2030-01-01 open Assets
+	type: "Asset"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Assets:USD_A
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2030-01-01 open Assets:USD_A1
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2030-01-01 open Assets:CAD_B
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Assets:HKD_C
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+2030-01-01 open Assets:CNY_D
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+2030-01-01 open Equity
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Equity:Opening Balances
+	type: "Equity"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Income
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2030-01-01 open Income:FX Gain
+	type: "Income"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+company
+	name: "U's business"
+	base_currency: "CAD"
+	currency_balances: "CAD USD HKD CNY"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2030-01-02 12:00:00 +0000"
+	value: "1.30"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "HKD"
+	time: "2030-01-02 12:00:00 +0000"
+	value: "7.80"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CNY"
+	time: "2030-01-02 12:00:00 +0000"
+	value: "6.00"
+	source: "user:price-editor"
+	type: "last"
+
+2030-01-02 * "USD_A holds 100.00 USD"
+	guid: "0d570000000000000000000000000001"
+	currency.mnemonic: "CAD"
+	Assets:USD_A 100.00 USD
+		guid: "0d570000000000000000000000000011"
+		share_price: "1.30"
+		value: "130.00"
+	Equity:Opening Balances -130.00 CAD
+		guid: "0d570000000000000000000000000012"

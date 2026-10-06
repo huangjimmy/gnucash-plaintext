@@ -1,0 +1,2 @@
+company
+	currency_balances: "CAD USD HKD"

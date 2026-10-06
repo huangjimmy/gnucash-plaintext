@@ -201,6 +201,34 @@ def _render(session, template: str, called: str, currency: str,
             dates: List[Tuple[str, str, int]], price_source: Optional[str], warn,
             realized_as_of=None, itemize: bool = True, gain_accounts=(),
             max_items: int = -1) -> str:
+    """Draw the statement, with a book keeping a balance in each selected currency read in the page's own (Q-057)."""
+    from services.currency_balances import in_its_own_words, read_in, selected_currencies
+
+    selected = selected_currencies(session.book)
+    if not selected:
+        return _render_as_the_book_reads(
+            session, template, called, currency, dates, price_source, warn,
+            realized_as_of, itemize, gain_accounts, max_items)
+    # Such a book prints a statement in any currency it selected, and in no
+    # other: it holds a balance in no other currency.
+    if currency not in selected:
+        raise PageNotRenderedError(
+            f'this book keeps a balance in each of {", ".join(selected)} on every '
+            f'account, and a statement is printed in one of those. It holds no '
+            f'balance in {currency}')
+    with read_in(session.book, currency):
+        page = _render_as_the_book_reads(
+            session, template, called, currency, dates, price_source, warn,
+            realized_as_of, itemize, gain_accounts, max_items)
+    if template in (BALANCE_SHEET_AS_TEXT, INCOME_STATEMENT_AS_TEXT):
+        page = in_its_own_words(page)
+    return page
+
+
+def _render_as_the_book_reads(session, template: str, called: str, currency: str,
+                              dates: List[Tuple[str, str, int]], price_source: Optional[str],
+                              warn, realized_as_of, itemize: bool, gain_accounts,
+                              max_items: int) -> str:
     from services.foreign_currency import (
         base_currency,
         book_keeps_cost_bases,
@@ -216,11 +244,21 @@ def _render(session, template: str, called: str, currency: str,
     # The balance sheet states it and adds it into nothing — it is inside
     # `retained_earnings` already, having gone through the income statement —
     # so a reader can tell it from the gain the book has yet to take.
-    measures_realized = realized_as_of is not None and currency == base_currency()
+    # A book keeping a balance in each selected currency on every account
+    # (Q-057) has its gains measured in the page's own currency, from what
+    # each account stores in it.
+    from services.currency_balances import (
+        realized_items_up_to,
+        selected_currencies,
+        what_each_account_stores,
+    )
+    selected = selected_currencies(session.book)
+    measures_realized = realized_as_of is not None and (
+        currency == base_currency() or bool(selected))
     # A book that keeps no cost bases (Q-049) still states the realized gains
     # its transactions record, which no cost basis decides, and measures every
     # unrealized gain from GnuCash's own revaluation.
-    keeps_cost_bases = book_keeps_cost_bases(session.book)
+    keeps_cost_bases = book_keeps_cost_bases(session.book) or bool(selected)
     takes_the_cost_bases = measures_realized and keeps_cost_bases
     # The differences one by one, for the page to show its working, and the key
     # totalled from those same items. One walk of the book: asking a second
@@ -282,18 +320,26 @@ def _render(session, template: str, called: str, currency: str,
                      f'account, so no split on it counts as an exchange '
                      f'difference and it adds nothing to realized_gains_fx',
                      key=('fx-gain-account-wrong-type', name))
-    realized_items = (realized_fx_items_up_to(session.book, realized_as_of,
+    if selected and measures_realized:
+        realized_items = realized_items_up_to(session.book, realized_as_of, currency, 'CURRENCY',
                                               gain_accounts)
-                      if measures_realized else [])
+    else:
+        realized_items = (realized_fx_items_up_to(session.book, realized_as_of,
+                                                  gain_accounts)
+                          if measures_realized else [])
     realized = sum((figure for _when, _account, figure in realized_items),
                    Fraction(0))
     # Kept apart from the currency figure all the way to the page: a gain on
     # shares and a gain on currency are separate keys, separate lines on a
     # return, and a program reading gnucash-plaintext's pages may handle
     # currency and not securities.
-    realized_other_items = (realized_other_items_up_to(
-        session.book, realized_as_of)
-        if measures_realized else [])
+    if selected and measures_realized:
+        realized_other_items = realized_items_up_to(
+            session.book, realized_as_of, currency, 'security')
+    else:
+        realized_other_items = (realized_other_items_up_to(
+            session.book, realized_as_of)
+            if measures_realized else [])
     realized_other = sum(
         (figure for _when, _account, figure in realized_other_items),
         Fraction(0))
@@ -382,9 +428,12 @@ def _render(session, template: str, called: str, currency: str,
                 # data serialised twice can come from two reads of the book and
                 # disagree, which is the fault the itemized page was printing —
                 # a key and the items under it stating different figures.
-                basis_rows = (list(cost_basis_items_by_currency_and_side(
-                    session.book, realized_as_of))
-                    if takes_the_cost_bases else [])
+                if selected and takes_the_cost_bases:
+                    basis_rows = what_each_account_stores(session.book, realized_as_of, currency)
+                else:
+                    basis_rows = (list(cost_basis_items_by_currency_and_side(
+                        session.book, realized_as_of))
+                        if takes_the_cost_bases else [])
                 def _as_items(rows):
                     return '(list ' + ' '.join(
                         f'(list {_scheme_string(when)} {_scheme_string(account)}'
@@ -447,7 +496,9 @@ def _render(session, template: str, called: str, currency: str,
                           # income and expense accounts are asked to be in —
                           # not the one this page is drawn in.
                           f'(plaintext:set-book-currency! '
-                          f'{_scheme_string(the_books_own_currency_or(session.book, currency))})')
+                          # A book keeping a balance in each selected currency
+                          # is read in the page's own (Q-057).
+                          f'{_scheme_string(currency if selected else the_books_own_currency_or(session.book, currency))})')
             page = work / 'page'
             dated = '\n'.join(
                 f'    (set-opt options {_scheme_string(section)} {_scheme_string(name)}'

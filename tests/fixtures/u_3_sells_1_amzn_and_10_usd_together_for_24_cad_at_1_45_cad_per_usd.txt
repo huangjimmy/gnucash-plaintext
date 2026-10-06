@@ -1,0 +1,42 @@
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2030-03-01 12:00:00 +0000"
+	value: "1.45"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "HKD"
+	time: "2030-03-01 12:00:00 +0000"
+	value: "7.90"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CNY"
+	time: "2030-03-01 12:00:00 +0000"
+	value: "6.60"
+	source: "user:price-editor"
+	type: "last"
+
+2030-03-01 * "Sell 1 AMZN and 10.00 USD together for 24.00 CAD"
+	guid: "0d570000000000000000000000000130"
+	currency.mnemonic: "CAD"
+	Assets:CAD_B 24.00 CAD
+		guid: "0d570000000000000000000000001301"
+	Assets:AMZN -1.0000 AMZN
+		guid: "0d570000000000000000000000001302"
+		share_price: "7"
+		value: "-7.00"
+	Assets:USD_A -10.00 USD
+		guid: "0d570000000000000000000000001303"
+		share_price: "1.30"
+		value: "-13.00"
+	Income:FX Gain $residual$ CAD
+		guid: "0d570000000000000000000000001304"

@@ -1,0 +1,10 @@
+2030-02-01 * "USD_A sends 10.00 USD and USD_A1 receives 9.00 USD"
+	guid: "0d570000000000000000000000000007"
+	currency.mnemonic: "CAD"
+	Assets:USD_A1 9.00 USD
+		guid: "0d570000000000000000000000000071"
+		value: "13.00"
+	Assets:USD_A -10.00 USD
+		guid: "0d570000000000000000000000000072"
+		share_price: "1.30"
+		value: "-13.00"

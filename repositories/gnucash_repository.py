@@ -175,6 +175,11 @@ WHAT_TO_FORGET_WHEN_A_BOOK_OPENS: List[Callable[[], None]] = []
 #: that reads it, as the list above is.
 WHAT_TO_READ_WHEN_A_BOOK_OPENS: List[Callable[[object], None]] = []
 
+#: What a service brings up to date in a book before it is saved, each a
+#: function handed the book. One that raises stops the save. Registered by
+#: the service whose record it is, as the lists above are.
+WHAT_TO_BRING_UP_TO_DATE_BEFORE_A_SAVE: List[Callable[[object], None]] = []
+
 
 class GnuCashRepository:
     """Repository for GnuCash file operations"""
@@ -357,6 +362,8 @@ class GnuCashRepository:
             raise RuntimeError("No session open")
         if self._read_only:
             raise RuntimeError("The book was opened read-only, so nothing is saved to it")
+        for bring_up_to_date in WHAT_TO_BRING_UP_TO_DATE_BEFORE_A_SAVE:
+            bring_up_to_date(self._book)
         self.session.save()
 
     @property

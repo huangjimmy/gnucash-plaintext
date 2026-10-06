@@ -1,0 +1,57 @@
+# The Bank of Canada's daily rates of 2025-01-31, the last it published
+# before Saturday 2025-02-01, each in Canadian dollars.
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2025-01-31 12:00:00 +0000"
+	value: "1.4484"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "CAD"
+	time: "2025-01-31 12:00:00 +0000"
+	value: "1.5042"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CNY"
+	currency.mnemonic: "CAD"
+	time: "2025-01-31 12:00:00 +0000"
+	value: "0.1997"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "HKD"
+	currency.mnemonic: "CAD"
+	time: "2025-01-31 12:00:00 +0000"
+	value: "0.1859"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "GBP"
+	currency.mnemonic: "CAD"
+	time: "2025-01-31 12:00:00 +0000"
+	value: "1.7984"
+	source: "user:price-editor"
+	type: "last"
+
+2025-02-01 * "Sell 500.00 USD for 724.20 CAD at 1.4484 CAD/USD"
+	guid: "0d590000000000000000000000000061"
+	currency.mnemonic: "CAD"
+	Assets:RBC Chequing 724.20 CAD
+		guid: "0d590000000000000000000000000611"
+	Assets:Chase Chequing -500.00 USD
+		guid: "0d590000000000000000000000000612"
+		value: "-638.39"
+	Income:FX Gain $residual$ CAD
+		guid: "0d590000000000000000000000000613"

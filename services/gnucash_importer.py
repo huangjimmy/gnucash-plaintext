@@ -96,7 +96,9 @@ from services.foreign_currency import (
     COST_BASIS_BALANCE_KEY,
     COST_BASIS_BROUGHT_IN_KEY,
     COST_BASIS_COST_KEY,
+    COST_BASIS_KEYS,
     COST_BASIS_SPLIT_KEY,
+    CURRENCY_BALANCES_KEY,
     PENDING,
     TOOK_THE_RESIDUAL_KEY,
     SpendStatingNoCostBasisError,
@@ -13886,6 +13888,19 @@ class GnuCashImporter:
         if COST_BASES_KEY in md:
             refuse_a_cost_bases_setting_it_cannot_read(md[COST_BASES_KEY])
             refuse_turning_cost_bases_on_in_place(book, md[COST_BASES_KEY])
+        # Q-057: the currencies the book keeps a balance in on every account.
+        turns_balances_on = False
+        if CURRENCY_BALANCES_KEY in md:
+            from services.book_currency import BASE_CURRENCY_KEY
+            from services.currency_balances import (
+                refuse_a_selection_it_cannot_keep,
+                selected_currencies,
+            )
+            stated = md[CURRENCY_BALANCES_KEY]
+            stated = '' if stated is None or removes_the_key(stated) else stated
+            refuse_a_selection_it_cannot_keep(
+                book, stated, str(md.get(BASE_CURRENCY_KEY) or base_currency()))
+            turns_balances_on = bool(stated) and not selected_currencies(book)
 
         for key, slot in COMPANY_FIELD_TO_SLOT.items():
             if key not in md:
@@ -14069,6 +14084,18 @@ class GnuCashImporter:
             forget_whether_books_keep_cost_bases()
             if _say_what_turning_cost_bases_off_cleared(book):
                 changed = True
+        if CURRENCY_BALANCES_KEY in md:
+            forget_whether_books_keep_cost_bases()
+            from services.foreign_currency import iter_splits
+            if turns_balances_on and any(
+                    any(key in get_custom_metadata(split) for key in COST_BASIS_KEYS)
+                    for split in iter_splits(book)):
+                _echo_note(
+                    f'this book kept cost bases, and from now on it keeps a '
+                    f'balance in each of {md[CURRENCY_BALANCES_KEY]} on every '
+                    f'account instead. The cost bases it recorded stay in it. '
+                    f'A book migrated away from cost bases cannot be migrated '
+                    f'back to them.')
 
         if not changed:
             return 'unchanged'

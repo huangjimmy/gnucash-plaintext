@@ -1,0 +1,42 @@
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2030-02-01 12:00:00 +0000"
+	value: "1.40"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "HKD"
+	time: "2030-02-01 12:00:00 +0000"
+	value: "7.85"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CNY"
+	time: "2030-02-01 12:00:00 +0000"
+	value: "6.50"
+	source: "user:price-editor"
+	type: "last"
+
+2030-02-01 * "10" "Move 40.00 USD back from USD_A1 to USD_A"
+	guid: "0d570000000000000000000000000102"
+	currency.mnemonic: "USD"
+	Assets:USD_A 40.00 USD
+		guid: "0d570000000000000000000000001021"
+	Assets:USD_A1 -40.00 USD
+		guid: "0d570000000000000000000000001022"
+
+2030-02-01 * "9" "Move 100.00 USD from USD_A to USD_A1"
+	guid: "0d570000000000000000000000000101"
+	currency.mnemonic: "USD"
+	Assets:USD_A1 100.00 USD
+		guid: "0d570000000000000000000000001011"
+	Assets:USD_A -100.00 USD
+		guid: "0d570000000000000000000000001012"

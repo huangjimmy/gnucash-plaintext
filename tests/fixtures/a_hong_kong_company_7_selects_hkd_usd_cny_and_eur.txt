@@ -1,0 +1,11 @@
+company
+	currency_balances: "HKD USD CNY EUR"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "EUR"
+	currency.mnemonic: "HKD"
+	time: "2026-08-03 12:00:00 +0000"
+	value: "8.50"
+	source: "user:price-editor"
+	type: "last"
