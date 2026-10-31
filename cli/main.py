@@ -9,8 +9,10 @@ import os
 
 import click
 
+from cli._refusals import REFUSED_IN_A_SENTENCE
 from cli.account_balance_cmd import account_balance
 from cli.balance_sheet_cmd import balance_sheet
+from cli.batch_cmd import batch
 from cli.bill_print_cmd import print_bill
 from cli.close_books_cmd import close_books
 from cli.cost_basis_cmd import fx_balances
@@ -45,7 +47,6 @@ from cli.unpost_cmd import unpost_bills, unpost_invoices
 from cli.validate_cmd import validate_ledger
 from cli.verify_integrity_cmd import VERIFY_HELP, verify_integrity, verify_the_book
 from infrastructure.guile import GuileUnavailableError
-from infrastructure.pdf.printing import PdfEngineUnavailableError
 from repositories.gnucash_repository import BookUnavailableError
 from services.gnucash_report import PageNotRenderedError
 
@@ -93,8 +94,7 @@ class _Cli(click.Group):
     def invoke(self, ctx):
         try:
             outcome = super().invoke(ctx)
-        except (BookUnavailableError, PageNotRenderedError,
-                GuileUnavailableError, PdfEngineUnavailableError) as e:
+        except REFUSED_IN_A_SENTENCE as e:
             raise click.ClickException(str(e)) from e
         except SystemExit as leaving:
             # Several commands end by exiting with a code of their own — an
@@ -260,6 +260,7 @@ cli.add_command(rename_account, name='rename-account')
 cli.add_command(set_book_key, name='set-book-key')
 cli.add_command(set_invoice_style, name='set-invoice-style')
 cli.add_command(migrate, name='migrate')
+cli.add_command(batch, name='batch')
 cli.add_command(find_orphan_payments, name='find-orphan-payments')
 cli.add_command(find_prepayments, name='find-prepayments')
 cli.add_command(fx_balances, name='fx-balances')

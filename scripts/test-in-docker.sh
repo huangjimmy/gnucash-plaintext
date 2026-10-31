@@ -45,8 +45,8 @@ fi
 
 # `pypdf` is test-only: a printed page is a PDF, and the only honest way to
 # check that its text can be selected and copied is to read the text back out
-# of it. It comes from the `dev` extra rather than being named here, because
-# it carries a version marker that Debian 10 needs: named bare, pip installs a
+# of it. It comes from the `dev` extra rather than being listed here, because
+# it carries a version marker that Debian 10 needs: listed bare, pip installs a
 # pypdf that cannot be imported on Python 3.7, and the marker in
 # `pyproject.toml` never gets a say.
 echo "Installing package..."

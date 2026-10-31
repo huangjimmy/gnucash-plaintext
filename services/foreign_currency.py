@@ -78,6 +78,7 @@ from gnucash.gnucash_core_c import (
     ACCT_TYPE_STOCK,
 )
 
+from infrastructure.gnucash.kept_while_reading import keeping_what_is_read, kept_while_reading
 from infrastructure.gnucash.kvp import (
     REMOVE_THE_KEY,
     custom_key_changes,
@@ -104,6 +105,7 @@ from infrastructure.gnucash.utils import (
     numeric_to_fraction,
     qof_instance,
     qof_pointer,
+    splits_of_the_account,
     to_money,
 )
 from repositories.gnucash_repository import (
@@ -553,16 +555,34 @@ def transaction_currency(transaction) -> str:
     return commodity.get_mnemonic() if commodity is not None else ''
 
 
-def iter_splits(book) -> Iterator:
-    """Every split in the book, walking the account tree."""
-    root = book.get_root_account()
+#: Every split of a book open only to read, as `iter_splits` first walked them,
+#: by the book's address.
+_SPLITS_OF_THE_BOOK = kept_while_reading({})
 
+
+def iter_splits(book) -> Iterator:
+    """Every split in the book, walking the account tree.
+
+    On a book open only to read the tree is walked once and the splits kept
+    (`kept_while_reading`). A balance sheet asks for them several times, and
+    on GnuCash 3.4 listing an account's splits is the slow part of it (Q-058).
+    """
+    if not keeping_what_is_read():
+        return _walk_the_splits(book)
+    address = qof_pointer(book)
+    kept = _SPLITS_OF_THE_BOOK.get(address)
+    if kept is None:
+        kept = _SPLITS_OF_THE_BOOK[address] = list(_walk_the_splits(book))
+    return iter(kept)
+
+
+def _walk_the_splits(book) -> Iterator:
     def walk(account):
-        yield from account.GetSplitList()
+        yield from splits_of_the_account(account)
         for child in account.get_children():
             yield from walk(child)
 
-    yield from walk(root)
+    yield from walk(book.get_root_account())
 
 
 def cost_of(split) -> Optional[Fraction]:

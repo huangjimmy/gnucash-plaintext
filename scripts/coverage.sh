@@ -52,7 +52,7 @@ cd "$PROJECT_ROOT"
 THRESHOLD=100
 
 # What `tests/scenario/` alone reaches, line and branch, on the union of every
-# supported build: 45.22% measured on 2026-10-06, gated at 45.22%. A floor: a
+# supported build: 45.38% measured on 2026-10-31, gated at 45.38%. A floor: a
 # change may raise it, and a change that leaves the scenarios reaching less is
 # refused. Two decimal places, because the report is read at that precision.
 #
@@ -72,7 +72,9 @@ THRESHOLD=100
 # in each selected currency on every account, which no scenario test then
 # reached, and the measured figure fell to 43.23%. The author's two cases for
 # it, ACME LLC and ACMU LLC with a transaction deleted from each, and eighteen
-# transactions among three accounts, raised it to 45.22%.
+# transactions among three accounts, raised it to 45.22%. Q-058's scenario
+# test, a batch reading the books four of those scenarios build, raised it to
+# 45.38%.
 #
 # **Before that it was 41.10%, from 41.12% measured the same day, and it came down because
 # the tree gained code no book can reach.** A scenario is an accounting case —
@@ -92,7 +94,7 @@ THRESHOLD=100
 # rather than to state a case is the thing this gate exists to refuse — calling
 # an implementation function from `tests/scenario/` would clear the floor and
 # measure nothing.
-SCENARIO_THRESHOLD=45.22
+SCENARIO_THRESHOLD=45.38
 REPORT_ONLY=""
 HTML=""
 while [ $# -gt 0 ]; do

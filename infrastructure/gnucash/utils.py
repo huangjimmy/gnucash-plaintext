@@ -6,15 +6,28 @@ Extracted from legacy utils.py and placed in new architecture.
 """
 
 import copy
+import ctypes
 import datetime
 import re
 from contextlib import contextmanager, suppress
 from decimal import Decimal
 from fractions import Fraction
+from functools import lru_cache
 from typing import List, Optional
 
-from gnucash import Account, GncCommodity, GncNumeric, Transaction
-from gnucash.gnucash_core_c import GNC_HOW_RND_ROUND_HALF_UP
+from gnucash import Account, GncCommodity, GncNumeric, Split, Transaction
+from gnucash.gnucash_core_c import (
+    GNC_HOW_RND_ROUND_HALF_UP,
+    GncGUID,
+    string_to_guid,
+    xaccSplitLookup,
+    xaccTransLookup,
+)
+
+from infrastructure.gnucash.engine import iterate_glist, load_gnc_engine
+
+#: A guid as GnuCash writes it, 32 hex digits.
+GUID_TEXT_LENGTH = 32
 
 
 @contextmanager
@@ -79,6 +92,57 @@ def qof_instance(obj):
 def qof_pointer(obj) -> int:
     """What ctypes wants: the same instance as an integer."""
     return int(qof_instance(obj))
+
+
+@lru_cache(maxsize=1)
+def gnucash_lists_slowly() -> bool:
+    """Whether the bindings take longer to hand over a GnuCash list than it is long.
+
+    GnuCash 3.4 does. Its bindings turn an account's splits, or what a query
+    found, into a Python list in time that grows faster than the list, and
+    the C function under them returns at once; 3.8 and every later build hand
+    the same list over in a moment (Q-058).
+    """
+    found = re.match(r'(\d+)\.(\d+)', (load_gnc_engine().gnc_version() or b'').decode())
+    return found is not None and (int(found.group(1)), int(found.group(2))) < (3, 8)
+
+
+def _looked_up(lib, pointer, lookup, book, wrap):
+    """The object at a C pointer, as the bindings hand it over: looked up by its guid."""
+    text = ctypes.create_string_buffer(GUID_TEXT_LENGTH + 1)
+    lib.guid_to_string_buff(lib.qof_instance_get_guid(pointer), text)
+    guid = GncGUID()
+    string_to_guid(text.value.decode('ascii'), guid)
+    return wrap(instance=lookup(guid, book))
+
+
+def splits_of_the_account(account) -> list:
+    """`account.GetSplitList()`, on 3.4 without the bindings' list conversion.
+
+    The same splits in the same order. Where `gnucash_lists_slowly`, the C list
+    is walked through ctypes and each split looked up by its guid.
+    """
+    if not gnucash_lists_slowly():
+        return account.GetSplitList()
+    lib = load_gnc_engine()
+    book = account.get_book().instance
+    return iterate_glist(
+        lib, lib.xaccAccountGetSplitList(qof_pointer(account)),
+        lambda lib, pointer: _looked_up(lib, pointer, xaccSplitLookup, book, Split))
+
+
+def transactions_the_query_finds(query, book) -> list:
+    """What `query.run()` finds, as Transaction objects, on 3.4 without the bindings' list conversion.
+
+    The same transactions in the same order, by the way `splits_of_the_account`
+    reads an account's splits.
+    """
+    if not gnucash_lists_slowly():
+        return [Transaction(instance=found) for found in query.run()]
+    lib = load_gnc_engine()
+    return iterate_glist(
+        lib, lib.qof_query_run(qof_pointer(query)),
+        lambda lib, pointer: _looked_up(lib, pointer, xaccTransLookup, book.instance, Transaction))
 
 
 def wrap_invoice_or_bill(raw):
@@ -311,7 +375,11 @@ def money_text(value: Fraction, scu: int) -> str:
     Debian 11/12/13 and Ubuntu 20.04/22.04/24.04/26.04: only 3.8 reduces, and
     only for zero.
     """
-    minor = numeric_to_fraction(to_money(value, scu)) * scu
+    # A figure that is already a whole number of the unit is what rounding it
+    # answers, so the engine is asked only where there is something to round.
+    minor = Fraction(value) * scu
+    if minor.denominator != 1:
+        minor = numeric_to_fraction(to_money(value, scu)) * scu
     if not is_power_of_ten(scu) or minor.denominator != 1:
         # A commodity whose fraction is not tenths, hundredths, … has no
         # decimal form at all; the amount is written as the fraction it is.

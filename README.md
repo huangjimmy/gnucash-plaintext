@@ -1193,6 +1193,41 @@ A migration can also stamp your **own** version key with `set-book-key`
 via the `company` directive — separate from the tool's automatic
 applied-migrations log.
 
+### Read commands against one open book: `batch`
+
+Each command opens the book, reads it and closes it, in a process of its own. `batch` opens the book once and runs a list of read commands against it, each writing its output to a file of its own. Nothing in a batch writes to the book, and the book is never saved; commands that change the book are `migrate`'s.
+
+The batch file lists each command as it is typed without the book, and on the next line the path its output is written to. Blank lines and lines starting with `#` are skipped.
+
+```
+# the year-end page
+balance-sheet --as-of 2025-12-31
+out/balance-sheet-2025.txt
+balance-sheet --as-of 2024-12-31
+out/balance-sheet-2024.txt
+income-statement --start 2025-01-01 --end 2025-12-31
+out/income-statement-2025.txt
+export
+out/ledger.txt
+verify-integrity
+out/integrity.txt
+```
+
+```bash
+gnucash-plaintext batch mybook.gnucash year-end.txt
+# ok      balance-sheet --as-of 2025-12-31 -> out/balance-sheet-2025.txt
+# ...
+# 5 commands: 5 succeeded, 0 failed
+```
+
+- A batch runs every command that only reads the book: `export`, `export-accounts`, `export-prices`, `export-beancount`, `export-transaction`, `balance-sheet`, `income-statement`, `report`, `print-invoice`, `print-bill`, `fx-balances`, `account-balance`, `verify-integrity`, `validate`, `find-transactions`, `find-prepayments` and `find-orphan-payments`.
+- Each file holds what the command writes when it runs alone. A command that writes a file of its own is handed the path the way it takes one: after the book for the `export` commands but `export-transaction`, and as `--output` for that one, the statements and the printed invoices and bills, so a page in HTML or PDF is written as it is alone, and a path ending in `/` gives `print-invoice` and `print-bill` a directory with a file for each. Every other command's printed output is written to the path, what it prints to stderr included, so `find-transactions` finding nothing writes "No matching transactions found." there. A file already there is replaced.
+- Before the book is opened, the batch refuses every line it cannot run, and lists them all: a command it does not run, an option the command does not take, a command stating a book or an output file of its own, `account-balance --fx-rates` (which saves its rates to the book), two commands writing to one path, a path in a directory that does not exist (so `out/` above must be made first), and a directory as the path of any command but `print-invoice` and `print-bill`, which take one ending in `/`.
+- Every command's result is written to its path, whether it succeeded or not, because nothing in a batch changes the book. `verify-integrity` on a book with something wrong writes its list and exits 1; a balance sheet in a currency the book does not hold writes the refusal it prints alone. A directory holds no one file to write a refusal to, so `print-invoice` or `print-bill` refused for a directory says why on its console line. A command that exits other than 0 counts as failed, and its console line says so with the code it exited with: `failed  verify-integrity, it exited 1 -> out/integrity.txt`. The commands after it still run. The batch exits 1 if any command failed, and 0 only if every command succeeded.
+- A rates file (`--fx-rates`, `--prices`) prices only its own line. Its prices are added to the open book for that command, as they are when it runs alone, and the book is read from disk again for the commands after it.
+
+What it saves is the opens and the reads: a book is opened once instead of once a command, and what one command reads from it, the splits and each object's custom metadata, the next command uses without reading it again. Measured on a book of 18,000 transactions with two balance sheets, two income statements, an export and `verify-integrity`, `batch` took 48% to 74% less time than six processes on every supported build. On 3.8 it took 11.29 s against 41.62 s, and opening the book takes about 5 s there. On 5.10 it took 5.41 s against 11.82 s, and opening the book takes 0.75 s. On 3.4 it took 12.25 s against 43.26 s. The timings for every build are in `docs/issues/Q-058-run-a-batch-of-read-commands-against-one-open-book.md`.
+
 ### Export transactions by GUID
 
 Export one or more transactions to plaintext (useful for AI-assisted editing or review):

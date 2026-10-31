@@ -10,7 +10,7 @@ import heapq
 import os
 from fractions import Fraction
 from functools import cmp_to_key
-from typing import Optional, Sequence
+from typing import NamedTuple, Optional, Sequence
 
 from gnucash import Transaction
 from gnucash.gnucash_core_c import (
@@ -252,6 +252,43 @@ def _stored_cost_is_ignorable(split) -> bool:
         return not establishes_cost_basis(split)
     except Exception:
         return False
+
+
+class _AccountFacts(NamedTuple):
+    """What a split is written with that belongs to its account, not to it."""
+    full_name: str
+    commodity: object
+    mnemonic: str
+    namespace: str
+    ticker: str
+    fraction: int
+    scu: int
+
+
+def _the_facts_of_its_account(split, transaction, facts: dict) -> _AccountFacts:
+    """The facts of the account a split is on, read once for each account.
+
+    `facts` is one formatting pass's, by the account's address. A book holds a
+    few accounts and many splits, and every split asked its account for its
+    commodity, its mnemonic and its full name again. An account with no
+    commodity is refused as `the_commodity_a_split_is_written_in` refuses it,
+    for each split on it, since nothing is kept for it.
+    """
+    account = split.GetAccount()
+    address = int(account.instance)
+    known = facts.get(address)
+    if known is None:
+        commodity = the_commodity_a_split_is_written_in(split, transaction)
+        known = facts[address] = _AccountFacts(
+            full_name=get_account_full_name(account),
+            commodity=commodity,
+            mnemonic=commodity.get_mnemonic(),
+            namespace=commodity.get_namespace(),
+            ticker=get_commodity_ticker(commodity),
+            fraction=commodity.get_fraction(),
+            scu=account.GetCommoditySCU(),
+        )
+    return known
 
 
 def the_order_the_book_keeps_them_in(one, other) -> int:
@@ -676,8 +713,9 @@ class ExportTransactionsUseCase:
         else:
             # Collect ALL commodities and ALL accounts (not just from filtered transactions)
             # This is critical - without all declarations, import will fail
+            facts = {}
             for transaction in all_transactions:
-                self._collect_transaction_data(transaction, result)
+                self._collect_transaction_data(transaction, result, facts)
 
         # Only include the filtered transactions in the result
         result.transactions = transactions
@@ -730,26 +768,31 @@ class ExportTransactionsUseCase:
 
         return result
 
-    def _collect_transaction_data(self, transaction, result: ExportResult):
+    def _collect_transaction_data(self, transaction, result: ExportResult, facts: dict):
         """
         Collect commodity, account, and transaction data.
 
         Args:
             transaction: GnuCash Transaction object
             result: ExportResult to populate
+            facts: The facts of each account collected so far
+                (`_the_facts_of_its_account`). An account collected once has
+                its commodity and its parents collected already.
         """
         splits = transaction.GetSplitList()
 
         # Collect commodities and accounts from splits
         for split in splits:
             split_account = split.GetAccount()
-            commodity = the_commodity_a_split_is_written_in(split, transaction)
-            ticker = get_commodity_ticker(commodity)
+            if int(split_account.instance) in facts:
+                continue
+            known = _the_facts_of_its_account(split, transaction, facts)
+            ticker = known.ticker
 
             # Collect commodity if not seen
             if ticker not in result.commodity_seen:
                 result.commodity_seen.add(ticker)
-                result.commodities.append((commodity, transaction))
+                result.commodities.append((known.commodity, transaction))
 
             # Collect account hierarchy if not seen
             accounts = get_parent_accounts_and_self(split_account)
@@ -791,11 +834,12 @@ class ExportTransactionsUseCase:
         # path above: every transaction the format cannot express is named,
         # and none is written, rather than the first one ending the run.
         refusals = []
+        facts = {}
         for transaction in result.transactions:
             tx_guid = transaction.GetGUID().to_string()
             balance_map = result.account_balances_after_tx.get(tx_guid)
             try:
-                self._format_transaction(transaction, lines,
+                self._format_transaction(transaction, lines, facts,
                                          balance_map=balance_map)
             except UnwritableFigureError as exc:
                 refusals.append(str(exc))
@@ -876,11 +920,12 @@ class ExportTransactionsUseCase:
         """
         lines = []
         refusals = []
+        facts = {}
         for transaction in result.transactions:
             tx_guid = transaction.GetGUID().to_string()
             balance_map = result.account_balances_after_tx.get(tx_guid)
             try:
-                self._format_transaction(transaction, lines,
+                self._format_transaction(transaction, lines, facts,
                                          balance_map=balance_map)
             except UnwritableFigureError as exc:
                 refusals.append(str(exc))
@@ -900,8 +945,9 @@ class ExportTransactionsUseCase:
         Useful for outputting newly imported transactions with their GUIDs.
         """
         result = ExportResult()
+        facts = {}
         for tx in transactions:
-            self._collect_transaction_data(tx, result)
+            self._collect_transaction_data(tx, result, facts)
         return self.format_transactions_section(result)
 
     def _file_date_str(self) -> str:
@@ -1005,6 +1051,7 @@ class ExportTransactionsUseCase:
         self,
         transaction,
         lines: list,
+        facts: dict,
         balance_map: Optional[dict] = None,
     ):
         """
@@ -1013,6 +1060,8 @@ class ExportTransactionsUseCase:
         Args:
             transaction: GnuCash Transaction object
             lines: Output lines list to append to
+            facts: This formatting pass's facts of each account
+                (`_the_facts_of_its_account`)
             balance_map: Optional {account_guid -> Fraction} of running balances
                 after this transaction.  When provided, each split gets a
                 ``balance:`` metadata line.
@@ -1026,6 +1075,7 @@ class ExportTransactionsUseCase:
         tx_currency = transaction.GetCurrency()
         tx_currency_namespace = tx_currency.get_namespace()
         tx_currency_symbol = tx_currency.get_mnemonic()
+        tx_currency_fraction = tx_currency.get_fraction()
 
         # GetAssociation was renamed to GetDocLink in GnuCash 4.x
         try:
@@ -1055,10 +1105,10 @@ class ExportTransactionsUseCase:
         # (tests/research/whether_a_reload_keeps_a_security_currency_or_an_account_with_no_commodity_probe.py).
 
         # Check if multi-currency transaction
-        split_currencies = list({
-            (commodity.get_namespace(), commodity.get_mnemonic())
-            for commodity in (the_commodity_a_split_is_written_in(split, transaction)
-                              for split in tx_splits)})
+        facts_of_each_split = [_the_facts_of_its_account(split, transaction, facts)
+                               for split in tx_splits]
+        split_currencies = list({(known.namespace, known.mnemonic)
+                                 for known in facts_of_each_split})
         # And where every split is in one currency that is not the
         # transaction's: 500.00 USD moved between two US dollar accounts in a
         # transaction stated in Canadian dollars. Left out, the import read the
@@ -1205,21 +1255,26 @@ class ExportTransactionsUseCase:
             lines.append(f'\t{key}: {encode_value_as_string(as_written(key, value))}')
 
         # Splits
-        for split in tx_splits:
+        for split, known in zip(tx_splits, facts_of_each_split):
             balance: Optional[Fraction] = None
             if balance_map is not None:
                 account_guid = split.GetAccount().GetGUID().to_string()
                 balance = balance_map.get(account_guid)
             self._format_split(
-                split, tx_currency_namespace, tx_currency_symbol, lines,
+                split, known,
+                tx_currency_namespace, tx_currency_symbol,
+                tx_currency_fraction, tx_desc, lines,
                 balance=balance,
             )
 
     def _format_split(
         self,
         split,
+        known: _AccountFacts,
         tx_currency_namespace,
         tx_currency_symbol,
+        tx_currency_fraction,
+        tx_desc,
         lines: list,
         balance: Optional[Fraction] = None,
     ):
@@ -1228,19 +1283,20 @@ class ExportTransactionsUseCase:
 
         Args:
             split: GnuCash Split object
+            known: The facts of the split's account
             tx_currency_namespace: Transaction currency namespace
             tx_currency_symbol: Transaction currency mnemonic
+            tx_currency_fraction: Transaction currency's smallest unit
+            tx_desc: Transaction description, for a refusal
             lines: Output lines list to append to
             balance: Optional running balance (Fraction) of this account after
                 the parent transaction.  When provided, a ``balance:`` metadata
                 line is emitted as the last item of the split's metadata block.
         """
-        split_account = split.GetAccount()
-        split_currency = split_account.GetCommodity()
-        split_currency_namespace = split_currency.get_namespace()
-        split_currency_symbol = split_currency.get_mnemonic()
+        split_currency_namespace = known.namespace
+        split_currency_symbol = known.mnemonic
 
-        split_account_full_name = get_account_full_name(split_account)
+        split_account_full_name = known.full_name
         action = split.GetAction()
         memo = split.GetMemo()
 
@@ -1248,19 +1304,12 @@ class ExportTransactionsUseCase:
         # transaction's, so each is written at that commodity's decimals. The
         # share price is a rate, not money: it has no smallest unit and is
         # written at whatever it needs.
-        # No null guard on the parent: this is only ever called while walking a
-        # transaction's own splits, so there is one. The guard that stood here
-        # was already contradicted three lines down, where the refusal below
-        # reads the description without asking — and a branch that cannot be
-        # reached is one nothing keeps honest.
-        transaction = split.GetParent()
-        transaction_currency = transaction.GetCurrency()
         # The account's own smallest unit, which is not always the currency's:
         # GnuCash keeps it per account, this exporter emits it as
         # `commodity_scu:` when it differs, and an account kept to tenths of a
         # cent — fuel at 1.819 a litre — would otherwise have its amounts
         # rounded away on the way out.
-        account_scu = split_account.GetCommoditySCU()
+        account_scu = known.scu
         split_amount = numeric_to_fraction(split.GetAmount())
         # Written at the account's unit, so 18.190 keeps its third place and
         # comes back with the denominator it left with. That is a trailing
@@ -1271,9 +1320,11 @@ class ExportTransactionsUseCase:
         # anyway wrote a file this tool cannot read — `export` said nothing,
         # and `import --new` on its own output dropped the transaction. Said
         # here instead, against the split that holds it.
-        refuse_a_figure_the_currency_cannot_hold(
-            split_amount, split_account, 'the split',
-            transaction.GetDescription())
+        # Only a figure finer than the commodity's own unit can be refused, so
+        # a whole number of that unit is not asked about.
+        if (split_amount * known.fraction).denominator != 1:
+            refuse_a_figure_the_currency_cannot_hold(
+                split_amount, split.GetAccount(), 'the split', tx_desc)
         formatted_amount = money_text(split_amount, account_scu)
         share_price = to_string_with_decimal_point_placed(split.GetSharePrice())
         # A split in the transaction's own currency has one figure, not two:
@@ -1294,12 +1345,12 @@ class ExportTransactionsUseCase:
         # so GnuCash stores what it is handed and the check has something to
         # catch. Pinned by `test_a_value_the_currency_cannot_hold.py`.
         value_scu = (account_scu
-                     if split_currency.get_mnemonic() == transaction_currency.get_mnemonic()
-                     else transaction_currency.get_fraction())
+                     if split_currency_symbol == tx_currency_symbol
+                     else tx_currency_fraction)
         split_value = money_text(numeric_to_fraction(split.GetValue()), value_scu)
 
         # Split line
-        currency_ticker = get_commodity_ticker(split_currency)
+        currency_ticker = known.ticker
         if ' ' in currency_ticker or '\t' in currency_ticker:
             currency_ticker = encode_value_as_string(currency_ticker)
         lines.append(f'\t{split_account_full_name} {formatted_amount} {currency_ticker}')
@@ -1456,11 +1507,9 @@ class ExportTransactionsUseCase:
 
         # Running balance — emitted last so it reads as a post-transaction annotation
         if balance is not None:
-            fraction = split_currency.get_fraction()
-            decimal_places = len(str(fraction)) - 1
+            decimal_places = len(str(known.fraction)) - 1
             balance_str = _format_fraction_as_decimal(balance, decimal_places)
-            balance_ticker = get_commodity_ticker(split_currency)
-            lines.append(f'\t\tbalance: "{balance_str} {balance_ticker}"')
+            lines.append(f'\t\tbalance: "{balance_str} {known.ticker}"')
 
     def execute_by_guids(self, guids: Sequence[str]) -> ExportResult:
         """
@@ -1486,6 +1535,7 @@ class ExportTransactionsUseCase:
         """
         result = ExportResult()
         seen_guids = set()
+        facts = {}
         for guid in guids:
             if guid in seen_guids:
                 continue
@@ -1496,7 +1546,7 @@ class ExportTransactionsUseCase:
             raw = xaccTransLookup(gnc_guid, self.repository.book.instance)
             if raw is None:
                 raise ValueError(f"No transaction found with GUID: {guid}")
-            self._collect_transaction_data(Transaction(instance=raw), result)
+            self._collect_transaction_data(Transaction(instance=raw), result, facts)
 
         # A cost basis above whatever draws on it, as the whole-book export
         # states them. The guids are passed in whatever order the caller typed,

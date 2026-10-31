@@ -61,8 +61,8 @@ jobs:
         # arm64 runner. The scripts know an image by its own tag and build for
         # whatever processor they are run on, so the suffix is dropped for
         # them; the matrix keeps it, because the coverage file and the artifact
-        # are named after the entry and two runs of one build may not answer to
-        # one name. Written as a step rather than an expression because
+        # carry the entry in their file names, and two runs of one build may
+        # not write one file. Written as a step rather than an expression because
         # GitHub's have no way to cut a suffix off a string.
         id: image
         env:
@@ -96,13 +96,13 @@ jobs:
         # union is the figure that means anything.
         run: GNC_COVERAGE=1 ./scripts/test.sh ${{ steps.image.outputs.tag }}
 
-      - name: Name this run's coverage after the matrix entry
-        # `test.sh` names the file after the image it ran, so both `ubuntu24`
+      - name: Move this run's coverage file to the matrix entry's file
+        # `test.sh` writes `.coverage.<the image's tag>`, so both `ubuntu24`
         # jobs write `.coverage.ubuntu24`. The artifact upload refuses a name
         # already taken, and the union job downloads with `merge-multiple`,
         # which would keep whichever landed last — one of the two runs gone,
-        # silently, from the figure this project gates on. Renaming to the
-        # matrix entry is what keeps the two apart, and `coverage combine`
+        # silently, from the figure this project gates on. Moving it to
+        # `.coverage.<the matrix entry>` keeps the two apart, and `coverage combine`
         # still finds it: the union globs `.coverage.*`.
         env:
           MATRIX_TAG: ${{ matrix.tag }}

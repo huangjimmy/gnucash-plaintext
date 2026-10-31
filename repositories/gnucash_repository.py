@@ -11,6 +11,7 @@ import re
 import shutil
 import tempfile
 import zlib
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
@@ -19,8 +20,13 @@ from gnucash import Account, Query, Session, Split, Transaction
 from gnucash.gnucash_core import GnuCashBackendException
 
 from infrastructure.gnucash.engine import load_gnc_engine
+from infrastructure.gnucash.kept_while_reading import keep_what_is_read
 from infrastructure.gnucash.kvp import forget_custom_key_changes
-from infrastructure.gnucash.utils import transaction_under_construction
+from infrastructure.gnucash.utils import (
+    splits_of_the_account,
+    transaction_under_construction,
+    transactions_the_query_finds,
+)
 
 if TYPE_CHECKING:
     from services.ledger_validator import ValidationResult
@@ -161,8 +167,23 @@ def _a_session_without_its_lock_closes_another_file() -> bool:
 class SessionMode:
     """Session opening modes"""
     READ_ONLY = "read_only"
+    #: Opened as READ_ONLY is, and saved never, but changed in memory: an
+    #: import's dry run. Kept apart so that what a read keeps of the book
+    #: (`kept_while_reading`) is not kept while it changes.
+    DRY_RUN = "dry_run"
     NORMAL = "normal"
     NEW = "new"
+
+
+#: The sessions open in this process, by whether they may change their book.
+#: What is read from a book is kept only while none may.
+_OPEN_SESSIONS = {'to read': 0, 'that may change': 0}
+
+
+def _count_the_session(may_change: bool, by: int) -> None:
+    _OPEN_SESSIONS['that may change' if may_change else 'to read'] += by
+    keep_what_is_read(_OPEN_SESSIONS['to read'] > 0
+                      and _OPEN_SESSIONS['that may change'] == 0)
 
 
 #: What a service kept about the books opened before this one, each a function
@@ -179,6 +200,34 @@ WHAT_TO_READ_WHEN_A_BOOK_OPENS: List[Callable[[object], None]] = []
 #: function handed the book. One that raises stops the save. Registered by
 #: the service whose record it is, as the lists above are.
 WHAT_TO_BRING_UP_TO_DATE_BEFORE_A_SAVE: List[Callable[[object], None]] = []
+
+#: Books held open to be read by several commands in turn (`batch`, Q-058),
+#: by the real path each was opened from. A repository opening one of these
+#: to read uses that session instead of opening the book again, and leaves it
+#: open when it closes.
+_BOOKS_OPEN_FOR_READING: Dict[str, 'GnuCashRepository'] = {}
+
+
+@contextmanager
+def one_open_book_for_reading(file_path: str):
+    """Hold the book open read-only, so every read of it in the block uses this one session.
+
+    A command that reads the book opens it as it does alone, and is handed
+    this session instead (Q-058).
+
+    Yields the repository holding it. `reopen` on it reads the book from disk
+    again, for every later command, which is how a command that added prices
+    to the book for its own run is kept from the next.
+    """
+    key = os.path.realpath(file_path)
+    holder = GnuCashRepository(file_path)
+    holder.open(SessionMode.READ_ONLY)
+    _BOOKS_OPEN_FOR_READING[key] = holder
+    try:
+        yield holder
+    finally:
+        del _BOOKS_OPEN_FOR_READING[key]
+        holder.close()
 
 
 class GnuCashRepository:
@@ -201,17 +250,29 @@ class GnuCashRepository:
         # read-only session on GnuCash 4.8 and later carries out without
         # complaint where the private copy on 3.4 refused it.
         self._read_only = False
+        # Whether the session is one `one_open_book_for_reading` holds, which
+        # `close` leaves open for the next command.
+        self._borrowed = False
+        # Whether the session may change its book, counted in `_OPEN_SESSIONS`.
+        self._may_change = False
 
     def open(self, mode: str = SessionMode.NORMAL):
         """
         Open GnuCash file session.
 
         Args:
-            mode: Session mode (READ_ONLY, NORMAL, or NEW)
+            mode: Session mode (READ_ONLY, DRY_RUN, NORMAL, or NEW)
         """
         if self.session is not None:
             raise RuntimeError("Session already open")
+        self._may_change = mode != SessionMode.READ_ONLY
+        if mode == SessionMode.DRY_RUN:
+            mode = SessionMode.READ_ONLY
         self._read_only = mode == SessionMode.READ_ONLY
+        held = _BOOKS_OPEN_FOR_READING.get(os.path.realpath(self.file_path))
+        if held not in (None, self) and not self._may_change:
+            self.session, self._book, self._borrowed = held.session, held.book, True
+            return
         for forget in WHAT_TO_FORGET_WHEN_A_BOOK_OPENS:
             forget()
 
@@ -281,6 +342,7 @@ class GnuCashRepository:
                 self._discard_the_private_copy()
 
         self._book = self.session.book
+        _count_the_session(self._may_change, 1)
         for read in WHAT_TO_READ_WHEN_A_BOOK_OPENS:
             read(self._book)
 
@@ -347,12 +409,19 @@ class GnuCashRepository:
         (`log_custom_key_changes`) is started afresh. It is the book's: kept,
         every command in a long-lived process, the suite's among them, added
         to it with nothing ever taking it away.
+
+        A session `one_open_book_for_reading` holds is left open, for the
+        command after this one.
         """
+        if self._borrowed:
+            self.session, self._book, self._borrowed = None, None, False
+            return
         if self.session is not None:
             session = self.session
             self.session = None
             self._book = None
             session.destroy()
+            _count_the_session(self._may_change, -1)
         forget_custom_key_changes()
         self._discard_the_private_copy()
 
@@ -365,6 +434,11 @@ class GnuCashRepository:
         for bring_up_to_date in WHAT_TO_BRING_UP_TO_DATE_BEFORE_A_SAVE:
             bring_up_to_date(self._book)
         self.session.save()
+
+    def reopen(self):
+        """Close the book and open it again, read-only, from what is on disk."""
+        self.close()
+        self.open(SessionMode.READ_ONLY)
 
     @property
     def book(self):
@@ -494,10 +568,7 @@ class GnuCashRepository:
         query = Query()
         query.search_for('Trans')
         query.set_book(self.book)
-        result = query.run()
-
-        # Wrap SwigPyObjects in Transaction objects
-        return [Transaction(instance=tx) for tx in result]
+        return transactions_the_query_finds(query, self.book)
 
     def get_transactions_by_account(self, account: Account) -> List[Transaction]:
         """
@@ -514,7 +585,7 @@ class GnuCashRepository:
         # listed twice there and once on 5.10.
         transactions = []
         listed = set()
-        for split in account.GetSplitList():
+        for split in splits_of_the_account(account):
             tx = split.GetParent()
             guid = tx.GetGUID().to_string()
             if guid not in listed:

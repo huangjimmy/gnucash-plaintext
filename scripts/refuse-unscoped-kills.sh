@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # A `PreToolUse` hook on Bash, beside `refuse-bash-file-edits.sh`: nothing may
-# be killed except one id, named, one per command. Containers and processes
+# be killed except one id, written out, one per command. Containers and processes
 # alike. Wired in `.claude/settings.json`.
 #
 # The machine that runs this suite runs other things. On 2026-08-21 an agent
