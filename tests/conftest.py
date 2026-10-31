@@ -205,7 +205,10 @@ def pytest_runtest_setup(item):
     the test: measured on Debian 10, the suite peaks at 527 MiB without
     coverage and passes 3 GiB with `--cov-context=test`.
 
-    Nothing to switch where coverage is not measuring.
+    Nothing to switch where coverage is not measuring, and nothing when the
+    context is the one already set: `switch_context` writes everything
+    measured so far to the data file first, and called before each of the
+    tests it did that about 5,000 times a run.
     """
     from coverage import Coverage
 
@@ -213,7 +216,14 @@ def pytest_runtest_setup(item):
     if measuring is None:
         return
     in_the_scenarios = '/tests/scenario/' in str(item.fspath).replace(os.sep, '/')
-    measuring.switch_context('scenario' if in_the_scenarios else 'suite')
+    context = 'scenario' if in_the_scenarios else 'suite'
+    if _the_context_set.get(measuring) != context:
+        measuring.switch_context(context)
+        _the_context_set[measuring] = context
+
+
+# The context `pytest_runtest_setup` last set, by the measurement it set it on.
+_the_context_set = {}
 
 
 @pytest.fixture(autouse=True)

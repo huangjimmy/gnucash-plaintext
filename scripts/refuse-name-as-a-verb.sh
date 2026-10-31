@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# A `PreToolUse` hook on Write and Edit: refuse text that uses "name" as a verb
-# for something that has no name. Wired in `.claude/settings.json`, which is
-# committed for exactly this reason.
+# A `PreToolUse` hook on Write and Edit: refuse text that uses "name" as a
+# verb. Wired in `.claude/settings.json`, which is committed for exactly this
+# reason.
 #
 # The rule is in CLAUDE.md and it is about being understood. A guid is not a
 # name. A split is not a name. "the message names the split" tells a reader
@@ -12,10 +12,14 @@
 # disposals, a report **prints** the split's guid, a block **states** a guid, a
 # payment **applies** a split, a guid **matches**.
 #
+# The verb is refused whatever it acts on, a file or an account as much as a
+# split. Allowing it for a thing that has a name let "`test.sh` names the file
+# after the image" through, and the reader still has to work out what was done
+# to the file: it was written as `.coverage.<tag>`, which is what to write.
+#
 # "name" as a noun is untouched — an account name, a file name, a customer's
-# name, `get_account_full_name`, `--by-name`. Those are names. So is naming a
-# thing that has one: "the error prints the account's name" is fine, and so is
-# `name: "US Customer"`.
+# name, `get_account_full_name`, `--by-name`, `name: "US Customer"`, and
+# "the error prints the account's name".
 #
 # Asking for this in CLAUDE.md was not enough. It was written down, agreed to,
 # and broken again in the same session — in prose that had just been corrected
@@ -98,29 +102,12 @@ fresh = [line for line in written.splitlines() if line not in already]
 import re
 BEFORE = (r"(?:the|a|an|its|their|those|these|his|her|our|your|this|that)"
           r"|(?:account|column|field|file|key|table|tag|option|command|flag)s?")
-fresh = [re.sub(rf"\b({BEFORE})\s+names\b", r"\1 NOUNS", line, flags=re.I)
-         for line in fresh]
-
-# And the other side of the verb: what is being named. The rule is about a
-# thing that has no name, so a thing that has one, named, is the correct form
-# and has to stay writable — CLAUDE.md keeps the name of an account, of a
-# customer, and `name:` in a block, and a guard that refused "naming the
-# account" would leave the right sentence the one nobody can type. The nouns
-# are the ones that have names in this repo; a basis, a split, a guid, a
-# transaction and a lot are not among them, so those are refused as before.
 #
 # No apostrophes anywhere in this program: it is a single-quoted argument to
 # python3 -c, and one would end the string and take the rest of the guard
 # with it — measured, every shape was let through, because an empty read is
 # an empty payload and an empty payload passes.
-HAS_A_NAME = (r"account|customer|vendor|employee|job|file|report|column"
-              r"|field|key|table|tag|option|command|flag|book|currency"
-              r"|commodity")
-DETERMINER = (r"(?:the|a|an|its|their|this|that|these|those|each|every|one"
-              r"|both|any|no)")
-fresh = [re.sub(rf"\b(?:names|naming)\s+(?:{DETERMINER}\s+)?"
-                rf"(?:{HAS_A_NAME})s?\b", "NAMED A NAMED THING", line,
-                flags=re.I)
+fresh = [re.sub(rf"\b({BEFORE})\s+names\b", r"\1 NOUNS", line, flags=re.I)
          for line in fresh]
 sys.stdout.write("\n".join(fresh))
 ')
@@ -131,35 +118,39 @@ sys.stdout.write("\n".join(fresh))
 # "names"/"naming" is what separates the verb from the noun: "the account
 # name" and "by name" have no determiner after them, while "names the split"
 # and "naming them" do.
-# `names` and `naming` only. Bare `name` was here for the imperative — "name
-# the transaction" — and caught far more nouns than verbs: "the account name
-# the error prints", "the file name a block states", "the name that GnuCash
-# keeps" are all noun-plus-determiner and all correct English. A shape this
-# wrongly refuses is a defect, and exit 2 leaves no way past it but editing
-# this file, so the rare imperative is the one to drop.
+# Bare lowercase `name` is not matched: "the account name the error prints",
+# "the file name a block states" are noun-plus-determiner and correct English.
+# The imperative is matched where a sentence, a comment or a YAML `name:` value
+# begins with `Name` and a determiner follows — "Name this run's coverage".
 VERB='\b(names|naming)[[:space:]]+(the|a|an|it|its|them|their|that|this|these|those|each|every|which|whichever|one|both|any|no)\b'
+# `named` is the verb in every use: "is named after", "being named here",
+# "named bare", "one id, named,". "a file called X" says the same with no verb
+# of naming. `named_tuple` and `namedtuple` are not matched, an underscore or a
+# letter after it ending the word.
+NAMED='\bnamed\b'
+IMPERATIVE='(^|[.!?;:][[:space:]]+|#[[:space:]]*|name:[[:space:]]*|"|`)Name[[:space:]]+(the|a|an|it|its|them|their|that|this|these|those|each|every|one|both|any)\b'
 
-OFFENDING=$(printf '%s\n' "$TEXT" | grep -inE "$VERB" | head -5)
+OFFENDING=$( { printf '%s\n' "$TEXT" | grep -inE "$VERB|$NAMED" | head -5
+                printf '%s\n' "$TEXT" | grep -nE "$IMPERATIVE" | head -5; } )
 
 [ -z "$OFFENDING" ] && exit 0
 
 {
-    echo "REFUSED: \"name\" is used as a verb here, for something that has no name."
+    echo "REFUSED: \"name\" is used as a verb here."
     echo
     echo "$OFFENDING"
     echo
-    echo "A guid is not a name and neither is a split. Say what is actually"
-    echo "printed or done:"
+    echo "Say what is actually printed or done:"
     echo
-    echo "  names the split          -> prints the split's guid"
-    echo "  naming them              -> lists them, with their dates and amounts"
-    echo "  names the transaction    -> states the transaction's guid"
-    echo "  the block names a guid   -> the block states a guid"
-    echo "  a payment names a split  -> a payment applies a split"
-    echo "  the guid names the basis -> the guid matches the basis"
+    echo "  names the split               -> prints the split's guid"
+    echo "  naming them                   -> lists them, with their dates and amounts"
+    echo "  the block names a guid        -> the block states a guid"
+    echo "  a payment names a split       -> a payment applies a split"
+    echo "  names the file after the tag  -> writes the file as .coverage.<tag>"
+    echo "  a file named x.txt            -> a file called x.txt"
+    echo "  Name this run's file after X  -> Move this run's file to X"
     echo
-    echo "Keep it where the thing genuinely has a name and the text prints it:"
-    echo "an account's name, a customer's name, \`name:\` in a block."
+    echo "The noun is fine: an account's name, a file name, \`name:\` in a block."
 } >&2
 
 exit 2

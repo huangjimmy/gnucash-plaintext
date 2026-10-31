@@ -10,9 +10,9 @@
 #   ./scripts/build.sh arch         # Build Arch Linux (rolling)
 #   ./scripts/build.sh opensuse     # Build openSUSE Tumbleweed
 #
-# A tag names the same build as its base image — `./scripts/build.sh ubuntu24`
-# is `./scripts/build.sh ubuntu:24.04` — so the scripts that hold a tag and
-# find its image missing can ask for it by the name they already have.
+# A tag builds the same image as its base image does — `./scripts/build.sh
+# ubuntu24` is `./scripts/build.sh ubuntu:24.04` — so the scripts that hold a
+# tag and find its image missing can ask for it by the tag they already have.
 
 set -e
 

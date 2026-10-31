@@ -29,6 +29,7 @@ import logging
 from typing import Optional
 
 from infrastructure.gnucash.engine import G_TYPE_STRING, GValue, load_gnc_engine, load_gobject
+from infrastructure.gnucash.kept_while_reading import keeping_what_is_read, kept_while_reading
 from infrastructure.gnucash.utils import DateAsWritten, Variable
 
 PT_DATA_SLOT = 'plaintext_metadata'
@@ -359,6 +360,7 @@ def _set_string_slot(obj, slot_name: str, value: str) -> bool:
     """
     try:
         obj_ptr = int(obj.instance)
+        _CUSTOM_METADATA_READ.pop(obj_ptr, None)
         if _set_via_qof_instance(obj_ptr, slot_name, value):
             _mark_instance_dirty(obj_ptr)
             return True
@@ -536,6 +538,11 @@ def forget_custom_key_changes() -> None:
     """Start every log afresh, so it does not grow for as long as a process runs."""
     for key in _LOGGED_KEYS:
         _LOGGED_KEYS[key] = []
+
+
+#: Each object's custom metadata as `get_custom_metadata` parsed it, by the
+#: object's address, while a book open only to read is kept from.
+_CUSTOM_METADATA_READ = kept_while_reading({})
 
 
 def set_book_string_option(book, section: str, name: str, value: str) -> bool:
@@ -786,7 +793,20 @@ def get_custom_metadata(obj) -> dict:
     Returns:
         Dict of custom key-value pairs, or {} if no custom metadata stored.
         Keys containing ':' are excluded from the returned dict.
+
+    On a book open only to read, each object's slot is read and parsed once
+    (`infrastructure.gnucash.kept_while_reading`).
     """
+    if not keeping_what_is_read():
+        return _read_custom_metadata(obj)
+    address = int(obj.instance)
+    kept = _CUSTOM_METADATA_READ.get(address)
+    if kept is None:
+        kept = _CUSTOM_METADATA_READ[address] = _read_custom_metadata(obj)
+    return dict(kept)
+
+
+def _read_custom_metadata(obj) -> dict:
     json_str = _get_string_slot(obj, PT_DATA_SLOT)
     if not json_str:
         return {}

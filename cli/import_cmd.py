@@ -474,7 +474,7 @@ def import_transactions(gnucash_file, input_file, gnucash_path, plaintext_file, 
             GnuCashRepository.create_new_file(gnucash_file)
 
         # Open repository
-        mode = SessionMode.READ_ONLY if dry_run else SessionMode.NORMAL
+        mode = SessionMode.DRY_RUN if dry_run else SessionMode.NORMAL
         repo = GnuCashRepository(gnucash_file)
         repo.open(mode=mode)
 

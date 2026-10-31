@@ -389,6 +389,10 @@ def verify_ctypes_functions(lib, required_functions=None):
             # The release, which decides how a book to read is opened
             # (`repositories/gnucash_repository.py`, CLAUDE.md finding 27).
             'gnc_version',
+            # An account's splits and a query's results, walked without the
+            # bindings' list conversion where that is slow (Q-058).
+            'xaccAccountGetSplitList',
+            'qof_query_run',
             # Declared here since T-009, where they were declared beside
             # their callers: the lot walks, taking a payment off, the orphan
             # listing, and the KVP and book option calls.
@@ -889,6 +893,12 @@ def _setup_lib_restypes(lib: ctypes.CDLL) -> None:
     # on every supported build.
     lib.gnc_version.restype                    = ctypes.c_char_p
     lib.gnc_version.argtypes                   = []
+    # Both hand back a list the engine owns, on the build that walks them
+    # (`gnucash_lists_slowly` below), so neither is freed.
+    lib.xaccAccountGetSplitList.restype        = ctypes.c_void_p
+    lib.xaccAccountGetSplitList.argtypes       = [ctypes.c_void_p]
+    lib.qof_query_run.restype                  = ctypes.c_void_p
+    lib.qof_query_run.argtypes                 = [ctypes.c_void_p]
 
 
 @lru_cache(maxsize=1)

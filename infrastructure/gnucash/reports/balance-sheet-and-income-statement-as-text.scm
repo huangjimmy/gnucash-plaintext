@@ -329,6 +329,13 @@
 (define (plaintext:room-for? shown)
   (or (negative? plaintext:max-items) (< shown plaintext:max-items)))
 
+;; `lines` put in front of `reversed`, a list kept back to front, so a listing
+;; that grows one entry at a time is reversed once when it is done.
+;; `(append lines-so-far entry)` copies every line already listed for each
+;; entry, so a listing takes time in the square of its length (Q-058).
+(define (plaintext:push reversed lines)
+  (append (reverse lines) reversed))
+
 ;; The first `plaintext:max-items` of a list, or all of it where no cap is set.
 (define (plaintext:first-of items)
   (if (negative? plaintext:max-items)
@@ -515,10 +522,10 @@
                          " # there is no split")))
    (let loop ((items (plaintext:first-of plaintext:realized-items)) (lines '()))
      (if (null? items)
-         lines
+         (reverse lines)
          (let ((item (car items)))
            (loop (cdr items)
-                 (append
+                 (plaintext:push
                   lines
                   (list (string-append (plaintext:indent 3) "split:")
                         (string-append (plaintext:indent 4) "date: " (car item))
@@ -1218,7 +1225,7 @@
                              (plaintext:indent 4) "cost_bases:"
                              (plaintext:listing-note seen "cost bases"
                                                      "cost basis" "")))
-                      rows
+                      (reverse rows)
                       (if (> (plaintext:left-out seen) 0)
                           (plaintext:not-listed
                            5 (plaintext:left-out seen)
@@ -1290,10 +1297,10 @@
                           (inner
                            (cdr rest)
                            (if (plaintext:room-for? seen)
-                               (append rows
-                                       (plaintext:basis-entry
-                                        item bal cv vl commodity report-commodity
-                                        "unrealized_gains_assets_fx"))
+                               (plaintext:push rows
+                                               (plaintext:basis-entry
+                                                item bal cv vl commodity report-commodity
+                                                "unrealized_gains_assets_fx"))
                                rows)
                            (+ held bal) (+ spent cv) (+ seen 1)
                            (if (plaintext:room-for? seen) rest-bal (+ rest-bal bal))
@@ -1383,11 +1390,11 @@
                                            " # there is no split")))
             (let splits ((rest (plaintext:first-of dated)) (out '()))
               (if (null? rest)
-                  out
+                  (reverse out)
                   (let ((txn (xaccSplitGetParent (car rest))))
                     (splits
                      (cdr rest)
-                     (append
+                     (plaintext:push
                       out
                       (list (string-append
                              (plaintext:indent 7) "split_amount "
@@ -1431,7 +1438,7 @@
                (rest-bal 0) (rest-cv 0) (rest-vl 0))
       (if (null? rest)
           (append
-           rows
+           (reverse rows)
            (if (> (plaintext:left-out (length bases)) 0)
                (plaintext:not-listed
                 5 (plaintext:left-out (length bases))
@@ -1451,9 +1458,9 @@
                  (room (plaintext:room-for? drawn)))
             (each (cdr rest) (+ drawn 1)
                   (if room
-                      (append rows (plaintext:basis-entry
-                                    item bal cv vl commodity report-commodity
-                                    "unrealized_gains_other"))
+                      (plaintext:push rows (plaintext:basis-entry
+                                            item bal cv vl commodity report-commodity
+                                            "unrealized_gains_other"))
                       rows)
                   (if room rest-bal (+ rest-bal bal))
                   (if room rest-cv (+ rest-cv cv))
@@ -1741,7 +1748,7 @@
                     "splits" "split" " # there is no split")))
             (let rows ((xs accounts) (out '()) (shown 0))
               (if (null? xs)
-                  out
+                  (reverse out)
                   (let each ((sp (xaccAccountGetSplitList (car xs)))
                              (o out) (n shown))
                     (if (null? sp)
@@ -1753,7 +1760,7 @@
                               (each
                                (cdr sp)
                                (if (plaintext:room-for? n)
-                                   (append
+                                   (plaintext:push
                                     o
                                     (list
                                      (string-append (plaintext:indent 5) "split:")
@@ -1956,7 +1963,7 @@
   (let ((table (gnc-commodity-table-get-table (gnc-get-current-book))))
     (let per ((pairs (plaintext:cost-basis-pairs)) (found '()))
       (if (null? pairs)
-          found
+          (reverse found)
           (let* ((pair (car pairs))
                  (commodity (plaintext:commodity-of table (car pair) (cdr pair)))
                  (is-currency (and commodity
@@ -1992,9 +1999,8 @@
                                             (string=? (plaintext:basis-item-side item)
                                                       (cdr pair))
                                             (not (zero? difference)))
-                                       (append found
-                                               (list (list item cost-value cost-held
-                                                           difference)))
+                                       (cons (list item cost-value cost-held difference)
+                                             found)
                                        found)))))
                      found)))))))
 
@@ -2011,11 +2017,11 @@
                            " # there is no cost basis")))
      (let loop ((rest (plaintext:first-of entries)) (lines '()))
        (if (null? rest)
-           lines
+           (reverse lines)
            (let* ((entry (car rest))
                   (item (car entry)))
              (loop (cdr rest)
-                   (append
+                   (plaintext:push
                     lines
                     (list (string-append (plaintext:indent 3) "cost_basis:")
                           (string-append (plaintext:indent 4) "split_guid: "
