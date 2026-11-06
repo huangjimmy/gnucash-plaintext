@@ -302,7 +302,7 @@ class TestAPricesFile:
         # Both securities are held in CAD, so none of the 200.00 is an
         # exchange movement: all of it is the two share prices moving.
         assert block_total_of(page, 'unrealized_gains_assets_fx') == 0
-        assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert block_total_of(page, 'unrealized_gains_liabilities_fx') == 0
         assert key_of(page, 'unrealized_gains_fx') == '0.00 CAD'
         # Both securities in full, a stock and a fund, each bought for 500.00
         # CAD and each worth 600.00 at the file's prices.

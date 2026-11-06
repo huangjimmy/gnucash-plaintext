@@ -144,7 +144,11 @@ unrealized_gains_assets_fx: # one row per cost basis, grouped by commodity and t
 	value: 6000.00 # sum of each commodity's value
 	unrealized_gains_assets_fx: 600.00 # value - cost_value
 
-unrealized_gains_liabilities_fx: 0.00 CAD
+unrealized_gains_liabilities_fx:
+	commodities: # there is no cost basis on the liability side
+	cost_value: 0.00 # sum of each commodity's cost_value
+	value: 0.00 # sum of each commodity's value
+	unrealized_gains_liabilities_fx: 0.00 # value - cost_value
 
 unrealized_gains_fx: 600.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
 

@@ -188,7 +188,7 @@ def test_a_foreign_security_is_valued_from_a_prices_file_and_a_rates_file(tmp_pa
     # Nothing owed in a foreign currency, so the owed side comes to nothing —
     # and says so as a figure, because the book holds no such liability rather
     # than the side going unmeasured.
-    assert _key(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+    assert _block_total_of(page, 'unrealized_gains_liabilities_fx') == 0
     assert _key(page, 'unrealized_gains_fx') == '0.00 CAD'
     # Stated in full: the shares, what the book paid for them converted, what
     # they are worth at the file's prices, and the difference. 10 USTECH bought

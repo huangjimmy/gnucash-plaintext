@@ -5,7 +5,7 @@ ARG BASE_IMAGE=debian:13
 # ├──────────────────┼─────────────────┼────────────────────────┤
 # │ debian:13        │ 5.10            │ ✅ Latest (default)    │
 # │ debian:12        │ 4.13            │ ✅ Stable              │
-# │ debian:11        │ 4.4             │ ✅ past EOL, snapshot  │
+# │ debian:11        │ 4.4             │ ✅ past EOL, archive   │
 # │ debian:10        │ 3.4             │ ✅ Minimum (Python 3.7)│
 # │ ubuntu:26.04     │ 5.14            │ ✅ LTS                 │
 # │ ubuntu:24.04     │ 5.5             │ ✅ LTS                 │
@@ -31,30 +31,31 @@ ENV DEBIAN_FRONTEND=noninteractive
 # A Debian release past its end of life is served from somewhere else, and by
 # the release's own codename rather than by anything the caller passes.
 #
-# bullseye is the sharp case, because the mirror lies. `deb.debian.org` still
-# publishes its security index, valid — measured 2026-09-05, `Valid-Until: Mon,
-# 07 Sep 2026` — while it deletes the package files that index lists, so apt
-# reads the list, asks for a file and gets a 404. A date check would not
-# have caught that, and neither would a suite label. snapshot.debian.org holds
-# the archive as it stood at a moment in time, and 20260901T000000Z is just
-# after bullseye last changed (`Date: Mon, 31 Aug 2026 21:13:04 UTC`), so it
-# still carries the security versions the base image is built from. Pinning to
-# a snapshot also stops the image drifting, which for a test container is the
-# behaviour wanted anyway.
+# Both are taken from `archive.debian.org`, which carries each release whole,
+# security suite included.
 #
-# Both archives serve a Release file that is expired by design, hence
-# Check-Valid-Until. Measured: 745 packages in about 15 seconds, so this is not
-# the slow path its reputation suggests.
+# bullseye is the sharp case, because `deb.debian.org` lies about it. It still
+# published its security index, valid — measured 2026-09-05, `Valid-Until: Mon,
+# 07 Sep 2026` — while it deleted the package files that index lists, so apt
+# read the list, asked for a file and got a 404. A date check would not have
+# caught that, and neither would a suite label. bullseye was then taken from
+# snapshot.debian.org at 20260901T000000Z, until that service failed GitHub's
+# runners: on 2026-11-06 two builds in a row spent about 1389 seconds getting
+# `503 No healthy backends`, `503 first byte timeout` and `504 Gateway Timeout`
+# for every package, while the same files downloaded at once from elsewhere.
+# `archive.debian.org` carries bullseye by then, its security index dated
+# 2026-09-12, and an image built from it holds GnuCash 1:4.4-1, as before.
 #
-# buster is the plainer case: it left `deb.debian.org` altogether and
-# `archive.debian.org` carries it whole, security suite included, under the
+# buster left `deb.debian.org` earlier, and its security suite is under the
 # older `buster/updates` name rather than `buster-security`.
-ARG SNAPSHOT=20260901T000000Z
+#
+# The archive serves Release files that are expired by design, hence
+# Check-Valid-Until.
 RUN . /etc/os-release; \
     case "${VERSION_CODENAME:-}" in \
       bullseye) \
-        printf 'deb http://snapshot.debian.org/archive/debian/%s bullseye main\ndeb http://snapshot.debian.org/archive/debian/%s bullseye-updates main\ndeb http://snapshot.debian.org/archive/debian-security/%s bullseye-security main\n' \
-            "$SNAPSHOT" "$SNAPSHOT" "$SNAPSHOT" > /etc/apt/sources.list && \
+        printf 'deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian bullseye-updates main\ndeb http://archive.debian.org/debian-security bullseye-security main\n' \
+            > /etc/apt/sources.list && \
         printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "5";\n' \
             > /etc/apt/apt.conf.d/99past-end-of-life \
         ;; \

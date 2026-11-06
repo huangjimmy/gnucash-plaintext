@@ -995,7 +995,31 @@ A book owing 1,000.00 USD borrowed at 1.30, drawn when the nearest price is 1.40
 		cost_value: 0.00 # sum of each commodity's cost_value
 		value: 0.00 # sum of each commodity's value
 		unrealized_gains_assets_fx: 0.00 # value - cost_value
-	unrealized_gains_liabilities_fx: -100.00 CAD
+	unrealized_gains_liabilities_fx:
+		commodities:
+			commodity:
+				commodity.mnemonic: "USD"
+				type: liability
+				share_price: 1.4 # current price of commodity in balance sheet currency
+				cost_bases:
+					cost_basis:
+						split_guid: d401c9b0753a4207a25cedf435613b37
+						account: "Liabilities:USD Loan"
+						cost_basis_balance: -1000.00
+						cost_share_price: 1.3 # USD in CAD, on the day it came to be owed
+						cost_rate: 1 # CAD per CAD, on that same day
+						cost_share_price_in_base: 1.3 # cost_share_price * cost_rate
+						cost_value: -1300.00 # cost_basis_balance * cost_share_price_in_base
+						value: -1400.00 # cost_basis_balance * share_price
+						unrealized_gains_liabilities_fx: -100.00 # value - cost_value
+				cost_basis_balance: -1000.00 # sum of each cost_basis's cost_basis_balance
+				cost_value: -1300.00 # sum of each cost_basis's cost_value
+				...
+				value: -1400.00 # cost_basis_balance * share_price
+				unrealized_gains_liabilities_fx: -100.00 # value - cost_value
+		cost_value: -1300.00 # sum of each commodity's cost_value
+		value: -1400.00 # sum of each commodity's value
+		unrealized_gains_liabilities_fx: -100.00 # value - cost_value
 	unrealized_gains_fx: -100.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
 	realized_gains_fx:
 		realized_gains_fx: 0.00
@@ -1290,7 +1314,11 @@ price
 		cost_value: 17365.00 # sum of each commodity's cost_value
 		value: 17472.00 # sum of each commodity's value
 		unrealized_gains_assets_fx: 107.00 # value - cost_value
-	unrealized_gains_liabilities_fx: 0.00 CAD
+	unrealized_gains_liabilities_fx:
+		commodities: # there is no cost basis on the liability side
+		cost_value: 0.00 # sum of each commodity's cost_value
+		value: 0.00 # sum of each commodity's value
+		unrealized_gains_liabilities_fx: 0.00 # value - cost_value
 	unrealized_gains_fx: 107.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
 	realized_gains_fx:
 		realized_gains_fx: 110.00
@@ -1321,7 +1349,36 @@ The transaction states a Canadian figure for the debt — `value: "-1300.00"` on
 		cost_value: 0.00 # sum of each commodity's cost_value
 		value: 0.00 # sum of each commodity's value
 		unrealized_gains_assets_fx: 0.00 # value - cost_value
-	unrealized_gains_liabilities_fx: -100.00 CAD
+	unrealized_gains_liabilities_fx:
+		commodities:
+			commodity:
+				commodity.mnemonic: "USD"
+				type: liability
+				share_price: 1.4 # current price of commodity in balance sheet currency
+				cost_bases:
+					cost_basis:
+						split_guid: d401c9b0753a4207a25cedf435613b37
+						account: "Liabilities:USD Loan"
+						cost_basis_balance: -1000.00
+						cost_share_price: 1.3 # USD in CAD, on the day it came to be owed
+						cost_rate: 1 # CAD per CAD, on that same day
+						cost_share_price_in_base: 1.3 # cost_share_price * cost_rate
+						cost_value: -1300.00 # cost_basis_balance * cost_share_price_in_base
+						value: -1400.00 # cost_basis_balance * share_price
+						unrealized_gains_liabilities_fx: -100.00 # value - cost_value
+				cost_basis_balance: -1000.00 # sum of each cost_basis's cost_basis_balance
+				cost_value: -1300.00 # sum of each cost_basis's cost_value
+				accounts:
+					account:
+						guid: 82736d199a34454a93997ec9ae29169c
+						name: "Liabilities:USD Loan"
+						balance: -1000.00
+				balance_value: -1000.00 # sum of account's balance for all accounts
+				value: -1400.00 # cost_basis_balance * share_price
+				unrealized_gains_liabilities_fx: -100.00 # value - cost_value
+		cost_value: -1300.00 # sum of each commodity's cost_value
+		value: -1400.00 # sum of each commodity's value
+		unrealized_gains_liabilities_fx: -100.00 # value - cost_value
 	unrealized_gains_fx: -100.00 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
 ```
 
@@ -1336,7 +1393,11 @@ Nothing obliges a company to carry the debt in US dollars. It can write the loan
 The liability then holds no foreign currency, so it opens no cost basis, and for as long as the loan stands the sheet says nothing about the exposure at all. Draw this book with `--as-of 2026-11-30`, the day before it is repaid, and every gain figure on the page reads zero while 130.00 CAD sits in the liabilities:
 
 ```
-	unrealized_gains_liabilities_fx: 0.00 CAD
+	unrealized_gains_liabilities_fx:
+		commodities: # there is no cost basis on the liability side
+		cost_value: 0.00 # sum of each commodity's cost_value
+		value: 0.00 # sum of each commodity's value
+		unrealized_gains_liabilities_fx: 0.00 # value - cost_value
 	unrealized_gains_fx: 0.00 CAD
 	total_unrealized_gains: 0.00 CAD
 ```
@@ -1398,11 +1459,22 @@ The sheet does not price what is not there. That currency keeps GnuCash's own re
 		cost_value: 11116.00 # sum of each commodity's cost_value
 		value: 11721.60 # sum of each commodity's value
 		unrealized_gains_assets_fx: 605.60 # value - cost_value
-	unrealized_gains_liabilities_fx: 0.00 CAD
+	unrealized_gains_liabilities_fx:
+		commodities:
+			commodity:
+				commodity.mnemonic: "USD"
+				type: liability
+				measured_from: gnucash_revaluation # its cost bases do not account for what the accounts hold
+				cost_value: -3550.00 # what its splits were recorded at, converted
+				value: -3550.00 # what the accounts hold, at the sheet's price
+				unrealized_gains_liabilities_fx: 0.00 # value - cost_value
+		cost_value: -3550.00 # sum of each commodity's cost_value
+		value: -3550.00 # sum of each commodity's value
+		unrealized_gains_liabilities_fx: 0.00 # value - cost_value
 	unrealized_gains_fx: 605.60 CAD # unrealized_gains_assets_fx + unrealized_gains_liabilities_fx
 ```
 
-The Hong Kong dollars agree with their cost basis, so they are measured from it. The US dollars do not, so they are not.
+The Hong Kong dollars agree with their cost basis, so they are measured from it. The US dollars do not, so they are not. The 2,500.00 USD loan was borrowed in a transaction stated wholly in US dollars, so it opened no cost basis either: the owed side states GnuCash's own figure for it, 3,550.00 CAD at 1.42 CAD/USD on both sides of the subtraction, and none of it is a gain or a loss.
 
 **The items are what tell you which happened**, and they are on the page by default. A currency measured from its own cost bases states what they still account for as `cost_basis_balance` beside what the accounts hold as `balance_value`, and lists each basis and each account — the Hong Kong dollars above, agreeing at 5,500.00. A currency the bases cannot speak for states **`measured_from: gnucash_revaluation`** and none of those: no cost bases, no accounts, no `cost_basis_balance` and no `balance_value`, because a group with no basis behind it has nothing to put in them. It states the cost and the worth GnuCash's own subtraction used instead, so the items still come to the 605.60 the key states.
 

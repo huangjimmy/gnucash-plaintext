@@ -176,9 +176,9 @@ def key_of(output, name):
 def block_of(output, name):
     """The nested lines a gain figure carries, as one string with guids masked.
 
-    Four keys state their items rather than a figure — `realized_gains_fx`,
-    `unrealized_gains_assets_fx`, `unrealized_gains_other` and
-    `gnucash_balancing_amount` (Q-044). The key's own line is one tab in and
+    Five keys state their items rather than a figure — `realized_gains_fx`,
+    `unrealized_gains_assets_fx`, `unrealized_gains_liabilities_fx`,
+    `unrealized_gains_other` and `gnucash_balancing_amount` (Q-044). The key's own line is one tab in and
     bare; everything under it is deeper, and the block ends at the next line one
     tab in. A split's guid is made fresh on every import, so it is replaced by
     `<guid>` and the rest compared as written.
@@ -201,7 +201,7 @@ def block_of(output, name):
 def totals_of(output, name):
     """A block's own totals, as `{field: Fraction}`.
 
-    The four itemized keys end in their own summary lines — the key's figure and
+    The itemized keys end in their own summary lines — the key's figure and
     the columns it was reached from — written one tab inside the block, with the
     items themselves deeper than that. So this takes the lines at that one depth
     and leaves the items alone.

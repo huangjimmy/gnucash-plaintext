@@ -1,0 +1,95 @@
+# A book kept in CAD that borrowed US dollars and kept half of them.
+#
+# The same loan as `a_cad_book_that_borrowed_usd_into_its_cad_bank.txt`, at the
+# same rate and prices, with half of it kept in a US dollar bank:
+#
+# - Liabilities:USD Loan: 1,000.00 USD owed, drawn at 1.30 CAD/USD, so the book
+#   carries it at 1,300.00 CAD.
+# - Assets:USD Bank: 500.00 USD of it, held at 1.30 CAD/USD, 650.00 CAD.
+# - Assets:CAD Bank: the other 500.00 USD, converted at 1.30 CAD/USD into
+#   650.00 CAD.
+# - Prices: USD in CAD 1.30 on 01-02 and 1.40 on 02-02.
+#
+# What this fixture is for: a book that holds a currency and owes the same
+# currency at once, so each side has a cost basis of its own. By 2026-02-28 the
+# nearest price is 1.40 CAD/USD: the 500.00 USD held is worth 700.00 CAD
+# against its 650.00 CAD cost, a gain of 50.00 CAD, and the 1,000.00 USD owed
+# is worth 1,400.00 CAD against the 1,300.00 CAD it was drawn at, a loss of
+# 100.00 CAD.
+2026-01-01 commodity CAD
+	mnemonic: "CAD"
+	fullname: "Canadian Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 commodity USD
+	mnemonic: "USD"
+	fullname: "US Dollar"
+	namespace: "CURRENCY"
+	fraction: 100
+2026-01-01 open Assets
+	type: "Asset"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:CAD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Assets:USD Bank
+	type: "Bank"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Liabilities
+	type: "Liability"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Liabilities:USD Loan
+	type: "Liability"
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+2026-01-01 open Equity
+	type: "Equity"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Income
+	type: "Income"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+2026-01-01 open Expenses
+	type: "Expense"
+	placeholder: #True
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "CAD"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-01-02 12:00:00 +0000"
+	value: "13/10"
+	source: "user:price-editor"
+	type: "last"
+
+price
+	commodity.namespace: "CURRENCY"
+	commodity.mnemonic: "USD"
+	currency.mnemonic: "CAD"
+	time: "2026-02-02 12:00:00 +0000"
+	value: "14/10"
+	source: "user:price-editor"
+	type: "last"
+
+2026-01-03 * "Borrow 1,000.00 USD, keep 500.00 USD and convert the rest to CAD"
+	currency.mnemonic: "CAD"
+	Assets:CAD Bank 650.00 CAD
+	Assets:USD Bank 500.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.30"
+		value: "650.00"
+	Liabilities:USD Loan -1000.00 USD
+		account.commodity.mnemonic: "USD"
+		share_price: "1.30"
+		value: "-1300.00"

@@ -99,14 +99,20 @@ measured on the wrong side of two builds.
 - opensuse (GnuCash 5.16)
 
 **Two of these are past their end of life and are served from elsewhere.** The
-Dockerfile points bullseye at `snapshot.debian.org` and buster at
-`archive.debian.org`, both with `Acquire::Check-Valid-Until "false"`, and
-buster needs `libxslt1-dev` where every other base wants `libxslt-dev`.
+Dockerfile points bullseye and buster at `archive.debian.org`, both with
+`Acquire::Check-Valid-Until "false"`, and buster needs `libxslt1-dev` where
+every other base wants `libxslt-dev`.
 
 bullseye is the sharp one, because the mirror lies: `deb.debian.org` still
 publishes a *valid* security index — measured 2026-09-05, `Valid-Until: Mon,
 07 Sep 2026` — while deleting the package files that index lists, so apt reads
 the list, asks for a file and gets a 404. No date check catches that.
+
+It was taken from `snapshot.debian.org` at 20260901T000000Z until 2026-11-06,
+when two CI builds in a row spent about 1389 seconds getting `503 No healthy
+backends`, `503 first byte timeout` and `504 Gateway Timeout` for every
+package. `archive.debian.org` carries bullseye by then, its security index
+dated 2026-09-12, and an image built from it holds GnuCash 1:4.4-1, as before.
 
 **Debian 10 sets the Python floor at 3.7**, which is why `pyproject.toml` says
 `requires-python = ">=3.7"` and ruff `target-version = "py37"`. It had been

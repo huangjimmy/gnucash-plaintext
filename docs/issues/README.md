@@ -105,3 +105,4 @@ and in the **Status** column below.
 | [Q-056](Q-056-measure-a-book-in-the-base-currency-it-states.md) | A book is measured in the base currency it states, not in CAD | high | closed |
 | [Q-057](Q-057-keep-each-accounts-balance-in-every-currency-the-book-supports.md) | Keep each account's balance in every currency the book supports, and move every balance with a transfer | — | closed |
 | [Q-058](Q-058-run-a-batch-of-read-commands-against-one-open-book.md) | A batch of read commands opens the book once, and writes each command's output to its own file | enhancement | open |
+| [Q-059](Q-059-the-owed-side-of-an-itemized-balance-sheet-listed-no-cost-basis.md) | An itemized balance sheet listed the cost bases of the currency a book holds, and none of the currency it owes | medium | closed |
