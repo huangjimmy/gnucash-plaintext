@@ -38,10 +38,11 @@ from tests.integration.text_report_pages import block_total_of, key_of
 # Every itemized key, and books that exercise each of them: cost bases at
 # several rates, a currency that falls back to GnuCash's revaluation, disposals
 # that realize a difference, securities, and a book that owes a currency.
-ITEMIZED = ('unrealized_gains_assets_fx', 'realized_gains_fx',
-            'unrealized_gains_other', 'gnucash_balancing_amount')
+ITEMIZED = ('unrealized_gains_assets_fx', 'unrealized_gains_liabilities_fx',
+            'realized_gains_fx', 'unrealized_gains_other', 'gnucash_balancing_amount')
 
 BOOKS = (
+    ('a_cad_book_that_borrowed_usd_and_kept_half_of_it_in_usd.txt', '2026-02-28'),
     ('a_cad_book_that_bought_usd_at_four_rates_and_spends_only_cad.txt', '2026-12-31'),
     ('a_cad_book_with_usd_hkd_and_shares_priced_in_its_price_database.txt', '2026-12-31'),
     ('a_cad_book_that_borrowed_usd_into_its_cad_bank.txt', '2026-01-25'),
@@ -105,15 +106,14 @@ def test_every_itemized_total_is_what_the_key_states_without_items(tmp_path, led
 def test_the_page_states_the_addition_it_prints(tmp_path, ledger, as_of):
     """`unrealized_gains_fx` says it is the two sides added, so it has to be.
 
-    The comment on that line states an addition. With the assets side itemized
-    and the owed side not, a reader adds the block's total to the figure beside
-    it and must arrive at the third — which is the arithmetic the page asserts
-    about itself.
+    The comment on that line states an addition. A reader adds the two blocks'
+    totals and must arrive at the third — which is the arithmetic the page
+    asserts about itself.
     """
     itemized, _plain = _pages(tmp_path, ledger, as_of)
 
     assets = block_total_of(itemized, 'unrealized_gains_assets_fx')
-    owed = Fraction(key_of(itemized, 'unrealized_gains_liabilities_fx').split(' ')[0])
+    owed = block_total_of(itemized, 'unrealized_gains_liabilities_fx')
     total = Fraction(key_of(itemized, 'unrealized_gains_fx').split(' ')[0])
 
     assert assets + owed == total, (

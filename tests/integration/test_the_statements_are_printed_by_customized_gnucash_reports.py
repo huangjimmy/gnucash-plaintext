@@ -241,7 +241,7 @@ class TestACadBookOverOneFiscalYear:
         # no cost basis and its split values convert at the same price as its
         # balance — neither the book nor GnuCash can see what it has cost, and
         # the key says 0.00 rather than leaving the reader to wonder.
-        assert _key(result.output, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert _block_total_of(result.output, 'unrealized_gains_liabilities_fx') == 0
         assert _key(result.output, 'unrealized_gains_fx') == '605.60 CAD'
         # And the items add to the key they sit under: the HKD group measured
         # from its own cost bases at 100.00, the USD group under
@@ -437,7 +437,12 @@ class TestABookOwingForeignCurrency:
         # it, which is what `unrealized_gains_fx` adds up to and what the
         # equity total is built on.
         assert _block_total_of(result.output, 'unrealized_gains_assets_fx') == 0
-        assert _key(result.output, 'unrealized_gains_liabilities_fx') == '-100.00 CAD'
+        assert _block_total_of(result.output, 'unrealized_gains_liabilities_fx') == -100
+        # And the loan's cost basis is listed under it, as a cost basis the
+        # book holds is listed under the asset side.
+        owed = _block_of(result.output, 'unrealized_gains_liabilities_fx')
+        assert 'account: "Liabilities:USD Loan"' in owed, owed
+        assert 'cost_basis_balance: -1000.00\n' in owed, owed
         assert _key(result.output, 'unrealized_gains_fx') == '-100.00 CAD'
         # A loan is currency, so what it has cost belongs on the `_fx` keys.
         # `_other` is for a holding that is not a currency at all, and this
@@ -470,7 +475,7 @@ class TestABookOwingForeignCurrency:
         assert _amount(result.output, 'Liabilities:USD Loan') == '1000.00 USD'
         assert _under(result.output, 'Liabilities:USD Loan')['value'] == '1300.00'
         assert _block_total_of(result.output, 'unrealized_gains_assets_fx') == 0
-        assert _key(result.output, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert _block_total_of(result.output, 'unrealized_gains_liabilities_fx') == 0
         assert _key(result.output, 'unrealized_gains_fx') == '0.00 CAD'
         assert _block_total_of(result.output, 'unrealized_gains_other') == 0
         assert _key(result.output, 'total_unrealized_gains') == '0.00 CAD'

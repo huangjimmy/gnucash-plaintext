@@ -192,7 +192,7 @@ class TestEveryDollarStillHeld:
         page, _higher, _below = self._pages(tmp_path)
 
         assert block_total_of(page, 'unrealized_gains_assets_fx') == Fraction('-19.86')
-        assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert block_total_of(page, 'unrealized_gains_liabilities_fx') == 0
         assert key_of(page, 'unrealized_gains_fx') == '-19.86 CAD'
         assert block_total_of(page, 'unrealized_gains_other') == 0
         assert key_of(page, 'total_unrealized_gains') == '-19.86 CAD'
@@ -278,7 +278,7 @@ class TestAThousandDollarsKeptBack:
         # The book owes nothing, so the whole of the unrealized figure is on
         # the asset side and the two sides come to the third.
         assert block_total_of(page, 'unrealized_gains_assets_fx') == Fraction('-7.30')
-        assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert block_total_of(page, 'unrealized_gains_liabilities_fx') == 0
         assert key_of(page, 'unrealized_gains_fx') == '-7.30 CAD'
 
     def test_each_kind_has_its_total(self, tmp_path):
@@ -658,7 +658,7 @@ class TestUsdBoughtAtFourRatesAndPricedAtSix:
         for price in self.PRICED:
             assert block_total_of(pages[price], 'realized_gains_fx') == 0, price
             assert key_of(pages[price], 'total_realized_gains') == '0.00 CAD', price
-            assert key_of(pages[price], 'unrealized_gains_liabilities_fx') == '0.00 CAD', price
+            assert block_total_of(pages[price], 'unrealized_gains_liabilities_fx') == 0, price
 
     def test_the_canadian_spending_moves_the_total_and_no_gain(self, tmp_path):
         """3,400.00 left in the Canadian bank, and 4,000.00 USD at the price.
@@ -701,7 +701,7 @@ class TestUsdBoughtAndHeld:
         assert block_total_of(page, 'realized_gains_fx') == 0
         assert key_of(page, 'total_realized_gains') == '0.00 CAD'
         assert block_total_of(page, 'unrealized_gains_assets_fx') == 150
-        assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert block_total_of(page, 'unrealized_gains_liabilities_fx') == 0
         assert key_of(page, 'unrealized_gains_fx') == '150.00 CAD'
         assert key_of(page, 'total_unrealized_gains') == '150.00 CAD'
 
@@ -768,7 +768,7 @@ class TestUsdEarnedThreeTimesAndSpentOutInFour:
         page = self._page(tmp_path)
 
         assert block_total_of(page, 'unrealized_gains_assets_fx') == 0
-        assert key_of(page, 'unrealized_gains_liabilities_fx') == '0.00 CAD'
+        assert block_total_of(page, 'unrealized_gains_liabilities_fx') == 0
         assert key_of(page, 'unrealized_gains_fx') == '0.00 CAD'
         assert key_of(page, 'total_unrealized_gains') == '0.00 CAD'
 

@@ -867,7 +867,8 @@
                   (xaccAccountGetCommodity account) "asset" accounts moment)))
           accounts))
 
-;; `unrealized_gains_assets_fx` with its cost bases under it, grouped by
+;; `unrealized_gains_assets_fx`, and `unrealized_gains_liabilities_fx` in the
+;; same shape, with its cost bases under it, grouped by
 ;; commodity and type and never added before the page is written: each basis
 ;; states the balance it holds, what that cost, what it is worth at the sheet's
 ;; price and the difference; the commodity adds its bases up; the key adds the
@@ -893,8 +894,20 @@
            (keep (cdr rest) (cons (car rest) found)))
           (else (keep (cdr rest) found)))))
 
-(define (plaintext:commodity-accounts accounts commodity moment)
-  (let* ((mine (plaintext:accounts-in accounts commodity))
+;;
+;; `on` is the side a cost basis block is listing, and each account's balance is
+;; then what it holds on that side: a receivable's or a payable's lots are read
+;; one side at a time, so the lines add up to `balance_value` and to the figure
+;; the side's cost bases are checked against. The balancing block passes no
+;; side, and its accounts are read whole.
+(define (plaintext:commodity-accounts accounts commodity moment . on)
+  (let* ((side (if (null? on) #f (car on)))
+         (balance-of (lambda (account)
+                       (if side
+                           (plaintext:side-balance account side moment)
+                           (plaintext:exact
+                            (xaccAccountGetBalanceAsOfDate account moment)))))
+         (mine (plaintext:accounts-in accounts commodity))
          (missing (plaintext:left-out (length mine))))
    (let loop ((rest (plaintext:first-of mine)) (lines '()))
     (if (null? rest)
@@ -914,10 +927,7 @@
                                   (let sum ((xs (plaintext:after-first mine)) (n 0))
                                     (if (null? xs)
                                         n
-                                        (sum (cdr xs)
-                                             (+ n (plaintext:exact
-                                                   (xaccAccountGetBalanceAsOfDate
-                                                    (car xs) moment))))))
+                                        (sum (cdr xs) (+ n (balance-of (car xs))))))
                                   (plaintext:places-of commodity)))))
                     '()))
         (loop (cdr rest)
@@ -954,7 +964,7 @@
                          (string-append
                           (plaintext:indent 6) "balance: "
                           (plaintext:figure
-                           (xaccAccountGetBalanceAsOfDate (car rest) moment)
+                           (balance-of (car rest))
                            (plaintext:places-of commodity))))))))))
 
 ;; What the commodities left to GnuCash's revaluation are worth between them,
@@ -1006,10 +1016,13 @@
                     ;; described: "AMZN in AMZN" would be read as a price.
                     (if pending?
                         ""
+                        ;; Currency owed was borrowed or charged, not bought.
                         (string-append
                          " # " (plaintext:basis-item-currency item) " in "
                          (plaintext:basis-item-pair-currency item)
-                         ", on the day it was bought")))
+                         (if (string=? (plaintext:basis-item-side item) "asset")
+                             ", on the day it was bought"
+                             ", on the day it came to be owed"))))
      (string-append (plaintext:indent 6) "cost_rate: "
                     (plaintext:figure (plaintext:basis-item-cost-rate item) 0)
                     " # " (gnc-commodity-get-mnemonic report-commodity) " per "
@@ -1042,17 +1055,31 @@
                   (cons (car rest) found)
                   found)))))
 
+;; One block per side, the same shape for both: `side` is "asset" for
+;; `unrealized_gains_assets_fx` and "liability" for
+;; `unrealized_gains_liabilities_fx`, and `accounts` are that side's. The owed
+;; side was a bare figure while the held side listed what it was made of, so a
+;; reader could check one of the two numbers `unrealized_gains_fx` adds and not
+;; the other — on a book holding 500.00 USD and owing 1,000.00 USD, the page
+;; showed the 650.00 the dollars held cost and nothing of the 1,300.00 the
+;; loan was drawn at, though both keys are measured from cost bases.
+;;
+;; The owed side's figures are negative, as `plaintext:cost-bases` signs them
+;; and as GnuCash signs a liability's balance, so each entry comes to what the
+;; key adds and the accounts' balances read as the account lines above them do.
 (define (plaintext:cost-basis-block price-fn report-commodity moment accounts
-                                    revalue)
+                                    revalue side)
   (let* ((table (gnc-commodity-table-get-table (gnc-get-current-book)))
-         ;; The asset side alone. This block is what
-         ;; `unrealized_gains_assets_fx` is made of, and what the book owes is
-         ;; the separate `unrealized_gains_liabilities_fx` key. Listed here as
-         ;; well, a borrowing's cost basis was added into the assets key:
-         ;; measured on a CAD book whose only foreign thing is a 1,000.00 USD
-         ;; loan drawn at 1.30 and worth 1,400.00 by the report's date, the
-         ;; block stated 100.00 of gain under the assets key on a page whose
-         ;; `unrealized_gains_fx` says the book has lost 100.00.
+         (key (if (string=? side "asset")
+                  "unrealized_gains_assets_fx"
+                  "unrealized_gains_liabilities_fx"))
+         (sign (if (string=? side "asset") 1 -1))
+         ;; This side alone. What the book holds and what it owes are two keys,
+         ;; and a borrowing's cost basis listed under the assets key was added
+         ;; into it: measured on a CAD book whose only foreign thing is a
+         ;; 1,000.00 USD loan drawn at 1.30 and worth 1,400.00 by the report's
+         ;; date, the block stated 100.00 of gain under the assets key on a page
+         ;; whose `unrealized_gains_fx` says the book has lost 100.00.
          ;; And only the commodities the key is measured from. A currency whose
          ;; cost bases do not account for what the accounts hold keeps
          ;; GnuCash's own revaluation, and `plaintext:revaluation` passes its
@@ -1060,30 +1087,29 @@
          ;; rate made the block come to something the key never states: 1300.00
          ;; under a key reading 940.00, above a line calling itself the sum of
          ;; that block and the owed side.
-         (pairs-of-assets
+         (pairs-of-side
           (let keep ((rest (plaintext:cost-basis-pairs)) (found '()))
             (cond ((null? rest) (reverse found))
-                  ((and (string=? (cdr (car rest)) "asset")
+                  ((and (string=? (cdr (car rest)) side)
                         (plaintext:measured-from-cost-bases?
                          (gnc-commodity-table-lookup
                           table "CURRENCY" (car (car rest)))
-                         "asset" accounts moment))
+                         side accounts moment))
                    (keep (cdr rest) (cons (car rest) found)))
                   (else (keep (cdr rest) found)))))
          ;; The accounts the key falls back to GnuCash's revaluation for. They
          ;; belong in this block because the key includes them: left out, the
          ;; items came to less than the figure above them.
-         (fallback (plaintext:fallback-accounts "asset" accounts moment
+         (fallback (plaintext:fallback-accounts side accounts moment
                                                 report-commodity))
          (fallen-back (plaintext:commodities-of fallback))
          ;; Both kinds of group are entries of the one `commodities:` list, so
          ;; the cap counts them together and the note says how many there are
          ;; altogether. Counting only the cost basis pairs would announce a
          ;; number smaller than the list a reader can see.
-         (groups (+ (length pairs-of-assets) (length fallen-back))))
-    (let outer ((pairs pairs-of-assets)
-                (lines (list (string-append
-                              (plaintext:indent 1) "unrealized_gains_assets_fx:")
+         (groups (+ (length pairs-of-side) (length fallen-back))))
+    (let outer ((pairs pairs-of-side)
+                (lines (list (string-append (plaintext:indent 1) key ":")
                              ;; The note stands in place of the list, so it is
                              ;; written only where the list is empty of both
                              ;; kinds of group. A book whose only foreign
@@ -1096,14 +1122,17 @@
                              (string-append
                               (plaintext:indent 2) "commodities:"
                               (plaintext:listing-note
-                               ;; "on the asset side", because the owed side is
-                               ;; measured from cost bases of its own and has
-                               ;; its own key. The USD-loan book has a cost
-                               ;; basis — `unrealized_gains_liabilities_fx`
-                               ;; states -100.00 from it — and this block was
-                               ;; telling a reader the book had none.
+                               ;; The note states the side, because each side
+                               ;; is measured from cost bases of its own and
+                               ;; has its own key. The USD-loan book has no cost
+                               ;; basis on the asset side and one on the
+                               ;; liability side, from which
+                               ;; `unrealized_gains_liabilities_fx` states
+                               ;; -100.00 — a note saying only "there is no cost
+                               ;; basis" told a reader the book had none.
                                groups "commodities" "commodity"
-                               " # there is no cost basis on the asset side"))))
+                               (string-append " # there is no cost basis on the "
+                                              side " side")))))
                 (all-held 0) (all-spent 0) (all-worth 0)
                 (drawn 0) (rest-cost 0) (rest-worth 0))
       (if (null? pairs)
@@ -1131,7 +1160,7 @@
                                     (cons "value"
                                           (plaintext:figure
                                            rw (plaintext:places-of report-commodity)))
-                                    (cons "unrealized_gains_assets_fx"
+                                    (cons key
                                           (plaintext:figure
                                            (- rw rc)
                                            (plaintext:places-of report-commodity)))))
@@ -1147,7 +1176,7 @@
                            (string-append
                             (plaintext:indent 4) "commodity.mnemonic: \""
                             (gnc-commodity-get-mnemonic (car rest)) "\"")
-                           (string-append (plaintext:indent 4) "type: asset")
+                           (string-append (plaintext:indent 4) "type: " side)
                            (string-append
                             (plaintext:indent 4) "measured_from: gnucash_revaluation"
                             (plaintext:why-measured-from-revaluation))
@@ -1162,7 +1191,7 @@
                                               (plaintext:places-of report-commodity))
                             " # what the accounts hold, at the sheet's price")
                            (string-append
-                            (plaintext:indent 4) "unrealized_gains_assets_fx: "
+                            (plaintext:indent 4) key ": "
                             (plaintext:figure (- (car parts) (cdr parts))
                                               (plaintext:places-of report-commodity))
                             " # value - cost_value"))))
@@ -1190,7 +1219,7 @@
                     (plaintext:figure worth (plaintext:places-of report-commodity))
                     " # sum of each commodity's value")
                    (string-append
-                    (plaintext:indent 2) "unrealized_gains_assets_fx: "
+                    (plaintext:indent 2) key ": "
                     (plaintext:figure (- worth spent)
                                       (plaintext:places-of report-commodity))
                     " # value - cost_value"))))
@@ -1242,7 +1271,7 @@
                                        (plaintext:figure
                                         rest-vl
                                         (plaintext:places-of report-commodity)))
-                                 (cons "unrealized_gains_assets_fx"
+                                 (cons key
                                        (plaintext:figure
                                         (- rest-vl rest-cv)
                                         (plaintext:places-of report-commodity)))))
@@ -1262,12 +1291,12 @@
                              (plaintext:listing-note
                               (length (plaintext:accounts-in accounts commodity))
                               "accounts" "account" "")))
-                      (plaintext:commodity-accounts accounts commodity moment)
+                      (plaintext:commodity-accounts accounts commodity moment side)
                       (list (string-append
                              (plaintext:indent 4) "balance_value: "
                              (plaintext:figure
                               (if commodity
-                                  (plaintext:held-in accounts commodity moment)
+                                  (plaintext:held-in accounts commodity moment side)
                                   0)
                               (plaintext:places-or report-commodity commodity))
                              " # sum of account's balance for all accounts")
@@ -1277,7 +1306,7 @@
                               worth (plaintext:places-of report-commodity))
                              " # cost_basis_balance * share_price")
                             (string-append
-                             (plaintext:indent 4) "unrealized_gains_assets_fx: "
+                             (plaintext:indent 4) key ": "
                              (plaintext:figure
                               rise (plaintext:places-of report-commodity))
                              " # value - cost_value"))))
@@ -1290,7 +1319,7 @@
                                        (car pair))
                              (string=? (plaintext:basis-item-side item)
                                        (cdr pair)))
-                        (let* ((bal (plaintext:basis-item-balance item))
+                        (let* ((bal (* sign (plaintext:basis-item-balance item)))
                                (cst (plaintext:basis-item-cost item))
                                (cv (plaintext:as-money (* bal cst) report-commodity))
                                (vl (plaintext:as-money (* bal price) report-commodity)))
@@ -1300,7 +1329,7 @@
                                (plaintext:push rows
                                                (plaintext:basis-entry
                                                 item bal cv vl commodity report-commodity
-                                                "unrealized_gains_assets_fx"))
+                                                key))
                                rows)
                            (+ held bal) (+ spent cv) (+ seen 1)
                            (if (plaintext:room-for? seen) rest-bal (+ rest-bal bal))
@@ -3008,19 +3037,25 @@
             (if use-trading-accounts?
                 '()
                 (append
+                 ;; The two sides alike, itemized or not: each key is measured
+                 ;; from its own side's cost bases, so each lists them.
                  (if plaintext:itemize?
-                     (plaintext:cost-basis-block price-fn report-commodity moment
-                                                 held-accounts
-                                                 gnucash-worth-and-cost)
+                     (append
+                      (plaintext:cost-basis-block price-fn report-commodity moment
+                                                  held-accounts
+                                                  gnucash-worth-and-cost "asset")
+                      (plaintext:cost-basis-block price-fn report-commodity moment
+                                                  owed-accounts
+                                                  gnucash-worth-and-cost "liability"))
                      (list (string-append
                             (plaintext:indent 1) "unrealized_gains_assets_fx: "
                             (plaintext:amount-of unrealized-assets-fx
+                                                 report-commodity))
+                           (string-append
+                            (plaintext:indent 1) "unrealized_gains_liabilities_fx: "
+                            (plaintext:amount-of unrealized-liabilities-fx
                                                  report-commodity))))
                  (list (string-append
-                        (plaintext:indent 1) "unrealized_gains_liabilities_fx: "
-                        (plaintext:amount-of unrealized-liabilities-fx
-                                             report-commodity))
-                       (string-append
                         (plaintext:indent 1) "unrealized_gains_fx: "
                         (plaintext:amount-of unrealized-fx report-commodity)
                         " # unrealized_gains_assets_fx +"

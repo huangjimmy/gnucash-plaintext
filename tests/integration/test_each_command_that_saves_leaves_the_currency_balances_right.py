@@ -10,11 +10,13 @@ assets.
 """
 
 import re
+from fractions import Fraction
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from tests.conftest import _run
+from tests.integration.text_report_pages import block_of, block_total_of
 
 FIXTURES = Path('tests/fixtures')
 MIGRATED = (
@@ -86,6 +88,10 @@ def test_unapplying_a_payment_leaves_an_invoice_held_beside_a_credit_owed(tmp_pa
     and 1,500.00 USD owed back. The credit stores the 2,037.00 CAD it was
     paid at and is worth 2,158.35 CAD at 1.4389 CAD/USD, so the owed side
     states a loss of 121.35 CAD.
+
+    Each side's block lists the receivable at that side's lots: 2,500.00 USD
+    held and 1,500.00 USD owed, never its whole balance of 1,000.00 USD, which
+    is neither side's and is not what either side's cost bases add to.
     """
     book = _acmu(tmp_path)
     before = _balances(book)
@@ -97,7 +103,15 @@ def test_unapplying_a_payment_leaves_an_invoice_held_beside_a_credit_owed(tmp_pa
     assert (sheet['total_assets'], sheet['total_liabilities_and_equity'], sheet['retained_earnings'],
             sheet['total_realized_gains'], sheet['total_unrealized_gains']) == (
                 '13626.16', '13626.16', '11299.31', '37.69', '1028.05')
-    assert sheet['unrealized_gains_liabilities_fx'] == '-121.35'
+    page = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2024-12-31', '--currency', 'CAD')
+    assert block_total_of(page.output, 'unrealized_gains_liabilities_fx') == Fraction('-121.35')
+    receivable = '\t\t\t\t\t\tname: "Assets:Accounts Receivable USD"\n\t\t\t\t\t\tbalance: '
+    held = block_of(page.output, 'unrealized_gains_assets_fx')
+    owed = block_of(page.output, 'unrealized_gains_liabilities_fx')
+    assert receivable + '2500.00\n' in held, held
+    assert '\t\t\t\tbalance_value: 7398.34 #' in held, held
+    assert receivable + '-1500.00\n' in owed, owed
+    assert '\t\t\t\tbalance_value: -1500.00 #' in owed, owed
     _is_consistent_and_balanced(book)
 
 

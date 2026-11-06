@@ -339,12 +339,31 @@ class TestAFeeStatingNoCostBasis:
         listed = _run(CliRunner(), 'fx-balances', str(book))
         assert '1 disposal(s) pending their cost basis: 1.00 USD.' in listed.output, \
             listed.output
-        # The owed side is one line on the page. What it cost is 2.01 charged
-        # less the 1.01 the pending repayment recorded; no rate is stated for
-        # the 1.00 USD still owed, so it is valued at nothing.
-        page = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-08-14',
-                    '--output-format', 'text', '--itemize')
-        assert '\tunrealized_gains_liabilities_fx: 1.00 CAD\n' in page.output, page.output
+        # What the card has cost is 2.01 charged less the 1.01 the pending
+        # repayment recorded; no rate is stated for the 1.00 USD still owed, so
+        # it is valued at nothing, and the owed side states 1.00. The book holds
+        # no foreign currency, so the held side states 0.00.
+        #
+        # The two sides are stated alike, drawn either way. With `--itemize`
+        # each is a block listing what it is measured from, ending in its own
+        # figure; with `--no-itemize` each is one line. The owed side used to be
+        # one line both ways while the held side listed its cost bases.
+        itemized = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-08-14',
+                        '--output-format', 'text', '--itemize')
+        assert itemized.exit_code == 0, itemized.output
+        plain = _run(CliRunner(), 'balance-sheet', str(book), '--as-of', '2026-08-14',
+                     '--output-format', 'text', '--no-itemize')
+        assert plain.exit_code == 0, plain.output
+        for side, figure in (('assets', '0.00'), ('liabilities', '1.00')):
+            key = f'unrealized_gains_{side}_fx'
+            assert f'\n\t{key}:\n' in itemized.output, (key, itemized.output)
+            assert f'\n\t\t{key}: {figure} # value - cost_value\n' in itemized.output, \
+                (key, itemized.output)
+            assert f'\n\t{key}: {figure} CAD\n' in plain.output, (key, plain.output)
+            assert f'\n\t{key}:\n' not in plain.output, (key, plain.output)
+        assert 'cost_basis:' not in plain.output, plain.output
+        assert '\n\tunrealized_gains_fx: 1.00 CAD #' in itemized.output, itemized.output
+        assert '\n\tunrealized_gains_fx: 1.00 CAD #' in plain.output, plain.output
         assert _run(CliRunner(), '--verify-integrity', str(book)).exit_code == 0
 
     def test_fees_from_two_accounts_beside_an_arrival_are_refused_as_a_transfer(self, tmp_path):
